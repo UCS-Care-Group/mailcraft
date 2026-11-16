@@ -56,7 +56,7 @@ fn window(m: Message) -> (egui_kittest::Harness<'static, MailApp>, u64, u64) {
     let id = mailbox.add_message(m).unwrap();
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let mut harness =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
             |ui, app: &mut MailApp| {

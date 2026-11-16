@@ -50,3 +50,25 @@ fn finds_banned_groups_anywhere_in_the_tree() {
     assert_eq!(found.len(), 2, "{found:?}");
     assert!(banned_in_tree("+--- androidx.core:core:1.0\n").is_empty());
 }
+
+#[test]
+fn the_licence_page_must_claim_what_ships_and_nothing_else() {
+    let page = "internal val X = listOf(\n    // groups = listOf(\"ignored\")\n    Licence(\"A\", \"a\", \"MIT\", groups = listOf(\"androidx\", \"org.rustls\")),\n    Licence(\"B\", \"b\", \"MIT\"),\n)\n";
+    assert_eq!(licence_page_groups(page), vec!["androidx", "org.rustls"]);
+    let report = "androidx.core:core:1.0\tApache\norg.rustls:rustls-platform-verifier:1\t\n";
+    assert!(check_licence_page(report, page).is_empty());
+    // A new group ships and no row has it; a prefix is not a word-part ("androidx2" is not androidx).
+    let more = format!("{report}com.example:thing:1\tMIT\nandroidx2:x:1\tMIT\n");
+    let problems = check_licence_page(&more, page);
+    assert_eq!(problems.len(), 2, "{problems:?}");
+    // A row for something gone.
+    let less = "androidx.core:core:1.0\tApache\n";
+    assert_eq!(check_licence_page(less, page).len(), 1);
+}
+
+#[test]
+fn finds_banned_subgroups_in_the_tree() {
+    let tree = "+--- com.google.firebase.tools:helper:1\n|    \\--- com.google.android.gms.ads:ads-lite:2 -> 3\n+--- com.google.firebasefoo:x:1\n";
+    let found = banned_in_tree(tree);
+    assert_eq!(found, vec!["com.google.firebase.tools:helper:1", "com.google.android.gms.ads:ads-lite:2"]);
+}

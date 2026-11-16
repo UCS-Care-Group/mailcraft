@@ -17,10 +17,12 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
     /** The facts of particular messages, where they differ from [factsAnswer]. */
     val factsById = mutableMapOf<ULong, MessageFacts?>()
     var onDownload: suspend () -> Unit = {}
+    var onSenderDownload: suspend () -> Unit = {}
 
     /** What a download of an address gives; a missing address is refused. */
     val web = mutableMapOf<String, ByteArray>()
     val senderWeb = mutableMapOf<String, ByteArray>()
+    var marks = true
 
     override suspend fun open(id: ULong, widthDp: Int, dark: Boolean): OpenedMessage? {
         opened += Triple(id, widthDp, dark)
@@ -29,7 +31,11 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
 
     override suspend fun part(id: ULong, reference: String): ByteArray? = parts[reference]
 
-    override suspend fun download(url: String): Fetched {
+    /** The signal each download was given. */
+    val stops = mutableListOf<Stop>()
+
+    override suspend fun download(url: String, stop: Stop): Fetched {
+        stops += stop
         onDownload()
         downloads += url
         return web[url]?.let { Fetched.Got(it) } ?: Fetched.Refused("it is no longer there (404)")
@@ -42,13 +48,20 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
 
     override suspend fun downloadSender(url: String): Fetched {
         senderDownloads += url
+        onSenderDownload()
         return senderWeb[url]?.let { Fetched.Got(it) } ?: Fetched.Refused("404")
     }
 
     override suspend fun markRead(id: ULong): Boolean {
         marked += id
-        return true
+        return marks
     }
 
-    override suspend fun dataSaving(): Boolean = dataSaver
+    /** Runs while a data-saving query is on its way (the real one suspends on another thread). */
+    var onDataSaving: suspend () -> Unit = {}
+
+    override suspend fun dataSaving(): Boolean {
+        onDataSaving()
+        return dataSaver
+    }
 }

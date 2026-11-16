@@ -9,17 +9,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
 private val Gutter = 16.dp
@@ -39,25 +35,6 @@ internal fun picturesSummary(texts: Texts, ui: PicturesUi): String =
 /** The summary under the Sender images row. */
 internal fun senderImagesSummary(texts: Texts, ui: PicturesUi): String =
     if (ui.prefs.senderImages) texts.t("On") else texts.t("Off")
-
-@Composable
-private fun SwitchRow(label: String, said: String, on: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(value = on, role = Role.Switch, onValueChange = onChange)
-            .padding(Gutter),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Gutter),
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
-            Text(said, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Switch(checked = on, onCheckedChange = null)
-    }
-    HorizontalDivider()
-}
 
 /**
  * Pictures: the switch for all mail (off), the senders and domains pictures are always downloaded

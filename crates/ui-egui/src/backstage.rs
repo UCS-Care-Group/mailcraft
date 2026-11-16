@@ -184,11 +184,11 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         ui.painter().rect(r, 6.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         crate::widgets::avatar(ui, pos2(r.min.x + 30.0, r.center().y), 17.0, &a.address());
         let title = if a.email.is_empty() { tl!("Local mailbox").to_string() } else { a.address().full() };
-        // The text runs up to the buttons at the right: Settings, and Remove (a shared mailbox has
-        // Remove alone). The only account can be removed too, leaving an empty mailbox (#313); the
-        // empty mailbox's own placeholder can't.
-        let removable = app.session.mailbox.placeholder() != Some(a.id);
-        let buttons = if a.is_shared() { 1 } else { usize::from(!a.email.is_empty()) + usize::from(removable) };
+        // The text runs up to the buttons at the right: Settings, and Remove. The only account can
+        // be removed too, leaving an empty mailbox (#313); the empty mailbox's own placeholder
+        // can't. (A shared mailbox has both: its settings are its name and colour, #1385.)
+        let removable = a.is_shared() || app.session.mailbox.placeholder() != Some(a.id);
+        let buttons = usize::from(!a.email.is_empty()) + usize::from(removable);
         let text_w = r.width() - 70.0 - 82.0 * buttons as f32;
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), text_w, &title, semibold(13.0), t.text);
         let detail = account_detail(app, a);
@@ -217,14 +217,15 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         };
         let settings_at = if removable { 168.0 } else { 86.0 };
         // (An account kept in step through Graph has no servers to change, #312.)
-        let settings_tip = if a.kind == AccountKind::Microsoft {
+        let settings_tip = if a.is_shared() {
+            // (Its sign-in is its owner's, #70: only its name and colour are its own, #1385.)
+            tl!("Change the name the folder pane shows for this shared mailbox, and its colour")
+        } else if a.kind == AccountKind::Microsoft {
             tl!("Change this account's name, sign-in and mail to keep offline")
         } else {
             tl!("Change this account's name, servers and sign-in")
         };
-        // (A shared mailbox has no settings of its own: its owner's sign-in reads it, #70.)
-        if !a.email.is_empty() && !a.is_shared() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked()
-        {
+        if !a.email.is_empty() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked() {
             let _ = app.run("ui.dialog", json!({"name": "account", "id": a.id}));
         }
         if a.is_shared() {
@@ -384,6 +385,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             app.status(e);
         }
     }
+    subscribed_calendars(app, ui, t);
     section(ui, tl!("Mailbox"), t);
     if let Ok(v) = app.session.run("file.info", &json!({})) {
         let n = |k: &str| v.get(k).and_then(serde_json::Value::as_u64).unwrap_or(0);
@@ -412,6 +414,114 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     // Everything MailCraft keeps here, gone (#177).
     crate::data_removal::section(app, ui, t);
+}
+
+/// The calendars subscribed to (#209): where each is read from, how it is doing, and what the
+/// owner may do about it. The address itself is never shown: it may hold a secret.
+fn subscribed_calendars(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
+    let rows: Vec<(mailcraft_model::Id, String, mailcraft_model::subscription::Subscription)> = app
+        .session
+        .mailbox
+        .calendars
+        .iter()
+        .filter_map(|c| c.subscription.clone().map(|sub| (c.id, c.name.clone(), sub)))
+        .take(mailcraft_model::subscription::MAX_SUBSCRIBED)
+        .collect();
+    section(ui, tl!("Subscribed calendars"), t);
+    if rows.is_empty() {
+        ui.label(
+            egui::RichText::new(tl!(
+                "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
+            ))
+            .font(regular(11.5))
+            .color(t.text_dim),
+        );
+    }
+    let can_update = app.services.subscription.is_some();
+    for (id, name, sub) in rows {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&name).font(semibold(13.0)).color(t.text));
+            ui.label(egui::RichText::new(&sub.host).font(regular(11.5)).color(t.text_dim));
+        });
+        let needs_address = app.subscription_needs_address(id);
+        let (line, bad) = if needs_address {
+            (
+                tl!("Its address wasn't kept (it may hold a secret): enter it again to update this calendar. What it held is shown meanwhile.")
+                    .to_string(),
+                true,
+            )
+        } else if let Some(failure) = sub.failed() {
+            (crate::i18n::fmt(tl!("Couldn't update: {why}. What it held stays."), &[("why", &failure.message())]), true)
+        } else if sub.checked <= 0 {
+            (tl!("Not read yet.").to_string(), false)
+        } else {
+            let when = crate::dates::list_label(sub.checked, app.session.now(), app.session.offset_at(sub.checked), app.session.prefs.twelve_hour);
+            let held = tln!(sub.events, "{n} event", "{n} events");
+            (crate::i18n::fmt(tl!("Updated {when} · {held}"), &[("when", &when), ("held", &held)]), false)
+        };
+        ui.label(egui::RichText::new(line).font(regular(11.5)).color(if bad { t.red } else { t.text_dim }));
+        if sub.capped {
+            // (Said, not dropped silently: the limits are in the engine.)
+            ui.label(
+                egui::RichText::new(crate::i18n::fmt(
+                    tl!("The file has more events than are kept ({one} a calendar, {all} in all): the rest are left out."),
+                    &[
+                        ("one", &mailcraft_model::subscription::MAX_EVENTS.to_string()),
+                        ("all", &mailcraft_model::subscription::MAX_EVENTS_TOTAL.to_string()),
+                    ],
+                ))
+                .font(regular(11.5))
+                .color(t.red),
+            );
+        }
+        ui.horizontal(|ui| {
+            let mut chosen = sub.interval();
+            egui::ComboBox::from_id_salt(("subscription-interval", id)).selected_text(crate::subscribed::interval_words(chosen)).show_ui(ui, |ui| {
+                for minutes in crate::subscribed::INTERVALS {
+                    ui.selectable_value(&mut chosen, minutes, crate::subscribed::interval_words(minutes));
+                }
+            });
+            if chosen != sub.interval() {
+                let _ = app.run("calendar.subscriptionSettings", json!({"id": id, "intervalMinutes": chosen}));
+            }
+            if can_update && !needs_address && ui.link(tl!("Update Now")).clicked() {
+                let _ = app.run("calendar.refreshSubscribed", json!({"id": id}));
+            }
+            if ui.link(tl!("Unsubscribe")).clicked() {
+                let _ = app.run("calendar.unsubscribe", json!({"id": id}));
+            }
+        });
+        if needs_address {
+            let mut again = app.subscribed.again.take().filter(|(calendar, ..)| *calendar == id).unwrap_or((id, String::new(), String::new()));
+            let mut submit = false;
+            ui.horizontal(|ui| {
+                let field =
+                    egui::TextEdit::singleline(&mut again.1).password(true).hint_text(tl!("The address of the calendar")).desired_width(280.0);
+                crate::text_menu::field(ui.add(field));
+                submit = ui.button(tl!("Use This Address")).clicked();
+            });
+            if submit {
+                match app.execute("calendar.subscriptionSettings", json!({"id": id, "address": again.1.trim()})) {
+                    Ok(_) => again = (id, String::new(), String::new()),
+                    Err(e) => again.2 = e,
+                }
+            }
+            if !again.2.is_empty() {
+                ui.label(egui::RichText::new(&again.2).font(regular(11.5)).color(t.red));
+            }
+            app.subscribed.again = Some(again);
+        }
+        ui.add_space(6.0);
+    }
+    if tile(
+        ui,
+        "calendar",
+        tl!("Subscribe to Internet Calendar"),
+        tl!("Keep a calendar from the web up to date here: its address ends in .ics or starts with webcal://"),
+        t,
+    ) {
+        let _ = app.run("ui.dialog", json!({"name": "subscribe"}));
+    }
 }
 
 /// "Download messages in full" for a Microsoft account: everything, or up to a size (larger ones
@@ -557,6 +667,19 @@ fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     heading(ui, tl!("Options"), t);
     section(ui, tl!("General"), t);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut on = app.ui.close_to_tray;
+        let switch = ui.checkbox(&mut on, tl!("Close to system tray")).on_hover_text(tl!(
+            "Keep MailCraft running for mail and reminders when you close its window. Click its icon beside the clock to show it again, or choose Quit from the icon's menu. If no system tray is available, closing exits MailCraft."
+        ));
+        app.hit.add("optionCloseToTray", 0, switch.rect);
+        if switch.changed() {
+            let _ = app.run("ui.closeToTray", json!({"value": on}));
+        }
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        ui.label(tl!("On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."));
+    }
     row(ui, tl!("Interface theme"), |ui| {
         let cur = app.ui.theme;
         egui::ComboBox::from_id_salt("opt_theme").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
@@ -567,6 +690,50 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    // The greys of the dark theme (#1384): neutral, or tinted blue as before #1242.
+    let mut dark_style = egui::Rect::NOTHING;
+    row(ui, tl!("Dark theme"), |ui| {
+        let cur = app.ui.dark_style;
+        let combo = egui::ComboBox::from_id_salt("opt_dark_style").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
+            for s in crate::theme::DarkStyle::ALL {
+                if ui.selectable_label(s == cur, tl!(s.label())).clicked() {
+                    let _ = app.run("ui.darkStyle", json!({"value": s.code()}));
+                }
+            }
+        });
+        let shown = tl!(cur.label()).to_string();
+        combo.response.widget_info(|| {
+            let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Dark theme"));
+            info.current_text_value = Some(shown.clone());
+            info
+        });
+        dark_style = combo.response.rect;
+        combo.response.on_hover_text(tl!("The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."));
+    });
+    app.hit.add("optionDarkStyle", 0, dark_style);
+    let mut animations = egui::Rect::NOTHING;
+    row(ui, tl!("Animations"), |ui| {
+        let cur = app.ui.animations;
+        let combo = egui::ComboBox::from_id_salt("opt_animations").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
+            for m in crate::motion::Motion::ALL {
+                if ui.selectable_label(m == cur, tl!(m.label())).clicked() {
+                    let _ = app.run("ui.animations", json!({"value": m.code()}));
+                }
+            }
+        });
+        // (Its name for a screen reader: the row's label is painted.)
+        let shown = tl!(cur.label()).to_string();
+        combo.response.widget_info(|| {
+            let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Animations"));
+            info.current_text_value = Some(shown.clone());
+            info
+        });
+        animations = combo.response.rect;
+        combo.response.on_hover_text(tl!(
+            "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
+        ));
+    });
+    app.hit.add("optionAnimations", 0, animations);
     let mut strong = app.ui.high_contrast;
     if ui.checkbox(&mut strong, tl!("High contrast")).on_hover_text(tl!("Stronger text and edges, in the light or the dark theme.")).changed() {
         let _ = app.run("ui.highContrast", json!({"on": strong}));
@@ -664,6 +831,21 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             })
             .response
             .on_hover_text(tl!("For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."));
+    });
+    // Undo Send (#950): how long a message waits in the Outbox after Send, so that it can still be taken back.
+    row(ui, tl!("Wait before sending"), |ui| {
+        let wait = |n: u8| if n == 0 { tl!("Off").to_string() } else { tln!(u64::from(n), "{n} second", "{n} seconds") };
+        egui::ComboBox::from_id_salt("opt_wait_before_sending")
+            .selected_text(wait(prefs.undo_send()))
+            .show_ui(ui, |ui| {
+                for n in mailcraft_engine::Prefs::UNDO_SEND_CHOICES {
+                    if ui.selectable_label(n == prefs.undo_send(), wait(n)).clicked() {
+                        let _ = app.run("sync.waitBeforeSending", json!({"seconds": n}));
+                    }
+                }
+            })
+            .response
+            .on_hover_text(tl!("After Send, a message waits in the Outbox for this long and shows Undo. Off sends it with the next Send/Receive."));
     });
     // (Whose Favorites the folder pane shows, for an account that signs in with Microsoft.)
     crate::favorites_sync::options(app, ui, t);

@@ -5,7 +5,6 @@
 package work.mailcraft.android
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
@@ -14,46 +13,38 @@ import com.android.resources.NightMode
 import org.junit.Rule
 import org.junit.Test
 
-private const val TOLERANCE = 0.1
-
 /** What the list screens show, apart from the shell around them. */
 private object ListShots {
     private val accounts = listOf(AccountItem(1u, "Ada Example", "ada@example.org", emptyList()))
 
     @Composable
     fun List(ui: MailListUi, swipe: SwipeConfig = SwipeConfig()) {
-        MailCraftTheme {
-            Surface {
-                MailListScreen(
-                    context = MailListContext(EnglishTexts, ShellShots.NOW, swipe, accounts, ShellShots.categories),
-                    ui = ui,
-                    actions = MailListActions.None,
-                )
-            }
+        ShellShots.Fixed {
+            MailListScreen(
+                context = MailListContext(EnglishTexts, ShellShots.NOW, swipe, accounts, ShellShots.categories),
+                ui = ui,
+                actions = MailListActions.None,
+            )
         }
     }
 
     @Composable
     fun Filtered(menuOpen: Boolean) {
-        MailCraftTheme {
-            Surface {
-                Column {
-                    MailListBar(EnglishTexts, MailQuery(1uL, filter = ListFilter.Unread), MailListActions.None, menuOpen)
-                }
+        ShellShots.Fixed {
+            Column {
+                MailListBar(EnglishTexts, MailQuery(1uL, filter = ListFilter.Unread), MailListActions.None, menuOpen)
             }
         }
     }
 
     @Composable
     fun Swiping(fraction: Float) {
-        MailCraftTheme {
-            Surface {
-                Column {
-                    val rows = ShellShots.rows
-                    MailRowContent(EnglishTexts, rows[0], SwipeConfig(), RowActions({}, {}))
-                    SwipeInProgress(EnglishTexts, rows[1], SwipeConfig(), fraction)
-                    MailRowContent(EnglishTexts, rows[2], SwipeConfig(), RowActions({}, {}))
-                }
+        ShellShots.Fixed {
+            Column {
+                val rows = ShellShots.rows
+                MailRowContent(EnglishTexts, rows[0], SwipeConfig(), RowActions({}, {}))
+                SwipeInProgress(EnglishTexts, rows[1], SwipeConfig(), fraction)
+                MailRowContent(EnglishTexts, rows[2], SwipeConfig(), RowActions({}, {}))
             }
         }
     }

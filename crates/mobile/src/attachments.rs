@@ -6,8 +6,8 @@
 //! name or a size from a message is never trusted: names are made safe by the engine, sizes are
 //! capped, and a picture is a picture by its own bytes.
 
-use mailcraft_engine::Part;
 use mailcraft_engine::opening::{self, Verdict};
+use mailcraft_engine::{Part, Session};
 use serde_json::json;
 
 use crate::message::sniff;
@@ -117,9 +117,7 @@ pub fn attachment_check(name: String) -> AttachmentCheck {
 pub(crate) fn refuse_unless_openable(check: &AttachmentCheck, confirmed: bool) -> Result<(), CoreError> {
     match check.verdict {
         OpenVerdict::Blocked => Err(CoreError::Failed { reason: check.blocked.clone() }),
-        OpenVerdict::Macros | OpenVerdict::Scripts if !confirmed => {
-            Err(bad("the owner has to be asked before this kind of file is opened"))
-        }
+        OpenVerdict::Macros | OpenVerdict::Scripts if !confirmed => Err(bad("the owner has to be asked before this kind of file is opened")),
         _ => Ok(()),
     }
 }
@@ -136,7 +134,8 @@ impl Core {
         budget.clamp(MIN_ATTACHMENT_BYTES, MAX_ATTACHMENT_BYTES)
     }
 
-    /// Reads attachment `index` of message `id` once the size is known to be within `cap`.
+    /// Reads attachment `index` of message `id`, at most `cap` bytes of it: when only the message's
+    /// headers are on the phone, it is fetched whole first and this waits for it.
     async fn read_attachment(
         &self,
         id: u64,
@@ -145,37 +144,42 @@ impl Core {
         only: Option<fn(&AttachmentCheck) -> bool>,
     ) -> Result<AttachmentFile, CoreError> {
         let at = usize::try_from(index).map_err(|_| bad("the message has no such attachment"))?;
-        self.call(move |s| {
-            let m = s
-                .loaded_message_where(id, |_| false)
-                .map_err(|_| CoreError::Failed { reason: s.interface_language.t("the message could not be read").to_string() })?;
-            let a = m.attachments.get(at).ok_or_else(|| bad("the message has no such attachment"))?;
-            let check = check_of(&a.name, &a.mime);
-            if let Some(allowed) = only
-                && !allowed(&check)
-            {
-                return Err(bad("that attachment is not of a kind this can be done with"));
-            }
-            if a.size() > cap {
-                return Err(CoreError::Failed { reason: s.interface_language.t("the attachment is too large").to_string() });
-            }
-            let bytes = s
-                .content(id, Part::Attachment(at))
-                .map_err(|_| CoreError::Failed { reason: s.interface_language.t("the attachment could not be read").to_string() })?;
-            if bytes.len() > cap {
-                return Err(CoreError::Failed { reason: s.interface_language.t("the attachment is too large").to_string() });
-            }
-            let picture = sniff(&bytes).unwrap_or_default().to_string();
-            Ok(AttachmentFile { rev: s.rev(), index, check, picture, bytes: bytes.to_vec() })
-        })
-        .await
+        self.when_whole(id, move |s| read_in(s, id, at, cap, only)).await
     }
+}
+
+/// Attachment `at` of message `id`, which is on the phone whole, when it is within `cap` bytes
+/// and of a kind `only` allows.
+pub(crate) fn read_in(s: &Session, id: u64, at: usize, cap: usize, only: Option<fn(&AttachmentCheck) -> bool>) -> Result<AttachmentFile, CoreError> {
+    let m = s
+        .loaded_message_where(id, |_| false)
+        .map_err(|_| CoreError::Failed { reason: s.interface_language.t("the message could not be read").to_string() })?;
+    let a = m.attachments.get(at).ok_or_else(|| bad("the message has no such attachment"))?;
+    let check = check_of(&a.name, &a.mime);
+    if let Some(allowed) = only
+        && !allowed(&check)
+    {
+        return Err(bad("that attachment is not of a kind this can be done with"));
+    }
+    if a.size() > cap {
+        return Err(CoreError::Failed { reason: s.interface_language.t("the attachment is too large").to_string() });
+    }
+    let bytes = s
+        .content(id, Part::Attachment(at))
+        .map_err(|_| CoreError::Failed { reason: s.interface_language.t("the attachment could not be read").to_string() })?;
+    if bytes.len() > cap {
+        return Err(CoreError::Failed { reason: s.interface_language.t("the attachment is too large").to_string() });
+    }
+    let picture = sniff(&bytes).unwrap_or_default().to_string();
+    let index = u32::try_from(at).map_err(|_| bad("the message has no such attachment"))?;
+    Ok(AttachmentFile { rev: s.rev(), index, check, picture, bytes: bytes.to_vec() })
 }
 
 #[uniffi::export]
 impl Core {
     /// Attachment `index` of message `id` with its bytes, for saving, sharing and previewing: at
-    /// most 64 MB (less on a device with little memory).
+    /// most 64 MB (less on a device with little memory). When the message isn't on the phone
+    /// whole, it is fetched first, and this waits for it.
     pub async fn attachment(&self, id: u64, index: u32) -> Result<AttachmentFile, CoreError> {
         self.read_attachment(id, index, self.attachment_cap(), None).await
     }
@@ -216,7 +220,7 @@ impl Core {
 
     async fn attachment_verdict_of(&self, id: u64, index: u32) -> Result<AttachmentCheck, CoreError> {
         let at = usize::try_from(index).map_err(|_| bad("the message has no such attachment"))?;
-        self.call(move |s| {
+        self.when_whole(id, move |s| {
             let m = s
                 .loaded_message_where(id, |_| false)
                 .map_err(|_| CoreError::Failed { reason: s.interface_language.t("the message could not be read").to_string() })?;

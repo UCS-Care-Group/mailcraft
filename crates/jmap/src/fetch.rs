@@ -31,10 +31,10 @@ use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_model::sync::{GraphFetchResult, GraphFetched, JmapFetchRequest};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::connection::{busy_seconds, unusable};
-use crate::mail::{said, secrets_of};
+use crate::mail::{arguments, get, said, secrets_of};
 use crate::{ApiRequest, CAPABILITY_MAIL, Connection, Error, Failure, HttpExchange, Id, Redactor, TransportError, Unusable};
 
 /// Largest message taken, in octets: what a caller may ask for is held to it. A bigger message is
@@ -55,8 +55,8 @@ const MAX_FAILED_IN_A_ROW: usize = 3;
 /// and sizes come to well under this, and what is parsed of an answer takes much more memory than the answer.
 const LOCATE_BYTES: usize = 2 << 20;
 /// The type and the file name a download is asked for: a server may put them in its answer.
-const MESSAGE_TYPE: &str = "message/rfc822";
-const MESSAGE_NAME: &str = "message.eml";
+pub(crate) const MESSAGE_TYPE: &str = "message/rfc822";
+pub(crate) const MESSAGE_NAME: &str = "message.eml";
 
 /// What fetching one message came to.
 #[derive(Clone, PartialEq, Eq)]
@@ -98,11 +98,11 @@ async fn locate<H: HttpExchange>(connection: &Connection<H>, ids: &[String], sec
     let client = connection.client();
     let most = usize::try_from(client.limits().max_objects_in_get()).unwrap_or(usize::MAX).max(1);
     for chunk in asked.chunks(most) {
-        let args = json!({"accountId": client.account_id().as_str(), "ids": chunk, "properties": ["blobId", "size"]});
+        let args = arguments(&get(client.account_id().as_str(), Some(chunk), &["blobId", "size"]))?;
         let mut request = ApiRequest::new();
         request.using(CAPABILITY_MAIL)?;
         request.set_response_limit(LOCATE_BYTES);
-        let call = request.add_call("Email/get", args.as_object().cloned().unwrap_or_default())?;
+        let call = request.add_call("Email/get", args)?;
         let mut answers = connection.call(&request, secrets).await?;
         read_located(&Value::Object(answers.take_named(&call, "Email/get")?), chunk, &mut known);
     }

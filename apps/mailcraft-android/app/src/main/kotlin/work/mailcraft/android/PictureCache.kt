@@ -6,33 +6,20 @@ import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 
-/** Whether bytes begin as a PNG, JPEG, GIF or WebP does: what a downloaded picture must be. */
-internal fun looksLikeAPicture(bytes: ByteArray): Boolean = startsWith(bytes, PNG) ||
-    startsWith(bytes, JPEG) ||
-    startsWith(bytes, GIF87) ||
-    startsWith(bytes, GIF89) ||
-    (startsWith(bytes, RIFF) && bytes.size >= WEBP_END && startsWith(bytes.copyOfRange(WEBP_AT, WEBP_END), WEBP))
+/**
+ * Whether bytes are a picture that may be shown: decided by the Rust core from the bytes' own
+ * content (a PNG, JPEG, GIF or WebP, and with [icons] an ICO, for a sender's picture). Nothing
+ * that comes from outside is read here.
+ */
+internal fun interface PictureCheck {
+    fun accepts(bytes: ByteArray, icons: Boolean): Boolean
+}
 
-/** Whether bytes begin as a sender's picture does: a message's kinds, or an ICO that holds a picture or more. */
-internal fun looksLikeASenderPicture(bytes: ByteArray): Boolean = looksLikeAPicture(bytes) || isIcon(bytes)
-
-private fun isIcon(bytes: ByteArray): Boolean = startsWith(bytes, ICO) && bytes.size > ICO_COUNT_END &&
-    (bytes[ICO_COUNT_AT].toInt() != 0 || bytes[ICO_COUNT_AT + 1].toInt() != 0)
-
-private fun startsWith(bytes: ByteArray, head: ByteArray): Boolean =
-    bytes.size >= head.size && head.indices.all { bytes[it] == head[it] }
-
-private val PNG = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
-private val JPEG = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte())
-private val GIF87 = "GIF87a".toByteArray(Charsets.US_ASCII)
-private val GIF89 = "GIF89a".toByteArray(Charsets.US_ASCII)
-private val RIFF = "RIFF".toByteArray(Charsets.US_ASCII)
-private val WEBP = "WEBP".toByteArray(Charsets.US_ASCII)
-private val ICO = byteArrayOf(0, 0, 1, 0)
-private const val WEBP_AT = 8
-private const val WEBP_END = 12
-private const val ICO_COUNT_AT = 4
-private const val ICO_COUNT_END = 5
+/** [PictureCheck] over the core. */
+internal object CorePictureCheck : PictureCheck {
+    override fun accepts(bytes: ByteArray, icons: Boolean): Boolean =
+        uniffi.mailcraft_mobile.pictureAccepted(bytes, icons)
+}
 
 /**
  * The pictures downloaded for mail, kept in the app's cache folder so that they are not asked for
@@ -43,6 +30,8 @@ private const val ICO_COUNT_END = 5
  */
 internal class PictureCache(
     private val dir: File,
+    /** Whether bytes are a picture; the core's own, except in a test. */
+    private val check: PictureCheck,
     private val clock: () -> Long = System::currentTimeMillis,
     /** The caps; the desktop's unless a test says otherwise. */
     private val maxPictures: Int = MAX_PICTURES,
@@ -56,20 +45,20 @@ internal class PictureCache(
 
     /** The picture kept for [url] and still good, or null; one past its time, damaged or not a picture is removed. */
     @Synchronized
-    fun get(url: String, looks: (ByteArray) -> Boolean = ::looksLikeAPicture): ByteArray? {
+    fun get(url: String, icons: Boolean = false): ByteArray? {
         scan()
         val name = nameOf(url)
         val entry = entries[name] ?: return null
         val bytes = if (clock() - entry.stored > MAX_AGE_MILLIS) null else readFile(File(dir, name))
-        val good = bytes != null && bytes.size <= MAX_PICTURE && looks(bytes)
+        val good = bytes != null && bytes.size <= MAX_PICTURE && check.accepts(bytes, icons)
         if (!good) drop(name)
         return bytes.takeIf { good }
     }
 
     /** Keeps [bytes] for [url] when they are a picture within the size cap; whether they were kept. */
     @Synchronized
-    fun put(url: String, bytes: ByteArray, looks: (ByteArray) -> Boolean = ::looksLikeAPicture): Boolean {
-        if (!acceptable(url, bytes, looks)) return false
+    fun put(url: String, bytes: ByteArray, icons: Boolean = false): Boolean {
+        if (!acceptable(url, bytes, icons)) return false
         scan()
         val name = nameOf(url)
         val written = runCatching {
@@ -87,8 +76,11 @@ internal class PictureCache(
         return entries.containsKey(name)
     }
 
-    private fun acceptable(url: String, bytes: ByteArray, looks: (ByteArray) -> Boolean): Boolean =
-        bytes.isNotEmpty() && bytes.size <= MAX_PICTURE && url.length <= MAX_ADDRESS && looks(bytes)
+    private fun acceptable(url: String, bytes: ByteArray, icons: Boolean): Boolean =
+        bytes.isNotEmpty() && bytes.size <= MAX_PICTURE && url.length <= MAX_ADDRESS && check.accepts(bytes, icons)
+
+    /** Whether [bytes] are a picture that may be shown (with [icons], a sender's). */
+    fun accepts(bytes: ByteArray, icons: Boolean = false): Boolean = check.accepts(bytes, icons)
 
     /** How many pictures are kept, and how many bytes they take. */
     @Synchronized

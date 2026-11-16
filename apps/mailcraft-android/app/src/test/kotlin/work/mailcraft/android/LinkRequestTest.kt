@@ -48,15 +48,15 @@ class LinkRequestTest {
         val reading = NavState().openMessage(42uL)
         assertEquals(Tab.Mail, reading.tab)
         assertEquals(42uL, reading.messageId)
-        val saved = listOf<Any?>(reading.tab.ordinal, reading.settings, -1, reading.message)
+        val saved = listOf<Any?>(reading.tab.ordinal, reading.settings, -1, false, reading.message)
         assertEquals(reading, NavState.fromSaved(saved))
         // Back closes the message first, and leaves the tab.
         assertEquals(NavState(), reading.back())
         assertNull(NavState().back())
-        // A message with settings open, or on another tab, is not a thing: it is dropped.
-        assertEquals(NavState(settings = true), NavState.fromSaved(listOf(1, true, -1, 5L)))
-        assertEquals(NavState(tab = Tab.Tasks), NavState.fromSaved(listOf(4, false, -1, 5L)))
-        assertEquals(NavState(), NavState.fromSaved(listOf(1, false, -1, -3L)))
-        assertNull(NavState.fromSaved(listOf(1, false, -1, "x")).message)
+        // A message with settings open stays beneath them; one on another tab is not a thing: it is dropped.
+        assertEquals(NavState(settings = true, message = 5L), NavState.fromSaved(listOf(1, true, -1, false, 5L)))
+        assertEquals(NavState(tab = Tab.Tasks), NavState.fromSaved(listOf(4, false, -1, false, 5L)))
+        assertEquals(NavState(), NavState.fromSaved(listOf(1, false, -1, false, -3L)))
+        assertNull(NavState.fromSaved(listOf(1, false, -1, false, "x")).message)
     }
 }

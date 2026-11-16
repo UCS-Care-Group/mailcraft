@@ -21,7 +21,7 @@ const NOW: i64 = 1_791_993_600;
 fn app() -> MailApp {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     a.autosave = false;
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     a
 }
 
@@ -127,9 +127,13 @@ enum Setup {
 const ROWS: &[(&str, &str, Setup)] = &[
     // Send.
     ("compose.send", "{}", Setup::Writing),
+    ("compose.sendLater", r#"{"at": 1900000000}"#, Setup::Writing),
+    ("mail.setSendTime", r#"{"id": $message, "at": 1900000000}"#, Setup::None),
     ("account.setAutomaticReplies", r#"{"status": "disabled"}"#, Setup::None),
     ("mail.sendAgain", r#"{"id": $message}"#, Setup::None),
     ("ui.downloadPictures", "{}", Setup::None),
+    ("ui.unsubscribe", "{}", Setup::None),
+    ("mail.unsubscribe", r#"{"send": true}"#, Setup::None),
     ("ui.retryPictures", "{}", Setup::None),
     ("ui.joinMeeting", r#"{"event": $event}"#, Setup::None),
     ("ui.reportProblem", r#"{"what": "x"}"#, Setup::None),
@@ -138,6 +142,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.removeAttachment", r#"{"id": $message, "index": 0}"#, Setup::None),
     ("folder.delete", "{}", Setup::Folder),
     ("folder.empty", r#"{"id": $deleted}"#, Setup::None),
+    ("mail.removeImportedDuplicates", "{}", Setup::None),
     ("people.delete", "{}", Setup::None),
     ("people.merge", r#"{"keep": $contact, "others": [$contact2]}"#, Setup::None),
     ("tasks.delete", "{}", Setup::None),
@@ -153,6 +158,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("account.addSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
     ("account.removeSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
     ("account.thinOffline", r#"{"account": $account}"#, Setup::None),
+    ("account.deviceLimits", r#"{"storage": 1073741824}"#, Setup::None),
+    ("account.trimDevice", "{}", Setup::None),
     ("ui.keepOffline", "{}", Setup::None),
     ("ui.connectMicrosoft", "{}", Setup::None),
     ("ui.automaticRepliesSignIn", r#"{"account": $account}"#, Setup::None),
@@ -174,6 +181,9 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("calendar.removeCalendar", r#"{"id": $calendar}"#, Setup::None),
     ("calendar.openShared", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.removeShared", r#"{"address": "x@example.org"}"#, Setup::None),
+    ("calendar.subscribe", r#"{"address": "https://cal.example.org/private/token/x.ics"}"#, Setup::None),
+    ("calendar.unsubscribe", r#"{"id": $calendar}"#, Setup::None),
+    ("calendar.subscriptionSettings", r#"{"id": $calendar, "intervalMinutes": 30}"#, Setup::None),
     ("calendar.hideListedCopy", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.moveToAccount", "{}", Setup::None),
     ("ui.checkCalendar", "{}", Setup::None),
@@ -191,6 +201,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.dismissWarnings", r#"{"ids": [$message]}"#, Setup::None),
     ("file.options", "{}", Setup::None),
     ("sync.offline", "{}", Setup::None),
+    ("sync.waitBeforeSending", r#"{"seconds": 10}"#, Setup::None),
     ("rules.add", r#"{"name": "x"}"#, Setup::None),
     ("rules.remove", r#"{"id": $rule}"#, Setup::None),
     ("rules.enable", r#"{"id": $rule}"#, Setup::None),
@@ -224,6 +235,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.downloadPicturesAutomatically", "{}", Setup::None),
     ("ui.senderImages", "{}", Setup::None),
     ("ui.desktopAlerts", r#"{"newMail": true}"#, Setup::None),
+    ("ui.closeToTray", r#"{"value": true}"#, Setup::None),
     ("ui.repliesInWindow", "{}", Setup::None),
     ("ui.updateCheck", "{}", Setup::None),
     ("ui.updateInstall", "{}", Setup::None),

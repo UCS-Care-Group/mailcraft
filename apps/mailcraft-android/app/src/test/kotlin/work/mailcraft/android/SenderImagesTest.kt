@@ -20,7 +20,7 @@ class SenderImagesTest {
     private val dir: File = Files.createTempDirectory("senders").toFile()
     private val source = FakeReadSource()
     private val prefs = MemoryPicturePrefs(PicturePrefs(senderImages = true))
-    private val cache = PictureCache(dir)
+    private val cache = PictureCache(dir, SniffingCheck)
     private val images = SenderImages(source, cache, prefs, CoroutineScope(Dispatchers.Unconfined), io = Dispatchers.Unconfined)
     private val row = InboxRow(1u, "Ada Example", "Hi", "…", false, 0L, address = "Ada@Example.org")
 
@@ -70,7 +70,7 @@ class SenderImagesTest {
             MessageFacts("ada@example.org", junk = false, vouched = true, known = false),
         )) {
             source.factsAnswer = facts
-            val one = SenderImages(source, PictureCache(File(dir, "x")), prefs, CoroutineScope(Dispatchers.Unconfined), io = Dispatchers.Unconfined)
+            val one = SenderImages(source, PictureCache(File(dir, "x"), SniffingCheck), prefs, CoroutineScope(Dispatchers.Unconfined), io = Dispatchers.Unconfined)
             one.onScreen(listOf(row))
             assertTrue("$facts", source.senderDownloads.isEmpty())
         }
@@ -87,7 +87,7 @@ class SenderImagesTest {
         images.onScreen(listOf(row))
         assertTrue(source.senderDownloads.isEmpty())
         assertNull(images.images.value[1uL])
-        cache.put(places[0], B.png, ::looksLikeASenderPicture)
+        cache.put(places[0], B.png, icons = true)
         images.onScreen(listOf(row))
         assertArrayEquals(B.png, images.images.value[1uL])
         assertTrue(source.senderDownloads.isEmpty())

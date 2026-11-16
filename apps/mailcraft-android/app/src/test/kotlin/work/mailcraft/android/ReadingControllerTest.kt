@@ -49,7 +49,7 @@ class ReadingControllerTest {
         source.web["https://img.shop.example/second.png"] = B.png
         source.web[tracker] = B.png
         source.parts["cid:logo"] = B.png
-        val cache = PictureCache(dir)
+        val cache = PictureCache(dir, SniffingCheck)
         val store = MemoryPicturePrefs(prefs)
         return Rig(source, cache, store, ReadingController(source, cache, store, CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined))
     }
@@ -69,6 +69,19 @@ class ReadingControllerTest {
         assertEquals(listOf(7uL), r.source.marked)
         r.c.open(7uL, 400, dark = true)
         assertEquals(listOf(7uL), r.source.marked)
+    }
+
+    @Test
+    fun aMarkThatFailedIsTriedAgainWhenTheMessageIsOpenedAgain() {
+        val r = rig()
+        r.source.marks = false
+        r.c.open(7uL, 360, dark = false)
+        r.c.open(7uL, 360, dark = false)
+        assertEquals(listOf(7uL, 7uL), r.source.marked)
+        r.source.marks = true
+        r.c.open(7uL, 360, dark = false)
+        r.c.open(7uL, 360, dark = false)
+        assertEquals(listOf(7uL, 7uL, 7uL), r.source.marked)
     }
 
     @Test

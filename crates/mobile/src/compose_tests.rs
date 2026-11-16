@@ -640,9 +640,9 @@ fn every_call_with_junk_answers_and_never_panics() {
 #[test]
 fn a_signature_written_on_the_phone_is_the_accounts_for_new_messages_and_replies() {
     let (core, message, account) = core();
-    assert_eq!(block_on(core.account_signature(account)).unwrap(), "Avery Stone");
+    assert_eq!(block_on(core.account_signature(account)).unwrap().text, "Avery Stone");
     block_on(core.set_account_signature(account, "Avery\r\nGarden club".into())).unwrap();
-    assert_eq!(block_on(core.account_signature(account)).unwrap(), "Avery\nGarden club");
+    assert_eq!(block_on(core.account_signature(account)).unwrap().text, "Avery\nGarden club");
     assert!(new(&core).text.ends_with("Avery\nGarden club"));
     // In a reply the signature goes between what the owner writes and the quoted original.
     let reply = start(&core, ComposeStart::Reply { id: message });
@@ -654,9 +654,9 @@ fn a_signature_written_on_the_phone_is_the_accounts_for_new_messages_and_replies
     assert!(names.contains(&"Avery".to_string()) && names.contains(&"Plain".to_string()), "{names:?}");
     // Written again it is replaced, not added; empty is none.
     block_on(core.set_account_signature(account, "Av".into())).unwrap();
-    assert_eq!(block_on(core.account_signature(account)).unwrap(), "Av");
+    assert_eq!(block_on(core.account_signature(account)).unwrap().text, "Av");
     block_on(core.set_account_signature(account, "  \n ".into())).unwrap();
-    assert_eq!(block_on(core.account_signature(account)).unwrap(), "");
+    assert_eq!(block_on(core.account_signature(account)).unwrap().text, "");
     assert_eq!(new(&core).signature, "");
 }
 
@@ -666,8 +666,7 @@ fn a_signature_for_nobody_or_too_long_is_held() {
     assert!(block_on(core.account_signature(0)).is_err());
     assert!(block_on(core.account_signature(u64::MAX)).is_err());
     assert!(block_on(core.set_account_signature(u64::MAX, "x".into())).is_err());
-    block_on(core.set_account_signature(account, "s".repeat(50_000))).unwrap();
-    assert!(block_on(core.account_signature(account)).unwrap().chars().count() <= crate::compose::MAX_SIGNATURE_CHARS);
+    assert!(block_on(core.set_account_signature(account, "s".repeat(50_000))).is_err());
     for junk in ["\0", "\u{202e}", "a\r\nBcc: x", "\u{fffc}"] {
         assert!(!matches!(block_on(core.set_account_signature(account, junk.to_string())), Err(CoreError::Internal)));
     }

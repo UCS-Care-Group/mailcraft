@@ -78,16 +78,21 @@ pub fn object(id: &str) -> Option<Object> {
         | "mail.copy"
         | "mail.removeAttachment"
         | "mail.sendAgain"
+        | "mail.setSendTime"
         | "mail.dismissWarnings"
         | "junk.blockSender"
         | "junk.neverBlockSender"
         | "junk.neverBlockDomain"
         | "rules.fromMessage"
         | "ui.downloadPictures"
+        | "ui.unsubscribe"
+        | "mail.unsubscribe"
         | "ui.retryPictures"
         | "ui.alwaysDownloadPictures" => Messages,
         "folder.empty" | "folder.delete" => FolderContent,
-        "rules.run" | "file.import" | "calendar.deleteAnsweredRequests" => Folder,
+        // (The clean-up of #1401 reaches every folder when it names none: its question counts
+        // what goes, and is described again on the yes.)
+        "rules.run" | "file.import" | "calendar.deleteAnsweredRequests" | "mail.removeImportedDuplicates" => Folder,
         "people.delete" | "people.merge" => Contact,
         "tasks.delete" | "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.new" | "tasks.fromMessage" => Task,
         // A calendar command that writes to people is asked about whatever it is (`classify`).
@@ -104,6 +109,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "account.addSharedMailbox"
         | "account.removeSharedMailbox"
         | "account.thinOffline"
+        | "account.deviceLimits"
+        | "account.trimDevice"
         | "ui.keepOffline"
         | "ui.connectMicrosoft"
         | "ui.automaticRepliesSignIn"
@@ -126,15 +133,17 @@ pub fn object(id: &str) -> Option<Object> {
         | "junk.list" => Account,
         "rules.add" | "rules.remove" | "rules.enable" | "rules.list" | "rules.move" | "rules.keepOnServer" => Rule,
         _ if id.starts_with("signature.") => Signature,
-        "compose.send" | "compose.discard" | "compose.close" => Compose,
+        "compose.send" | "compose.sendLater" | "compose.discard" | "compose.close" => Compose,
         "ui.closeWindow" | "ui.eventWindow" | "ui.dialog" | "ui.closeDialog" => Window,
         "file.new" | "file.open" | "file.save" | "file.saveAs" => Mailbox,
         "edit.undo" | "edit.redo" => Undo,
         "file.options"
         | "sync.offline"
+        | "sync.waitBeforeSending"
         | "ui.downloadPicturesAutomatically"
         | "ui.senderImages"
         | "ui.desktopAlerts"
+        | "ui.closeToTray"
         | "ui.repliesInWindow"
         | "ui.updateCheck"
         | "ui.updateInstall"
@@ -154,6 +163,10 @@ const CALENDARS: &[&str] = &[
     "calendar.removeCalendar",
     "calendar.openShared",
     "calendar.removeShared",
+    "calendar.subscribe",
+    "calendar.unsubscribe",
+    "calendar.subscriptionSettings",
+    "calendar.refreshSubscribed",
     "calendar.hideListedCopy",
     "calendar.moveToAccount",
     "calendar.addCalendar",

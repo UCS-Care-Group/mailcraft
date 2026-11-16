@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
  * at all while the system's data saving holds them back until the owner says so. What is kept in the
  * [cache] is not asked for again.
  */
+@Suppress("TooManyFunctions")
 internal class ReadingController(
     private val source: ReadSource,
     private val cache: PictureCache,
@@ -36,6 +37,9 @@ internal class ReadingController(
 
     /** Moves on when another message is opened, so that an answer to an earlier question is dropped. */
     private val generation = AtomicInteger()
+
+    /** Given when the generation moves on: a download already on its way ends, and nothing more is begun. */
+    private var stop = Stop()
     private val asked = LinkedHashSet<ULong>()
     private val tapped = LinkedHashSet<ULong>()
     private val marked = LinkedHashSet<ULong>()
@@ -48,7 +52,7 @@ internal class ReadingController(
 
     /** Opens message [id] for a body [widthDp] wide in a dark or light window (again, when either changed). */
     fun open(id: ULong, widthDp: Int, dark: Boolean) {
-        val mine = generation.incrementAndGet()
+        val mine = advance()
         // (Pictures that were on their way for an earlier look are asked for again by this one.)
         state.update {
             if (it.id != id) {
@@ -67,9 +71,16 @@ internal class ReadingController(
             val prefs = prefsStore.load()
             val access = PicturePolicy.access(prefs, opened.facts, isAsked(id))
             state.update { it.copy(load = LoadState.Ready, opened = opened, access = access, prefs = prefs) }
-            if (opened.view.unread && remember(marked, id)) source.markRead(id)
+            if (opened.view.unread && remember(marked, id) && !source.markRead(id)) forget(id)
             loadPictures(mine, id, opened)
         }
+    }
+
+    /** Moves to the next generation; what was on its way for the last is stopped. */
+    private fun advance(): Int = synchronized(this) {
+        stop.give()
+        stop = Stop()
+        generation.incrementAndGet()
     }
 
     /**
@@ -79,7 +90,7 @@ internal class ReadingController(
      */
     fun close(id: ULong) {
         if (state.value.id != id) return
-        generation.incrementAndGet()
+        advance()
         state.value = ReadingUi()
     }
 
@@ -169,35 +180,64 @@ internal class ReadingController(
         if (state != null) put(mine, url, state)
     }
 
+    /** Why a download did not go ahead, once its permit was in hand. */
+    private enum class Turn { Go, Gone, Revoked, Saving, LeftOut }
+
+    /** The owner's word and the budget, looked at again with the permit in hand (a long wait may have passed). */
+    private suspend fun admit(mine: Int, id: ULong): Turn = stale(mine) ?: run {
+        // Data saving may have been switched on meanwhile: without a tap the picture waits for one.
+        val saving = source.dataSaving()
+        // (That call can suspend: the generation and the owner's word are looked at once more after it.)
+        stale(mine) ?: when {
+            PicturePolicy.waits(saving, synchronized(this) { id in tapped }) -> Turn.Saving
+            !budget.take(id) -> Turn.LeftOut
+            else -> Turn.Go
+        }
+    }
+
+    /** Why this look-up is over, or null while it is still the owner's wish. */
+    private fun stale(mine: Int): Turn? = when {
+        mine != generation.get() -> Turn.Gone
+        state.value.access != PictureAccess.Allowed -> Turn.Revoked
+        else -> null
+    }
+
     /** The picture's state, or null when the owner left the message first (nothing is asked, nothing is kept). */
     private suspend fun download(mine: Int, id: ULong, url: String): PictureState? {
         if (mine != generation.get()) return null
-        // Checked again with the permit in hand: a download queued behind others may be a long wait.
-        var leftOut = false
+        var turn = Turn.Go
         val got = flights.withPermit {
-            when {
-                mine != generation.get() -> null
-                !budget.take(id) -> {
-                    leftOut = true
-                    null
-                }
-                else -> source.download(url)
-            }
+            turn = admit(mine, id)
+            if (turn == Turn.Go) source.download(url, stopOf(mine)) else null
         }
+        // A claim let go of: a later yes in this generation asks again.
+        if (turn == Turn.Revoked) release(mine, url)
+        if (turn == Turn.Saving && mine == generation.get()) state.update { it.copy(waiting = true) }
         return when {
-            leftOut -> PictureState.LeftOut
+            turn == Turn.Saving -> PictureState.Waiting
+            turn == Turn.LeftOut -> PictureState.LeftOut
             got == null || mine != generation.get() -> null
-            got is Fetched.Got -> {
-                budget.add(id, got.bytes.size)
-                if (looksLikeAPicture(got.bytes)) {
-                    withContext(io) { cache.put(url, got.bytes) }
-                    PictureState.Ready(got.bytes)
-                } else {
-                    PictureState.Failed
-                }
-            }
+            got is Fetched.Got -> keep(mine, id, url, got.bytes)
             else -> PictureState.Failed
         }
+    }
+
+    private suspend fun keep(mine: Int, id: ULong, url: String, bytes: ByteArray): PictureState? {
+        budget.add(id, bytes.size)
+        if (!cache.accepts(bytes)) return PictureState.Failed
+        // (The generation is read again where the write happens, on the cache's own thread.)
+        withContext(io) { if (mine == generation.get()) cache.put(url, bytes) }
+        return if (mine == generation.get()) PictureState.Ready(bytes) else null
+    }
+
+    /** The signal of generation [mine]; one already given when that generation is past. */
+    private fun stopOf(mine: Int): Stop = synchronized(this) {
+        if (mine == generation.get()) stop else Stop().also { it.give() }
+    }
+
+    /** Lets go of a claim on [url] that was not fetched, so that it may be claimed again. */
+    private fun release(mine: Int, url: String) {
+        if (mine == generation.get()) state.update { it.copy(pictures = it.pictures - url) }
     }
 
     @Synchronized
@@ -205,6 +245,12 @@ internal class ReadingController(
         val added = set.add(id)
         if (set.size > MAX_REMEMBERED_MESSAGES) set.remove(set.first())
         return added
+    }
+
+    /** A mark that failed is tried again when the message is opened again. */
+    @Synchronized
+    private fun forget(id: ULong) {
+        marked.remove(id)
     }
 
     private companion object {

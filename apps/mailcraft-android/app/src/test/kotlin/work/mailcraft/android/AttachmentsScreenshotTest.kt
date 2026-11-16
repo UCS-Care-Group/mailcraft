@@ -15,7 +15,6 @@ import org.junit.Rule
 import org.junit.Test
 import uniffi.mailcraft_mobile.OpenVerdict
 
-private const val TOLERANCE = 0.1
 private val Phone = DeviceConfig.PIXEL_5.copy(screenHeight = 2_000)
 
 private val invented = listOf(

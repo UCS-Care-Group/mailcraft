@@ -1,17 +1,18 @@
 # Translating MailCraft
 
-> **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-10 · **Change:** minor
+> **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-12 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
-Italian, Dutch and Romanian. A preview language has every text translated, but no native speaker has reviewed it yet:
-File › Options names it so in its own words ("Français (aperçu)", "Deutsch (Vorschau)"). Reviewing
+Italian, Dutch, Romanian, Hungarian, Polish and Simplified Chinese. Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
+Simplified Chinese is offered on desktop only until the browser build has a CJK font.
+File › Options names each preview in its own words ("Français (aperçu)", "Deutsch (Vorschau)"). Reviewing
 one, or adding another, needs no Rust.
 
 ## Where the texts are
 
 - `crates/i18n/po/messages.pot`: the template, every text the window and the engine show. It is
   generated; never edit it by hand.
-- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `ro.po`), in
+- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `ro.po`, `hu.po`, `pl.po`, `zh_CN.po`), in
   the gettext format any `.po` editor opens. The catalogues are compiled into the program.
 
 `cargo xtask i18n` gathers the texts from the code, rewrites the template, merges it into every
@@ -21,8 +22,7 @@ translation loses or adds a `{placeholder}`.
 
 ## Reviewing a preview language
 
-Every entry of a preview catalogue is marked `#, fuzzy`: translated, not yet reviewed by a native
-speaker. To review one, read the text in the window and in the catalogue, correct the `msgstr`
+An entry marked `#, fuzzy` is a draft translation awaiting further review. To review one, read the text in the window and in the catalogue, correct the `msgstr`
 where needed, and remove the `#, fuzzy` line of each entry you have checked. When a native speaker
 has reviewed a whole language, its entry in `crates/i18n/src/lib.rs` stops being a preview and the
 "(preview)" goes from its name.
@@ -71,6 +71,8 @@ Agreement](../CLA.md).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-12 | minor | #1135: Romanian as a preview language (`ro.po`), with its three plural forms |
+| 2026-11-12 | minor | #1031: Simplified Chinese preview catalogue (`zh_CN.po`), initial catalogue reviewed by its contributor |
 | 2026-11-10 | patch | #978: English writes dates the day first outside the US, Canada and the Philippines, with the region's clock and first day of the week |
 | 2026-11-08 | minor | #912: a heading and its reason are separate entries, joined by the `{heading}: {reason}` pattern, which each language punctuates its own way |
 | 2026-10-29 | minor | Dutch as a preview language (`nl.po`); File › Options names it Nederlands (voorbeeld) |

@@ -126,6 +126,44 @@ impl<S: Read + Write> Wire<S> {
         }
     }
 
+    /// The next line if one arrives before the stream's own read timeout, `None` when the stream
+    /// had nothing for that long (IDLE waits like this, a second at a time, so that its owner can
+    /// look at the clock and at whether it was told to stop). Bytes of a line that came so far are
+    /// kept for the next call. A line over [`MAX_LINE`] is an error, as for [`Wire::read_line`].
+    pub(crate) fn poll_line(&mut self) -> Result<Option<Vec<u8>>, ProtoError> {
+        let mut interrupts = 0;
+        loop {
+            let pending = self.buf.get(self.start..).unwrap_or(&[]);
+            if let Some(end) = pending.iter().position(|b| *b == b'\n') {
+                let line = pending.get(..end).unwrap_or(&[]);
+                let line = line.strip_suffix(b"\r").unwrap_or(line);
+                if line.len() > MAX_LINE {
+                    return Err(too_long());
+                }
+                let line = line.to_vec();
+                self.start = self.start.saturating_add(end).saturating_add(1);
+                return Ok(Some(line));
+            }
+            // The limit is on the line itself; a CR may still come on top.
+            if pending.len() > MAX_LINE + 1 {
+                return Err(too_long());
+            }
+            if self.start > 0 {
+                self.buf.drain(..self.start.min(self.buf.len()));
+                self.start = 0;
+            }
+            let mut tmp = vec![0u8; CHUNK];
+            match self.stream.read(&mut tmp) {
+                Ok(0) => return Err(closed()),
+                // A stream that claims more than the buffer holds is lying.
+                Ok(n) => self.buf.extend_from_slice(tmp.get(..n.min(tmp.len())).unwrap_or(&[])),
+                Err(e) if matches!(e.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) => return Ok(None),
+                Err(e) if e.kind() == ErrorKind::Interrupted && interrupts < MAX_INTERRUPTS => interrupts += 1,
+                Err(e) => return Err(io_error(&e)),
+            }
+        }
+    }
+
     /// Exactly `n` bytes (at most [`MAX_LITERAL`]).
     pub(crate) fn read_block(&mut self, n: usize) -> Result<Vec<u8>, ProtoError> {
         if n > MAX_LITERAL {
