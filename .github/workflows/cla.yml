@@ -3,6 +3,10 @@
 # branch (signatures.tsv: login, user id, CLA version, date, pull request). The result is the commit
 # status `cla` on the pull request's head.
 #
+# The merge queue asks for `cla` on its own commit too: the CLA was settled on the pull request
+# (the queue takes only pull requests whose `cla` passed), so there the job passes at once and does
+# nothing else.
+#
 # pull_request_target runs with a write token, so this never checks out or runs anything from the
 # pull request: it reads only the commit list and comments through the API, and never writes commit
 # author names or comment text into anything it posts (a commit without a GitHub account is named
@@ -14,15 +18,19 @@ on:
     types: [opened, reopened, synchronize]
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
+  merge_group:
+    types: [checks_requested]
 
 permissions: {}
 
+# One run at a time for a pull request; each merge-queue run in a group of its own, so that none
+# waits for, or is cancelled as pending behind, another.
 concurrency:
-  group: cla-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: cla-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
 
 jobs:
   cla:
-    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
+    if: github.event_name == 'pull_request_target' || github.event_name == 'merge_group' || github.event.issue.pull_request
     runs-on: ubuntu-24.04
     # Writes the signatures branch (contents), comments (issues, pull-requests), sets `cla` (statuses).
     permissions:
@@ -31,7 +39,12 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
+      # The merge queue: one job named `cla`, so the queue's commit has one `cla` check, and it passes.
+      - name: Settled on the pull request
+        if: github.event_name == 'merge_group'
+        run: echo "The CLA was checked on the pull request; nothing to do in the merge queue."
       - name: Sign and check
+        if: github.event_name != 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}

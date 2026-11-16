@@ -16,7 +16,7 @@
 //! index entry of that same store, so that "remove all my data" can find every one.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -180,8 +180,8 @@ impl Pacer {
 }
 
 #[derive(Default)]
-struct Inner {
-    sr: SendReceive,
+pub(crate) struct Inner {
+    pub(crate) sr: SendReceive,
     /// The mailbox as it was while nothing ran, and as the run under way found it.
     idle_mark: Option<InboxMark>,
     run_mark: Option<InboxMark>,
@@ -192,7 +192,7 @@ struct Inner {
     errors: Vec<String>,
     last_errors: Vec<String>,
     last_summary: Option<SyncSummary>,
-    needs_sign_in: BTreeSet<u64>,
+    pub(crate) needs_sign_in: BTreeSet<u64>,
     unsupported: BTreeMap<u64, AccountKind>,
     last_progress: Option<(u64, String, u64, u64)>,
     waiters: Vec<Arc<Queue<Wake>>>,
@@ -211,21 +211,37 @@ struct Inner {
     notice_checked: bool,
     /// The app's own number for the next notification that counts mail.
     next_key: u64,
+    /// Keeping the mailbox within the phone's limits (MB3.16).
+    pub(crate) trim: crate::limits::Trimming,
+    /// Messages fetched whole, searches on the server (MB3.17).
+    pub(crate) fetch: crate::fetch::Fetching,
+    /// How many rounds have ended: the round under way is known by the count before it ends.
+    finished_rounds: u64,
 }
 
 pub(crate) struct SyncHost {
     persist: Option<Persist>,
-    host: Host,
+    pub(crate) host: Host,
     platform: Arc<dyn Platform>,
-    sink: EventSink,
+    pub(crate) sink: EventSink,
     started: Instant,
     inner: Mutex<Inner>,
     /// A round is under way (read by the driver thread to choose how long to wait).
     busy: AtomicBool,
     remember: AtomicBool,
     notify_mail: AtomicBool,
+    /// A notification for new mail says "New mail" and nothing of the message (the owner's switch).
+    notify_new_mail_only: AtomicBool,
+    notify_primary_only: AtomicBool,
     pub(crate) tick_queued: AtomicBool,
     pub(crate) pacer: Pacer,
+    /// A fetch is under way or waiting (read by the driver thread, as `busy` is).
+    pub(crate) fetch_busy: AtomicBool,
+    /// How fetch jobs are run (the tests swap theirs in).
+    pub(crate) fetch_runner: crate::fetch::RunnerSlot,
+    /// A round to call off at the next wake (its `finished_rounds` plus one; 0 for none): a
+    /// `background_sync` dropped while it waits asks for it, never blocking where it is dropped.
+    stop_asked: AtomicU64,
     /// The tests' own refusal of every sign-in handed over (never set outside a test: nothing does).
     #[cfg(test)]
     pub(crate) refuse_adopt: AtomicBool,
@@ -247,20 +263,36 @@ impl SyncHost {
             busy: AtomicBool::new(false),
             remember: AtomicBool::new(true),
             notify_mail: AtomicBool::new(true),
+            notify_new_mail_only: AtomicBool::new(false),
+            notify_primary_only: AtomicBool::new(false),
             tick_queued: AtomicBool::new(false),
             pacer: Pacer::default(),
+            fetch_busy: AtomicBool::new(false),
+            fetch_runner: std::sync::Mutex::new(crate::fetch::default_runner()),
+            stop_asked: AtomicU64::new(0),
             #[cfg(test)]
             refuse_adopt: AtomicBool::new(false),
         }
     }
 
-    fn lock(&self) -> MutexGuard<'_, Inner> {
+    pub(crate) fn lock(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// How long the driver waits before the next wake.
     pub(crate) fn next_wait(&self) -> Duration {
-        if self.busy.load(Ordering::Relaxed) { BUSY_WAIT } else { IDLE_WAIT }
+        if self.busy.load(Ordering::Relaxed) || self.fetch_busy.load(Ordering::Relaxed) { BUSY_WAIT } else { IDLE_WAIT }
+    }
+
+    /// The clock of the round's and the background's timers, in milliseconds since the core began.
+    pub(crate) fn now_ms(&self) -> f64 {
+        self.started.elapsed().as_secs_f64() * 1000.0
+    }
+
+    /// Run fetch jobs as `runner` says (the tests': nothing leaves the machine).
+    #[cfg(test)]
+    pub(crate) fn set_fetch_runner(&self, runner: crate::fetch::FetchRunner) {
+        *self.fetch_runner.lock().unwrap_or_else(PoisonError::into_inner) = runner;
     }
 
     pub(crate) fn set_remember(&self, on: bool) {
@@ -276,12 +308,20 @@ impl SyncHost {
         self.notify_mail.store(on, Ordering::Relaxed);
     }
 
-    fn context<'a>(&'a self, session: &Session, secrets: Option<&'a dyn HostSecretStore>) -> Context<'a> {
+    pub(crate) fn set_notify_new_mail_only(&self, on: bool) {
+        self.notify_new_mail_only.store(on, Ordering::Relaxed);
+    }
+
+    pub(crate) fn set_notify_primary_only(&self, on: bool) {
+        self.notify_primary_only.store(on, Ordering::Relaxed);
+    }
+
+    pub(crate) fn context<'a>(&'a self, session: &Session, secrets: Option<&'a dyn HostSecretStore>) -> Context<'a> {
         Context {
             secrets,
             remember: self.remember.load(Ordering::Relaxed),
             ids: ClientIds { microsoft_built_in: MS_CLIENT_ID, ..Default::default() },
-            now_ms: self.started.elapsed().as_secs_f64() * 1000.0,
+            now_ms: self.now_ms(),
             now_s: self.host.platform().now(),
             minutes: f64::from(session.prefs.sync_minutes),
             // What a send marks as sending is on disk before the send goes out (AU3-26).
@@ -327,7 +367,7 @@ impl SyncHost {
     }
 
     /// Put what the host wrote to the credential store into the index of names.
-    fn note_keys(&self, inner: &mut Inner) {
+    pub(crate) fn note_keys(&self, inner: &mut Inner) {
         let written = inner.sr.take_written_keys();
         if written.is_empty() && !inner.index_pending {
             return;
@@ -446,6 +486,8 @@ impl SyncHost {
             names.insert(secret_key("refresh", a));
         }
         inner.sr.forget();
+        // What was being fetched with them is called off, and nothing it brings is taken in.
+        self.cancel_locked(&mut inner, None);
         inner.needs_sign_in.clear();
         let no_store = matches!(store, Ok(None));
         let mut left: BTreeSet<String> = BTreeSet::new();
@@ -581,14 +623,43 @@ impl SyncHost {
         if !inner.active && inner.run_mark.is_none() {
             return inner.last_summary.clone().unwrap_or(SyncSummary { finished: true, ..Default::default() });
         }
+        self.stop_locked(&mut inner, session)
+    }
+
+    fn stop_locked(&self, inner: &mut Inner, session: &mut Session) -> SyncSummary {
         inner.sr.stop(session);
         session.driver.round.queue.clear();
-        self.finish_round(&mut inner, session, false)
+        let summary = self.finish_round(inner, session, false);
+        // Pages the run brought before the stop stay: keep the mailbox within the limits.
+        inner.trim.due = true;
+        self.pacer.poke();
+        summary
+    }
+
+    /// The round under way (or the next, when none is): what [`SyncHost::stop_later`] is given.
+    pub(crate) fn round(&self) -> u64 {
+        self.lock().finished_rounds
+    }
+
+    /// Call `round` off at the next wake of the driver, if it is still under way then (a round
+    /// that has ended, and any after it, are left alone). Never waits: for a `Drop`. A request for
+    /// an older round never replaces one for a newer that is still waiting (the newer is the one
+    /// that may still be under way).
+    pub(crate) fn stop_later(&self, round: u64) {
+        self.stop_asked.fetch_max(round.saturating_add(1), Ordering::AcqRel);
+        self.pacer.poke();
     }
 
     /// One wake of the driver, on the session's thread.
     pub(crate) fn tick(&self, session: &mut Session) {
         let mut inner = self.lock();
+        if let Some(round) = self.stop_asked.swap(0, Ordering::AcqRel).checked_sub(1)
+            && round == inner.finished_rounds
+            && (inner.active || inner.run_mark.is_some())
+        {
+            self.stop_locked(&mut inner, session);
+            return;
+        }
         self.tick_locked(&mut inner, session);
     }
 
@@ -621,11 +692,27 @@ impl SyncHost {
         self.note_keys(inner);
         let working = inner.sr.busy() || !session.driver.round.queue.is_empty();
         self.busy.store(working, Ordering::Relaxed);
+        // What the owner opened goes at once; the background only between rounds.
+        self.fetch_step(inner, session, !working && !inner.active);
         if working {
             self.progress(inner, session);
-        } else if inner.active || inner.run_mark.is_some() {
-            self.finish_round(inner, session, true);
+        } else {
+            if inner.active || inner.run_mark.is_some() {
+                self.finish_round(inner, session, true);
+                // What a round brought may take the mailbox past the phone's limits.
+                inner.trim.due = true;
+            }
+            // Between runs, never during one: a run's pages name the messages they change.
+            if inner.trim.step(session) {
+                self.pacer.poke();
+            }
         }
+    }
+
+    /// Keep the mailbox within the phone's limits at the next wake (they were changed).
+    pub(crate) fn trim_soon(&self) {
+        self.lock().trim.due = true;
+        self.pacer.poke();
     }
 
     fn took(&self, inner: &mut Inner, taken: Taken) {
@@ -698,7 +785,8 @@ impl SyncHost {
         let lang = session.interface_language;
         let found = inner.run_mark.take().map(|mark| arrivals::arrivals(&session.mailbox, &mark)).unwrap_or_default();
         if self.notify_mail.load(Ordering::Relaxed) {
-            for n in plan_notifications(session, &found, &mut inner.next_key) {
+            let told = if self.notify_primary_only.load(Ordering::Relaxed) { primary_only(&session.mailbox, &found) } else { found.clone() };
+            for n in plan_notifications(session, &told, &mut inner.next_key, self.notify_new_mail_only.load(Ordering::Relaxed)) {
                 self.sink.push(Event::Notification { notification: n });
             }
         }
@@ -713,6 +801,7 @@ impl SyncHost {
         };
         inner.active = false;
         inner.ran = false;
+        inner.finished_rounds = inner.finished_rounds.wrapping_add(1);
         inner.idle_mark = None;
         inner.last_progress = None;
         inner.last_summary = Some(summary.clone());
@@ -736,12 +825,35 @@ fn add_error(errors: &mut Vec<String>, line: String) {
     }
 }
 
+/// The arrivals that are not in a Gmail category other than Primary (the owner's "Primary only"
+/// switch for this phone). Mail whose category is not known yet is kept: better told once too
+/// often than not at all. Microsoft's Focused and Other are not kept by the mailbox, so mail of
+/// those accounts is always kept.
+pub(crate) fn primary_only(mailbox: &mailcraft_model::Mailbox, found: &[Arrival]) -> Vec<Arrival> {
+    found
+        .iter()
+        .filter(|a| mailbox.message(a.message).is_none_or(|m| m.gmail_category.is_none_or(|c| c == mailcraft_model::GmailCategory::Primary)))
+        .cloned()
+        .collect()
+}
+
 /// The notifications for new mail: one each for up to [`AT_ONCE`], else one that counts them. What
-/// they say of a message is its own text, hostile, made plain and short as a name is shown.
-fn plan_notifications(session: &Session, found: &[Arrival], next_key: &mut u64) -> Vec<NotificationRecord> {
+/// they say of a message is its own text, hostile, made plain and short as a name is shown. With
+/// `only_new_mail` (the owner's privacy switch) one notification says "New mail" and nothing else:
+/// no sender, no subject, no count, whatever the lock screen shows.
+fn plan_notifications(session: &Session, found: &[Arrival], next_key: &mut u64, only_new_mail: bool) -> Vec<NotificationRecord> {
     let lang = session.interface_language;
     if found.is_empty() {
         return Vec::new();
+    }
+    if only_new_mail {
+        *next_key = next_key.wrapping_add(1);
+        return vec![NotificationRecord {
+            key: *next_key,
+            topic: NotificationTopic::Mail,
+            title: lang.t("New mail").to_string(),
+            body: String::new(),
+        }];
     }
     if found.len() > AT_ONCE {
         *next_key = next_key.wrapping_add(1);

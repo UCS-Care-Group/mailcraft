@@ -8,6 +8,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- New-mail notifications (Android 13 and later ask the owner, once an account exists). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The background Send/Receive never runs as a foreground service: WorkManager's is left out,
+         and the permission for it with it. -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
+        tools:node="remove" />
 
     <application
         android:name=".MailCraftApplication"
@@ -32,12 +39,53 @@
                 android:value="true" />
         </service>
 
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            tools:node="remove" />
+
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- A calendar file (.ics) another program opens with us goes into our own calendar:
+                 only a content address, only these types; the phone's own calendar is not used. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="text/calendar" />
+                <data android:mimeType="application/ics" />
+            </intent-filter>
+
+            <!-- mailto: links from any app start a message (RFC 6068: the core reads the link, and only the
+                 recipients, the subject and the body of it are used); nothing is sent by itself. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="mailto" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mailto" />
+            </intent-filter>
+
+            <!-- Share into a new message: text, a link, one file or several. What is shared is read under
+                 caps and its kind is taken from its bytes, never from what the sender says it is. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
 
