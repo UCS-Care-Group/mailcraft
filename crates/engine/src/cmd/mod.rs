@@ -132,6 +132,9 @@ mod range_select_tests;
 mod read_receipt_tests;
 #[cfg(test)]
 mod refused_delete_tests;
+pub mod react;
+#[cfg(test)]
+mod react_tests;
 pub mod remote;
 #[cfg(test)]
 mod reply_to_first_tests;
@@ -229,6 +232,7 @@ pub fn registry() -> Registry {
     v.extend(device_limits::specs());
     v.extend(send_receive::specs());
     v.extend(send_later::specs());
+    v.extend(react::specs());
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());

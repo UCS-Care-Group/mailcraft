@@ -148,6 +148,8 @@ pub fn cancel_send(s: &mut Session, id: Id) -> Result<(), CmdError> {
     let m = s.mailbox.message_mut(id)?;
     // No time stays on the draft (it can be given one again), and it is dated now.
     m.draft = true;
+    // Written again it is an ordinary message, whose text is the emoji (#1544).
+    m.reaction = false;
     m.held.clear();
     (m.send_at, m.date, m.received) = (None, now, now);
     if s.undo_send == Some(id) {

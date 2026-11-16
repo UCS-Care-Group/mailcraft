@@ -246,6 +246,21 @@ Gets the request for a picture the owner asked for.
 - The picture cache (`apps/mailcraft/src/picture_cache.rs`) names files by hashes and never writes
   the address; it is capped and read back through the same checks as a download.
 
+### A reaction sent by one click
+
+React (#1544, `mail.react`) sends mail from one click: an emoji, as a reply (RFC 9078) to the
+sender of a message. It is the one thing that sends mail without a message to read through before
+Send, so it is held narrow. The emoji is one of six fixed ones (anything else is refused, so
+nothing a caller or a message writes reaches the mail's text), the recipient is one address (the
+message's Reply-To or sender; the sender alone for a mailing list), and nothing of the original is
+quoted. It is refused for drafts, for the owner's own mail, for Junk E-mail (an answer would tell a
+spammer the address is read) and for a second identical reaction. An agent is asked about it in
+the window (`send`) and must name the message. A reaction tells the sender the mail was read,
+as a read receipt does, but only when the owner clicks. It goes through the account's normal
+sending over TLS like any mail, and a Microsoft or Exchange server account is refused rather than
+given a path of its own. The message text is never read into a reaction: `Content-Disposition:
+reaction` is written, never taken from mail that comes in.
+
 ### A hostile or compromised mail server
 
 Answers IMAP, SMTP or Microsoft Graph with whatever it likes.

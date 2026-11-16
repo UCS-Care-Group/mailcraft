@@ -34,6 +34,9 @@ pub(crate) mod images;
 mod images_tests;
 mod invitation;
 mod layout;
+mod react;
+#[cfg(test)]
+mod react_tests;
 pub(crate) mod remote;
 mod select;
 mod sharing;
@@ -482,6 +485,10 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                         let sc = crate::widgets::shortcut_text(app, id);
                         if crate::widgets::icon_button(ui, icon, &format!("{} ({sc})", tl!(tip)), 17.0, true).clicked() {
                             let _ = app.run(id, json!({}));
+                        }
+                        // React sits between Forward and Delete (#1544).
+                        if *id == "mail.delete" {
+                            react::button(app, ui, m);
                         }
                     }
                 }

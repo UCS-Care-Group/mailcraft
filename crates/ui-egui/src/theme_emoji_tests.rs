@@ -57,3 +57,16 @@ fn no_colour_emoji_face_leaves_the_families_alone() {
     assert!(!system.has_emoji());
     assert_eq!(font_definitions_with(&system).families, font_definitions_with(&SystemFont::none()).families);
 }
+
+/// The six emoji of a reaction (#1544), in the font the picker draws them in: none is an empty box.
+#[test]
+fn the_six_reactions_are_drawn() {
+    let fonts = font_definitions_with(&SystemFont::none());
+    let ctx = egui::Context::default();
+    ctx.set_fonts(fonts);
+    ctx.run_ui(egui::RawInput::default(), |_| {}).drop_without_applying_deltas();
+    let id = FontId::new(22.0, FontFamily::Proportional);
+    for (emoji, name) in mailcraft_engine::cmd::react::REACTIONS {
+        assert!(ctx.fonts_mut(|f| f.has_glyphs(&id, emoji)), "{name} {emoji} has no glyph");
+    }
+}

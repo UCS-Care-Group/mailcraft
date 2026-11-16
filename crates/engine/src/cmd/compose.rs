@@ -285,7 +285,7 @@ fn reply_source(s: &Session, v: &Value) -> Result<Message, CmdError> {
 }
 
 /// `RE: subject`, unless it already starts that way.
-fn prefixed(prefix: &str, subject: &str) -> String {
+pub(super) fn prefixed(prefix: &str, subject: &str) -> String {
     let lower = subject.trim_start().to_ascii_lowercase();
     if lower.starts_with(&format!("{}:", prefix.to_ascii_lowercase())) { subject.trim().to_string() } else { format!("{prefix}: {}", subject.trim()) }
 }
@@ -458,6 +458,21 @@ fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
     m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
 }
 
+/// The `References` of an answer to `m`: its own, then its Message-ID. A long thread's stay
+/// bounded: the root and the latest ones.
+pub(super) fn references_of(m: &Message) -> Vec<String> {
+    let mut references = m.references.clone();
+    if !m.message_id.is_empty() {
+        references.push(m.message_id.clone());
+    }
+    if references.len() > 20 {
+        let tail = references.split_off(references.len() - 19);
+        references.truncate(1);
+        references.extend(tail);
+    }
+    references
+}
+
 fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     // A forward carries every file; a reply only quotes the text and the pictures it shows.
     let m = match mode {
@@ -502,16 +517,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
             (to, cc)
         }
     };
-    let mut references = m.references.clone();
-    if !m.message_id.is_empty() {
-        references.push(m.message_id.clone());
-    }
-    // A long thread's References stay bounded: the root and the latest ones.
-    if references.len() > 20 {
-        let tail = references.split_off(references.len() - 19);
-        references.truncate(1);
-        references.extend(tail);
-    }
+    let references = references_of(&m);
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
     // An original in HTML is carried below with its look; one in plain text is quoted in the body.
     let quote = match &m.body.html {

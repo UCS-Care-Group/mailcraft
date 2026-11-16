@@ -446,6 +446,8 @@ const SEND: &[&str] = &[
     // The server answers mail on the owner's behalf with what it says.
     "account.setAutomaticReplies",
     "mail.sendAgain",
+    // A reaction (#1544) is a mail to the sender: one emoji, sent without a message to write.
+    "mail.react",
     "calendar.propose",
     "calendar.forward",
     "ui.downloadPictures",
@@ -1103,6 +1105,7 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.editDraft",
     "mail.resend",
     "mail.removeAttachment",
+    "mail.react",
     "mail.sendAgain",
     "mail.cancelSend",
     "mail.setSendTime",
@@ -1110,7 +1113,7 @@ pub const NEEDS_IDS: &[&str] = &[
 
 /// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
 const ONE_MESSAGE: &[&str] =
-    &["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.editDraft", "mail.resend", "mail.sendAgain", "mail.cancelSend", "mail.setSendTime"];
+    &["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.editDraft", "mail.resend", "mail.react", "mail.sendAgain", "mail.cancelSend", "mail.setSendTime"];
 
 /// The refusal for a command in [`NEEDS_IDS`] given no messages.
 pub fn needs_ids(id: &str) -> String {
@@ -1426,6 +1429,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 }
                 None => format!("send the message being written, not before {when}"),
             }
+        }
+        "mail.react" => {
+            let emoji = crate::cmd::react::canonical(st("emoji")).unwrap_or("an emoji");
+            format!("send {emoji} as a reaction to the sender of {}", messages_text(s, &taken(params)))
         }
         "mail.setSendTime" => {
             let when = match params.get("at") {
