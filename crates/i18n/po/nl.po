@@ -20031,6 +20031,12 @@ msgid "folder {id} is not that account's"
 msgstr "map {id} hoort niet bij dat account"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "folder {p} is not that account's"
+msgstr "map {p} hoort niet bij dat account"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -20455,6 +20461,12 @@ msgstr "geen map „{path}”"
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "geen map met id {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "no folder with id {p}"
+msgstr "geen map met id {p}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

@@ -20003,6 +20003,12 @@ msgid "folder {id} is not that account's"
 msgstr "A mappában nem a {id} van, hanem a fiókban."
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "folder {p} is not that account's"
+msgstr "A mappában nem a {p} van, hanem a fiókban."
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -20427,6 +20433,12 @@ msgstr "nincs \"{path}\" mappa"
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "nincs ilyen azonosítójú mappa: {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "no folder with id {p}"
+msgstr "nincs ilyen azonosítójú mappa: {p}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

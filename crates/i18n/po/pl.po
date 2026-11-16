@@ -20078,6 +20078,12 @@ msgid "folder {id} is not that account's"
 msgstr "folder {id} nie należy do tego konta"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "folder {p} is not that account's"
+msgstr "folder {p} nie należy do tego konta"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -20502,6 +20508,12 @@ msgstr "brak folderu „{path}”"
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "brak folderu o identyfikatorze {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "no folder with id {p}"
+msgstr "brak folderu o identyfikatorze {p}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

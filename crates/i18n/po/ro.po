@@ -20073,6 +20073,12 @@ msgid "folder {id} is not that account's"
 msgstr "dosarul {id} nu aparține acelui cont"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "folder {p} is not that account's"
+msgstr "dosarul {p} nu aparține acelui cont"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -20497,6 +20503,12 @@ msgstr "nu există dosarul „{path}”"
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "nu există dosar cu ID-ul {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "no folder with id {p}"
+msgstr "nu există dosar cu ID-ul {p}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

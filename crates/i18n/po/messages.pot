@@ -16591,6 +16591,11 @@ msgid "folder {id} is not that account's"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "folder {p} is not that account's"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "folders are nested too deeply"
 msgstr ""
@@ -16943,6 +16948,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
 msgid "no folder with id {id}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "no folder with id {p}"
 msgstr ""
 
 #. what a command says

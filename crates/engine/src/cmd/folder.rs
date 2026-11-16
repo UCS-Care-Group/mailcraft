@@ -21,7 +21,7 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         CommandSpec::new("folder.new", "New Folder", "Folder › New", new)
             .key("Mod+Shift+E")
-            .params(r#"{"name": string, "parent"?: number | null (default: the folder in view; null: top level), "account"?: number}"#),
+            .params(r#"{"name": string, "parent"?: number | null (default: the folder in view, when it is `account`'s or no account is named; otherwise the account's top level. null: the account's top level), "account"?: number} — `account` says whose folder it is, and is an account that is there; a `parent` of another account's is refused rather than quietly given. Answers {"id", "account", "path"}"#),
         CommandSpec::new("folder.rename", "Rename Folder", "Folder › Actions", rename).key("F2").params(r#"{"name": string, "id"?: number}"#).selection(can_rename),
         CommandSpec::new("folder.move", "Move Folder", "Folder › Actions", move_folder).params(r#"{"parent": number | null, "id"?: number}"#).selection(can_move),
         CommandSpec::new("folder.delete", "Delete Folder", "Folder › Actions", delete).params(FOLDER).selection(can_delete),
@@ -268,8 +268,8 @@ pub(crate) fn named(s: &Session, folder: &Value, account: Option<Id>) -> Result<
 /// `account` from the parameters (#1200): an id, and an account that is there. Taken for "none",
 /// an account that isn't there would quietly become the account in view, and the answer would
 /// read as though it came from the one that was asked for. `mail.list` and `folder.select` read
-/// it through this, so that [`named`] is given an account it can trust. `folder.new` does not: it
-/// takes `account` only where `parent` names no folder, and reads it loosely.
+/// it through this, so that [`named`] is given an account it can trust; `folder.new` does too,
+/// and refuses a `parent` that isn't that account's (#1319).
 pub(crate) fn account_named(s: &Session, v: &Value) -> Result<Option<Id>, CmdError> {
     let Some(id) = p::id_strict(v, "account")? else { return Ok(None) };
     match s.mailbox.account(id) {
@@ -376,21 +376,31 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
 
 fn new(s: &mut Session, v: &Value) -> CmdResult {
     let name = p::req_str(v, "name")?;
-    // `"parent": null` asks for the top level; no `parent` means under the folder in view.
+    // `account` says whose folder to make, read strictly and checked to be there (#1319): an
+    // account that isn't, or isn't an id, is refused rather than quietly becoming the one in view.
+    let named = account_named(s, v)?;
+    // `"parent": null` asks for that account's top level; no `parent` means under the folder in
+    // view, when it is that account's, and otherwise at that account's top level.
     let parent = match v.get("parent") {
         Some(Value::Null) => None,
         Some(_) => Some(p::req_id(v, "parent")?),
-        None => s.mailbox.folder(s.view.folder).map(|f| f.id),
+        None => s.mailbox.folder(s.view.folder).filter(|f| named.is_none_or(|a| a == f.account)).map(|f| f.id),
     };
-    let account = match parent.and_then(|p| s.mailbox.folder(p)) {
-        Some(f) => f.account,
-        None => p::id(v, "account")
+    let account = match parent {
+        Some(p) => {
+            let f = s.mailbox.folder(p).ok_or_else(|| failed!("no folder with id {p}", p))?;
+            if named.is_some_and(|a| a != f.account) {
+                return Err(failed!("folder {p} is not that account's", p));
+            }
+            f.account
+        }
+        None => named
             .or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account))
             .or_else(|| s.mailbox.default_account().map(|a| a.id))
             .ok_or_else(|| fail("add an account first"))?,
     };
     let id = s.mailbox.add_folder(account, parent, name)?;
-    Ok(json!({"id": id, "path": s.mailbox.folder_path(id)}))
+    Ok(json!({"id": id, "account": account, "path": s.mailbox.folder_path(id)}))
 }
 
 fn rename(s: &mut Session, v: &Value) -> CmdResult {

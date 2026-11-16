@@ -19997,6 +19997,12 @@ msgid "folder {id} is not that account's"
 msgstr "文件夹 {id} 不属于该账户"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "folder {p} is not that account's"
+msgstr "文件夹 {p} 不属于该账户"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -20421,6 +20427,12 @@ msgstr "没有文件夹“{path}”"
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "没有 ID 为 {id} 的文件夹"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "no folder with id {p}"
+msgstr "没有 ID 为 {p} 的文件夹"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
