@@ -2473,6 +2473,9 @@ fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
 mod fit_tests;
 
 #[cfg(test)]
+mod move_menu_tests;
+
+#[cfg(test)]
 mod plain_tests;
 
 #[cfg(test)]
@@ -3145,19 +3148,6 @@ mod tests {
         h
     }
 
-    /// The same for every account's folders, as Move to Folder and Copy to Folder draw it.
-    fn picker_all(app: MailApp) -> Picker {
-        let mut h =
-            egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(vec2(400.0, 500.0)).build_ui_state(
-                |ui, (app, picked): &mut (MailApp, Option<Id>)| {
-                    folder_menu_all(ui, app, |_, id| *picked = Some(id));
-                },
-                (app, None),
-            );
-        h.run_steps(3);
-        h
-    }
-
     fn type_into(h: &mut Picker, text: &str) {
         h.event(egui::Event::Text(text.to_string()));
         h.run_steps(3);
@@ -3250,28 +3240,5 @@ mod tests {
         assert!(h.query_by_label_contains("Drafts").is_none());
         press(&mut h, egui::Key::Escape);
         assert!(h.query_by_label_contains("Drafts").is_some());
-    }
-
-    /// Move to Folder and Copy to Folder list every mailbox's folders: the account in view's
-    /// first, another's under its name, and a search finds it by its mailbox too (#451).
-    #[test]
-    fn every_mailboxs_folders_are_in_the_move_menu() {
-        let mut a = app();
-        let local = a.session.mailbox.default_account().map(|x| x.id).unwrap();
-        let other = a.execute("account.add", json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
-        let archive = a.session.mailbox.folder_of_kind(other, mailcraft_model::FolderKind::Archive).unwrap();
-        let (rows, many) = folder_rows(&a, FolderScope::EveryAccount);
-        assert!(many, "two mailboxes are listed");
-        assert!(rows.iter().any(|row| row.id == archive), "another mailbox's folder is listed");
-        assert!(rows.iter().any(|row| row.heading.as_deref() == Some("owner@example.org")), "its account is a heading");
-        let first = &rows[0];
-        assert_eq!(a.session.mailbox.folder(first.id).map(|f| f.account), Some(local), "the mailbox in view's folders come first");
-
-        // Typing the mailbox's address finds a folder in it, and Enter chooses that folder.
-        let mut h = picker_all(a);
-        type_into(&mut h, "owner@example.org");
-        press(&mut h, egui::Key::Enter);
-        let chosen = h.state().1.expect("a folder of that mailbox is chosen");
-        assert_eq!(h.state().0.session.mailbox.folder(chosen).map(|f| f.account), Some(other));
     }
 }
