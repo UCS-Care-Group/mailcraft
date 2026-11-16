@@ -631,7 +631,8 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             // The events of this computer's own, by UID: looked up once, not once for every event.
             let mut own_uids: std::collections::HashMap<String, (mailcraft_model::Id, mailcraft_model::Id)> = std::collections::HashMap::new();
             for x in s.mailbox.events.values() {
-                if !x.uid.is_empty() && x.origin.is_local() {
+                // (Not a copy of a calendar on the web: the next refresh would take the import away.)
+                if !x.uid.is_empty() && x.origin.is_local() && s.mailbox.calendar(x.calendar).is_none_or(|c| !c.is_subscribed()) {
                     own_uids.entry(x.uid.clone()).or_insert((x.id, x.calendar));
                 }
             }
