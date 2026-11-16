@@ -154,6 +154,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("account.edit", r#"{"id": $account, "name": "X"}"#, Setup::None),
     ("account.remove", r#"{"id": $account}"#, Setup::None),
     ("account.forgetEwsCertificate", r#"{"id": $account}"#, Setup::None),
+    ("account.davSet", r#"{"id": $account, "calendarHomes": ["https://dav.example.org/cal/"]}"#, Setup::None),
+    ("account.davOff", r#"{"id": $account}"#, Setup::None),
     ("account.graphSwitch", r#"{"account": $account}"#, Setup::None),
     ("account.addSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
     ("account.removeSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
@@ -181,6 +183,9 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("calendar.removeCalendar", r#"{"id": $calendar}"#, Setup::None),
     ("calendar.openShared", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.removeShared", r#"{"address": "x@example.org"}"#, Setup::None),
+    ("calendar.subscribe", r#"{"address": "https://cal.example.org/private/token/x.ics"}"#, Setup::None),
+    ("calendar.unsubscribe", r#"{"id": $calendar}"#, Setup::None),
+    ("calendar.subscriptionSettings", r#"{"id": $calendar, "intervalMinutes": 30}"#, Setup::None),
     ("calendar.hideListedCopy", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.moveToAccount", "{}", Setup::None),
     ("ui.checkCalendar", "{}", Setup::None),
@@ -581,4 +586,63 @@ fn a_meeting_sent_is_the_one_in_the_window_the_question_named() {
     answer(&mut a, true);
     assert_eq!(rx.try_recv().unwrap()["ok"], true);
     assert!(crate::windows::told(&a, second));
+}
+
+#[test]
+fn a_yes_to_a_server_change_does_not_reach_a_server_changed_since_it_was_asked() {
+    // Two questions queued: the first moves the home, the second only pins a certificate. The
+    // second's text names none of what the first changed, and the pin must not go onto the other
+    // server.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"]})).unwrap();
+    let (now, first) = agent(&mut a, "account.davSet", json!({"id": account, "calendarHomes": ["https://other.example.org/cal/"]}));
+    assert!(now.is_none());
+    let (now, second) = agent(&mut a, "account.davSet", json!({"id": account, "trusted": "ab".repeat(32)}));
+    assert!(now.is_none());
+    answer(&mut a, true);
+    assert_eq!(first.try_recv().unwrap()["ok"], true);
+    answer(&mut a, true);
+    let r = second.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    let dav = a.session.mailbox.account(account).unwrap().dav.clone().unwrap();
+    assert_eq!((dav.trusted.as_str(), dav.calendar_homes[0].as_str()), ("", "https://other.example.org/cal/"));
+}
+
+#[test]
+fn a_yes_to_a_server_change_does_not_reach_another_login_when_none_is_named() {
+    // With no user name of its own the server is signed in to as the account's address: changing
+    // that address while a question is up changes who the pin and homes are for.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"]})).unwrap();
+    let (now, rx) = agent(&mut a, "account.davSet", json!({"id": account, "trusted": "ab".repeat(32)}));
+    assert!(now.is_none());
+    a.execute("account.edit", json!({"id": account, "email": "other@example.org"})).unwrap();
+    answer(&mut a, true);
+    let r = rx.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    assert_eq!(a.session.mailbox.account(account).unwrap().dav.as_ref().unwrap().trusted, "");
+}
+
+#[test]
+fn a_yes_that_clears_the_user_name_does_not_reach_another_address() {
+    // The request asks for no user name, so it would sign in as the account's address: an address
+    // changed while the question is up changes what was approved, though the stored name didn't.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"], "username": "bo"})).unwrap();
+    let (now, rx) = agent(&mut a, "account.davSet", json!({"id": account, "username": ""}));
+    assert!(now.is_none());
+    a.execute("account.edit", json!({"id": account, "email": "other@example.org"})).unwrap();
+    answer(&mut a, true);
+    let r = rx.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    assert_eq!(a.session.mailbox.account(account).unwrap().dav.as_ref().unwrap().username, "bo");
 }

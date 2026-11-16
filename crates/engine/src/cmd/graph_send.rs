@@ -110,6 +110,12 @@ pub fn waiting_at(mb: &Mailbox, now: i64, account: Id) -> usize {
 /// Take in what became of one message sent. Whether anything changed; a line for the owner when
 /// it is held.
 pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft_i18n::Lang, said: &mut Vec<String>) -> bool {
+    send_done_at(mb, account, done, lang, said, None)
+}
+
+/// [`send_done`] at `now`: a message's follow-up reminder set as "after so many days" counts them
+/// from the moment it went (#948), and one whose copy the server files in Sent Items waits for it.
+pub fn send_done_at(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft_i18n::Lang, said: &mut Vec<String>, now: Option<i64>) -> bool {
     let mut changed = false;
     // Whether the owner queued it here, as it stood before the answer: `draft_done` may take away
     // the pending change that alone says so of a draft begun elsewhere without a marker (#738).
@@ -167,6 +173,9 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
                 changed = true;
             }
             mb.mark_answered(done.message);
+            if let Some(now) = now {
+                mb.follow_up_sent(done.message, now);
+            }
             // Sent as the draft its server has (`…/messages/{id}/send`): Exchange files it in
             // Sent Items under the same id, but the delta may list it in Drafts, a draft, a while
             // longer. Kept here as the message sent, in Sent Items, under that id, it is that
@@ -180,6 +189,8 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
                 m.sent_here = true;
                 return true;
             }
+            // The server's copy comes down as a message of its own: it takes the reminder.
+            mb.keep_follow_up_for_copy(done.message, now.unwrap_or_default());
             mb.forget_message(done.message).is_ok() || changed
         }
         // Exchange won't let the owner send as the shared mailbox nor on its behalf (#70): said

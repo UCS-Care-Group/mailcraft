@@ -9,6 +9,9 @@ name: CodeQL
 
 on:
   pull_request:
+  # The merge queue: main's ruleset waits for CodeQL's results on the queue's commit too.
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main]
   schedule:
@@ -20,7 +23,7 @@ permissions:
 
 concurrency:
   group: codeql-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:

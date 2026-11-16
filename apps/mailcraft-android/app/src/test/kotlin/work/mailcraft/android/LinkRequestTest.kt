@@ -36,6 +36,14 @@ class LinkRequestTest {
     }
 
     @Test
+    fun initialsComeFromTheFirstTwoWords() {
+        assertEquals("AE", initialsOf("Ada Example"))
+        assertEquals("A", initialsOf("ada@example.org").take(1))
+        assertEquals("?", initialsOf(""))
+        assertEquals("?", initialsOf("...@@"))
+    }
+
+    @Test
     fun aMessageOpenedFromTheListIsSavedAndComesBack() {
         val reading = NavState().openMessage(42uL)
         assertEquals(Tab.Mail, reading.tab)
