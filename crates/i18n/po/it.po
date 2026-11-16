@@ -18443,7 +18443,7 @@ msgstr "Annulla {what}"
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Unpin"
-msgstr "Non fissare"
+msgstr "Rimuovi fissaggio"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
