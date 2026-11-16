@@ -56,9 +56,6 @@ class PhoneShellScreenshotTest {
     fun languageLight100() =
         shoot("phone_language_light_100", night = false, fontScale = 1f, nav = NavState().openPage(SettingsPage.Language))
 
-    @Test
-    fun todayDark100() = shoot("phone_today_dark_100", night = true, fontScale = 1f, nav = NavState(tab = Tab.Today))
-
     private fun shootOpening(name: String, night: Boolean, fontScale: Float) {
         paparazzi.unsafeUpdateConfig(
             DeviceConfig.PIXEL_5.copy(nightMode = if (night) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = fontScale),

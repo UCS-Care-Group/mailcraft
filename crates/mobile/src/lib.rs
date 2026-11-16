@@ -38,6 +38,7 @@ mod limits;
 mod links;
 mod list;
 mod message;
+mod people_tasks;
 mod pictures;
 mod platform;
 mod queries;
@@ -77,6 +78,8 @@ mod limits_tests;
 mod links_tests;
 #[cfg(test)]
 mod list_tests;
+#[cfg(test)]
+mod people_tasks_tests;
 #[cfg(test)]
 mod pictures_tests;
 #[cfg(test)]
