@@ -614,7 +614,9 @@ impl Run<'_> {
                 continue;
             }
             if !(200..300).contains(&entry.status) {
+                // (A member the server couldn't describe now: not read, so the read is not all.)
                 whole = false;
+                all = false;
                 continue;
             }
             if entry.typed && entry.is_collection {
@@ -637,7 +639,7 @@ impl Run<'_> {
         if whole {
             out.members = Some(members.iter().map(|(h, _)| h.clone()).collect());
         }
-        let wanted: Vec<(String, String)> = members.into_iter().filter(|(href, etag)| changed(known, href, etag, false)).collect();
+        let wanted: Vec<(String, String)> = members.into_iter().filter(|(href, etag)| changed(known, href, etag)).collect();
         let mut gets = 0usize;
         let fetched = self.fetch(site, &coll.href, &wanted, &mut gets, out)?;
         out.complete = all && matches!(fetched, Fetched::All);
@@ -695,7 +697,7 @@ impl Run<'_> {
                     continue;
                 }
                 let etag = usable(entry.etag.as_deref());
-                if changed(known, &entry.href, &etag, true) {
+                if changed(known, &entry.href, &etag) {
                     wanted.push((entry.href.clone(), etag));
                 }
             }
@@ -780,7 +782,11 @@ impl Run<'_> {
                         return Ok(Fetched::Partly);
                     }
                 }
-                Got::Never => {}
+                // (Said, without its document, so that it is not asked for at every run.)
+                Got::Never => {
+                    let etag = etags.get(href.as_str()).copied().unwrap_or_default().to_string();
+                    out.changes.push(DavChange { href, etag, raw: None, gone: false });
+                }
                 Got::NotNow => all = false,
             }
         }
@@ -827,11 +833,13 @@ impl Run<'_> {
 }
 
 /// Whether a member is to be read: it isn't here, or is here under another ETag. One the server
-/// gave no ETag for can't be compared: it is read when it isn't here (the engine leaves it out of
-/// what is here once a day, so that it is read again), and, in a change pass (where it is named
-/// because it changed), always.
-fn changed(known: &HashMap<&str, &str>, href: &str, etag: &str, delta: bool) -> bool {
-    if etag.is_empty() { delta || !known.contains_key(href) } else { known.get(href) != Some(&etag) }
+/// gave no ETag for can't be compared: it is read when it isn't here, and the engine leaves it out
+/// of what is here once a day, so that it is read again. That holds in a change pass too: a page
+/// cut short is asked for again from its start, and reading again what it named without an ETag
+/// would take the same documents at every run and never get past them. (A server that keeps to
+/// RFC 4791 gives every calendar resource an ETag; one that doesn't has a change seen within a day.)
+fn changed(known: &HashMap<&str, &str>, href: &str, etag: &str) -> bool {
+    if etag.is_empty() { !known.contains_key(href) } else { known.get(href) != Some(&etag) }
 }
 
 /// An ETag as the server wrote it, or none when it wrote none that can be compared.

@@ -790,3 +790,34 @@ fn r_a_calendar_the_server_no_longer_lists_stays_while_something_in_it_waits_to_
     apply(&mut s, id, Some(empty), vec![]);
     assert_eq!(titles(&s), vec!["A"]);
 }
+
+#[test]
+fn r_a_document_with_an_event_the_reader_could_not_make_out_removes_nothing_of_it() {
+    let (mut s, id) = session();
+    let two = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261102T100000Z\r\nDTEND:20261102T110000Z\r\nSUMMARY:A\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:a\r\nRECURRENCE-ID:20261103T100000Z\r\nDTSTART:20261103T120000Z\r\nDTEND:20261103T130000Z\r\nSUMMARY:A moved\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", two)], true, true, "")]);
+    let before = titles(&s);
+    // The second event is cut off before its end.
+    let cut = two.replacen("SUMMARY:A moved\r\nEND:VEVENT\r\n", "SUMMARY:A moved\r\n", 1);
+    apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"2\"", &cut)], false, true, "t")]);
+    assert_eq!(titles(&s), before);
+}
+
+#[test]
+fn r_a_calendar_that_replaces_one_finds_room_when_the_calendars_are_at_their_cap() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![]);
+    {
+        let d = s.mailbox.account_mut(id).unwrap().dav.as_mut().unwrap();
+        while d.collections.len() < mailcraft_model::DavServer::MAX_COLLECTIONS {
+            let n = d.collections.len();
+            d.collections
+                .push(mailcraft_model::DavCollectionState { href: format!("https://dav.example.org/cal/ada/old{n}/"), ..Default::default() });
+        }
+    }
+    let mut new = listing();
+    new.calendars[0].href = "https://dav.example.org/cal/ada/new/".into();
+    apply(&mut s, id, Some(new), vec![]);
+    let d = s.mailbox.account(id).unwrap().dav.as_ref().unwrap();
+    assert_eq!(d.collections.iter().map(|c| c.href.as_str()).collect::<Vec<_>>(), vec!["https://dav.example.org/cal/ada/new/"]);
+}
