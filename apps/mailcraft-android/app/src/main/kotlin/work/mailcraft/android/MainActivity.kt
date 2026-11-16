@@ -181,7 +181,8 @@ internal fun Root(
     onLanguage: (String) -> Unit,
 ) {
     when (started) {
-        is Phase.Ready -> CoreShell(started.value, version, chosenLanguage, handedOver, onHandled, window, asked, onLanguage)
+        is Phase.Ready ->
+            CoreShell(started.value, version, chosenLanguage, handedOver, onHandled, window, asked, onLanguage)
         Phase.Loading -> Opening()
         Phase.Failed -> Centered(stringResource(R.string.start_failed))
     }

@@ -21,7 +21,6 @@ import uniffi.mailcraft_mobile.ComposeSpan
 import uniffi.mailcraft_mobile.ListMark
 import uniffi.mailcraft_mobile.RecipientLine
 
-private const val TOLERANCE = 0.1
 private val PhoneTall = DeviceConfig.PIXEL_5.copy(screenHeight = 2_400)
 
 /** The composer as another app's share leaves it: invented files and text, `example.org` only. */
