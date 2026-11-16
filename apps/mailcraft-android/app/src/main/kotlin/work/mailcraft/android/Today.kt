@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -45,7 +46,7 @@ internal sealed interface TodayState {
 
 /** The heading of Today: the date in full, as the language writes it. */
 internal fun todayHeading(date: String, locale: Locale = Locale.getDefault()): String = try {
-    DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale).format(java.time.LocalDate.parse(date))
+    DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale).format(LocalDate.parse(date))
 } catch (_: DateTimeParseException) {
     date
 }
@@ -79,8 +80,13 @@ internal fun eventWhen(
     today: String,
     locale: Locale = Locale.getDefault(),
 ): String {
+    // The core gives a date and time; a day alone (YYYY-MM-DD) is read as its start.
     val at = try {
-        LocalDateTime.parse(if (event.allDay) event.start + "T00:00:00" else event.start)
+        if (event.start.length == DAY_LENGTH) {
+            LocalDate.parse(event.start).atStartOfDay()
+        } else {
+            LocalDateTime.parse(event.start)
+        }
     } catch (_: DateTimeParseException) {
         return event.start
     }
@@ -100,3 +106,6 @@ internal suspend fun loadToday(
         TodayState.Failed(core.t("Today could not be read."))
     }
 }
+
+/** The length of a day written alone, `YYYY-MM-DD`. */
+private const val DAY_LENGTH = 10

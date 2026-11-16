@@ -138,6 +138,26 @@ fn next_events_are_not_over_not_cancelled_in_order_and_at_most_ten() {
 }
 
 #[test]
+fn a_morning_of_ended_meetings_leaves_room_for_what_is_to_come() {
+    use mailcraft_model::Event;
+    use mailcraft_time::{Date, DateTime};
+    let at = |h: u8, m: u8| DateTime::new(Date::new(2026, 10, 14).unwrap(), h, m, 0).unwrap();
+    let core = Core::start(FakePlatform::new(), move || {
+        let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+        // More meetings that are over (the clock says 16:00) than the occurrences once counted.
+        for i in 0..(crate::text::MAX_OCCURRENCES + 1) {
+            let _ = s.mailbox.add_event(Event { title: format!("Over {i}"), start: at(1, 0), end: at(1, 1), ..Default::default() });
+        }
+        let _ = s.mailbox.add_event(Event { title: "Still to come".into(), start: at(23, 0), end: at(23, 30), ..Default::default() });
+        s
+    })
+    .unwrap();
+    let next = block_on(core.today()).unwrap().next_events;
+    assert!(next.iter().any(|e| e.title == "Still to come"));
+    assert!(!next.iter().any(|e| e.title.starts_with("Over ")));
+}
+
+#[test]
 fn long_notes_and_names_are_cut() {
     let core = sample_core();
     let made = exec(&core, "tasks.new", json!({"title": "T", "notes": "n".repeat(50_000), "account": 0})).unwrap();

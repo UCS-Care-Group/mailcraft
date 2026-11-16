@@ -110,12 +110,7 @@ private fun PeopleRows(texts: Texts, list: PeopleList, open: ULong?, actions: Pe
     }
     val items = peopleItems(list.rows)
     LazyColumn(contentPadding = PaddingValues(bottom = Gutter)) {
-        items(items, key = { item ->
-            when (item) {
-                is PeopleItem.Heading -> "h" + item.letter
-                is PeopleItem.Person -> "p" + item.row.id
-            }
-        }) { item ->
+        items(items, key = { it.key }) { item ->
             when (item) {
                 is PeopleItem.Heading -> Heading(item.letter)
                 is PeopleItem.Person -> PersonRowView(item.row, item.row.id == open) { actions.onOpen(item.row.id) }

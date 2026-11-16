@@ -18,6 +18,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 
@@ -128,20 +129,35 @@ private fun rememberTasks(
     var editor by remember { mutableStateOf<DraftState?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var depth by remember { mutableStateOf<Map<String, UInt>>(emptyMap()) }
+    // A change on its way to the core (a second tap waits for it), and the task being read into the editor.
+    var busy by remember { mutableStateOf(false) }
+    var load by remember { mutableStateOf<Job?>(null) }
     val state by produceState<TasksState>(TasksState.Loading, ready, reload, showCompleted, depth, tick.intValue) {
         if (ready) value = loadTasks(core, showCompleted, depth)
     }
     // Runs a command and reads the lists again; says so when the core refused it.
     fun act(command: String, params: String, done: () -> Unit = {}) {
+        if (busy) return
+        busy = true
         scope.launch {
-            if (runTaskCommand(core, command, params)) {
-                notice = null
-                done()
-                tick.intValue += 1
-            } else {
-                notice = texts.t("That could not be saved.")
+            try {
+                if (runTaskCommand(core, command, params)) {
+                    notice = null
+                    done()
+                    tick.intValue += 1
+                } else {
+                    notice = texts.t("That could not be saved.")
+                }
+            } finally {
+                busy = false
             }
         }
+    }
+    // Shows [state] in the editor, dropping a task still being read into it.
+    fun show(state: DraftState?) {
+        load?.cancel()
+        load = null
+        editor = state
     }
     val editorActions = EditorActions(
         onDraft = { editor = DraftState.Ready(it) },
@@ -155,15 +171,15 @@ private fun rememberTasks(
             val id = (editor as? DraftState.Ready)?.draft?.id
             if (id != null) act("tasks.delete", "{\"id\":$id}") { editor = null }
         },
-        onClose = { editor = null },
+        onClose = { show(null) },
     )
     val actions = TasksActions(
         onToggle = { act("tasks.complete", "{\"id\":${it.id},\"value\":${!it.completed}}") },
         onOpen = { id ->
-            editor = DraftState.Loading
-            scope.launch { editor = loadDraft(core, id) }
+            show(DraftState.Loading)
+            load = scope.launch { editor = loadDraft(core, id) }
         },
-        onNew = { editor = DraftState.Ready(newDraft(it)) },
+        onNew = { show(DraftState.Ready(newDraft(it))) },
         onShowCompleted = { showCompleted = it },
         onMore = { group ->
             val now = depth[group.key] ?: TASK_WINDOW
@@ -172,5 +188,5 @@ private fun rememberTasks(
         onSendLocal = { account -> act("tasks.sendLocal", "{\"account\":${account ?: "null"}}") },
         editor = editorActions,
     )
-    return TasksData(state, editor, notice) to actions
+    return TasksData(state, editor, notice, busy) to actions
 }

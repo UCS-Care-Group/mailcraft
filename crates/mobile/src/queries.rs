@@ -76,7 +76,8 @@ fn next_events(s: &Session, today: Date) -> Vec<EventRecord> {
     let now = s.local_now();
     occurrences(s, today, today.add_days(NEXT_DAYS - 1))
         .into_iter()
-        .take(text::MAX_OCCURRENCES)
+        // (What is over is passed by before the count, so that a morning of short meetings that
+        // have ended leaves room for what is still to come.)
         .filter(|o| o.end > now && s.mailbox.event(o.event).is_some_and(|e| !e.cancelled))
         .take(MAX_NEXT)
         .filter_map(|o| s.mailbox.event(o.event).map(|e| event_record(s, e, o.start.iso(), o.end.iso())))

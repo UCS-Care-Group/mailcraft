@@ -97,9 +97,20 @@ internal fun sectionOf(name: String): String {
 
 /** What the list draws: a heading for each letter, then its people. */
 internal sealed interface PeopleItem {
-    class Heading(val letter: String) : PeopleItem
+    /** The list's key for this item, unique in the list. */
+    val key: String
 
-    class Person(val row: PersonRow) : PeopleItem
+    /**
+     * A letter's heading over a run of people; [first] is the first of them, so that a letter
+     * that comes round again has a key of its own.
+     */
+    class Heading(val letter: String, val first: ULong) : PeopleItem {
+        override val key: String get() = "h$letter:$first"
+    }
+
+    class Person(val row: PersonRow) : PeopleItem {
+        override val key: String get() = "p" + row.id
+    }
 }
 
 internal fun peopleItems(rows: List<PersonRow>): List<PeopleItem> {
@@ -108,7 +119,7 @@ internal fun peopleItems(rows: List<PersonRow>): List<PeopleItem> {
     for (row in rows) {
         val letter = sectionOf(row.name)
         if (letter != last) {
-            out.add(PeopleItem.Heading(letter))
+            out.add(PeopleItem.Heading(letter, row.id))
             last = letter
         }
         out.add(PeopleItem.Person(row))

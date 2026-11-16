@@ -56,7 +56,7 @@ private fun TodayCards(texts: Texts, model: TodayModel, actions: TodayActions, m
             verticalArrangement = Arrangement.spacedBy(Gutter),
         ) {
             Text(
-                todayHeading(model.date),
+                todayHeading(model.date, LocalMessageLocale.current),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.semantics { heading() },
             )
@@ -129,7 +129,7 @@ private fun EventsCard(texts: Texts, model: TodayModel, onEvent: (ULong) -> Unit
                     Text(event.title.ifBlank { texts.t("(No title)") }, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     val where = if (event.location.isBlank()) "" else " · " + event.location
                     Text(
-                        eventWhen(texts, event, model.date) + where,
+                        eventWhen(texts, event, model.date, LocalMessageLocale.current) + where,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
@@ -158,8 +158,9 @@ private fun TasksCard(texts: Texts, model: TodayModel, onTask: (ULong) -> Unit, 
                 ) {
                     Text(task.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     task.due?.let { due ->
+                        val day = dueLabel(texts, due, model.date, LocalMessageLocale.current)
                         Text(
-                            (if (late) texts.t("Overdue") + ", " else "") + dueLabel(texts, due, model.date),
+                            (if (late) texts.t("Overdue") + ", " else "") + day,
                             style = MaterialTheme.typography.bodySmall,
                             color = dueColour(late),
                         )

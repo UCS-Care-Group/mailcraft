@@ -33,8 +33,10 @@ internal data class TaskDraft(
         val before = base
         if (id != null) fields.add("\"id\":$id") else fields.add("\"account\":$account")
         val changed = { mine: Any?, theirs: Any? -> before == null || mine != theirs }
-        if (changed(title, before?.title)) fields.add("\"title\":" + jsonString(title.trim().take(MAX_TITLE)))
-        if (!notesCut && changed(notes, before?.notes)) fields.add("\"notes\":" + jsonString(notes.take(MAX_NOTES)))
+        if (changed(title, before?.title)) fields.add("\"title\":" + jsonString(title.trim().takeScalars(MAX_TITLE)))
+        if (!notesCut && changed(notes, before?.notes)) {
+            fields.add("\"notes\":" + jsonString(notes.takeScalars(MAX_NOTES)))
+        }
         if (changed(due, before?.due)) fields.add("\"due\":" + (due?.let(::jsonString) ?: "null"))
         if (changed(important, before?.important)) {
             fields.add("\"importance\":" + jsonString(if (important) "high" else "normal"))
@@ -46,6 +48,16 @@ internal data class TaskDraft(
     val unchanged: Boolean
         get() = base != null && title == base.title && notes == base.notes && due == base.due &&
             important == base.important
+}
+
+/**
+ * The first [max] characters of this text as the core counts them (Unicode scalar values, so an
+ * emoji is one and a pair of surrogates is never split).
+ */
+internal fun String.takeScalars(max: Int): String {
+    if (max <= 0) return ""
+    val end = if (codePointCount(0, length) <= max) length else offsetByCodePoints(0, max)
+    return substring(0, end)
 }
 
 internal fun draftOf(detail: TaskDetail): TaskDraft {

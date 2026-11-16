@@ -23,6 +23,8 @@ class TodayTest {
     @Test
     fun anAllDayEventIsToldByItsDayAlone() {
         assertEquals("Today", eventWhen(EnglishTexts, event("2026-10-14", allDay = true), today, Locale.US))
+        // The core's start of an all-day event carries midnight: it is still the day alone.
+        assertEquals("Tomorrow", eventWhen(EnglishTexts, event("2026-10-15T00:00:00", allDay = true), today, Locale.US))
     }
 
     @Test

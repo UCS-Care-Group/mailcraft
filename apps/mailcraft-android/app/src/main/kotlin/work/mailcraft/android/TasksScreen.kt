@@ -47,6 +47,8 @@ internal class TasksData(
     val state: TasksState,
     val editor: DraftState? = null,
     val notice: String? = null,
+    /** A change is on its way to the core: the editor's Save and Delete wait for it. */
+    val busy: Boolean = false,
 )
 
 /** What the Tasks tab asks of the app. */
@@ -139,7 +141,7 @@ private fun TaskGroups(texts: Texts, model: TasksModel, notice: String?, actions
 private val FabClearance = 96.dp
 
 @Composable
-private fun Notice(text: String) {
+internal fun Notice(text: String) {
     Text(
         text,
         color = MaterialTheme.colorScheme.error,
@@ -199,8 +201,9 @@ private fun TaskRowView(texts: Texts, row: TaskRow, today: String, actions: Task
             Text(row.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
             row.due?.let { due ->
                 val late = isOverdue(row, today)
+                val day = dueLabel(texts, due, today, LocalMessageLocale.current)
                 Text(
-                    (if (late) texts.t("Overdue") + ", " else "") + dueLabel(texts, due, today),
+                    (if (late) texts.t("Overdue") + ", " else "") + day,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (late) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )

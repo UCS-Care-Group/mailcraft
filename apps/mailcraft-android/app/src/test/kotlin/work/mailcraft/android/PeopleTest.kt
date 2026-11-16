@@ -49,6 +49,15 @@ class PeopleTest {
     }
 
     @Test
+    fun aLetterThatComesAgainHasAHeadingWithAKeyOfItsOwn() {
+        // Shown by address (no name), then by name: the letter B comes round twice.
+        val items = peopleItems(listOf(row(1u, "bob@example.org"), row(2u, "Alice"), row(3u, "Bob")))
+        assertEquals(listOf("B", "A", "B"), items.filterIsInstance<PeopleItem.Heading>().map { it.letter })
+        val keys = items.map { it.key }
+        assertEquals(keys.size, keys.toSet().size)
+    }
+
+    @Test
     fun aMailLinkIsOneAddressAndNothingElse() {
         assertEquals("mailto:ada@example.org", mailtoLink("ada@example.org"))
         assertEquals("mailto:ada+news@example.org", mailtoLink("  ada+news@example.org "))

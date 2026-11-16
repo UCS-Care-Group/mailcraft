@@ -54,18 +54,20 @@ internal fun EditorPane(texts: Texts, data: TasksData, actions: EditorActions, s
     Column(modifier = modifier) {
         if (showBack) {
             IconButton(onClick = actions.onClose) { Icon(AppIcons.Back, contentDescription = texts.t("Back")) }
+            // (Beside the lists the notice is drawn with them.)
+            data.notice?.let { Notice(it) }
         }
         when (val editor = data.editor) {
             null -> Centered(texts.t("Select a task"))
             DraftState.Loading -> Centered(texts.t("Loading…"))
             is DraftState.Failed -> Centered(editor.message)
-            is DraftState.Ready -> TaskEditor(texts, editor.draft, model, actions)
+            is DraftState.Ready -> TaskEditor(texts, editor.draft, model, actions, data.busy)
         }
     }
 }
 
 @Composable
-private fun TaskEditor(texts: Texts, draft: TaskDraft, model: TasksModel?, actions: EditorActions) {
+private fun TaskEditor(texts: Texts, draft: TaskDraft, model: TasksModel?, actions: EditorActions, busy: Boolean) {
     val today = model?.today.orEmpty()
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Gutter),
@@ -73,7 +75,7 @@ private fun TaskEditor(texts: Texts, draft: TaskDraft, model: TasksModel?, actio
     ) {
         OutlinedTextField(
             value = draft.title,
-            onValueChange = { actions.onDraft(draft.copy(title = it.take(MAX_TITLE))) },
+            onValueChange = { actions.onDraft(draft.copy(title = it.takeScalars(MAX_TITLE))) },
             label = { Text(texts.t("Title")) },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -81,7 +83,7 @@ private fun TaskEditor(texts: Texts, draft: TaskDraft, model: TasksModel?, actio
         DueChoices(texts, draft.due, today) { actions.onDraft(draft.copy(due = it)) }
         SwitchRow(texts.t("Important"), draft.important) { actions.onDraft(draft.copy(important = it)) }
         PlaceChoice(texts, draft, model, actions.onDraft)
-        EditorButtons(texts, draft, actions)
+        EditorButtons(texts, draft, actions, busy)
     }
 }
 
@@ -93,7 +95,7 @@ private fun NotesField(texts: Texts, draft: TaskDraft, onDraft: (TaskDraft) -> U
     }
     OutlinedTextField(
         value = draft.notes,
-        onValueChange = { onDraft(draft.copy(notes = it.take(MAX_NOTES))) },
+        onValueChange = { onDraft(draft.copy(notes = it.takeScalars(MAX_NOTES))) },
         label = { Text(texts.t("Notes")) },
         minLines = 3,
         modifier = Modifier.fillMaxWidth(),
@@ -116,10 +118,11 @@ private fun DueChoices(texts: Texts, due: String?, today: String, onDue: (String
         }
         FilterChip(selected = due == null, onClick = { onDue(null) }, label = { Text(texts.t("No date")) })
         val custom = due != null && quick.none { it.second == due }
+        val label = due?.takeIf { custom }?.let { dueLabel(texts, it, today, LocalMessageLocale.current) }
         FilterChip(
             selected = custom,
             onClick = { picking = true },
-            label = { Text(due?.takeIf { custom }?.let { dueLabel(texts, it, today) } ?: texts.t("Pick a date")) },
+            label = { Text(label ?: texts.t("Pick a date")) },
         )
     }
     if (picking) DatePickChoice(texts, due) { picked ->
@@ -180,13 +183,13 @@ private fun PlaceChoice(texts: Texts, draft: TaskDraft, model: TasksModel?, onDr
 }
 
 @Composable
-private fun EditorButtons(texts: Texts, draft: TaskDraft, actions: EditorActions) {
+private fun EditorButtons(texts: Texts, draft: TaskDraft, actions: EditorActions, busy: Boolean) {
     var confirming by remember { mutableStateOf(false) }
     Row(horizontalArrangement = Arrangement.spacedBy(Small), verticalAlignment = Alignment.CenterVertically) {
-        Button(onClick = actions.onSave, enabled = draft.canSave && !draft.unchanged) { Text(texts.t("Save")) }
+        Button(onClick = actions.onSave, enabled = draft.canSave && !draft.unchanged && !busy) { Text(texts.t("Save")) }
         TextButton(onClick = actions.onClose) { Text(texts.t("Cancel")) }
         if (draft.id != null) {
-            TextButton(onClick = { confirming = true }) {
+            TextButton(onClick = { confirming = true }, enabled = !busy) {
                 Text(texts.t("Delete"), color = MaterialTheme.colorScheme.error)
             }
         }
