@@ -153,3 +153,12 @@ fn civil_seconds_is_checked_at_the_extremes() {
     assert_eq!(civil_seconds(i64::MIN, 6, 1, 0), None);
     assert_eq!(civil_seconds(1970, 1, 1, 5), Some(5));
 }
+
+#[test]
+fn compliance_classes_are_cut_outside_coded_urls_and_capped_at_the_nets_number() {
+    let r = HttpResponse::new(200, Vec::new()).with_field("DAV", "1, 2, <http://x.example/a,b>, calendar-access").with_field("dav", "ADDRESSBOOK");
+    assert_eq!(dav_classes(&r), ["1", "2", "<http://x.example/a,b>", "calendar-access", "addressbook"]);
+    let many = (0..100).map(|n| n.to_string()).collect::<Vec<_>>().join(", ");
+    assert_eq!(dav_classes(&HttpResponse::new(200, Vec::new()).with_field("DAV", &many)).len(), MAX_DAV_CLASSES);
+    assert!(dav_classes(&HttpResponse::new(200, Vec::new()).with_field("DAV", ",,<,")).len() <= 2);
+}

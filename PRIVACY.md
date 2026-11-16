@@ -94,6 +94,12 @@ MailCraft connects only to these, over encrypted connections:
 
 Nothing in a message runs, and nothing in a message is fetched unless you ask for its pictures, or ask to unsubscribe from a list in one click (then only the list's address is told, as above). A message's own style sheet is read for how the message looks (colours, sizes, spacing, what the sender hid), but nothing in it is ever fetched: a sheet's `@import`, its fonts and its pictures are ignored, and a link it styles is never shown as visited. Its `@media` rules are tested against two things on your own computer and nothing else: how wide the message is laid out in the reading pane, and whether your window is dark; the program sends neither to anyone. One consequence to know: once you allow pictures, a message can show a different picture in a dark window, or at each of several widths, and the picture for the look on screen is fetched, so its server can tell from which address was asked for that your window is dark and how wide the message is laid out, to within a few pixels (it is told nothing else, and nothing is fetched until you allow pictures). What a sender hid in a message (a line of preview text, the other copy of a desktop and mobile pair) is not shown to you and is not quoted in your replies, but it is kept with the message on your computer, so that your search and your rules can find it, and it is what an agent you have allowed to read your mail is given as the message's text. The one other thing fetched for your mail is a sender's picture, and only once you turn sender images on.
 
+On a phone (the Android app) the same rules hold, and what it connects to is the same short list: the web address of a picture in a message, only when you ask for that message's pictures (or for a sender, a domain or all mail, as you chose in Settings › Pictures; never by itself for mail in Junk E-mail), through the one downloader that sends the address alone, with no cookies, no referrer and no sign-in, to public hosts only; nothing is fetched while the phone's Data Saver is on until you tap Download pictures; and the pictures are kept in the app's own cache folder, which Clear in Settings › Pictures empties. Sender images are off until you turn them on in Settings › Sender images: then, for the rows on screen, only for the people you know and the mail whose pictures you allow, never for Junk E-mail, and only for mail your server says really came from them, Gravatar is told the SHA-256 of the address, and favicon.im and Google's favicon service the domain of the sender's site alone. Whether a row shows a sender's picture is decided for that row's own message each time, so a message that only claims to be from someone never wears their picture.
+
+An attachment on a phone is opened only when you ask. A program, a script, an installer or a file of no known kind is never opened or shared from mail (you can save it), and a file that can carry macros or scripts is asked about first and is not shared from the message (save it first to share it). The app you choose to open or share a file with is given one read-only grant to a temporary copy kept in the app's own cache folder, which MailCraft removes at a later start once it is more than a day old (so that a viewer you left open can still read a recent one); Save to Files writes only where you choose, through the system's file picker, and the app holds no storage permission. A picture attachment is drawn inside MailCraft, from its own bytes; nothing else of an attachment is drawn or run by MailCraft.
+
+A message written on a phone is kept as a draft in the mailbox in the phone's memory (saved a few seconds after your last edit) and goes nowhere until you press Send; then it is queued in the mailbox on the phone, and the screen says so. This version of the Android app does not send queued messages yet, and the mailbox on the phone is not yet kept on disk, so a draft or a queued message is lost when the app is closed. Suggestions for a recipient come from your own contacts and sent mail on the phone; nothing is asked of a server for them. A `mailto:` link only fills the composer in.
+
 Read receipts go one way only. A message you write with Request a Read Receipt asks its recipients' programs to tell your own address when they read it. A request for a receipt in mail you receive is ignored: MailCraft never answers one, and nobody learns from MailCraft when you read their message.
 
 ## Permissions asked of a Microsoft account
@@ -264,12 +270,16 @@ not in a release yet are marked "when the app is released".
   goes anywhere else.
 - **Notifications, when the app is released.** A notification for new mail shows the sender and
   the subject and never the body or a picture, only for mail that would alert (Primary or Focused,
-  as the account's setting says). A switch in Settings shows "New mail" and nothing else. On the
+  as the account's setting says). The switch New mail only in Settings makes every notification
+  say "New mail" and nothing else (no sender, no subject, no count), on the lock screen or off
+  it, whatever the phone's own setting says. Without it, on the
   lock screen what shows follows the phone's own setting for sensitive content: where the system
   hides private content there, a public version that says only "New mail" stands in for the
   notification; where you let the lock screen show all notification content, the sender and the
   subject show there too. Reminders for meetings
-  and tasks are notifications raised on the phone from what the last check brought. Nothing about
+  and tasks are not posted on Android yet. When they are, they will be notifications raised on
+  the phone from what the last check brought. The switch Reminders in Settings is on by default;
+  turning it off will stop them, and New mail only does not change them. Nothing about
   a notification goes to a server of the project, or to Google's or Apple's push services: no
   push token is made and none is sent.
 - **Pictures on the web.** The rules are the desktop's, as in the table above: a message's
@@ -299,8 +309,8 @@ not in a release yet are marked "when the app is released".
   the project from the phone: no telemetry, no analytics, no advertising identifier, no crash
   reporting, and none of Google Play services or Firebase in the Android app.
 - **Opening and sharing.** An attachment you open goes to the app you choose through a one-off,
-  read-only grant on a temporary copy in the app's cache folder, which is cleared when the app next
-  starts; Save uses the system's file picker, so the app needs no storage permission. Web links
+  read-only grant on a temporary copy in the app's cache folder, which MailCraft removes at a later
+  start once it is more than a day old; Save uses the system's file picker, so the app needs no storage permission. Web links
   open in your browser, `mailto` links in the composer, and `tel` links in the dialer, which
   shows the number and does not dial; only `http`, `https`, `mailto` and `tel` links are followed.
 
