@@ -739,11 +739,7 @@ impl<S: Read + Write> Imap<S> {
         let command = Command::new("LOGIN").string(user.as_bytes()).string(password.as_bytes()).shown_as("LOGIN ***");
         let line = self.exchange(command, &mut ignore)?;
         match line.status {
-            Status::Ok => {
-                self.authenticated = true;
-                self.identify()?;
-                Ok(())
-            }
+            Status::Ok => self.signed_in(&line),
             Status::No => Err(ProtoError::Auth(self.refusal(&line))),
             _ => Err(ProtoError::Rejected(self.refusal(&line))),
         }
@@ -771,6 +767,17 @@ impl<S: Read + Write> Imap<S> {
         let id = format!("(\"name\" \"MailCraft\" \"version\" \"{}\")", env!("CARGO_PKG_VERSION"));
         let _ = self.exchange(Command::new("ID").arg(&id), &mut ignore)?;
         Ok(())
+    }
+
+    /// The sign-in the server accepted: signed in, with what it can do read afresh unless the
+    /// tagged OK restated the list (RFC 3501 §6.2.1: it can differ once signed in, and a server
+    /// may offer `ID` only then), then [`identify`](Self::identify).
+    fn signed_in(&mut self, line: &StatusLine) -> Result<(), ProtoError> {
+        self.authenticated = true;
+        if line.code != "CAPABILITY" {
+            self.capabilities = None;
+        }
+        self.identify()
     }
 
     /// AUTHENTICATE XOAUTH2: an OAuth access token in place of a password. NO → `ProtoError::Auth`.
@@ -816,11 +823,7 @@ impl<S: Read + Write> Imap<S> {
             _ if asked == answers.len() => Err(ProtoError::Auth(said!("the server asked for more than a user name and access token"))),
             // Nobody is signed in by a token that was never sent.
             Status::Ok if asked == 0 => Err(ProtoError::Protocol(said!("the server ended the command early"))),
-            Status::Ok => {
-                self.authenticated = true;
-                self.identify()?;
-                Ok(())
-            }
+            Status::Ok => self.signed_in(&line),
             Status::No => Err(ProtoError::Auth(self.refusal(&line))),
             _ => Err(ProtoError::Rejected(self.refusal(&line))),
         }
