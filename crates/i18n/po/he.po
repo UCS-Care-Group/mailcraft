@@ -154,13 +154,15 @@ msgstr "* חישוב הגדלים אינו כולל הודעות שגודלן א
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "+ action"
-msgstr ""
+msgstr "+ פעולה"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "+ condition"
-msgstr ""
+msgstr "+ תנאי"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -204,43 +206,51 @@ msgstr "שעה אחת"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "1 month"
-msgstr ""
+msgstr "חודש אחד"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "1 week"
-msgstr ""
+msgstr "שבוע אחד"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "10 years"
-msgstr ""
+msgstr "10 שנים"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "12 months"
-msgstr ""
+msgstr "12 חודשים"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "2 weeks"
-msgstr ""
+msgstr "שבועיים"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "2 years"
-msgstr ""
+msgstr "שנתיים"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "3 days"
-msgstr ""
+msgstr "3 ימים"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "3 months"
-msgstr ""
+msgstr "3 חודשים"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -249,13 +259,15 @@ msgstr ""
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "5 years"
-msgstr ""
+msgstr "5 שנים"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "6 months"
-msgstr ""
+msgstr "6 חודשים"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -798,8 +810,9 @@ msgstr "הוסף מסננים"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Add from file…"
-msgstr ""
+msgstr "הוספה מקובץ…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -1333,8 +1346,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Approval Needed"
-msgstr ""
+msgstr "נדרש אישור"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -1749,8 +1763,9 @@ msgstr "תשובות אוטומטיות: הארגון שלך אינו מאפשר
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
 msgid "Automatic setup (Autodiscover)"
-msgstr ""
+msgstr "הגדרה אוטומטית (Autodiscover)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -1953,13 +1968,15 @@ msgstr "צבע לוח השנה"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
 msgid "Calendar Connection Check"
-msgstr ""
+msgstr "בדיקת חיבור ללוח השנה"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "Calendar Listed Twice"
-msgstr ""
+msgstr "לוח השנה מופיע פעמיים"
 
 #. name
 #: crates/model/src/sync/progress.rs
@@ -2204,8 +2221,9 @@ msgstr "בוצעו שינויים. הם יישמרו בעת בחירת חתימ�
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Change…"
-msgstr ""
+msgstr "שינוי…"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -2304,8 +2322,9 @@ msgstr "בדוק אם קיימים עדכונים"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "Check for new versions"
-msgstr ""
+msgstr "בדיקת גרסאות חדשות"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -2320,8 +2339,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "Checking for a new version…"
-msgstr ""
+msgstr "בודק אם קיימת גרסה חדשה…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -2342,8 +2362,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
 msgid "Checking the calendar connection…"
-msgstr ""
+msgstr "בודק את החיבור ללוח השנה…"
 
 #. what a command says
 #: crates/model/src/sync/progress.rs
@@ -2594,8 +2615,9 @@ msgstr "חברה"
 
 #. interface
 #: crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "Compare fingerprint…"
-msgstr ""
+msgstr "השוואת טביעת אצבע…"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -2637,8 +2659,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
+#, fuzzy
 msgid "Confirm servers"
-msgstr ""
+msgstr "אישור שרתים"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/calendar_view.rs
@@ -3008,8 +3031,9 @@ msgstr "מדינה"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Create Message"
-msgstr ""
+msgstr "יצירת הודעה"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
@@ -3128,8 +3152,9 @@ msgstr "דחה"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
 msgid "Decline and Propose"
-msgstr ""
+msgstr "דחייה והצעת מועד חלופי"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3619,8 +3644,9 @@ msgstr "הורד תמונות"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Download pictures in all mail"
-msgstr ""
+msgstr "הורדת תמונות בכל הודעות הדואר"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -3629,8 +3655,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Download pictures in mail automatically"
-msgstr ""
+msgstr "הורדת תמונות בדואר באופן אוטומטי"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3656,23 +3683,27 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Downloading pictures…"
-msgstr ""
+msgstr "מוריד תמונות…"
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
 msgid "Downloading the message first…"
-msgstr ""
+msgstr "מוריד תחילה את ההודעה…"
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
 msgid "Downloading the messages first…"
-msgstr ""
+msgstr "מוריד תחילה את ההודעות…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Downloading the whole message…"
-msgstr ""
+msgstr "מוריד את ההודעה במלואה…"
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -3942,8 +3973,9 @@ msgstr "מסתיים"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
+#, fuzzy
 msgid "Ends before it starts"
-msgstr ""
+msgstr "מסתיים לפני שהוא מתחיל"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -4040,8 +4072,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
 msgid "Exchange server"
-msgstr ""
+msgstr "שרת Exchange"
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -4132,8 +4165,9 @@ msgstr "חיצוני"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
 msgid "FAILED"
-msgstr ""
+msgstr "נכשל"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -4194,8 +4228,9 @@ msgstr "קובץ"
 
 #. interface
 #: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
+#, fuzzy
 msgid "File dialogs aren't available here"
-msgstr ""
+msgstr "תיבות דו־שיח לבחירת קבצים אינן זמינות כאן"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -4282,8 +4317,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "Fingerprint:"
-msgstr ""
+msgstr "טביעת אצבע:"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
@@ -4693,8 +4729,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/opening.rs
+#, fuzzy
 msgid "Getting ready…"
-msgstr ""
+msgstr "מתכונן…"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -4708,8 +4745,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
+#, fuzzy
 msgid "GitHub username (optional)"
-msgstr ""
+msgstr "שם משתמש ב־GitHub (אופציונלי)"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -5023,8 +5061,9 @@ msgstr "הסתרת פרטים"
 
 #. interface
 #: crates/ui-egui/src/menubar.rs
+#, fuzzy
 msgid "Hide MailCraft"
-msgstr ""
+msgstr "הסתרת MailCraft"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
