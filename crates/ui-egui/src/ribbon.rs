@@ -9,7 +9,7 @@
 
 use egui::{Align2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::{CalView, Filter, Module, Pane, PeopleSort, SortBy, TaskFilter, TaskSort};
-use mailcraft_model::{FolderKind, Id, Importance};
+use mailcraft_model::{Account, FolderKind, Id, Importance};
 use serde_json::{Value, json};
 
 use crate::theme::{Tokens, medium, paint_clipped, regular, semibold};
@@ -1122,35 +1122,103 @@ struct FolderSearch {
     seen: Option<u64>,
 }
 
-/// A folder as the menu lists it: its id, name, place in the tree (`Inbox/Projects`) and depth.
-type FolderRow = (Id, String, String, usize);
-
-/// The folders whose name holds `query` (any part, ignoring case and accents), as indexes into
-/// `list`. Nothing typed (or nothing but marks) is all of them.
-fn folder_matches(list: &[FolderRow], query: &str) -> Vec<usize> {
-    let wanted = mailcraft_model::words::fold(&query.chars().take(FOLDER_SEARCH_MAX).collect::<String>());
-    list.iter().enumerate().filter(|(_, row)| wanted.is_empty() || mailcraft_model::words::fold(&row.1).contains(&wanted)).map(|(i, _)| i).collect()
+/// A folder as the menu lists it.
+struct FolderRow {
+    id: Id,
+    /// Its name, shown indented under its account's heading.
+    name: String,
+    /// Its place in its account (`Inbox/Projects`), shown for a search's matches.
+    path: String,
+    depth: usize,
+    /// What a search reads: its name, and another mailbox's name too.
+    search: String,
+    /// The account it is in, as a search's match names it (`Name (address)`).
+    account: String,
+    /// The account's name, on the first of its folders: the heading above its tree.
+    heading: Option<String>,
 }
 
-/// A search box and then every folder of the account in view as menu items, indented; `pick` runs
-/// with the chosen one. Typing narrows the list to the folders whose name matches, each shown
-/// with its place in the tree; the arrow keys and Enter choose, and Escape clears the search
-/// before it closes the menu (#74).
-pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut MailApp, Id)) {
-    let account = app.session.mailbox.folder(app.session.view.folder).map(|f| f.account).or(app.session.mailbox.default_account().map(|a| a.id));
-    let Some(account) = account else { return };
-    fn walk(app: &MailApp, account: Id, parent: Option<Id>, depth: usize, out: &mut Vec<FolderRow>) {
-        if depth > 32 {
-            return;
+/// The folders whose name (or mailbox) holds `query` (any part, ignoring case and accents), as
+/// indexes into `list`. Nothing typed (or nothing but marks) is all of them.
+fn folder_matches(list: &[FolderRow], query: &str) -> Vec<usize> {
+    let wanted = mailcraft_model::words::fold(&query.chars().take(FOLDER_SEARCH_MAX).collect::<String>());
+    list.iter()
+        .enumerate()
+        .filter(|(_, row)| wanted.is_empty() || mailcraft_model::words::fold(&row.search).contains(&wanted))
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// What a folder menu offers.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FolderScope {
+    /// The account in view's folders, as rules, Move Folder and a message file's menu take them.
+    ThisAccount,
+    /// Every account's folders, for Move to Folder and Copy to Folder: mail reaches another
+    /// account's server too (#451).
+    EveryAccount,
+}
+
+/// The account in view, else the default one.
+fn account_in_view(app: &MailApp) -> Option<Id> {
+    let mb = &app.session.mailbox;
+    mb.folder(app.session.view.folder).map(|f| f.account).or_else(|| mb.default_account().map(|a| a.id))
+}
+
+/// The folders of `account`, and those under `parent`, appended to `out` as a tree.
+fn walk_folders(app: &MailApp, account: &Account, parent: Option<Id>, depth: usize, named: bool, out: &mut Vec<FolderRow>) {
+    if depth > 32 {
+        return;
+    }
+    let account_name = crate::nav::account_name(account);
+    for f in app.session.mailbox.children(account.id, parent) {
+        let name = crate::nav::folder_name(f).to_string();
+        let path = crate::nav::folder_path(&app.session.mailbox, f.id);
+        // (A search finds a folder by its name, and by the mailbox it is in when several are.)
+        let search = if named { format!("{name} - {account_name}") } else { name.clone() };
+        out.push(FolderRow { id: f.id, name, path, depth, search, account: account_name.clone(), heading: None });
+        walk_folders(app, account, Some(f.id), depth + 1, named, out);
+    }
+}
+
+/// The folders `scope` offers, in the folder pane's order: the account in view's first, then the
+/// others' as the pane has them, each as a tree. `bool` is whether more than one mailbox is
+/// listed: then each tree has its account's name above it and a search's matches name theirs.
+fn folder_rows(app: &MailApp, scope: FolderScope) -> (Vec<FolderRow>, bool) {
+    let mb = &app.session.mailbox;
+    let in_view = account_in_view(app);
+    let mut accounts: Vec<&Account> = match scope {
+        FolderScope::ThisAccount => in_view.and_then(|id| mb.account(id)).into_iter().collect(),
+        FolderScope::EveryAccount => {
+            let mut all = mb.accounts_in_order();
+            if let Some(at) = all.iter().position(|a| Some(a.id) == in_view) {
+                let a = all.remove(at);
+                all.insert(0, a);
+            }
+            all
         }
-        for f in app.session.mailbox.children(account, parent) {
-            out.push((f.id, crate::nav::folder_name(f).to_string(), crate::nav::folder_path(&app.session.mailbox, f.id), depth));
-            walk(app, account, Some(f.id), depth + 1, out);
+    };
+    let many = accounts.len() > 1;
+    let mut out = Vec::new();
+    for a in accounts.drain(..) {
+        let first = out.len();
+        walk_folders(app, a, None, 0, many, &mut out);
+        // (The account's name above the first of its folders, none for an account that has none.)
+        if many {
+            if let Some(row) = out.get_mut(first) {
+                row.heading = Some(crate::nav::account_label(a));
+            }
         }
     }
-    let mut list = Vec::new();
-    walk(app, account, None, 0, &mut list);
+    (out, many)
+}
 
+/// A search box and then the folders of `scope` as menu items; `pick` runs with the chosen one.
+/// Typing narrows the list to the folders whose name (or mailbox) matches, each shown with its
+/// place in the tree; the arrow keys and Enter choose, and Escape clears the search before it
+/// closes the menu (#74).
+fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pick: impl FnMut(&mut MailApp, Id)) {
+    let (list, many) = folder_rows(app, scope);
     let key = ui.scope_id().with("folder-search");
     let frame = ui.ctx().cumulative_frame_nr();
     let mut st: FolderSearch = ui.data(|d| d.get_temp(key)).unwrap_or_default();
@@ -1169,7 +1237,7 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
     let shown = folder_matches(&list, &st.text);
     // The rows the keys can choose: not the folder in view, which can't be moved to.
     let current = app.session.view.folder;
-    let choosable: Vec<usize> = shown.iter().copied().filter(|i| list.get(*i).is_some_and(|row| row.0 != current)).collect();
+    let choosable: Vec<usize> = shown.iter().copied().filter(|i| list.get(*i).is_some_and(|row| row.id != current)).collect();
     st.at = st.at.min(choosable.len().saturating_sub(1));
     let (down, up, enter, escape) = ui.input_mut(|i| {
         (
@@ -1193,7 +1261,7 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
         }
     }
     let marked = if searching { choosable.get(st.at).copied() } else { None };
-    let mut chosen = if enter { marked.and_then(|i| list.get(i)).map(|row| row.0) } else { None };
+    let mut chosen = if enter { marked.and_then(|i| list.get(i)).map(|row| row.id) } else { None };
 
     ui.add_space(2.0);
     egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
@@ -1201,15 +1269,27 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
             ui.label(egui::RichText::new(tl!("No folders match")).color(Tokens::get(ui.ctx()).text_dim));
         }
         for i in shown {
-            let Some((id, name, path, depth)) = list.get(i) else { continue };
-            let label = if searching { path.clone() } else { format!("{}{name}", "    ".repeat(*depth)) };
+            let Some(row) = list.get(i) else { continue };
+            // (Above each account's tree: its name, which a search's matches show instead.)
+            if !searching {
+                if let Some(heading) = &row.heading {
+                    ui.add_space(2.0);
+                    ui.label(egui::RichText::new(heading).small().color(Tokens::get(ui.ctx()).text_dim));
+                }
+            }
+            let label = if searching {
+                // (A search's matches name their mailbox: the same place exists in each.)
+                if many { format!("{} - {}", row.path, row.account) } else { row.path.clone() }
+            } else {
+                format!("{}{name}", "    ".repeat(row.depth), name = row.name)
+            };
             let button = egui::Button::new(label).selected(marked == Some(i)).min_size(vec2(200.0, 0.0));
-            let response = ui.add_enabled(*id != current, button);
+            let response = ui.add_enabled(row.id != current, button);
             if marked == Some(i) && (down || up) {
                 response.scroll_to_me(None);
             }
             if response.clicked() {
-                chosen = Some(*id);
+                chosen = Some(row.id);
             }
         }
     });
@@ -1219,6 +1299,17 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
         ui.data_mut(|d| d.insert_temp(key, FolderSearch::default()));
         ui.close();
     }
+}
+
+/// A search box and then every folder of the account in view, as menu items.
+pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
+    folder_menu_scope(ui, app, FolderScope::ThisAccount, pick);
+}
+
+/// The same for Move to Folder and Copy to Folder, whose folders are every account's: a message
+/// moved from one mailbox into another is what the target accepts (#451).
+pub fn folder_menu_all(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
+    folder_menu_scope(ui, app, FolderScope::EveryAccount, pick);
 }
 
 /// The accounts of the selected messages, each once.
@@ -1357,13 +1448,13 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 Some(why) => {
                     ui.label(tl!(why));
                 }
-                None => folder_menu(ui, app, |app, folder| {
+                None => folder_menu_all(ui, app, |app, folder| {
                     let _ = app.run("mail.move", json!({"folder": folder}));
                 }),
             }
             ui.separator();
             ui.menu_button(tl!("Copy to Folder"), |ui| {
-                folder_menu(ui, app, |app, folder| {
+                folder_menu_all(ui, app, |app, folder| {
                     let _ = app.run("mail.copy", json!({"folder": folder}));
                 });
             });
@@ -3058,6 +3149,19 @@ mod tests {
         h
     }
 
+    /// The same for every account's folders, as Move to Folder and Copy to Folder draw it.
+    fn picker_all(app: MailApp) -> Picker {
+        let mut h =
+            egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(vec2(400.0, 500.0)).build_ui_state(
+                |ui, (app, picked): &mut (MailApp, Option<Id>)| {
+                    folder_menu_all(ui, app, |_, id| *picked = Some(id));
+                },
+                (app, None),
+            );
+        h.run_steps(3);
+        h
+    }
+
     fn type_into(h: &mut Picker, text: &str) {
         h.event(egui::Event::Text(text.to_string()));
         h.run_steps(3);
@@ -3069,7 +3173,7 @@ mod tests {
     }
 
     fn folder_row(name: &str) -> FolderRow {
-        (1, name.to_string(), name.to_string(), 0)
+        FolderRow { id: 1, name: name.to_string(), path: name.to_string(), depth: 0, search: name.to_string(), account: String::new(), heading: None }
     }
 
     /// Typing narrows the list to the folders whose name holds it, any part, whatever the case
@@ -3150,5 +3254,28 @@ mod tests {
         assert!(h.query_by_label_contains("Drafts").is_none());
         press(&mut h, egui::Key::Escape);
         assert!(h.query_by_label_contains("Drafts").is_some());
+    }
+
+    /// Move to Folder and Copy to Folder list every mailbox's folders: the account in view's
+    /// first, another's under its name, and a search finds it by its mailbox too (#451).
+    #[test]
+    fn every_mailboxs_folders_are_in_the_move_menu() {
+        let mut a = app();
+        let local = a.session.mailbox.default_account().map(|x| x.id).unwrap();
+        let other = a.execute("account.add", json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+        let archive = a.session.mailbox.folder_of_kind(other, mailcraft_model::FolderKind::Archive).unwrap();
+        let (rows, many) = folder_rows(&a, FolderScope::EveryAccount);
+        assert!(many, "two mailboxes are listed");
+        assert!(rows.iter().any(|row| row.id == archive), "another mailbox's folder is listed");
+        assert!(rows.iter().any(|row| row.heading.as_deref() == Some("owner@example.org")), "its account is a heading");
+        let first = &rows[0];
+        assert_eq!(a.session.mailbox.folder(first.id).map(|f| f.account), Some(local), "the mailbox in view's folders come first");
+
+        // Typing the mailbox's address finds a folder in it, and Enter chooses that folder.
+        let mut h = picker_all(a);
+        type_into(&mut h, "owner@example.org");
+        press(&mut h, egui::Key::Enter);
+        let chosen = h.state().1.expect("a folder of that mailbox is chosen");
+        assert_eq!(h.state().0.session.mailbox.folder(chosen).map(|f| f.account), Some(other));
     }
 }

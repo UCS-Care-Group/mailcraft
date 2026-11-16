@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use egui::{Align2, Color32, CornerRadius, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::Module;
 use mailcraft_engine::cmd::folder::sort_as_listed;
-use mailcraft_model::{Folder, FolderKind, GmailCategory, Id, Mailbox};
+use mailcraft_model::{Account, Folder, FolderKind, GmailCategory, Id, Mailbox};
 use serde_json::json;
 
 use crate::favorites_sync::Note;
@@ -1010,6 +1010,20 @@ pub(crate) fn folder_path(mb: &Mailbox, id: Id) -> String {
     }
     parts.reverse();
     parts.join("/")
+}
+
+/// What the folder pane calls an account: its name (Account Settings › Account name), and its
+/// address while none is (#1017).
+pub(crate) fn account_label(a: &Account) -> String {
+    if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() }
+}
+
+/// The account as a folder row away from the pane names it: [`account_label`], and its address
+/// too when the owner named it, so that two mailboxes are told apart.
+pub(crate) fn account_name(a: &Account) -> String {
+    let label = account_label(a);
+    let email = a.email.trim();
+    if email.is_empty() || email == label { label } else { format!("{label} ({email})") }
 }
 
 /// What a folder is called where it is listed away from its own account's tree (under Favorites,

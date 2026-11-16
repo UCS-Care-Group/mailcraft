@@ -1288,7 +1288,7 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         let movable = app.session.enabled("mail.move");
         ui.add_enabled_ui(movable, |ui| {
             ui.menu_button(tl!("Move"), |ui| {
-                crate::ribbon::folder_menu(ui, app, |app, folder| {
+                crate::ribbon::folder_menu_all(ui, app, |app, folder| {
                     let _ = app.run("mail.move", json!({"folder": folder}));
                 });
             });
