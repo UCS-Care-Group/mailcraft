@@ -108,7 +108,9 @@ impl Font {
             "arial" | "helvetica" => Font::Arial,
             "calibri" | "carlito" => Font::Calibri,
             // A fixed-width family keeps its columns as the one fixed-width font there is.
-            "courier new" | "courier" | "liberation mono" | "cousine" | "monospace" | "ui-monospace" => Font::CourierNew,
+            "courier new" | "courier" | "liberation mono" | "cousine" | "consolas" | "menlo" | "dejavu sans mono" | "monospace" | "ui-monospace" => {
+                Font::CourierNew
+            }
             "georgia" => Font::Georgia,
             "verdana" | "geneva" => Font::Verdana,
             "segoe ui" | "system-ui" | "-apple-system" => Font::System,
@@ -166,8 +168,9 @@ pub struct Style {
     /// Text colour, `#rrggbb` ([`safe_color`]); `None` for the message's own.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
-    /// Font; `None` for the message's own.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Font; `None` for the message's own. A font this version doesn't know (one a later version
+    /// added) is read as the message's own, so the rest of the look stays (#969).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub font: Option<Font>,
     /// A highlight behind the text, `#rrggbb` ([`safe_color`]); `None` for none.
     #[serde(skip_serializing_if = "Option::is_none")]
