@@ -1282,6 +1282,9 @@ pub struct Session {
     /// When each account's calendar server was last asked which calendars it has (Unix seconds):
     /// the homes are listed again after an hour ([`crate::cmd::dav_sync`]). Never saved.
     pub dav_listed: std::collections::HashMap<Id, i64>,
+    /// When each account's calendar server was last asked for anything (a Unix time that goes up
+    /// by at least one at each ask): the one asked longest ago is next, so that every account has its turn. Never saved.
+    pub dav_asked: std::collections::HashMap<Id, i64>,
     /// The word index of the mailbox file, while [`Session::index_words`] is on and the mailbox
     /// is kept in a file ([`crate::words`]).
     #[cfg(not(target_arch = "wasm32"))]
@@ -1406,6 +1409,7 @@ impl Session {
             gmail_category_moves: crate::gmail::GMAIL_CATEGORY_MOVES,
             dav_enabled: false,
             dav_listed: Default::default(),
+            dav_asked: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
         };

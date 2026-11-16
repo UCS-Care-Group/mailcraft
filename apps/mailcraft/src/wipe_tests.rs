@@ -50,6 +50,7 @@ fn fill(scratch: &Scratch) {
     scratch.file("config/mailcraft/mailbox.mailcraft", "headers");
     scratch.file("config/mailcraft/mailbox.mailcraft.blobs/3f/3f2a", "body");
     scratch.file("config/mailcraft/mailbox.mailcraft.words", "w");
+    scratch.file("config/mailcraft/mailbox.mailcraft.dav/7/ab12", "a calendar server's document");
     scratch.file("config/mailcraft/ui.json", "{}");
     scratch.file("config/mailcraft/logs/mailcraft.log", "log");
     scratch.file("config/mailcraft/pictures/ab/abcd", "png");
@@ -255,13 +256,15 @@ fn the_content_and_word_index_of_a_mailbox_kept_elsewhere_are_left_and_said() {
     let theirs = scratch.file("usb/mail.mailcraft", "theirs");
     scratch.file("usb/mail.mailcraft.blobs/aa/aabb", "body");
     scratch.file("usb/mail.mailcraft.words", "w");
+    scratch.file("usb/mail.mailcraft.dav/7/ab12", "raw");
 
     let report = erase(&roots(&scratch), Some(&theirs));
 
     assert!(scratch.join("usb/mail.mailcraft.blobs/aa/aabb").exists() && scratch.join("usb/mail.mailcraft.words").exists());
     let named: Vec<&str> = report.left.iter().map(|(p, _)| p.as_str()).collect();
-    assert_eq!(named.len(), 3, "{named:?}");
+    assert_eq!(named.len(), 4, "{named:?}");
     assert!(named.iter().any(|p| p.ends_with("mail.mailcraft.blobs")) && named.iter().any(|p| p.ends_with("mail.mailcraft.words")));
+    assert!(named.iter().any(|p| p.ends_with("mail.mailcraft.dav")) && scratch.join("usb/mail.mailcraft.dav/7/ab12").exists());
 }
 
 #[test]

@@ -56,15 +56,28 @@ pub(crate) struct DavSync {
     /// The job in flight: its account, and the answer to come.
     job: Option<(Id, Receiver<DavDone>)>,
     /// When the next job may start (milliseconds).
-    next: f64,
+    pub(crate) next: f64,
     /// Jobs in a row that came to trouble, for the wait.
     failing: u32,
+    /// What the job in flight was given (by origin), to know what a refusal was of.
+    sent: HashMap<String, String>,
+    /// For each account whose server refused the passwords it was given: those passwords. The
+    /// account is left alone (nothing is sent again, so no lockout) until it has others.
+    refused: HashMap<Id, HashMap<String, String>>,
+    /// Whether each account's servers have a password of their own, to see it change.
+    separate: HashMap<Id, bool>,
 }
 
 impl MailApp {
     /// The password the account has for `origin` ([`mailcraft_model::origin_of`] form), by the rules
     /// in the module's note. `None` when the owner has to be asked.
     pub(crate) fn dav_password(&self, account: Id, origin: &str) -> Option<String> {
+        self.dav_password_from(account, origin).map(|(password, _)| password)
+    }
+
+    /// As [`MailApp::dav_password`], and whether it is the account's mail password (which is
+    /// asked again at every job, under the rule as it stands, and never held).
+    fn dav_password_from(&self, account: Id, origin: &str) -> Option<(String, bool)> {
         let a = self.session.mailbox.account(account)?;
         let server = a.dav.as_ref()?;
         // (Only for an origin the settings name: the credential store's names are by origin too.)
@@ -72,13 +85,13 @@ impl MailApp {
             return None;
         }
         if let Some(held) = self.dav_passwords.get(&(account, origin.to_string())) {
-            return Some(held.clone());
+            return Some((held.clone(), false));
         }
         if let Some(stored) = Self::dav_secret_key(a, origin).and_then(|key| self.secret_cache.get(&key).cloned()) {
-            return Some(stored);
+            return Some((stored, false));
         }
         if server.may_use_mail_password(origin) {
-            return self.passwords.get(&account).cloned().or_else(|| self.remembered("password", account));
+            return self.passwords.get(&account).cloned().or_else(|| self.remembered("password", account)).map(|p| (p, true));
         }
         None
     }
@@ -103,6 +116,15 @@ impl MailApp {
         let opening = self.session.openings();
         if self.dav.opening != opening {
             self.dav = DavSync { opening, ..Default::default() };
+        }
+        // The owner gave these servers a password of their own, or took it back: what was held
+        // for the account is not what it is to be given now.
+        let flags: Vec<(Id, bool)> =
+            self.session.mailbox.accounts.iter().filter_map(|a| a.dav.as_ref().map(|d| (a.id, d.separate_password))).collect();
+        for (id, flag) in flags {
+            if self.dav.separate.insert(id, flag).is_some_and(|was| was != flag) {
+                self.dav_passwords.retain(|(held, _), _| *held != id);
+            }
         }
         if let Some((account, receive)) = &self.dav.job {
             let account = *account;
@@ -133,7 +155,13 @@ impl MailApp {
             }
         }
         let account = ask.account;
+        // Passwords a server refused are not sent again, until the account has others.
+        if self.dav.refused.get(&account).is_some_and(|refused| *refused == passwords) {
+            return;
+        }
+        self.dav.refused.remove(&account);
         let Some(start) = &self.services.dav else { return };
+        self.dav.sent = passwords.clone();
         let receive = start(DavJob { ask, passwords });
         self.dav.job = Some((account, receive));
     }
@@ -148,11 +176,20 @@ impl MailApp {
                 Value::Null
             }
         };
-        // A password the server took is held for the session.
+        // A password the server took is held for the session, unless it is the mail password:
+        // that one is looked up at every job, by the rule as it stands.
         for origin in signed_in {
-            if let Some(password) = self.dav_password(account, &origin) {
+            if let Some((password, from_mail)) = self.dav_password_from(account, &origin)
+                && !from_mail
+            {
                 self.hold_dav_password(account, &origin, &password);
             }
+        }
+        if problem == DavProblem::WrongPassword {
+            // Not held, not sent again (at every back-off: a lockout) until the owner gives another.
+            self.dav_passwords.retain(|(held, _), _| *held != account);
+            let sent = std::mem::take(&mut self.dav.sent);
+            self.dav.refused.insert(account, sent);
         }
         let now = now_ms();
         if problem == DavProblem::None {

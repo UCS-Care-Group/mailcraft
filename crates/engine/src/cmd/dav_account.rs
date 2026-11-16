@@ -99,13 +99,15 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     // Another server is another place: what the old one said of its collections is not the new
     // one's. (A change of the password flag alone is no other server.)
     let changed = before.as_ref().is_some_and(|was| was.is_another_server(&server));
+    let old_collections: Vec<String> =
+        if changed { before.iter().flat_map(|was| was.collections.iter().map(|c| c.href.clone())).collect() } else { Vec::new() };
     if changed {
         server.collections.clear();
     }
     let origins = server.origins().len();
     s.mailbox.account_mut(id)?.dav = Some(server);
     if changed {
-        super::dav_sync::forget_account(s, id);
+        super::dav_sync::forget_account(s, id, &old_collections);
     }
     s.dirty = true;
     Ok(json!({"id": id, "origins": origins, "changedServer": changed}))
@@ -114,9 +116,11 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
 fn off(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
     let account = s.mailbox.account_mut(id).map_err(|_| failed!("no account with id {id}", id))?;
-    let had = account.dav.take().is_some();
-    if had {
-        super::dav_sync::forget_account(s, id);
+    let old = account.dav.take();
+    let had = old.is_some();
+    if let Some(old) = old {
+        let collections: Vec<String> = old.collections.iter().map(|c| c.href.clone()).collect();
+        super::dav_sync::forget_account(s, id, &collections);
         s.dirty = true;
     }
     Ok(json!({"id": id, "off": had}))

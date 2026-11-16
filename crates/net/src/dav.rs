@@ -227,20 +227,25 @@ pub fn run(ask: &DavAsk, passwords: Passwords<'_>, x: &dyn HttpExchange, now: i6
     };
     // A site for each origin a home of the settings is on, and for none else.
     let mut homes: Vec<&String> = Vec::new();
+    // Whether a home was left out: what is listed is then not all there is.
+    let mut left_out = ask.homes.len() > DavServer::MAX_HOMES;
     for home in ask.homes.iter().take(DavServer::MAX_HOMES) {
         if DavServer::check_home(home).is_err() {
             run.skipped = run.skipped.saturating_add(1);
+            left_out = true;
             continue;
         }
         if run.add_site(home) {
             homes.push(home);
+        } else {
+            left_out = true;
         }
     }
     if homes.is_empty() {
         out.problem = DavProblem::NotCalendarServer;
         return out;
     }
-    let ended = run.work(ask, &homes, &mut out);
+    let ended = run.work(ask, &homes, left_out, &mut out);
     if let Err(Fail::Stop(problem)) = ended {
         out.problem = problem;
     }
@@ -267,12 +272,12 @@ impl Run<'_> {
         self.sites.iter().position(|site| site.key == key)
     }
 
-    fn work(&mut self, ask: &DavAsk, homes: &[&String], out: &mut DavDownload) -> Result<(), Fail> {
+    fn work(&mut self, ask: &DavAsk, homes: &[&String], left_out: bool, out: &mut DavDownload) -> Result<(), Fail> {
         // The calendars of the homes, when they are to be listed.
         let mut found: Vec<Found> = Vec::new();
         let mut stopped = None;
         if ask.list_homes {
-            let mut listing = DavListing { complete: true, ..Default::default() };
+            let mut listing = DavListing { complete: !left_out, ..Default::default() };
             for home in homes {
                 match self.list_home(home) {
                     Ok(listed) => {
@@ -541,6 +546,8 @@ impl Run<'_> {
         let mut pages = 0usize;
         let mut gets = 0usize;
         loop {
+            // (Whether a deletion of this page found no room: the token then stays where it was.)
+            let mut overflow = false;
             pages += 1;
             if pages > self.limits.pages {
                 out.complete = false;
@@ -570,10 +577,13 @@ impl Run<'_> {
                     present.remove(&entry.href);
                     if out.changes.len() < MAX_CHANGES {
                         out.changes.push(DavChange { href: entry.href.clone(), gone: true, ..Default::default() });
+                    } else {
+                        overflow = true;
                     }
                     continue;
                 }
-                let Some(etag) = &entry.etag else { continue };
+                // (A member without a usable ETag is still a member: it is kept, and asked for.)
+                let etag = usable(entry.etag.as_deref());
                 total += 1;
                 if total > MAX_RESOURCES {
                     // (The first ones stand; what is over is said once, never taken in.)
@@ -589,7 +599,7 @@ impl Run<'_> {
             }
             out.capped |= ms.capped;
             let fetched = self.fetch(site, &coll.href, &page, &mut gets, out)?;
-            if !fetched || out.capped {
+            if !fetched || out.capped || overflow {
                 out.complete = false;
                 return self.short(out, delta, &present);
             }
@@ -642,13 +652,13 @@ impl Run<'_> {
                 self.skipped = self.skipped.saturating_add(1);
                 continue;
             }
-            let Some(etag) = &entry.etag else { continue };
+            let etag = usable(entry.etag.as_deref());
             if present.len() >= MAX_RESOURCES {
                 out.capped = true;
                 out.complete = false;
                 break;
             }
-            present.insert(entry.href.clone(), etag.clone());
+            present.insert(entry.href.clone(), etag);
         }
         out.capped |= ms.capped;
         out.full = true;
@@ -747,6 +757,11 @@ impl Run<'_> {
         out.changes.push(DavChange { href: href.to_string(), etag: etag.to_string(), raw: Some(raw), gone: false });
         Ok(())
     }
+}
+
+/// An ETag as the server wrote it, or none when it wrote none that can be compared.
+fn usable(etag: Option<&str>) -> String {
+    etag.map(str::trim).filter(|e| !e.is_empty()).unwrap_or_default().to_string()
 }
 
 struct Listed {

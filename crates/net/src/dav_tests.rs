@@ -367,6 +367,105 @@ fn collection_ask() -> DavAsk {
     }
 }
 
+/// A member whose ETag the server didn't give (a property that is 404 there).
+fn bare(href: &str) -> String {
+    format!(
+        "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:getetag/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response>"
+    )
+}
+
+#[test]
+fn a_member_without_a_usable_etag_is_still_there_and_is_asked_for_in_both_passes() {
+    let doc = "BEGIN:VCALENDAR\nEND:VCALENDAR";
+    let members = |with_data: Option<&str>| {
+        format!("{}{}{}", member("/cal/work/a.ics", "\"1\"", with_data), bare("/cal/work/b.ics"), member("/cal/work/c.ics", "", with_data))
+    };
+    // By sync-collection.
+    let x = Scripted::new(move |request| {
+        let body = String::from_utf8_lossy(request.body()).to_string();
+        if body.contains("sync-collection") {
+            multistatus(&format!("{}<d:sync-token>t1</d:sync-token>", members(None)))
+        } else {
+            multistatus(&format!(
+                "{}{}{}",
+                member("/cal/work/a.ics", "\"1\"", Some(doc)),
+                member("/cal/work/b.ics", "", Some(doc)),
+                member("/cal/work/c.ics", "", Some(doc))
+            ))
+        }
+    });
+    let out = run(&collection_ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    let work = &out.collections[0];
+    assert!(work.full && work.complete, "{work:?} {:?} {:?}", out.problem, x.seen.borrow());
+    assert_eq!(work.present.len(), 3, "none of them may look gone: {:?}", work.present);
+    assert_eq!(work.changes.len(), 3, "and each is read");
+    // By calendar-query, for a server without the report.
+    let x = Scripted::new(move |request| {
+        let body = String::from_utf8_lossy(request.body()).to_string();
+        if body.contains("sync-collection") {
+            HttpResponse::new(403, Vec::new())
+        } else if body.contains("calendar-query") {
+            multistatus(&members(None))
+        } else {
+            multistatus(&format!(
+                "{}{}{}",
+                member("/cal/work/a.ics", "\"1\"", Some(doc)),
+                member("/cal/work/b.ics", "", Some(doc)),
+                member("/cal/work/c.ics", "", Some(doc))
+            ))
+        }
+    });
+    let out = run(&collection_ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    let work = &out.collections[0];
+    assert!(work.full && work.window.is_some());
+    assert_eq!(work.present.len(), 3, "{:?}", work.present);
+    assert_eq!(work.changes.len(), 3);
+}
+
+#[test]
+fn deletions_past_the_cap_stop_the_pass_short_and_the_token_stays_where_it_was() {
+    let gone = |from: usize, to: usize| -> String {
+        (from..to)
+            .map(|i| format!("<d:response><d:href>/cal/work/{i}.ics</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response>"))
+            .collect()
+    };
+    let ask = || {
+        let mut ask = collection_ask();
+        ask.collections[0].sync_token = "old".into();
+        ask
+    };
+    let reads = |count: usize| {
+        let x = Scripted::new(move |request| {
+            let body = String::from_utf8_lossy(request.body()).to_string();
+            if body.contains("sync-collection") {
+                multistatus(&format!("{}<d:sync-token>new</d:sync-token>", gone(0, count)))
+            } else {
+                multistatus("")
+            }
+        });
+        let out = run(&ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+        out.collections.into_iter().next().unwrap()
+    };
+    let exact = reads(MAX_CHANGES);
+    assert!(exact.complete && exact.sync_token == "new" && exact.changes.len() == MAX_CHANGES);
+    let over = reads(MAX_CHANGES + 1);
+    assert!(!over.complete, "a deletion that found no room is not lost");
+    assert_eq!(over.sync_token, "old", "so the token does not move past it");
+    assert_eq!(over.changes.len(), MAX_CHANGES);
+}
+
+#[test]
+fn a_home_that_was_left_out_makes_the_listing_incomplete() {
+    let s = server();
+    let mut ask = ask(&s, true, Vec::new());
+    ask.homes.push("https://outlook.office365.com/dav/cal/".into());
+    let out = read(&s, &ask);
+    let listing = out.listing.as_ref().unwrap();
+    assert!(!listing.complete, "the calendars of a home that wasn't asked are not known to be gone");
+    assert_eq!(listing.calendars.len(), 2, "what the others list is still there");
+    assert!(out.skipped >= 1);
+}
+
 #[test]
 fn an_address_off_the_origin_or_outside_the_collection_is_skipped_and_never_asked_for() {
     let evil = "https://evil.example.net/cal/work/x.ics";

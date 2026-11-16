@@ -231,14 +231,15 @@ fn read_response(response: &Node, origin: &Origin, base: &str, out: &mut Multist
     }
 }
 
-/// Reads the properties that came with 200. False when the entry is unusable (an ETag that is
-/// not one).
+/// Reads the properties that came with 200. False when the entry is unusable (none are).
 fn read_props(response: &Node, origin: &Origin, base: &str, e: &mut Entry, skipped: &mut usize) -> bool {
     for p in xml::properties(response) {
         match (p.namespace.as_str(), p.name.as_str()) {
+            // (An ETag that is empty or isn't one is none: the member is still there, and is
+            // not to be taken for one that is gone.)
             (DAV, "getetag") => match token_of(&p.text) {
                 Some(t) if !t.is_empty() => e.etag = Some(t),
-                _ => return false,
+                _ => {}
             },
             (DAV, "displayname") => {
                 let name: String = p.text.trim().chars().filter(|c| !c.is_control()).take(MAX_NAME).collect();

@@ -88,15 +88,51 @@ fn uploaded(_: &mut Session, _: &Value) -> CmdResult {
     Err(fail(NOT_YET))
 }
 
-/// The account has no calendar server any more, or another one: what the old one gave (its
-/// calendars, their events, the documents kept as they came) goes, and the homes are listed
-/// afresh. What was made here stays ([`super::remote::forget`]).
-pub(super) fn forget_account(s: &mut Session, account: Id) {
-    let _ = super::remote::forget(s, account);
+/// The account has no calendar server any more, or another one: what the old one gave goes (its
+/// calendars, named by `collections`, their events and the documents kept as they came), and the
+/// homes are listed afresh. Nothing else of the account is touched: what a Graph sign-in gave it
+/// (calendars, events, to-dos, contacts) and what waits to be sent to it stay, as does whatever
+/// was made here.
+pub(super) fn forget_account(s: &mut Session, account: Id, collections: &[String]) {
+    let hrefs: HashSet<&str> = collections.iter().map(String::as_str).collect();
+    let followed: Vec<Id> =
+        s.mailbox.calendars.iter().filter(|c| c.origin.account == account && hrefs.contains(c.origin.id.as_str())).map(|c| c.id).collect();
+    let events: Vec<Id> = s
+        .mailbox
+        .events
+        .values()
+        .filter(|e| followed.contains(&e.calendar) && e.origin.account == account && !e.origin.id.is_empty())
+        .map(|e| e.id)
+        .collect();
+    for id in &events {
+        let _ = s.mailbox.remove_event(*id);
+    }
+    s.mailbox.event_changes.retain(|c| !(c.account == account && events.contains(&c.event)));
+    // A calendar with something of the owner's left in it, or the mailbox's last, becomes its own.
+    let all = s.mailbox.calendars.len();
+    let mut kept = 0usize;
+    let mut stays: Vec<Id> = Vec::new();
+    for id in &followed {
+        let occupied = s.mailbox.events.values().any(|e| e.calendar == *id);
+        if occupied || (followed.len() == all && kept == 0 && followed.last() == Some(id)) {
+            stays.push(*id);
+            kept += 1;
+        }
+    }
+    for c in s.mailbox.calendars.iter_mut().filter(|c| stays.contains(&c.id)) {
+        c.origin = Origin::default();
+        c.rights = Rights::default();
+    }
+    s.mailbox.calendars.retain(|c| !followed.contains(&c.id) || stays.contains(&c.id));
     s.dav_listed.remove(&account);
+    s.dav_asked.remove(&account);
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(file) = s.path.clone() {
         crate::dav_raw::drop_all(&file, account);
+    }
+    if !followed.is_empty() {
+        s.dirty = true;
+        s.mailbox_changed();
     }
 }
 
@@ -109,11 +145,13 @@ fn resource_of(key: &str) -> &str {
 
 fn request(s: &mut Session, v: &Value) -> CmdResult {
     let wanted = v.get("account").and_then(Value::as_u64);
+    // The account whose server was asked longest ago (or never): each has its turn.
     let account = s
         .mailbox
         .accounts
         .iter()
-        .find(|a| a.dav.as_ref().is_some_and(|d| !d.calendar_homes.is_empty()) && wanted.is_none_or(|id| id == a.id))
+        .filter(|a| a.dav.as_ref().is_some_and(|d| !d.calendar_homes.is_empty()) && wanted.is_none_or(|id| id == a.id))
+        .min_by_key(|a| (s.dav_asked.get(&a.id).copied().unwrap_or(i64::MIN), a.id))
         .ok_or_else(|| fail("no account has a calendar server"))?;
     let Some(server) = account.dav.as_ref() else { return Err(fail("no account has a calendar server")) };
     let now = s.now();
@@ -149,6 +187,9 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
         to: now.saturating_add(AHEAD),
         collections,
     };
+    // (After every other, even within one second.)
+    let turn = now.max(s.dav_asked.values().copied().max().map_or(i64::MIN, |last| last.saturating_add(1)));
+    s.dav_asked.insert(ask.account, turn);
     Ok(json!({"ask": ask}))
 }
 
@@ -372,13 +413,17 @@ fn take_read(
 ) -> bool {
     let owner = s.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
     let pending: HashSet<Id> = s.mailbox.event_changes.iter().map(|c| c.event).collect();
-    // What is here of this collection, by key.
+    // What is here of this collection, by key, and the keys of each resource (so that a change
+    // looks at its own resource's and not at all).
     let mut here: HashMap<String, Id> = HashMap::new();
+    let mut of_resource: HashMap<String, Vec<String>> = HashMap::new();
     for event in s.mailbox.events.values().filter(|e| e.calendar == calendar && e.origin.account == account) {
         here.insert(event.origin.id.clone(), event.id);
+        of_resource.entry(resource_of(&event.origin.id).to_string()).or_default().push(event.origin.id.clone());
     }
     let mut total = s.mailbox.events.values().filter(|e| e.origin.account == account && !e.origin.id.is_empty()).count();
-    let mut ends: Option<HashMap<String, i64>> = None;
+    // The documents' folder is listed once for the whole read.
+    let mut store = file.map(|file| raw::Store::open(file, account));
     let before = (took.added, took.updated, took.removed);
     let mut seen: HashSet<&str> = HashSet::new();
     for change in read.changes.iter().take(MAX_CHANGES) {
@@ -395,11 +440,15 @@ fn take_read(
             };
             fresh = keyed(&change.href, mailcraft_ical::parse(raw, offset_at).events);
         }
-        let old: Vec<(String, Id)> = here.iter().filter(|(k, _)| resource_of(k) == change.href).map(|(k, i)| (k.clone(), *i)).collect();
+        let old: Vec<(String, Id)> =
+            of_resource.get(change.href.as_str()).into_iter().flatten().filter_map(|k| here.get(k).map(|i| (k.clone(), *i))).collect();
         let new_keys: HashSet<String> = fresh.iter().map(|(k, _)| k.clone()).collect();
         for (key, id) in old.iter().filter(|(k, _)| !new_keys.contains(k)) {
             if !pending.contains(id) && s.mailbox.remove_event(*id).is_ok() {
                 here.remove(key);
+                if let Some(keys) = of_resource.get_mut(change.href.as_str()) {
+                    keys.retain(|k| k != key);
+                }
                 took.removed += 1;
             }
         }
@@ -428,6 +477,7 @@ fn take_read(
                 }
                 None if total < MAX_ACCOUNT_RESOURCES => {
                     if let Ok(id) = s.mailbox.add_event(event) {
+                        of_resource.entry(change.href.clone()).or_default().push(key.clone());
                         here.insert(key, id);
                         total += 1;
                         took.added += 1;
@@ -436,59 +486,81 @@ fn take_read(
                 None => took.skipped += 1,
             }
         }
-        if let Some(file) = file {
-            raw_keep(s, account, file, &change.href, change.raw.as_deref().filter(|_| !change.gone), &mut ends, offset_at);
+        if let Some(store) = store.as_mut() {
+            store.drop_one(&change.href);
+            if let Some(doc) = change.raw.as_deref().filter(|_| !change.gone) {
+                // (What is asked of the events when there is no room is how they are now.)
+                store.keep(&change.href, doc, &|| ends_of(s, account, offset_at));
+            }
         }
     }
-    // What a full read that went to its end didn't find is gone (of the stretch it was of).
+    // What a full read that went to its end didn't find is gone (of the stretch it was of): a
+    // resource goes whole, its series, its changed occurrences and all, when it is none of what
+    // the server named and, for a read of a stretch, something of it is in that stretch (an event
+    // that starts in it, a series with an occurrence in it).
     if read.full && read.complete && !read.capped {
         let present: HashSet<&str> = read.present.iter().map(String::as_str).chain(seen.iter().copied()).collect();
-        let gone: Vec<(String, Id)> = here
-            .iter()
-            .filter(|(k, _)| !present.contains(resource_of(k)))
-            .filter(|(_, id)| !pending.contains(id))
-            .filter(|(_, id)| match (read.window, s.mailbox.event(**id)) {
+        // (A series is looked at over the first five years of a stretch at most: the stretch is a
+        // command's parameter too.)
+        let window = read.window.map(|(from, to)| {
+            let days_to = to.min(from.saturating_add(5 * 366 * 86_400));
+            (
+                mailcraft_time::DateTime::from_timestamp(from, 0).date,
+                mailcraft_time::DateTime::from_timestamp(days_to.saturating_sub(1), 0).date,
+                from,
+                to,
+            )
+        });
+        let mut gone: Vec<String> = Vec::new();
+        for (resource, keys) in &of_resource {
+            if present.contains(resource.as_str()) {
+                continue;
+            }
+            let ids: Vec<Id> = keys.iter().filter_map(|k| here.get(k).copied()).collect();
+            if ids.is_empty() || ids.iter().any(|id| pending.contains(id)) {
+                continue;
+            }
+            let inside = |id: &Id| match (window, s.mailbox.event(*id)) {
                 (None, Some(_)) => true,
-                (Some((from, to)), Some(e)) => e.recurrence.is_none() && (from..to).contains(&e.instants(offset_at).0),
-                _ => false,
-            })
-            .map(|(k, i)| (k.clone(), *i))
-            .collect();
-        for (key, id) in gone {
-            if s.mailbox.remove_event(id).is_ok() {
-                took.removed += 1;
-                if let Some(file) = file {
-                    raw::drop_one(file, account, resource_of(&key));
+                (Some((from_day, to_day, from, to)), Some(e)) => {
+                    if e.recurrence.is_some() {
+                        !e.occurrences_in(from_day, to_day, offset_at).is_empty()
+                    } else {
+                        (from..to).contains(&e.instants(offset_at).0)
+                    }
                 }
+                _ => false,
+            };
+            if ids.iter().any(inside) {
+                gone.push(resource.clone());
+            }
+        }
+        for resource in gone {
+            for key in of_resource.get(&resource).into_iter().flatten() {
+                if let Some(id) = here.get(key)
+                    && s.mailbox.remove_event(*id).is_ok()
+                {
+                    took.removed += 1;
+                }
+            }
+            if let Some(store) = store.as_mut() {
+                store.drop_one(&resource);
             }
         }
     }
     (took.added, took.updated, took.removed) != before
 }
 
-/// Keeps or lets go of one resource's document.
-fn raw_keep(
-    s: &Session,
-    account: Id,
-    file: &std::path::Path,
-    href: &str,
-    raw: Option<&str>,
-    ends: &mut Option<HashMap<String, i64>>,
-    offset_at: &dyn Fn(i64) -> i32,
-) {
-    raw::drop_one(file, account, href);
-    let Some(raw) = raw else { return };
-    let ends = ends.get_or_insert_with(|| {
-        let mut ends: HashMap<String, i64> = HashMap::new();
-        for e in s.mailbox.events.values().filter(|e| e.origin.account == account && !e.origin.id.is_empty()) {
-            let end = e.instants(offset_at).1;
-            let slot = ends.entry(raw::name_of(resource_of(&e.origin.id))).or_insert(i64::MIN);
-            // (A series that never ends is as old as its start.)
-            *slot = (*slot).max(if e.recurrence.is_some() { i64::MAX } else { end });
-        }
-        ends
-    });
-    raw::keep(file, account, href, raw, ends);
+/// The end of each of the account's events that has a kept document, by the document's name, as
+/// the events are now (a series that never ends is as late as can be).
+fn ends_of(s: &Session, account: Id, offset_at: &dyn Fn(i64) -> i32) -> HashMap<String, i64> {
+    let mut ends: HashMap<String, i64> = HashMap::new();
+    for e in s.mailbox.events.values().filter(|e| e.origin.account == account && !e.origin.id.is_empty()) {
+        let end = e.instants(offset_at).1;
+        let slot = ends.entry(raw::name_of(resource_of(&e.origin.id))).or_insert(i64::MIN);
+        *slot = (*slot).max(if e.recurrence.is_some() { i64::MAX } else { end });
+    }
+    ends
 }
 
 /// Lets go of the documents no event names any more.
@@ -536,7 +608,7 @@ fn tidy(event: &mut Event) {
 /// The kept documents, where there is a place to keep them.
 #[cfg(not(target_arch = "wasm32"))]
 mod raw {
-    pub(super) use crate::dav_raw::{drop_one, keep, name_of, sweep};
+    pub(super) use crate::dav_raw::{Store, name_of, sweep};
 }
 
 /// Without a folder to keep them in (the browser): none is kept.
@@ -547,9 +619,15 @@ mod raw {
     pub(super) fn name_of(href: &str) -> String {
         href.to_string()
     }
-    pub(super) fn keep(_: &Path, _: u64, _: &str, _: &str, _: &HashMap<String, i64>) -> bool {
-        false
+    pub(super) struct Store;
+    impl Store {
+        pub(super) fn open(_: &Path, _: u64) -> Store {
+            Store
+        }
+        pub(super) fn drop_one(&mut self, _: &str) {}
+        pub(super) fn keep(&mut self, _: &str, _: &str, _: &dyn Fn() -> HashMap<String, i64>) -> bool {
+            false
+        }
     }
-    pub(super) fn drop_one(_: &Path, _: u64, _: &str) {}
     pub(super) fn sweep(_: &Path, _: u64, _: &HashSet<String>) {}
 }

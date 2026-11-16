@@ -105,8 +105,9 @@ fn a_job_is_started_with_the_homes_passwords_and_its_answer_is_taken_in_once() {
         assert!(!jobs[0].0.contains("mail"), "{}", jobs[0].0);
     }
     assert!(a.session.mailbox.events.values().any(|e| e.title == "Planning" && e.origin.account == id));
-    // The password the server took is held for the session, under its origin.
-    assert_eq!(a.dav_passwords.get(&(id, HOME.to_string())).map(String::as_str), Some("mail"));
+    // The account's mail password is not held under the origin: it is looked up at every job, by
+    // the rule as it stands.
+    assert!(a.dav_passwords.is_empty());
 }
 
 #[test]
@@ -134,4 +135,67 @@ fn a_job_that_ended_without_an_answer_is_trouble_not_a_hang() {
     a.dav_tick();
     a.dav_tick();
     assert!(a.session.mailbox.events.values().all(|e| e.origin.account == 0));
+}
+
+/// A job that answers with `problem` and counts the jobs started.
+fn failing_job(a: &mut MailApp, problem: mailcraft_model::DavProblem) -> Arc<Mutex<Vec<std::collections::HashMap<String, String>>>> {
+    let jobs: Arc<Mutex<Vec<std::collections::HashMap<String, String>>>> = Arc::default();
+    let seen = jobs.clone();
+    a.services.dav = Some(Box::new(move |job: DavJob| {
+        seen.lock().unwrap().push(job.passwords.clone());
+        let (send, receive) = std::sync::mpsc::channel();
+        let download = DavDownload { account: job.ask.account, email: job.ask.email.clone(), problem, ..Default::default() };
+        send.send(DavDone { download }).unwrap();
+        receive
+    }));
+    jobs
+}
+
+#[test]
+fn a_password_the_server_refused_is_not_sent_again_until_the_owner_gives_another() {
+    let (mut a, id) = app(false);
+    a.passwords.insert(id, "mail".into());
+    let jobs = failing_job(&mut a, mailcraft_model::DavProblem::WrongPassword);
+    a.dav_passwords.insert((id, HOME.into()), "held".into());
+    a.dav_tick();
+    a.dav_tick();
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    assert!(a.dav_passwords.is_empty(), "what was refused is not held");
+    // (The mail password is another one, and was not refused: it is tried, once.)
+    a.dav.next = 0.0;
+    a.dav_tick();
+    a.dav_tick();
+    assert_eq!(jobs.lock().unwrap().len(), 2);
+    // Every back-off would send it again, and lock the account out: it isn't.
+    for _ in 0..3 {
+        a.dav.next = 0.0;
+        a.dav_tick();
+        a.dav_tick();
+    }
+    assert_eq!(jobs.lock().unwrap().len(), 2, "nothing was sent again");
+    // The owner gives another: it goes.
+    a.dav_passwords.insert((id, HOME.into()), "new".into());
+    a.dav.next = 0.0;
+    a.dav_tick();
+    assert_eq!(jobs.lock().unwrap().len(), 3);
+    assert_eq!(jobs.lock().unwrap()[2].get(HOME).map(String::as_str), Some("new"));
+}
+
+#[test]
+fn a_password_of_their_own_given_or_taken_back_forgets_what_was_held() {
+    let (mut a, id) = app(false);
+    a.dav_tick();
+    a.dav_passwords.insert((id, HOME.into()), "held".into());
+    a.passwords.insert(id, "mail".into());
+    a.dav_tick();
+    assert!(!a.dav_passwords.is_empty(), "nothing changed");
+    a.execute("account.davSet", json!({"id": id, "separatePassword": true})).unwrap();
+    a.dav_tick();
+    assert!(a.dav_passwords.is_empty(), "held for the shared password: not the one of their own");
+    assert_eq!(a.dav_password(id, HOME), None, "and the mail password no longer goes");
+    a.dav_passwords.insert((id, HOME.into()), "own".into());
+    a.execute("account.davSet", json!({"id": id, "separatePassword": false})).unwrap();
+    a.dav_tick();
+    assert!(a.dav_passwords.is_empty());
+    assert_eq!(a.dav_password(id, HOME).as_deref(), Some("mail"));
 }

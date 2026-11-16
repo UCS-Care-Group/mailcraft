@@ -27,46 +27,87 @@ fn folder(mailbox_file: &Path, account: Id) -> PathBuf {
     crate::store::dav_dir(mailbox_file).join(account.to_string())
 }
 
-/// Keeps `raw` for `href`, when it is small enough and there is room (`ends`: the end of each
-/// event of the account that has a kept document, by name, to let the oldest go first). Whether it
-/// was kept.
-pub fn keep(mailbox_file: &Path, account: Id, href: &str, raw: &str, ends: &HashMap<String, i64>) -> bool {
-    if raw.len() > MAX_RAW {
-        return false;
-    }
-    let dir = folder(mailbox_file, account);
-    if crate::store::create_private_dir_all(&dir).is_err() {
-        return false;
-    }
-    let name = name_of(href);
-    let mut held: Vec<(String, u64)> = Vec::new();
-    let mut total: u64 = 0;
-    if let Ok(entries) = std::fs::read_dir(&dir) {
-        for entry in entries.flatten().take(200_000) {
-            let (Some(file), Ok(meta)) = (entry.file_name().to_str().map(str::to_owned), entry.metadata()) else { continue };
-            if meta.is_file() && file != name {
-                total = total.saturating_add(meta.len());
-                held.push((file, meta.len()));
+/// The folder of an account's documents as it stands during one taking-in: listed once, with what
+/// is kept in it and how much, so that a thousand changes are a thousand writes and not a thousand
+/// looks at the folder.
+pub struct Store {
+    dir: PathBuf,
+    held: HashMap<String, u64>,
+    total: u64,
+    made: bool,
+}
+
+impl Store {
+    /// Lists the account's folder (once). A folder that isn't there is empty.
+    pub fn open(mailbox_file: &Path, account: Id) -> Store {
+        let dir = folder(mailbox_file, account);
+        let mut held: HashMap<String, u64> = HashMap::new();
+        let mut total: u64 = 0;
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten().take(200_000) {
+                let (Some(file), Ok(meta)) = (entry.file_name().to_str().map(str::to_owned), entry.metadata()) else { continue };
+                if meta.is_file() {
+                    total = total.saturating_add(meta.len());
+                    held.insert(file, meta.len());
+                }
             }
         }
+        Store { dir, held, total, made: false }
     }
-    let needed = raw.len() as u64;
-    if total.saturating_add(needed) > MAX_ACCOUNT_RAW {
-        // The oldest past events first (a file no event names, before them).
-        held.sort_by_key(|(file, _)| ends.get(file).copied().unwrap_or(i64::MIN));
-        for (file, size) in held {
-            if total.saturating_add(needed) <= MAX_ACCOUNT_RAW {
-                break;
-            }
-            if std::fs::remove_file(dir.join(&file)).is_ok() {
-                total = total.saturating_sub(size);
-            }
+
+    /// Lets go of the document of `href`.
+    pub fn drop_one(&mut self, href: &str) {
+        let name = name_of(href);
+        if let Some(size) = self.held.remove(&name) {
+            self.total = self.total.saturating_sub(size);
+            let _ = std::fs::remove_file(self.dir.join(&name));
         }
-        if total.saturating_add(needed) > MAX_ACCOUNT_RAW {
+    }
+
+    /// Keeps `raw` for `href`, when it is small enough and there is room. `ends` is asked for only
+    /// when there is not: the end of each event of the account that has a kept document, by name
+    /// and as the events are now, to let the oldest go first (and room is made for a good many
+    /// documents at once, so that this is not asked for at every one). Whether it was kept.
+    pub fn keep(&mut self, href: &str, raw: &str, ends: &dyn Fn() -> HashMap<String, i64>) -> bool {
+        if raw.len() > MAX_RAW {
             return false;
         }
+        let name = name_of(href);
+        let needed = raw.len() as u64;
+        let own = self.held.get(&name).copied().unwrap_or(0);
+        if self.total.saturating_sub(own).saturating_add(needed) > MAX_ACCOUNT_RAW {
+            let ends = ends();
+            // The oldest past events first (a file no event names, before them), down to a little
+            // under the cap.
+            let target = MAX_ACCOUNT_RAW - MAX_ACCOUNT_RAW / 16;
+            let mut order: Vec<(String, u64)> = self.held.iter().filter(|(file, _)| **file != name).map(|(f, s)| (f.clone(), *s)).collect();
+            order.sort_by_key(|(file, _)| ends.get(file).copied().unwrap_or(i64::MIN));
+            for (file, size) in order {
+                if self.total.saturating_sub(own).saturating_add(needed) <= target {
+                    break;
+                }
+                if std::fs::remove_file(self.dir.join(&file)).is_ok() {
+                    self.held.remove(&file);
+                    self.total = self.total.saturating_sub(size);
+                }
+            }
+            if self.total.saturating_sub(own).saturating_add(needed) > MAX_ACCOUNT_RAW {
+                return false;
+            }
+        }
+        if !self.made {
+            if crate::store::create_private_dir_all(&self.dir).is_err() {
+                return false;
+            }
+            self.made = true;
+        }
+        if crate::store::write_atomic(&self.dir.join(&name), raw.as_bytes()).is_err() {
+            return false;
+        }
+        self.total = self.total.saturating_sub(own).saturating_add(needed);
+        self.held.insert(name, needed);
+        true
     }
-    crate::store::write_atomic(&dir.join(&name), raw.as_bytes()).is_ok()
 }
 
 /// The document kept for `href`, if one is.
