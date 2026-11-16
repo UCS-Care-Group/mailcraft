@@ -31,6 +31,10 @@ pub mod compose;
 mod compose_trust_tests;
 #[cfg(test)]
 mod conversation_thread_tests;
+pub mod dav_account;
+#[cfg(test)]
+mod dav_account_tests;
+pub mod dav_sync;
 pub mod device_limits;
 #[cfg(test)]
 mod device_limits_relist_tests;
@@ -229,6 +233,8 @@ pub fn registry() -> Registry {
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
     v.extend(ews_mail::specs());
+    v.extend(dav_account::specs());
+    v.extend(dav_sync::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());
