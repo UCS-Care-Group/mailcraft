@@ -18858,7 +18858,7 @@ msgstr "Te."
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "You accepted this meeting."
-msgstr "Elfogadtad ezt a találkozót."
+msgstr "Elfogadta ezt az értekezletet."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -18870,7 +18870,7 @@ msgstr "Mindig letölti ennek a feladónak a képeit, de a levelezőszerver nem 
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "You declined this meeting."
-msgstr "Visszautasítottad a találkozót."
+msgstr "Elutasította ezt az értekezletet."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
