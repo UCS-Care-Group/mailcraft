@@ -8,6 +8,7 @@ import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -126,7 +127,8 @@ private fun rememberTasks(
 ): Pair<TasksData, TasksActions> {
     val scope = rememberCoroutineScope()
     var showCompleted by rememberSaveable { mutableStateOf(false) }
-    var editor by remember { mutableStateOf<DraftState?>(null) }
+    val editorState = remember { mutableStateOf<DraftState?>(null) }
+    var editor by editorState
     var notice by remember { mutableStateOf<String?>(null) }
     var depth by remember { mutableStateOf<Map<String, UInt>>(emptyMap()) }
     // A change on its way to the core (a second tap waits for it), and the task being read into the editor.
@@ -159,20 +161,7 @@ private fun rememberTasks(
         load = null
         editor = state
     }
-    val editorActions = EditorActions(
-        onDraft = { editor = DraftState.Ready(it) },
-        onSave = {
-            val draft = (editor as? DraftState.Ready)?.draft
-            if (draft != null && draft.canSave) {
-                act(if (draft.id == null) "tasks.new" else "tasks.edit", draft.params()) { editor = null }
-            }
-        },
-        onDelete = {
-            val id = (editor as? DraftState.Ready)?.draft?.id
-            if (id != null) act("tasks.delete", "{\"id\":$id}") { editor = null }
-        },
-        onClose = { show(null) },
-    )
+    val editorActions = editorActions(editorState, { busy }, ::act) { show(null) }
     val actions = TasksActions(
         onToggle = { act("tasks.complete", "{\"id\":${it.id},\"value\":${!it.completed}}") },
         onOpen = { id ->
@@ -190,3 +179,32 @@ private fun rememberTasks(
     )
     return TasksData(state, editor, notice, busy) to actions
 }
+
+/**
+ * What the editor's buttons do. While a change is on its way the draft it came from stays as it is;
+ * when it is done the editor closes only if it still shows that draft, not one the owner opened
+ * meanwhile.
+ */
+private fun editorActions(
+    editor: MutableState<DraftState?>,
+    busy: () -> Boolean,
+    act: (String, String, () -> Unit) -> Unit,
+    close: () -> Unit,
+): EditorActions = EditorActions(
+    onDraft = { if (!busy()) editor.value = DraftState.Ready(it) },
+    onSave = {
+        val shown = editor.value
+        val draft = (shown as? DraftState.Ready)?.draft
+        if (draft != null && draft.canSave) {
+            act(if (draft.id == null) "tasks.new" else "tasks.edit", draft.params()) {
+                if (editor.value === shown) editor.value = null
+            }
+        }
+    },
+    onDelete = {
+        val shown = editor.value
+        val id = (shown as? DraftState.Ready)?.draft?.id
+        if (id != null) act("tasks.delete", "{\"id\":$id}") { if (editor.value === shown) editor.value = null }
+    },
+    onClose = close,
+)
