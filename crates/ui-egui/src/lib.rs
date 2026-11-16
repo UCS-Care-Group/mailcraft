@@ -1523,10 +1523,12 @@ pub struct MailApp {
     /// session, by account and **origin** ([`mailcraft_model::origin_of`]): one origin's is never
     /// sent to, or lent to, another's (#209). Dropped with the account's other secrets, and with
     /// an origin's when the server changes.
+    /// (A write of one to the credential store asks [`MailApp::dav_forget_pending`] first.)
     pub(crate) dav_passwords: std::collections::HashMap<(Id, String), String>,
     /// Threads removing calendar and contacts passwords from the credential store, each with what
     /// it confirmed gone ([`MailApp::poll_dav_forgetting`]).
-    dav_forgetting: Vec<Receiver<(Vec<String>, Option<StoreTrouble>)>>,
+    /// (With the names each was started for.)
+    dav_forgetting: Vec<(Receiver<(Vec<String>, Option<StoreTrouble>)>, Vec<String>)>,
     /// Names waiting for one of those threads.
     dav_forget_queue: Vec<String>,
     /// The folders of an Exchange server account the last run could not read (named as the owner
@@ -2971,9 +2973,17 @@ impl MailApp {
         const BATCH: usize = 64;
         let Some(store) = self.services.secrets.clone() else { return };
         while !self.dav_forget_queue.is_empty() && self.dav_forgetting.len() < Self::DAV_FORGETTERS {
-            let keys: Vec<String> = self.dav_forget_queue.drain(..BATCH.min(self.dav_forget_queue.len())).collect();
+            let mut keys: Vec<String> = self.dav_forget_queue.drain(..BATCH.min(self.dav_forget_queue.len())).collect();
+            // A name the settings give again, or a password is held under, since it was queued is
+            // not forgotten: it stays noted, and is never removed from the store.
+            let in_use = self.dav_keys_in_use();
+            keys.retain(|key| !in_use.contains(key));
+            if keys.is_empty() {
+                continue;
+            }
             let (send, receive) = std::sync::mpsc::channel();
             let store = store.clone();
+            let started = keys.clone();
             let retry = keys.clone();
             let job = std::thread::Builder::new().name("dav-forget".into()).spawn(move || {
                 let mut confirmed = Vec::new();
@@ -2987,7 +2997,7 @@ impl MailApp {
                 let _ = send.send((confirmed, store.take_trouble()));
             });
             match job {
-                Ok(_) => self.dav_forgetting.push(receive),
+                Ok(_) => self.dav_forgetting.push((receive, started)),
                 Err(e) => {
                     // (Put back: tried again when a thread can be had.)
                     log::warn!("couldn't start forgetting a credential: {e}");
@@ -2998,6 +3008,26 @@ impl MailApp {
         }
     }
 
+    /// The names calendar and contacts passwords are kept under now: those the accounts' settings
+    /// give, and those a password in memory is held under.
+    fn dav_keys_in_use(&self) -> std::collections::HashSet<String> {
+        let mut in_use: std::collections::HashSet<String> = self.session.mailbox.accounts.iter().flat_map(Self::dav_secret_keys).collect();
+        for (account, origin) in self.dav_passwords.keys() {
+            in_use.extend(self.session.mailbox.account(*account).and_then(|a| Self::dav_secret_key(a, origin)));
+        }
+        in_use
+    }
+
+    /// Whether the entry under `key` is waiting to be removed from the credential store, or is
+    /// being removed. **Every write of a calendar and contacts password to the store must ask
+    /// this first** (D5 wires it in): a write for a name with a forget pending would be removed
+    /// along with the old password, so it waits until the forget has completed
+    /// ([`poll_dav_forgetting`](Self::poll_dav_forgetting)), or is queued again then.
+    #[allow(dead_code)] // D5's writes call it; until then only the tests do
+    pub(crate) fn dav_forget_pending(&self, key: &str) -> bool {
+        self.dav_forget_queue.iter().any(|k| k == key) || self.dav_forgetting.iter().any(|(_, keys)| keys.iter().any(|k| k == key))
+    }
+
     /// Most threads forgetting calendar and contacts passwords at once.
     const DAV_FORGETTERS: usize = 16;
 
@@ -3005,7 +3035,7 @@ impl MailApp {
     /// and start the ones that were waiting for a thread.
     pub(crate) fn poll_dav_forgetting(&mut self) {
         let mut waiting = Vec::new();
-        for receive in std::mem::take(&mut self.dav_forgetting) {
+        for (receive, started) in std::mem::take(&mut self.dav_forgetting) {
             match receive.try_recv() {
                 Ok((confirmed, trouble)) => match trouble {
                     Some(trouble) => self.note_secret_trouble(trouble),
@@ -3013,15 +3043,11 @@ impl MailApp {
                         // A name the settings give again, or that a password is held under now
                         // (they were put back while the store was asked), is in use: it stays
                         // noted, for Remove all data.
-                        let mut in_use: std::collections::HashSet<String> =
-                            self.session.mailbox.accounts.iter().flat_map(Self::dav_secret_keys).collect();
-                        for (account, origin) in self.dav_passwords.keys() {
-                            in_use.extend(self.session.mailbox.account(*account).and_then(|a| Self::dav_secret_key(a, origin)));
-                        }
+                        let in_use = self.dav_keys_in_use();
                         self.ui.remembered_keys.retain(|key| !confirmed.contains(key) || in_use.contains(key));
                     }
                 },
-                Err(std::sync::mpsc::TryRecvError::Empty) => waiting.push(receive),
+                Err(std::sync::mpsc::TryRecvError::Empty) => waiting.push((receive, started)),
                 // (The thread ended without an answer: the names stay noted.)
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
             }

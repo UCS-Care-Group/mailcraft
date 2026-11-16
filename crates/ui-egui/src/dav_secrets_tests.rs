@@ -250,3 +250,87 @@ fn names_past_the_limit_wait_in_a_queue_and_none_is_lost() {
     assert!(a.dav_forget_queue.is_empty() && a.dav_forgetting.is_empty());
     assert!(keys.iter().all(|k| !a.ui.remembered_keys.contains(k)), "each was asked after, and confirmed");
 }
+
+/// A store whose `remove` waits until it is opened, as a locked keychain's would.
+struct Gated {
+    store: Store,
+    open: Arc<(Mutex<bool>, std::sync::Condvar)>,
+}
+
+impl Gated {
+    fn release(&self) {
+        let (lock, cond) = &*self.open;
+        if let Ok(mut open) = lock.lock() {
+            *open = true;
+        }
+        cond.notify_all();
+    }
+}
+
+impl SecretStore for Gated {
+    fn get(&self, key: &str) -> Option<String> {
+        self.store.get(key)
+    }
+    fn set(&self, key: &str, secret: &str) -> Result<(), SecretError> {
+        self.store.set(key, secret)
+    }
+    fn delete(&self, key: &str) {
+        self.store.delete(key);
+    }
+    fn remove(&self, key: &str) -> Result<(), SecretError> {
+        let (lock, cond) = &*self.open;
+        if let Ok(mut open) = lock.lock() {
+            while !*open {
+                match cond.wait(open) {
+                    Ok(next) => open = next,
+                    Err(_) => break,
+                }
+            }
+        }
+        self.store.delete(key);
+        Ok(())
+    }
+}
+
+/// An app whose store is gated, with all the workers busy on names of no account's.
+fn gated() -> (MailApp, Id, Arc<Gated>, String) {
+    let (mut a, id) = app();
+    let store = Arc::new(Gated { store: Store::default(), open: Arc::new((Mutex::new(false), std::sync::Condvar::new())) });
+    a.services.secrets = Some(store.clone());
+    let key = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
+    store.set(&key, "one").unwrap();
+    a.index_secret_key(key.clone());
+    for n in 0..16 {
+        a.forget_dav_entries(vec![format!("dav-password:busy{n}@example.org|dav=https://h|user=u|pin=")]);
+    }
+    assert_eq!(a.dav_forgetting.len(), 16);
+    (a, id, store, key)
+}
+
+#[test]
+fn a_queued_forget_yields_to_a_key_the_settings_give_again() {
+    let (mut a, id, store, key) = gated();
+    a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
+    assert!(a.dav_forget_queue.contains(&key), "queued behind the busy workers");
+    // Restored, and a replacement password saved under the name, before a worker gets to it.
+    a.execute("account.davSet", json!({"id": id, "username": ""})).unwrap();
+    store.set(&key, "replacement").unwrap();
+    store.release();
+    settle(&mut a);
+    assert_eq!(store.get(&key).as_deref(), Some("replacement"), "never removed");
+    assert!(a.ui.remembered_keys.contains(&key));
+    assert!(!a.dav_forget_pending(&key));
+}
+
+#[test]
+fn a_write_can_ask_whether_a_forget_is_pending_for_its_name() {
+    let (mut a, id, store, key) = gated();
+    assert!(!a.dav_forget_pending(&key));
+    a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
+    assert!(a.dav_forget_pending(&key), "queued");
+    let busy = "dav-password:busy0@example.org|dav=https://h|user=u|pin=";
+    assert!(a.dav_forget_pending(busy), "in flight");
+    store.release();
+    settle(&mut a);
+    assert!(!a.dav_forget_pending(&key) && !a.dav_forget_pending(busy), "completed");
+}
