@@ -36,7 +36,8 @@ internal class CoreAttachments(
     override suspend fun bytes(id: ULong, index: UInt): AttachmentBytes = withContext(dispatcher) {
         try {
             val file = core.attachment(id, index)
-            AttachmentBytes.Got(file.bytes, file.check.saveName, file.picture.isNotEmpty())
+            val check = file.check
+            AttachmentBytes.Got(file.bytes, check.saveName, file.picture.isNotEmpty(), check.verdict, check.blocked)
         } catch (e: CoreException) {
             AttachmentBytes.Failed(e.message.orEmpty())
         }

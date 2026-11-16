@@ -8,6 +8,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -317,6 +318,33 @@ class AttachmentControllerTest {
         controller.reset()
         assertEquals(AttachmentUi(), controller.ui.value)
         controller.saveTo("content://x")
+        assertTrue(device.written.isEmpty())
+    }
+
+    @Test
+    fun aFileThatTurnsOutBlockedWhenReadIsNeverShared() {
+        // The row said PDF; the message was replaced, and what is read now is a program.
+        source.files[0u] = AttachmentBytes.Got(png, "run.exe", picture = false, OpenVerdict.BLOCKED, "MailCraft doesn't open run.exe")
+        controller.act(7uL, item("report.pdf"), AttachmentAction.Share)
+        assertTrue(device.shared.isEmpty())
+        assertEquals("MailCraft doesn't open run.exe", (controller.ui.value.notice as AttachmentNotice.Said).why)
+    }
+
+    @Test
+    fun whatAStepBroughtAfterTheMessageWasLeftIsDropped() {
+        val gate = CompletableDeferred<AttachmentBytes>()
+        val slow = object : AttachmentSource by source {
+            override suspend fun bytes(id: ULong, index: UInt): AttachmentBytes = gate.await()
+        }
+        val c = AttachmentController(slow, device, CoroutineScope(Dispatchers.Unconfined), io)
+        c.act(7uL, item("report.pdf"), AttachmentAction.Save)
+        assertTrue(c.ui.value.busy)
+        c.reset()
+        assertFalse(c.ui.value.busy)
+        gate.complete(AttachmentBytes.Got(png, "report.pdf", picture = false))
+        // Nothing of the left message comes back: no question where to save it, nothing held to write.
+        assertEquals(AttachmentUi(), c.ui.value)
+        c.saveTo("content://x")
         assertTrue(device.written.isEmpty())
     }
 

@@ -4,16 +4,28 @@ package work.mailcraft.android
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import uniffi.mailcraft_mobile.OpenVerdict
 
 /** What an attachment's bytes came to. */
 internal sealed interface AttachmentBytes {
-    class Got(val bytes: ByteArray, val saveName: String, val picture: Boolean) : AttachmentBytes
+    /**
+     * The bytes, with what the core says may be done with what was read ([verdict], and [blocked], its words
+     * for a blocked kind): the message may have changed since the row was listed.
+     */
+    class Got(
+        val bytes: ByteArray,
+        val saveName: String,
+        val picture: Boolean,
+        val verdict: OpenVerdict = OpenVerdict.OPEN,
+        val blocked: String = "",
+    ) : AttachmentBytes
 
     /** It could not be had; [why] is the program's own words (English). */
     class Failed(val why: String) : AttachmentBytes
@@ -109,6 +121,12 @@ internal class AttachmentController(
     /** What is to be saved once the owner has chosen the place: held here, never in the UI state. */
     private var pending: ByteArray? = null
 
+    /** Moves on when the message is left: a step begun for the message before it writes nothing after. */
+    private var generation = 0L
+
+    /** The step under way, called off when the message is left. */
+    private var running: Job? = null
+
     /** The owner chose [action] for attachment [item] of message [id] (a tap does [primaryOf]). */
     fun act(id: ULong, item: AttachmentItem, action: AttachmentAction) {
         // Only what the row offers: a blocked kind is never opened or shared, whatever asks.
@@ -140,32 +158,32 @@ internal class AttachmentController(
     fun dismiss() = state.update { it.copy(question = null, preview = null) }
 
     private fun launchOpen(id: ULong, item: AttachmentItem, confirmed: Boolean) {
-        busy {
+        busy { gen ->
             // A picture is previewed in the app, by its own bytes; every other kind goes to another app.
             if (looksLikeAPictureByName(item.name)) {
                 val got = source.bytes(id, item.index)
                 if (got is AttachmentBytes.Got && got.picture) {
-                    state.update { it.copy(preview = Preview(id, item, got.bytes)) }
+                    if (gen == generation) state.update { it.copy(preview = Preview(id, item, got.bytes)) }
                     return@busy
                 }
             }
             when (val out = source.open(id, item.index, confirmed)) {
                 AttachmentOutcome.Done -> Unit
-                AttachmentOutcome.NoApp -> tell(AttachmentNotice.NoApp)
-                is AttachmentOutcome.Refused -> tell(AttachmentNotice.Said(out.why))
+                AttachmentOutcome.NoApp -> tell(AttachmentNotice.NoApp, gen)
+                is AttachmentOutcome.Refused -> tell(AttachmentNotice.Said(out.why), gen)
                 is AttachmentOutcome.Imported -> Unit
             }
         }
     }
 
     private fun save(id: ULong, item: AttachmentItem) {
-        busy {
+        busy { gen ->
             when (val got = source.bytes(id, item.index)) {
-                is AttachmentBytes.Got -> {
+                is AttachmentBytes.Got -> if (gen == generation) {
                     pending = got.bytes
                     state.update { it.copy(saving = SaveRequest(got.saveName)) }
                 }
-                is AttachmentBytes.Failed -> tell(AttachmentNotice.Said(got.why))
+                is AttachmentBytes.Failed -> tell(AttachmentNotice.Said(got.why), gen)
             }
         }
     }
@@ -183,21 +201,26 @@ internal class AttachmentController(
     }
 
     private fun share(id: ULong, item: AttachmentItem) {
-        busy {
+        busy { gen ->
             when (val got = source.bytes(id, item.index)) {
-                is AttachmentBytes.Got ->
-                    if (!withContext(io) { device.share(got.saveName, got.bytes) }) tell(AttachmentNotice.ShareFailed)
-                is AttachmentBytes.Failed -> tell(AttachmentNotice.Said(got.why))
+                // What was read is judged again: a blocked kind never reaches the share sheet, whatever the row said.
+                is AttachmentBytes.Got -> when {
+                    got.verdict == OpenVerdict.BLOCKED -> tell(AttachmentNotice.Said(got.blocked), gen)
+                    gen != generation -> Unit
+                    !withContext(io) { device.share(got.saveName, got.bytes) } ->
+                        tell(AttachmentNotice.ShareFailed, gen)
+                }
+                is AttachmentBytes.Failed -> tell(AttachmentNotice.Said(got.why), gen)
             }
         }
     }
 
     private fun addToCalendar(id: ULong, item: AttachmentItem) {
-        busy {
+        busy { gen ->
             when (val out = source.importCalendar(id, item.index)) {
-                is AttachmentOutcome.Imported -> tell(AttachmentNotice.Imported(out.events, out.tasks))
-                is AttachmentOutcome.Refused -> tell(AttachmentNotice.Said(out.why))
-                AttachmentOutcome.NoApp -> tell(AttachmentNotice.NoApp)
+                is AttachmentOutcome.Imported -> tell(AttachmentNotice.Imported(out.events, out.tasks), gen)
+                is AttachmentOutcome.Refused -> tell(AttachmentNotice.Said(out.why), gen)
+                AttachmentOutcome.NoApp -> tell(AttachmentNotice.NoApp, gen)
                 AttachmentOutcome.Done -> Unit
             }
         }
@@ -214,20 +237,29 @@ internal class AttachmentController(
 
     /** The message was left: nothing held for it stays. */
     fun reset() {
+        generation++
+        running?.cancel()
+        running = null
         pending = null
         state.value = AttachmentUi()
     }
 
-    private fun busy(step: suspend () -> Unit) {
+    /** Runs [step] off the screen's way, with the generation it began in; only one runs at a time. */
+    private fun busy(step: suspend (Long) -> Unit) {
+        val gen = generation
         state.update { it.copy(busy = true) }
-        scope.launch {
+        running = scope.launch {
             try {
-                step()
+                step(gen)
             } finally {
-                state.update { it.copy(busy = false) }
+                // (A step called off by [reset] leaves the state the next message has.)
+                if (gen == generation) state.update { it.copy(busy = false) }
             }
         }
     }
 
-    private fun tell(notice: AttachmentNotice) = state.update { it.copy(notice = notice) }
+    /** Says [notice], for a step of generation [gen]: nothing once the message it was for was left. */
+    private fun tell(notice: AttachmentNotice, gen: Long = generation) {
+        if (gen == generation) state.update { it.copy(notice = notice) }
+    }
 }
