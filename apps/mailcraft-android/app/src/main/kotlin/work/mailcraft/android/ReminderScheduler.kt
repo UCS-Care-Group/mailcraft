@@ -69,14 +69,14 @@ internal class ReminderScheduler(
 
     /**
      * Asks [ask] for the schedule, leaving out the reminders shown already (null when the core
-     * couldn't say: nothing is changed then), and sets, replaces and calls off the alarms. The
+     * couldn't say: nothing is changed then, and the answer is false), and sets, replaces and calls off the alarms. The
      * plan is kept before the alarms are called off; an alarm that outlives it (the process
      * ended between) is not shown, as [ReminderReceiver] checks its key against what is kept.
      */
-    suspend fun refresh(words: ReminderWords, ask: suspend (skip: List<Long>) -> Asked?) = lock.withLock {
+    suspend fun refresh(words: ReminderWords, ask: suspend (skip: List<Long>) -> Asked?): Boolean = lock.withLock {
         val switchedOn = withContext(io) { on() }
         val skip = withContext(io) { store.update { it to skipped(it, nowMillis()) } }
-        val asked = if (switchedOn) ask(skip) ?: return@withLock else Asked(emptyList())
+        val asked = if (switchedOn) ask(skip) ?: return@withLock false else Asked(emptyList())
         val plan = withContext(io) {
             store.update { remembered ->
                 val plan = planReminders(asked, remembered, nowMillis(), switchedOn)
@@ -86,6 +86,7 @@ internal class ReminderScheduler(
         plan.cancel.forEach(alarms::cancel)
         plan.withdraw.forEach(alarms::withdraw)
         plan.set.forEach { alarms.set(it, words) }
+        true
     }
 }
 

@@ -137,6 +137,14 @@ internal fun enqueueReminderRefresh(context: Context) {
 class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val app = applicationContext as? MailCraftApplication ?: return Result.failure()
-        return if (app.refreshRemindersNow()) Result.success() else Result.failure()
+        return when (app.refreshRemindersNow()) {
+            true -> Result.success()
+            // The core couldn't say: again later (the system's back-off), or the alarms stay unset
+            // until the app is next opened.
+            false -> Result.retry()
+            // No core (the library didn't load, the mailbox couldn't be opened): as the background
+            // Send/Receive, not tried again until something else asks; opening the app sets them.
+            null -> Result.failure()
+        }
     }
 }

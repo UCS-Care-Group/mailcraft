@@ -131,9 +131,9 @@ class RemindersTest {
         val store = MemoryReminderStore()
         var on = true
         val scheduler = ReminderScheduler(alarms, store, { NOW }) { on }
-        scheduler.refresh(words) { Asked(listOf(reminder(1, 2))) }
+        assertTrue(scheduler.refresh(words) { Asked(listOf(reminder(1, 2))) })
         assertEquals(listOf(1L), alarms.set.map { it.key })
-        scheduler.refresh(words) { null }
+        assertEquals(false, scheduler.refresh(words) { null })
         assertEquals(mapOf(1L to NOW + 2 * HOUR * 1000), store.remembered.scheduled)
         on = false
         scheduler.refresh(words) { error("not asked with the switch off") }

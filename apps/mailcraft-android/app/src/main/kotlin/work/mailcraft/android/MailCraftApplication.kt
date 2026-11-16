@@ -101,13 +101,13 @@ class MailCraftApplication : Application() {
 
     /**
      * Sets the reminders' alarms again from the one core, opening it when no window has (after a
-     * restart, an update, a change of the clock or the zone); false when there is no core.
+     * restart, an update, a change of the clock or the zone): true when they were set, false
+     * when the core couldn't say (worth trying again), null when there is no core.
      */
-    internal suspend fun refreshRemindersNow(): Boolean {
+    internal suspend fun refreshRemindersNow(): Boolean? {
         begin()
-        val opened = (started.first { it !is Phase.Loading } as? Phase.Ready)?.value ?: return false
-        reminders.refresh(ReminderWords.from(opened.core::t)) { askSchedule(opened.core, it) }
-        return true
+        val opened = (started.first { it !is Phase.Loading } as? Phase.Ready)?.value ?: return null
+        return reminders.refresh(ReminderWords.from(opened.core::t)) { askSchedule(opened.core, it) }
     }
 
     /**
