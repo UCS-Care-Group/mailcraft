@@ -219,6 +219,24 @@ fn tightening(tight: bool, one_line: bool) -> f32 {
     }
 }
 
+/// What a row gives up in a dense look ([`Tokens::dense`], Classic Light, #1203), on top of
+/// tighter spacing and in the same way: half above the sender and half under the last line.
+const DENSE_ONE_LINE: f32 = 4.0;
+const DENSE_ROWS: f32 = 8.0;
+
+/// How wide the bar in the accent is down a selected row's left edge ([`Tokens::row_bar`]).
+const ROW_BAR_W: f32 = 3.0;
+
+/// How much shorter a row is in all: tighter spacing (`tight`) and a dense look (`dense`).
+fn row_tightening(tight: bool, dense: bool, one_line: bool) -> f32 {
+    let look = match (dense, one_line) {
+        (false, _) => 0.0,
+        (true, true) => DENSE_ONE_LINE,
+        (true, false) => DENSE_ROWS,
+    };
+    tightening(tight, one_line) + look
+}
+
 /// A group heading of the list in the interface language: the engine's dates (`Today`) are
 /// names the catalogue has, and so is the heading of what is pinned.
 /// The owner's category names are drawn as they are spelt, never through the catalogue.
@@ -551,7 +569,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     // The rows of a search on the server keep the height the preview lines ask for.
     let server_h = row_height(app.session.prefs.preview_lines);
     let row_h = if one_line { ONE_LINE_H } else { server_h };
-    let row_h = row_h - tightening(app.session.prefs.tight_spacing, one_line);
+    let row_h = row_h - row_tightening(app.session.prefs.tight_spacing, t.dense, one_line);
     // Below the local results of a search: More results on the server, and what came (R6.2).
     let searching = !app.session.view.search.trim().is_empty();
     let local: std::collections::HashSet<Id> =
@@ -892,8 +910,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     let one = app.session.prefs.one_line;
     let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
     let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
-    // With tighter spacing a row's lines move up by half of what it gave up (`view.density`).
-    let lift = tightening(app.session.prefs.tight_spacing, one) / 2.0;
+    // With tighter spacing a row's lines move up by half of what it gave up (`view.density`), and
+    // in a dense look by half of what that takes too.
+    let lift = row_tightening(app.session.prefs.tight_spacing, t.dense, one) / 2.0;
     let (line1, line2) = if one { (line1, line2) } else { (line1 - lift, line2 - lift) };
     // A conversation's row has an arrow between the read switch and the text (#503): a click opens
     // or closes it, as Right and Left do.
@@ -940,24 +959,31 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     // A selected row is a rounded card a little in from the list's edges: its fill and an
     // accent edge (quieter while the list has no focus); a flag's tint is laid first, so it shows
     // through the selection rather than being replaced by it.
-    let card = body.shrink2(vec2(4.0, 1.0));
+    // (With a bar in the accent instead of the outline, #1203, the card runs to the list's edge.)
+    let card = if t.row_bar { body.shrink2(vec2(0.0, 1.0)) } else { body.shrink2(vec2(4.0, 1.0)) };
+    let corner = f32::from(t.control_radius);
     let flag_tint = matches!(follow_up, FollowUp::Flagged | FollowUp::Overdue);
     if flag_tint {
         if selected {
-            p.rect_filled(card, 6.0, t.flagged_row);
+            p.rect_filled(card, corner, t.flagged_row);
         } else {
-            p.rect_filled(card, 6.0, t.flagged_row);
+            p.rect_filled(card, corner, t.flagged_row);
             app.hit.add("messageFlagShade", row.id, body);
         }
     }
     if let (true, Some(fill)) = (selected, fill) {
-        p.rect_filled(card, 6.0, if flag_tint { fill.gamma_multiply(0.72) } else { fill });
+        p.rect_filled(card, corner, if flag_tint { fill.gamma_multiply(0.72) } else { fill });
         let edge = if focus { t.selection_edge } else { t.selection_edge_unfocused };
-        p.rect_stroke(card, 6.0, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
+        if t.row_bar {
+            let bar = Rect::from_min_max(card.min, pos2(card.min.x + ROW_BAR_W, card.max.y));
+            p.rect_filled(bar, corner.min(ROW_BAR_W / 2.0), edge);
+        } else {
+            p.rect_stroke(card, corner, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
+        }
     }
     if !selected && (resp.hovered() || read_resp.hovered() || arrow.as_ref().is_some_and(egui::Response::hovered) || quick.is_some()) {
         // The pointer's shade goes over a flagged row's tint.
-        p.rect_filled(card, 6.0, t.hover_subtle);
+        p.rect_filled(card, corner, t.hover_subtle);
     }
     // Past its due date, its text is red.
     let overdue = follow_up == FollowUp::Overdue;
