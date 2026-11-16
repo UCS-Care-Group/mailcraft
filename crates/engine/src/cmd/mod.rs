@@ -128,13 +128,13 @@ mod protected_moves_tests;
 mod quote_tests;
 #[cfg(test)]
 mod range_select_tests;
+pub mod react;
+#[cfg(test)]
+mod react_tests;
 #[cfg(test)]
 mod read_receipt_tests;
 #[cfg(test)]
 mod refused_delete_tests;
-pub mod react;
-#[cfg(test)]
-mod react_tests;
 pub mod remote;
 #[cfg(test)]
 mod reply_to_first_tests;

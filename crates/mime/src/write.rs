@@ -342,11 +342,11 @@ fn reaction_part(message: &Message) -> Option<Part> {
     if !message.reaction {
         return None;
     }
-    let emoji = clean(message.body.text.trim());
+    let emoji = message.body.text.trim();
     if emoji.is_empty() || emoji.len() > MAX_REACTION || emoji.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return None;
     }
-    let mut part = text_part("plain", &emoji);
+    let mut part = text_part("plain", emoji);
     part.fields.push(("Content-Disposition", "reaction".to_string()));
     Some(part)
 }

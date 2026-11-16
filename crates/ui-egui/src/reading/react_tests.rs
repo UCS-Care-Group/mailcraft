@@ -8,21 +8,32 @@ use serde_json::json;
 
 use crate::people_view::testing::{self, Window, click};
 
-/// A message of the sample mailbox, in the reading pane.
-const A: Id = 13;
+/// The first message of an Inbox in the sample mailbox that isn't from the owner: the one the
+/// reading pane shows.
+fn target(h: &Window) -> Id {
+    let mb = &h.state().session.mailbox;
+    let from_owner = |m: &mailcraft_model::Message| mb.accounts.iter().any(|a| a.email.eq_ignore_ascii_case(&m.from.email));
+    mb.messages
+        .values()
+        .filter(|m| !m.draft && !from_owner(m) && mb.folder(m.folder).is_some_and(|f| f.kind == FolderKind::Inbox))
+        .map(|m| m.id)
+        .min()
+        .expect("a received message in the sample")
+}
 
 fn window() -> Window {
     let mut h = testing::window("view.mail");
+    let a = target(&h);
     let app = h.state_mut();
     let _ = app.execute("ui.dismissReminder", json!({"all": true}));
-    app.session.mailbox.message_mut(A).unwrap().message_id = "sample-1544@example.org".into();
-    app.run("mail.select", json!({"id": A})).unwrap();
+    app.session.mailbox.message_mut(a).unwrap().message_id = "sample-1544@example.org".into();
+    app.run("mail.select", json!({"id": a})).unwrap();
     h.run_steps(5);
     h
 }
 
 fn button(h: &Window) -> Rect {
-    h.state().hit.rect_in(0, "react", A).expect("the React button")
+    h.state().hit.rect_in(0, "react", target(h)).expect("the React button")
 }
 
 fn option(h: &Window, index: u64) -> Rect {
@@ -60,9 +71,10 @@ fn the_button_opens_six_emoji_and_one_click_sends_it() {
 #[test]
 fn mail_the_owner_wrote_has_a_greyed_button_that_opens_nothing() {
     let mut h = window();
+    let target_id = target(&h);
     let sent_folder = {
         let mb = &h.state().session.mailbox;
-        let account = mb.message(A).unwrap().account;
+        let account = mb.message(target_id).unwrap().account;
         mb.folder_of_kind(account, FolderKind::Sent).unwrap()
     };
     let own = h.state().session.mailbox.messages_in(sent_folder).next().map(|m| m.id).expect("a message in Sent Items");

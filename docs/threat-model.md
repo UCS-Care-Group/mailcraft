@@ -254,8 +254,13 @@ Send, so it is held narrow. The emoji is one of six fixed ones (anything else is
 nothing a caller or a message writes reaches the mail's text), the recipient is one address (the
 message's Reply-To or sender; the sender alone for a mailing list), and nothing of the original is
 quoted. It is refused for drafts, for the owner's own mail, for Junk E-mail (an answer would tell a
-spammer the address is read) and for a second identical reaction. An agent is asked about it in
-the window (`send`) and must name the message. A reaction tells the sender the mail was read,
+spammer the address is read), for automated mail (`Auto-Submitted` other than `no`,
+`Precedence: bulk`, `list` or `junk`, a no-reply or `mailer-daemon` sender, a list's own address as
+the sender: nobody reads an answer, and a list could echo it to its members; only the headers
+MailCraft keeps by name are looked at, so mail read before this was added is judged by its sender
+alone) and for a second identical reaction (also when the server's copy in Sent Items has lost the
+mark). It waits as long as the owner's Undo Send says, like any sent mail, and can be taken back
+in that time. An agent is asked about it in the window (`send`) and must name the message. A reaction tells the sender the mail was read,
 as a read receipt does, but only when the owner clicks. It goes through the account's normal
 sending over TLS like any mail, and a Microsoft or Exchange server account is refused rather than
 given a path of its own. The message text is never read into a reaction: `Content-Disposition:

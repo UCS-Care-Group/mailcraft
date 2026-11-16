@@ -34,7 +34,7 @@ pub(crate) mod images;
 mod images_tests;
 mod invitation;
 mod layout;
-mod react;
+pub(crate) mod react;
 #[cfg(test)]
 mod react_tests;
 pub(crate) mod remote;

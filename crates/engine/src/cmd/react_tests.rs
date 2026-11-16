@@ -27,8 +27,15 @@ fn imap() -> (Session, Id, Id) {
         body: Body { text: "Lunch?".into(), html: None },
         ..Default::default()
     };
-    let delta =
-        FolderDelta { id: None, remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 5, new: vec![received], ..Default::default() };
+    let delta = FolderDelta {
+        id: None,
+        remote: "INBOX".into(),
+        kind: FolderKind::Inbox,
+        uid_validity: 7,
+        uid_seen: 5,
+        new: vec![received],
+        ..Default::default()
+    };
     s.run("sync.apply", &json!({"result": SyncResult { account: a, folders: vec![delta], ..Default::default() }})).unwrap();
     let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
     let id = s.mailbox.messages_in(inbox).next().unwrap().id;
@@ -37,6 +44,18 @@ fn imap() -> (Session, Id, Id) {
 
 fn react(s: &mut Session, id: Id, emoji: &str) -> Result<Value, CmdError> {
     s.run("mail.react", &json!({"id": id, "emoji": emoji}))
+}
+
+/// The first message of an Inbox in the sample mailbox that isn't from the owner.
+fn first_received(s: &Session) -> Id {
+    let from_owner = |m: &Message| s.mailbox.accounts.iter().any(|a| a.email.eq_ignore_ascii_case(&m.from.email));
+    s.mailbox
+        .messages
+        .values()
+        .filter(|m| !m.draft && !from_owner(m) && s.mailbox.folder(m.folder).is_some_and(|f| f.kind == FolderKind::Inbox))
+        .map(|m| m.id)
+        .min()
+        .expect("a received message in the sample")
 }
 
 /// The bytes that go out for message `id`.
@@ -78,11 +97,27 @@ fn a_reaction_is_queued_as_a_small_reply_with_a_reaction_part() {
 fn only_the_six_emoji_are_sent_and_the_heart_in_one_form() {
     let (mut s, _, original) = imap();
     let before = s.mailbox.messages.len();
-    for bad in ["", " ", "x", "\u{1F44E}", "\u{1F44D}\u{1F44D}", "\u{1F44D} \u{2764}", "\u{1F44D}<script>", "\u{1F600}", "thumbs up", "\u{1F44D}\r\nBcc: x@example.org"] {
+    for bad in [
+        "",
+        " ",
+        "x",
+        "\u{1F44E}",
+        "\u{1F44D}\u{1F44D}",
+        "\u{1F44D} \u{2764}",
+        "\u{1F44D}<script>",
+        "\u{1F600}",
+        "thumbs up",
+        "\u{1F44D}\r\nBcc: x@example.org",
+    ] {
         let r = react(&mut s, original, bad);
         assert!(matches!(r, Err(CmdError::Params(_))), "{bad:?}: {r:?}");
     }
-    for bad in [json!({"id": original}), json!({"id": original, "emoji": 7}), json!({"id": original, "emoji": null}), json!({"id": original, "emoji": THUMBS_UP, "to": "x@example.org"})] {
+    for bad in [
+        json!({"id": original}),
+        json!({"id": original, "emoji": 7}),
+        json!({"id": original, "emoji": null}),
+        json!({"id": original, "emoji": THUMBS_UP, "to": "x@example.org"}),
+    ] {
         assert!(matches!(s.run("mail.react", &bad), Err(CmdError::Params(_))), "{bad}");
     }
     assert_eq!(s.mailbox.messages.len(), before, "nothing was made");
@@ -144,25 +179,27 @@ fn junk_mail_mail_without_a_sender_or_an_id_is_refused() {
     assert_eq!(s.mailbox.messages.len(), before);
 }
 
-/// Nothing Exchange-specific: Microsoft and Exchange server accounts are refused, the others work.
+/// Nothing Exchange-specific: Microsoft and Exchange server accounts (and one of a kind this version
+/// doesn't know) are refused; IMAP, JMAP and local accounts work.
 #[test]
 fn microsoft_and_exchange_accounts_are_refused() {
-    for kind in ["microsoft", "exchange"] {
-        let mut s = Session::empty();
-        let email = format!("owner-{kind}@example.org");
-        let a = s.run("account.add", &json!({"email": email, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
-        if kind == "exchange" {
-            s.mailbox.account_mut(a).unwrap().kind = mailcraft_model::AccountKind::Exchange;
-        }
-        let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
-        let m = Message { account: a, folder: inbox, message_id: "x@example.org".into(), from: Address::new("", "bo@example.org"), ..Default::default() };
-        let id = s.mailbox.add_message(m).unwrap();
+    use mailcraft_model::AccountKind;
+    for kind in [AccountKind::Microsoft, AccountKind::Exchange, AccountKind::Unknown] {
+        let (mut s, a, id) = imap();
+        s.mailbox.account_mut(a).unwrap().kind = kind;
         let before = s.mailbox.messages.len();
-        assert!(matches!(react(&mut s, id, THUMBS_UP), Err(CmdError::Failed(_))), "{kind}");
-        assert_eq!(s.mailbox.messages.len(), before, "{kind}");
+        assert!(matches!(react(&mut s, id, THUMBS_UP), Err(CmdError::Failed(_))), "{kind:?}");
+        assert_eq!(s.mailbox.messages.len(), before, "{kind:?}");
         // The button is greyed by the same word.
         s.sel.messages = vec![id];
-        assert!(!s.enabled("mail.react"), "{kind}");
+        assert!(!s.enabled("mail.react"), "{kind:?}");
+    }
+    for kind in [AccountKind::Imap, AccountKind::Jmap] {
+        let (mut s, a, id) = imap();
+        s.mailbox.account_mut(a).unwrap().kind = kind;
+        s.sel.messages = vec![id];
+        assert!(s.enabled("mail.react"), "{kind:?}");
+        assert_eq!(react(&mut s, id, THUMBS_UP).unwrap()["queued"], true, "{kind:?}");
     }
 }
 
@@ -170,7 +207,7 @@ fn microsoft_and_exchange_accounts_are_refused() {
 #[test]
 fn a_local_account_files_it_in_sent_items() {
     let mut s = Session::new(crate::sample::mailbox(1_791_993_600, 0));
-    let m = s.mailbox.messages.values().find(|m| !m.draft && s.mailbox.folder(m.folder).is_some_and(|f| f.kind == FolderKind::Inbox)).unwrap().id;
+    let m = first_received(&s);
     s.mailbox.message_mut(m).unwrap().message_id = "sample-1544@example.org".into();
     let account = s.mailbox.message(m).unwrap().account;
     let r = react(&mut s, m, "\u{1F389}").unwrap();
@@ -211,6 +248,130 @@ fn mail_from_a_list_goes_to_its_sender_not_to_the_list() {
     assert_eq!(s.mailbox.message(id).unwrap().to, vec![Address::new("Bo", "bo@example.org")]);
 }
 
+/// The copy a server files in Sent Items has lost the `reaction` mark: the same reaction is still one.
+#[test]
+fn the_same_reaction_twice_is_refused_after_a_sync_gave_back_a_copy_without_the_mark() {
+    let (mut s, a, original) = imap();
+    let id = react(&mut s, original, "\u{2764}\u{FE0F}").unwrap()["id"].as_u64().unwrap();
+    // The server's copy, as it comes back from Sent Items: no mark, the text as it was read.
+    let sent = s.mailbox.folder_of_kind(a, FolderKind::Sent).unwrap();
+    let mut copy = s.mailbox.message(id).unwrap().clone();
+    (copy.id, copy.folder, copy.reaction, copy.body.text) = (0, sent, false, "\u{2764}\n".into());
+    s.mailbox.add_message(copy).unwrap();
+    s.mailbox.remove_message(id).unwrap();
+    assert!(!s.mailbox.messages.values().any(|m| m.reaction));
+    let count = s.mailbox.messages.len();
+    for same in ["\u{2764}\u{FE0F}", "\u{2764}"] {
+        assert!(matches!(react(&mut s, original, same), Err(CmdError::Said(_))), "{same}");
+    }
+    assert_eq!(s.mailbox.messages.len(), count);
+    // Another emoji is not held back by it.
+    react(&mut s, original, THUMBS_UP).unwrap();
+}
+
+/// Mail a program wrote is not answered.
+#[test]
+fn automated_mail_is_refused() {
+    let cases: [(&str, &[(&str, &str)], &str); 12] = [
+        ("auto-generated", &[("Auto-Submitted", "auto-generated")], "bo@example.org"),
+        ("auto-replied", &[("auto-submitted", "Auto-Replied; comment=x")], "bo@example.org"),
+        ("bulk", &[("Precedence", "bulk")], "bo@example.org"),
+        ("list", &[("Precedence", " List ")], "bo@example.org"),
+        ("junk", &[("Precedence", "JUNK")], "bo@example.org"),
+        ("noreply", &[], "noreply@example.org"),
+        ("no-reply", &[], "No-Reply@shop.example.org"),
+        ("no_reply plus", &[], "no_reply+abc@example.org"),
+        ("do not reply", &[], "do-not-reply@example.org"),
+        ("daemon", &[], "MAILER-DAEMON@example.org"),
+        ("list address", &[("List-Post", "<mailto:Team@Lists.example.org>"), ("List-Id", "<team.lists.example.org>")], "team@lists.example.org"),
+        ("list address with a subject", &[("List-Post", "<mailto:team@lists.example.org?subject=x>")], "team@lists.example.org"),
+    ];
+    for (name, headers, from) in cases {
+        let (mut s, _, id) = imap();
+        let m = s.mailbox.message_mut(id).unwrap();
+        m.from = Address::new("X", from);
+        m.headers.extend(headers.iter().map(|(n, v)| (n.to_string(), v.to_string())));
+        let before = s.mailbox.messages.len();
+        assert!(matches!(react(&mut s, id, THUMBS_UP), Err(CmdError::Failed(_))), "{name}");
+        assert_eq!(s.mailbox.messages.len(), before, "{name}");
+        s.sel.messages = vec![id];
+        assert!(!s.enabled("mail.react"), "{name}: the button is greyed by the same rule");
+    }
+}
+
+/// A person's mail that merely looks near those rules goes through.
+#[test]
+fn mail_from_a_person_is_not_taken_for_automated_mail() {
+    let cases: [(&str, &[(&str, &str)], &str); 6] = [
+        ("auto-submitted no", &[("Auto-Submitted", "no")], "bo@example.org"),
+        ("empty", &[("Auto-Submitted", "")], "bo@example.org"),
+        ("first-class", &[("Precedence", "first-class")], "bo@example.org"),
+        ("a name with reply in it", &[], "reply.bo@example.org"),
+        (
+            "a list's mail from a member",
+            &[("List-Id", "<team.lists.example.org>"), ("List-Post", "<mailto:team@lists.example.org>")],
+            "bo@example.org",
+        ),
+        ("noted", &[], "nora@example.org"),
+    ];
+    for (name, headers, from) in cases {
+        let (mut s, _, id) = imap();
+        let m = s.mailbox.message_mut(id).unwrap();
+        m.from = Address::new("X", from);
+        m.headers.extend(headers.iter().map(|(n, v)| (n.to_string(), v.to_string())));
+        assert!(react(&mut s, id, THUMBS_UP).is_ok(), "{name}");
+    }
+}
+
+/// The owner's Undo Send wait applies as it does to any sent message.
+#[test]
+fn it_waits_as_long_as_undo_send_says_and_can_be_taken_back() {
+    const T0: i64 = 1_800_000_000;
+    let (mut s, a, original) = imap();
+    s.clock.now = Some(T0);
+    s.run("sync.waitBeforeSending", &json!({"seconds": 10})).unwrap();
+    let r = react(&mut s, original, THUMBS_UP).unwrap();
+    let id = r["id"].as_u64().unwrap();
+    assert_eq!((r["wait"].clone(), r["sendAt"].clone()), (json!(true), json!(T0 + 10)));
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!((m.send_at, m.date, m.received), (Some(T0 + 10), T0 + 10, T0 + 10));
+    assert!(m.reaction);
+    assert!(sync_request(&s, a).unwrap().outbox.iter().all(|m| m.id != id), "not before the wait is over");
+    assert_eq!(s.undo_send_wait().map(|(i, _)| i), Some(id), "the Undo bar offers it");
+    // Taken back it is an ordinary draft in a composer.
+    let back = s.run("compose.undoSend", &json!({})).unwrap();
+    assert_eq!(back["composing"], true);
+    let drafts = s.mailbox.folder_of_kind(a, FolderKind::Drafts).unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.folder == drafts && m.draft && !m.reaction && m.send_at.is_none());
+    s.clock.now = Some(T0 + 100);
+    assert!(sync_request(&s, a).unwrap().outbox.iter().all(|m| m.id != id), "it never goes");
+    // Another one, left alone, goes when the wait is over.
+    s.compose = None;
+    let id = react(&mut s, original, THUMBS_UP).unwrap()["id"].as_u64().unwrap();
+    s.clock.now = Some(T0 + 111);
+    assert!(sync_request(&s, a).unwrap().outbox.iter().any(|m| m.id == id));
+    assert_eq!(s.undo_send_wait(), None);
+}
+
+#[test]
+fn with_no_wait_set_it_goes_at_once_and_a_local_account_never_waits() {
+    let (mut s, a, original) = imap();
+    let r = react(&mut s, original, THUMBS_UP).unwrap();
+    assert_eq!((r["wait"].clone(), r["sendAt"].clone()), (json!(false), Value::Null));
+    assert!(s.undo_send_wait().is_none());
+    assert!(sync_request(&s, a).unwrap().outbox.iter().any(|m| m.id == r["id"].as_u64().unwrap()));
+    let mut local = Session::new(crate::sample::mailbox(1_791_993_600, 0));
+    local.run("sync.waitBeforeSending", &json!({"seconds": 10})).unwrap();
+    let m = first_received(&local);
+    local.mailbox.message_mut(m).unwrap().message_id = "sample-1544@example.org".into();
+    let r = react(&mut local, m, THUMBS_UP).unwrap();
+    assert_eq!((r["queued"].clone(), r["wait"].clone()), (json!(false), json!(false)));
+    assert!(local.undo_send_wait().is_none());
+}
+
+/// A guard only: composing is separate state that React doesn't read or write. It passes without much
+/// of the change; the tests above are what prove the behaviour.
 #[test]
 fn a_message_being_written_is_left_alone() {
     let (mut s, _, original) = imap();

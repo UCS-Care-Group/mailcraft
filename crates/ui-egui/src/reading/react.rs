@@ -12,6 +12,13 @@ use serde_json::json;
 use crate::MailApp;
 use crate::theme::regular;
 
+/// `emoji` as the button draws it: without the variation selector that makes a heart a colour
+/// emoji (U+FE0F), which none of the window's fonts has a glyph for (it would be drawn as a box
+/// beside the heart). What is sent keeps it.
+pub(crate) fn drawn(emoji: &str) -> &str {
+    emoji.trim_end_matches('\u{FE0F}')
+}
+
 /// The React button, and its row of emoji while it is open. Greyed, with the reason of a message
 /// that can't be reacted to as the engine judges it, and not there for a message not filed.
 pub(super) fn button(app: &mut MailApp, ui: &mut Ui, m: &Message) {
@@ -31,7 +38,7 @@ pub(super) fn button(app: &mut MailApp, ui: &mut Ui, m: &Message) {
     egui::Popup::menu(&resp).show(|ui| {
         ui.horizontal(|ui| {
             for (index, ((emoji, _), name)) in REACTIONS.iter().zip(names).enumerate() {
-                let r = ui.add(Button::new(egui::RichText::new(*emoji).font(regular(22.0))).frame(false).min_size(vec2(36.0, 34.0)));
+                let r = ui.add(Button::new(egui::RichText::new(drawn(emoji)).font(regular(22.0))).frame(false).min_size(vec2(36.0, 34.0)));
                 r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, name));
                 app.hit.add("reaction", index as u64, r.rect);
                 if r.on_hover_text(name).clicked() {

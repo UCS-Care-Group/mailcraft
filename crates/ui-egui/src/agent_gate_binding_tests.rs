@@ -131,6 +131,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.setSendTime", r#"{"id": $message, "at": 1900000000}"#, Setup::None),
     ("account.setAutomaticReplies", r#"{"status": "disabled"}"#, Setup::None),
     ("mail.sendAgain", r#"{"id": $message}"#, Setup::None),
+    ("mail.react", r#"{"id": $message, "emoji": "👍"}"#, Setup::None),
     ("ui.downloadPictures", "{}", Setup::None),
     ("ui.unsubscribe", "{}", Setup::None),
     ("mail.unsubscribe", r#"{"send": true}"#, Setup::None),
