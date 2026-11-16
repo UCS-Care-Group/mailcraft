@@ -1,14 +1,16 @@
 # Test coverage (cargo-llvm-cov) of the workspace's tests, sent to Codecov. Informational only: it
 # is not a required check, a failed upload never fails the run, and codecov.yml makes Codecov's own
-# status checks informational too. Documentation alone doesn't run it.
+# status checks informational too. On main and nightly, not on pull requests (it runs the whole
+# suite again, instrumented); run it by hand on a branch for a pull request's number. Documentation
+# alone doesn't run it.
 name: Coverage
 
 on:
   push:
     branches: [main]
     paths-ignore: ['docs/**', '**/*.md', '.github/**', '!.github/workflows/coverage.yml']
-  pull_request:
-    paths-ignore: ['docs/**', '**/*.md', '.github/**', '!.github/workflows/coverage.yml']
+  schedule:
+    - cron: '41 3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -20,7 +22,7 @@ env:
 
 concurrency:
   group: coverage-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   coverage:
@@ -39,7 +41,7 @@ jobs:
         with:
           shared-key: coverage
           save-if: ${{ github.ref == 'refs/heads/main' }}
-          cache-on-failure: true
+          cache-on-failure: false
       - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: cargo-llvm-cov@0.8.7
@@ -60,8 +62,7 @@ jobs:
           retention-days: 3
 
   # The upload is a job of its own: the one with the token builds nothing and runs nothing that
-  # was built (`cargo xtask workflows`, docs/releasing.md). A pull request from a fork has no
-  # token; the upload then goes tokenless where Codecov allows it, and never fails the run.
+  # was built (`cargo xtask workflows`, docs/releasing.md). A failed upload never fails the run.
   upload:
     needs: coverage
     runs-on: ubuntu-24.04
