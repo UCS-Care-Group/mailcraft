@@ -64,7 +64,15 @@ fn imap() -> (Session, Id, Id) {
         date: 100,
         ..Default::default()
     };
-    let delta = FolderDelta { id: None, remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 5, new: vec![received], ..Default::default() };
+    let delta = FolderDelta {
+        id: None,
+        remote: "INBOX".into(),
+        kind: FolderKind::Inbox,
+        uid_validity: 7,
+        uid_seen: 5,
+        new: vec![received],
+        ..Default::default()
+    };
     s.run("sync.apply", &json!({"result": SyncResult { account: a, folders: vec![delta], ..Default::default() }})).unwrap();
     let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
     let id = s.mailbox.messages_in(inbox).next().unwrap().id;
