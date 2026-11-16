@@ -11660,6 +11660,16 @@ msgstr "Supprimer la pièce jointe"
 msgid "Remove Everything"
 msgstr "Tout supprimer"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Supprimer les\n"
+"doublons importés"
+
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy

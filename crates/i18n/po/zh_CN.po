@@ -11715,6 +11715,16 @@ msgstr "移除附件"
 msgid "Remove Everything"
 msgstr "移除所有内容"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"删除导入\n"
+"的重复项"
+
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy

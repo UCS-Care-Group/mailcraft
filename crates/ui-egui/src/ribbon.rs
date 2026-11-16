@@ -991,6 +991,8 @@ fn folder(app: &MailApp) -> Tab {
                 Item::big("markAllRead", "Mark All\nas Read", "mail.markAllRead", no()).at(2, 3),
                 Item::big("rules", "Run Rules\nNow", "rules.run", no()).at(2, 4),
                 Item::big("empty", "Empty\nFolder", "folder.empty", no()).at(2, 4),
+                // (Copies earlier imports left beside the server's mail, #1401.)
+                Item::big("copy", "Remove Imported\nDuplicates", "mail.removeImportedDuplicates", no()).at(2, 5),
             ],
         ),
         g(

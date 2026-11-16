@@ -9716,6 +9716,13 @@ msgstr ""
 msgid "Remove Everything"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
 msgid "Remove Imported Duplicates"

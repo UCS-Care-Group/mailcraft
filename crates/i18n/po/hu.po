@@ -11714,6 +11714,16 @@ msgstr "Melléklet eltávolítása"
 msgid "Remove Everything"
 msgstr "Minden eltávolítása"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Az importált\n"
+"duplikátumok eltávolítása"
+
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy

@@ -164,7 +164,8 @@ fn the_clean_up_removes_only_the_local_twins_and_undo_brings_them_back() {
     assert_eq!(preview["removed"], 3);
     assert_eq!(s.mailbox.messages.len(), before, "a preview changes nothing");
 
-    let r = s.run("mail.removeImportedDuplicates", &json!({})).unwrap();
+    // As the window runs it after the owner's yes: with its `confirmed` note (refused before).
+    let r = s.run("mail.removeImportedDuplicates", &json!({"confirmed": true})).unwrap();
     let mut gone: Vec<Id> = r["ids"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap()).collect();
     gone.sort_unstable();
     assert_eq!(gone, vec![twin1, twin2, twin4]);

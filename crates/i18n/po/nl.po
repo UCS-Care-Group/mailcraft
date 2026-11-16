@@ -11732,6 +11732,16 @@ msgstr "Bijlage verwijderen"
 msgid "Remove Everything"
 msgstr "Alles verwijderen"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Geïmporteerde\n"
+"duplicaten verwijderen"
+
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy

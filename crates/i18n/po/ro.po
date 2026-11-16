@@ -11756,6 +11756,16 @@ msgstr "Eliminare atașament"
 msgid "Remove Everything"
 msgstr "Eliminare totală"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Eliminare\n"
+"duplicate importate"
+
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy

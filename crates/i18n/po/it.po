@@ -11707,6 +11707,16 @@ msgstr "Rimuovi allegato"
 msgid "Remove Everything"
 msgstr "Rimuovi tutto"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Rimuovi\n"
+"duplicati importati"
+
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy

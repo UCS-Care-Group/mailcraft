@@ -11721,6 +11721,16 @@ msgstr "Quitar datos adjuntos"
 msgid "Remove Everything"
 msgstr "Quitar todo"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Quitar\n"
+"duplicados importados"
+
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
