@@ -153,7 +153,7 @@ internal fun ComposerScreen(
             actions.onNoticeShown()
         }
     }
-    BackHandler(enabled = view != null) { actions.onClose() }
+    BackHandler(enabled = ui.open) { actions.onClose() }
     Scaffold(
         modifier = modifier,
         topBar = { ComposerBar(texts, ui, actions, pickers) },
@@ -173,6 +173,7 @@ internal fun noticeText(texts: Texts, notice: ComposeNotice): String = when (not
     is ComposeNotice.Said -> notice.why.ifBlank { texts.t("That did not work.") }
     ComposeNotice.Unreadable -> texts.t("That file could not be read.")
     ComposeNotice.NoRecipient -> texts.t("Add somebody to send this to.")
+    ComposeNotice.NotClosed -> texts.t("The message could not be closed. Try again, or discard it.")
 }
 
 @Composable

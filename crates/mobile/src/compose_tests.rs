@@ -671,3 +671,34 @@ fn a_signature_for_nobody_or_too_long_is_held() {
         assert!(!matches!(block_on(core.set_account_signature(account, junk.to_string())), Err(CoreError::Internal)));
     }
 }
+
+#[test]
+fn an_edit_with_more_paragraphs_than_the_phone_shows_is_refused_and_changes_nothing() {
+    let (core, _, _) = core();
+    let v = new(&core);
+    let before = v.text.clone();
+    assert!(matches!(block_on(core.compose_edit(v.compose, 0, 0, "\n".repeat(25_000))), Err(CoreError::Failed { .. })));
+    assert_eq!(block_on(core.compose_view(v.compose)).unwrap().text, before);
+}
+
+#[test]
+fn a_message_too_long_to_show_is_not_left_open_when_answering_it_fails() {
+    let core = Core::start(FakePlatform::new(), || {
+        let mut mb = mailcraft_model::Mailbox::with_local_account("Avery", "avery@example.org");
+        let account = mb.accounts[0].id;
+        let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let mut m = Message { account, folder: inbox, subject: "Long".into(), ..Message::default() };
+        m.from = Address::new("Ada Quill", "ada@example.org");
+        m.body.text = "line\n".repeat(25_000);
+        mb.add_message(m).unwrap();
+        Session::at(mb, now(), 0)
+    })
+    .unwrap();
+    let inbox = block_on(core.folders(0)).unwrap().folders.iter().find(|f| f.kind == "inbox").unwrap().id;
+    let message = block_on(core.messages(inbox, "all".into(), 0, 5)).unwrap().rows[0].id;
+    // Each refused reply would otherwise leave one more message open, until no more could be started.
+    for _ in 0..100 {
+        assert!(block_on(core.compose_start(ComposeStart::Reply { id: message })).is_err());
+    }
+    assert!(block_on(core.compose_start(ComposeStart::New { account: 0, mailto: None })).is_ok());
+}

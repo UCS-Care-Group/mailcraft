@@ -15768,6 +15768,12 @@ msgid "The merged contact's {field} would be too large ({now}, at most {max}), s
 msgstr "Le champ {field} du contact fusionné serait trop volumineux ({now}, au maximum {max}), les contacts ne sont donc pas fusionnés. Choisissez le champ {field} d'un seul contact, ou raccourcissez-les d'abord."
 
 #. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "The message could not be closed. Try again, or discard it."
+msgstr "Le message n’a pas pu être fermé. Réessayez ou supprimez-le."
+
+#. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
 #, fuzzy
 msgid "The message could not be read."

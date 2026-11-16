@@ -31,7 +31,7 @@ internal class CoreCompose(
         try {
             ComposeResult.Ok(call())
         } catch (e: CoreException) {
-            ComposeResult.Failed(e.message.orEmpty())
+            ComposeResult.Failed(wordsOf(e))
         }
     }
 
@@ -99,7 +99,7 @@ internal class CoreCompose(
         try {
             SendResult.Sent(core.composeSend(compose).queued)
         } catch (e: CoreException) {
-            SendResult.Failed(e.message.orEmpty())
+            SendResult.Failed(wordsOf(e))
         }
     }
 
@@ -148,4 +148,13 @@ internal class PickedFiles(private val context: Context) {
     } catch (_: RuntimeException) {
         null
     } ?: "attachment"
+}
+
+/** The program's own words for a refused call; empty when the kind carries none. */
+private fun wordsOf(e: CoreException): String = when (e) {
+    is CoreException.Init -> e.reason
+    is CoreException.BadRequest -> e.reason
+    is CoreException.Failed -> e.reason
+    is CoreException.Native -> e.reason
+    else -> ""
 }
