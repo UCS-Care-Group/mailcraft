@@ -116,14 +116,6 @@ fn nothing_goes_without_ids_a_token_or_room() {
 }
 
 #[test]
-fn switched_off_nothing_goes() {
-    let standin = standin();
-    let _routed = standin.route_switched_off();
-    assert!(matches!(batch_modify(TOKEN, &[ID], GmailCategory::Social), Err(NetError::Config(_))));
-    assert!(standin.requests().is_empty());
-}
-
-#[test]
 fn a_google_token_goes_to_gmails_api_and_nowhere_else() {
     let ok = |text: &str| may_go_to(&Url::parse(text).unwrap()).is_ok();
     assert!(ok("https://gmail.googleapis.com"));

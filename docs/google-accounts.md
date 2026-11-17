@@ -146,11 +146,6 @@ mail with `mail.setGmailCategory` (`{"ids": [...], "category": "social"}`), nami
 as for a move to a folder: those messages move, with any other copy here of the same Gmail message
 (Gmail keeps one category for a message), and never other messages of their conversations.
 
-**This is switched off in this version**, and comes once Google has reviewed MailCraft's use of
-Gmail's API for it: until then the item isn't in the menu or in command search, the folders and
-tabs take no messages, and nothing is sent to Gmail's API. A move left waiting by a build that had
-it switched on gives way to Gmail's category at the next Send/Receive.
-
 Gmail's IMAP extensions can read the categories but not change them, so a move goes through
 Gmail's API (`gmail.googleapis.com`, one request for each category moved to): the messages' Gmail
 ids (`X-GM-MSGID`) and the category's label (Primary is `CATEGORY_PERSONAL`; the other four are
@@ -164,10 +159,9 @@ message stays where Gmail has it, and MailCraft says so ("Gmail wouldn't move 1 
 move of yours starts the count again. A message Gmail no longer has is set right at the next reading of the
 Inbox.
 
-Once moving is switched on, an account that signs in with an **app password** will still only show
-the categories: Gmail's API takes no app password, so its Move to Category will be greyed, with a
-note that it needs Google sign-in, and switching the account to Google sign-in will let it move.
-The browser build won't move them either.
+An account that signs in with an **app password** only shows the categories: Gmail's API takes no
+app password, so its Move to Category is greyed, with a note that it needs Google sign-in, and
+switching the account to Google sign-in lets it move. The browser build doesn't move them either.
 
 ## Gmail's labels
 

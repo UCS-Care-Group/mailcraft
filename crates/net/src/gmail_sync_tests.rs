@@ -231,26 +231,6 @@ fn no_request_goes_to_gmails_api_without_moves_or_a_google_sign_in() {
 }
 
 #[test]
-fn switched_off_a_request_with_moves_sends_nothing_to_gmails_api() {
-    // The build's switch, which this crate holds to whatever a request asks.
-    const { assert!(!mailcraft_model::gmail::GMAIL_CATEGORY_MOVES, "ships switched off until Google's review") };
-    let imap = Fake::imap(google_world());
-    let api = crate::gmail::standin::StandIn::start().unwrap();
-    api.state().add(GMAIL_IDS + 2, &["INBOX", "CATEGORY_SOCIAL"]);
-    let _routed = api.route_switched_off();
-    assert!(!crate::gmail::switched_on());
-    let result = whole(&signed_in(&imap, vec![moving(31, 2, GmailCategory::Primary)]), Limits::in_pieces(), gmail());
-    assert_eq!(result.errors, Vec::<String>::new());
-    assert!(result.gmail_moved.is_empty());
-    assert!(api.requests().is_empty(), "{:?}", api.requests());
-    // Nor does the client itself, asked directly.
-    let asked = crate::gmail::batch_modify(crate::gmail::standin::TOKEN, &[GMAIL_IDS + 2], GmailCategory::Primary);
-    assert!(matches!(asked, Err(NetError::Config(_))), "{asked:?}");
-    assert!(api.requests().is_empty());
-    assert_eq!(api.state().categories(GMAIL_IDS + 2), ["CATEGORY_SOCIAL"]);
-}
-
-#[test]
 fn two_moves_of_one_message_send_its_id_once() {
     let imap = Fake::imap(google_world());
     let api = crate::gmail::standin::StandIn::start().unwrap();

@@ -11,8 +11,8 @@
 //! The owner may move mail from one to another (`mail.setGmailCategory`), for an account that
 //! signs in with Google ([`moves_offered`], [`why_not_movable`]): the move is made here at once,
 //! like a read mark, and goes to Gmail through its API at the next Send/Receive
-//! (`SyncRequest::gmail_moves`). That ships switched off until Google has reviewed MailCraft's
-//! use of the API ([`GMAIL_CATEGORY_MOVES`]).
+//! (`SyncRequest::gmail_moves`). The build can switch it off
+//! ([`GMAIL_CATEGORY_MOVES`]).
 
 use std::collections::HashSet;
 use std::sync::Arc;

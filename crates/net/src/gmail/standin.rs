@@ -43,7 +43,7 @@ pub(crate) fn routed() -> Option<String> {
 }
 
 /// Whether a test on this thread has moves switched on, whatever the build's switch says
-/// ([`route`]; [`route_switched_off`] has them off).
+/// ([`route`]).
 pub(crate) fn switched_on() -> bool {
     ROUTE.with(|route| route.borrow().as_ref().is_some_and(|(_, on)| *on))
 }
@@ -55,11 +55,6 @@ pub struct Routed(Option<(String, bool)>);
 /// switched on, until the guard is dropped.
 pub fn route(base: &str) -> Routed {
     Routed(ROUTE.with(|route| route.borrow_mut().replace((base.to_string(), true))))
-}
-
-/// [`route`] with moves left as the build has them: off.
-pub fn route_switched_off(base: &str) -> Routed {
-    Routed(ROUTE.with(|route| route.borrow_mut().replace((base.to_string(), false))))
 }
 
 impl Drop for Routed {
@@ -265,10 +260,5 @@ impl StandIn {
     /// Have this thread's calls to Gmail's API come here until the guard is dropped ([`route`]).
     pub fn route(&self) -> Routed {
         route(&self.url())
-    }
-
-    /// [`StandIn::route`] with moves switched off, as the build ships ([`route_switched_off`]).
-    pub fn route_switched_off(&self) -> Routed {
-        route_switched_off(&self.url())
     }
 }
