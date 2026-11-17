@@ -3,7 +3,7 @@
 //! A message's header as it came (`Message::read_header`, up to 64 KB a message) is kept only for
 //! the mail of an account a rule looks for words in the header for (#566): the mailbox doesn't
 //! grow with it for any other mail. Mail that came before such a rule is mail the rule can't tell
-//! of, as mail downloaded by MailCraft 0.12.0 and earlier.
+//! of.
 
 use mailcraft_model::sync::{FolderDelta, SyncResult};
 use mailcraft_model::{Address, FolderKind, Id, Message};
@@ -97,4 +97,51 @@ fn mail_from_before_a_header_rule_is_left_alone_by_its_exception() {
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
     let folder = |subject: &str| s.mailbox.messages.values().find(|m| m.subject == subject).unwrap().folder;
     assert_eq!((folder("Plans before"), folder("Plans after")), (inbox, filed));
+}
+
+/// A Microsoft account's mail, listed and then downloaded whole: its header as it came is kept
+/// at the download only while a rule of the account looks for words in the header.
+#[test]
+fn a_microsoft_download_keeps_the_header_as_it_came_only_for_a_header_rule() {
+    use mailcraft_model::ServerFolder;
+    use mailcraft_model::sync::{GraphFetchResult, GraphFetched, GraphMailResult, GraphMessage, MessagePage, ServerMessage};
+
+    use crate::cmd::graph_mail;
+    const ME: &str = "ada@example.org";
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+    let listed = |id: &str| GraphMessage {
+        server: ServerMessage { id: id.into(), folder: "F-in".into(), size: 1_200, change_key: "CK1".into(), ..Default::default() },
+        message_id: format!("{id}@example.org"),
+        subject: id.into(),
+        from: Address::new("Zoe Park", "zoe@example.org"),
+        to: vec![Address::new("Ada", ME)],
+        sent: 1_000,
+        received: 1_060,
+        ..Default::default()
+    };
+    let whole = |id: &str| {
+        GraphFetched {
+        id: id.into(),
+        mime: format!("From: Zoe Park <zoe@example.org>\r\nTo: Ada <{ME}>\r\nSubject: {id}\r\nMessage-ID: <{id}@example.org>\r\nContent-Type: text/plain\r\n\r\nText.\r\n")
+            .into_bytes(),
+    }
+    };
+    let comes = |s: &mut Session, id: &str| {
+        let page = MessagePage { folder: "F-in".into(), messages: vec![listed(id)], ..Default::default() };
+        graph_mail::apply_graph_mail(s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+            .unwrap();
+        graph_mail::apply_graph_fetch(s, GraphFetchResult { account, email: ME.into(), fetched: vec![whole(id)], ..Default::default() }).unwrap();
+    };
+    comes(&mut s, "N1");
+    assert_eq!(kept(&s, "N1"), "");
+    s.run(
+        "rules.add",
+        &json!({"name": "List", "server": false, "conditions": [{"type": "headerContains", "value": "x-list"}], "actions": [{"type": "markRead"}]}),
+    )
+    .unwrap();
+    comes(&mut s, "N2");
+    assert!(kept(&s, "N2").contains("Subject: N2"), "{:?}", kept(&s, "N2"));
 }
