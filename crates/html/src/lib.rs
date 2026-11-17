@@ -26,6 +26,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod bg;
+mod bidi;
 mod blocks;
 #[doc(hidden)]
 pub mod corpus;
@@ -361,6 +362,10 @@ pub struct Block {
     pub quote: u8,
     #[serde(default)]
     pub align: Align,
+    /// The block reads from the right (its direction, not the side its text stands at): a list
+    /// item's marker hangs at the right then, whatever the alignment (#603).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rtl: bool,
     /// Blank lines above the block: 0 when it follows the one before directly (the lines of an
     /// Outlook or Gmail message), 1 for an ordinary paragraph gap, up to 3. Always 0 for the first
     /// block of its container.
@@ -410,6 +415,7 @@ impl Block {
             spans,
             quote: 0,
             align: Align::Left,
+            rtl: false,
             space: 0,
             beside: false,
             gap: 0,
@@ -639,6 +645,8 @@ mod float_tests;
 mod inline_tests;
 #[cfg(test)]
 mod nested_align_tests;
+#[cfg(test)]
+mod rtl_tests;
 #[cfg(test)]
 mod text_link_tests;
 

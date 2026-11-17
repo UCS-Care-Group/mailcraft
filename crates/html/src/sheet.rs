@@ -958,6 +958,7 @@ fn kept(property: &str) -> bool {
             | "text-decoration"
             | "text-decoration-line"
             | "text-align"
+            | "direction"
             | "display"
             | "visibility"
             | "opacity"
