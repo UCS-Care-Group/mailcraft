@@ -157,6 +157,10 @@ class CalendarControllerTest {
         c.goTo(LocalDate.parse("1800-01-01"))
         assertEquals(CalendarPaging.heldToPages(LocalDate.parse("1800-01-01")), c.state.value.anchor)
         assertTrue(c.state.value.anchor.year == 1900)
+        // A swipe further out asks for nothing more.
+        val reads = backend.ranges.size
+        c.goTo(c.state.value.anchor.minusDays(1))
+        assertEquals(reads, backend.ranges.size)
     }
 
     @Test

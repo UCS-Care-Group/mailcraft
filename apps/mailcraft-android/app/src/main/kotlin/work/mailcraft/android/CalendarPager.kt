@@ -43,12 +43,30 @@ internal fun CalendarPager(
         }
         LaunchedEffect(pager) {
             snapshotFlow { pager.settledPage }.collect { settled ->
-                val here = CalendarPaging.pageOf(mode, shown, weekStart)
-                if (settled != here) goTo(CalendarPaging.shift(mode, shown, settled - here))
+                val landing = settle(mode, shown, settled, weekStart) ?: return@collect
+                goTo(landing.day)
+                // A swipe past the pages there are is held at the last: the anchor may not move at all,
+                // so the pager is turned back here rather than waiting for a change of anchor.
+                if (landing.page != settled) pager.scrollToPage(landing.page)
             }
         }
         HorizontalPager(state = pager, modifier = modifier, key = { it }) { p ->
             page(CalendarPaging.shift(mode, anchor, p - CalendarPaging.pageOf(mode, anchor, weekStart)))
         }
     }
+}
+
+/** Where a swipe that came to rest lands: the day it asks for and the page that shows it. */
+internal data class Landing(val day: LocalDate, val page: Int)
+
+/**
+ * Where the pager resting on [settled] while [shown] is the anchor lands; null when it rests on the
+ * anchor's own page. The day is held to the pages there are ([CalendarPaging.heldToPages]), and the
+ * page is the held day's, which is not [settled] when the swipe went past the last page.
+ */
+internal fun settle(mode: CalendarMode, shown: LocalDate, settled: Int, weekStart: DayOfWeek): Landing? {
+    val here = CalendarPaging.pageOf(mode, shown, weekStart)
+    if (settled == here) return null
+    val day = CalendarPaging.heldToPages(CalendarPaging.shift(mode, shown, settled - here))
+    return Landing(day, CalendarPaging.pageOf(mode, day, weekStart))
 }

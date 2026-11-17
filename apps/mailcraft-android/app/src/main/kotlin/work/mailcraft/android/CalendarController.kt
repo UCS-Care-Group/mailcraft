@@ -289,7 +289,7 @@ internal class CalendarController(
 
     /** A page swiped to: the view stays as it is, on [day]. */
     fun goTo(day: LocalDate) {
-        if (day != _state.value.anchor) show { it.copy(anchor = day) }
+        if (CalendarPaging.heldToPages(day) != _state.value.anchor) show { it.copy(anchor = day) }
     }
 
     /** A day of the month grid or of the agenda: the day view on it. */

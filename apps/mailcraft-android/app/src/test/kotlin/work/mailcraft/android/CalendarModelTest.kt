@@ -120,6 +120,28 @@ class CalendarPagingTest {
     }
 
     @Test
+    fun aSwipeLandsOnItsDayAndPastTheLastPageIsTurnedBack() {
+        for (mode in listOf(CalendarMode.Day, CalendarMode.Week, CalendarMode.Month)) {
+            val start = DayOfWeek.MONDAY
+            val mid = day("2026-11-04")
+            val page = CalendarPaging.pageOf(mode, mid, start)
+            assertNull(settle(mode, mid, page, start))
+            assertEquals(Landing(CalendarPaging.shift(mode, mid, 1), page + 1), settle(mode, mid, page + 1, start))
+            assertEquals(Landing(CalendarPaging.shift(mode, mid, -1), page - 1), settle(mode, mid, page - 1, start))
+            for (edge in listOf(day("1800-01-01"), day("2500-01-01"))) {
+                val held = CalendarPaging.heldToPages(edge)
+                val at = CalendarPaging.pageOf(mode, held, start)
+                val outward = if (edge.year < 2000) -1 else 1
+                // Past the edge: the same day, and the pager turned back to its page.
+                val past = settle(mode, held, at + outward, start)
+                assertEquals(Landing(held, at), past)
+                // Back inward: the next day, week or month in.
+                assertEquals(CalendarPaging.shift(mode, held, -outward), settle(mode, held, at - outward, start)?.day)
+            }
+        }
+    }
+
+    @Test
     fun pagesAreHeldToThePagesThereAre() {
         for (mode in CalendarMode.entries) {
             assertEquals(0, CalendarPaging.pageOf(mode, day("1800-01-01"), DayOfWeek.MONDAY))
