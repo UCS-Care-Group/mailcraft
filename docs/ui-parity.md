@@ -99,8 +99,7 @@ It clears when the last unread Inbox message is read or removed; reopening the w
 does not clear it. The badge works even with desktop alerts off, and is restored from the
 mailbox when the tray is enabled or the app starts. Shared mailboxes, local and imported mail,
 Archive, custom folders, Drafts, Outbox, Sent, Junk and Deleted Items do not count. Windows,
-macOS and Linux/BSD use the same artwork; runtime behaviour has been checked on Fedora 45 and
-macOS, with Windows still to be checked. Numbered unread-count badges are still absent.
+macOS and Linux/BSD use the same artwork. Numbered unread-count badges are still absent.
 
 The generated tray icons at enlarged and 24 px sizes (artwork preview):
 
