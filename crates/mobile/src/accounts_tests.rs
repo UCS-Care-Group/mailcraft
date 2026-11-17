@@ -801,8 +801,16 @@ fn with_sign_ins_not_remembered_add_account_keeps_nothing_in_the_store() {
     assert_eq!(rig.secrets_kept(), 0);
     // A permission given then writes nothing either.
     rig.page_comes_back_with(CODE_BACK);
+    let server2 = TokenServer::start(|_| (200, tokens_for(ADA, "Ada Lumen", "refresh-token-2")));
+    *rig.core.signins.server.lock().unwrap() =
+        Some((format!("http://127.0.0.1:{0}/authorize", server2.port), format!("http://127.0.0.1:{0}/token", server2.port)));
     assert_eq!(block_on(rig.core.grant_permission(account, Permission::Tasks)).unwrap(), PermissionOutcome::Granted);
     assert_eq!(rig.secrets_kept(), 0);
+    // It is the session's sign-in now, so the to-dos' job has one, and the engine knows it was allowed.
+    let sync = rig.core.sync.clone();
+    let (refresh, held) = block_on(rig.core.call(move |s| Ok((sync.refresh_for(s, account), s.tasks_blocked(account, Some("x")))))).unwrap();
+    assert_eq!(refresh.as_deref(), Some("refresh-token-2"));
+    assert!(!held);
 }
 
 #[test]
