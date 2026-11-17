@@ -14,9 +14,9 @@
 //! window is 1440×900 pt at 2× (override with `{"width": w, "height": h}` and `{"scale": s}` on
 //! any line; `{"scale": 1}` is a screen at 100 %, where the fonts' hinting shows) and opens the
 //! sample mailbox, as of a fixed Wednesday afternoon so shots compare, unless the first line is
-//! `{"empty": true}`. `{"overlayScrollBars": true}` (or `false`) on any line has the message
-//! list's scroll bar float over the rows as on a Mac (or keep its lane as elsewhere), whatever
-//! the computer the shot is taken on. The computer is in UTC unless a line says where it is (`{"zone":
+//! `{"empty": true}`. `{"overlayScrollBars": true}` (or `false`) on any line selects the Mac overlay style
+//! (or the usual style elsewhere) for the Mail, People and Tasks lists, whatever the computer
+//! the shot is taken on. The computer is in UTC unless a line says where it is (`{"zone":
 //! "America/Chicago"}`: the calendar is then shown in that zone, and `view.timeZone` can show it
 //! in another). The system has no language or regional format unless a line names one
 //! (`{"locale": "en-GB"}`: an interface language left on Automatic follows it, and dates are
@@ -43,6 +43,8 @@
 //! has the running version be one newly installed that didn't start twice running, with 0.4.2
 //! kept to go back to.
 //! `{"host": {"ownKeys": true}}` lists two made-up keys of the owner's in File › Options › Security (#30).
+//! `{"host": {"pictures": true}}` lets pictures on the web be downloaded, each a drawn stand-in
+//! (nothing is fetched), so that the pictures bar offers what it does in the app.
 //! `{"host": {"tasksWork": true}}` has every Microsoft account's To Do work, so that the window
 //! asks whether the tasks that exist only here are to be sent to it (#248).
 //! `{"host": {"autoReplies": "on"}}` gives every Microsoft account automatic replies that go out
@@ -759,7 +761,7 @@ fn main() {
     // Every frame may be a shot: a password shown with its eye is drawn as dots (#438).
     app.headless_shots = true;
     // (With a host that answers, nothing is to happen by itself: what a shot shows, its script asked for.)
-    app.auto_sync = !stood_in;
+    app.session.driver.set_auto_sync(!stood_in);
     if let Some(overlay) = lines.iter().find_map(|l| l.get("overlayScrollBars").and_then(|v| v.as_bool())) {
         app.overlay_scroll_bars = overlay;
     }
@@ -832,6 +834,14 @@ fn main() {
                 host.told(said);
                 // In front or not, for desktop alerts about new mail.
                 harness.input_mut().focused = !host.unfocused;
+            }
+            // Pictures on the web can be downloaded: each is a drawn stand-in (nothing is fetched).
+            if said.get("pictures").is_some() {
+                harness.state_mut().services.pictures = Some(Box::new(|address: String| {
+                    let (tx, rx) = channel();
+                    let _ = tx.send(Ok(stand_in_picture(&address)));
+                    rx
+                }));
             }
             // Every Microsoft account's To Do works (the question about the local tasks follows).
             if said.get("tasksWork").is_some() {

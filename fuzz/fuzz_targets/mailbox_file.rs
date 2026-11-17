@@ -29,6 +29,15 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     if fs::write(&path, data).is_ok() {
         let _ = with_limits(whole, || mailcraft_engine::store::open(&path));
         let _ = with_limits(stream, || mailcraft_engine::store::open(&path));
+        // The same bytes as a pack of header blocks beside it (#1376), and whatever the file names
+        // read back from it.
+        let blobs = mailcraft_engine::store::blob_dir(&path);
+        if fs::create_dir_all(&blobs).is_ok()
+            && fs::write(blobs.join("headers-1.pack"), data).is_ok()
+            && let Ok(mut opened) = with_limits(whole, || mailcraft_engine::store::open(&path))
+        {
+            let _ = mailcraft_engine::store::load_all(&path, &mut opened.mailbox);
+        }
     }
     // What read as a mailbox, in the form with a log of records.
     if let Ok(mailbox) = read {

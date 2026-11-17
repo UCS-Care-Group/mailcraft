@@ -15,7 +15,7 @@ const NOW: i64 = 1_800_000_000;
 fn an_imap_run_that_gives_a_snooze_up_tells_the_owner() {
     let mut app = MailApp::new(Session::empty(), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let servers = json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example"}});
     let account = app.execute("account.add", servers).unwrap()["id"].as_u64().unwrap();
     app.session.clock.now = Some(NOW);

@@ -18,7 +18,8 @@ const LEGACY_SECRET: &str = "synthetic-obsolete-preference-registration";
 fn app() -> MailApp {
     let services = Services { sign_in: Some(Box::new(|_| mpsc::channel().1)), ..Default::default() };
     let mut app = MailApp::new(Session::at(Mailbox::with_local_account("", ""), 1_791_993_600, 0), services);
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     app
 }
 

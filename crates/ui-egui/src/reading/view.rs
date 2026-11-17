@@ -286,6 +286,12 @@ impl Store {
         ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::unique("mailcraft-reading-bodies")).clone())
     }
 
+    /// Let go of every body laid out, and the messages they were laid out from (the window is out
+    /// of sight, [`crate::out_of_sight`]): each is laid out again when it is next shown.
+    pub fn let_go(ctx: &egui::Context) {
+        Store::of(ctx).lock().unwrap_or_else(|e| e.into_inner()).entries.clear();
+    }
+
     /// The entry for `message` shown at `place`, parsing its body when it is not known yet
     /// (`can_download`: for a window that can download pictures, see [`Doc::of_where`]).
     fn entry(&mut self, message: &Arc<Message>, place: Place, frame: u64, can_download: bool, env: Env) -> Option<&mut Entry> {

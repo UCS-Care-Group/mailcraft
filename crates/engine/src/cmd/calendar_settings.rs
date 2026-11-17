@@ -52,7 +52,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("calendar.calendars", "List Calendars", "Calendar", list)
             .pure()
-            .params(r##"{} — the calendars as the side pane lists them, and how those that are shown are arranged: {"groups": [{"title", "account": number | null, "calendars": [{"id", "name", "color": "#RRGGBB" (as shown), "ownColor": bool, "visible", "readOnly", "rights": "freeBusy"|"read"|"edit", "owner": {"address", "name"} | null, "current"}]}], "panes": [{"calendars": [number], "front": number}], "overlay": bool}"##),
+            .params(r##"{} — the calendars as the side pane lists them, and how those that are shown are arranged: {"groups": [{"title", "account": number | null, "calendars": [{"id", "name", "color": "#RRGGBB" (as shown), "ownColor": bool, "visible", "readOnly", "rights": "freeBusy"|"read"|"edit", "owner": {"address", "name"} | null, "current", "subscription": {"host", "intervalMinutes", "checked": seconds (0: never), "events", "capped": bool, "failure": string | null} | null (set for a calendar subscribed to on the web)}]}], "panes": [{"calendars": [number], "front": number}], "overlay": bool}"##),
         CommandSpec::new("calendar.showOnly", "Show Only This Calendar", "Home › Manage Calendars", show_only)
             .params(r#"{"id": number} — that calendar is shown and every other one hidden"#),
         CommandSpec::new("calendar.color", "Calendar Colour", "Home › Manage Calendars", color)
@@ -143,10 +143,15 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
             groups.push(CalendarGroup { title, account: account.id, calendars: calendars.iter().map(|c| c.id).collect() });
         }
     }
-    let here: Vec<Id> = listed.iter().filter(|c| keeper(c).is_none()).map(|c| c.id).collect();
+    let here: Vec<Id> = listed.iter().filter(|c| keeper(c).is_none() && !c.is_subscribed()).map(|c| c.id).collect();
     if !here.is_empty() {
         let title = if accounts.is_empty() { MY_CALENDARS } else { remote::LOCAL_CALENDAR };
         groups.push(CalendarGroup { title: title.to_string(), account: 0, calendars: here });
+    }
+    // The calendars subscribed to (#209), last: they are copies of other people's, on the web.
+    let subscribed: Vec<Id> = listed.iter().filter(|c| c.is_subscribed()).map(|c| c.id).collect();
+    if !subscribed.is_empty() {
+        groups.push(CalendarGroup { title: OTHER_CALENDARS.to_string(), account: 0, calendars: subscribed });
     }
     groups
 }
@@ -226,7 +231,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         Some(json!({
             "id": c.id, "name": c.name, "color": c.shown_color().hex(), "ownColor": c.own_color.is_some(),
             "visible": c.visible, "readOnly": remote::writable(&s.mailbox, c.id).is_err(), "current": c.id == current,
-            "rights": c.rights, "owner": c.owner,
+            "rights": c.rights, "owner": c.owner, "subscription": c.subscription.as_ref().map(subscription_json),
         }))
     };
     let groups: Vec<Value> = calendar_groups(s)
@@ -241,6 +246,15 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         fields.insert("groups".into(), Value::Array(groups));
     }
     Ok(answer)
+}
+
+/// What is known of a subscribed calendar, for a list: where it is read from (the host only),
+/// how often, when it last answered, why not when it didn't, and whether events were left out.
+fn subscription_json(sub: &mailcraft_model::subscription::Subscription) -> Value {
+    json!({
+        "host": sub.host, "intervalMinutes": sub.interval(), "checked": sub.checked, "events": sub.events, "capped": sub.capped,
+        "failure": sub.failed().map(|failure| failure.message()),
+    })
 }
 
 fn calendar_named(s: &Session, v: &Value, key: &str) -> Result<Id, CmdError> {

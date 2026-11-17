@@ -351,7 +351,7 @@ fn add_shared_mailbox_while_a_send_receive_is_under_way_calls_it_off_and_reads_t
     assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { checking: Some(_), error, .. }) if error.is_empty()));
     let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
     assert!(app.services.sync_cancel.load(Ordering::Relaxed));
-    assert_eq!(app.sync_queue.front(), Some(&(owner, false)), "the owner's run goes on after, as asked for");
+    assert_eq!(app.session.driver.round.queue.front(), Some(&(owner, false)), "the owner's run goes on after, as asked for");
     app.shared_check_tick();
     assert_eq!(*asked.lock().unwrap(), [owner], "nothing starts while the owner's run is stopping");
     // The owner's run stops.
@@ -408,7 +408,7 @@ fn add_shared_mailbox_while_a_mail_protocol_run_is_under_way_calls_it_off_and_re
     running.lock().unwrap().take().unwrap().send(SyncResult { account: other, stopped: true, ..Default::default() }).unwrap();
     app.poll_sync();
     assert!(app.sync_rx.is_none());
-    assert_eq!(app.sync_queue.front(), Some(&(other, false)), "the other account's run goes on after, as asked for");
+    assert_eq!(app.session.driver.round.queue.front(), Some(&(other, false)), "the other account's run goes on after, as asked for");
     // The shared mailbox is read first, through Graph alone, and the dialog closes on its folders.
     app.shared_check_tick();
     assert_eq!(jobs.lock().unwrap().iter().map(|(a, ..)| *a).collect::<Vec<_>>(), [shared]);
@@ -434,7 +434,7 @@ fn add_shared_mailbox_waits_for_a_graph_job_that_brings_no_mail_down_without_cal
     let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
     app.shared_check_tick();
     assert!(!app.services.sync_cancel.load(Ordering::Relaxed) && jobs.lock().unwrap().is_empty());
-    assert!(app.sync_queue.is_empty(), "nothing to put back in line: the job wasn't called off");
+    assert!(app.session.driver.round.queue.is_empty(), "nothing to put back in line: the job wasn't called off");
     end.send(GraphResult { account: owner, ..Default::default() }).unwrap();
     app.poll_graph();
     assert!(app.graph_rx.is_none());
@@ -495,7 +495,7 @@ fn after_add_shared_mailbox_the_called_off_run_goes_on_before_the_rest_of_the_sh
     add_in_dialog(&mut app, &answers, owner, SHARED, Vec::new());
     assert!(app.services.sync_cancel.load(Ordering::Relaxed));
     // Put back in line as the owner asked for it: its errors are still shown.
-    assert_eq!(app.sync_queue.iter().copied().collect::<Vec<_>>(), [(owner, false)]);
+    assert_eq!(app.session.driver.round.queue.iter().copied().collect::<Vec<_>>(), [(owner, false)]);
     stop(&mut app, owner);
     app.shared_check_tick();
     let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
@@ -505,7 +505,7 @@ fn after_add_shared_mailbox_the_called_off_run_goes_on_before_the_rest_of_the_sh
     // The rest of the shared mailbox doesn't hold the owner's run up: it is called off in its
     // turn, and comes down after.
     assert!(app.services.sync_cancel.load(Ordering::Relaxed), "the shared mailbox's run is called off");
-    assert_eq!(app.sync_queue.iter().copied().collect::<Vec<_>>(), [(owner, false), (shared, false)]);
+    assert_eq!(app.session.driver.round.queue.iter().copied().collect::<Vec<_>>(), [(owner, false), (shared, false)]);
     stop(&mut app, shared);
     assert!(app.session.mailbox.account(shared).is_some(), "kept");
     app.auto_sync();
@@ -514,7 +514,7 @@ fn after_add_shared_mailbox_the_called_off_run_goes_on_before_the_rest_of_the_sh
     stop(&mut app, owner);
     app.auto_sync();
     assert_eq!(*asked.lock().unwrap(), [owner, shared, owner, shared], "then the rest of the shared mailbox");
-    assert!(app.sync_queue.is_empty());
+    assert!(app.session.driver.round.queue.is_empty());
     no_imap();
 }
 
@@ -878,7 +878,7 @@ fn a_run_that_started_by_itself_never_asks_and_the_mail_waits() {
 /// One look of the window's own Send/Receive, as each frame has it, with the few seconds between
 /// looks gone by: what waits to go out may start a run, and a run that is under way is finished.
 fn frame(app: &mut MailApp) {
-    app.push_checked = 0.0;
+    app.session.driver.round.push_checked = 0.0;
     app.auto_sync();
     app.auto_sync();
     app.poll_graph();
@@ -888,7 +888,7 @@ fn frame(app: &mut MailApp) {
 /// look for something that waits to go out.
 fn by_itself_only_to_push(app: &mut MailApp) {
     app.session.prefs.sync_minutes = 0;
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
 }
 
 #[test]
@@ -990,8 +990,8 @@ fn holding_graph(app: &mut MailApp) -> (Held, Arc<Mutex<Vec<Id>>>) {
 
 /// A look of the window's, as each frame has it, with the few seconds between looks gone by.
 fn look(app: &mut MailApp) {
-    app.last_auto_sync = crate::now_ms();
-    app.push_checked = 0.0;
+    app.session.driver.round.last_auto = crate::now_ms();
+    app.session.driver.round.push_checked = 0.0;
     app.poll_graph();
     app.auto_sync();
 }
@@ -1032,7 +1032,7 @@ fn a_change_made_during_a_long_graph_download_goes_out_without_waiting_for_it() 
         app.poll_graph();
         app.poll_graph();
         assert!(app.graph_rx.is_none());
-        assert_eq!(app.sync_queue.front(), Some(&(whose, quiet)), "{address}: put back as it was");
+        assert_eq!(app.session.driver.round.queue.front(), Some(&(whose, quiet)), "{address}: put back as it was");
         app.auto_sync();
         assert_eq!(*asked.lock().unwrap(), [whose, whose], "{address}: the next run starts at once");
         assert!(!app.services.sync_cancel.load(Ordering::Relaxed));
@@ -1052,7 +1052,7 @@ fn a_change_made_during_a_long_graph_download_goes_out_without_waiting_for_it() 
         answer.send(GraphResult { account: whose, ..Default::default() }).unwrap();
         look(&mut app);
         look(&mut app);
-        assert!(app.sync_queue.is_empty() && app.graph_rx.is_none(), "{address}: stopped is stopped");
+        assert!(app.session.driver.round.queue.is_empty() && app.graph_rx.is_none(), "{address}: stopped is stopped");
     }
     no_imap();
 }

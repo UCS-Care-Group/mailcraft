@@ -3,16 +3,20 @@
 //! MailCraft dates and times.
 //!
 //! Calendar maths is our own (proleptic Gregorian, no leap seconds) so it is the same on every
-//! platform and never panics on hostile input. The clock ([`now`]) and this computer's time zone
-//! ([`Zone::system`], [`local_offset_minutes`]) are the only things that ask the system (or the
-//! browser). Time zones ([`Zone`]) come from a database that is compiled in.
+//! platform and never panics on hostile input. The clock ([`now`], [`Stopwatch`]) and this
+//! computer's time zone ([`Zone::system`], [`local_offset_minutes`]) are the only things that ask
+//! the system (or the browser). Time zones ([`Zone`]) come from a database that is compiled in.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod stopwatch;
+#[cfg(test)]
+mod stopwatch_tests;
 mod text;
 pub mod zone;
 
 use serde::{Deserialize, Serialize};
 
+pub use stopwatch::Stopwatch;
 pub use text::{format_iso_utc, format_rfc5322, iso_to_timestamp, parse_iso, parse_rfc5322};
 pub use zone::{MAX_ZONE_NAME, Transition, Zone};
 

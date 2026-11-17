@@ -536,6 +536,9 @@ impl State {
                 return Err(invalid("SyncScope is NormalItems or NormalAndAssociatedItems"));
             }
         }
+        if self.exchange2010 && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag") {
+            return Err(invalid("the schema has no such property"));
+        }
         if (self.lacks_preview && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag"))
             || (self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId"))
         {
@@ -543,6 +546,13 @@ impl State {
                 200,
                 "ErrorInvalidPropertyRequest".into(),
                 response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyRequest")),
+            ));
+        }
+        if (self.exchange2010 || self.lists_no_recipients) && extra.iter().any(|e| e == "message:ToRecipients" || e == "message:CcRecipients") {
+            return Ok((
+                200,
+                "ErrorInvalidPropertyForOperation".into(),
+                response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyForOperation")),
             ));
         }
         // Where the read goes on from: the state it was given, or the start.

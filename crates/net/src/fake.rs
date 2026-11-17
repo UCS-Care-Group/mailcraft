@@ -347,8 +347,28 @@ pub(crate) struct ImapWorld {
     pub(crate) gmail_categories: Vec<(String, u32, String)>,
     /// Gmail's search finds messages marked as deleted too, `UNDELETED` or not.
     pub(crate) gmail_finds_deleted: bool,
+    /// For a server that behaves as Gmail does: the mailbox, the UID and what goes between the
+    /// parentheses of `X-GM-LABELS (…)` for each message that has labels (#1153), as it stands, so
+    /// that a test can write anything there; a message not named has `X-GM-LABELS ()`.
+    pub(crate) gmail_labels: Vec<(String, u32, String)>,
+    /// Don't know STATUS: answer BAD to it, as a very old server would.
+    pub(crate) no_status: bool,
+    /// Know IDLE (RFC 2177), and say so. While a client idles, every line in `idle_events` is
+    /// sent to it, once, as the server's own news (`* 3 EXISTS`).
+    pub(crate) idle: bool,
+    pub(crate) idle_events: Vec<String>,
+    /// End the next IDLE the way a server may on its own (the tagged OK), after this many polls
+    /// of 20 ms; `None` for never.
+    pub(crate) idle_ends_after: Option<usize>,
+    /// Hang up on an idling client, once, after this many polls of 20 ms.
+    pub(crate) idle_hangs_up_after: Option<usize>,
+    /// How many clients are idling now, and how many IDLE commands have been taken in all.
+    pub(crate) idling: usize,
+    pub(crate) idles: usize,
     /// The mailboxes subscribed to.
     pub(crate) subscribed: Vec<String>,
+    /// Personal IMAP namespace `(prefix, delimiter)` to advertise via `NAMESPACE`.
+    pub(crate) namespace: Option<(String, String)>,
     /// Every line received.
     pub(crate) log: Vec<String>,
     pub(crate) connections: usize,
@@ -364,8 +384,10 @@ impl ImapWorld {
         let can_move = if self.can_move { " MOVE" } else { "" };
         let uidplus = if self.uidplus { " UIDPLUS" } else { "" };
         let gmail = if self.gmail { " X-GM-EXT-1" } else { "" };
+        let idle = if self.idle { " IDLE" } else { "" };
+        let namespace = if self.namespace.is_some() { " NAMESPACE" } else { "" };
         let no_login = if self.login_disabled { " LOGINDISABLED" } else { "" };
-        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}{no_login}")
+        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}{idle}{namespace}{no_login}")
     }
 
     pub(crate) fn mailbox(&mut self, raw: &str) -> &mut FakeMailbox {
@@ -433,6 +455,11 @@ impl<W: Send + 'static> Fake<W> {
             }
         });
         Fake { port, _stop: stop, world }
+    }
+
+    /// The state itself, for a thread of the test's own to change.
+    pub(crate) fn world_handle(&self) -> Arc<Mutex<W>> {
+        self.world.clone()
     }
 
     /// The server's state, to set up or to look at.
@@ -540,6 +567,7 @@ fn quote(name: &str) -> String {
 pub(crate) const GMAIL_IDS: u64 = 1_500_000_000_000_000_000;
 
 fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
+    let socket = stream.try_clone().ok();
     let mut reader: BufReader<Box<dyn MailIo>> = BufReader::new(Box::new(stream));
     let mut secured = false;
     let greeting = {
@@ -587,6 +615,13 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
         }
         match verb.to_ascii_uppercase().as_str() {
             "CAPABILITY" => reply.extend(format!("* CAPABILITY {}\r\n{tag} OK done\r\n", world.capabilities(secured)).bytes()),
+            "NAMESPACE" => {
+                if let Some((prefix, delimiter)) = &world.namespace {
+                    reply.extend(format!("* NAMESPACE ((\"{prefix}\" \"{delimiter}\")) NIL NIL\r\n{tag} OK done\r\n").bytes());
+                } else {
+                    reply.extend(format!("{tag} BAD not offered\r\n").bytes());
+                }
+            }
             "STARTTLS" if world.offer_starttls => {
                 let upgrade = world.starttls_upgrade.clone();
                 drop(world);
@@ -689,6 +724,86 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                         );
                         reply.extend(format!("* OK [UIDVALIDITY {}] UIDs valid\r\n* OK [UIDNEXT {next}] next\r\n", mailbox.uid_validity).bytes());
                         reply.extend(format!("{tag} OK [{}] done\r\n", if read_only { "READ-ONLY" } else { "READ-WRITE" }).bytes());
+                    }
+                    None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
+                }
+            }
+            // The server tells of changes until the client says DONE (RFC 2177).
+            "IDLE" if world.idle && open.is_some() => {
+                world.idles += 1;
+                world.idling += 1;
+                drop(world);
+                if reader.get_mut().write_all(b"+ idling\r\n").is_err() {
+                    return;
+                }
+                if let Some(socket) = &socket {
+                    let _ = socket.set_read_timeout(Some(Duration::from_millis(20)));
+                }
+                let mut polls = 0usize;
+                let ended = loop {
+                    let news: Vec<String> = std::mem::take(&mut shared.lock().unwrap().idle_events);
+                    for line in news {
+                        if reader.get_mut().write_all(format!("{line}\r\n").as_bytes()).is_err() {
+                            shared.lock().unwrap().idling -= 1;
+                            return;
+                        }
+                    }
+                    polls += 1;
+                    if shared.lock().unwrap().idle_hangs_up_after.is_some_and(|after| polls > after) {
+                        let mut world = shared.lock().unwrap();
+                        world.idle_hangs_up_after = None;
+                        world.idling -= 1;
+                        return;
+                    }
+                    if shared.lock().unwrap().idle_ends_after.is_some_and(|after| polls > after) {
+                        shared.lock().unwrap().idle_ends_after = None;
+                        break "by itself";
+                    }
+                    let mut line = String::new();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => {
+                            shared.lock().unwrap().idling -= 1;
+                            return;
+                        }
+                        Ok(_) => {
+                            shared.lock().unwrap().log.push(line.trim_end().to_string());
+                            if line.trim().eq_ignore_ascii_case("DONE") {
+                                break "by the client";
+                            }
+                        }
+                        Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
+                        Err(_) => {
+                            shared.lock().unwrap().idling -= 1;
+                            return;
+                        }
+                    }
+                };
+                if let Some(socket) = &socket {
+                    let _ = socket.set_read_timeout(None);
+                }
+                shared.lock().unwrap().idling -= 1;
+                let _ = ended;
+                if reader.get_mut().write_all(format!("{tag} OK IDLE terminated\r\n").as_bytes()).is_err() {
+                    return;
+                }
+                continue;
+            }
+            // What a mailbox holds, without opening it (RFC 3501 §6.3.10).
+            "STATUS" if !world.no_status => {
+                let name = words(args).into_iter().next().unwrap_or_default();
+                match world.mailboxes.iter().find(|m| m.raw == name && !m.flags.contains("\\Noselect")) {
+                    Some(mailbox) => {
+                        let next = mailbox.next_uid.max(mailbox.messages.iter().map(|m| m.uid).max().unwrap_or(0) + 1);
+                        let unseen = mailbox.messages.iter().filter(|m| !m.has("\\Seen")).count();
+                        reply.extend(
+                            format!(
+                                "* STATUS {} (MESSAGES {} UIDNEXT {next} UIDVALIDITY {} UNSEEN {unseen})\r\n{tag} OK done\r\n",
+                                quote(&mailbox.raw),
+                                mailbox.messages.len(),
+                                mailbox.uid_validity
+                            )
+                            .bytes(),
+                        );
                     }
                     None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
                 }
@@ -878,6 +993,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 let (whole, header) = (items.contains("BODY.PEEK[]"), items.contains("BODY.PEEK[HEADER]"));
                 let mut refused = !fetch.eq_ignore_ascii_case("FETCH");
                 let messages = open.and_then(|i| world.mailboxes.get(i)).map_or(&[][..], |m| &m.messages[..]);
+                let open_raw = open.and_then(|i| world.mailboxes.get(i)).map_or("", |m| m.raw.as_str());
                 for (index, message) in messages.iter().enumerate().filter(|(_, m)| in_set(set, m.uid)) {
                     let (seq, uid, flags) = (index + 1, message.uid, &message.flags);
                     if whole && world.hang_up_at_uid == Some(uid) {
@@ -908,9 +1024,15 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     } else if items.contains("RFC822.SIZE") {
                         let size = message.claimed_size.unwrap_or(message.body.len() as u64);
                         reply.extend(format!("* {seq} FETCH (UID {uid} RFC822.SIZE {size})\r\n").bytes());
-                    } else if world.gmail && items.contains("X-GM-MSGID") {
-                        let id = GMAIL_IDS + u64::from(uid);
-                        reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid} X-GM-MSGID {id})\r\n").bytes());
+                    } else if world.gmail && (items.contains("X-GM-MSGID") || items.contains("X-GM-LABELS")) {
+                        let id = if items.contains("X-GM-MSGID") { format!(" X-GM-MSGID {}", GMAIL_IDS + u64::from(uid)) } else { String::new() };
+                        let labels = if items.contains("X-GM-LABELS") {
+                            let said = world.gmail_labels.iter().find(|(at, u, _)| at == open_raw && *u == uid).map_or("", |(_, _, l)| l.as_str());
+                            format!(" X-GM-LABELS ({said})")
+                        } else {
+                            String::new()
+                        };
+                        reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid}{id}{labels})\r\n").bytes());
                     } else {
                         reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid})\r\n").bytes());
                     }

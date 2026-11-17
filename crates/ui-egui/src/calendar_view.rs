@@ -27,6 +27,9 @@ use serde_json::{Value, json};
 use crate::theme::{Tokens, c32, medium, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
 
+#[cfg(test)]
+mod event_color_tests;
+
 /// Height of the strip with Today, Back and Forward and the days in view.
 const HEADER_H: f32 = 46.0;
 /// Width of the hour labels beside the time grid.
@@ -367,6 +370,17 @@ impl Slot {
         }
         params
     }
+}
+
+/// `params` for a new item, without the calendar of the block it was picked in when that is a copy
+/// of a calendar on the web (nothing new goes into one): it goes where the ribbon's New goes.
+pub(crate) fn aimed(app: &MailApp, mut params: Value) -> Value {
+    let subscribed =
+        params.get("calendar").and_then(Value::as_u64).is_some_and(|id| app.session.mailbox.calendar(id).is_some_and(|c| c.is_subscribed()));
+    if let (true, Some(fields)) = (subscribed, params.as_object_mut()) {
+        fields.remove("calendar");
+    }
+    params
 }
 
 fn load_slot(ctx: &egui::Context) -> Option<Slot> {
@@ -804,9 +818,11 @@ fn pane_of(panes: &[PaneView], calendar: Id) -> usize {
 }
 
 /// Whether a calendar is one the account may read and not change.
-fn read_only(app: &MailApp, calendar: Id) -> bool {
+pub(crate) fn read_only(app: &MailApp, calendar: Id) -> bool {
     let mailbox = &app.session.mailbox;
-    mailbox.calendar(calendar).is_some_and(|c| !c.can_edit() && mailcraft_engine::cmd::remote::keeper(mailbox, &c.origin).is_some())
+    mailbox
+        .calendar(calendar)
+        .is_some_and(|c| c.is_subscribed() || (!c.can_edit() && mailcraft_engine::cmd::remote::keeper(mailbox, &c.origin).is_some()))
 }
 
 /// Working in a block makes its calendar the one being worked in (where the ribbon's New
@@ -985,6 +1001,7 @@ fn side_pane(app: &mut MailApp, ui: &mut Ui) {
         .resizable(true)
         .frame(egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border)));
     panel.show(ui, |ui| {
+        crate::nav::module_foot(app, ui);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         // As many months as the pane has room for over the list of calendars; one at the least.
         let groups = calendar_groups(app);
@@ -1451,6 +1468,14 @@ fn calendar_menu(ui: &mut Ui, app: &mut MailApp, row: &CalendarRow, several: boo
         ui.separator();
         mi(ui, app, "Remove Shared Calendar", "calendar.removeShared", json!({"id": row.id}));
     }
+    // One on the web (#209): updated ahead of its time, or let go of.
+    if app.session.mailbox.calendar(row.id).is_some_and(|c| c.is_subscribed()) {
+        ui.separator();
+        if app.services.subscription.is_some() && !app.subscription_needs_address(row.id) {
+            mi(ui, app, "Update Now", "calendar.refreshSubscribed", json!({"id": row.id}));
+        }
+        mi(ui, app, "Unsubscribe", "calendar.unsubscribe", json!({"id": row.id}));
+    }
     // A shared mailbox's calendar that the server lists under Shared Calendars too (#70): the
     // copy is hidden, or shown again, here.
     match listed_twice(app, row.id) {
@@ -1787,8 +1812,8 @@ struct Look {
 
 /// An event is a block tinted with its colour `base` (its category's, or its calendar's) with a
 /// stronger edge down its left in its calendar's colour, which also says how the time shows:
-/// busy is solid, tentative hatched, working elsewhere dotted, free hollow (and the block
-/// outlined and nearly empty), out of office purple whatever the calendar's colour. Cancelled
+/// busy is solid, tentative hatched, working elsewhere dotted, free hollow and outlined.
+/// Free events without a category use a faint calendar tint. Out of office is purple. Cancelled
 /// events fade; so, when `dim`, do those of a calendar that lies under another.
 fn look(ev: &Event, base: Color32, calendar: Color32, t: &Tokens, hovered: bool, dim: bool) -> Look {
     let soft = t.data_soft(hovered);
@@ -1797,7 +1822,7 @@ fn look(ev: &Event, base: Color32, calendar: Color32, t: &Tokens, hovered: bool,
         ShowAs::Busy => (calendar, 1.0, Edge::Solid, false),
         ShowAs::WorkingElsewhere => (calendar, 0.8, Edge::Dotted, false),
         ShowAs::Tentative => (calendar, 0.6, Edge::Hatched, false),
-        ShowAs::Free => (calendar, 0.2, Edge::Hollow, true),
+        ShowAs::Free => (calendar, if ev.categories.is_empty() { 0.2 } else { 1.0 }, Edge::Hollow, true),
         ShowAs::OutOfOffice => (purple, 1.0, Edge::Solid, false),
     };
     if dim && !ev.cancelled {
@@ -2240,7 +2265,7 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
 /// selected), two open a new appointment for it. `pick` is the slot under the pointer.
 fn empty_input(app: &mut MailApp, resp: &Response, slot: &mut Option<Slot>, pick: impl Fn() -> Slot) {
     if opens(resp) {
-        let _ = app.run("ui.openWindow", pick().form());
+        let _ = app.run("ui.openWindow", aimed(app, pick().form()));
         *slot = None;
     } else if resp.clicked() {
         let _ = app.run("calendar.select", json!({"id": null}));
@@ -2263,9 +2288,12 @@ fn empty_input(app: &mut MailApp, resp: &Response, slot: &mut Option<Slot>, pick
         resp.context_menu(|ui| {
             ui.set_min_width(200.0);
             use crate::widgets::mi;
-            mi(ui, app, "New Appointment", "ui.openWindow", picked.form_for(Kind::Appointment));
-            mi(ui, app, "New Meeting", "ui.openWindow", picked.form_for(Kind::Meeting));
-            mi(ui, app, "New All Day Event", "ui.openWindow", picked.form_for(Kind::AllDay));
+            let form = aimed(app, picked.form_for(Kind::Appointment));
+            mi(ui, app, "New Appointment", "ui.openWindow", form);
+            let form = aimed(app, picked.form_for(Kind::Meeting));
+            mi(ui, app, "New Meeting", "ui.openWindow", form);
+            let form = aimed(app, picked.form_for(Kind::AllDay));
+            mi(ui, app, "New All Day Event", "ui.openWindow", form);
         });
     }
 }
@@ -2278,12 +2306,12 @@ fn finish_entry(app: &mut MailApp, slot: &mut Option<Slot>, entry: Entry) {
         Entry::Make(title) => {
             if let Some(picked) = slot.take() {
                 // The new appointment is selected in the slot's place.
-                let _ = app.run("calendar.new", picked.appointment(&title));
+                let _ = app.run("calendar.new", aimed(app, picked.appointment(&title)));
             }
         }
         Entry::Form => {
             if let Some(picked) = slot.take() {
-                let _ = app.run("ui.openWindow", picked.form());
+                let _ = app.run("ui.openWindow", aimed(app, picked.form()));
             }
         }
     }
@@ -6825,7 +6853,7 @@ mod tests {
         use egui_kittest::kittest::Queryable as _;
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         // Whose meeting it is, and what was answered so far.
@@ -7544,7 +7572,7 @@ mod tests {
         let team = rig.app.session.mailbox.calendars.iter().find(|c| c.name == "Team").map(|c| c.id).unwrap();
         let mut app = MailApp::new(Session::at(rig.app.session.mailbox.clone(), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         let mut harness = egui_kittest::Harness::builder()

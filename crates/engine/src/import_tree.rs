@@ -10,12 +10,12 @@
 //! over a cap is left and said. The engine reads a directory only where there is a file system
 //! (`path`); the browser build and agents hand the files over as `entries`.
 
-use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use mailcraft_model::{AccountKind, FolderKind, Id, Mailbox, Message};
 use serde_json::{Value, json};
 
+use crate::cmd::imported_dupes::Twins;
 use crate::cmd::{base64_decode, fail};
 use crate::{CmdError, Session, p};
 
@@ -74,8 +74,9 @@ impl Progress {
 pub struct ParsedFile {
     dirs: Vec<String>,
     name: String,
-    /// Every message's Message-ID, in order ("" when it has none).
-    ids: Vec<String>,
+    /// What makes every message the same mail as another, in order (`None` when it has no
+    /// Message-ID or no date: never taken for another; [`crate::cmd::imported_dupes::identity`]).
+    ids: Vec<Option<crate::cmd::imported_dupes::Key>>,
     /// The messages themselves; empty when only counting (a preview).
     messages: Vec<Message>,
 }
@@ -369,7 +370,7 @@ fn parse_found(mut w: Walk, top: String, count_only: bool, progress: &Progress) 
             }
             progress.check()?;
             progress.messages.fetch_add(1, Ordering::Relaxed);
-            ids.push(m.message_id.clone());
+            ids.push(crate::cmd::imported_dupes::identity(&m));
             if !count_only {
                 messages.push(m);
             }
@@ -457,7 +458,7 @@ pub fn finish(s: &mut Session, parsed: Parsed, dry: bool) -> Result<Value, CmdEr
         Some(account) => child(&mut s.mailbox, account, None, &top, !dry, &mut made)?,
         None => None,
     };
-    let mut have: std::collections::HashMap<Option<Id>, HashSet<String>> = std::collections::HashMap::new();
+    let mut have: std::collections::HashMap<Option<Id>, Twins> = std::collections::HashMap::new();
     for f in files {
         let mut names: Vec<String> = vec![top.clone()];
         names.extend(f.dirs.iter().cloned());
@@ -495,9 +496,10 @@ pub fn finish(s: &mut Session, parsed: Parsed, dry: bool) -> Result<Value, CmdEr
             w.skip(shown, "its folder couldn't be made");
             continue;
         }
-        let ids = have.entry(at).or_insert_with(|| {
-            at.map(|f| s.mailbox.messages_in(f).map(|m| m.message_id.clone()).filter(|i| !i.is_empty()).collect()).unwrap_or_default()
-        });
+        // What the folder holds already, whole, and what this import put in it (a file read
+        // twice), compared by what it is (#1401). Only that folder: the same mail in two of the
+        // tree's folders, or elsewhere in the mailbox, comes into both, as it was kept.
+        let ids = have.entry(at).or_insert_with(|| at.map(|f| Twins::of(&s.mailbox, &[f])).unwrap_or_default());
         let slot = match tallies.iter().position(|t| t.path == shown) {
             Some(i) => i,
             None => {
@@ -510,9 +512,20 @@ pub fn finish(s: &mut Session, parsed: Parsed, dry: bool) -> Result<Value, CmdEr
         for id in f.ids {
             found_n += 1;
             let m = messages.next();
-            if !id.is_empty() && !ids.insert(id) {
+            // Compared whole when the message is here; a preview keeps only what it is by key.
+            let there = match (&m, &id) {
+                (Some(m), _) => ids.holds(m),
+                (None, Some(key)) => ids.may_hold(key),
+                (None, None) => false,
+            };
+            if there {
                 dups += 1;
                 continue;
+            }
+            match (&m, id) {
+                (Some(m), _) => ids.add(m),
+                (None, Some(key)) => ids.add_key(key),
+                (None, None) => {}
             }
             added += 1;
             if let (false, Some(folder), Some(mut m)) = (dry, at, m) {
@@ -540,6 +553,10 @@ pub fn finish(s: &mut Session, parsed: Parsed, dry: bool) -> Result<Value, CmdEr
     }
     let added: usize = tallies.iter().map(|t| t.added).sum();
     let duplicates: usize = tallies.iter().map(|t| t.duplicates).sum();
+    if !dry {
+        // What came in, for the log: never a name, an address or a subject.
+        log::info!("import: folder of mbox files, {added} imported, {duplicates} already there, into this computer");
+    }
     let listed: Vec<Value> = w.skipped.iter().take(MAX_LISTED).map(|(path, why)| json!({"path": path, "why": why})).collect();
     let folders: Vec<Value> = tallies
         .iter()

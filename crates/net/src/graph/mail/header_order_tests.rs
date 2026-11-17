@@ -51,7 +51,7 @@ fn a_message_fetched_whole_keeps_its_headers_in_the_servers_order() {
     // What the engine does with what comes.
     let mut m = mailcraft_mime_model::parse(&fetched.mime);
     m.server = Some(ServerMessage { id, folder: inbox, ..Default::default() });
-    assert_eq!(path(&m.headers), PATH);
+    assert_eq!(path(&m.all_headers()), PATH);
     let account = Account { kind: AccountKind::Microsoft, email: "owner@example.org".into(), ..Default::default() };
     assert!(vouched(Some(&account), &m));
 }
@@ -82,7 +82,7 @@ fn a_message_downloaded_over_imap_keeps_its_headers_in_the_servers_order() {
     assert!(result.errors.is_empty(), "{:?}", result.errors);
     let m = result.folders.iter().find(|f| f.remote == "INBOX").and_then(|f| f.new.first()).unwrap();
     assert_eq!(m.uid, 1);
-    assert_eq!(path(&m.headers), PATH);
+    assert_eq!(path(&m.all_headers()), PATH);
     // Read as Exchange Online's (the fake server stands at no host of Microsoft's).
     let microsoft = Account { kind: AccountKind::Microsoft, email: "owner@example.org".into(), ..Default::default() };
     assert!(vouched(Some(&microsoft), m));

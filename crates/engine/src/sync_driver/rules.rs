@@ -88,6 +88,7 @@ impl RulesDriver {
 
     /// Account removal: nothing of these accounts' permission or rules is kept.
     pub fn forget_accounts(&mut self, gone: &HashSet<Id>) {
+        self.book.forget_accounts(gone);
         self.perm.retain(|account, _| !gone.contains(account));
         self.settling.retain(|account, _| !gone.contains(account));
         self.read.retain(|account| !gone.contains(account));
@@ -98,8 +99,8 @@ impl RulesDriver {
 /// What the host says of itself when it asks whether the rules are due.
 #[derive(Clone, Copy, Debug)]
 pub struct RulesFacts {
-    /// Automatic checking is on and the host has a way to reach the rules' server.
-    pub enabled: bool,
+    /// The host has a way to reach the rules' server.
+    pub reachable: bool,
     /// A rules job is in flight already.
     pub running: bool,
     /// What else is at work.
@@ -156,9 +157,11 @@ impl Session {
         let mut due = Vec::new();
         // One thing at a time: the calendar's job, the to-dos', the automatic replies', a
         // Send/Receive and a sign-in go first (the jobs renew the same sign-in).
-        if !facts.enabled || facts.running || facts.busy.blocks(Start::Rules) {
+        if !facts.reachable || !self.driver.auto_sync() || facts.running || facts.busy.blocks(Start::Rules) {
             return due;
         }
+        // Working offline: the books go on, nothing is started.
+        let offline = self.prefs.offline;
         for account in rules_remote::rule_accounts(&self.mailbox) {
             if self.rules_signed_out(account, refresh(account).as_deref()) {
                 continue;
@@ -172,7 +175,7 @@ impl Session {
             let book = &mut self.driver.rules.book;
             let pushes = book.quiet_over(&Pacing::RULES, account, ready, now);
             let asked = book.checked(account);
-            if !(pushes || asked.is_none_or(|at| now - at >= Pacing::RULES.refresh_ms)) || !book.patient(&Pacing::RULES, account, now) {
+            if !(pushes || asked.is_none_or(|at| now - at >= Pacing::RULES.refresh_ms)) || !book.patient(&Pacing::RULES, account, now) || offline {
                 continue;
             }
             due.push(RulesPlan { account, writes });

@@ -283,9 +283,10 @@ impl Endpoints {
                 // asked for before them is then what a refused page falls back to.)
                 let (consent, lesser) =
                     if FAVORITES_AT_SIGN_IN { (format!("{consent} {MICROSOFT_GRAPH_FAVORITES}"), consent) } else { (consent, String::new()) };
+                let (page, login) = microsoft_login();
                 Endpoints {
-                    authorize: format!("{MICROSOFT_LOGIN}/{tenant}/oauth2/v2.0/authorize"),
-                    token: format!("{MICROSOFT_LOGIN}/{tenant}/oauth2/v2.0/token"),
+                    authorize: format!("{page}/{tenant}/oauth2/v2.0/authorize"),
+                    token: format!("{login}/{tenant}/oauth2/v2.0/token"),
                     scope,
                     consent,
                     lesser,
@@ -300,6 +301,17 @@ impl Endpoints {
             },
         }
     }
+}
+
+/// Where Microsoft's sign-in page and its token endpoint are: its own address, always. (Only the
+/// phone's end-to-end build, with the stand-in, may have a whole process sign in at a stand-in on
+/// the device instead: `graph::standin::route_this_process`.)
+fn microsoft_login() -> (String, String) {
+    #[cfg(any(test, feature = "stand-in"))]
+    if let Some(base) = crate::graph::standin::routed_everywhere() {
+        return (crate::graph::standin::STAND_IN_PAGE.to_string(), base);
+    }
+    (MICROSOFT_LOGIN.to_string(), MICROSOFT_LOGIN.to_string())
 }
 
 /// Sign the owner in on the provider's page and bring back the tokens for the mail servers.
@@ -1867,9 +1879,11 @@ pub fn sign_in_google_explained_at(
     google::sign_in_google_refused(endpoints, oauth, client_secret, login_hint, open, cancel, SIGN_IN_TIMEOUT).map_err(SignInEnd::from)
 }
 
+mod permission;
+pub use permission::{Ending, Permission, permission_endpoints, sign_in_ending_via, sign_in_for_permission_at};
 mod scheme;
 use scheme::Landing;
-pub use scheme::{CustomScheme, DEFAULT_REDIRECT_PATH, Handback, RedirectStrategy};
+pub use scheme::{CustomScheme, DEFAULT_REDIRECT_HOST, DEFAULT_REDIRECT_PATH, Handback, RedirectStrategy};
 
 /// [`sign_in_at`], coming back the way `via` says: through a loopback port (what a desktop does)
 /// or through a custom scheme the platform hands back ([`RedirectStrategy::CustomScheme`]).
@@ -1915,6 +1929,8 @@ pub use google::{refresh_google_at, sign_in_google_at};
 
 #[cfg(test)]
 mod google_tests;
+#[cfg(test)]
+mod permission_tests;
 #[cfg(test)]
 mod scheme_tests;
 #[cfg(test)]

@@ -135,7 +135,7 @@ fn the_choice_is_in_options() {
     use egui_kittest::kittest::Queryable as _;
     for theme in ["light", "dark"] {
         let mut a = app(None);
-        a.auto_sync = false;
+        a.session.driver.set_auto_sync(false);
         a.execute("ui.theme", json!({"value": theme})).unwrap();
         let mut harness = egui_kittest::Harness::builder()
             .with_accessibility_check(false)

@@ -79,7 +79,7 @@ pub fn install(ctx: &Context, app: &MailApp) -> Result<MenuBar, Box<dyn std::err
     }
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
         // Quit asks the window to close, so a message being written is asked about first.
-        if !crate::quit::on_menu_event(&ctx, event.id.as_ref()) {
+        if !crate::tray::on_menu_event(&ctx, event.id.as_ref()) && !crate::quit::on_menu_event(&ctx, event.id.as_ref()) {
             let _ = tx.send(event.id.as_ref().to_string());
         }
         ctx.request_repaint();

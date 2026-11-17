@@ -48,7 +48,8 @@ fn a_window_opened_while_the_main_window_is_minimized_waits_for_it() {
     let asked = Rc::new(Cell::new(0));
     let ctx = backend(&asked);
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let message = app.session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
     app.execute("ui.openWindow", json!({"message": message})).unwrap();
     app.set_monitors(Vec::new());

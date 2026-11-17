@@ -378,6 +378,8 @@ pub struct Preset {
     found: Option<Via>,
     /// Which of the two servers are such a guess, the incoming first.
     guessed: (bool, bool),
+    /// Where each of the two servers came from, the incoming first; `None` for a guess.
+    sources: (Option<Via>, Option<Via>),
 }
 
 impl Preset {
@@ -389,6 +391,7 @@ impl Preset {
         let via = |k: &str| v.get(k).and_then(|server| server.get("via")).and_then(Value::as_str).unwrap_or_default();
         let known = v.get("known").and_then(Value::as_bool).unwrap_or(false);
         let found = if known { None } else { v.get("via").and_then(Value::as_str).and_then(Via::parse) };
+        let sources = if found.is_some() { (Via::parse(via("incoming")), Via::parse(via("outgoing"))) } else { (None, None) };
         Preset {
             known,
             service: text("service", 60),
@@ -398,17 +401,17 @@ impl Preset {
             outgoing: ServerFields::read(v.get("outgoing")),
             note: text("note", 300),
             found,
-            guessed: if found.is_some() { (Via::parse(via("incoming")).is_none(), Via::parse(via("outgoing")).is_none()) } else { (false, false) },
+            guessed: if found.is_some() { (sources.0.is_none(), sources.1.is_none()) } else { (false, false) },
+            sources,
         }
     }
 
-    /// The hosts that were found rather than guessed, in lower case.
-    fn found_hosts(&self) -> Vec<String> {
-        [(&self.incoming, self.guessed.0), (&self.outgoing, self.guessed.1)]
+    /// The hosts that were found rather than guessed, in lower case, each with where it was found.
+    fn found_hosts(&self) -> Vec<(String, Via)> {
+        [(&self.incoming, self.sources.0), (&self.outgoing, self.sources.1)]
             .into_iter()
-            .filter(|(_, guessed)| !guessed)
-            .map(|(server, _)| server.host.trim().to_ascii_lowercase())
-            .filter(|host| !host.is_empty())
+            .filter_map(|(server, source)| source.map(|via| (server.host.trim().to_ascii_lowercase(), via)))
+            .filter(|(host, _)| !host.is_empty())
             .collect()
     }
 }
@@ -471,9 +474,10 @@ pub struct AccountSetup {
     guessed: bool,
     /// The servers (or one of them) were found in the domain's own records or a database
     /// (#1063): where, so the page says so; which hosts, so that one outside the owner's
-    /// domain is asked about before the password goes there; and the hosts the owner agreed to.
+    /// domain is asked about before the password goes there, each with the source that named
+    /// it, so that the question says who did; and the hosts the owner agreed to.
     found: Option<Via>,
-    found_hosts: Vec<String>,
+    found_hosts: Vec<(String, Via)>,
     agreed_hosts: Vec<String>,
     password: Secret,
     /// The application (client) ID Microsoft's sign-in goes by.
@@ -535,6 +539,9 @@ pub struct AccountSetup {
     /// The settings are of an account kept in step through Microsoft Graph (R3): it has no user
     /// name or mail servers to show, and the page says how its mail comes instead (#312).
     graph: bool,
+    /// The settings are of a shared mailbox (#70): only its name in the folder pane and its
+    /// colour are its own, kept on this computer (#1385); its owner's sign-in reads it.
+    shared: Option<String>,
     /// The settings are of an account a newer MailCraft added: nothing of it can be changed
     /// here, and the page says why.
     newer: bool,
@@ -648,6 +655,7 @@ impl AccountSetup {
             color: None,
             gmail: None,
             graph: false,
+            shared: None,
             newer: false,
             ctx: None,
             reveal: false,
@@ -658,8 +666,9 @@ impl AccountSetup {
 
     /// The wizard, with `p.email` and `p.displayName` filled in when given; or, with `p.id`, the
     /// settings of that account. `None` for an account that isn't there, for the nameless
-    /// mailbox of a new installation, which has nothing to change until an address is added, and
-    /// for a shared mailbox, which has no settings of its own: its owner's sign-in reads it (#70).
+    /// mailbox of a new installation, which has nothing to change until an address is added. A
+    /// shared mailbox's settings are only its name and colour: its owner's sign-in reads it (#70,
+    /// #1385).
     pub fn open(app: &MailApp, p: &Value) -> Option<AccountSetup> {
         match p.get("id").and_then(Value::as_u64).filter(|id| *id != 0) {
             // What to do when its organisation has to approve MailCraft first, for an account
@@ -667,7 +676,14 @@ impl AccountSetup {
             Some(id) if p.get("page").and_then(Value::as_str) == Some("approval") => AccountSetup::approval_for(app, id),
             // The certificate of an Exchange server account's server, asked about again (#252).
             Some(id) if p.get("page").and_then(Value::as_str) == Some("certificate") => AccountSetup::review_certificate(app, id),
-            Some(id) => app.session.mailbox.account(id).filter(|a| !a.email.is_empty() && !a.is_shared()).map(AccountSetup::edit),
+            Some(id) => app.session.mailbox.account(id).filter(|a| !a.email.is_empty()).map(|a| {
+                let mut w = AccountSetup::edit(a);
+                if let Some(owner) = a.shared_of {
+                    let owner = app.session.mailbox.account(owner).map(|o| line(&o.email, LINE)).unwrap_or_default();
+                    w.shared = Some(owner);
+                }
+                w
+            }),
             None if p.get("page").and_then(Value::as_str) == Some("exchange")
                 && address(&line(p.get("email").and_then(Value::as_str).unwrap_or_default(), LINE)).is_some() =>
             {
@@ -765,6 +781,7 @@ impl AccountSetup {
                 records.insert("outgoing".into(), server(outgoing));
             }
             if !records.is_empty() {
+                records.insert("username".into(), json!(line(&found.username, LINE)));
                 m.insert("found".into(), Value::Object(records));
             }
         }
@@ -953,12 +970,33 @@ impl AccountSetup {
     /// The hosts among the servers that the domain's records named (#1063) and that lie outside
     /// the owner's domain, which the owner hasn't agreed to yet: the password goes to none of
     /// them before the owner has been asked, naming them. A host the owner typed is their own.
+    /// Where the servers that were found came from, each source once, the incoming server's
+    /// first; none for a guess or a provider this program knows.
+    fn sources(&self) -> Vec<Via> {
+        let mut sources: Vec<Via> = Vec::new();
+        for via in self.found_hosts.iter().map(|(_, via)| *via).chain(self.found) {
+            if !sources.contains(&via) {
+                sources.push(via);
+            }
+        }
+        if self.found.is_some() { sources } else { Vec::new() }
+    }
+
+    /// The source that named `host` (in lower case); the servers' own when nothing says.
+    fn source_of(&self, host: &str) -> Via {
+        self.found_hosts.iter().find(|(found, _)| found == host).map(|(_, via)| *via).or(self.found).unwrap_or(Via::Srv)
+    }
+
     fn hosts_to_ask(&self) -> Vec<String> {
         let Some((_, domain)) = address(&self.email) else { return Vec::new() };
         let domain = domain.to_ascii_lowercase();
         let mut hosts: Vec<String> = Vec::new();
         for host in [&self.incoming.host, &self.outgoing.host].map(|host| host.trim().to_ascii_lowercase()) {
-            if self.found_hosts.contains(&host) && !is_within(&host, &domain) && !self.agreed_hosts.contains(&host) && !hosts.contains(&host) {
+            if self.found_hosts.iter().any(|(found, _)| *found == host)
+                && !is_within(&host, &domain)
+                && !self.agreed_hosts.contains(&host)
+                && !hosts.contains(&host)
+            {
                 hosts.push(host);
             }
         }
@@ -1900,14 +1938,33 @@ impl AccountSetup {
     fn server_consent_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
         // Whole, however long: two hosts that end alike must not look alike here.
-        let hosts = self.hosts_to_ask().join(", ");
+        let asked = self.hosts_to_ask();
+        let hosts = asked.join(", ");
         let domain = address(&self.email).map(|(_, domain)| shown(domain, 120)).unwrap_or_default();
-        let why = match self.found.unwrap_or(Via::Srv) {
-            Via::Srv => tl!("The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."),
-        };
+        // Each host with the source that named it: one sentence a source, so that a host is
+        // never said to come from the domain's own records when a database named it.
+        let whys: Vec<String> = self
+            .sources()
+            .into_iter()
+            .filter_map(|via| {
+                let named: Vec<&str> = asked.iter().filter(|host| self.source_of(host) == via).map(String::as_str).collect();
+                let why = match via {
+                    Via::Srv => tl!("The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."),
+                    Via::Autoconfig => {
+                        tl!("What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain.")
+                    }
+                    Via::Ispdb => {
+                        tl!("Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain.")
+                    }
+                };
+                (!named.is_empty()).then(|| fmt(why, &[("domain", &domain), ("hosts", &named.join(", "))]))
+            })
+            .collect();
         page(ui, &t, |ui| {
             heading(ui, tl!("Send your password to another server?"), &t);
-            ui.label(RichText::new(fmt(why, &[("domain", &domain), ("hosts", &hosts)])).font(medium(13.0)).color(t.text));
+            for why in &whys {
+                ui.label(RichText::new(why).font(medium(13.0)).color(t.text));
+            }
             note(
                 ui,
                 &fmt(
@@ -2047,10 +2104,32 @@ impl AccountSetup {
         page(ui, &t, |ui| {
             heading(ui, &title, &t);
             note(ui, &shown(self.email.trim(), 120), t.text_dim);
-            if let Some(via) = self.found {
-                let domain = address(&self.email).map(|(_, domain)| shown(domain, 120)).unwrap_or_default();
+            let sources = self.sources();
+            let domain = address(&self.email).map(|(_, domain)| shown(domain, 120)).unwrap_or_default();
+            // Two sources: each server by its name, with the source that named it.
+            if sources.len() > 1 {
+                let mut said: Vec<&(String, Via)> = Vec::new();
+                for found in &self.found_hosts {
+                    if said.contains(&found) {
+                        continue;
+                    }
+                    said.push(found);
+                    let what = match found.1 {
+                        Via::Srv => tl!("{host} was found in the DNS records of {domain} (its SRV records)."),
+                        Via::Autoconfig => tl!("{host} is what {domain} publishes for mail programs (its autoconfig document)."),
+                        Via::Ispdb => tl!("{host} is what Mozilla's ISP database lists for {domain}."),
+                    };
+                    note(ui, &fmt(what, &[("host", &found.0), ("domain", &domain)]), t.text);
+                }
+                note(ui, tl!("Check both servers before you connect."), t.text);
+            }
+            for via in sources.into_iter().filter(|_| self.sources().len() == 1) {
                 let what = match via {
                     Via::Srv => tl!("The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."),
+                    Via::Autoconfig => tl!(
+                        "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+                    ),
+                    Via::Ispdb => tl!("The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."),
                 };
                 note(ui, &fmt(what, &[("domain", &domain)]), t.text);
             }
@@ -2256,6 +2335,9 @@ impl AccountSetup {
         if self.newer {
             return self.newer_page(ui, pass);
         }
+        if let Some(owner) = self.shared.clone() {
+            return self.shared_page(ui, pass, &owner);
+        }
         let t = pass.t;
         let exchange = self.ews.is_some();
         let asks = self.oauth.is_none()
@@ -2404,6 +2486,43 @@ impl AccountSetup {
         } else {
             (save || pass.submit).then_some(Action::Go)
         }
+    }
+
+    /// The settings of a shared mailbox (#1385): what the folder pane calls it and its colour,
+    /// kept on this computer. Its sign-in, servers and mail to keep offline are the account's it
+    /// is opened through (`owner`).
+    fn shared_page(&mut self, ui: &mut Ui, pass: &mut Pass, owner: &str) -> Option<Action> {
+        let t = pass.t;
+        page(ui, &t, |ui| {
+            heading(ui, &shown(self.email.trim(), 120), &t);
+            let how = if owner.is_empty() {
+                tl!("A shared mailbox, read with the sign-in of the account it is opened through").to_string()
+            } else {
+                fmt(tl!("A shared mailbox, read with the sign-in of {account}"), &[("account", &shown(owner, 120))])
+            };
+            note(ui, &how, t.text_dim);
+            let address = shown(self.email.trim(), 120);
+            field(ui, pass, "accountName", tl!("Account name"), &mut self.account_name, &address, LINE);
+            note(
+                ui,
+                tl!("Shown in the folder pane, such as Team or Support. Leave it empty to show the address. Kept on this computer only."),
+                t.text_dim,
+            );
+            if let Some((_, color)) = self.color.as_mut() {
+                caption(ui, tl!("Colour"), &t);
+                if let Some(picked) = crate::widgets::color_swatch(ui, 24.0, *color, Some(tl!("No colour"))) {
+                    *color = picked;
+                }
+                note(ui, tl!("Shown beside the account's name, and on its mail where mail of several accounts is listed together."), t.text_dim);
+            }
+        });
+        problem(ui, &self.error);
+        let (mut save, mut cancel) = (false, false);
+        strip(ui, self.page, |ui| {
+            save = button(ui, tl!("Save"), true, true).clicked();
+            cancel = button(ui, tl!("Cancel"), false, true).clicked();
+        });
+        if cancel { Some(Action::Back) } else { (save || pass.submit).then_some(Action::Go) }
     }
 
     /// The settings of an account a newer MailCraft added: what it is, and nothing to change (its
@@ -2599,7 +2718,7 @@ fn indented(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
 const GOOGLE_APP_PASSWORDS: &str = "https://myaccount.google.com/apppasswords";
 
 fn google_testers_note() -> &'static str {
-    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk.")
+    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft.")
 }
 
 /// Whether `host` is Google's mail server (Gmail, Google Workspace).
@@ -2749,7 +2868,8 @@ mod tests {
         let mailbox = if sample { mailcraft_engine::sample::mailbox(NOW, 0) } else { mailcraft_model::Mailbox::with_local_account("", "") };
         let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
         // Nothing happens by itself: what a test sees synchronised, it or the wizard asked for.
-        (app.autosave, app.auto_sync) = (false, false);
+        app.autosave = false;
+        app.session.driver.set_auto_sync(false);
         app
     }
 
@@ -2994,11 +3114,12 @@ mod tests {
                 via: Via::Srv,
             }),
             outgoing: None,
+            username: "%EMAILLOCALPART%".into(),
         };
         let (_, params) = w.preset_command(Some(&found), None).unwrap();
         assert_eq!(
             params,
-            json!({"email": "noor@example.org", "mx": ["mx.example.org"], "found": {"incoming": {"host": "imap.example.org", "port": 993, "security": "tls", "via": "srv"}}})
+            json!({"email": "noor@example.org", "mx": ["mx.example.org"], "found": {"incoming": {"host": "imap.example.org", "port": 993, "security": "tls", "via": "srv"}, "username": "%EMAILLOCALPART%"}})
         );
         // A tile of the Choose page names the service; "This device only" adds a mailbox without servers.
         assert_eq!(
@@ -3143,11 +3264,13 @@ mod tests {
             exchangers: vec![long.clone(); 500],
             incoming: Some(provider::FoundServer { server: Server { host: long.clone(), port: 993, security: Security::Tls }, via: Via::Srv }),
             outgoing: None,
+            username: long.clone(),
         };
         let (_, params) = w.preset_command(Some(&hostile), None).unwrap();
         let passed = params["mx"].as_array().unwrap();
         assert!(passed.len() == 20 && passed.iter().all(|host| host.as_str().unwrap().chars().count() <= 255));
         assert!(params["found"]["incoming"]["host"].as_str().unwrap().chars().count() <= HOST);
+        assert!(params["found"]["username"].as_str().unwrap().chars().count() <= LINE);
         let answer = a.session.run("account.preset", &params).unwrap();
         assert_eq!((answer["via"].as_str(), answer["incoming"]["host"].as_str()), (Some("guess"), Some("imap.example.org")));
     }
@@ -3880,7 +4003,7 @@ mod tests {
                         // Servers the domain's records named, one of them outside the domain (#1063).
                         if matches!(page_in_view, Page::Password | Page::ServerConsent) {
                             (w.found, w.incoming.host, w.found_hosts) =
-                                (Some(Via::Srv), "imap.hosted.example".into(), vec!["imap.hosted.example".into()]);
+                                (Some(Via::Srv), "imap.hosted.example".into(), vec![("imap.hosted.example".into(), Via::Srv)]);
                         }
                     }
                     if hostile {
@@ -3954,8 +4077,8 @@ mod tests {
 
     /// (#312) The settings of an account kept in step through Microsoft Graph show what applies
     /// to it: its name, its Microsoft sign-in and its mail to keep offline, and say how its mail
-    /// comes; no user name and no mail servers, which it doesn't have. Save keeps it on Graph. A
-    /// shared mailbox opened through it has no settings to open (#70).
+    /// comes; no user name and no mail servers, which it doesn't have. Save keeps it on Graph. (A
+    /// shared mailbox's settings: `tests/account_name.rs`.)
     #[test]
     fn graph_account_settings_have_no_mail_servers() {
         let mut a = app(true);
@@ -3972,13 +4095,6 @@ mod tests {
         let account = h.state().session.mailbox.account(id).unwrap();
         assert_eq!((account.display_name.as_str(), account.kind), ("Ada Lovelace", AccountKind::Microsoft));
         assert_eq!((account.incoming.as_ref(), account.outgoing.as_ref()), (None, None));
-
-        let shared = h.state_mut().execute("account.addSharedMailbox", json!({"account": id, "address": "team@lumen.example"})).unwrap()["id"]
-            .as_u64()
-            .unwrap();
-        assert!(h.state_mut().execute("ui.dialog", json!({"name": "account", "id": shared})).is_err());
-        h.run_steps(4);
-        assert_eq!(page(&h), None);
     }
 
     /// The settings of an account a newer MailCraft added say what it is and offer nothing to

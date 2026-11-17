@@ -59,7 +59,8 @@ fn what_the_format_carries_goes_both_ways() {
         categories: vec!["Work".into()],
         answered: true,
         draft: true,
-        headers: vec![("X-A".into(), "b".into())],
+        headers: vec![("List-Id".into(), "<news.example.org>".into())],
+        header_block: mailcraft_model::headers::split(vec![("X-A".into(), "b".into()), ("List-Id".into(), "<news.example.org>".into())]).1,
         fresh_stamps: true,
         original: Original::new(b"Content-Type: multipart/signed\r\n\r\n".to_vec()),
         ..Message::default()

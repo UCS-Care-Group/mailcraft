@@ -20,21 +20,17 @@ use mailcraft_model::remote::{opened_address, opened_id};
 use crate::MailApp;
 use crate::theme::{Tokens, regular};
 
-/// Most headers of a message that are looked at.
-const MAX_HEADERS_READ: usize = 2_000;
 /// The folder type of a calendar, in a sharing message's headers.
 const CALENDAR_FOLDER: &str = "IPF.Appointment";
 
-/// Whether the message is a sharing invitation for a calendar, by its headers.
+/// Whether the message is a sharing invitation for a calendar, by its headers (those it keeps on
+/// itself: `mailcraft_model::headers::WORKING`).
 pub(crate) fn is_calendar_share(m: &Message) -> bool {
-    let header = |name: &str| {
-        m.headers.iter().take(MAX_HEADERS_READ).find(|(have, _)| have.eq_ignore_ascii_case(name)).map(|(_, value)| value.trim().to_string())
+    let calendar = |value: Option<&str>| {
+        value.map(str::trim).is_some_and(|value| value.len() <= 64 && value.to_ascii_lowercase().starts_with(&CALENDAR_FOLDER.to_ascii_lowercase()))
     };
-    let calendar = |value: Option<String>| {
-        value.is_some_and(|value| value.len() <= 64 && value.to_ascii_lowercase().starts_with(&CALENDAR_FOLDER.to_ascii_lowercase()))
-    };
-    header("X-Sharing-Provider-Guid").is_some_and(|guid| !guid.is_empty())
-        && (calendar(header("X-Sharing-Remote-Type")) || calendar(header("X-Sharing-Local-Type")))
+    m.header("X-Sharing-Provider-Guid").is_some_and(|guid| !guid.trim().is_empty())
+        && (calendar(m.header("X-Sharing-Remote-Type")) || calendar(m.header("X-Sharing-Local-Type")))
 }
 
 /// The address of whoever shared, when it is one a mailbox can be opened at.

@@ -96,6 +96,21 @@ pub struct CalendarDriver {
 }
 
 impl CalendarDriver {
+    /// Account removal: nothing of these accounts' calendar jobs or permission is kept.
+    pub fn forget_accounts(&mut self, gone: &HashSet<Id>) {
+        self.book.forget_accounts(gone);
+        self.sent.retain(|account, _| !gone.contains(account));
+        self.by_hand.retain(|account| !gone.contains(account));
+        self.shown.retain(|account, _| !gone.contains(account));
+        self.extras_missing.retain(|account| !gone.contains(account));
+        self.settings_asked.retain(|account, _| !gone.contains(account));
+        self.send_waits.retain(|account| !gone.contains(account));
+        self.held_told.retain(|account, _| !gone.contains(account));
+        self.consent_needed.retain(|account| !gone.contains(account));
+        self.checked.retain(|account, _| !gone.contains(account));
+        self.shared_perm.retain(|account, _| !gone.contains(account));
+    }
+
     /// Another mailbox took the place of the open one: what a job in flight was for is let go of
     /// (AU3-V8).
     pub fn forget_jobs(&mut self) {

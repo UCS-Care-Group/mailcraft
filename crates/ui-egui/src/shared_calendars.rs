@@ -34,11 +34,9 @@ impl MailApp {
     /// question first, with the calendar in front (the owner ticked it), then Microsoft's page.
     /// Called every look at the calendar.
     pub(crate) fn shared_calendars_ask_tick(&mut self) {
-        if self.dialog.is_some() || self.session.view.module != mailcraft_engine::Module::Calendar || self.ui.backstage {
-            return;
+        if let Some(shared) = self.session.shared_calendars_question(&self.ask_window()) {
+            self.ask_shared_calendars(shared);
         }
-        let Some(shared) = self.session.shared_calendar_to_ask() else { return };
-        self.ask_shared_calendars(shared);
     }
 
     /// The question before Microsoft's page: what is asked of the owner and why.

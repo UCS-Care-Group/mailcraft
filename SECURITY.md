@@ -38,7 +38,7 @@ example:
 
 ## Known limits (not vulnerabilities)
 
-- There is no S/MIME or OpenPGP yet: signed and encrypted parts are shown as attachments.
+- S/MIME and OpenPGP signatures are checked where a message is read, but a certificate's revocation is not; signing and encrypting the mail you send, and opening encrypted mail, are not built yet ([#30](https://github.com/UCS-Care-Group/mailcraft/issues/30)).
 - The mailbox file on disk isn't encrypted by MailCraft; it relies on the operating system's disk
   encryption (BitLocker, FileVault, LUKS).
 - Anyone who can run programs as you on your computer can read your mailbox; MailCraft doesn't

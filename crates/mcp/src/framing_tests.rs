@@ -71,6 +71,8 @@ fn fixture() -> Fixture {
             hidden_text: marked("hiddenText"),
             attachments: vec![Attachment::new(marked("attachment"), "text/plain", marked("bytes").into_bytes())],
             categories: vec![marked("category")],
+            // A Gmail account's labels of it (#1153), names a server gave.
+            gmail_labels: vec![marked("gmailLabel")],
             headers: vec![(marked("headerName"), marked("headerValue"))],
             ..Default::default()
         })

@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The changes of messages going up: what is asked of the server for each kind, what its answers are taken
 //! for, in how many calls, in which pieces, and what a hostile answer makes of it. Over the stand-in and over
-//! scripted servers; every message and address is invented.
+//! scripted servers; every message and address is invented. The helpers here serve the tests of sending too.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::AtomicBool;
 
-use mailcraft_model::sync::{JmapChange, JmapChangeDone, JmapOutcome};
+use mailcraft_model::sync::{JmapChange, JmapChangeDone, JmapOutcome, SendDone};
 use proptest::prelude::*;
 use serde_json::json;
 
@@ -17,7 +17,9 @@ use super::*;
 use crate::connection::tests::any_json;
 use crate::standin::{Profile, SESSION, StandIn, TOKEN};
 use crate::test_support::made_secret;
-use crate::{CAPABILITY_CORE as CORE, CAPABILITY_MAIL as MAIL, Credentials, HttpRequest, HttpResponse, Method, block_on};
+use crate::{
+    CAPABILITY_CORE as CORE, CAPABILITY_MAIL as MAIL, CAPABILITY_SUBMISSION as SUBMISSION, Credentials, HttpRequest, HttpResponse, Method, block_on,
+};
 
 pub(super) const ME: &str = "ada@example.org";
 pub(super) const ID: u64 = 3;
@@ -43,14 +45,19 @@ impl Fake {
 
     /// The arguments of each call to `method`, in the order they were made.
     pub(super) fn args_of(&self, method: &str) -> Vec<Value> {
-        self.sent.borrow().iter().flat_map(calls_of).filter(|(name, _)| name == method).map(|(_, args)| args).collect()
+        self.sent.borrow().iter().filter(|req| !is_upload(req)).flat_map(calls_of).filter(|(name, _)| name == method).map(|(_, args)| args).collect()
     }
 
-    /// The methods each request to the API called.
+    /// The methods each request to the API called (an upload is `["upload"]`).
     pub(super) fn posts(&self) -> Vec<Vec<String>> {
         let sent = self.sent.borrow();
         let posts = sent.iter().filter(|req| req.method() == Method::Post);
-        posts.map(|req| calls_of(req).into_iter().map(|(name, _)| name).collect()).collect()
+        posts.map(|req| if is_upload(req) { vec!["upload".to_string()] } else { calls_of(req).into_iter().map(|(name, _)| name).collect() }).collect()
+    }
+
+    /// The uploads it was sent.
+    pub(super) fn uploads(&self) -> Vec<HttpRequest> {
+        self.sent.borrow().iter().filter(|req| is_upload(req)).cloned().collect()
     }
 }
 
@@ -60,6 +67,10 @@ impl HttpExchange for Fake {
         self.sent.borrow_mut().push(req.clone());
         (self.answer)(req, before)
     }
+}
+
+pub(super) fn is_upload(req: &HttpRequest) -> bool {
+    req.url().contains("/jmap/upload/")
 }
 
 /// The method calls of a request to the API: name and arguments.
@@ -89,13 +100,19 @@ pub(super) enum Answer {
     Missing,
 }
 
-/// The session of a scripted server: its core limits as `core` says.
-pub(super) fn session_reply(core: Value) -> Reply {
+/// The session of a scripted server: its core limits as `core` says, and sending when `submission`.
+pub(super) fn session_reply(core: Value, submission: bool) -> Reply {
+    let mut capabilities = json!({CORE: core, MAIL: {}});
+    let mut account = json!({MAIL: {}});
+    if submission {
+        capabilities[SUBMISSION] = json!({});
+        account[SUBMISSION] = json!({"maxDelayedSend": 0, "submissionExtensions": {}});
+    }
     json_reply(
         200,
         &json!({
-            "capabilities": {CORE: core, MAIL: {}},
-            "accounts": {"A1": {"name": ME, "isPersonal": true, "accountCapabilities": {MAIL: {}}}},
+            "capabilities": capabilities,
+            "accounts": {"A1": {"name": ME, "isPersonal": true, "accountCapabilities": account}},
             "primaryAccounts": {MAIL: "A1"},
             "apiUrl": "https://jmap.example.org/jmap/api",
             "downloadUrl": "/jmap/download/{accountId}/{blobId}/{name}?type={type}",
@@ -143,7 +160,7 @@ pub(super) fn reading(name: &str, _args: &Value) -> Answer {
 pub(super) fn server(f: impl Fn(&str, &Value) -> Option<Answer> + 'static) -> Fake {
     Fake::new(move |req, _| {
         if req.method() == Method::Get {
-            return session_reply(json!({"maxCallsInRequest": 16}));
+            return session_reply(json!({"maxCallsInRequest": 16}), true);
         }
         api_reply(req, |name, args| f(name, args).unwrap_or_else(|| reading(name, args)))
     })
@@ -187,22 +204,23 @@ pub(super) fn run_stand_in(stand_in: &StandIn, request: &JmapMailRequest) -> Vec
 }
 
 /// What every run is like: pieces for the account, all `partial` but the last; each of the others one thing
-/// (what became of some changes, the list, or a window), and in that order.
+/// (what became of some changes, of one message sent, the list, or a window), and in that order.
 pub(super) fn shaped(pieces: &[JmapMailResult]) {
     let (last, rest) = pieces.split_last().expect("a run ends with a piece");
-    assert!(!last.partial && last.pages.is_empty() && last.listing.is_none() && last.changes.is_empty(), "{last:?}");
+    assert!(!last.partial && last.pages.is_empty() && last.listing.is_none() && last.changes.is_empty() && last.sent.is_empty(), "{last:?}");
     assert!(rest.iter().all(|piece| piece.partial && piece.errors.is_empty() && !piece.whole && !piece.stopped), "{rest:?}");
-    assert!(pieces.iter().all(|piece| piece.account == ID && piece.email == ME && !piece.session.is_empty() && piece.sent.is_empty()));
+    assert!(pieces.iter().all(|piece| piece.account == ID && piece.email == ME && !piece.session.is_empty()));
     let kinds: Vec<usize> = rest
         .iter()
-        .map(|piece| match (piece.changes.len(), &piece.listing, piece.pages.len()) {
-            (1.., None, 0) => 0,
-            (0, Some(_), 0) => 1,
-            (0, None, 1) => 2,
+        .map(|piece| match (piece.changes.len(), piece.sent.len(), &piece.listing, piece.pages.len()) {
+            (1.., 0, None, 0) => 0,
+            (0, 1, None, 0) => 1,
+            (0, 0, Some(_), 0) => 2,
+            (0, 0, None, 1) => 3,
             _ => panic!("a piece that is not one thing: {piece:?}"),
         })
         .collect();
-    assert!(kinds.is_sorted(), "the changes, the list, the windows: {kinds:?}");
+    assert!(kinds.is_sorted(), "the changes, the Outbox, the list, the windows: {kinds:?}");
     assert!(!(last.whole && (last.stopped || last.auth_refused || last.busy_for.is_some() || !last.errors.is_empty())), "{last:?}");
 }
 
@@ -212,6 +230,10 @@ pub(super) fn last(pieces: &[JmapMailResult]) -> &JmapMailResult {
 
 pub(super) fn changes_of(pieces: &[JmapMailResult]) -> Vec<JmapChangeDone> {
     pieces.iter().flat_map(|piece| piece.changes.iter().cloned()).collect()
+}
+
+pub(super) fn sent_of(pieces: &[JmapMailResult]) -> Vec<SendDone> {
+    pieces.iter().flat_map(|piece| piece.sent.iter().cloned()).collect()
 }
 
 /// Whether the run went on to read: it has a window.
@@ -512,7 +534,7 @@ fn changes_go_as_many_to_a_call_as_the_server_takes_and_500_to_a_run() {
     // A server that takes one at a time is asked one at a time.
     let one = Fake::new(|req, _| {
         if req.method() == Method::Get {
-            return session_reply(json!({"maxCallsInRequest": 16, "maxObjectsInSet": 1}));
+            return session_reply(json!({"maxCallsInRequest": 16, "maxObjectsInSet": 1}), true);
         }
         api_reply(req, |name, args| match name {
             "Email/set" => {
@@ -562,13 +584,13 @@ fn a_call_that_fails_as_a_whole_answers_none_of_its_changes_and_the_run_goes_on_
     let silent = server(|name, _| (name == "Email/set").then_some(Answer::Missing));
     // The connection goes for that one request.
     let dropped = Fake::new(|req, n| match (req.method(), n) {
-        (Method::Get, _) => session_reply(json!({})),
+        (Method::Get, _) => session_reply(json!({}), true),
         (_, 1) => Err(TransportError::TimedOut),
         _ => api_reply(req, reading),
     });
     // The answer is no JMAP.
     let garbled = Fake::new(|req, n| match (req.method(), n) {
-        (Method::Get, _) => session_reply(json!({})),
+        (Method::Get, _) => session_reply(json!({}), true),
         (_, 1) => json_reply(200, &json!({"methodResponses": "no"})),
         _ => api_reply(req, reading),
     });
@@ -586,7 +608,7 @@ fn a_call_that_fails_as_a_whole_answers_none_of_its_changes_and_the_run_goes_on_
     // After a call failed, the calls that would follow it are not made in this run.
     let failing = Fake::new(|req, _| {
         if req.method() == Method::Get {
-            return session_reply(json!({"maxObjectsInSet": 1}));
+            return session_reply(json!({"maxObjectsInSet": 1}), true);
         }
         api_reply(req, |name, args| if name == "Email/set" { Answer::Error("serverFail", String::new()) } else { reading(name, args) })
     });
@@ -599,7 +621,7 @@ fn a_call_that_fails_as_a_whole_answers_none_of_its_changes_and_the_run_goes_on_
 fn a_refused_sign_in_a_busy_server_and_a_stop_end_the_run_at_the_changes() {
     let changes = vec![marks("E1", Some(true), None, None, None)];
     let answering = |status: u16, retry_after: Option<u32>| {
-        Fake::new(move |req, _| if req.method() == Method::Get { session_reply(json!({})) } else { status_reply(status, retry_after) })
+        Fake::new(move |req, _| if req.method() == Method::Get { session_reply(json!({}), true) } else { status_reply(status, retry_after) })
     };
     // 401: the owner signs in again, and nothing is read.
     let fake = answering(401, None);
@@ -625,7 +647,7 @@ fn a_refused_sign_in_a_busy_server_and_a_stop_end_the_run_at_the_changes() {
     let stops = cancel.clone();
     let fake = Fake::new(move |req, _| {
         if req.method() == Method::Get {
-            return session_reply(json!({"maxObjectsInSet": 1}));
+            return session_reply(json!({"maxObjectsInSet": 1}), true);
         }
         stops.store(true, std::sync::atomic::Ordering::Relaxed);
         api_reply(req, |_, args| Answer::Is(json!({"updated": {"E1": null}, "destroyed": args["destroy"].clone()})))
@@ -782,7 +804,7 @@ fn a_look_that_fails_reports_nothing_of_those_emails_and_the_run_goes_on_to_read
     let silent = passing_over(|| Answer::Missing);
     let answering_third = |third: fn() -> Reply| {
         Fake::new(move |req, n| match (req.method(), n) {
-            (Method::Get, _) => session_reply(json!({})),
+            (Method::Get, _) => session_reply(json!({}), true),
             (_, 1) => api_reply(req, |_, _| Answer::Is(json!({"updated": {"E1": null}}))),
             (_, 2) => third(),
             _ => api_reply(req, reading),
@@ -817,7 +839,7 @@ fn a_look_that_fails_reports_nothing_of_those_emails_and_the_run_goes_on_to_read
 fn a_refused_sign_in_a_busy_server_and_a_stop_end_the_run_at_the_look() {
     let answering = |status: u16, retry_after: Option<u32>| {
         Fake::new(move |req, n| match (req.method(), n) {
-            (Method::Get, _) => session_reply(json!({})),
+            (Method::Get, _) => session_reply(json!({}), true),
             (_, 1) => api_reply(req, |_, _| Answer::Is(json!({"updated": {"E1": null}}))),
             _ => status_reply(status, retry_after),
         })
@@ -846,7 +868,7 @@ fn a_refused_sign_in_a_busy_server_and_a_stop_end_the_run_at_the_look() {
     let stops = cancel.clone();
     let fake = Fake::new(move |req, _| {
         if req.method() == Method::Get {
-            return session_reply(json!({}));
+            return session_reply(json!({}), true);
         }
         stops.store(true, std::sync::atomic::Ordering::Relaxed);
         api_reply(req, |_, _| Answer::Is(json!({"updated": {"E1": null}})))
@@ -932,7 +954,7 @@ fn the_look_asks_no_more_ids_at_a_time_than_the_server_answers_in_a_get() {
     let looks = |core: Value| {
         let fake = Fake::new(move |req, _| {
             if req.method() == Method::Get {
-                return session_reply(core.clone());
+                return session_reply(core.clone(), false);
             }
             api_reply(req, |name, args| match name {
                 "Email/set" => Answer::Is(json!({"accountId": "A1", "updated": {"E1": null}})),
@@ -958,7 +980,7 @@ fn a_look_that_fails_ends_the_looking_and_keeps_what_the_looks_before_it_found()
     let count = std::cell::Cell::new(0usize);
     let fake = Fake::new(move |req, _| {
         if req.method() == Method::Get {
-            return session_reply(json!({"maxCallsInRequest": 16, "maxObjectsInGet": 2}));
+            return session_reply(json!({"maxCallsInRequest": 16, "maxObjectsInGet": 2}), false);
         }
         api_reply(req, |name, args| match name {
             "Email/set" => Answer::Is(json!({"accountId": "A1", "updated": {"E1": null}})),
