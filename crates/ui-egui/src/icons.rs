@@ -558,6 +558,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line_c(&[(6.0, 11.0), (13.5, 11.0)], a);
             pen.head(13.5, 11.0, 0.0, 2.75, a);
         }
+        "cut" => {
+            pen.circle(5.5, 14.5, 2.5, c);
+            pen.circle(14.5, 14.5, 2.5, c);
+            pen.line(&[(7.0, 12.5), (15.5, 3.0)]);
+            pen.line(&[(13.0, 12.5), (4.5, 3.0)]);
+        }
         "copy" => {
             pen.rounded(&[(5.5, 13.5), (2.5, 13.5), (2.5, 2.5), (12.5, 2.5), (12.5, 4.5)], false, 1.0, c);
             pen.rect(7.5, 6.5, 17.5, 17.5, c);
@@ -1310,6 +1316,7 @@ pub const NAMES: &[&str] = &[
     "notJunk",
     "move",
     "copy",
+    "cut",
     "flag",
     "toggleFlag",
     "followUp",

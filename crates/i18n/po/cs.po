@@ -1956,8 +1956,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "Připojit soubor"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "Připojit položku"
@@ -3415,8 +3415,8 @@ msgstr "Zkopírováno. Vložte to do e-mailu nebo chatu pro správce."
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "Zkopíruje krátkou zprávu s adresou stránky Microsoftu, kde správce vaší organizace MailCraft schválí, jednou pro všechny. Nic se neodešle: vložte ji sami do e-mailu nebo chatu."
 
-#. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Kopírovat"
@@ -3797,8 +3797,8 @@ msgstr "Aktuální poštovní schránka"
 msgid "Current View"
 msgstr "Aktuální zobrazení"
 
-#. command label, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
+#. command label, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Cut"
 msgstr "Vyjmout"
@@ -5623,6 +5623,11 @@ msgstr "Pro účty IMAP. Účty Microsoft a účty serveru Exchange uchovávají
 #, fuzzy
 msgid "For a mail server your organisation runs itself. MailCraft looks for the server from your address, or you can type its address in Server settings. Nothing is sent until you press Connect."
 msgstr "Pro poštovní server, který provozuje vaše organizace. MailCraft najde server podle vaší adresy, nebo můžete jeho adresu zadat v Nastavení serveru. Nic se neodešle, dokud nestisknete Připojit."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -9063,6 +9068,11 @@ msgstr "Moje úkoly"
 #, fuzzy
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Moje organizace musí MailCraft nejprve schválit: co dělat"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "My outgoing server needs no sign-in"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -15783,6 +15793,11 @@ msgstr "Certifikát nevydala certifikační autorita, které tento počítač d�
 #, fuzzy
 msgid "The colour is set in Outlook"
 msgstr "Barva se nastavuje v Outlooku"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -24430,6 +24445,11 @@ msgid_plural "{sent} messages sent"
 msgstr[0] "Odeslána {sent} zpráva"
 msgstr[1] "Odeslány {sent} zprávy"
 msgstr[2] "Odesláno {sent} zpráv"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

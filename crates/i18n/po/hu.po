@@ -1956,8 +1956,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "Fájl csatolása"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "A tétel csatolása"
@@ -3410,8 +3410,8 @@ msgstr "Kimásolva. Illessze be e-mailbe vagy csevegésbe a rendszergazdájának
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "Kimásol egy rövid üzenetet annak a Microsoft-oldalnak a címével, ahol a rendszergazda az egész szervezet számára jóváhagyhatja a MailCraft használatát. A másolás nem küld üzenetet. A szöveget e-mailbe vagy csevegésbe illesztheti."
 
-#. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Másolás"
@@ -3792,8 +3792,8 @@ msgstr "Aktuális postafiók"
 msgid "Current View"
 msgstr "Jelenlegi nézet"
 
-#. command label, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
+#. command label, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Cut"
 msgstr "Vágás"
@@ -5597,6 +5597,11 @@ msgstr "IMAP fiókok. Microsoft és Exchange szerver fiókok vezetnek posta Mail
 #, fuzzy
 msgid "For a mail server your organisation runs itself. MailCraft looks for the server from your address, or you can type its address in Server settings. Nothing is sent until you press Connect."
 msgstr "A postaszerverhez a szervezet fut. A MailCraft a szervert a címéről keresi, vagy beírhatja a címét a szerver beállításaiba. A Connect megnyomásáig semmi sem kerül elküldésre."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -9025,6 +9030,11 @@ msgstr "Feladataim"
 #, fuzzy
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "A szervezetemnek előbb jóvá kell hagynia a MailCraft használatát. Mi a teendő?"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "My outgoing server needs no sign-in"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -15729,6 +15739,11 @@ msgstr "A tanúsítványt nem egy tanúsító hatóság adta ki, hanem ez a szá
 #, fuzzy
 msgid "The colour is set in Outlook"
 msgstr "A szín az Outlook-ban van beállítva"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -24241,6 +24256,11 @@ msgid "{sent} message sent"
 msgid_plural "{sent} messages sent"
 msgstr[0] "{sent} üzenet elküldve"
 msgstr[1] "{sent} üzenet elküldve"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
