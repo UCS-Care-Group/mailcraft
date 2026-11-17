@@ -5684,8 +5684,9 @@ msgstr "Dla serwera poczty prowadzonego przez Twoją organizację. MailCraft szu
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "For a relay that takes mail without a password: it is never sent yours."
-msgstr ""
+msgstr "Dla serwera przekazującego, który przyjmuje pocztę bez hasła: Twoje hasło nigdy nie jest do niego wysyłane."
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -9159,8 +9160,9 @@ msgstr "Moja organizacja musi najpierw zatwierdzić MailCraft: co zrobić"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "My outgoing server needs no sign-in"
-msgstr ""
+msgstr "Mój serwer wychodzący nie wymaga logowania"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -15956,8 +15958,9 @@ msgstr "Kolor jest ustawiony w Outlooku"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
-msgstr ""
+msgstr "Test połączenia sprawdza tylko, czy ten serwer odpowiada. Jeśli jednak wymaga logowania, pierwsza wysłana wiadomość to pokaże."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -24641,8 +24644,9 @@ msgstr[2] "{sent} wiadomości wysłanych"
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs
+#, fuzzy
 msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
-msgstr ""
+msgstr "{server} (Ten serwer wymaga logowania: odznacz „Mój serwer wychodzący nie wymaga logowania” w ustawieniach konta.)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

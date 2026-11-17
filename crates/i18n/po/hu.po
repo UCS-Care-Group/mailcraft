@@ -5656,8 +5656,9 @@ msgstr "A postaszerverhez a szervezet fut. A MailCraft a szervert a címéről k
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "For a relay that takes mail without a password: it is never sent yours."
-msgstr ""
+msgstr "Olyan továbbítószerverhez, amely jelszó nélkül fogadja a leveleket: az Ön jelszavát sosem kapja meg."
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -9119,8 +9120,9 @@ msgstr "A szervezetemnek előbb jóvá kell hagynia a MailCraft használatát. M
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "My outgoing server needs no sign-in"
-msgstr ""
+msgstr "A kimenő szerverem nem kér bejelentkezést"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -15900,8 +15902,9 @@ msgstr "A szín az Outlook-ban van beállítva"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
-msgstr ""
+msgstr "A kapcsolatteszt csak azt ellenőrzi, hogy a szerver válaszol-e. Ha mégis bejelentkezést kér, az első elküldött levélnél kiderül."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -24449,8 +24452,9 @@ msgstr[1] "{sent} üzenet elküldve"
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs
+#, fuzzy
 msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
-msgstr ""
+msgstr "{server} (Ez a szerver bejelentkezést kér: a fiók beállításaiban törölje a jelet „A kimenő szerverem nem kér bejelentkezést” elől.)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

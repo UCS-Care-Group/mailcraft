@@ -5680,8 +5680,9 @@ msgstr "Pentru un server de e-mail administrat chiar de organizația dvs. MailCr
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "For a relay that takes mail without a password: it is never sent yours."
-msgstr ""
+msgstr "Pentru un server releu care primește e-mail fără parolă: parola dvs. nu îi este trimisă niciodată."
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -9155,8 +9156,9 @@ msgstr "Organizația mea trebuie întâi să aprobe MailCraft: ce trebuie făcut
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "My outgoing server needs no sign-in"
-msgstr ""
+msgstr "Serverul meu de ieșire nu necesită autentificare"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -15952,8 +15954,9 @@ msgstr "Culoarea se setează în Outlook"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
-msgstr ""
+msgstr "Testul conexiunii verifică doar dacă acest server răspunde. Dacă totuși cere autentificare, primul mesaj pe care îl trimiteți vă va spune."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -24634,8 +24637,9 @@ msgstr[2] "{sent} de mesaje trimise"
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs
+#, fuzzy
 msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
-msgstr ""
+msgstr "{server} (Acest server cere autentificare: debifați „Serverul meu de ieșire nu necesită autentificare” în setările contului.)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

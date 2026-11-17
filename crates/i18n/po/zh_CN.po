@@ -5659,8 +5659,9 @@ msgstr "适用于由组织自行运行的邮件服务器。MailCraft 会根据�
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "For a relay that takes mail without a password: it is never sent yours."
-msgstr ""
+msgstr "适用于无需密码即可接收邮件的中继服务器：绝不会向其发送您的密码。"
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -9118,8 +9119,9 @@ msgstr "我的组织必须先批准 MailCraft：该怎么办"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "My outgoing server needs no sign-in"
-msgstr ""
+msgstr "我的发送服务器无需登录"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -15899,8 +15901,9 @@ msgstr "颜色是在 Outlook 中设置的"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
-msgstr ""
+msgstr "连接测试只检查此服务器是否响应。如果它确实需要登录，您发送第一封邮件时会得到提示。"
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -24328,8 +24331,9 @@ msgstr[0] "已发送 {sent} 封邮件"
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs
+#, fuzzy
 msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
-msgstr ""
+msgstr "{server}（此服务器需要登录：请在账户设置中取消勾选“我的发送服务器无需登录”。）"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
