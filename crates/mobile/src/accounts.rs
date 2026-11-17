@@ -383,11 +383,17 @@ impl Core {
         let kept = self
             .call(move |s| {
                 let there = s.mailbox.accounts.iter().any(|a| a.id == account && a.kind == AccountKind::Microsoft);
-                Ok(match (there, sync.remembers()) {
+                let kept = match (there, sync.remembers()) {
                     (false, _) => None,
                     (true, true) => Some(signin::keep_refresh(platform.as_ref(), &for_email, &tokens_refresh)),
                     (true, false) => Some(Ok(())),
-                })
+                };
+                // Allowed, as far as is known: the next to-do job finds out, at once (MB3.18).
+                if permission == Permission::Tasks && matches!(kept, Some(Ok(()))) {
+                    s.driver.tasks.allowed(account);
+                    sync.pacer.poke();
+                }
+                Ok(kept)
             })
             .await?;
         match kept {

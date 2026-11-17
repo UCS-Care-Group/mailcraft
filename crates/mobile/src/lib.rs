@@ -33,6 +33,7 @@ mod error;
 mod events;
 mod fetch;
 mod fetch_api;
+mod jobs;
 mod keep;
 mod limits;
 mod links;
@@ -68,6 +69,8 @@ mod fetch_review_tests;
 mod fetch_tests;
 #[cfg(test)]
 mod host_failure_tests;
+#[cfg(test)]
+mod jobs_tests;
 #[cfg(test)]
 mod junk_tests;
 #[cfg(test)]

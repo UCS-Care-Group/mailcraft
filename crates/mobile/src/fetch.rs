@@ -227,6 +227,11 @@ impl Fetching {
         !self.running.is_empty() || !self.wanted.is_empty()
     }
 
+    /// Whether a background batch is under way.
+    pub(crate) fn background_running(&self) -> bool {
+        self.running.values().any(|j| matches!(j.what, What::Background))
+    }
+
     fn wanted_or_running(&self, message: Id) -> bool {
         self.running.values().any(|j| matches!(j.what, What::Open(m) if m == message))
             || self.wanted.iter().any(|w| matches!(w, Want::Open { message: m, .. } if *m == message))

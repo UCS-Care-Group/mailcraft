@@ -15341,7 +15341,7 @@ msgid "That key is on the card already"
 msgstr "Az a kulcs már a kártyán van."
 
 #. what a command says
-#: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
+#: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
 msgstr "Másik postafiókhoz jelentkezett be. A MailCraft nem mentette a bejelentkezést."
@@ -16824,8 +16824,8 @@ msgstr "Az SMS-t nem találták meg."
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
 msgstr "Az időpont ezen a számítógépen marad; a megjelölés a többi megjelöléshez hasonlóan a fiók kiszolgálójára kerül."
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "A feladat nem volt lépést tartva: a munka váratlanul leállt"

@@ -15262,7 +15262,7 @@ msgid "That key is on the card already"
 msgstr "Cette clé est déjà sur la carte"
 
 #. what a command says
-#: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
+#: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
 msgstr "Cette connexion concerne la boîte aux lettres de quelqu'un d'autre, pas celle de ce compte. Rien n'a été conservé."
@@ -16744,8 +16744,8 @@ msgstr "Le texte n'a pas été trouvé."
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
 msgstr "L'heure est conservée sur cet ordinateur ; un marquage est envoyé au serveur du compte comme tout marquage."
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "Les tâches n'ont pas pu être synchronisées : le travail s'est arrêté de façon inattendue"

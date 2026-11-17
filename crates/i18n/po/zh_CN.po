@@ -15340,7 +15340,7 @@ msgid "That key is on the card already"
 msgstr "该密钥已在卡上"
 
 #. what a command says
-#: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
+#: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
 msgstr "该登录属于他人的邮箱，不是此账户的。未保存任何内容。"
@@ -16822,8 +16822,8 @@ msgstr "未找到该文本。"
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
 msgstr "时间保存在这台计算机上；标记会像任何标记一样发送到账户的服务器。"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "待办事项无法保持同步：作业意外停止"

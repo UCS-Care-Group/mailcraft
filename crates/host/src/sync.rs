@@ -309,6 +309,35 @@ impl SendReceive {
         Adopted::Kept
     }
 
+    /// Take in the refresh token a job of another kind got (the calendar's, the to-dos', which
+    /// renew the sign-in for themselves): it is the account's newest, kept for the session and in
+    /// the credential store when the owner lets it be, while the access token Send/Receive holds
+    /// (and whether it covers the mail) stays as it is. Refused as
+    /// [`adopt_tokens`](Self::adopt_tokens) refuses.
+    pub fn adopt_refresh(&mut self, session: &Session, ctx: &Context, account: Id, tokens: &Tokens) -> Adopted {
+        self.follow_opening(session);
+        let Some(a) = session.mailbox.account(account) else { return Adopted::Refused };
+        if ctx.held() {
+            return Adopted::Refused;
+        }
+        if mailcraft_engine::sync_driver::signed_in_as_other(a, tokens) {
+            return Adopted::WrongPerson;
+        }
+        if tokens.refresh.is_empty() {
+            return Adopted::Kept;
+        }
+        self.remember(session, ctx, account, &tokens.refresh);
+        match self.tokens.get_mut(&account) {
+            Some(kept) => kept.refresh.clone_from(&tokens.refresh),
+            // (No access token of the session: the next mail job renews one with this.)
+            None => {
+                self.tokens.insert(account, Tokens { refresh: tokens.refresh.clone(), ..Default::default() });
+                self.mail_covered.remove(&account);
+            }
+        }
+        Adopted::Kept
+    }
+
     /// Take in a refresh token Microsoft rotated this session's to in the answer to a check of a
     /// permission ([`crate::signin::permission_standing`]): it replaces the session's only while
     /// that is still the one the check began with, so that a sign-in made, or forgotten, meanwhile

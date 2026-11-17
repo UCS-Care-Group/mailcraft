@@ -97,6 +97,9 @@ pub(crate) const IDLE_WAIT: Duration = Duration::from_secs(30);
 pub(crate) const FIRST_WAIT: Duration = Duration::from_secs(1);
 /// The most lines a round keeps to tell the owner, and the longest one.
 const MOST_ERRORS: usize = 20;
+/// The most calendar and to-do jobs the end of a round starts and waits for (one account's
+/// calendar, then its to-dos, a few accounts over): more go on between rounds.
+const MOST_TAIL_STARTS: u32 = 8;
 const LONGEST_ERROR: usize = 200;
 /// How many new messages get a notification each; beyond that, one notification counts them.
 const AT_ONCE: usize = 3;
@@ -186,11 +189,11 @@ pub(crate) struct Inner {
     idle_mark: Option<InboxMark>,
     run_mark: Option<InboxMark>,
     /// A round is under way (the owner's, or one the clock started).
-    active: bool,
+    pub(crate) active: bool,
     /// An account was run in it.
     ran: bool,
-    errors: Vec<String>,
-    last_errors: Vec<String>,
+    pub(crate) errors: Vec<String>,
+    pub(crate) last_errors: Vec<String>,
     last_summary: Option<SyncSummary>,
     pub(crate) needs_sign_in: BTreeSet<u64>,
     unsupported: BTreeMap<u64, AccountKind>,
@@ -217,6 +220,14 @@ pub(crate) struct Inner {
     pub(crate) fetch: crate::fetch::Fetching,
     /// How many rounds have ended: the round under way is known by the count before it ends.
     finished_rounds: u64,
+    /// The calendar's and the to-dos' jobs (MB3.18).
+    pub(crate) jobs: crate::jobs::Jobs,
+    /// How many of those jobs the end of the round under way has started: it waits for them, up
+    /// to [`MOST_TAIL_STARTS`], before it is over.
+    tail_starts: u32,
+    /// A background run waits for the round: its end also brings the messages within Mail to
+    /// keep offline whole (on a connection that isn't paid by the byte), within its time.
+    tail_fetch: bool,
 }
 
 pub(crate) struct SyncHost {
@@ -239,6 +250,10 @@ pub(crate) struct SyncHost {
     pub(crate) fetch_busy: AtomicBool,
     /// How fetch jobs are run (the tests swap theirs in).
     pub(crate) fetch_runner: crate::fetch::RunnerSlot,
+    /// How calendar and to-do jobs are run (the tests swap theirs in).
+    pub(crate) job_runners: Mutex<crate::jobs::Runners>,
+    /// A calendar or to-do job is under way (read by the driver thread, as `busy` is).
+    jobs_busy: AtomicBool,
     /// A round to call off at the next wake (its `finished_rounds` plus one; 0 for none): a
     /// `background_sync` dropped while it waits asks for it, never blocking where it is dropped.
     stop_asked: AtomicU64,
@@ -269,6 +284,8 @@ impl SyncHost {
             pacer: Pacer::default(),
             fetch_busy: AtomicBool::new(false),
             fetch_runner: std::sync::Mutex::new(crate::fetch::default_runner()),
+            job_runners: Mutex::new(crate::jobs::default_runners()),
+            jobs_busy: AtomicBool::new(false),
             stop_asked: AtomicU64::new(0),
             #[cfg(test)]
             refuse_adopt: AtomicBool::new(false),
@@ -281,7 +298,8 @@ impl SyncHost {
 
     /// How long the driver waits before the next wake.
     pub(crate) fn next_wait(&self) -> Duration {
-        if self.busy.load(Ordering::Relaxed) || self.fetch_busy.load(Ordering::Relaxed) { BUSY_WAIT } else { IDLE_WAIT }
+        let busy = self.busy.load(Ordering::Relaxed) || self.fetch_busy.load(Ordering::Relaxed) || self.jobs_busy.load(Ordering::Relaxed);
+        if busy { BUSY_WAIT } else { IDLE_WAIT }
     }
 
     /// The clock of the round's and the background's timers, in milliseconds since the core began.
@@ -486,6 +504,9 @@ impl SyncHost {
             names.insert(secret_key("refresh", a));
         }
         inner.sr.forget();
+        // Nor is anything the calendar's and the to-dos' jobs bring: their tokens are let go of with them.
+        inner.jobs = crate::jobs::Jobs::default();
+        self.jobs_busy.store(false, Ordering::Relaxed);
         // What was being fetched with them is called off, and nothing it brings is taken in.
         self.cancel_locked(&mut inner, None);
         inner.needs_sign_in.clear();
@@ -609,6 +630,8 @@ impl SyncHost {
         }
         if let Some(waiter) = waiter {
             inner.waiters.push(waiter);
+            // A background run: the round's end brings messages whole too, within its time.
+            inner.tail_fetch = true;
         }
         self.tick_locked(&mut inner, session);
         drop(inner);
@@ -667,7 +690,11 @@ impl SyncHost {
         follow_time_zone(session, self.platform.as_ref());
         let platform_offline = matches!(self.host.platform().network(), NetworkState::Offline);
         let secrets = self.host.platform().secrets();
-        let ctx = self.context(session, secrets.as_deref());
+        let mut ctx = self.context(session, secrets.as_deref());
+        // An account's run waits while the calendar's job is at work for it (the desktop's rule).
+        let calendar_for = inner.jobs.calendar.account();
+        let calendar_busy = move |account: u64| calendar_for == Some(account);
+        ctx.job_busy = Some(&calendar_busy);
         // What the phone can't run is told of as `ask` does, whoever starts the round; an account
         // that went, or that the phone can now run, is no longer told of.
         inner.unsupported = server_accounts(session)
@@ -692,12 +719,26 @@ impl SyncHost {
         self.note_keys(inner);
         let working = inner.sr.busy() || !session.driver.round.queue.is_empty();
         self.busy.store(working, Ordering::Relaxed);
-        // What the owner opened goes at once; the background only between rounds.
-        self.fetch_step(inner, session, !working && !inner.active);
+        // The round's mail is in, and its end is still to come.
+        let ending = inner.active || inner.run_mark.is_some();
+        // What the owner opened goes at once; the background between rounds, and at the end of a
+        // background run's round.
+        self.fetch_step(inner, session, !working && (!ending || inner.tail_fetch));
         if working {
             self.progress(inner, session);
         } else {
-            if inner.active || inner.run_mark.is_some() {
+            // The calendar and the to-dos: between rounds, and at the end of each, which waits for them.
+            let may_start = !platform_offline && (!ending || inner.tail_starts < MOST_TAIL_STARTS);
+            let started = self.jobs_step(inner, session, may_start);
+            if ending {
+                inner.tail_starts = inner.tail_starts.saturating_add(started);
+            }
+            let jobs_busy = inner.jobs.busy();
+            self.jobs_busy.store(jobs_busy, Ordering::Relaxed);
+            if ending && (jobs_busy || (inner.tail_fetch && inner.fetch.background_running())) {
+                return;
+            }
+            if ending {
                 self.finish_round(inner, session, true);
                 // What a round brought may take the mailbox past the phone's limits.
                 inner.trim.due = true;
@@ -801,6 +842,8 @@ impl SyncHost {
         };
         inner.active = false;
         inner.ran = false;
+        inner.tail_starts = 0;
+        inner.tail_fetch = false;
         inner.finished_rounds = inner.finished_rounds.wrapping_add(1);
         inner.idle_mark = None;
         inner.last_progress = None;
@@ -819,7 +862,7 @@ fn words(text: &'static str) -> &'static str {
     text
 }
 
-fn add_error(errors: &mut Vec<String>, line: String) {
+pub(crate) fn add_error(errors: &mut Vec<String>, line: String) {
     if errors.len() < MOST_ERRORS {
         errors.push(line.chars().take(LONGEST_ERROR).collect());
     }

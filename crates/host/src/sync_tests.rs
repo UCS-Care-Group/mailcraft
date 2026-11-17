@@ -445,3 +445,28 @@ fn a_store_that_says_nothing_more_reads_and_removes_as_it_gets_and_deletes() {
     assert_eq!(store.remove("refresh:a@example.org|graph"), Ok(()));
     assert_eq!(store.read("refresh:a@example.org|graph"), Ok(None));
 }
+
+#[test]
+fn a_refresh_token_another_job_got_is_kept_and_leaves_the_mail_token_alone() {
+    let (s, id) = session(AccountKind::Microsoft);
+    let store = Store::default();
+    let key = secret_key("refresh", s.mailbox.account(id).unwrap());
+    let c = ctx(&store, 10_000.0);
+    let mut sr = SendReceive::new();
+    let mail = Tokens { access: "mail-access".into(), refresh: "first".into(), expires_at: 9_999, ..Default::default() };
+    assert_eq!(sr.adopt_tokens(&s, &c, id, mail), Adopted::Kept);
+    // The calendar's or the to-dos' job renewed the sign-in for itself.
+    let theirs = Tokens { access: "calendar-access".into(), refresh: "second".into(), expires_at: 9_999, ..Default::default() };
+    assert_eq!(sr.adopt_refresh(&s, &c, id, &theirs), Adopted::Kept);
+    assert_eq!(sr.refresh_for(&s, &c, id).as_deref(), Some("second"));
+    assert_eq!(store.get(&key).as_deref(), Some("second"));
+    assert!(matches!(sr.mail_access(&s, &c, id), Some(crate::fetch::Access::Held(t)) if t == "mail-access"));
+    // Somebody else's is not kept.
+    let other = Tokens { refresh: "third".into(), email: "someone@example.net".into(), ..Default::default() };
+    assert_eq!(sr.adopt_refresh(&s, &c, id, &other), Adopted::WrongPerson);
+    assert_eq!(sr.refresh_for(&s, &c, id).as_deref(), Some("second"));
+    // With no session token yet, the next mail job renews one with it.
+    let mut fresh = SendReceive::new();
+    assert_eq!(fresh.adopt_refresh(&s, &c, id, &theirs), Adopted::Kept);
+    assert!(matches!(fresh.mail_access(&s, &c, id), Some(crate::fetch::Access::Renew { refresh, .. }) if refresh == "second"));
+}
