@@ -16,6 +16,12 @@
 //! `--check` (a `cargo xtask ci` step) changes nothing and fails when the template or a catalogue
 //! is out of date. Either way, it fails on a catalogue it can't read, or on a translation whose
 //! `{placeholders}` aren't the English's.
+//!
+//! In the merge queue and on main (`GITHUB_EVENT_NAME` `merge_group` or `push`, or `--lenient`) an
+//! out-of-date template or catalogue is only reported: two pull requests that each pass can meet in
+//! a catalogue git merges without a conflict but that neither left complete (a text one adds, a
+//! language the other adds). A text a catalogue lacks is shown in English until the catalogues are
+//! refreshed. What can't be read, and a translation that loses or adds a `{placeholder}`, still fail.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -32,7 +38,13 @@ const NAME_FNS: &[&str] = &["label", "title", "detail", "about", "default_name",
 /// Window constants that reach `tl!` through a variable (`tl!(error)`), not by name.
 const SHOWN_CONSTS: &[&str] = &["NEEDS_APPROVAL", "REFUSED_BY_ORGANISATION", "REFUSED_FOR_ACCOUNT", "FAVORITES_NOW_GRAPH", "OPEN_ELSEWHERE"];
 
-pub fn run(root: &Path, check: bool) -> Result<(), String> {
+/// Whether an out-of-date template or catalogue is only reported, not a failure: asked for, or run
+/// by CI in the merge queue or on a push to main.
+pub fn lenient(asked: bool, event: Option<&str>) -> bool {
+    asked || matches!(event, Some("merge_group" | "push"))
+}
+
+pub fn run(root: &Path, check: bool, lenient: bool) -> Result<(), String> {
     let found = gather(root)?;
     let pot = template(&found);
     let dir = root.join("crates/i18n/po");
@@ -80,6 +92,11 @@ pub fn run(root: &Path, check: bool) -> Result<(), String> {
     }
     if check && !stale.is_empty() {
         let names: Vec<String> = stale.iter().map(|p| rel(root, p)).collect();
+        if lenient {
+            // ponytail: reported, not fixed; the catalogues are refreshed by a later `cargo xtask i18n`.
+            println!("out of date, not a failure here: {} (run `cargo xtask i18n`)", names.join(", "));
+            return Ok(());
+        }
         return Err(format!("out of date: {} (run `cargo xtask i18n`)", names.join(", ")));
     }
     if !check {
@@ -989,6 +1006,15 @@ fn mismatch(e: &Entry) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_catalogues_fail_a_pull_request_but_not_the_queue_or_main() {
+        assert!(!lenient(false, None));
+        assert!(!lenient(false, Some("pull_request")));
+        assert!(lenient(false, Some("merge_group")));
+        assert!(lenient(false, Some("push")));
+        assert!(lenient(true, Some("pull_request")));
+    }
 
     #[test]
     fn finds_what_the_window_says() {
