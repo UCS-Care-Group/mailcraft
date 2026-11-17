@@ -52,6 +52,16 @@ class SettingsModelTest {
     }
 
     @Test
+    fun aFirstSyncNeedsWhatItsWindowBringsButNoMoreThanTheSpaceGivenItsMail() {
+        assertEquals(40 * mib, firstSyncBytes(windowBytes = 40 * mib, storageMb = 500))
+        assertEquals(250 * mib, firstSyncBytes(windowBytes = 20 * gib, storageMb = 250))
+        // Nothing negative, and no overflow for a space too big to be true.
+        assertEquals(0L, firstSyncBytes(windowBytes = -1, storageMb = 500))
+        assertEquals(0L, firstSyncBytes(windowBytes = gib, storageMb = -3))
+        assertEquals(20 * gib, firstSyncBytes(windowBytes = 20 * gib, storageMb = Long.MAX_VALUE))
+    }
+
+    @Test
     fun aPhoneThatCannotSayHowMuchItHasIsNotAskedAndNothingIsNegative() {
         assertNull(spaceCheck(needed = 50 * gib, free = -1))
         assertEquals(SpaceWarning(0, 0), spaceCheck(needed = -5, free = 0))

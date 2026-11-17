@@ -130,7 +130,7 @@ msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted
 msgstr "“{subject}”保留在移入的位置：它已数字签名或加密，且来源邮箱中的副本已被删除；最初移出该邮件的邮箱中的副本仍保留原始字节。若要将它放回原处，请将其移回。"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/calendar_view/list.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "(No title)"
 msgstr "（无标题）"
@@ -166,7 +166,7 @@ msgid "(no title)"
 msgstr "（无标题）"
 
 #. interface
-#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "(none)"
 msgstr "（无）"
@@ -1130,7 +1130,7 @@ msgid "All accounts"
 msgstr "所有账户"
 
 #. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "All day"
 msgstr "全天"
@@ -1729,18 +1729,13 @@ msgid "Arrange Contacts By"
 msgstr "联系人排列方式"
 
 #. command label
-#: crates/engine/src/cmd/calendar_list.rs
-msgid "Arrange List By"
-msgstr ""
-
-#. command label
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "Arrange Tasks By"
 msgstr "任务排列方式"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Arrangement"
 msgstr "排列"
@@ -1989,11 +1984,6 @@ msgstr "将同一内容作为 iCalendar 文件附加"
 msgid "Attached {n} file"
 msgid_plural "Attached {n} files"
 msgstr[0] "已附加 {n} 个文件"
-
-#. interface, name
-#: crates/ui-egui/src/calendar_view/list.rs
-msgid "Attachment"
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -2416,7 +2406,7 @@ msgid "By Subject"
 msgstr "按主题"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "日历"
@@ -2618,7 +2608,7 @@ msgid "Cancel This Meeting?"
 msgstr "取消本次会议？"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/calendar_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Cancelled"
 msgstr "已取消"
@@ -3386,7 +3376,7 @@ msgid "Continue in tray"
 msgstr "在托盘中继续运行"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt
 #, fuzzy
 msgid "Continues"
 msgstr "继续"
@@ -3814,11 +3804,6 @@ msgstr "剪切"
 #, fuzzy
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMAIN\\user 或 you@example.org；留空则使用您的地址"
-
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-msgid "Daily"
-msgstr ""
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -4897,8 +4882,8 @@ msgstr "清空邮箱"
 msgid "Enable Rule"
 msgstr "启用规则"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
+#. interface
+#: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "End"
 msgstr "结束"
@@ -6466,11 +6451,6 @@ msgstr "我是管理员：为我的组织批准 MailCraft"
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "我是管理员：为我的组织批准"
 
-#. interface, name
-#: crates/ui-egui/src/calendar_view/list.rs
-msgid "Icon"
-msgstr ""
-
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7667,11 +7647,6 @@ msgstr "链接"
 msgid "Links"
 msgstr "链接"
 
-#. command label, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
-msgid "List"
-msgstr ""
-
 #. command label
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -7721,11 +7696,6 @@ msgid "List Notes"
 msgstr "列出便笺"
 
 #. command label
-#: crates/engine/src/cmd/calendar_list.rs
-msgid "List Rows"
-msgstr ""
-
-#. command label
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "List Tasks"
@@ -7738,7 +7708,7 @@ msgid "List {n}"
 msgstr "列表 {n}"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
 #, fuzzy
 msgid "Loading…"
 msgstr "正在加载…"
@@ -7749,8 +7719,8 @@ msgstr "正在加载…"
 msgid "Local mailbox"
 msgstr "本地邮箱"
 
-#. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Location"
 msgstr "位置"
@@ -8793,11 +8763,6 @@ msgstr "星期一"
 msgid "Month"
 msgstr "月份"
 
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-msgid "Monthly"
-msgstr ""
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -9569,7 +9534,7 @@ msgid "No categories yet"
 msgstr "还没有类别"
 
 #. interface
-#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No category"
 msgstr "没有类别"
@@ -9922,8 +9887,8 @@ msgstr "没有邀请任何有地址的人员"
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "没有匹配的联系人，或者有多个联系人匹配：{names}"
 
-#. android, interface, name, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "无"
@@ -11860,16 +11825,11 @@ msgstr "重新连接 Google"
 msgid "Reconnect with Google if your sign-in expired or was revoked. Your downloaded mail and account settings stay in place."
 msgstr "如果登录信息已过期或被撤销，请重新连接 Google。已下载的邮件和账户设置将保留。"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
+#. interface
+#: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Recurrence"
 msgstr "重复"
-
-#. name
-#: crates/engine/src/session.rs
-msgid "Recurrence Pattern"
-msgstr ""
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -14581,11 +14541,6 @@ msgstr "此会议由其他人组织，会保留在收到邀请的日历中。"
 msgid "Something did not go through, or did not arrive as it was sent. The steps below say what."
 msgstr "某些操作未完成，或者收到的内容与发送的不一致。下方步骤说明了具体情况。"
 
-#. command label
-#: crates/engine/src/cmd/calendar_list.rs
-msgid "Sort List"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -14628,8 +14583,8 @@ msgstr "拼写和语法"
 msgid "Stand this calendar beside the others"
 msgstr "将此日历与其他日历并排显示"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Start"
 msgstr "开始"
@@ -15385,7 +15340,7 @@ msgid "That key is on the card already"
 msgstr "该密钥已在卡上"
 
 #. what a command says
-#: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
+#: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
 msgstr "该登录属于他人的邮箱，不是此账户的。未保存任何内容。"
@@ -15630,6 +15585,12 @@ msgstr "无法读取该日历。"
 msgid "The calendar couldn't be added"
 msgstr "无法添加该日历"
 
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
+msgstr "无法更新日历：任务意外停止"
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
@@ -15713,11 +15674,6 @@ msgstr "日历 {name} 及其保存在此计算机上的事件将被删除，为�
 #, fuzzy
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "共享邮箱的日历正在等待：{error}"
-
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-msgid "The calendars shown hold no items."
-msgstr ""
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -16872,8 +16828,8 @@ msgstr "未找到该文本。"
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
 msgstr "时间保存在这台计算机上；标记会像任何标记一样发送到账户的服务器。"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "待办事项无法保持同步：作业意外停止"
@@ -18785,7 +18741,7 @@ msgid "Version {version} is ready:"
 msgstr "版本 {version} 已准备就绪："
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "View"
 msgstr "视图"
@@ -18880,8 +18836,8 @@ msgstr "周三"
 msgid "Wednesday"
 msgstr "星期三"
 
-#. command label, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, name, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Week"
 msgstr "周"
@@ -18897,11 +18853,6 @@ msgstr "周次"
 #, fuzzy
 msgid "Week starts on"
 msgstr "一周的第一天"
-
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-msgid "Weekly"
-msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -19272,11 +19223,6 @@ msgstr "Yahoo"
 #, fuzzy
 msgid "Yahoo Mail"
 msgstr "Yahoo Mail"
-
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-msgid "Yearly"
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
@@ -23243,12 +23189,6 @@ msgstr "{name}：不是邮件文件"
 msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr "{name}：不是 MailCraft 可读取的邮件、日历或联系人文件"
 
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-msgid "{name}: {n} item"
-msgid_plural "{name}: {n} items"
-msgstr[0] ""
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -23559,12 +23499,6 @@ msgstr[0] "{n} 项已移至您的账户日历"
 msgid "{n} item selected"
 msgid_plural "{n} items selected"
 msgstr[0] "已选择 {n} 项"
-
-#. interface
-#: crates/ui-egui/src/chrome.rs
-msgid "{n} item, {left} more not listed"
-msgid_plural "{n} items, {left} more not listed"
-msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -24363,3 +24297,74 @@ msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附
 #~ msgid "The draft stays in Drafts. {why}"
 #~ msgstr "草稿保留在“草稿”中。{why}"
 
+#. command label
+#: crates/engine/src/cmd/calendar_list.rs
+msgid "Arrange List By"
+msgstr ""
+
+#. interface, name
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Attachment"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Daily"
+msgstr ""
+
+#. interface, name
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Icon"
+msgstr ""
+
+#. command label, name, ribbon
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+msgid "List"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/calendar_list.rs
+msgid "List Rows"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Monthly"
+msgstr ""
+
+#. name
+#: crates/engine/src/session.rs
+msgid "Recurrence Pattern"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/calendar_list.rs
+msgid "Sort List"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "The calendars shown hold no items."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Weekly"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Yearly"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "{name}: {n} item"
+msgid_plural "{name}: {n} items"
+msgstr[0] ""
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "{n} item, {left} more not listed"
+msgid_plural "{n} items, {left} more not listed"
+msgstr[0] ""
