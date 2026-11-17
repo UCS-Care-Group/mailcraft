@@ -72,8 +72,8 @@ pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
 pub use rule::{
-    Action, Condition, Keep, MAX_PATTERN_LENGTH, MAX_RULE_GONE, MAX_TEXT_LENGTH, Pattern, Rule, RuleGone, ServerRule, clean_condition_text,
-    regex_is_ok,
+    Action, Condition, Keep, MAX_PATTERN_CONDITIONS, MAX_PATTERN_LENGTH, MAX_RULE_GONE, MAX_TEXT_LENGTH, Pattern, Rule, RuleGone, ServerRule,
+    clean_condition_text, count_pattern_conditions, regex_is_ok,
 };
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};

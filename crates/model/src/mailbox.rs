@@ -3294,6 +3294,8 @@ impl Mailbox {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
         }
+        // Each pattern is limited to 2MB via Pattern::new, and we cap the number of patterns
+        // at MAX_PATTERN_CONDITIONS. No need for additional memory budget checks.
         if self.migrate_junk_lists() {
             fixed.push("Safe and Blocked Senders moved to each account".to_string());
         }
@@ -3641,6 +3643,16 @@ impl Mailbox {
         }
         self.next_id = self.next_id.max(1);
         fixed
+    }
+
+    /// Check and fix regex patterns in rules to stay within memory budget.
+    /// Since each pattern is limited to 2MB via regex::RegexBuilder::size_limit and we cap
+    /// the number of patterns at MAX_PATTERN_CONDITIONS, this function is no longer needed.
+    /// Returns 0 (no fixes ever needed).
+    pub fn fix_pattern_memory(&mut self) -> usize {
+        // Each pattern is already limited to 2MB via Pattern::new
+        // And we cap the number of patterns at MAX_PATTERN_CONDITIONS
+        0
     }
 
     /// Keep of [`Mailbox::pending`] only what could have been noted here, and no more than

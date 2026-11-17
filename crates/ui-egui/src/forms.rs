@@ -6283,11 +6283,16 @@ pub(crate) mod rules {
                 if trimmed.is_empty() {
                     return false;
                 }
-                // For regex patterns, check the raw text (not trimmed) against the 1000 char limit
-                // A pattern's text is not trimmed: a long alternation like a@x.example|b@...|ca...
-                // must be refused whole if over 1000 chars, not cut to something that might still
-                // compile but match differently. MAX_PATTERN_LENGTH counts characters, not bytes.
-                if c.op == Op::Matches { mailcraft_model::regex_is_ok(&c.text) } else { mailcraft_model::regex_is_ok(trimmed) }
+                // Count characters, not bytes
+                let char_count = trimmed.chars().count();
+
+                if c.op == Op::Matches {
+                    // Regex patterns: must be valid regex and <=200 chars
+                    mailcraft_model::regex_is_ok(trimmed) && char_count <= mailcraft_model::MAX_PATTERN_LENGTH
+                } else {
+                    // Plain text (Contains/StartsWith): non-empty and <=200 chars
+                    char_count <= mailcraft_model::MAX_TEXT_LENGTH
+                }
             });
             let acts = self.acts.iter().all(|a| match a.kind {
                 Do::Move => a.folder != 0,

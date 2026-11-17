@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 use super::{bad, fail, needs_message};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
-use mailcraft_model::MAX_RULES;
+use mailcraft_model::{MAX_PATTERN_CONDITIONS, MAX_RULES};
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -179,7 +179,7 @@ fn text(v: &Value, kind: &str) -> Result<String, CmdError> {
         if char_count > mailcraft_model::MAX_TEXT_LENGTH {
             Err(bad(format!("the value is too long (max {} characters)", mailcraft_model::MAX_TEXT_LENGTH)))
         } else {
-            Ok(t)
+            Ok(trimmed.to_string())
         }
     } else {
         Ok(t)
@@ -318,11 +318,19 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.rules.len() >= MAX_RULES {
         return Err(fail("there are too many rules"));
     }
+    // Count existing pattern conditions
+    let existing_pattern_conditions =
+        s.mailbox.rules.iter().flat_map(|r| &r.conditions).filter(|c| matches!(c, Condition::SubjectMatches(_) | Condition::BodyMatches(_))).count();
+    let new_pattern_conditions = rule.conditions.iter().filter(|c| matches!(c, Condition::SubjectMatches(_) | Condition::BodyMatches(_))).count();
+    if existing_pattern_conditions + new_pattern_conditions > MAX_PATTERN_CONDITIONS {
+        return Err(fail(format!("too many pattern conditions per mailbox (max {})", MAX_PATTERN_CONDITIONS)));
+    }
+    // Each pattern is limited to 2MB via regex::RegexBuilder::size_limit in Pattern::new
     let id = s.mailbox.alloc_id();
     rule.id = id;
     let keep = if rule.keep == Keep::Server { "server" } else { "here" };
     s.mailbox.rules.push(rule);
-    Ok(json!({"id": id, "keep": keep}))
+    Ok(json!({ "id": id, "keep": keep }))
 }
 
 fn changeable(s: &Session, id: Id) -> Result<usize, CmdError> {

@@ -21,10 +21,15 @@ use std::sync::Arc;
 use crate::{Id, Importance, Message, contains_ci, starts_with_ci};
 
 /// Maximum length of a regex pattern that can be used in a rule (counted in characters, not bytes).
-pub const MAX_PATTERN_LENGTH: usize = 1000;
+pub const MAX_PATTERN_LENGTH: usize = 200;
 
 /// Maximum length of text for contains/starts-with conditions (counted in characters).
 pub const MAX_TEXT_LENGTH: usize = 200;
+
+/// Maximum total regex pattern conditions in a mailbox.
+/// This limits the number of regex patterns to prevent memory exhaustion.
+/// Each pattern is individually limited to 2MB via regex::RegexBuilder::size_limit.
+pub const MAX_PATTERN_CONDITIONS: usize = 100;
 
 /// Clean text for a condition: trim whitespace, cap at MAX_TEXT_LENGTH (characters, not bytes).
 pub fn clean_condition_text(text: &str) -> String {
@@ -38,6 +43,12 @@ pub fn clean_condition_text(text: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+/// Count the regex pattern conditions in a slice of conditions.
+/// This counts both SubjectMatches and BodyMatches conditions.
+pub fn count_pattern_conditions(conditions: &[Condition]) -> usize {
+    conditions.iter().filter(|c| matches!(c, Condition::SubjectMatches(_) | Condition::BodyMatches(_))).count()
 }
 
 /// A regex pattern that has been compiled and is ready to match.
@@ -56,7 +67,7 @@ impl Pattern {
         if pattern.chars().count() > MAX_PATTERN_LENGTH {
             return None;
         }
-        let regex = regex::RegexBuilder::new(&pattern).case_insensitive(true).size_limit(1 << 20).build().ok()?;
+        let regex = regex::RegexBuilder::new(&pattern).case_insensitive(true).size_limit(2 << 20).build().ok()?;
         Some(Pattern { pattern, regex: Some(Arc::new(regex)) })
     }
 
@@ -66,7 +77,7 @@ impl Pattern {
         if pattern.chars().count() > MAX_PATTERN_LENGTH {
             return false;
         }
-        regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(1 << 20).build().is_ok()
+        regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(2 << 20).build().is_ok()
     }
 
     /// Match the pattern against text.
@@ -77,6 +88,16 @@ impl Pattern {
     /// Get the pattern string.
     pub fn as_str(&self) -> &str {
         &self.pattern
+    }
+
+    /// Check if this pattern has been compiled (has a regex matcher).
+    pub fn is_compiled(&self) -> bool {
+        self.regex.is_some()
+    }
+
+    /// Remove the compiled regex, making this pattern match nothing.
+    pub fn uncompile(&mut self) {
+        self.regex = None;
     }
 }
 
@@ -200,6 +221,22 @@ impl Condition {
             Condition::BodyMatches(_) => "the body matches a pattern".into(),
             Condition::HasAttachment => "has an attachment".into(),
             Condition::Importance(i) => format!("importance is {}", i.code()),
+        }
+    }
+
+    /// Get the pattern from a SubjectMatches condition, if this is one.
+    pub fn as_subject_matches(&self) -> Option<&Pattern> {
+        match self {
+            Condition::SubjectMatches(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// Get the pattern from a BodyMatches condition, if this is one.
+    pub fn as_body_matches(&self) -> Option<&Pattern> {
+        match self {
+            Condition::BodyMatches(p) => Some(p),
+            _ => None,
         }
     }
 }

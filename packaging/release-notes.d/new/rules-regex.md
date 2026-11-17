@@ -1,3 +1,5 @@
-- New "starts with" and "matches" operators for rules (Subject/Body Matches, From/To/Subject/Body Starts With)
-- Contains and starts-with conditions now trim whitespace and cap text at 200 characters
-- Note: Rules with regex patterns require MailCraft 0.11.0 or later (older versions won't open the mailbox)
+- Regex patterns in rules are limited to 200 characters to prevent memory exhaustion
+- Plain text conditions (Contains, Starts With) in rules are limited to 200 characters
+- Max 100 regex pattern conditions per mailbox (SubjectMatches + BodyMatches combined)
+- Patterns over 2MB are rejected at compile time
+- Patterns that exceed limits load as uncompiled (match nothing) instead of crashing

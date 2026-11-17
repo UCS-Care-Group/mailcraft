@@ -92,8 +92,8 @@ fn regex_conditions() {
         r(Condition::BodyMatches(Pattern::new("invoice".to_string()).unwrap())).describe(),
         "When the body matches a pattern: mark it as read"
     );
-    // A pattern over 1000 chars is refused.
-    assert!(Pattern::new("a".repeat(1001)).is_none());
+    // A pattern over 200 chars is refused.
+    assert!(Pattern::new("a".repeat(201)).is_none());
     // A pattern that's valid but won't match any message.
     let evil = r(Condition::SubjectMatches(Pattern::new("zzzzzzzzzz".to_string()).unwrap()));
     assert!(!evil.matches(&m));
@@ -122,14 +122,14 @@ fn pattern_round_trip_preserves_matcher() {
     // and still match correctly after round-trip through JSON
     let pattern_str = "invoice";
     let original = Pattern::new(pattern_str.to_string()).unwrap();
-    
+
     // Serialize and deserialize
     let json = serde_json::to_string(&original).unwrap();
     let deserialized: Pattern = serde_json::from_str(&json).unwrap();
-    
+
     // The text should be preserved
     assert_eq!(deserialized.as_str(), pattern_str);
-    
+
     // The matcher should still work
     assert!(deserialized.is_match("Your INVOICE"));
     assert!(!deserialized.is_match("No match here"));
@@ -179,12 +179,12 @@ fn clean_condition_text_handles_multibyte_chars() {
     let cleaned = clean_condition_text(&text);
     assert_eq!(cleaned.chars().count(), 200);
     assert_eq!(cleaned.len(), 201); // 199 a's + é = 201 bytes
-    
+
     // Greek characters - each is multiple bytes
     let greek = "α".repeat(250);
     let cleaned = clean_condition_text(&greek);
     assert_eq!(cleaned.chars().count(), 200);
-    
+
     // Chinese characters
     let chinese = "中".repeat(250);
     let cleaned = clean_condition_text(&chinese);
