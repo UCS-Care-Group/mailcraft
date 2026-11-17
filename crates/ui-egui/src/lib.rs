@@ -85,6 +85,8 @@ mod dialog_scrim_tests;
 pub mod dialogs;
 #[cfg(test)]
 mod draft_continue_tests;
+#[cfg(test)]
+mod draft_selection_tests;
 mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;
@@ -2152,6 +2154,12 @@ impl MailApp {
             self.dialog = Some(dialogs::leaving(id, params));
             return Ok(json!({"pending": "discardDraft"}));
         }
+        // What is selected is what the reading pane shows (#727): the message being written there
+        // goes to Drafts first, as leaving it does.
+        if let Err(e) = windows::compose_window::leave_for_selection(self, id, &params) {
+            self.say_refused(id, &e);
+            return Err(e);
+        }
         if let Some(name) = dialogs::input_dialog(id, &params)
             && self.enabled(id)
         {
@@ -2509,8 +2517,12 @@ impl MailApp {
     /// Open a message from outside the message list (a task, a contact's recent mail): in Mail, in
     /// its folder's All tab with no search, the list scrolled to it (#485).
     pub(crate) fn open_in_mail(&mut self, id: Id) {
+        // A selection that is refused (the message being written in the reading pane can't be
+        // saved, #727) leaves everything as it was: nothing is switched to, nothing scrolled to.
+        if self.run("mail.select", json!({"id": id, "elsewhere": true})).is_err() {
+            return;
+        }
         self.ui.backstage = false;
-        let _ = self.run("mail.select", json!({"id": id, "elsewhere": true}));
         let _ = self.run("view.mail", json!({}));
         self.reveal_selection = true;
     }
