@@ -58,8 +58,8 @@ MailCraft follows the architecture and conventions of [WordCraft](https://github
 ## Accounts from GNOME (Linux)
 
 File → Info → Import accounts from GNOME… offers enabled mail accounts configured in GNOME
-Online Accounts. Explicitly link a supported IMAP/SMTP account to keep its configuration and
-sign-in managed by GNOME, or prefill an independent MailCraft setup.
+Online Accounts. Link a Microsoft 365 account through Microsoft Graph, or a supported IMAP/SMTP account,
+to keep its configuration and sign-in managed by GNOME, or prefill an independent MailCraft setup.
 Add Account is unchanged; no GNOME libraries are required. See [the GNOME import guide](docs/gnome-accounts.md)
 for supported providers and limits.
 

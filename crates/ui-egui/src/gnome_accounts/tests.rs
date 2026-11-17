@@ -159,12 +159,7 @@ fn import_dialog_light_and_dark() {
         let mut app = app(Services {
             gnome_accounts: Some(Box::new(|| {
                 let (tx, rx) = channel();
-                tx.send(Ok(vec![
-                    linkable(),
-                    account(Provider::Microsoft365, "work@example.org"),
-                    account(Provider::Unsupported, "other@example.org"),
-                ]))
-                .unwrap();
+                tx.send(Ok(vec![linkable(), graph_linkable(), account(Provider::Unsupported, "other@example.org")])).unwrap();
                 rx
             })),
             ..Default::default()
@@ -183,6 +178,9 @@ fn import_dialog_light_and_dark() {
         harness.input_mut().max_texture_side = Some(8192);
         harness.run_steps(6);
         harness.render().unwrap().save(std::path::Path::new(&dir).join(format!("gnome-import-{theme}.png"))).unwrap();
+        harness.get_by_label("work@example.org — Microsoft 365").click();
+        harness.run_steps(3);
+        harness.render().unwrap().save(std::path::Path::new(&dir).join(format!("gnome-import-{theme}-selected.png"))).unwrap();
     }
 }
 
@@ -191,6 +189,7 @@ fn linkable() -> Account {
     account.linked = Some(mailcraft_model::Account {
         email: account.email.clone(),
         display_name: account.name.clone(),
+        kind: mailcraft_model::AccountKind::Imap,
         incoming: Some(mailcraft_model::Server { host: "imap.gmail.com".into(), port: 993, security: mailcraft_model::Security::Tls }),
         outgoing: Some(mailcraft_model::Server { host: "smtp.gmail.com".into(), port: 587, security: mailcraft_model::Security::StartTls }),
         goa: Some(mailcraft_model::GoaAccount { id: "account_1".into(), provider: "google".into() }),
@@ -284,4 +283,135 @@ fn link_button_adds_only_the_selected_account_and_starts_its_first_sync() {
     assert_eq!(harness.state().session.mailbox.accounts.len(), before + 1);
     assert_eq!(harness.state().session.mailbox.accounts.iter().filter(|a| a.goa.is_some()).count(), 1);
     assert!(harness.state().dialog.is_none());
+}
+
+fn graph_linkable() -> Account {
+    Account {
+        email: "work@example.org".into(),
+        name: "Example Owner".into(),
+        provider_name: "Microsoft 365".into(),
+        provider: Provider::Microsoft365,
+        linked: Some(mailcraft_model::Account {
+            email: "work@example.org".into(),
+            kind: mailcraft_model::AccountKind::Microsoft,
+            goa: Some(mailcraft_model::GoaAccount { id: "graph_1".into(), provider: "ms_graph".into() }),
+            ..Default::default()
+        }),
+    }
+}
+
+#[test]
+fn graph_link_uses_the_graph_host_without_local_sign_in_or_cached_tokens() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let mut app = app(Services {
+        gnome_accounts: Some(Box::new(|| channel().1)),
+        sync: Some(Box::new(|_| panic!("Graph-linked mail must never use IMAP"))),
+        sign_in: Some(Box::new(|_| panic!("GOA must never fall back to MailCraft sign-in"))),
+        graph: Some(Box::new(move |request| {
+            assert_eq!(request.account.kind, mailcraft_model::AccountKind::Microsoft);
+            assert!(request.account.goa.is_some() && request.account.oauth.is_none());
+            assert!(request.oauth.client_id.is_empty() && request.refresh.is_empty() && request.access.is_empty());
+            assert!(request.mail.is_some() && !request.directory && !request.settings && !request.favorites);
+            observed.fetch_add(1, Ordering::Relaxed);
+            let (tx, rx) = channel();
+            // A faulty host returning tokens must not put GOA credentials in UI caches either.
+            tx.send(crate::GraphResult {
+                account: request.account.id,
+                tokens: Some(mailcraft_model::sync::Tokens {
+                    access: "must-not-cache".into(),
+                    refresh: "must-not-store".into(),
+                    ..Default::default()
+                }),
+                mail: Some(mailcraft_model::sync::GraphMailResult {
+                    account: request.account.id,
+                    email: request.account.email,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })
+            .unwrap();
+            rx
+        })),
+        ..Default::default()
+    });
+    app.session.prefs.sync_minutes = 0;
+    let form = Import { rx: None, accounts: vec![graph_linkable()], error: None, selected: Some(0), link_error: None };
+    let id = form.link(&mut app).unwrap();
+    app.execute("ui.sync", json!({"account": id})).unwrap();
+    app.poll_graph();
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert!(app.graph_tokens.is_empty() && app.tokens.is_empty() && app.passwords.is_empty());
+    assert!(app.session.mailbox.account(id).unwrap().oauth.is_none());
+    assert!(app.can_sync_quietly(id));
+    assert!(app.execute("account.edit", json!({"id": id, "auth": "oauth2"})).is_err());
+}
+
+#[test]
+fn ordinary_graph_keeps_its_own_login_without_goa_and_beside_a_goa_account() {
+    use mailcraft_model::sync::Tokens;
+
+    for with_goa in [false, true] {
+        let runs = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let observed = runs.clone();
+        let mut app = app(Services {
+            gnome_accounts: with_goa.then(|| {
+                Box::new(|| -> std::sync::mpsc::Receiver<Discovery> { panic!("ordinary Graph and explicit links must not trigger discovery") })
+                    as Discover
+            }),
+            microsoft_client_id: "independent-mailcraft-client".into(),
+            sync: Some(Box::new(|_| panic!("both Microsoft accounts must use Graph"))),
+            sign_in: Some(Box::new(|_| panic!("the independent account already has its refresh token"))),
+            graph: Some(Box::new(move |request| {
+                let managed = request.account.goa.is_some();
+                observed.lock().unwrap().push(managed);
+                if managed {
+                    assert!(request.account.oauth.is_none());
+                    assert!(request.oauth.client_id.is_empty() && request.refresh.is_empty());
+                } else {
+                    assert!(request.account.oauth.is_some());
+                    assert_eq!(request.oauth.client_id, "independent-mailcraft-client");
+                    assert_eq!(request.refresh, "independent-refresh");
+                }
+                let (tx, rx) = channel();
+                tx.send(crate::GraphResult {
+                    account: request.account.id,
+                    tokens: Some(Tokens {
+                        access: if managed { "external-access" } else { "independent-access" }.into(),
+                        refresh: if managed { "external-refresh" } else { "independent-refresh" }.into(),
+                        expires_at: mailcraft_time::now() + 3600,
+                        ..Default::default()
+                    }),
+                    mail: Some(mailcraft_model::sync::GraphMailResult {
+                        account: request.account.id,
+                        email: request.account.email,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                })
+                .unwrap();
+                rx
+            })),
+            ..Default::default()
+        });
+        app.session.prefs.sync_minutes = 0;
+        let ordinary = app.execute("account.add", json!({"email": "independent@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+        app.tokens.insert(ordinary, Tokens { refresh: "independent-refresh".into(), ..Default::default() });
+        app.execute("ui.sync", json!({"account": ordinary})).unwrap();
+        app.poll_graph();
+        assert_eq!(app.graph_tokens[&ordinary].access, "independent-access");
+
+        if with_goa {
+            let form = Import { rx: None, accounts: vec![graph_linkable()], error: None, selected: Some(0), link_error: None };
+            let linked = form.link(&mut app).unwrap();
+            app.execute("ui.sync", json!({"account": linked})).unwrap();
+            app.poll_graph();
+            assert!(!app.graph_tokens.contains_key(&linked) && !app.tokens.contains_key(&linked));
+            app.execute("ui.sync", json!({"account": ordinary})).unwrap();
+            app.poll_graph();
+        }
+        assert_eq!(*runs.lock().unwrap(), if with_goa { vec![false, true, false] } else { vec![false] });
+        assert!(app.session.mailbox.account(ordinary).unwrap().goa.is_none());
+        assert_eq!(app.graph_tokens[&ordinary].refresh, "independent-refresh");
+    }
 }

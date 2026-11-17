@@ -192,10 +192,11 @@ impl MailApp {
         if mailbox.is_shared() && quiet && self.shared_refused.contains_key(&account) {
             return None;
         }
-        let oauth = owner.oauth.clone()?;
+        let managed = owner.goa.as_ref().is_some_and(|g| g.provider == "ms_graph");
+        let oauth = if managed { mailcraft_model::OAuth::default() } else { owner.oauth.clone()? };
         let kept = self.tokens.get(&owner.id).or(self.graph_tokens.get(&owner.id)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
         let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).unwrap_or_default();
-        if refresh.is_empty() {
+        if refresh.is_empty() && !managed {
             return None;
         }
         let mail = mailcraft_engine::cmd::graph_mail::graph_inbox_request(&self.session, account)?;
@@ -210,7 +211,7 @@ impl MailApp {
         let (pieces, taken) = std::sync::mpsc::sync_channel(8);
         let ask = GraphRequest {
             account: mailbox,
-            oauth: self.effective_oauth(oauth),
+            oauth: if managed { oauth } else { self.effective_oauth(oauth) },
             refresh,
             // (A round's is renewed for the job, as the run's own is.)
             access,
@@ -273,6 +274,9 @@ impl MailApp {
     /// What an Inbox pass's answer says of its sign-in, kept as for any job: renewed tokens (the
     /// refresh token for the owner, in the system's store when remembered), or a token refused.
     fn keep_inbox_tokens(&mut self, account: Id, result: &GraphResult) {
+        if self.session.mailbox.account(account).is_some_and(|a| a.goa.is_some()) {
+            return;
+        }
         let owner = self.session.mailbox.owner_of(account).map(|o| o.id);
         if result.token_refused {
             self.graph_tokens.remove(&account);

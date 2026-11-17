@@ -91,7 +91,7 @@ impl Form {
             Form::Event(_) | Form::Task(_) => 580.0,
             Form::Contact(_) => 540.0,
             Form::Account(_) => crate::account_setup::WIDTH,
-            Form::GnomeAccounts(_) => crate::account_setup::WIDTH,
+            Form::GnomeAccounts(_) => crate::gnome_accounts::WIDTH,
             Form::Categories(_) => 420.0,
             Form::Rules(_) => 620.0,
             Form::Junk(_) => junk::WIDTH,

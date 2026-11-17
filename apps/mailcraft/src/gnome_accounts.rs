@@ -156,7 +156,19 @@ fn configuration(
     let id = text(account, "Id")?;
     let provider = text(account, "ProviderType")?;
     let valid = |s: &str| !s.is_empty() && s.len() <= 128 && s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_');
-    if !valid(id) || !valid(provider) || !flag(mail, "SmtpUseAuth") {
+    if !valid(id) || !valid(provider) {
+        return None;
+    }
+    if provider == "ms_graph" && interfaces.contains_key(OAUTH) {
+        return Some(MailAccount {
+            email: email.to_owned(),
+            display_name: name.to_owned(),
+            kind: AccountKind::Microsoft,
+            goa: Some(GoaAccount { id: id.to_owned(), provider: provider.to_owned() }),
+            ..Default::default()
+        });
+    }
+    if !flag(mail, "SmtpUseAuth") {
         return None;
     }
     let incoming = server(mail, "Imap")?;
@@ -205,17 +217,25 @@ fn uncached<'a>(bus: &'a zbus::blocking::Connection, path: &'a str, interface: &
 /// Each run validates fresh public metadata, then asks GOA to ensure/refresh its credentials.
 /// Only the returned in-memory request reaches the mail transport. No refresh tokens or
 /// application ids are requested. Errors never expose D-Bus/provider text.
-fn resolve(bus: &zbus::blocking::Connection, request: &SyncRequest, cancel: &AtomicBool) -> Result<SyncRequest, Text> {
-    let linked = request.account.goa.as_ref().ok_or_else(|| said!("This account is not linked to GNOME."))?;
+struct Checked {
+    account: MailAccount,
+    path: zbus::zvariant::OwnedObjectPath,
+    oauth: bool,
+    smtp_username: Option<String>,
+}
+
+fn checked(bus: &zbus::blocking::Connection, account: &MailAccount, cancel: &AtomicBool) -> Result<Checked, Text> {
+    let linked = account.goa.as_ref().ok_or_else(|| said!("This account is not linked to GNOME."))?;
     let accounts = read(bus).map_err(|_| said!("GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try Send/Receive again."))?;
     let current =
         accounts.iter().filter_map(|a| a.linked.as_ref()).find(|a| a.goa.as_ref() == Some(linked)).ok_or_else(|| {
             said!("This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts.")
         })?;
-    if !current.email.eq_ignore_ascii_case(&request.account.email)
-        || current.username != request.account.username
-        || current.incoming != request.account.incoming
-        || current.outgoing != request.account.outgoing
+    if !current.email.eq_ignore_ascii_case(&account.email)
+        || current.kind != account.kind
+        || current.username != account.username
+        || current.incoming != account.incoming
+        || current.outgoing != account.outgoing
     {
         return Err(said!(
             "The GNOME account connection changed. Remove it from MailCraft and link it again to keep mail from different servers separate."
@@ -257,6 +277,22 @@ fn resolve(bus: &zbus::blocking::Connection, request: &SyncRequest, cancel: &Ato
     if cancel.load(Ordering::Relaxed) {
         return Err(said!("GNOME account request cancelled."));
     }
+    Ok(Checked {
+        account: current.clone(),
+        path: path.clone(),
+        oauth: interfaces.contains_key(OAUTH),
+        smtp_username: text(mail, "SmtpUserName").map(str::to_owned),
+    })
+}
+
+fn resolve(bus: &zbus::blocking::Connection, request: &SyncRequest, cancel: &AtomicBool) -> Result<SyncRequest, Text> {
+    let checked = checked(bus, &request.account, cancel)?;
+    let current = &checked.account;
+    let path = &checked.path;
+    let linked = current.goa.as_ref().ok_or_else(|| said!("This account is not linked to GNOME."))?;
+    if current.kind != AccountKind::Imap {
+        return Err(said!("This GNOME account uses Microsoft Graph, not IMAP or SMTP."));
+    }
     let mut resolved = request.clone();
     resolved.account.goa = None;
     resolved.account.oauth = None;
@@ -265,9 +301,9 @@ fn resolve(bus: &zbus::blocking::Connection, request: &SyncRequest, cancel: &Ato
     resolved.password.clear();
     resolved.access_token.clear();
     resolved.smtp_password = None;
-    resolved.smtp_username = text(mail, "SmtpUserName").map(str::to_owned);
+    resolved.smtp_username = checked.smtp_username;
     resolved.gmail_moves.clear(); // No provider API access with GNOME's mail token.
-    if interfaces.contains_key(OAUTH) {
+    if checked.oauth {
         let proxy = uncached(bus, path.as_str(), OAUTH).map_err(|_| said!("GNOME sign-in is unavailable."))?;
         let (token, _expires): (String, i32) =
             proxy.call("GetAccessToken", &()).map_err(|_| said!("Repair this account's sign-in in GNOME Online Accounts."))?;
@@ -304,6 +340,100 @@ fn resolve(bus: &zbus::blocking::Connection, request: &SyncRequest, cancel: &Ato
         return Err(said!("GNOME account request cancelled."));
     }
     Ok(resolved)
+}
+
+fn bus() -> Result<zbus::blocking::Connection, Text> {
+    zbus::blocking::connection::Builder::session()
+        .ok()
+        .map(|builder| builder.method_timeout(Duration::from_secs(30)))
+        .and_then(|builder| builder.build().ok())
+        .ok_or_else(|| said!("GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try again."))
+}
+
+fn graph_token(account: &MailAccount, cancel: &AtomicBool) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError> {
+    let get = || -> Result<mailcraft_net::oauth::GraphTokens, Text> {
+        let bus = bus()?;
+        let checked = checked(&bus, account, cancel)?;
+        if checked.account.kind != AccountKind::Microsoft || !checked.account.goa.as_ref().is_some_and(|g| g.provider == "ms_graph") || !checked.oauth
+        {
+            return Err(said!("This GNOME account does not expose Microsoft Graph mail access."));
+        }
+        let proxy = uncached(&bus, checked.path.as_str(), OAUTH).map_err(|_| said!("GNOME sign-in is unavailable."))?;
+        let (access, expires): (String, i32) =
+            proxy.call("GetAccessToken", &()).map_err(|_| said!("Repair this account's sign-in in GNOME Online Accounts."))?;
+        if access.is_empty() || access.len() > 65536 {
+            return Err(said!("GNOME returned an invalid mail credential."));
+        }
+        if cancel.load(Ordering::Relaxed) {
+            return Err(said!("GNOME account request cancelled."));
+        }
+        Ok(mailcraft_net::oauth::GraphTokens {
+            tokens: mailcraft_model::sync::Tokens {
+                access,
+                email: checked.account.email,
+                expires_at: mailcraft_time::now().saturating_add(i64::from(expires.clamp(0, 86400))),
+                ..Default::default()
+            },
+            extras_missing: false,
+            covers_favorites: false,
+        })
+    };
+    get().map_err(mailcraft_net::NetError::Config)
+}
+
+/// Only the selected account's mail is run with GOA's Graph profile. The ordinary Graph host
+/// retains its own OAuth registration; this path never supplies it a refresh token.
+pub fn graph(request: mailcraft_host::graph::GraphRequest) -> mailcraft_host::graph::GraphResult {
+    let account = request.account.clone();
+    let cancel = request.cancel.clone();
+    let mut result = mailcraft_host::graph::managed_mail(request, &|_, _, _| graph_token(&account, &cancel));
+    if result.consent_needed || result.sign_in_refused || result.token_refused {
+        result
+            .errors
+            .push(said!("Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again.").to_string());
+        result.consent_needed = false;
+        result.sign_in_refused = false;
+    }
+    result
+}
+
+pub fn fetch(mut job: mailcraft_host::fetch::GraphFetchJob) -> mailcraft_model::sync::GraphFetchResult {
+    let Some(account) = job.goa.take() else { return mailcraft_host::fetch::run(job) };
+    let valid = !job.request.shared && job.request.account == account.id && job.request.email.eq_ignore_ascii_case(&account.email);
+    let token = if valid {
+        graph_token(&account, &job.cancel)
+    } else {
+        Err(mailcraft_net::NetError::Config(said!("This GNOME connection supports only the selected account's mail.")))
+    };
+    match token {
+        Ok(got) => mailcraft_net::graph::fetch_messages(&got.tokens.access, &job.request, &job.cancel),
+        Err(error) => mailcraft_model::sync::GraphFetchResult {
+            account: job.request.account,
+            email: job.request.email,
+            errors: vec![error.to_string()],
+            ..Default::default()
+        },
+    }
+}
+
+pub fn search(job: mailcraft_ui_egui::server_search::GraphSearchJob) -> mailcraft_model::sync::GraphSearchResult {
+    let Some(account) = job.goa else { return mailcraft_net::graph::search_messages(&job.access, &job.request) };
+    let valid = !job.request.shared && job.request.account == account.id && job.request.email.eq_ignore_ascii_case(&account.email);
+    let token = if valid {
+        graph_token(&account, &AtomicBool::new(false))
+    } else {
+        Err(mailcraft_net::NetError::Config(said!("This GNOME connection supports only the selected account's mail.")))
+    };
+    match token {
+        Ok(got) => mailcraft_net::graph::search_messages(&got.tokens.access, &job.request),
+        Err(error) => mailcraft_model::sync::GraphSearchResult {
+            account: job.request.account,
+            email: job.request.email,
+            ticket: job.request.ticket,
+            errors: vec![error.to_string()],
+            ..Default::default()
+        },
+    }
 }
 
 pub fn sync(request: &SyncRequest, cancel: &AtomicBool, emit: &mut dyn FnMut(SyncResult)) {

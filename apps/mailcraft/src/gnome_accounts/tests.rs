@@ -154,7 +154,7 @@ fn linked_fixture(provider: &str, oauth: bool) -> zbus::fdo::ManagedObjects {
 #[test]
 fn linked_configuration_requires_secure_protocols_and_matching_oauth_capabilities() {
     for (provider, oauth, supported) in
-        [("google", true, true), ("windows_live", true, true), ("ms_graph", true, false), ("unknown", true, false), ("imap_smtp", false, true)]
+        [("google", true, true), ("windows_live", true, true), ("ms_graph", true, true), ("unknown", true, false), ("imap_smtp", false, true)]
     {
         let accounts = parse(linked_fixture(provider, oauth)).unwrap();
         assert_eq!(accounts[0].linked.is_some(), supported, "{provider}");
@@ -183,13 +183,14 @@ fn linked_configuration_requires_secure_protocols_and_matching_oauth_capabilitie
 }
 
 struct LinkedFixture {
+    graph: bool,
     oauth: bool,
     enabled: std::sync::Arc<AtomicBool>,
 }
 #[zbus::interface(name = "org.freedesktop.DBus.ObjectManager")]
 impl LinkedFixture {
     fn get_managed_objects(&self) -> zbus::fdo::ManagedObjects {
-        let mut objects = linked_fixture(if self.oauth { "google" } else { "imap_smtp" }, self.oauth);
+        let mut objects = if self.graph { graph_fixture() } else { linked_fixture(if self.oauth { "google" } else { "imap_smtp" }, self.oauth) };
         if !self.enabled.load(Ordering::Relaxed) {
             for interfaces in objects.values_mut() {
                 interfaces.get_mut(ACCOUNT).unwrap().insert("MailDisabled".into(), OwnedValue::from(true));
@@ -220,13 +221,14 @@ impl Passwords {
     }
 }
 struct AccessToken {
+    token: &'static str,
     calls: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
 }
 #[zbus::interface(name = "org.gnome.OnlineAccounts.OAuth2Based")]
 impl AccessToken {
     fn get_access_token(&self) -> (String, i32) {
         self.calls.lock().unwrap().push("token".into());
-        ("synthetic-mail-token".into(), 3600)
+        (self.token.into(), 3600)
     }
 }
 
@@ -245,13 +247,13 @@ fn private_bus_linked_credentials_refresh_without_local_login_or_storage() {
             .unwrap()
             .name(SERVICE)
             .unwrap()
-            .serve_at(PATH, LinkedFixture { oauth, enabled: enabled.clone() })
+            .serve_at(PATH, LinkedFixture { graph: false, oauth, enabled: enabled.clone() })
             .unwrap()
             .serve_at(path, Credentials { calls: calls.clone(), allowed: allowed.clone() })
             .unwrap()
             .serve_at(path, Passwords { calls: calls.clone() })
             .unwrap()
-            .serve_at(path, AccessToken { calls: calls.clone() })
+            .serve_at(path, AccessToken { token: "synthetic-mail-token", calls: calls.clone() })
             .unwrap()
             .build()
             .unwrap();
@@ -300,4 +302,170 @@ fn private_bus_linked_credentials_refresh_without_local_login_or_storage() {
         assert_eq!(calls.lock().unwrap().len(), count + 1, "a refused EnsureCredentials never requests tokens or passwords");
         drop(server);
     }
+}
+
+fn graph_fixture() -> zbus::fdo::ManagedObjects {
+    let mut objects = fixture("ms_graph", "owner@example.org");
+    for interfaces in objects.values_mut() {
+        interfaces.get_mut(ACCOUNT).unwrap().insert("Id".into(), string("account_1"));
+        interfaces.insert(OAUTH.try_into().unwrap(), HashMap::new());
+        let mail = interfaces.get_mut(MAIL).unwrap();
+        mail.insert("ImapSupported".into(), OwnedValue::from(false));
+        mail.insert("SmtpSupported".into(), OwnedValue::from(false));
+    }
+    objects
+}
+
+#[test]
+fn graph_profile_links_without_inventing_mail_servers_or_a_mailcraft_registration() {
+    let accounts = parse(graph_fixture()).unwrap();
+    let account = accounts[0].linked.as_ref().unwrap();
+    assert_eq!(account.kind, AccountKind::Microsoft);
+    assert!(account.incoming.is_none() && account.outgoing.is_none() && account.oauth.is_none());
+    assert_eq!(account.goa.as_ref().unwrap().provider, "ms_graph");
+}
+
+fn graph_request(account: MailAccount, mail: mailcraft_model::sync::GraphMailRequest) -> mailcraft_host::graph::GraphRequest {
+    mailcraft_host::graph::GraphRequest {
+        signer: Some(account.clone()),
+        account,
+        oauth: Default::default(),
+        refresh: "must-not-renew-with-mailcraft".into(),
+        access: "must-not-use-cached-token".into(),
+        outbox: vec![],
+        directory: false,
+        calendar: None,
+        changes: None,
+        asks: vec![],
+        settings: false,
+        favorites: false,
+        favorites_scopes: false,
+        mail: Some(mail),
+        mail_pieces: None,
+        cancel: Default::default(),
+    }
+}
+
+#[test]
+#[ignore = "requires an isolated D-Bus session (see docs/gnome-accounts.md)"]
+fn private_bus_graph_mail_uses_goa_for_sync_fetch_search_and_repairs() {
+    assert_eq!(std::env::var("MAILCRAFT_TEST_PRIVATE_BUS").as_deref(), Ok("1"));
+    let _lock = PRIVATE_BUS.lock().unwrap();
+    let calls = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let enabled = std::sync::Arc::new(AtomicBool::new(true));
+    let allowed = std::sync::Arc::new(AtomicBool::new(true));
+    let path = "/org/gnome/OnlineAccounts/Accounts/account_1";
+    let _goa = zbus::blocking::connection::Builder::session()
+        .unwrap()
+        .name(SERVICE)
+        .unwrap()
+        .serve_at(PATH, LinkedFixture { graph: true, oauth: true, enabled: enabled.clone() })
+        .unwrap()
+        .serve_at(path, Credentials { calls: calls.clone(), allowed: allowed.clone() })
+        .unwrap()
+        .serve_at(path, AccessToken { token: mailcraft_net::graph::standin::TOKEN, calls: calls.clone() })
+        .unwrap()
+        .build()
+        .unwrap();
+    let server = mailcraft_net::graph::standin::StandIn::start().unwrap();
+    let _route = server.route();
+    let inbox = server.state().well_known("inbox");
+    server.state().mailbox.generate(&inbox, 2, 1_791_993_600);
+    let mut session = mailcraft_engine::Session::empty();
+    let id = session
+        .run(
+            "account.add",
+            &serde_json::json!({"email": "owner@example.org", "kind": "microsoft", "goa": {"id": "account_1", "provider": "ms_graph"}}),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let account = session.mailbox.account(id).unwrap().clone();
+    assert!(account.oauth.is_none());
+    let ask = mailcraft_engine::cmd::graph_mail::graph_mail_request(&session, id).unwrap();
+    let blocked = mailcraft_host::graph::graph(graph_request(account.clone(), ask.clone()));
+    assert!(!blocked.errors.is_empty());
+    assert!(
+        calls.lock().unwrap().is_empty() && server.state().requests.is_empty(),
+        "an ordinary host never renews GOA credentials with MailCraft OAuth"
+    );
+    let result = graph(graph_request(account.clone(), ask));
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert!(result.tokens.is_none(), "GOA tokens never enter UI caches or local credential stores");
+    let mail = result.mail.unwrap();
+    assert!(mail.errors.is_empty(), "{:?}", mail.errors);
+    mailcraft_engine::cmd::graph_mail::apply_graph_mail(&mut session, mail).unwrap();
+    let message = session.mailbox.messages.values().find(|m| m.account == id).unwrap().id;
+    let request = mailcraft_engine::cmd::graph_mail::graph_fetch_request(&session, id, Some(message), 1).unwrap();
+    let fetched = fetch(mailcraft_host::fetch::GraphFetchJob {
+        goa: Some(account.clone()),
+        request,
+        access: "must-not-use".into(),
+        cancel: Default::default(),
+    });
+    assert!(fetched.errors.is_empty(), "{:?}", fetched.errors);
+    assert_eq!(fetched.fetched.len(), 1);
+    let searched = search(mailcraft_ui_egui::server_search::GraphSearchJob {
+        goa: Some(account.clone()),
+        access: "must-not-use".into(),
+        request: mailcraft_model::sync::GraphSearchRequest {
+            account: id,
+            email: account.email.clone(),
+            query: "message".into(),
+            ..Default::default()
+        },
+    });
+    assert!(searched.errors.is_empty(), "{:?}", searched.errors);
+    assert_eq!(calls.lock().unwrap().iter().filter(|s| *s == "token").count(), 3);
+    // Reads, drafts and sending all use the same managed-mail credential path.
+    session.view.folder = session.mailbox.folder_of_kind(id, mailcraft_model::FolderKind::Inbox).unwrap();
+    session.run("mail.flag", &serde_json::json!({"id": message})).unwrap();
+    session
+        .run("mail.new", &serde_json::json!({"to": "recipient@example.org", "subject": "GOA synthetic send", "body": "Synthetic mail only."}))
+        .unwrap();
+    session.run("compose.send", &serde_json::json!({})).unwrap();
+    let result = graph(graph_request(account.clone(), mailcraft_engine::cmd::graph_mail::graph_mail_request(&session, id).unwrap()));
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    let mail = result.mail.unwrap();
+    assert!(mail.errors.is_empty(), "{:?}", mail.errors);
+    mailcraft_engine::cmd::graph_mail::apply_graph_mail(&mut session, mail).unwrap();
+    assert_eq!(server.state().sent.len(), 1);
+    assert!(
+        server
+            .state()
+            .requests
+            .iter()
+            .all(|r| !r.path.iter().any(|part| ["oauth2", "calendars", "contacts", "todo", "mailboxSettings"].contains(&part.as_str())))
+    );
+    // A bounded 401 renewal asks GOA again, never MailCraft's OAuth endpoint.
+    let token_calls = calls.lock().unwrap().iter().filter(|s| *s == "token").count();
+    server.state().token = "no-longer-valid".into();
+    let result = graph(graph_request(account.clone(), mailcraft_engine::cmd::graph_mail::graph_mail_request(&session, id).unwrap()));
+    assert!(result.tokens.is_none());
+    assert!(!result.errors.is_empty() || result.mail.as_ref().is_some_and(|m| !m.errors.is_empty()));
+    assert_eq!(calls.lock().unwrap().iter().filter(|s| *s == "token").count(), token_calls + 2);
+    server.state().token = mailcraft_net::graph::standin::TOKEN.into();
+    let before = server.state().requests.len();
+    let credential_calls = calls.lock().unwrap().len();
+    let mut outside_mail = graph_request(account.clone(), mailcraft_engine::cmd::graph_mail::graph_mail_request(&session, id).unwrap());
+    outside_mail.directory = true;
+    assert!(!graph(outside_mail).errors.is_empty());
+    assert_eq!(calls.lock().unwrap().len(), credential_calls);
+    assert_eq!(server.state().requests.len(), before);
+    let cancelled = graph_request(account.clone(), mailcraft_engine::cmd::graph_mail::graph_mail_request(&session, id).unwrap());
+    cancelled.cancel.store(true, Ordering::Relaxed);
+    assert!(!graph(cancelled).errors.is_empty());
+    assert_eq!(calls.lock().unwrap().len(), credential_calls);
+    assert_eq!(server.state().requests.len(), before);
+    enabled.store(false, Ordering::Relaxed);
+    let result = graph(graph_request(account.clone(), mailcraft_engine::cmd::graph_mail::graph_mail_request(&session, id).unwrap()));
+    assert!(!result.errors.is_empty());
+    assert!(result.tokens.is_none() && !result.consent_needed && !result.sign_in_refused);
+    assert_eq!(server.state().requests.len(), before, "disabled GOA mail reaches no Graph endpoint");
+    enabled.store(true, Ordering::Relaxed);
+    allowed.store(false, Ordering::Relaxed);
+    let result = graph(graph_request(account.clone(), mailcraft_engine::cmd::graph_mail::graph_mail_request(&session, id).unwrap()));
+    assert!(!result.errors.is_empty());
+    assert_eq!(server.state().requests.len(), before, "a refused GOA sign-in reaches no Graph endpoint");
+    assert!(result.errors.iter().all(|s| !s.contains("synthetic-private-error")));
 }

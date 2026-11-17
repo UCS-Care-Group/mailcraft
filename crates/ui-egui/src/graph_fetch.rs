@@ -83,6 +83,9 @@ impl Fetching {
 
 /// A Graph token of this session for `account` that is still good.
 fn access(app: &MailApp, account: Id) -> Option<String> {
+    if app.session.mailbox.account(account).is_some_and(|a| a.goa.is_some()) {
+        return app.services.gnome_accounts.is_some().then(String::new);
+    }
     app.graph_tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone())
 }
 
@@ -213,7 +216,12 @@ impl MailApp {
             Way::Graph(access) => {
                 let fetch = self.services.graph_fetch.as_ref()?;
                 let request = asked(messages, |m| graph_mail::graph_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
-                Some(fetch(GraphFetchJob { request, access, cancel }))
+                Some(fetch(GraphFetchJob {
+                    goa: self.session.mailbox.account(account).filter(|a| a.goa.is_some()).cloned(),
+                    request,
+                    access,
+                    cancel,
+                }))
             }
             Way::Jmap(secret) => {
                 let fetch = self.services.jmap_fetch.as_ref()?;
