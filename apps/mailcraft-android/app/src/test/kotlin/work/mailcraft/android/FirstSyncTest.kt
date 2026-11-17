@@ -11,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.Event
 import uniffi.mailcraft_mobile.SyncAnswer
 
@@ -52,7 +53,15 @@ class FirstSyncTest {
     private var room: suspend () -> Boolean = { true }
     private val kept = MemoryHolds()
     private val told = mutableListOf<Pair<ULong, Boolean>>()
-    private val holds = FirstSyncHolds(kept) { account, held -> told.add(account to held) }
+    /** How many of the next hold calls the core refuses (its queue full). */
+    private var refusals = 0
+    private val holds = FirstSyncHolds(kept) { account, held ->
+        if (refusals > 0) {
+            refusals--
+            throw CoreException.Failed("busy")
+        }
+        told.add(account to held)
+    }
 
     private val hub = AccountsHub(
         api = api,
@@ -248,6 +257,47 @@ class FirstSyncTest {
         // Account 7's round is the app's, not the owner's: 8 stays held, in the core and here.
         assertEquals(listOf("owner", "first"), rounds)
         assertEquals(setOf(8uL), kept.load())
+        // (8's hold is said again before that round, as before every round the app starts.)
+        assertEquals(listOf(7uL to false, 8uL to true, 8uL to true), told)
+    }
+
+    @Test
+    fun aHoldTheCoreMissedIsSaidAgainBeforeANewAccountsFirstRound() {
+        // "Not now" to account 8, which the core didn't hear (its queue was full); kept here.
+        refusals = 1
+        runBlocking { holds.answered(8u, yes = false) }
+        assertTrue(told.isEmpty())
+        addAccount()
+        // Account 7's round starts only once 8's hold has been said again.
         assertEquals(listOf(7uL to false, 8uL to true), told)
+        assertEquals(listOf("first"), rounds)
+    }
+
+    @Test
+    fun aNewAccountsFirstRoundDoesNotStartWhileAHoldCannotBeSaid() {
+        kept.save(setOf(8uL))
+        // The yes for account 7 is heard; 8's hold, said again before the round, is not.
+        val hub = AccountsHub(
+            api = api,
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            firstRound = {
+                rounds.add("first")
+                SyncAnswer(started = true, message = "")
+            },
+            holds = FirstSyncHolds(kept) { account, held ->
+                if (account == 8uL) throw CoreException.Failed("busy")
+                told.add(account to held)
+            },
+        )
+        val actions = hub.controller.actions()
+        actions.onEmail("ada@example.org")
+        actions.onSignIn()
+        assertTrue(rounds.isEmpty())
+        assertFalse(hub.syncing.value)
+        assertEquals("Send/Receive couldn't start. Try again.", hub.syncNotice.value)
+        assertEquals(setOf(8uL), kept.load())
     }
 }

@@ -141,7 +141,9 @@ internal class AccountsHub(
         notice.value = null
         scope.launch {
             val answer = try {
-                if (owner) holds?.ownerRound(sync) ?: sync() else firstRound()
+                // (The app's round waits for every hold kept to be said again, as the background's
+                // does: one the core didn't hear when it was answered must not be fetched.)
+                if (owner) holds?.ownerRound(sync) ?: sync() else afterHolds(holds, firstRound)
             } catch (_: CoreException) {
                 SyncAnswer(started = false, message = texts.t("Send/Receive couldn't start. Try again."))
             }
