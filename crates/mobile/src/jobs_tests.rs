@@ -196,3 +196,30 @@ fn between_rounds_the_calendar_and_the_to_dos_go_by_themselves() {
     let (events, _) = titles(&core);
     assert!(events.contains(&"Standup".to_string()));
 }
+
+#[test]
+fn a_round_that_waits_for_the_calendar_job_of_its_account_goes_on_once_that_has_answered() {
+    let (runner, _) = stand_in();
+    let (core, _, _) = signed_in(runner);
+    let seen = Arc::new(Seen::default());
+    let slow = runners(seen.clone(), false);
+    let calendar = slow.calendar.clone();
+    core.sync.set_job_runners(Runners {
+        calendar: Arc::new(move |req| {
+            std::thread::sleep(Duration::from_millis(300));
+            calendar(req)
+        }),
+        tasks: slow.tasks,
+    });
+    // A wake between rounds starts the calendar's job; the round asked for at once waits for it.
+    let sync = core.sync.clone();
+    block_on(core.call(move |s| {
+        sync.tick(s);
+        Ok(())
+    }))
+    .unwrap();
+    assert!(core.sync.lock().jobs.calendar.busy());
+    let summary = block_on(core.background_sync(8_000)).unwrap();
+    assert!(summary.ran && summary.finished, "{summary:?}");
+    assert_eq!(seen.calendar.lock().unwrap().len(), 1, "taken in once, not asked again in the same look");
+}

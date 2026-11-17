@@ -724,17 +724,19 @@ impl SyncHost {
         // What the owner opened goes at once; the background between rounds, and at the end of a
         // background run's round.
         self.fetch_step(inner, session, !working && (!ending || inner.tail_fetch));
+        // The calendar and the to-dos: their answers are taken in at every wake (a run waits while
+        // the calendar's job is at work for its account), and a job starts between rounds and at
+        // the end of each, which waits for them.
+        let may_start = !working && !platform_offline && (!ending || inner.tail_starts < MOST_TAIL_STARTS);
+        let started = self.jobs_step(inner, session, may_start);
+        if ending {
+            inner.tail_starts = inner.tail_starts.saturating_add(started);
+        }
+        let jobs_busy = inner.jobs.busy();
+        self.jobs_busy.store(jobs_busy, Ordering::Relaxed);
         if working {
             self.progress(inner, session);
         } else {
-            // The calendar and the to-dos: between rounds, and at the end of each, which waits for them.
-            let may_start = !platform_offline && (!ending || inner.tail_starts < MOST_TAIL_STARTS);
-            let started = self.jobs_step(inner, session, may_start);
-            if ending {
-                inner.tail_starts = inner.tail_starts.saturating_add(started);
-            }
-            let jobs_busy = inner.jobs.busy();
-            self.jobs_busy.store(jobs_busy, Ordering::Relaxed);
             if ending && (jobs_busy || (inner.tail_fetch && inner.fetch.background_running())) {
                 return;
             }
