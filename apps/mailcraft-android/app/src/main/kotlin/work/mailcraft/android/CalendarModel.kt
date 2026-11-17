@@ -45,7 +45,7 @@ internal object CalendarPaging {
         CalendarMode.Day -> DateRange(anchor, anchor)
         CalendarMode.Week -> weekStartOf(anchor, weekStart).let { DateRange(it, it.plusDays(DAYS_IN_WEEK - 1L)) }
         CalendarMode.Month -> {
-            val first = gridStart(anchor, weekStart)
+            val first = weekStartOf(anchor.withDayOfMonth(1), weekStart)
             DateRange(first, first.plusDays((MONTH_WEEKS * DAYS_IN_WEEK - 1).toLong()))
         }
     }
@@ -98,6 +98,17 @@ internal object CalendarPaging {
         return page.coerceIn(0L, pageCount(mode) - 1L).toInt()
     }
 
+    /**
+     * [day] held a month inside the days the swiped views page through, so that every view's page of it
+     * is a page there is and the pages beside it are its neighbours (a date typed or reached by paging
+     * centuries away can't leave the pager and the title showing different days).
+     */
+    fun heldToPages(day: LocalDate): LocalDate {
+        val first = PAGE_ORIGIN.plusMonths(1)
+        val last = PAGE_ORIGIN.plusDays(PAGED_DAYS - 1L).minusMonths(1)
+        return if (day.isBefore(first)) first else if (day.isAfter(last)) last else day
+    }
+
     /** The first day of the week that holds [day]. */
     fun weekStartOf(day: LocalDate, weekStart: DayOfWeek): LocalDate =
         day.minusDays(Math.floorMod(day.dayOfWeek.value - weekStart.value, DAYS_IN_WEEK).toLong())
@@ -108,12 +119,9 @@ internal object CalendarPaging {
         return List(DAYS_IN_WEEK) { first.plusDays(it.toLong()) }
     }
 
-    /** The first day of the month grid: the start of the week that holds the first of the month. */
-    fun gridStart(anchor: LocalDate, weekStart: DayOfWeek): LocalDate = weekStartOf(anchor.withDayOfMonth(1), weekStart)
-
     /** Six weeks of seven days, so that the grid keeps its height from month to month. */
     fun monthGrid(anchor: LocalDate, weekStart: DayOfWeek): List<List<LocalDate>> {
-        val start = gridStart(anchor, weekStart)
+        val start = weekStartOf(anchor.withDayOfMonth(1), weekStart)
         return List(MONTH_WEEKS) { week ->
             List(DAYS_IN_WEEK) { day -> start.plusDays((week * DAYS_IN_WEEK + day).toLong()) }
         }

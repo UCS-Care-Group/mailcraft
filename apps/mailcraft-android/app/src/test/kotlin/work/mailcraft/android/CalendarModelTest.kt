@@ -104,6 +104,22 @@ class CalendarPagingTest {
     }
 
     @Test
+    fun aDayHeldToThePagesHasRealNeighboursAtEitherEnd() {
+        for (far in listOf(day("1800-01-01"), day("1900-01-01"), day("2299-12-31"), day("2500-06-15"))) {
+            val held = CalendarPaging.heldToPages(far)
+            val cases = listOf(CalendarMode.Day, CalendarMode.Week, CalendarMode.Month).flatMap { mode ->
+                DayOfWeek.entries.flatMap { start -> (-1..1).map { Triple(mode, start, it) } }
+            }
+            for ((mode, start, k) in cases) {
+                // What the pager draws on the page k away is the page it is on.
+                val page = CalendarPaging.pageOf(mode, held, start)
+                assertEquals(page + k, CalendarPaging.pageOf(mode, CalendarPaging.shift(mode, held, k), start))
+            }
+        }
+        assertEquals(day("2026-11-04"), CalendarPaging.heldToPages(day("2026-11-04")))
+    }
+
+    @Test
     fun pagesAreHeldToThePagesThereAre() {
         for (mode in CalendarMode.entries) {
             assertEquals(0, CalendarPaging.pageOf(mode, day("1800-01-01"), DayOfWeek.MONDAY))
@@ -304,6 +320,10 @@ class CalendarEventTest {
         assertEquals(
             "Wednesday, November 4, 2026, Today, 1 event",
             pageDescription(EnglishTexts, state.copy(mode = CalendarMode.Day), events, DayOfWeek.SUNDAY, en),
+        )
+        assertEquals(
+            "Nov 1 – Nov 7, 2026, Loading…",
+            pageDescription(EnglishTexts, state, null, DayOfWeek.SUNDAY, en),
         )
         assertEquals("November 2026", pageDescription(EnglishTexts, state.copy(mode = CalendarMode.Month), events, DayOfWeek.SUNDAY, en))
     }

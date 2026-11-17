@@ -151,6 +151,15 @@ class CalendarControllerTest {
     }
 
     @Test
+    fun aDayFarOutsideThePagesIsHeldToThem() {
+        val c = controller()
+        c.setMode(CalendarMode.Day)
+        c.goTo(LocalDate.parse("1800-01-01"))
+        assertEquals(CalendarPaging.heldToPages(LocalDate.parse("1800-01-01")), c.state.value.anchor)
+        assertTrue(c.state.value.anchor.year == 1900)
+    }
+
+    @Test
     fun aSwipeGoesToItsDayAndASwipeBackToTheSameDayReadsNothing() {
         val c = controller()
         c.refresh()

@@ -136,7 +136,8 @@ private fun Browse(
     val events = rememberShownEvents(state.events)
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Controls(texts, state, pageDescription(texts, state, events.orEmpty(), weekStart, locale), actions)
+            val ready = (state.events as? Loaded.Ready)?.events
+            Controls(texts, state, pageDescription(texts, state, ready, weekStart, locale), actions)
             HorizontalDivider()
             Box(modifier = Modifier.weight(1f)) {
                 val loaded = state.events

@@ -274,7 +274,10 @@ internal class CalendarController(
     }
 
     private fun show(change: (CalendarUiState) -> CalendarUiState) {
-        _state.update { change(it).copy(events = Loaded.Loading, notice = null) }
+        _state.update { current ->
+            val next = change(current)
+            next.copy(anchor = CalendarPaging.heldToPages(next.anchor), events = Loaded.Loading, notice = null)
+        }
         refresh()
     }
 
