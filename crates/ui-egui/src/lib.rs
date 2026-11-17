@@ -37,6 +37,7 @@ macro_rules! tln {
 }
 
 mod account_setup;
+pub mod address_book;
 mod advanced_search;
 pub mod agent_gate;
 #[cfg(test)]
@@ -61,6 +62,9 @@ mod auto_replies_tests;
 pub mod backstage;
 mod calendar_sync;
 pub mod calendar_view;
+pub mod check_names;
+#[cfg(test)]
+mod check_names_tests;
 pub mod chrome;
 mod clicks;
 #[cfg(test)]
@@ -85,6 +89,8 @@ mod dialog_scrim_tests;
 pub mod dialogs;
 #[cfg(test)]
 mod draft_continue_tests;
+#[cfg(test)]
+mod draft_selection_tests;
 mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;
@@ -100,6 +106,8 @@ mod find_replace;
 mod folder_properties;
 mod follow_up_tick;
 mod font_index;
+#[cfg(test)]
+mod foreign_sign_in_tests;
 pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
@@ -384,6 +392,11 @@ pub struct Services {
     /// The same host: fetch messages of an Exchange server account whole
     /// (`mailcraft_ews::fetch_messages`), as `graph_fetch` does for a Microsoft account.
     pub ews_fetch: Option<Box<dyn Fn(ews_mail::EwsFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    /// The same host: look names up in an Exchange server account's address list (#1262,
+    /// `mailcraft_ews::Client::resolve_names`, one `ResolveNames` for each name), on a background
+    /// thread, waking the UI with the answer. Absent where no host does (the browser): Check
+    /// Names then matches the contacts alone ([`check_names`]).
+    pub ews_resolve: Option<Box<dyn Fn(check_names::EwsResolveJob) -> Receiver<mailcraft_model::sync::EwsResolveResult>>>,
     /// Desktop: set an Exchange server account up on a background thread (#252, E7), once the owner
     /// has pressed Connect and not before: find the server unless its address is given, ask the
     /// owner (through the job's answers) before the sign-in goes to a host outside the domain, and
@@ -1092,7 +1105,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"zh_CN"|"pseudo"}"#),
+    (
+        "ui.language",
+        "Interface Language",
+        "File › Options",
+        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"cs"|"zh_CN"|"pseudo"}"#,
+    ),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
         "ui.previewAttachment",
@@ -1827,6 +1845,10 @@ pub struct MailApp {
     pub(crate) ran: (u64, String, Result<Value, String>),
     /// When people are free and busy, as Find a Time found out ([`scheduling`]).
     pub(crate) free_busy: scheduling::Store,
+    /// Names of the message being written looked up in an address list ([`check_names`]).
+    pub(crate) resolving: Option<check_names::Resolving>,
+    /// People's Address Book while it is shown: who the search found, kept nowhere else (#1262).
+    pub(crate) address_book: Option<address_book::AddressBook>,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
@@ -2007,6 +2029,8 @@ impl MailApp {
             text_selection: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
+            resolving: None,
+            address_book: None,
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,
@@ -2157,6 +2181,12 @@ impl MailApp {
             self.dialog = Some(dialogs::leaving(id, params));
             return Ok(json!({"pending": "discardDraft"}));
         }
+        // What is selected is what the reading pane shows (#727): the message being written there
+        // goes to Drafts first, as leaving it does.
+        if let Err(e) = windows::compose_window::leave_for_selection(self, id, &params) {
+            self.say_refused(id, &e);
+            return Err(e);
+        }
         if let Some(name) = dialogs::input_dialog(id, &params)
             && self.enabled(id)
         {
@@ -2226,6 +2256,9 @@ impl MailApp {
             self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
             return Ok(json!({"pending": "confirm"}));
         }
+        // Check Names pressed by the owner looks names up in the address list too ([`check_names`]).
+        // (Not for keys a script put in through the control channel: nothing is looked up for it.)
+        let checking_names = !self.driven && id == "compose.checkNames" && params.get("found").is_none() && params.get("pick").is_none();
         let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
         // Where a message it opens goes (#286): the reading pane, or a window of its own when File ›
         // Options says so or the caller asked for one.
@@ -2262,6 +2295,9 @@ impl MailApp {
             self.shared_send_pressed_in(sent);
             // From a JMAP account whose secret isn't at hand: it is asked for (M6).
             self.jmap_send_pressed(sent);
+        }
+        if checking_names && let Ok(v) = &r {
+            self.check_names_pressed(v);
         }
         if id.starts_with("calendar.") {
             self.ran = (self.ran.0.wrapping_add(1), id.to_string(), r.clone());
@@ -2514,8 +2550,12 @@ impl MailApp {
     /// Open a message from outside the message list (a task, a contact's recent mail): in Mail, in
     /// its folder's All tab with no search, the list scrolled to it (#485).
     pub(crate) fn open_in_mail(&mut self, id: Id) {
+        // A selection that is refused (the message being written in the reading pane can't be
+        // saved, #727) leaves everything as it was: nothing is switched to, nothing scrolled to.
+        if self.run("mail.select", json!({"id": id, "elsewhere": true})).is_err() {
+            return;
+        }
         self.ui.backstage = false;
-        let _ = self.run("mail.select", json!({"id": id, "elsewhere": true}));
         let _ = self.run("view.mail", json!({}));
         self.reveal_selection = true;
     }
@@ -3451,15 +3491,25 @@ impl MailApp {
         if !mailcraft_engine::sync_driver::signed_in_as_other(a, tokens) {
             return false;
         }
-        let who = tokens.email.trim();
-        // (Said on screen; never written to the log, which names nobody.)
+        // (The sign-in's own progress words go: what is said now takes their place.)
+        self.session.sync_status.clear();
+        self.say_signed_in_as_other(account, tokens.email.trim());
+        true
+    }
+
+    /// Tell the owner that a sign-in for `account` came back as `who`, somebody else, and who to
+    /// sign in as instead: in the status bar, where any sign-in of somebody else's is said (#103).
+    /// The words said come back, for the account's problems report too. (Said on screen; never
+    /// written to the log, which names nobody.)
+    pub(crate) fn say_signed_in_as_other(&mut self, account: Id, who: &str) -> String {
+        let email = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
         let said = i18n::fmt(
             tl!("You signed in as {signedIn}, but this account is {account}. Sign in again as {account}."),
-            &[("signedIn", &forms::kit::shown(who, 120)), ("account", &forms::kit::shown(a.email.trim(), 120))],
+            &[("signedIn", &forms::kit::shown(who.trim(), 120)), ("account", &forms::kit::shown(&email, 120))],
         );
-        self.session.sync_status.clear();
-        self.status(said);
-        true
+        // (The Send/Receive progress is left as it is: a background job's refusal is not its end.)
+        self.status(said.clone());
+        said
     }
 
     /// Account setup: the password that was just shown to work, for this session's Send/Receive
@@ -3615,6 +3665,9 @@ impl MailApp {
                     mail: None,
                     mail_pieces: None,
                     cancel: Default::default(),
+                    // A renewed sign-in that isn't the account's own stops the run before the
+                    // Outbox goes.
+                    signer: Some(request.account.clone()),
                 };
                 self.session.sync_status = tl!("Sending…").to_string();
                 self.session.sync_progress.phase(account, SyncPhase::Sending);
@@ -3693,6 +3746,7 @@ impl MailApp {
             Err(MailRefusal::NotGraph(why)) => return Err(why),
         };
         let (owner, oauth, refresh, mail) = (plan.owner, plan.oauth, plan.refresh, plan.mail);
+        let signer = owner.clone();
         // The Outbox goes with the mail run itself (R3.4.2): sent as drafts or with `sendMail`,
         // and a message held there is not sent again by itself.
         let outbox: Vec<mailcraft_model::Message> = Vec::new();
@@ -3719,6 +3773,9 @@ impl MailApp {
             mail: Some(mail),
             mail_pieces: Some(pieces),
             cancel: self.services.sync_cancel.clone(),
+            // A renewed sign-in that isn't the account's own stops the run before the Outbox or
+            // anything of the mail goes.
+            signer: Some(signer),
         };
         self.resume_fetch();
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -4979,6 +5036,8 @@ impl MailApp {
         self.poll_auto_replies();
         self.poll_calendar_check();
         self.poll_free_busy();
+        self.poll_resolving();
+        self.poll_address_book(ctx);
         self.poll_sync();
         // (Before any other run can start: a shared mailbox being added goes first.)
         // Once MailCraft's data is removed nothing starts by itself any more: no Send/Receive,
@@ -5477,7 +5536,10 @@ impl MailApp {
         }
         windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);
-        dialogs::show(self, &ctx);
+        // (Unless a window of the system has drawn it over itself.)
+        if !std::mem::take(&mut self.windows.dialog_shown) {
+            dialogs::show(self, &ctx);
+        }
         close_to_tray::show(&ctx, self);
         reminders::show(self, &ctx);
         // What was chosen in a text's menu, once everything that has one is drawn.

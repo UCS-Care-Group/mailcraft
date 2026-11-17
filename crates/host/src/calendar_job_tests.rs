@@ -8,10 +8,11 @@ use std::sync::mpsc::{Receiver, channel};
 use mailcraft_engine::Session;
 use mailcraft_engine::sync_driver::{Busy, CalendarFacts, CalendarPlan};
 use mailcraft_model::remote::{EventsDownload, RemoteEvent};
+use mailcraft_model::sync::Tokens;
 use mailcraft_model::{Id, OAuth};
 use serde_json::json;
 
-use crate::calendar_job::{CalendarAuth, CalendarJobs, CalendarPolled, calendar_request, take_answer};
+use crate::calendar_job::{CalendarAnswer, CalendarAuth, CalendarJobs, CalendarPolled, calendar_request, take_answer};
 use crate::graph::{GraphRequest, GraphResult};
 
 /// Wednesday 2026-10-14 16:00 UTC.
@@ -121,4 +122,72 @@ fn a_job_that_ends_without_an_answer_says_so_and_one_for_another_mailbox_is_let_
     let _ = tx.send(GraphResult::default());
     assert!(matches!(jobs.poll(&s), CalendarPolled::Stale));
     assert!(!jobs.busy());
+}
+
+/// An answer to a calendar job that brings an event, with `tokens`.
+fn answered(s: &mut Session, jobs: &mut CalendarJobs, plan: &CalendarPlan, tokens: Tokens) -> Box<CalendarAnswer> {
+    let (from, to) = plan.range(s.now());
+    let started = jobs.start(s, plan, auth(), 1_000.0, |req| {
+        let (tx, rx) = channel();
+        let events = EventsDownload {
+            account: req.account.id,
+            email: req.account.email.clone(),
+            from,
+            to,
+            complete: true,
+            events: vec![RemoteEvent { id: "e-9".into(), title: "Not yours".into(), start: NOW + 3600, end: NOW + 7200, ..Default::default() }],
+            ..Default::default()
+        };
+        let _ = tx.send(GraphResult { account: req.account.id, events: Some(events), tokens: Some(tokens), ..Default::default() });
+        Some(rx)
+    });
+    assert!(started);
+    loop {
+        if let CalendarPolled::Answer(answer) = jobs.poll(s) {
+            break answer;
+        }
+    }
+}
+
+#[test]
+fn an_answer_with_somebody_elses_sign_in_is_refused_whole() {
+    let (mut s, a) = session();
+    let plan = plan(&mut s, a);
+    let mut jobs = CalendarJobs::default();
+    let theirs = Tokens { refresh: "theirs".into(), access: "theirs".into(), email: "mallory@example.net".into(), ..Default::default() };
+    let answer = answered(&mut s, &mut jobs, &plan, theirs);
+    assert_eq!(answer.foreign.as_ref().map(|f| f.signed_in_as.as_str()), Some("mallory@example.net"));
+    assert!(answer.result.tokens.is_none() && answer.result.events.is_none(), "nothing of it handed on");
+    // Taken as a job that failed, whatever the front end says: nothing reaches the mailbox.
+    let taken = take_answer(&mut s, &answer, false, 2_000.0);
+    assert!(!taken.taken);
+    assert!(!s.mailbox.events.values().any(|e| e.title == "Not yours"));
+}
+
+#[test]
+fn the_accounts_own_sign_in_is_taken_in_as_before() {
+    let (mut s, a) = session();
+    let plan = plan(&mut s, a);
+    let mut jobs = CalendarJobs::default();
+    let own = Tokens { refresh: "newer".into(), email: "ADA@example.org".into(), ..Default::default() };
+    let answer = answered(&mut s, &mut jobs, &plan, own);
+    assert!(answer.foreign.is_none());
+    assert_eq!(answer.result.tokens.as_ref().map(|t| t.refresh.as_str()), Some("newer"));
+    assert!(take_answer(&mut s, &answer, false, 2_000.0).taken);
+    assert!(s.mailbox.events.values().any(|e| e.title == "Not yours"));
+}
+
+#[test]
+fn a_shared_mailboxs_calendar_is_judged_by_the_sign_in_it_is_opened_through() {
+    let (mut s, owner) = session();
+    let shared = s.run("account.addSharedMailbox", &json!({"address": "support@example.org"})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.owner_of(shared).map(|o| o.id), Some(owner));
+    let mut jobs = CalendarJobs::default();
+    // The owner's own sign-in, which names the owner and not the shared mailbox: its own.
+    let plan = CalendarPlan { account: shared, ..plan(&mut s, owner) };
+    let own = Tokens { refresh: "r".into(), email: "ada@example.org".into(), ..Default::default() };
+    assert!(answered(&mut s, &mut jobs, &plan, own).foreign.is_none());
+    // Somebody else's: refused.
+    let theirs = Tokens { refresh: "r".into(), email: "mallory@example.net".into(), ..Default::default() };
+    assert!(answered(&mut s, &mut jobs, &plan, theirs).foreign.is_some());
 }

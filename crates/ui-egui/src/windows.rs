@@ -182,6 +182,8 @@ pub struct Windows {
     /// The windows taken out of `open` while they are laid out ([`show`]): their numbers, and the
     /// message being written each shows, so that what runs inside one still finds them.
     out: Vec<(u64, Option<u64>)>,
+    /// A window of the system drew the dialog this frame, over itself: the main window doesn't.
+    pub(crate) dialog_shown: bool,
     /// The monitors connected now, in the system's pixels, as the host listed them this frame for a window
     /// about to open ([`MailApp::set_monitors`]); `None` when it didn't.
     pub(crate) monitors: Option<Vec<window_places::Monitor>>,
@@ -1210,13 +1212,21 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
             let waits = !app.asking.is_empty() || window.what.form().is_some_and(Form::waiting);
             crate::keys::gate(&ctx, waits);
         }
-        let wish = keys_of(&ctx, window, ui.layer_id());
+        // A dialog about the message written here (Check Names' choice) comes up over this
+        // window, not over the main one behind it, and has its keys.
+        let dialog_here =
+            !inside && window.what.compose().is_some() && app.dialog.as_ref().and_then(crate::dialogs::Dialog::compose) == window.what.compose();
+        let wish = if dialog_here { Keys::default() } else { keys_of(&ctx, window, ui.layer_id()) };
         if !inside {
             place_native(app, &ctx, window, kind);
         }
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
             close |= frame(app, ui, window, wish, closing, !inside);
         });
+        if dialog_here {
+            crate::dialogs::show(app, &ctx);
+            app.windows.dialog_shown = true;
+        }
         crate::text_menu::finish(&ctx, menus);
     });
     close
