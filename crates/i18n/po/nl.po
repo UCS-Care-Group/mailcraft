@@ -731,13 +731,10 @@ msgstr "Account"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Account\n"
 "Settings"
-msgstr ""
-"Account\n"
-"instellingen"
+msgstr "Accountinstellingen"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
@@ -2158,7 +2155,6 @@ msgstr "Terug naar accountinstellingen"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Bar on the Left"
 msgstr "Balk aan de linkerkant"
 
@@ -3208,13 +3204,10 @@ msgstr "Contactpersoon"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Contact\n"
 "Card"
-msgstr ""
-"Visite\n"
-"kaartje"
+msgstr "Visitekaartje"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
@@ -5256,23 +5249,17 @@ msgstr "Map"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Folder\n"
 "Pane"
-msgstr ""
-"Mappen\n"
-"venster"
+msgstr "Mappenvenster"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Folder\n"
 "Properties"
-msgstr ""
-"Map\n"
-"eigenschappen"
+msgstr "Mapeigenschappen"
 
 #. command label, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
@@ -5382,6 +5369,12 @@ msgstr "Voor IMAP-accounts. Microsoft- en Exchange-serveraccounts bewaren e-mail
 #, fuzzy
 msgid "For a mail server your organisation runs itself. MailCraft looks for the server from your address, or you can type its address in Server settings. Nothing is sent until you press Connect."
 msgstr "Voor een e-mailserver die uw organisatie zelf beheert. MailCraft zoekt de server op aan de hand van uw adres, of u typt het adres bij Serverinstellingen. Er wordt niets verzonden tot u op Verbinden drukt."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr "Voor een relay die e-mail zonder wachtwoord aanneemt: uw wachtwoord wordt er nooit naartoe gestuurd."
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -8173,13 +8166,10 @@ msgstr "Bericht"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Message\n"
 "Preview"
-msgstr ""
-"Bericht\n"
-"voorbeeld"
+msgstr "Berichtvoorbeeld"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -8692,6 +8682,12 @@ msgstr "Mijn taken"
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Mijn organisatie moet MailCraft eerst goedkeuren: wat u moet doen"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "My outgoing server needs no sign-in"
+msgstr "Mijn server voor uitgaande e-mail vraagt niet om aanmelden"
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -8750,7 +8746,6 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Navigation Bar"
 msgstr "Navigatiebalk"
 
@@ -11297,13 +11292,10 @@ msgstr "Alleen-lezen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Reading\n"
 "Pane"
-msgstr ""
-"Lees\n"
-"venster"
+msgstr "Leesvenster"
 
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -11511,13 +11503,10 @@ msgstr "Herinneringen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Reminders\n"
 "Window"
-msgstr ""
-"Herinneringen\n"
-"venster"
+msgstr "Herinneringenvenster"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -11907,12 +11896,11 @@ msgstr "Bericht opnieuw verzenden"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Reset\n"
 "View"
 msgstr ""
-"Beeld\n"
+"Weergave\n"
 "herstellen"
 
 #. command label
@@ -13601,9 +13589,8 @@ msgstr "Getoond in het mappenvenster, zoals Team of Support. Laat leeg om het ad
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
-msgstr "Wordt getoond in het mappenvenster, bijvoorbeeld Werk of Thuis. Laat het leeg om het adres te tonen."
+msgstr "Wordt in het mappenvenster getoond, bijvoorbeeld Werk of Thuis. Laat het veld blanco om het adres te tonen."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -15191,6 +15178,12 @@ msgstr "Het certificaat werd niet uitgegeven door een certificeringsautoriteit d
 #, fuzzy
 msgid "The colour is set in Outlook"
 msgstr "De kleur wordt in Outlook ingesteld"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr "De verbindingstest controleert alleen of deze server antwoordt. Vraagt hij toch om inloggen, dan zegt het eerste bericht dat u verstuurt dat."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -17411,13 +17404,10 @@ msgstr "Tijd"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Time\n"
 "Scale"
-msgstr ""
-"Tijd\n"
-"schaal"
+msgstr "Tijdschaal"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/ribbon.rs
@@ -18545,13 +18535,10 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Work\n"
 "Week"
-msgstr ""
-"Werk\n"
-"week"
+msgstr "Werkweek"
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
@@ -23643,6 +23630,12 @@ msgid "{sent} message sent"
 msgid_plural "{sent} messages sent"
 msgstr[0] "{sent} bericht verzonden"
 msgstr[1] "{sent} berichten verzonden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr "{server} (Deze server vraagt om inloggen: schakel \"Mijn uitgaande server vereist geen aanmelding\" uit in de accountinstellingen.)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
