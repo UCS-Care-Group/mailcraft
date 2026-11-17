@@ -156,7 +156,8 @@ pub struct HttpRequest {
 
 impl HttpRequest {
     /// A request of `method` to `url` with `fields` (at most [`MAX_FIELDS`]; a name that is no
-    /// token is left out; control characters are taken out of a value) and `body`. Whether it may
+    /// token is left out; ASCII control characters are taken out of a value, while non-ASCII text
+    /// is preserved) and `body`. Whether it may
     /// be sent again follows the method: everything but `PUT` and `DELETE` may.
     pub(crate) fn new(method: Method, url: &str, fields: &[(&str, &str)], body: Vec<u8>) -> Result<Self, EndpointError> {
         check_endpoint(url)?;
@@ -164,7 +165,7 @@ impl HttpRequest {
             .iter()
             .filter(|(name, _)| field_name(name).is_some())
             .take(MAX_FIELDS)
-            .map(|(name, value)| ((*name).to_owned(), value.chars().filter(|c| !c.is_control()).collect()))
+            .map(|(name, value)| ((*name).to_owned(), value.chars().filter(|c| !c.is_ascii_control()).collect()))
             .collect();
         let repeatable = !matches!(method, Method::Put | Method::Delete);
         Ok(Self { method, url: url.to_owned(), headers, body, max_response: RESPONSE_LIMIT, repeatable })

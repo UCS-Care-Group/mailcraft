@@ -58,6 +58,8 @@ mod folder_empty_tests;
 #[cfg(test)]
 mod folder_kind_tests;
 #[cfg(test)]
+mod folder_new_tests;
+#[cfg(test)]
 mod folder_properties_tests;
 pub mod followup;
 #[cfg(test)]
@@ -175,6 +177,8 @@ mod thread_ids;
 pub mod unsubscribe;
 #[cfg(test)]
 mod unsubscribe_tests;
+#[cfg(test)]
+mod upcoming_reminders_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;

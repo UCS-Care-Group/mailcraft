@@ -142,6 +142,8 @@ mod late_work_tests;
 mod leave_message_tests;
 #[cfg(test)]
 mod list_keys_tests;
+#[cfg(test)]
+mod list_rearrange_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
@@ -218,6 +220,9 @@ mod security_fixtures_tests;
 mod security_tests;
 mod send_later;
 mod send_receive;
+mod send_warnings;
+#[cfg(test)]
+mod send_warnings_tests;
 mod sender_images;
 mod sending;
 pub mod server_search;
@@ -226,6 +231,8 @@ mod shared_calendars;
 #[cfg(test)]
 mod shared_calendars_tests;
 mod shared_mailboxes;
+#[cfg(test)]
+mod signature_rename_tests;
 mod signatures;
 #[cfg(test)]
 mod snooze_tell_tests;
@@ -889,6 +896,9 @@ pub struct UiState {
     pub people_account_address: String,
     pub folder_pane_width: f32,
     pub list_width: f32,
+    /// The message list's height with the reading pane at the bottom, as the owner dragged it
+    /// (#1372; 0: a share of the window's height).
+    pub list_height: f32,
     /// Send/Receive Progress's width, and the height of its list of accounts (0: as tall as what
     /// it lists, up to a limit), as the owner dragged them (#145).
     pub sync_panel_width: f32,
@@ -989,6 +999,7 @@ impl Default for UiState {
             people_account_address: String::new(),
             folder_pane_width: 230.0,
             list_width: 380.0,
+            list_height: 0.0,
             sync_panel_width: sync_panel::WIDTH,
             sync_panel_height: 0.0,
             collapsed_folders: Vec::new(),
@@ -1510,6 +1521,9 @@ pub struct MailApp {
     pub(crate) input_trail: std::collections::VecDeque<String>,
     /// The message list should scroll to the selected row (after a keyboard move).
     pub(crate) reveal_selection: bool,
+    /// The list was rearranged (#1511): the scroll to the selected row puts it in the middle of
+    /// the list, not at the nearest edge as for a move from the keyboard.
+    pub(crate) reveal_centered: bool,
     /// The rows the message list was last drawn from, the selection then (its messages, and those
     /// picked as their conversation) and what the rows drew selected: worked out again only when
     /// one of them changes, not at every frame (#503).
@@ -1860,6 +1874,7 @@ impl MailApp {
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
+            reveal_centered: false,
             drawn: None,
             list_page_rows: 10,
             passwords: Default::default(),
@@ -2047,6 +2062,8 @@ impl MailApp {
         self.ui.backstage_page = "info".into();
         self.ui.folder_pane_width = if self.ui.folder_pane_width.is_finite() { self.ui.folder_pane_width.clamp(150.0, 500.0) } else { 230.0 };
         self.ui.list_width = if self.ui.list_width.is_finite() { self.ui.list_width.clamp(240.0, 900.0) } else { 380.0 };
+        self.ui.list_height =
+            if self.ui.list_height.is_finite() && self.ui.list_height > 0.0 { self.ui.list_height.clamp(120.0, 4000.0) } else { 0.0 };
         (self.ui.sync_panel_width, self.ui.sync_panel_height) = sync_panel::sane_size(self.ui.sync_panel_width, self.ui.sync_panel_height);
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
@@ -2169,6 +2186,27 @@ impl MailApp {
         }
         if let Some(r) = files::intercept(self, id, &params) {
             return r;
+        }
+        // Before a message goes (#509): a recipient who looks like somebody the owner writes to,
+        // or people outside the organisation who would see each other.
+        // A yes holds for the message as it was asked about.
+        let params = if id == "compose.send" { send_warnings::settle(self, params) } else { params };
+        if id == "compose.send"
+            && let Some(ask) = send_warnings::question(self, &params)
+        {
+            let mut params = if params.is_object() { params } else { json!({}) };
+            // The message asked about is the one that goes, whichever is current when the owner answers.
+            if params.get("compose").is_none()
+                && let (Some(compose), Some(map)) = (self.session.compose_id(), params.as_object_mut())
+            {
+                map.insert("compose".into(), json!(compose));
+            }
+            let asked = send_warnings::asked_about(self, &params);
+            if let Some(map) = params.as_object_mut() {
+                map.insert(send_warnings::ASKED_ABOUT.into(), asked);
+            }
+            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
+            return Ok(json!({"pending": "confirm"}));
         }
         // What can't be taken back is asked about first, once.
         // (An answer to an invitation in the mail has a question of its own.)
@@ -2441,6 +2479,13 @@ impl MailApp {
                     self.jmap_refused.remove(&account);
                 }
             }
+        }
+        // A new arrangement moves the rows: the list scrolls to the selected message, from the
+        // window's menus and keys as from an agent through the control channel (#1511). With
+        // nothing selected it stays where it is.
+        if r.is_ok() && keys::REARRANGES_LIST.contains(&id) {
+            self.reveal_selection = true;
+            self.reveal_centered = true;
         }
         // Starting to write brings up the Message tab; finishing goes back to Home.
         // (What is remembered of a message being written goes with it.)
