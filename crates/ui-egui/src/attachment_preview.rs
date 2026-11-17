@@ -468,6 +468,11 @@ pub(crate) fn showing(app: &MailApp, message: Id) -> bool {
         .is_some_and(|index| app.attachment_preview.is_some() || (available(app, message, index) && !in_junk(app, message)))
 }
 
+/// Show Message is useful only while this window's preview or its consent prompt hides the body.
+pub(crate) fn can_show_message(app: &MailApp) -> bool {
+    app.attachment_selection.as_ref().is_some_and(|selection| showing(app, selection.message))
+}
+
 /// The attachment view sits beneath the message header and its attachment chips.
 pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, message: &Message) {
     let id = message.id;

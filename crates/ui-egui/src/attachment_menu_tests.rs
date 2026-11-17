@@ -328,6 +328,7 @@ fn one_click_selects_the_file_and_confirmation_previews_it() {
     assert!(received.lock().unwrap().is_empty(), "selecting a file starts no renderer");
     assert_eq!(h.state().ui.tab, "Attachments");
     let back = h.state().hit.rect("attachmentPreviewBack", A).unwrap();
+    assert!(h.state().enabled("ui.showAttachmentMessage"), "the consent prompt can return to the message");
     let message = h.state().session.mailbox.message(A).unwrap();
     let address = h.get_by_label(&format!("<{}>", message.from.email)).rect();
     let date = crate::dates::header_label(message.date, h.state().session.offset_at(message.date), h.state().session.prefs.twelve_hour);
@@ -340,6 +341,7 @@ fn one_click_selects_the_file_and_confirmation_previews_it() {
     let preview = h.state().hit.rect("attachmentPreviewStart", A).unwrap().center();
     click(&mut h, preview, PointerButton::Primary, 1);
     h.run_steps(6);
+    assert!(h.state().enabled("ui.showAttachmentMessage"), "the rendered preview can return to the message");
     assert!(
         h.get_by_label(&format!("<{}>", h.state().session.mailbox.message(A).unwrap().from.email)).rect().bottom()
             < h.state().hit.rect("attachmentPreviewImage", A).unwrap().top()
@@ -369,6 +371,7 @@ fn without_a_helper_selection_keeps_the_message_and_its_open_command_still_works
     assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
     assert!(h.state().hit.rect("attachmentPreviewStart", A).is_none());
     assert_eq!(crate::attachment_preview::pane_target(h.state()), Some((A, 0)));
+    assert!(!h.state().enabled("ui.showAttachmentMessage"), "the message is already visible");
     assert!(
         h.output()
             .shapes
@@ -446,6 +449,7 @@ fn unsupported_files_keep_the_message_when_previews_are_enabled() {
         h.run_steps(30);
         assert_eq!(h.state().ui.tab, "Attachments");
         assert_eq!(crate::attachment_preview::pane_target(h.state()), Some((A, 0)));
+        assert!(!h.state().enabled("ui.showAttachmentMessage"), "the unsupported file leaves the message visible");
         assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
         assert!(
             h.output()
@@ -473,8 +477,40 @@ fn the_attachment_ribbon_in_a_message_window_acts_on_its_own_file() {
     let show = h.state().hit.rect_in(window, "ribbon", crate::ribbon::hit_id("ui.showAttachmentMessage")).unwrap().center();
     click(&mut h, show, PointerButton::Primary, 1);
     h.run_steps(4);
+    assert_eq!(crate::attachment_preview::target(h.state(), window, B), Some(0), "the disabled button keeps the selected attachment");
     assert!(h.state().hit.rect_in(window, "attachmentPreviewBack", B).is_none());
     assert!(h.state().hit.rect_in(window, "attachment", attachment_key(B, 0)).is_some());
+}
+
+#[test]
+fn show_message_returns_from_a_pop_out_preview_only_in_its_own_window() {
+    use crate::attachment_preview::Host;
+
+    for mode in ["classic", "simplified"] {
+        let (mut h, _) = window();
+        let app = h.state_mut();
+        app.execute("ui.ribbonMode", json!({"value": mode})).unwrap();
+        app.ui.attachment_previews = true;
+        app.services.attachment_preview =
+            Some(Host { pdf: true, images: false, render: Box::new(|_| panic!("the consent prompt starts no helper")) });
+        let window = app.run("ui.openWindow", json!({"message": B})).unwrap()["window"].as_u64().unwrap();
+        h.run_steps(8);
+        let at = h.state().hit.rect_in(window, "attachment", attachment_key(B, 0)).unwrap().center();
+        click(&mut h, at, PointerButton::Primary, 1);
+        h.run_steps(30);
+        assert!(h.state().hit.rect_in(window, "attachmentPreviewBack", B).is_some());
+        let app = h.state_mut();
+        let scope = app.hit.scope(0);
+        assert!(!app.enabled("ui.showAttachmentMessage"), "the main window has no preview");
+        app.hit.scope(window);
+        assert!(app.enabled("ui.showAttachmentMessage"), "the pop-out has the consent prompt");
+        app.hit.scope(scope);
+        let show = h.state().hit.rect_in(window, "ribbon", crate::ribbon::hit_id("ui.showAttachmentMessage")).unwrap().center();
+        click(&mut h, show, PointerButton::Primary, 1);
+        h.run_steps(4);
+        assert_eq!(crate::attachment_preview::target(h.state(), window, B), None);
+        assert!(h.state().hit.rect_in(window, "attachmentPreviewBack", B).is_none());
+    }
 }
 
 #[test]
@@ -509,6 +545,7 @@ fn previews_are_off_by_default_and_double_click_only_opens_the_file() {
     h.run_steps(30);
     assert!(opened(&opened_files).is_empty());
     assert!(!crate::attachment_preview::available(h.state(), A, 0));
+    assert!(!h.state().enabled("ui.showAttachmentMessage"), "disabled previews leave the message visible");
     assert_eq!(h.state().ui.tab, "Attachments");
     assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
     assert!(
@@ -573,11 +610,13 @@ fn assert_junk_preview_restrictions(in_subfolder: bool) {
     h.run_steps(30);
     assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
     assert!(h.state().hit.rect("attachmentPreviewStart", A).is_none());
+    assert!(!h.state().enabled("ui.showAttachmentMessage"), "a selection in Junk leaves the message visible");
     let at = arrow(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 1);
     choose(&mut h, "Preview Attachment");
     h.run_steps(5);
     assert!(h.state().hit.rect("attachmentPreviewImage", A).is_some());
+    assert!(h.state().enabled("ui.showAttachmentMessage"), "an explicit preview in Junk can return to the message");
 }
 
 #[test]
