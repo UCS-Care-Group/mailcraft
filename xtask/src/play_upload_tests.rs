@@ -130,7 +130,7 @@ fn the_five_steps_go_to_googles_addresses_in_order() {
     let upload_url = "https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/work.mailcraft.android/edits/edit-17/bundles?uploadType=media";
     assert!(seen[2].1.starts_with(&format!("url = \"{upload_url}\"\nrequest = \"POST\"\n")));
     assert!(seen[2].1.contains("header = \"Content-Type: application/octet-stream\"\n"));
-    assert!(seen[2].1.contains(&format!("upload-file = \"{}\"\n", file.display())));
+    assert!(seen[2].1.contains(&format!("upload-file = \"{}\"\n", file.display().to_string().replace('\\', "\\\\"))));
     assert!(seen[3].1.starts_with(&format!("url = \"{edits}/edit-17/tracks/internal\"\nrequest = \"PUT\"\n")));
     assert!(seen[3].1.contains(r#"data-binary = "{\"releases\":[{\"status\":\"draft\",\"versionCodes\":[\"1203\"]}],\"track\":\"internal\"}""#));
     assert!(seen[4].1.starts_with(&format!("url = \"{edits}/edit-17:commit\"\nrequest = \"POST\"\n")));
