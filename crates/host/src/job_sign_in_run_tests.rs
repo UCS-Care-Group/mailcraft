@@ -323,6 +323,7 @@ fn a_calendar_or_to_do_job_renews_its_sign_in_only_before_its_first_request() {
     // after the meeting went up.
     let (mut s, a) = session();
     let plan = plan_with_meeting(&mut s, a);
+    let calendar_before = server.state().requests.len();
     let mut request = calendar_request(&s, &plan, auth()).unwrap();
     request.account.opened_calendars =
         vec![OpenedCalendar { address: "lee@example.org".into(), name: "Lee".into(), ticked: true, ..Default::default() }];
@@ -333,8 +334,10 @@ fn a_calendar_or_to_do_job_renews_its_sign_in_only_before_its_first_request() {
     let shared = s.run("account.addSharedMailbox", &json!({"address": "support@example.org"})).unwrap()["id"].as_u64().unwrap();
     let plan = plan_with_meeting(&mut s, shared);
     let request = calendar_request(&s, &plan, auth()).unwrap();
+    let shared_before = server.state().requests.len();
     server.state().fail_next.push(("GET".into(), 401, "InvalidAuthenticationToken".into()));
     let _ = graph_sending_with(request, "UTC", &|_, _, _| renewing(OWNER), &|_, _| renewing(OWNER));
+    assert!(server.state().requests.len() > shared_before, "the shared mailbox's job asked the server");
     // To Do, its token refused at the first read.
     let before = server.state().requests.len();
     server.state().fail_next.push(("GET".into(), 401, "InvalidAuthenticationToken".into()));
@@ -344,7 +347,9 @@ fn a_calendar_or_to_do_job_renews_its_sign_in_only_before_its_first_request() {
     let total = server.state().requests.len();
     assert!(total > before);
     // Each renewal came when nothing of its job had been asked yet: none part-way.
-    let firsts = [0, seen.get(1).copied().unwrap_or(usize::MAX), before];
+    // (Each job's count is taken before it starts, by itself.)
+    assert_eq!(calendar_before, 0);
+    let firsts = [calendar_before, shared_before, before];
     assert_eq!(seen.len(), 3, "one renewal a job: {seen:?}");
     assert_eq!(seen, firsts, "every renewal before the job's first request");
 }
