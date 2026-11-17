@@ -82,6 +82,8 @@ pub enum Condition {
     /// It is not in To.
     NotToMe,
     SubjectOrBodyContains(#[serde(with = "words")] Vec<String>),
+    /// A line of the header holds one of the words ([`Message::header_contains`]).
+    HeaderContains(#[serde(with = "words")] Vec<String>),
     Sensitivity(Sensitivity),
     /// Its size is between these, in KB, both included.
     SizeBetween {
@@ -193,6 +195,10 @@ impl Condition {
             Condition::ToOrCcMe => m.to.iter().chain(&m.cc).any(me),
             Condition::NotToMe => !how.me.trim().is_empty() && !m.to.iter().any(me),
             Condition::SubjectOrBodyContains(w) => any_in(w, &[&m.subject, own_text(m), &m.hidden_text]),
+            Condition::HeaderContains(w) => {
+                let lines = m.header_lines_lowered();
+                any_in(w, &lines.iter().map(String::as_str).collect::<Vec<_>>())
+            }
             Condition::Sensitivity(s) => m.sensitivity() == *s,
             Condition::SizeBetween { min, max } => m.size_known() && m.list_size().is_some_and(|bytes| (*min..=*max).contains(&(bytes / 1024))),
             Condition::MeetingRequest => m.is_meeting_request(),
@@ -232,6 +238,7 @@ impl Condition {
             Condition::ToOrCcMe => "my address is in To or Cc".into(),
             Condition::NotToMe => "my address isn't in To".into(),
             Condition::SubjectOrBodyContains(t) => format!("subject or body contains {}", words(t)),
+            Condition::HeaderContains(t) => format!("header contains {}", words(t)),
             Condition::Sensitivity(s) => format!("sensitivity is {}", s.code()),
             Condition::SizeBetween { min, max } => format!("size is {min} KB to {max} KB"),
             Condition::MeetingRequest => "is a meeting invitation or update".into(),
@@ -257,6 +264,7 @@ impl Condition {
             | Condition::From(w)
             | Condition::SentTo(w)
             | Condition::SubjectOrBodyContains(w)
+            | Condition::HeaderContains(w)
             | Condition::Category(w) => Some(w),
             _ => None,
         }
@@ -272,6 +280,7 @@ impl Condition {
             Condition::From(_) => Condition::From(words),
             Condition::SentTo(_) => Condition::SentTo(words),
             Condition::SubjectOrBodyContains(_) => Condition::SubjectOrBodyContains(words),
+            Condition::HeaderContains(_) => Condition::HeaderContains(words),
             Condition::Category(_) => Condition::Category(words),
             other => other.clone(),
         }
@@ -310,7 +319,11 @@ impl Condition {
             // large to download don't.
             Condition::HasAttachment => m.partly_here() && !m.unfetched,
             Condition::SizeBetween { .. } => !m.size_known(),
-            // Nor what the headers said past what was kept of them ([`Message::headers_cut`]).
+            // Nor what the headers said past what was kept of them ([`Message::headers_cut`]), nor
+            // the header of a message whose lines MailCraft reads into it weren't kept as they came
+            // ([`Message::read_header`]: one read before they were, or made here), nor lines kept
+            // outside memory ([`Message::header_block`]; Run Rules Now brings them in first).
+            Condition::HeaderContains(_) => m.unfetched || m.incomplete || m.headers_cut || m.read_header.is_empty() || !m.header_block.is_loaded(),
             Condition::Sensitivity(_) => m.unfetched || m.incomplete || m.headers_cut,
             // Nor a mark kept outside memory with the lines of its header block, as a build from
             // before the mark stayed on the message kept it (Run Rules Now brings them in first).
@@ -781,10 +794,10 @@ impl Rule {
     }
 
     /// Whether it reads the lines of a message's header block, which have to be in memory for it
-    /// ([`Message::header_block`]): an automatic reply's mark, which a build from before it stayed
-    /// on the message kept there.
+    /// ([`Message::header_block`]): words in the header, and an automatic reply's mark, which a
+    /// build from before it stayed on the message kept there.
     pub fn reads_header(&self) -> bool {
-        self.conditions.iter().chain(&self.exceptions).any(|c| matches!(c, Condition::AutomaticReply))
+        self.conditions.iter().chain(&self.exceptions).any(|c| matches!(c, Condition::HeaderContains(_) | Condition::AutomaticReply))
     }
 
     /// Whether it is for the arriving mail of `account`.

@@ -166,6 +166,9 @@ fn the_header_sensitivity_size_and_kind_of_a_message_are_read() {
         body: Body { text: "x".repeat(3000), ..Default::default() },
         ..Default::default()
     };
+    assert!(Condition::HeaderContains(words(&["harbor mail"])).matches(&m));
+    assert!(Condition::HeaderContains(words(&["from: ann"])).matches(&m), "the modelled lines too");
+    assert!(!Condition::HeaderContains(words(&["lumen"])).matches(&m));
     assert!(Condition::Sensitivity(Sensitivity::Confidential).matches(&m));
     assert!(Condition::AutomaticReply.matches(&m));
     assert!(Condition::SizeBetween { min: 2, max: 3 }.matches(&m) && !Condition::SizeBetween { min: 10, max: 100 }.matches(&m));
@@ -177,6 +180,29 @@ fn the_header_sensitivity_size_and_kind_of_a_message_are_read() {
     // An answer to an invitation isn't one.
     m.attachments = vec![Attachment::new("reply.ics", "text/calendar", b"BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n".to_vec())];
     assert!(!Condition::MeetingRequest.matches(&m));
+}
+
+#[test]
+fn a_header_rule_reads_the_headers_mail_came_with_and_not_mailcrafts_own() {
+    // As a .pst import and a copy put on a server leave them: lines the mail wasn't sent with,
+    // which the server's own rule never sees.
+    let m = Message {
+        headers: vec![
+            ("X-MailCraft-Pst-Item".into(), "5a110e93c0ffee00c0ffee00c0ffee00:00200024".into()),
+            ("x-mailcraft-place".into(), "pst-marker".into()),
+            ("X-Mailer".into(), "Harbor Mail 3".into()),
+        ],
+        ..Default::default()
+    };
+    for word in ["pst", "mailcraft", "00200024", "marker"] {
+        assert!(!Condition::HeaderContains(words(&[word])).matches(&m), "{word}");
+        assert!(!m.header_contains(word), "{word}");
+    }
+    assert!(Condition::HeaderContains(words(&["harbor"])).matches(&m));
+    // A name too short to be one of ours, or with a letter outside ASCII where ours has its
+    // dash, is read as it came.
+    let odd = Message { headers: vec![("X-MailCraft".into(), "plain".into()), ("X-MailCraft\u{e9}x".into(), "accent".into())], ..Default::default() };
+    assert!(odd.header_contains("plain") && odd.header_contains("accent"));
 }
 
 #[test]
@@ -290,8 +316,11 @@ fn an_exception_that_reads_what_isnt_here_yet_leaves_the_mail_alone() {
             assert!(!rule.matches(part), "{:?}", rule.exceptions);
         }
     }
-    // Headers are there as soon as a message is, unless a server's list gave none.
-    for exception in [Condition::Sensitivity(Sensitivity::Private), Condition::AutomaticReply] {
+    // Headers are there as soon as a message is, unless a server's list gave none (and, for a
+    // rule with words in the header, with the lines read into it kept, as the reader keeps them).
+    let read = |m: &Message| Message { read_header: "MIME-Version: 1.0\n".into(), ..m.clone() };
+    let (whole, not_all, unreadable, stub, headers_only) = (read(&whole), read(&not_all), read(&unreadable), read(&stub), read(&headers_only));
+    for exception in [Condition::HeaderContains(words("X-Keep")), Condition::Sensitivity(Sensitivity::Private), Condition::AutomaticReply] {
         rule.exceptions = vec![exception];
         for here in [&whole, &not_all, &unreadable] {
             assert!(rule.matches(here), "{:?}", rule.exceptions);

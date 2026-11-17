@@ -2262,14 +2262,14 @@ mod two_way {
     }
 
     /// New IMAP mail whose header fields ran past what the reader keeps: a rule that deletes
-    /// except if the sender marked it private can't tell, and leaves it alone (#566).
+    /// except if a header says to keep it can't tell, and leaves it alone (#566).
     #[test]
     fn new_imap_mail_with_headers_left_out_isnt_deleted_past_an_exception_on_them() {
         let mut s = session();
         let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
         let inbox = folder(&s, a, FolderKind::Inbox);
         let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
-            "exceptions": [{"type": "sensitivity", "value": "private"}], "actions": [{"type": "delete"}]});
+            "exceptions": [{"type": "headerContains", "value": "x-keep"}], "actions": [{"type": "delete"}]});
         run(&mut s, "rules.add", purge);
         apply(
             &mut s,
@@ -2280,7 +2280,8 @@ mod two_way {
             },
         );
         let cut = Message { headers_cut: true, ..from_server(2, "news cut") };
-        let whole = from_server(3, "news whole");
+        // (Read as the reader reads a header: with the lines it reads into the message kept.)
+        let whole = Message { read_header: "MIME-Version: 1.0\n".into(), ..from_server(3, "news whole") };
         apply(
             &mut s,
             SyncResult {

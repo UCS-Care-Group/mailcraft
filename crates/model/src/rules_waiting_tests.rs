@@ -35,10 +35,11 @@ fn listed(mb: &mut Mailbox, inbox: Id) -> Id {
     mb.add_message(m).unwrap()
 }
 
-/// The fetch: the text, and it is whole.
+/// The fetch: the text, the header's lines as they came, and it is whole.
 fn fetched(mb: &mut Mailbox, id: Id, text: &str) {
     let m = mb.message_mut(id).unwrap();
     m.body.text = text.into();
+    m.read_header = "From: Zoe <zoe@example.org>\nSubject: Report\n".into();
     m.unfetched = false;
 }
 
@@ -199,6 +200,23 @@ fn the_waiting_rules_let_alone_a_message_moved_away_and_back_before_it_was_fetch
     assert!(mb.run_waiting_rules(m, &clock()).is_empty());
     let got = mb.message(m).unwrap();
     assert!(got.folder == inbox && got.rules_waiting.is_none());
+}
+
+/// Mail whose header lines weren't kept as they came (downloaded by 0.12.0 and earlier): an
+/// exception that looks for a word in the header can't be told, and the rule doesn't act (#566).
+#[test]
+fn a_header_exception_on_mail_read_before_the_lines_were_kept_cant_be_told() {
+    let rule = Rule {
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(words("report"))],
+        exceptions: vec![Condition::HeaderContains(words("x-keep"))],
+        actions: vec![Action::Delete],
+        ..Default::default()
+    };
+    let m = Message { subject: "Report".into(), headers: vec![("X-Mailer".into(), "Harbor".into())], ..Default::default() };
+    assert!(m.read_header.is_empty());
+    assert!(!rule.matches(&m), "acts past an exception it can't tell");
+    assert!(rule.undecided_in(&m, &crate::Matching::default()));
 }
 
 /// A rule copies new mail into another account's folder and waits for the message to be here

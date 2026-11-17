@@ -6414,6 +6414,12 @@ msgstr "Kieruj odpowiedzi do"
 msgid "Have replies sent to other addresses"
 msgstr "Kieruj odpowiedzi na inne adresy"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Nagłówek zawiera"
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -25083,10 +25089,6 @@ msgstr "„{subject}” była zbyt duża, aby ją pobrać: jest tu tylko jej nag
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nie została znaleziona na serwerze, więc nie można jej przekazać dalej jako załącznika"
-
-#, fuzzy
-#~ msgid "Header contains"
-#~ msgstr "Nagłówek zawiera"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

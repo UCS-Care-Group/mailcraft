@@ -2139,6 +2139,9 @@ impl Mailbox {
     pub fn add_message(&mut self, mut m: Message) -> Result<Id, ModelError> {
         let folder = self.folder(m.folder).ok_or(not_found("folder", m.folder))?;
         m.account = folder.account;
+        if !m.read_header.is_empty() && !self.keeps_header_as_it_came(m.account) {
+            m.read_header = String::new();
+        }
         // Within what the mailbox keeps of originals in all (#30).
         if m.original.as_ref().is_some_and(|o| !self.room_for_original(o.size())) {
             m.original = None;
@@ -3079,6 +3082,17 @@ impl Mailbox {
     /// through Graph, not a shared mailbox (whose mail the rules leave alone).
     pub fn keeps_rules(&self, account: Id) -> bool {
         self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
+    }
+
+    /// Whether a rule for `account`'s mail (its own or every account's, switched on or off, kept
+    /// here or on its server) looks for words in the header (#566): only then is a message's header
+    /// kept as it came ([`crate::Message::read_header`], up to 64 KB a message), so that the
+    /// mailbox doesn't grow with it for the mail of an account no such rule reads. Of mail that
+    /// came before such a rule, a word not found can't be told ([`crate::Condition::unread_in`]).
+    pub fn keeps_header_as_it_came(&self, account: Id) -> bool {
+        self.rules
+            .iter()
+            .any(|r| r.is_for(account) && r.conditions.iter().chain(&r.exceptions).any(|c| matches!(c, crate::Condition::HeaderContains(_))))
     }
 
     /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one

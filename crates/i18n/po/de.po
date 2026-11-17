@@ -6376,6 +6376,12 @@ msgstr "Antworten senden an"
 msgid "Have replies sent to other addresses"
 msgstr "Antworten an andere Adressen senden lassen"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Kopfzeile enthält"
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -24858,10 +24864,6 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
-
-#, fuzzy
-#~ msgid "Header contains"
-#~ msgstr "Kopfzeile enthält"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

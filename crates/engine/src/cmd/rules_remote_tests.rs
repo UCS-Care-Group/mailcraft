@@ -1256,6 +1256,7 @@ fn the_server_keeps_the_new_parts_it_can_and_says_why_not_for_the_rest() {
             Condition::SentTo(vec!["team@example.org".into()]),
             Condition::ToOrCcMe,
             Condition::SubjectOrBodyContains(vec!["agenda".into(), "minutes".into()]),
+            Condition::HeaderContains(vec!["X-Club".into()]),
             Condition::Sensitivity(Sensitivity::Private),
             Condition::SizeBetween { min: 0, max: 512 },
             Condition::MeetingRequest,

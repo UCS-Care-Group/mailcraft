@@ -6400,6 +6400,12 @@ msgstr "Odpovědi posílat na"
 msgid "Have replies sent to other addresses"
 msgstr "Odpovědi posílat na jiné adresy"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Záhlaví obsahuje"
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -25046,10 +25052,6 @@ msgstr "„{subject}“ byla příliš velká na stažení: je zde jen její zá
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ nebyla nalezena na serveru, takže ji nelze přeposlat jako přílohu"
-
-#, fuzzy
-#~ msgid "Header contains"
-#~ msgstr "Záhlaví obsahuje"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

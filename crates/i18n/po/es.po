@@ -6386,6 +6386,12 @@ msgstr "Enviar las respuestas a"
 msgid "Have replies sent to other addresses"
 msgstr "Enviar las respuestas a otras direcciones"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "El encabezado contiene"
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -24892,10 +24898,6 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
-
-#, fuzzy
-#~ msgid "Header contains"
-#~ msgstr "El encabezado contiene"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."
