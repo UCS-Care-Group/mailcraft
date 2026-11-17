@@ -130,7 +130,7 @@ msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted
 msgstr "« {subject} » reste là où il a été déplacé : il est signé numériquement ou chiffré, et sa copie dans la boîte aux lettres d'origine a été supprimée, tandis que la copie dont il a été déplacé conserve les octets tels qu'il est arrivé. Redéplacez-le pour l'y remettre."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/calendar_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/calendar_view/list.rs
 #, fuzzy
 msgid "(No title)"
 msgstr "(Sans titre)"
@@ -166,7 +166,7 @@ msgid "(no title)"
 msgstr "(sans titre)"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "(none)"
 msgstr "(aucune)"
@@ -1726,13 +1726,19 @@ msgid "Arrange Contacts By"
 msgstr "Réorganiser les contacts par"
 
 #. command label
+#: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
+msgid "Arrange List By"
+msgstr "Réorganiser la liste par"
+
+#. command label
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "Arrange Tasks By"
 msgstr "Réorganiser les tâches par"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Arrangement"
 msgstr "Disposition"
@@ -1979,6 +1985,12 @@ msgid "Attached {n} file"
 msgid_plural "Attached {n} files"
 msgstr[0] "{n} fichier joint"
 msgstr[1] "{n} fichiers joints"
+
+#. interface, name
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Attachment"
+msgstr "Pièce jointe"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -2399,7 +2411,7 @@ msgid "By Subject"
 msgstr "Par objet"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Calendrier"
@@ -3788,6 +3800,12 @@ msgstr "Couper"
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMAINE\\utilisateur ou vous@example.org ; vide pour votre adresse"
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Daily"
+msgstr "Quotidienne"
+
 #. name
 #: crates/ui-egui/src/theme.rs
 #, fuzzy
@@ -4858,8 +4876,8 @@ msgstr "Boîte aux lettres vide"
 msgid "Enable Rule"
 msgstr "Activer la règle"
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "End"
 msgstr "Fin"
@@ -6421,6 +6439,12 @@ msgstr "Je suis administrateur : approuver MailCraft pour mon organisation"
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "Je suis administrateur : l'approuver pour mon organisation"
 
+#. interface, name
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Icon"
+msgstr "Icône"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Icons"
@@ -7612,6 +7636,12 @@ msgstr "Lien"
 msgid "Links"
 msgstr "Liens"
 
+#. command label, name, ribbon
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "List"
+msgstr "Liste"
+
 #. command label
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -7661,6 +7691,12 @@ msgid "List Notes"
 msgstr "Lister les notes"
 
 #. command label
+#: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
+msgid "List Rows"
+msgstr "Lignes de la liste"
+
+#. command label
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "List Tasks"
@@ -7684,8 +7720,8 @@ msgstr "Chargement…"
 msgid "Local mailbox"
 msgstr "Boîte aux lettres locale"
 
-#. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Location"
 msgstr "Lieu"
@@ -8726,6 +8762,12 @@ msgstr "lundi"
 msgid "Month"
 msgstr "Mois"
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Monthly"
+msgstr "Mensuelle"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -9495,7 +9537,7 @@ msgid "No categories yet"
 msgstr "Aucune catégorie pour l'instant"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No category"
 msgstr "Aucune catégorie"
@@ -9847,8 +9889,8 @@ msgstr "Aucune personne invitée n'a d'adresse"
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "Aucun de vos contacts, ou plusieurs d'entre eux, ne correspond : {names}"
 
-#. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "Aucun"
@@ -11770,10 +11812,16 @@ msgstr "Se reconnecter avec Google"
 msgid "Reconnect with Google if your sign-in expired or was revoked. Your downloaded mail and account settings stay in place."
 msgstr "Reconnectez-vous à Google si votre autorisation a expiré ou a été révoquée. Les messages téléchargés et les paramètres du compte sont conservés."
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Recurrence"
+msgstr "Périodicité"
+
+#. name
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "Recurrence Pattern"
 msgstr "Périodicité"
 
 #. command label, name
@@ -14473,6 +14521,12 @@ msgstr "Cette réunion est organisée par quelqu'un d'autre : elle reste dans 
 msgid "Something did not go through, or did not arrive as it was sent. The steps below say what."
 msgstr "Quelque chose n'est pas passé, ou n'est pas arrivé tel qu'envoyé. Les étapes ci-dessous indiquent quoi."
 
+#. command label
+#: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
+msgid "Sort List"
+msgstr "Trier la liste"
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -14514,8 +14568,8 @@ msgstr "Orthographe et grammaire"
 msgid "Stand this calendar beside the others"
 msgstr "Placer ce calendrier à côté des autres"
 
-#. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Start"
 msgstr "Début"
@@ -15596,6 +15650,12 @@ msgstr "Le calendrier {name} et ses événements conservés sur cet ordinateur s
 #, fuzzy
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "Les calendriers de la boîte aux lettres partagée sont en attente : {error}"
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "The calendars shown hold no items."
+msgstr "Les agendas affichés ne contiennent aucun élément."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -18665,7 +18725,7 @@ msgid "Version {version} is ready:"
 msgstr "La version {version} est prête :"
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "View"
 msgstr "Affichage"
@@ -18775,6 +18835,12 @@ msgstr "Numéros de semaine"
 #, fuzzy
 msgid "Week starts on"
 msgstr "La semaine commence le"
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Weekly"
+msgstr "Hebdomadaire"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -19136,6 +19202,12 @@ msgstr "Yahoo"
 #, fuzzy
 msgid "Yahoo Mail"
 msgstr "Yahoo Mail"
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Yearly"
+msgstr "Annuelle"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
@@ -23101,6 +23173,14 @@ msgstr "{name} : ce n'est pas un fichier de message"
 msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr "{name} : ce n'est pas un fichier de message, de calendrier ou de contact que MailCraft sait lire"
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "{name}: {n} item"
+msgid_plural "{name}: {n} items"
+msgstr[0] "{name} : {n} élément"
+msgstr[1] "{name} : {n} éléments"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -23452,6 +23532,14 @@ msgid "{n} item selected"
 msgid_plural "{n} items selected"
 msgstr[0] "{n} élément sélectionné"
 msgstr[1] "{n} éléments sélectionnés"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "{n} item, {left} more not listed"
+msgid_plural "{n} items, {left} more not listed"
+msgstr[0] "{n} élément, {left} de plus non listés"
+msgstr[1] "{n} éléments, {left} de plus non listés"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -24472,90 +24560,3 @@ msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas êt
 #~ msgstr[0] "{n} message sera définitivement supprimé."
 #~ msgstr[1] "{n} messages seront définitivement supprimés."
 
-#. command label
-#: crates/engine/src/cmd/calendar_list.rs
-#, fuzzy
-msgid "Arrange List By"
-msgstr "Réorganiser la liste par"
-
-#. interface, name
-#: crates/ui-egui/src/calendar_view/list.rs
-#, fuzzy
-msgid "Attachment"
-msgstr "Pièce jointe"
-
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-#, fuzzy
-msgid "Daily"
-msgstr "Quotidienne"
-
-#. interface, name
-#: crates/ui-egui/src/calendar_view/list.rs
-#, fuzzy
-msgid "Icon"
-msgstr "Icône"
-
-#. command label, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "List"
-msgstr "Liste"
-
-#. command label
-#: crates/engine/src/cmd/calendar_list.rs
-#, fuzzy
-msgid "List Rows"
-msgstr "Lignes de la liste"
-
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-#, fuzzy
-msgid "Monthly"
-msgstr "Mensuelle"
-
-#. name
-#: crates/engine/src/session.rs
-#, fuzzy
-msgid "Recurrence Pattern"
-msgstr "Périodicité"
-
-#. command label
-#: crates/engine/src/cmd/calendar_list.rs
-#, fuzzy
-msgid "Sort List"
-msgstr "Trier la liste"
-
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-#, fuzzy
-msgid "The calendars shown hold no items."
-msgstr "Les agendas affichés ne contiennent aucun élément."
-
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-#, fuzzy
-msgid "Weekly"
-msgstr "Hebdomadaire"
-
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-#, fuzzy
-msgid "Yearly"
-msgstr "Annuelle"
-
-#. interface
-#: crates/ui-egui/src/calendar_view/list.rs
-#, fuzzy
-msgid "{name}: {n} item"
-msgid_plural "{name}: {n} items"
-msgstr[0] "{name} : {n} élément"
-msgstr[1] "{name} : {n} éléments"
-
-#. interface
-#: crates/ui-egui/src/chrome.rs
-#, fuzzy
-msgid "{n} item, {left} more not listed"
-msgid_plural "{n} items, {left} more not listed"
-msgstr[0] "{n} élément, {left} de plus non listés"
-msgstr[1] "{n} éléments, {left} de plus non listés"
