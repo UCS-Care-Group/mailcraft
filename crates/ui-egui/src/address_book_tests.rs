@@ -162,6 +162,71 @@ fn a_search_typed_further_lets_go_of_the_one_before() {
     assert!(app.address_book.as_ref().unwrap().searching());
 }
 
+/// An answer that comes after something else was typed is not taken in: nobody found for what was
+/// typed before is shown, chosen or written to for what is typed now.
+#[test]
+fn an_answer_for_what_was_typed_before_is_not_taken_in() {
+    let (mut app, _, asked) = window(false);
+    let ctx = egui::Context::default();
+    let senders = Arc::new(Mutex::new(Vec::new()));
+    let keep = senders.clone();
+    let log = asked.clone();
+    app.services.ews_resolve = Some(Box::new(move |job| {
+        log.lock().unwrap().push((job.request.texts.clone(), job.request.address_list, job.cancel.clone()));
+        let (tx, rx) = std::sync::mpsc::channel();
+        if job.request.address_list {
+            // No whole list to be had: the address list is searched.
+            tx.send(EwsResolveResult { error: Some("none published".into()), ..Default::default() }).unwrap();
+        } else {
+            keep.lock().unwrap().push((tx, job.request.account));
+        }
+        rx
+    }));
+    app.run("people.addressBook", json!({})).unwrap();
+    search(&mut app, &ctx, "ada");
+    assert_eq!(texts(&asked), [vec!["ada".to_string()]]);
+    app.type_people_search("bea");
+    app.poll_address_book(&ctx);
+    let (tx, account) = senders.lock().unwrap().remove(0);
+    let _ = tx.send(EwsResolveResult { account, found: answer("ada"), ..Default::default() });
+    app.poll_address_book(&ctx);
+    let book = app.address_book.as_ref().unwrap();
+    assert!(book.people.is_empty() && book.selected.is_none() && book.chosen().is_none());
+    let first = asked.lock().unwrap().iter().find(|(_, whole, _)| !whole).map(|(_, _, cancel)| cancel.clone()).unwrap();
+    assert!(first.load(Ordering::Relaxed), "the look-up for what was there before is let go of");
+}
+
+/// A password typed while a search was out is kept when the server turns down the one it went with.
+#[test]
+fn a_password_typed_meanwhile_is_kept_when_the_one_before_is_turned_down() {
+    let (mut app, account, _) = window(false);
+    let ctx = egui::Context::default();
+    app.services.ews_resolve = Some(Box::new(move |job| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        if job.request.address_list {
+            tx.send(EwsResolveResult { error: Some("none published".into()), ..Default::default() }).unwrap();
+        } else {
+            let error = Some("The server turned the password down".to_string());
+            tx.send(EwsResolveResult { account: job.request.account, error, auth_refused: true, ..Default::default() }).unwrap();
+        }
+        rx
+    }));
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    app.type_people_search("ada");
+    app.poll_address_book(&ctx);
+    if let Some(book) = &mut app.address_book {
+        book.typed.1 -= PAUSE_MS * 2.0;
+    }
+    app.poll_address_book(&ctx);
+    assert!(app.address_book.as_ref().unwrap().searching());
+    app.passwords.insert(account, "a newer invented password".into());
+    app.poll_address_book(&ctx);
+    assert_eq!(app.passwords.get(&account).map(String::as_str), Some("a newer invented password"));
+    assert!(!app.jmap_refused.contains(&account));
+}
+
 #[test]
 fn without_the_password_it_is_said_and_nothing_is_asked() {
     let (mut app, account, asked) = window(false);

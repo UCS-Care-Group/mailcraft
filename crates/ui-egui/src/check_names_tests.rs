@@ -240,6 +240,30 @@ fn a_password_the_server_turns_down_is_forgotten() {
     assert_eq!(status(&app), "The account's password is needed first: press Send/Receive and type it");
 }
 
+/// A password typed while the look-up was out is kept when the server turns down the one the
+/// look-up went with.
+#[test]
+fn a_password_typed_meanwhile_is_kept_when_the_one_before_is_turned_down() {
+    let (mut app, account, _) = writing("grace");
+    answers(&mut app, Vec::new(), true);
+    app.run("compose.checkNames", json!({})).unwrap();
+    app.passwords.insert(account, "a newer invented password".into());
+    app.poll_resolving();
+    assert_eq!(app.passwords.get(&account).map(String::as_str), Some("a newer invented password"));
+    assert!(!app.jmap_refused.contains(&account));
+}
+
+/// Ctrl+K a script put in through the control channel has the contacts matched, and nothing looked
+/// up in the address list.
+#[test]
+fn check_names_from_the_control_channels_keys_looks_nothing_up() {
+    let (mut app, _, asked) = writing("grace; ada");
+    app.driven = true;
+    let v = app.run("compose.checkNames", json!({})).unwrap();
+    assert_eq!(v["unresolved"], json!(["grace", "ada"]));
+    assert!(asked.lock().unwrap().is_empty() && app.resolving.is_none());
+}
+
 /// Working offline, only the contacts are matched, and that is why is said.
 #[test]
 fn working_offline_nothing_is_looked_up() {

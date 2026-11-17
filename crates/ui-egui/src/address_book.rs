@@ -120,6 +120,8 @@ struct Pending {
     query: String,
     rx: Receiver<EwsResolveResult>,
     cancel: Arc<AtomicBool>,
+    /// The password it went with: only that one is forgotten when the server turns it down.
+    used: String,
 }
 
 impl Drop for Pending {
@@ -226,11 +228,13 @@ impl MailApp {
                     EwsResolveResult { error: Some(tl!("Downloading the address book stopped unexpectedly").to_string()), ..Default::default() }
                 }
             };
+            if result.auth_refused
+                && let Some(pending) = held.pending.take()
+            {
+                refused.push((held.account, pending.used.clone()));
+            }
             held.pending = None;
             held.at_ms = now;
-            if result.auth_refused {
-                refused.push(held.account);
-            }
             match result.address_list {
                 Some(mut list) => {
                     list.people = std::mem::take(&mut list.people).into_iter().filter_map(DirectoryPerson::checked).collect();
@@ -242,8 +246,8 @@ impl MailApp {
                 None => held.error = Some(result.error.unwrap_or_else(|| tl!("The server sent no address book").to_string())),
             }
         }
-        for account in refused {
-            self.ews_password_refused(account);
+        for (account, used) in refused {
+            self.ews_password_refused_with(account, &used);
         }
         let Some(account) = shown.filter(|_| !self.offline()) else { return };
         let due = match self.address_lists.iter().find(|h| h.account == account) {
@@ -310,9 +314,10 @@ impl MailApp {
             Some(Blocked::Password) => self.ews_secret(account).is_some(),
             None => false,
         };
-        let mut refused = false;
+        let mut refused = None;
         let Some(book) = &mut self.address_book else { return };
-        if typed != book.typed.0 {
+        let changed = typed != book.typed.0;
+        if changed {
             book.typed = (typed.clone(), now);
         }
         let held = self.address_lists.iter().find(|h| h.account == account && h.opening == opening);
@@ -330,6 +335,12 @@ impl MailApp {
             book.clear();
             book.local = None;
         }
+        // Something else typed: what was found for, or is being asked for, what was there before
+        // goes (an answer still to come for it is not taken in), so that nobody found for that is
+        // written to or kept for this.
+        if changed {
+            book.clear();
+        }
         // Being downloaded: nothing is searched meanwhile.
         if held.is_some_and(|h| h.pending.is_some()) {
             return;
@@ -338,6 +349,7 @@ impl MailApp {
             match pending.rx.try_recv() {
                 Ok(result) => {
                     let query = pending.query.clone();
+                    refused = result.auth_refused.then(|| pending.used.clone());
                     let answer = result.found.into_iter().find(|f| f.text.to_lowercase() == query.to_lowercase());
                     book.people = answer
                         .as_ref()
@@ -348,8 +360,7 @@ impl MailApp {
                     book.selected = (book.people.len() == 1).then_some(0);
                     book.query = query;
                     book.pending = None;
-                    refused = result.auth_refused;
-                    book.blocked = refused.then_some(Blocked::Password);
+                    book.blocked = result.auth_refused.then_some(Blocked::Password);
                 }
                 Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => {
@@ -365,8 +376,8 @@ impl MailApp {
             (book.blocked, book.error) = (None, None);
             book.query.clear();
         }
-        if refused {
-            self.ews_password_refused(account);
+        if let Some(used) = refused {
+            self.ews_password_refused_with(account, &used);
         }
         let Some(book) = &mut self.address_book else { return };
         if typed.chars().count() < MIN_CHARS {
@@ -413,8 +424,9 @@ impl MailApp {
             return Err((tl!("The account's password is needed first: press Send/Receive and type it").to_string(), Some(Blocked::Password)));
         };
         let cancel = Arc::new(AtomicBool::new(false));
+        let used = secret.clone();
         let rx = resolve(EwsResolveJob { request, secret, cancel: cancel.clone() });
-        Ok(Pending { query: query.to_string(), rx, cancel })
+        Ok(Pending { query: query.to_string(), rx, cancel, used })
     }
 }
 
