@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! A sender's picture for the message list, when the owner turned that on in File › Options:
+//! A sender's picture for the message list and a contact's for People, when the owner turned
+//! that on in File › Options:
 //! Gravatar's for the address, else the icon favicon.im has for its domain, else Google's.
 //!
 //! The window asks only about senders the owner knows or whose mail's pictures the owner lets
-//! come, never about mail in Junk E-mail (`mailcraft_ui_egui::sender_images`). Here an address
+//! come (in People, the contacts alone), never about mail in Junk E-mail (`mailcraft_ui_egui::sender_images`). Here an address
 //! becomes the places to ask, and each is downloaded and kept like a message's pictures
 //! ([`picture_cache::picture`]): checked on the way, capped, and kept on disk so that it is not
 //! asked for again at the next start.
