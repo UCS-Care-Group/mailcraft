@@ -218,3 +218,22 @@ fn a_line_that_is_bad_for_every_message_stops_the_run_and_blames_nobody() {
     assert!(result.folders.iter().all(|f| f.failed.is_empty() && f.new.is_empty()), "{:?}", result.folders);
     assert!(!result.folders.iter().any(|f| f.remote == "Label1"));
 }
+
+#[test]
+fn counts_of_messages_the_server_lost_or_the_limit_leaves_out_are_dropped() {
+    let imap = Fake::imap(world());
+    let mut request = request(&imap);
+    let first = run(&request);
+    carry(&mut request, &first);
+    let label0 = request.folders.iter_mut().find(|f| f.remote == "Label0").unwrap();
+    // 4 is not on the server any more; 1 is below what a limit of two takes.
+    label0.failing.extend([(4, 1), (1, 1)]);
+    label0.known_uids.retain(|uid| *uid != 1);
+    request.max_per_folder = 2;
+    let result = run(&request);
+    let label0 = result.folders.iter().find(|f| f.remote == "Label0").unwrap();
+    let mut gone = label0.failing_gone.clone();
+    gone.sort_unstable();
+    assert_eq!(gone, [1, 4]);
+    assert!(label0.new.is_empty() && label0.removed.is_empty(), "{label0:?}");
+}

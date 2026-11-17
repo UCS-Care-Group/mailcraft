@@ -2425,7 +2425,7 @@ fn take_in(
         if reset {
             f.failing.clear();
         } else {
-            for uid in came.iter().chain(&delta.removed) {
+            for uid in came.iter().chain(&delta.removed).chain(&delta.failing_gone) {
                 f.failing.remove(uid);
             }
             for uid in delta.failed.iter().copied().filter(|uid| *uid != 0) {

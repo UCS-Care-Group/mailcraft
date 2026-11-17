@@ -622,6 +622,11 @@ pub struct FolderDelta {
     /// against each ([`FolderState::failing`]); one that downloads is not named.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub failed: Vec<u32>,
+    /// UIDs of [`FolderState::failing`] the server no longer lists, or that the limit on how many
+    /// messages to have here leaves out now: no longer counted (#1581). (Not `removed`: nothing of
+    /// theirs is here to take out, and a change waiting for one of them must stay.)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub failing_gone: Vec<u32>,
     /// For a Gmail account's Inbox: which of Gmail's categories each message of it is in, as
     /// Gmail's searches said this run (#911), and Gmail's id of it. Said once, with the piece that
     /// ends the folder's reading; empty from every other server and folder.
@@ -968,6 +973,7 @@ impl SyncResult {
                         refetch_too_large,
                         refetch_refused,
                         failed,
+                        failing_gone,
                         gmail,
                         gmail_labels,
                     } = delta;
@@ -985,6 +991,7 @@ impl SyncResult {
                     folder.refetch_too_large.extend(refetch_too_large);
                     folder.refetch_refused.extend(refetch_refused);
                     folder.failed.extend(failed);
+                    folder.failing_gone.extend(failing_gone);
                     folder.gmail.extend(gmail);
                     folder.gmail_labels.extend(gmail_labels);
                     folder.complete |= complete;

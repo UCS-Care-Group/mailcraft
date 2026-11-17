@@ -89,3 +89,14 @@ fn retry_takes_up_the_messages_left_out_again() {
     apply(&mut s, a, delta(7, vec![], vec![4]));
     assert_eq!(failing(&s, a), [(4, 1), (5, 0)]);
 }
+
+#[test]
+fn counts_the_server_no_longer_asks_about_are_dropped() {
+    let mut s = Session::empty();
+    let a = account(&mut s);
+    apply(&mut s, a, delta(7, vec![], vec![4, 5]));
+    let mut later = delta(7, vec![], vec![]);
+    later.failing_gone = vec![4];
+    apply(&mut s, a, later);
+    assert_eq!(failing(&s, a), [(5, 1)]);
+}

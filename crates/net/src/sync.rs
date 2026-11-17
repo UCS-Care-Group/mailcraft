@@ -1200,6 +1200,17 @@ impl FolderSync<'_> {
             refetch_too_large: Vec::new(),
             refetch_refused: Vec::new(),
             failed: Vec::new(),
+            // What failed before and is not to be asked for any more: gone from the server, or
+            // out of the window the limit leaves (the cursors bring it back when that grows).
+            failing_gone: match self.state {
+                Some(state) if !reset => state
+                    .failing
+                    .keys()
+                    .copied()
+                    .filter(|uid| !known.contains(uid) && (!present.contains_key(uid) || oldest.is_some_and(|oldest| *uid < oldest)))
+                    .collect(),
+                _ => Vec::new(),
+            },
             gmail: Vec::new(),
             // Gmail's labels of the messages already here, said once with their flags.
             gmail_labels: if self.labels {
