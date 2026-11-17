@@ -594,7 +594,7 @@ impl SyncHost {
         let lang = session.interface_language;
         let message = lang.t("This kind of account can't be sent and received on the phone yet.").to_string();
         SyncStatus {
-            running: inner.sr.busy() || !session.driver.round.queue.is_empty(),
+            running: inner.active || inner.sr.busy() || !session.driver.round.queue.is_empty(),
             messages: inner.last_errors.clone(),
             needs_sign_in: inner.needs_sign_in.iter().copied().collect(),
             unsupported: inner.unsupported.keys().map(|account| UnsupportedAccount { account: *account, message: message.clone() }).collect(),
