@@ -1235,7 +1235,7 @@ fn check_names(s: &mut Session, v: &Value) -> CmdResult {
 /// A name nobody stands for yet, as it was typed: quoted when it holds what splits a recipient
 /// line, so that it is read as one name again.
 fn as_typed(a: &Address) -> String {
-    if a.name.is_empty() && a.email.contains([',', ';']) { format!("\"{}\"", a.email) } else { a.full() }
+    if a.name.is_empty() && a.email.contains([',', ';', '"']) { a.quoted() } else { a.full() }
 }
 
 /// A name as it is matched with what was looked up: one line, as it was sent, in any letter case.
