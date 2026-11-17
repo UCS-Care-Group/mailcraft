@@ -303,11 +303,13 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // follows the server; one moved here since stays where it was put (that move goes up, R3.3).
     let was_here = mb.folder_by_server(account, &last.folder);
     let in_sent = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent);
-    // A draft sent here, listed as a draft outside Sent Items: Exchange hasn't filed it yet, or
+    // A message sent here, listed as a draft outside Sent Items: Exchange hasn't filed it yet, or
     // this listing was made before it did (#1160). Nothing of it is taken — not its fields, and
     // not its folder, which is where the send left it — until Sent Items lists it; the removal of
-    // the draft from Drafts is no deletion of it either (#1175).
-    let unfiled = m.sent_here && !in_sent && there.draft == Some(true);
+    // the draft from Drafts is no deletion of it either (#1175). While `sent_pending`, the copy
+    // Sent Items has yet to list, a draft listing is no more word of the message sent: `sent_here`
+    // may have been cleared by the draft's removal, and the removal that follows must not lose it.
+    let unfiled = (m.sent_here || m.sent_pending) && !in_sent && there.draft == Some(true);
     if unfiled {
         // Still a draft there: a listing that has not got it yet is no deletion of it, and an
         // explicit removal from Sent Items is kept, not cleared here (#1175).
@@ -355,7 +357,9 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if m.importance == last.importance {
         m.importance = now.importance;
     }
-    if follows {
+    // A listing in Drafts of a message sent here, before Sent Items has listed it, is no word of
+    // where the message is: the send left it in Sent Items, and it stays there (#1175).
+    if follows && !(m.sent_pending && in_drafts) {
         m.folder = folder;
     }
     if m.unfetched {
