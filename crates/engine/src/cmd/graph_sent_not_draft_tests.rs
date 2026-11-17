@@ -721,3 +721,42 @@ fn a_stale_drafts_listing_does_not_move_a_sent_message_out_of_sent_items() {
     assert!(mb.message(id).is_some(), "the Drafts removal removed the message sent while Sent Items had yet to list it");
     assert_eq!(mb.message(id).unwrap().folder, sent);
 }
+
+/// #1175 review: a server that files the copy of a draft sent as its draft under an id of its own
+/// (as Graph does) lists it in Sent Items after the draft's removal. That copy is the message
+/// sent: it takes the server's id, and no second message comes down beside it.
+#[test]
+fn a_sent_copy_under_an_id_of_the_servers_own_is_the_message_sent() {
+    let (mut mb, account) = mailbox();
+    let sent = mb.folder_of_kind(account, FolderKind::Sent).unwrap();
+    let id = sent_a_draft_here(&mut mb, account);
+    let mut index = ServerIndex::default();
+    let removed = MessagePage { folder: "FD".into(), removed: vec!["AAkD1".into()], ..Default::default() };
+    take_page(&mut mb, &mut index, account, &removed, &mut Down::default());
+    let mut filed = page("FS", "AAkC1", Some(false));
+    filed.messages[0].message_id = "copy@example.org".into();
+    filed.messages[0].server.change_key = "CK9".into();
+    take_page(&mut mb, &mut index, account, &filed, &mut Down::default());
+    assert_eq!(mb.messages_in(sent).count(), 1, "the copy came down beside the message sent");
+    let m = mb.message(id).expect("the message sent is the one here");
+    assert!(m.server.as_ref().is_some_and(|s| s.id == "AAkC1" && s.folder == "FS" && !s.gone), "the copy's id did not become the message sent's");
+    assert!(!m.sent_here && !m.sent_pending, "the copy is listed, and the marks stand");
+    assert!(!m.draft && m.message_id == "copy@example.org");
+}
+
+/// #1175 review: another message in Sent Items is no copy of the one sent here: it comes down as
+/// a message of its own, and the message sent stays where it is.
+#[test]
+fn another_message_in_sent_items_is_no_copy_of_the_one_sent_here() {
+    let (mut mb, account) = mailbox();
+    let sent = mb.folder_of_kind(account, FolderKind::Sent).unwrap();
+    let id = sent_a_draft_here(&mut mb, account);
+    let mut index = ServerIndex::default();
+    let removed = MessagePage { folder: "FD".into(), removed: vec!["AAkD1".into()], ..Default::default() };
+    take_page(&mut mb, &mut index, account, &removed, &mut Down::default());
+    let mut other = page("FS", "AAkC2", Some(false));
+    other.messages[0].subject = "Something else".into();
+    take_page(&mut mb, &mut index, account, &other, &mut Down::default());
+    assert_eq!(mb.messages_in(sent).count(), 2, "a message sent elsewhere was taken for the copy");
+    assert!(mb.message(id).unwrap().sent_pending, "the message sent here ended its wait for another message's listing");
+}

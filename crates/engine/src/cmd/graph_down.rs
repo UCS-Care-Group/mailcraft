@@ -187,6 +187,21 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 }
             }
             None => {
+                // A message sent here whose draft the server has taken: it files the copy in Sent
+                // Items under an id of its own (#1160), which this mailbox has never seen, and the
+                // message sent is that copy, not a second one beside it.
+                if sent_items && let Some(sent) = awaiting_copy(mb, account, folder, there) {
+                    let changed = update(mb, account, sent, folder, &page.folder, there);
+                    if let Ok(m) = mb.message_mut(sent) {
+                        m.sent_here = false;
+                        m.message_id = there.message_id.trim().trim_start_matches('<').trim_end_matches('>').to_string();
+                    }
+                    index.note(mb, account, &there.server.id, sent);
+                    if changed {
+                        down.changed += 1;
+                    }
+                    continue;
+                }
                 let mut message = new_message(folder, &page.folder, there);
                 // New to this mailbox and in Sent Items, it was sent: Exchange files the copy of a
                 // message sent as MIME (`sendMail`, how a message never saved as a draft goes;
@@ -276,6 +291,29 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
         attachments_on_server: there.has_attachments,
         ..Default::default()
     }
+}
+
+/// The message sent here that a Sent Items listing is the copy of: one the server files under an
+/// id of its own (#1160), still waiting for Sent Items to list it, and the same message as the
+/// listing says — its subject and the people it goes to. The first such, so that two sent alike
+/// are paired with their copies in the order they were sent.
+fn awaiting_copy(mb: &Mailbox, account: Id, sent: Id, there: &GraphMessage) -> Option<Id> {
+    // The names a server gives the people are its own; the addresses are the message's.
+    let same_people = |ours: &[mailcraft_model::Address], theirs: &[mailcraft_model::Address]| {
+        ours.len() == theirs.len() && ours.iter().zip(theirs).all(|(ours, theirs)| ours.email.eq_ignore_ascii_case(&theirs.email))
+    };
+    mb.messages
+        .values()
+        .filter(|m| {
+            m.account == account
+                && m.folder == sent
+                && (m.sent_pending || m.sent_here)
+                && m.server.as_ref().is_some_and(|s| !s.gone && s.id != there.server.id)
+                && m.subject.trim() == there.subject.trim()
+                && same_people(&m.to, &there.to)
+        })
+        .map(|m| m.id)
+        .min()
 }
 
 /// Bring a message this mailbox has in step with what the server says of it now. Whether
