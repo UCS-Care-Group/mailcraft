@@ -689,7 +689,15 @@ fn press(h: &mut Picker, key: egui::Key) {
 }
 
 fn folder_row(name: &str) -> FolderRow {
-    (1, name.to_string(), name.to_string(), 0)
+    FolderRow {
+        id: 1,
+        name: name.to_string(),
+        path: name.to_string(),
+        depth: 0,
+        fold: mailcraft_model::words::fold(name),
+        account: String::new(),
+        heading: None,
+    }
 }
 
 /// Typing narrows the list to the folders whose name holds it, any part, whatever the case
