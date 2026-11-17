@@ -25,7 +25,7 @@ fn exchange() -> Vec<(String, String)> {
         ("Received", "from mail.example.org (192.0.2.1) by DB1PEPF00000001.mail.protection.outlook.com (10.167.242.1) with Microsoft SMTP Server"),
         ("X-MS-Exchange-Organization-AuthAs", "Anonymous"),
         ("X-Microsoft-Antispam-Message-Info", "c29tZSBsb25nIGJhc2U2NCBzdHVmZg=="),
-        ("DKIM-Signature", "v=1; a=rsa-sha256; d=example.org; s=s1; b=AAAA"),
+        ("ARC-Seal", "i=1; a=rsa-sha256; d=example.org; s=s1; cv=none; b=AAAA"),
         ("List-Id", "<news.example.org>"),
         ("X-MS-Exchange-Organization-MessageDirectionality", "Incoming"),
         ("Return-Path", "<bounce@example.org>"),
@@ -53,7 +53,7 @@ fn what_is_read_by_name_stays_and_the_rest_goes_to_the_block_in_order() {
     assert!(working.iter().any(|(n, v)| n == "Received" && v.contains(".mail.protection.outlook.com")));
     let lines = block.lines();
     let names: Vec<&str> = lines.iter().map(|l| l.name.as_str()).collect();
-    assert_eq!(names, ["Received", "X-Microsoft-Antispam-Message-Info", "DKIM-Signature", "Return-Path"]);
+    assert_eq!(names, ["Received", "X-Microsoft-Antispam-Message-Info", "ARC-Seal", "Return-Path"]);
     assert_eq!(lines.iter().map(|l| l.at).collect::<Vec<_>>(), [0, 4, 5, 8]);
     assert_eq!(merge(&working, &lines), all);
 }

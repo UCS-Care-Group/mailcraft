@@ -106,7 +106,8 @@ fn a_client_connects_with_either_kind_of_sign_in() {
         let client = connection.client();
         assert_eq!(client.account_id().as_str(), ACCOUNT);
         assert_eq!((client.limits().max_objects_in_get(), client.limits().max_calls_in_request()), (500, 16));
-        assert!(client.has_capability(MAIL) && client.has_capability(CORE) && !client.has_capability("urn:ietf:params:jmap:submission"));
+        assert!(client.has_capability(MAIL) && client.has_capability(CORE) && client.has_capability("urn:ietf:params:jmap:submission"));
+        assert!(!client.has_capability("urn:ietf:params:jmap:vacationresponse"));
         assert_eq!(
             client.download_address(&Id::new("B1").unwrap(), "message/rfc822", "m.eml").unwrap().as_str(),
             "https://jmap.standin.example/jmap/download/A1/B1/m.eml?type=message%2Frfc822"

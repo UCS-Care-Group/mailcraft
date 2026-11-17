@@ -1,0 +1,188 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+package work.mailcraft.android
+
+import java.util.Locale
+
+/**
+ * The switches that belong to this phone alone. They are never sent anywhere and never reach the
+ * mailbox. The picture choices are not here: Download pictures and Sender images live in
+ * [PicturePrefs], kept by [PicturePrefsStore], which the reading pane and the lists read.
+ */
+internal data class Switches(
+    /** A notification for new mail says "New mail" and nothing of the message, on the lock screen or off it. Off. */
+    val newMailOnly: Boolean = false,
+    /** Notify only for Primary mail in Gmail accounts (Microsoft's Focused is not stored). Off. */
+    val primaryOnly: Boolean = false,
+    /** Post a notification for each calendar reminder as it falls due. On: the one switch that starts on. */
+    val reminders: Boolean = true,
+)
+
+/** The windows of Mail to keep offline, shortest first, as the engine's `account.edit` takes them. */
+internal val OFFLINE_CODES = listOf("3d", "1w", "2w", "1m", "3m", "6m", "12m", "2y", "5y", "10y", "all")
+
+/** What a phone keeps offline until the owner says otherwise: one month. */
+internal const val DEFAULT_OFFLINE = "1m"
+
+/** A window in words; a code that isn't one is said as it is. */
+internal fun offlineLabel(texts: Texts, code: String): String = when (code) {
+    "3d" -> texts.t("3 days")
+    "1w" -> texts.t("1 week")
+    "2w" -> texts.t("2 weeks")
+    "1m" -> texts.t("1 month")
+    "3m" -> texts.t("3 months")
+    "6m" -> texts.t("6 months")
+    "12m" -> texts.t("12 months")
+    "2y" -> texts.t("2 years")
+    "5y" -> texts.t("5 years")
+    "10y" -> texts.t("10 years")
+    "all" -> texts.t("All mail")
+    else -> code
+}
+
+/** Whether [code] keeps more than [than] (a code that isn't a window keeps nothing more). */
+internal fun keepsMore(codes: List<String>, code: String, than: String): Boolean {
+    val a = codes.indexOf(code)
+    val b = codes.indexOf(than)
+    return a >= 0 && b >= 0 && a > b
+}
+
+/** The room that is kept free beyond what a sync needs: the phone must go on working. */
+internal const val FREE_RESERVE = 500L * 1024 * 1024
+
+/** What a sync needs and what the phone has, for the question put before it starts. */
+internal data class SpaceWarning(val needed: Long, val free: Long)
+
+/**
+ * Whether a sync needing about [needed] bytes may go on without asking: null when there is room
+ * for it and [reserve] besides, else the two sizes for the question. A phone that can't say how
+ * much it has ([free] below zero) is not asked: the question would have nothing true to say.
+ */
+internal fun spaceCheck(needed: Long, free: Long, reserve: Long = FREE_RESERVE): SpaceWarning? {
+    if (free < 0) return null
+    val need = needed.coerceAtLeast(0)
+    return if (free < need + reserve) SpaceWarning(need, free) else null
+}
+
+/**
+ * About how many bytes a new account's first sync brings: what its window brings ([windowBytes]),
+ * but never more than the [storageMb] the owner gave its mail, which the core keeps it within.
+ */
+internal fun firstSyncBytes(windowBytes: Long, storageMb: Long): Long {
+    val cap = storageMb.coerceIn(0L, Long.MAX_VALUE / MIB) * MIB
+    return windowBytes.coerceIn(0L, cap)
+}
+
+/** A size in words that fit a line: 1.5 GB, 40 MB, 0 B. Units are the same in every language. */
+internal fun sizeText(bytes: Long): String {
+    val b = bytes.coerceAtLeast(0)
+    return when {
+        b >= GIB -> String.format(Locale.ROOT, "%.1f GB", b.toDouble() / GIB)
+        b >= MIB -> String.format(Locale.ROOT, "%.0f MB", b.toDouble() / MIB)
+        b >= KIB -> String.format(Locale.ROOT, "%.0f KB", b.toDouble() / KIB)
+        else -> "$b B"
+    }
+}
+
+private const val KIB = 1024L
+private const val MIB = 1024L * KIB
+private const val GIB = 1024L * MIB
+
+/** The most characters of a signature. */
+internal const val MAX_SIGNATURE = 4_000
+
+/** One account's signature in the box: what is kept, what is typed, and whether the box may change it. */
+internal data class SignatureState(
+    val saved: String = "",
+    val draft: String = "",
+    /** False for a signature with a picture or its own layout, which a plain box would flatten. */
+    val editable: Boolean = true,
+    /** Saving it did not go through. */
+    val failed: Boolean = false,
+) {
+    val changed: Boolean get() = draft != saved
+}
+
+/**
+ * The question before a sync that needs more room than there is: [forWindow] is the window the
+ * owner chose (null when it is a sync that asks by itself), and the sync waits for a yes.
+ */
+internal data class SpaceAsk(val account: ULong, val forWindow: String?, val warning: SpaceWarning)
+
+/** What the phone holds of mail against the cap the owner can change (the core's `DeviceStorage`). */
+internal data class StorageUse(
+    val capMb: Long,
+    val usedBytes: Long,
+    val messages: Long,
+    /** The caps offered, smallest first, the present one among them. */
+    val choicesMb: List<Long>,
+)
+
+/** Where removing all the data kept on this phone has got to. */
+internal sealed interface Removal {
+    data object Idle : Removal
+
+    /** The owner is being asked. */
+    data object Asking : Removal
+
+    data object Working : Removal
+
+    /** Not everything went; what is left is still here, and trying again is allowed. */
+    data object Failed : Removal
+
+    /** All of it went. */
+    data object Done : Removal
+
+    /** It went, but the core has words for the owner to read first ([message]). */
+    data class Notice(val message: String) : Removal
+}
+
+/** What the core says came of removing the data: the words to show, when it has some. */
+internal data class DataRemoval(val notice: String? = null)
+
+/** Everything Settings draws that isn't the list of accounts. */
+internal data class SettingsUi(
+    val switches: Switches = Switches(),
+    val codes: List<String> = OFFLINE_CODES,
+    /** Each account's window; one not here yet is [DEFAULT_OFFLINE] until the core says. */
+    val keepOffline: Map<ULong, String> = emptyMap(),
+    val signatures: Map<ULong, SignatureState> = emptyMap(),
+    val space: SpaceAsk? = null,
+    /** Changing a window did not go through. */
+    val keepFailed: Boolean = false,
+    /** Older mail is being taken back to its headers after a shorter window; [thinned] so far. */
+    val thinning: Boolean = false,
+    val thinned: Long = 0L,
+    /** What the phone holds against its cap; null until the core has said. */
+    val storage: StorageUse? = null,
+    /** Changing the cap did not go through. */
+    val storageFailed: Boolean = false,
+    val removal: Removal = Removal.Idle,
+)
+
+/** What Settings asks of the app: one entry for each thing the owner can do there. */
+@Suppress("LongParameterList")
+internal class SettingsActions(
+    /** The pages that hold accounts are on screen with these: what is kept for each is read. */
+    val onShown: (List<AccountItem>) -> Unit = {},
+    val onSwitches: (Switches) -> Unit = {},
+    val onKeepOffline: (AccountItem, String) -> Unit = { _, _ -> },
+    val onThinStop: () -> Unit = {},
+    val onSpaceYes: () -> Unit = {},
+    val onSpaceNo: () -> Unit = {},
+    val onSignatureDraft: (AccountItem, String) -> Unit = { _, _ -> },
+    val onSignatureSave: (AccountItem) -> Unit = {},
+    /** The Mail to keep offline page is on screen: what the phone holds is read. */
+    val onStorageShown: () -> Unit = {},
+    /** The owner picked a storage cap, in megabytes. */
+    val onStorageCap: (Long) -> Unit = {},
+    val onRemoveAsk: () -> Unit = {},
+    val onRemoveCancel: () -> Unit = {},
+    val onRemoveConfirm: () -> Unit = {},
+    /** The owner has read the notice that came with the removal. */
+    val onRemoveNoticeRead: () -> Unit = {},
+    /** The system's own settings for a notification channel. */
+    val onChannelSettings: (String) -> Unit = {},
+    /** A web address of the project's (https only). */
+    val onOpenLink: (String) -> Unit = {},
+)

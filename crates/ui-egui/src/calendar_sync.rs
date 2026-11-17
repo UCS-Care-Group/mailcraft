@@ -31,11 +31,12 @@
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::cmd::remote;
+use mailcraft_host::calendar_job::{self, CalendarAnswer, CalendarAuth, CalendarJobs, CalendarPolled};
 use mailcraft_model::Id;
 use mailcraft_model::sync::Tokens;
 use serde_json::{Value, json};
 
-use crate::{CalendarCheckRequest, CalendarCheckResult, GraphRequest, GraphResult, MailApp, now_ms};
+use crate::{CalendarCheckRequest, CalendarCheckResult, MailApp, now_ms};
 
 // How often the calendar is asked for, how long a change waits, how long the server is left alone
 // after a job that came to nothing, the stretch asked for and what is remembered between looks are
@@ -47,9 +48,8 @@ use mailcraft_engine::sync_driver::{AroundRefused, CalendarCame, CalendarFacts, 
 /// keeping the calendar current is in the session ([`mailcraft_engine::Session::driver`]).
 #[derive(Default)]
 pub(crate) struct CalendarSync {
-    /// The job in flight: the account, whether it carried changes, when it started
-    /// (milliseconds), and the answer to come.
-    pub(crate) rx: Option<(Id, bool, f64, u64, Receiver<GraphResult>)>,
+    /// The job in flight, kept by the host's driver of it ([`CalendarJobs`]).
+    pub(crate) jobs: CalendarJobs,
     /// A check of an account's calendar connection that the host is making.
     check_rx: Option<(Id, u64, Receiver<CalendarCheckResult>)>,
 }
@@ -58,7 +58,8 @@ impl CalendarSync {
     /// Another mailbox took the place of the open one: the job and the check in flight are let
     /// go of (AU3-V8).
     pub(crate) fn forget_jobs(&mut self) {
-        (self.rx, self.check_rx) = (None, None);
+        self.jobs.forget();
+        self.check_rx = None;
     }
 }
 
@@ -71,7 +72,7 @@ impl MailApp {
 
     /// Whether a calendar job is in flight.
     pub fn calendar_syncing(&self) -> bool {
-        self.calendar.rx.is_some()
+        self.calendar.jobs.busy()
     }
 
     /// Look whether the calendar is due, and start a job when it is. Called every frame.
@@ -81,7 +82,7 @@ impl MailApp {
         if self.services.graph.is_none() || !self.session.driver.auto_sync() {
             return;
         }
-        if self.calendar.rx.is_some() {
+        if self.calendar.jobs.busy() {
             // An answer is on its way (the host wakes the window when it is there, too).
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         } else if !self.session.calendar_accounts().is_empty() {
@@ -95,7 +96,7 @@ impl MailApp {
     /// shared mailbox is read with: no other job of it starts until that one has ended.
     pub(crate) fn calendar_job_for(&self, account: Id) -> bool {
         let owner = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
-        self.calendar.rx.as_ref().is_some_and(|(busy, ..)| *busy == owner || *busy == account)
+        self.calendar.jobs.account().is_some_and(|busy| busy == owner || busy == account)
     }
 
     /// A Send/Receive the owner asked for was started for `account`: its calendar and contacts
@@ -180,51 +181,26 @@ impl MailApp {
         // (A token that is known not to be good for them is not handed on when one that is can
         // be had; without a way of getting another, the one there is has to do.)
         let access = if shared || refresh.is_empty() { held } else { self.graph_access_for(account, favorites) };
-        let ask = GraphRequest {
-            account: owner,
-            oauth: self.effective_oauth(oauth),
-            refresh,
-            access,
-            outbox: Vec::new(),
-            directory: plan.directory,
-            // (The wide stretch is counted from this session's clock, as its asks are.)
-            calendar: Some(plan.range(self.session.now())),
-            changes: plan.changes.clone(),
-            asks: self.session.calendar_asks_for(plan),
-            settings: plan.settings,
-            favorites,
-            favorites_scopes: favorites,
-            mail: None,
-            mail_pieces: None,
-            cancel: Default::default(),
-        };
-        let Some(graph) = self.services.graph.as_ref().filter(|_| !self.offline()) else { return false };
-        self.session.calendar_started(plan, now);
-        self.calendar.rx = Some((account, plan.changes.is_some(), now, self.session.openings(), graph(ask)));
-        true
+        let auth = CalendarAuth { oauth: self.effective_oauth(oauth), refresh, access, favorites };
+        let offline = self.offline();
+        let graph = self.services.graph.as_ref().filter(|_| !offline);
+        // The request the plan makes, and the engine told, are the host's.
+        self.calendar.jobs.start(&mut self.session, plan, auth, now, |ask| graph.map(|graph| graph(ask)))
     }
 
     /// The calendar job answered: keep its token, take in what the server said to the changes
     /// and what it has in the days that were asked for. (Public for a host's tests.)
     pub fn poll_calendar(&mut self) {
-        let Some((account, carried, started, opening, rx)) = &self.calendar.rx else { return };
-        let (account, carried, started) = (*account, *carried, *started);
-        // For a mailbox that has been closed since: its accounts are other accounts, whatever
-        // their ids and addresses, and the answer is nobody's (AU3-V8).
-        if *opening != self.session.openings() {
-            log::info!("calendar: the answer is for a mailbox that is no longer open; let go of");
-            self.forget_calendar_jobs();
-            return;
-        }
-        let mut result = match rx.try_recv() {
-            Ok(result) => result,
-            Err(std::sync::mpsc::TryRecvError::Empty) => return,
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                log::warn!("calendar, account {account}: the job ended without an answer (its thread ended early)");
-                GraphResult { account, ..Default::default() }
+        let answer = match self.calendar.jobs.poll(&self.session) {
+            CalendarPolled::Nothing => return,
+            CalendarPolled::Stale => {
+                // For a mailbox that has been closed since: let go of what the driver knew too (AU3-V8).
+                self.forget_calendar_jobs();
+                return;
             }
+            CalendarPolled::Answer(answer) => answer,
         };
-        self.calendar.rx = None;
+        let CalendarAnswer { account, carried, started, mut result, stopped_early } = *answer;
         // A shared mailbox's calendars (#70): their own token, and their own permission.
         let shared = self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_shared);
         if result.consent_needed {
@@ -234,6 +210,9 @@ impl MailApp {
             log::warn!("calendar, account {account}: the sign-in was refused; the next Send/Receive asks the owner");
         }
         let mut errors = std::mem::take(&mut result.errors);
+        if stopped_early {
+            errors.insert(0, tl!("The calendar couldn't be brought up to date: the job stopped unexpectedly").to_string());
+        }
         if result.token_refused {
             if shared {
                 self.shared_calendar_tokens.remove(&account);
@@ -256,20 +235,7 @@ impl MailApp {
         }
         // What the engine keeps of the answer (the owner's permission among it); the words and the
         // dialogs are the window's, below.
-        let came = CalendarCame {
-            uploaded: result.uploaded.as_ref(),
-            events: result.events.as_ref(),
-            more_events: &result.more_events,
-            calendars: result.calendars.as_ref(),
-            categories: result.categories.as_ref(),
-            extras_missing: result.extras_missing,
-            hours: result.mailbox_hours.as_ref(),
-            contacts: result.contacts.as_ref(),
-            job_errors: !errors.is_empty(),
-            consent_needed: result.consent_needed,
-            token_refused: result.token_refused,
-            sign_in_refused: result.sign_in_refused,
-        };
+        let came = calendar_job::came(&result, !errors.is_empty());
         let taken = self.session.calendar_answered(account, carried, started, now_ms(), &came);
         if taken.consent_asked {
             self.status(tl!("Calendar and contacts need your permission: File › Info › Connect calendar and contacts"));
@@ -1072,9 +1038,9 @@ mod tests {
         // Not while a Send/Receive is asking Graph, or is about to; and not when nothing may
         // start by itself.
         let t3 = t2 + 200.0 * SECOND;
-        app.sync_queue.push_back((account, true));
+        app.session.driver.round.queue.push_back((account, true));
         assert!(!app.calendar_tick_at(true, t3));
-        app.sync_queue.clear();
+        app.session.driver.round.queue.clear();
         app.session.driver.set_auto_sync(false);
         assert!(!app.calendar_tick_at(true, t3));
         app.session.driver.set_auto_sync(true);

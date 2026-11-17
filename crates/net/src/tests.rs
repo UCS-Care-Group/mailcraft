@@ -2580,5 +2580,8 @@ fn a_server_that_floods_one_answer_is_given_up_on() {
 #[path = "gmail_sync_tests.rs"]
 mod gmail_sync;
 
+#[path = "gmail_labels_sync_tests.rs"]
+mod gmail_labels_sync;
+
 #[path = "protected_sync_tests.rs"]
 mod protected_sync;

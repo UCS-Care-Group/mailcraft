@@ -41,16 +41,24 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
         }
         count += 1;
     };
-    let today = s.zone().instant(DateTime::at_midnight(s.today()));
+    let today = s.instant_of(DateTime::at_midnight(s.today()));
     let now = s.now();
     // What waits in the Outbox is sent, not moved (R3.4.2).
     let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
+    let sent_items = mb.folder_of_kind(account, FolderKind::Sent);
     for m in mb.messages.values().filter(|m| m.account == account && Some(m.folder) != outbox) {
         let Some(server) = m.server.as_ref().filter(|server| !server.gone && !server.id.is_empty()) else { continue };
         if let Some(update) = update_of(m, server, today, now) {
             note(&|| Some(update.clone()));
         }
-        if let Some((to, to_folder)) = destination(mb, account, m.folder).filter(|(to, _)| *to != server.folder) {
+        // A draft sent here as the server's draft is in Sent Items here at once, and Exchange
+        // files it there itself: moved meanwhile, it would be refused while it is being sent and
+        // put back into Drafts here (#1160). Only while the server has it in Drafts still: one it
+        // has anywhere else is moved as any other.
+        let filed_by_server = m.sent_here
+            && Some(m.folder) == sent_items
+            && mb.folder_by_server(account, &server.folder).and_then(|f| mb.folder(f)).is_some_and(|f| f.kind == FolderKind::Drafts);
+        if let Some((to, to_folder)) = destination(mb, account, m.folder).filter(|(to, _)| *to != server.folder && !filed_by_server) {
             note(&|| Some(MessageChange::Move { message: m.id, id: server.id.clone(), to: to.clone(), to_folder }));
         }
     }
@@ -123,6 +131,14 @@ fn same_categories(a: &[String], b: &[String]) -> bool {
 }
 
 /// The properties of `m` changed here since `server` said, as one change.
+/// Whether `m` (of `account`, whatever the server's copy is marked as) has a change here that the
+/// server hasn't heard of: an update of its marks or a move.
+pub(super) fn has_unsent(mb: &Mailbox, account: Id, m: &Message) -> bool {
+    let Some(server) = m.server.as_ref().filter(|server| !server.id.is_empty()) else { return false };
+    update_of(m, server, Timestamp::default(), Timestamp::default()).is_some()
+        || destination(mb, account, m.folder).is_some_and(|(to, _)| to != server.folder)
+}
+
 fn update_of(m: &Message, server: &ServerMessage, today: Timestamp, now: Timestamp) -> Option<MessageChange> {
     let read = (m.read != server.read).then_some(m.read);
     let flag_changed = m.flag != server.flag || (m.flag == FlagStatus::Flagged && m.flag_due != server.flag_due);

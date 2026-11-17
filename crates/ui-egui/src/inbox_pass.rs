@@ -157,7 +157,7 @@ impl MailApp {
     /// A round of `accounts` is about to begin: those with an Inbox pass line up for it, in the
     /// round's order.
     pub(crate) fn queue_inbox_passes(&mut self, accounts: &[Id], quiet: bool) {
-        self.inbox_queue = accounts
+        self.session.driver.round.inbox_queue = accounts
             .iter()
             .copied()
             .filter(|account| mailcraft_engine::cmd::graph_mail::graph_inbox_request(&self.session, *account).is_some())
@@ -168,7 +168,7 @@ impl MailApp {
     /// Start the next Inbox pass in line; an account that can't have one now (it would have to
     /// sign in, or Microsoft won't open it) goes without. What was started, if anything.
     pub(crate) fn start_next_inbox_pass(&mut self) -> Option<Value> {
-        while let Some((account, quiet)) = self.inbox_queue.pop_front() {
+        while let Some((account, quiet)) = self.session.driver.round.inbox_queue.pop_front() {
             if let Some(started) = self.start_inbox_pass(account, quiet, false) {
                 return Some(started);
             }
@@ -315,7 +315,7 @@ impl MailApp {
             return;
         }
         // Stop ends the round: nothing is left in line.
-        if self.services.sync_cancel.load(Ordering::Relaxed) && self.sync_queue.is_empty() {
+        if self.services.sync_cancel.load(Ordering::Relaxed) && self.session.driver.round.queue.is_empty() {
             let now = self.session.now();
             self.session.sync_progress.count_full_if_due(&self.session.mailbox, account, now);
             self.session.sync_progress.end(account, true);

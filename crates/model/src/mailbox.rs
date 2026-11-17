@@ -12,15 +12,18 @@ use bulk::Removal;
 
 #[path = "mailbox_bulk.rs"]
 mod bulk;
+#[path = "mailbox_followup.rs"]
+mod followup;
 #[path = "mailbox_snooze.rs"]
 mod snooze;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
-    Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
-    clean_name,
+    Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
+    ThreadIndex, clean_name,
 };
 #[cfg(test)]
 pub(crate) use bulk::MOVE_EACH_CALLS;
+pub use followup::{FollowUp, FollowUpsSettled, MAX_FOLLOW_UP_AHEAD, PendingFollowUp};
 pub use snooze::{MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, Settled, Snooze};
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
@@ -198,6 +201,15 @@ pub struct ServerFolder {
     /// False until a listing says so.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub well_known: bool,
+    /// To be listed afresh from its start at the next run (MB3.16: a phone's window made longer
+    /// brings the older mail it now covers). Cleared once a page of the new listing is in.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub relist: bool,
+    /// Which request for `relist` this is: counted up each time one is made, and echoed by the
+    /// first page of the listing it brought ([`crate::sync::MessagePage::relist_gen`]), so that a
+    /// page of an earlier listing never says a later request has been met.
+    #[serde(skip_serializing_if = "is_zero", deserialize_with = "crate::sync::lenient_or_default")]
+    pub relist_gen: u32,
 }
 
 /// What an IMAP server's STATUS said of a folder (#276), with the limit on how many of its
@@ -340,11 +352,9 @@ impl AccountKind {
     }
 
     /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP,
-    /// through Microsoft Graph, or through Exchange Web Services). Not yet for a JMAP account: its
-    /// sending comes after its reading, and until then no mail is put in its Outbox, where it
-    /// would wait for ever.
+    /// through Microsoft Graph, through Exchange Web Services, or over JMAP).
     pub fn sends_mail(self) -> bool {
-        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Exchange)
+        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
 
     /// Whether the account's folders and messages are known to its server by the ids the server
@@ -435,6 +445,12 @@ pub struct Account {
     /// there were any.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub ews: Option<EwsServer>,
+    /// Where the account's calendars and contacts are on a CalDAV and CardDAV server, the user
+    /// name, the certificate it trusts and what is known of each collection ([`DavServer`], #209).
+    /// Plain settings: the password is never kept here, and is held per origin. `None` when the
+    /// account has none, and in a file from before there were any.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::dav_server::lenient_repaired")]
+    pub dav: Option<DavServer>,
     /// Delete on a whole conversation of more than one message goes ahead without asking first
     /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
     /// for a new account and in a file from before there was one: the question is asked. A
@@ -631,6 +647,8 @@ impl GraphSwitch {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DownloadInFull {
+    /// The phone's default (MB3.16): a message of more than 1 MB is fetched only when it is opened.
+    UpTo1Mb,
     #[default]
     UpTo10Mb,
     UpTo25Mb,
@@ -646,6 +664,7 @@ impl DownloadInFull {
     /// The largest message fetched in the background, in bytes; `None` for no limit.
     pub fn limit(self) -> Option<u64> {
         match self {
+            DownloadInFull::UpTo1Mb => Some(1 << 20),
             DownloadInFull::UpTo10Mb => Some(10 << 20),
             DownloadInFull::UpTo25Mb => Some(25 << 20),
             DownloadInFull::UpTo50Mb => Some(50 << 20),
@@ -1247,7 +1266,16 @@ pub struct Mailbox {
     /// collected from Digitally signed mail, contact or not.
     #[serde(skip_serializing_if = "crate::public_keys::PublicKeys::is_empty")]
     pub public_keys: crate::public_keys::PublicKeys,
+    /// The limits of a device that can't hold a whole mailbox (a phone, MB3.16): how much mail
+    /// it keeps on its disk and in memory, and that mail older than an account's mail to keep
+    /// offline isn't listed at all ([`crate::DeviceLimits`]). `None` on a computer: everything
+    /// is as it always was.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient_or_default")]
+    pub device_limits: Option<crate::DeviceLimits>,
     next_id: Id,
+    /// Reminders of mail sent whose copy the server files in Sent Items ([`PendingFollowUp`], #948).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub follow_ups_pending: Vec<PendingFollowUp>,
 }
 
 impl Default for Mailbox {
@@ -1286,7 +1314,9 @@ impl Default for Mailbox {
             redecoded: false,
             unhollowed: false,
             public_keys: Default::default(),
+            device_limits: None,
             next_id: 1,
+            follow_ups_pending: Vec::new(),
         }
     }
 }
@@ -1301,17 +1331,12 @@ pub const BETWEEN_MAILBOXES: &str =
 /// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
 pub const INTO_OUTBOX: &str = "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it";
 
-/// Why a copy doesn't go into an Outbox that sends what lies in it, a Microsoft or an Exchange
-/// server account's (#704): only Send sends.
+/// Why a copy doesn't go into an Outbox that sends what lies in it, a Microsoft, an Exchange
+/// server or a JMAP account's (#704, #1074): only Send sends.
 pub const COPY_INTO_OUTBOX: &str = "A copy can't go into this Outbox: the next Send/Receive would send it";
 
 /// The local folder that mail imported for a Microsoft account goes to (R3 spec S30).
 pub const IMPORTED: &str = "Imported";
-
-/// Why nothing is sent from a JMAP account ([`AccountKind::sends_mail`]): its sending comes after
-/// its reading. Until then nothing goes into its Outbox, where it would wait for ever, and nothing
-/// is filed as sent that wasn't.
-pub const NOT_SENDING_YET: &str = "MailCraft doesn't send mail from a JMAP account yet";
 
 /// Why mail a JMAP account's server has doesn't go into a folder that server hasn't got
 /// ([`Mailbox::stays_out_of`]): a move goes up as a move between two of the server's mailboxes, and
@@ -1324,17 +1349,21 @@ pub const ONLY_SERVER_FOLDERS: &str =
 /// next run would bring it back.
 pub const FOLDERS_NOT_DELETED_YET: &str = "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back";
 
-/// What a message moved into an IMAP account's Outbox says of why it isn't sent
-/// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607).
+/// What a message moved into an IMAP or a JMAP account's Outbox says of why it isn't sent
+/// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607, #1074).
 pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again sends it";
 
-/// Only what is queued with Send leaves through an IMAP account's Outbox (#607): a message moved
+/// Only what is queued with Send leaves through an IMAP account's Outbox (#607), and a message moved
+/// into a JMAP account's is held the same way (#1074, [`Mailbox::holds_what_is_moved_in`]): a message moved
 /// or copied there is held, as one a Microsoft account's server refused is, until Send Again. One
 /// that leaves an Outbox is no longer held for having been put in it. Whatever the move or copy,
 /// the message (or the copy) is not one being sent from where it was any more (AU3-26): filed in
-/// Sent Items, moved away by the owner, or a copy made of it.
+/// Sent Items, moved away by the owner, or a copy made of it. Nor is it a draft just sent that its
+/// server is still to file in Sent Items (#1160): the owner has put it somewhere, and that move
+/// goes up as any other.
 fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
     m.sending = false;
+    m.sent_here = false;
     if into_outbox {
         if m.held.is_empty() {
             m.held = MOVED_INTO_OUTBOX.to_string();
@@ -1524,6 +1553,14 @@ impl Mailbox {
     /// (#143: it has none of its own). All for an account that isn't here.
     pub fn keep_offline_of(&self, account: Id) -> KeepOffline {
         self.owner_of(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
+    }
+
+    /// The earliest received time of `account`'s mail that is listed from its server at `now`:
+    /// on a device with limits (a phone, MB3.16), the start of its mail to keep offline, so that
+    /// older mail isn't listed at all; `None` (everything) on a computer and for a window of All.
+    pub fn listed_since(&self, account: Id, now: crate::time::Timestamp) -> Option<crate::time::Timestamp> {
+        self.device_limits?;
+        self.keep_offline_of(account).since(now)
     }
 
     /// The colour a new account is given (#893): the first of [`PALETTE`] no account has yet, and
@@ -2105,6 +2142,7 @@ impl Mailbox {
             m.id = self.alloc_id();
         }
         self.next_id = self.next_id.max(m.id.saturating_add(1));
+        self.take_pending_follow_up(&mut m);
         let id = m.id;
         self.messages.insert(id, Arc::new(m));
         Ok(id)
@@ -2330,7 +2368,7 @@ impl Mailbox {
             // Moved on by its owner: what its server says of it from here on goes as for any other.
             self.message_mut(id)?.returned = 0;
         }
-        let into_outbox = self.is_imap_outbox(folder);
+        let into_outbox = self.holds_what_is_moved_in(folder);
         if self.move_between_accounts(id, folder, account, &remote, fresh)? {
             hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
             return Ok(());
@@ -2431,6 +2469,17 @@ impl Mailbox {
     /// there and sends only what was queued with Send (#607).
     pub fn is_imap_outbox(&self, folder: Id) -> bool {
         self.folder(folder).is_some_and(|f| f.kind == FolderKind::Outbox && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Imap))
+    }
+
+    /// Whether `folder` is an Outbox that holds a message moved into it ([`MOVED_INTO_OUTBOX`]) until
+    /// Send Again: an IMAP account's ([`Mailbox::is_imap_outbox`]), and a JMAP account's (#1074). What
+    /// can be moved into a JMAP account's Outbox is mail only this computer has (a draft saved in the
+    /// account, mail brought into it from elsewhere; the server's own mail and another mailbox's don't
+    /// go there, [`ONLY_SERVER_FOLDERS`], [`INTO_OUTBOX`]): nothing marks it as put there by Send, and
+    /// the next run would send it as it sends what Send queued.
+    pub fn holds_what_is_moved_in(&self, folder: Id) -> bool {
+        let jmap = |f: &Folder| f.kind == FolderKind::Outbox && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Jmap);
+        self.is_imap_outbox(folder) || self.folder(folder).is_some_and(jmap)
     }
 
     /// Whether a draft saved in `account` is kept on its server, field by field, with MailCraft's
@@ -2777,8 +2826,10 @@ impl Mailbox {
             return Err(invalid(INTO_OUTBOX));
         }
         // A copy in a Microsoft or an Exchange server account's Outbox would be sent by the next
-        // Send/Receive, and made on the server as well (#704): only Send sends.
-        if self.sends_from(folder) && self.keeps_changes_for_server(to_account) {
+        // Send/Receive, and made on the server as well (#704): only Send sends. In a JMAP account's
+        // too (#1074): the copy has no server's id, so it would go as mail queued with Send does.
+        let jmap = self.account(to_account).is_some_and(|a| a.kind == AccountKind::Jmap);
+        if self.sends_from(folder) && (jmap || self.keeps_changes_for_server(to_account)) {
             return Err(invalid(COPY_INTO_OUTBOX));
         }
         if self.placed_into(from_account, to_account) {
@@ -2790,7 +2841,7 @@ impl Mailbox {
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
-            copy.snooze = None;
+            (copy.snooze, copy.follow_up) = (None, None);
             copy.placed.clear();
             copy.left_gmail_inbox();
             crate::auth_results::forget_stamps(&mut copy);
@@ -2814,8 +2865,8 @@ impl Mailbox {
         copy.synced = None;
         copy.server = None;
         copy.moving_out = None;
-        // (A copy is not snoozed.)
-        copy.snooze = None;
+        // (A copy is not snoozed, and has no reminder.)
+        (copy.snooze, copy.follow_up) = (None, None);
         // (Put back after a refused copy is said of the message, not of a copy of it, and so is
         // the copy on a server it waits for.)
         copy.returned = 0;
@@ -3145,13 +3196,24 @@ impl Mailbox {
     }
 
     pub fn default_calendar(&self) -> Option<Id> {
-        self.calendars.first().map(|c| c.id)
+        // (A copy of a calendar on the web is read-only: never where an event goes unasked.)
+        self.calendars.iter().find(|c| !c.is_subscribed()).map(|c| c.id)
+    }
+
+    /// [`Self::default_calendar`], and a calendar of the mailbox's own made when there is none.
+    fn default_calendar_or_new(&mut self) -> Id {
+        if let Some(id) = self.default_calendar() {
+            return id;
+        }
+        let id = self.alloc_id();
+        self.calendars.push(Calendar { id, name: "Calendar".into(), color: Rgb(0x2F, 0x6F, 0xD0), visible: true, ..Default::default() });
+        id
     }
 
     /// Add an event; without a (known) calendar it goes to the default one.
     pub fn add_event(&mut self, mut e: Event) -> Result<Id, ModelError> {
         if self.calendar(e.calendar).is_none() {
-            e.calendar = self.default_calendar().ok_or_else(|| invalid("the mailbox has no calendar"))?;
+            e.calendar = self.default_calendar_or_new();
         }
         if e.id == 0 || self.events.contains_key(&e.id) {
             e.id = self.alloc_id();
@@ -3460,6 +3522,9 @@ impl Mailbox {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
         }
+        if self.repair_follow_ups_pending() {
+            fixed.push("reminders waiting for a sent copy cut".to_string());
+        }
         if self.migrate_junk_lists() {
             fixed.push("Safe and Blocked Senders moved to each account".to_string());
         }
@@ -3588,6 +3653,13 @@ impl Mailbox {
                 }
                 seen.insert(a.id);
                 fixed.push("an account id corrected".into());
+            }
+        }
+        // A calendar and contacts server a file names is held to the limits and to the addresses a
+        // password may go to (#209).
+        for a in &mut self.accounts {
+            if a.dav.as_mut().is_some_and(DavServer::repair) {
+                fixed.push("an account's calendar and contacts server tidied".into());
             }
         }
         // A list of categories is an account's own: a shared mailbox has its owner's.
@@ -3785,12 +3857,11 @@ impl Mailbox {
         if dropped > 0 {
             fixed.push(format!("{dropped} change(s) waiting for the mail server dropped"));
         }
-        if self.calendars.is_empty() && !self.events.is_empty() {
-            let id = self.alloc_id();
-            self.calendars.push(Calendar { id, name: "Calendar".into(), color: Rgb(0x2F, 0x6F, 0xD0), visible: true, ..Default::default() });
-        }
-        if let Some(default) = self.default_calendar() {
-            let known: HashSet<Id> = self.calendars.iter().map(|c| c.id).collect();
+        let known: HashSet<Id> = self.calendars.iter().map(|c| c.id).collect();
+        if (self.calendars.is_empty() && !self.events.is_empty()) || self.events.values().any(|e| !known.contains(&e.calendar)) {
+            // (Orphans go to a calendar of the mailbox's own, made when there is none: never to one
+            // that is a copy of a calendar on the web.)
+            let default = self.default_calendar_or_new();
             for e in self.events.values_mut().filter(|e| !known.contains(&e.calendar)) {
                 Arc::make_mut(e).calendar = default;
             }

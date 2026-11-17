@@ -123,7 +123,7 @@ fn drive(app: &mut MailApp, most: usize) {
     for _ in 0..most {
         app.poll_graph();
         app.auto_sync();
-        let over = app.graph_rx.is_none() && app.sync_queue.is_empty() && app.inbox_queue.is_empty();
+        let over = app.graph_rx.is_none() && app.session.driver.round.queue.is_empty() && app.session.driver.round.inbox_queue.is_empty();
         if over && !app.session.sync_progress.running() {
             break;
         }
@@ -196,7 +196,7 @@ fn stop_during_the_pass_ends_the_run() {
     assert!(jobs(&host)[0].pass);
     assert_eq!(row(&app, owner)["phase"], json!("inbox"));
     app.execute("ui.cancelSync", json!({})).unwrap();
-    assert!(app.sync_queue.is_empty() && app.inbox_queue.is_empty(), "nothing is left in line");
+    assert!(app.session.driver.round.queue.is_empty() && app.session.driver.round.inbox_queue.is_empty(), "nothing is left in line");
     // The host stops the pass after its page in hand, and answers.
     let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
     drop(pieces);
@@ -251,7 +251,7 @@ fn a_round_that_started_by_itself_asks_nobody_for_a_pass() {
     app.tokens.remove(&owner);
     app.queue_inbox_passes(&[owner, shared], true);
     assert!(app.start_next_inbox_pass().is_none());
-    assert!(host.lock().unwrap().jobs.is_empty() && app.signing_in.is_none() && app.inbox_queue.is_empty());
+    assert!(host.lock().unwrap().jobs.is_empty() && app.signing_in.is_none() && app.session.driver.round.inbox_queue.is_empty());
 }
 
 // The Inbox checked by itself every minute, between rounds.
@@ -339,7 +339,7 @@ fn a_check_is_quiet_while_it_runs_and_ticks_never_stack() {
 fn no_check_while_a_round_is_under_way_and_the_next_is_a_minute_after_it() {
     let (mut app, owner, shared, host) = checked_window();
     // (The next round by itself is minutes away.)
-    app.last_auto_sync = crate::now_ms();
+    app.session.driver.round.last_auto = crate::now_ms();
     host.lock().unwrap().hold = true;
     app.execute("ui.sync", json!({})).unwrap();
     assert_eq!(jobs(&host).len(), 1, "the round's first pass");
@@ -354,7 +354,11 @@ fn no_check_while_a_round_is_under_way_and_the_next_is_a_minute_after_it() {
         app.poll_graph();
         app.auto_sync();
         assert_eq!(app.inbox_check_tick(), None, "no check during the round");
-        if app.graph_rx.is_none() && app.sync_queue.is_empty() && app.inbox_queue.is_empty() && !app.session.sync_progress.running() {
+        if app.graph_rx.is_none()
+            && app.session.driver.round.queue.is_empty()
+            && app.session.driver.round.inbox_queue.is_empty()
+            && !app.session.sync_progress.running()
+        {
             break;
         }
     }

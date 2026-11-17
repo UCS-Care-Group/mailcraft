@@ -7,7 +7,7 @@ exclude = ["apps/mailcraft-android"]
 default-members = ["crates/*", "apps/mailcraft", "apps/mailcraft-cli", "xtask"]
 
 [workspace.package]
-version = "0.12.0"
+version = "0.13.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"

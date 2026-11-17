@@ -159,3 +159,97 @@ fn elsewhere_eframe_closes_the_window() {
     let (quit, _) = frame(&mut app, true, false);
     assert!(quit, "the seam's stand-in quits; the real platform quit is absent here");
 }
+
+fn tray_frame(ctx: &Context, app: &mut MailApp, close: bool, available: bool) -> (bool, Vec<ViewportCommand>) {
+    app.ui.close_to_tray_notice_seen = true;
+    let mut input = RawInput::default();
+    if close {
+        input.viewports.entry(ViewportId::ROOT).or_default().events.push(ViewportEvent::Close);
+    }
+    let mut quit = false;
+    let mut out = ctx.run_logic(&input, |ctx| {
+        quit = on_frame_with_tray(ctx, app, available, |ctx| take_over_close(ctx, || true));
+    });
+    (quit, out.viewport_commands.remove(&ViewportId::ROOT).unwrap_or_default())
+}
+
+#[test]
+fn close_hides_only_when_both_the_option_and_a_working_tray_are_present() {
+    for (option, available) in [(false, false), (false, true), (true, false), (true, true)] {
+        let mut app = app();
+        app.ui.close_to_tray = option;
+        let (quit, commands) = tray_frame(&Context::default(), &mut app, true, available);
+        assert_eq!(quit, !(option && available));
+        assert_eq!(commands.contains(&ViewportCommand::Visible(false)), option && available);
+        if option && available {
+            assert!(commands.contains(&ViewportCommand::CancelClose));
+        }
+    }
+}
+
+#[test]
+fn the_first_close_stays_visible_until_the_owner_has_seen_the_tray_notice() {
+    let mut app = app();
+    app.ui.close_to_tray = true;
+    let ctx = Context::default();
+    let mut input = RawInput::default();
+    input.viewports.entry(ViewportId::ROOT).or_default().events.push(ViewportEvent::Close);
+    let out = ctx.run_logic(&input, |ctx| {
+        on_frame_with_tray(ctx, &mut app, true, |_| panic!("a tray close must not terminate"));
+    });
+    let commands = out.viewport_commands.get(&ViewportId::ROOT).unwrap();
+    assert!(commands.contains(&ViewportCommand::CancelClose));
+    assert!(!commands.contains(&ViewportCommand::Visible(false)));
+    assert!(!app.ui.close_to_tray_notice_seen);
+    assert!(!app.quit_requested);
+}
+
+#[test]
+fn hiding_keeps_the_message_being_written_without_opening_a_quit_question() {
+    let mut app = app();
+    app.ui.close_to_tray = true;
+    writing(&mut app);
+    let (quit, commands) = tray_frame(&Context::default(), &mut app, true, true);
+    assert!(!quit);
+    assert!(commands.contains(&ViewportCommand::Visible(false)));
+    assert!(app.session.compose.as_ref().unwrap().dirty);
+    assert!(app.dialog.is_none());
+    assert!(!app.quit_requested);
+}
+
+#[test]
+fn explicit_quit_bypasses_the_tray_but_still_protects_unsaved_work() {
+    for unsaved in [false, true] {
+        let mut app = app();
+        app.ui.close_to_tray = true;
+        if unsaved {
+            writing(&mut app);
+        }
+        let ctx = Context::default();
+        app.quit_requested = true;
+        let (quit, commands) = tray_frame(&ctx, &mut app, false, true);
+        assert!(!quit);
+        assert!(commands.contains(&ViewportCommand::Close));
+        let (quit, commands) = tray_frame(&ctx, &mut app, true, true);
+        assert_eq!(quit, !unsaved);
+        assert!(!commands.contains(&ViewportCommand::Visible(false)));
+        if unsaved {
+            assert!(app.dialog.is_some());
+            assert!(commands.contains(&ViewportCommand::Visible(true)));
+            // Cancel the quit question; the next ordinary close hides again.
+            app.dialog = None;
+            let (quit, commands) = tray_frame(&ctx, &mut app, true, true);
+            assert!(!quit);
+            assert!(commands.contains(&ViewportCommand::Visible(false)));
+            assert!(app.session.compose.is_some());
+        }
+    }
+}
+
+#[test]
+fn minimizing_without_a_close_request_is_left_to_the_desktop() {
+    let mut app = app();
+    app.ui.close_to_tray = true;
+    let (_, commands) = tray_frame(&Context::default(), &mut app, false, true);
+    assert!(commands.is_empty());
+}
