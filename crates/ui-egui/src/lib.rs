@@ -4290,11 +4290,11 @@ impl MailApp {
     /// signs in with Microsoft for it when they asked for the run (the run goes on once they
     /// have), and is told how when they didn't.
     fn graph_mail_needs_sign_in(&mut self, account: Id, quiet: bool, after_sign_in: bool, consent: bool) {
+        self.session.sync_status.clear();
         if self.session.mailbox.account(account).is_some_and(|a| a.goa.is_some()) {
             self.status(tl!("Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."));
             return;
         }
-        self.session.sync_status.clear();
         let Some(owner) = self.session.mailbox.account(account).cloned() else { return };
         let why = if consent { "the sign-in needs permission for the mail" } else { "the sign-in was refused" };
         // Just signed in, and still refused: another trip to Microsoft's page wouldn't change it.

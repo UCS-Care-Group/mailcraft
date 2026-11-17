@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Synthetic ObjectManager replies: no session accounts or provider credentials.
+//! Synthetic metadata and D-Bus services: no session accounts or provider credentials.
 
 use super::*;
 use zbus::zvariant::{OwnedObjectPath, Str};
@@ -94,13 +94,16 @@ fn accounts_are_sorted_deduplicated_and_bounded() {
     assert_eq!(parse(objects).unwrap_err(), DiscoveryError::TooManyAccounts);
 }
 
-struct Fixture;
-
-#[zbus::interface(name = "org.freedesktop.DBus.ObjectManager")]
-impl Fixture {
-    fn get_managed_objects(&self) -> zbus::fdo::ManagedObjects {
-        fixture("google", "owner@example.org")
+#[test]
+fn introspection_only_lists_direct_bounded_names_without_expanding_entities() {
+    let xml = r#"<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd"><node><node name="account_1"/><node name="account_2"><node name="nested"/></node></node>"#;
+    assert_eq!(metadata::names(xml, "node", 2).unwrap(), ["account_1", "account_2"]);
+    assert_eq!(metadata::names(xml, "node", 1).unwrap_err(), DiscoveryError::TooManyAccounts);
+    for xml in ["", "<node>", "<other/>", "<node/><node/>", "<node><node name='&unknown;'/></node>"] {
+        assert!(metadata::names(xml, "node", 10).is_err(), "{xml}");
     }
+    assert!(metadata::names(&format!("{}{}", "<node>".repeat(40), "</node>".repeat(40)), "node", 256).is_err());
+    assert!(metadata::names(&" ".repeat(262_145), "node", 256).is_err());
 }
 
 /// Run with dbus-run-session and MAILCRAFT_TEST_PRIVATE_BUS=1; never touches a user's session.
@@ -109,10 +112,18 @@ impl Fixture {
 fn private_bus_discovery_reads_only_public_metadata() {
     assert_eq!(std::env::var("MAILCRAFT_TEST_PRIVATE_BUS").as_deref(), Ok("1"));
     let _lock = PRIVATE_BUS.lock().unwrap();
-    let _server = zbus::blocking::connection::Builder::session().unwrap().name(SERVICE).unwrap().serve_at(PATH, Fixture).unwrap().build().unwrap();
+    let calls = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let _server = serve_metadata(
+        LinkedFixture { graph: false, oauth: true, enabled: std::sync::Arc::new(AtomicBool::new(true)) },
+        calls.clone(),
+        std::sync::Arc::new(AtomicBool::new(true)),
+        Default::default(),
+        "synthetic-mail-token",
+    );
     let accounts = discover().unwrap();
     assert_eq!(accounts.len(), 1);
     assert_eq!(accounts[0].email, "owner@example.org");
+    assert!(calls.lock().unwrap().is_empty(), "discovery never reads OAuth registration or credentials");
 }
 
 fn linked_fixture(provider: &str, oauth: bool) -> zbus::fdo::ManagedObjects {
@@ -187,9 +198,8 @@ struct LinkedFixture {
     oauth: bool,
     enabled: std::sync::Arc<AtomicBool>,
 }
-#[zbus::interface(name = "org.freedesktop.DBus.ObjectManager")]
 impl LinkedFixture {
-    fn get_managed_objects(&self) -> zbus::fdo::ManagedObjects {
+    fn objects(&self) -> zbus::fdo::ManagedObjects {
         let mut objects = if self.graph { graph_fixture() } else { linked_fixture(if self.oauth { "google" } else { "imap_smtp" }, self.oauth) };
         if !self.enabled.load(Ordering::Relaxed) {
             for interfaces in objects.values_mut() {
@@ -200,24 +210,56 @@ impl LinkedFixture {
     }
 }
 struct Credentials {
+    metadata: LinkedFixture,
     calls: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
     allowed: std::sync::Arc<AtomicBool>,
 }
 #[zbus::interface(name = "org.gnome.OnlineAccounts.Account")]
 impl Credentials {
+    #[zbus(property)]
+    fn id(&self) -> &str {
+        "account_1"
+    }
+    #[zbus(property)]
+    fn provider_type(&self) -> &str {
+        if self.metadata.graph {
+            "ms_graph"
+        } else if self.metadata.oauth {
+            "google"
+        } else {
+            "imap_smtp"
+        }
+    }
+    #[zbus(property)]
+    fn provider_name(&self) -> &str {
+        "Example provider"
+    }
+    #[zbus(property)]
+    fn mail_disabled(&self) -> bool {
+        !self.metadata.enabled.load(Ordering::Relaxed)
+    }
     fn ensure_credentials(&self) -> zbus::fdo::Result<i32> {
         self.calls.lock().unwrap().push("ensure".into());
         if self.allowed.load(Ordering::Relaxed) { Ok(3600) } else { Err(zbus::fdo::Error::Failed("synthetic-private-error".into())) }
     }
 }
 struct Passwords {
+    smtp_state: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     calls: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
 }
 #[zbus::interface(name = "org.gnome.OnlineAccounts.PasswordBased")]
 impl Passwords {
-    fn get_password(&self, id: &str) -> String {
+    fn get_password(&self, id: &str) -> zbus::fdo::Result<String> {
         self.calls.lock().unwrap().push(id.into());
-        format!("synthetic-{id}")
+        if id == "smtp-password" {
+            match self.smtp_state.load(Ordering::Relaxed) {
+                1 => return Err(zbus::fdo::Error::Failed("synthetic-private-error".into())),
+                2 => return Ok(String::new()),
+                3 => return Ok("x".repeat(65_537)),
+                _ => {}
+            }
+        }
+        Ok(format!("synthetic-{id}"))
     }
 }
 struct AccessToken {
@@ -226,10 +268,125 @@ struct AccessToken {
 }
 #[zbus::interface(name = "org.gnome.OnlineAccounts.OAuth2Based")]
 impl AccessToken {
+    #[zbus(property)]
+    fn client_id(&self) -> &str {
+        self.calls.lock().unwrap().push("client-id".into());
+        "synthetic-client"
+    }
+    #[zbus(property)]
+    fn client_secret(&self) -> &str {
+        self.calls.lock().unwrap().push("client-secret".into());
+        "synthetic-registration-secret"
+    }
     fn get_access_token(&self) -> (String, i32) {
         self.calls.lock().unwrap().push("token".into());
         (self.token.into(), 3600)
     }
+}
+
+struct MailMetadata {
+    properties: Properties,
+}
+#[zbus::interface(name = "org.gnome.OnlineAccounts.Mail")]
+impl MailMetadata {
+    #[zbus(property, name = "EmailAddress")]
+    fn email_address(&self) -> String {
+        text(&self.properties, "EmailAddress").unwrap_or_default().to_string()
+    }
+    #[zbus(property, name = "Name")]
+    fn name(&self) -> String {
+        text(&self.properties, "Name").unwrap_or_default().to_string()
+    }
+    #[zbus(property, name = "ImapHost")]
+    fn imap_host(&self) -> String {
+        text(&self.properties, "ImapHost").unwrap_or_default().to_string()
+    }
+    #[zbus(property, name = "SmtpHost")]
+    fn smtp_host(&self) -> String {
+        text(&self.properties, "SmtpHost").unwrap_or_default().to_string()
+    }
+    #[zbus(property, name = "ImapUserName")]
+    fn imap_user_name(&self) -> String {
+        text(&self.properties, "ImapUserName").unwrap_or_default().to_string()
+    }
+    #[zbus(property, name = "SmtpUserName")]
+    fn smtp_user_name(&self) -> String {
+        text(&self.properties, "SmtpUserName").unwrap_or_default().to_string()
+    }
+    #[zbus(property, name = "ImapSupported")]
+    fn imap_supported(&self) -> bool {
+        flag(&self.properties, "ImapSupported")
+    }
+    #[zbus(property, name = "ImapUseSsl")]
+    fn imap_use_ssl(&self) -> bool {
+        flag(&self.properties, "ImapUseSsl")
+    }
+    #[zbus(property, name = "ImapUseTls")]
+    fn imap_use_tls(&self) -> bool {
+        flag(&self.properties, "ImapUseTls")
+    }
+    #[zbus(property, name = "ImapAcceptSslErrors")]
+    fn imap_accept_ssl_errors(&self) -> bool {
+        flag(&self.properties, "ImapAcceptSslErrors")
+    }
+    #[zbus(property, name = "SmtpSupported")]
+    fn smtp_supported(&self) -> bool {
+        flag(&self.properties, "SmtpSupported")
+    }
+    #[zbus(property, name = "SmtpUseSsl")]
+    fn smtp_use_ssl(&self) -> bool {
+        flag(&self.properties, "SmtpUseSsl")
+    }
+    #[zbus(property, name = "SmtpUseTls")]
+    fn smtp_use_tls(&self) -> bool {
+        flag(&self.properties, "SmtpUseTls")
+    }
+    #[zbus(property, name = "SmtpAcceptSslErrors")]
+    fn smtp_accept_ssl_errors(&self) -> bool {
+        flag(&self.properties, "SmtpAcceptSslErrors")
+    }
+    #[zbus(property, name = "SmtpUseAuth")]
+    fn smtp_use_auth(&self) -> bool {
+        flag(&self.properties, "SmtpUseAuth")
+    }
+    #[zbus(property, name = "SmtpAuthPlain")]
+    fn smtp_auth_plain(&self) -> bool {
+        flag(&self.properties, "SmtpAuthPlain")
+    }
+    #[zbus(property, name = "SmtpAuthLogin")]
+    fn smtp_auth_login(&self) -> bool {
+        flag(&self.properties, "SmtpAuthLogin")
+    }
+    #[zbus(property, name = "SmtpAuthXoauth2")]
+    fn smtp_auth_xoauth2(&self) -> bool {
+        flag(&self.properties, "SmtpAuthXoauth2")
+    }
+}
+
+fn serve_metadata(
+    metadata: LinkedFixture,
+    calls: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    allowed: std::sync::Arc<AtomicBool>,
+    smtp_state: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    token: &'static str,
+) -> zbus::blocking::Connection {
+    let oauth = metadata.oauth || metadata.graph;
+    let properties = metadata.objects().into_values().next().unwrap().remove(MAIL).unwrap();
+    let path = "/org/gnome/OnlineAccounts/Accounts/account_1";
+    let builder = zbus::blocking::connection::Builder::session()
+        .unwrap()
+        .name(SERVICE)
+        .unwrap()
+        .serve_at(path, Credentials { metadata, calls: calls.clone(), allowed })
+        .unwrap()
+        .serve_at(path, MailMetadata { properties })
+        .unwrap();
+    let builder = if oauth {
+        builder.serve_at(path, AccessToken { token, calls }).unwrap()
+    } else {
+        builder.serve_at(path, Passwords { calls, smtp_state }).unwrap()
+    };
+    builder.build().unwrap()
 }
 
 static PRIVATE_BUS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -242,28 +399,22 @@ fn private_bus_linked_credentials_refresh_without_local_login_or_storage() {
         let calls = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let enabled = std::sync::Arc::new(AtomicBool::new(true));
         let allowed = std::sync::Arc::new(AtomicBool::new(true));
-        let path = "/org/gnome/OnlineAccounts/Accounts/account_1";
-        let server = zbus::blocking::connection::Builder::session()
-            .unwrap()
-            .name(SERVICE)
-            .unwrap()
-            .serve_at(PATH, LinkedFixture { graph: false, oauth, enabled: enabled.clone() })
-            .unwrap()
-            .serve_at(path, Credentials { calls: calls.clone(), allowed: allowed.clone() })
-            .unwrap()
-            .serve_at(path, Passwords { calls: calls.clone() })
-            .unwrap()
-            .serve_at(path, AccessToken { token: "synthetic-mail-token", calls: calls.clone() })
-            .unwrap()
-            .build()
-            .unwrap();
+        let smtp_state = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let server = serve_metadata(
+            LinkedFixture { graph: false, oauth, enabled: enabled.clone() },
+            calls.clone(),
+            allowed.clone(),
+            smtp_state.clone(),
+            "synthetic-mail-token",
+        );
         let bus = zbus::blocking::connection::Builder::session().unwrap().method_timeout(Duration::from_secs(2)).build().unwrap();
         let accounts = read(&bus).unwrap();
         let mut request = SyncRequest { account: accounts[0].linked.clone().unwrap(), outbox: vec![Default::default()], ..Default::default() };
         assert!(calls.lock().unwrap().is_empty(), "discovery does not read credentials");
         let cancelled = AtomicBool::new(false);
         for _ in 0..2 {
-            let resolved = resolve(&bus, &request, &cancelled).unwrap();
+            let (resolved, outgoing_error) = resolve(&bus, &request, &cancelled).unwrap();
+            assert!(outgoing_error.is_none());
             assert!(resolved.account.goa.is_none());
             assert!(resolved.gmail_moves.is_empty());
             assert_eq!(resolved.smtp_username.as_deref(), Some("outgoing@example.org"));
@@ -280,8 +431,19 @@ fn private_bus_linked_credentials_refresh_without_local_login_or_storage() {
                 assert!(!debug.contains(secret));
             }
         }
+        assert_eq!(calls.lock().unwrap().len(), if oauth { 4 } else { 6 });
+        if !oauth {
+            for state in [1, 2, 3] {
+                smtp_state.store(state, Ordering::Relaxed);
+                let (resolved, error) = resolve(&bus, &request, &cancelled).unwrap();
+                assert!(!error.unwrap().to_string().contains("synthetic-private-error"));
+                assert_eq!(resolved.password, "synthetic-imap-password");
+                assert!(resolved.outbox.is_empty() && resolved.smtp_password.is_none());
+                assert_eq!(request.outbox.len(), 1, "a failed SMTP credential never removes queued mail");
+            }
+            smtp_state.store(0, Ordering::Relaxed);
+        }
         let count = calls.lock().unwrap().len();
-        assert_eq!(count, if oauth { 4 } else { 6 });
         enabled.store(false, Ordering::Relaxed);
         assert!(resolve(&bus, &request, &cancelled).is_err());
         enabled.store(true, Ordering::Relaxed);
@@ -354,19 +516,13 @@ fn private_bus_graph_mail_uses_goa_for_sync_fetch_search_and_repairs() {
     let calls = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let enabled = std::sync::Arc::new(AtomicBool::new(true));
     let allowed = std::sync::Arc::new(AtomicBool::new(true));
-    let path = "/org/gnome/OnlineAccounts/Accounts/account_1";
-    let _goa = zbus::blocking::connection::Builder::session()
-        .unwrap()
-        .name(SERVICE)
-        .unwrap()
-        .serve_at(PATH, LinkedFixture { graph: true, oauth: true, enabled: enabled.clone() })
-        .unwrap()
-        .serve_at(path, Credentials { calls: calls.clone(), allowed: allowed.clone() })
-        .unwrap()
-        .serve_at(path, AccessToken { token: mailcraft_net::graph::standin::TOKEN, calls: calls.clone() })
-        .unwrap()
-        .build()
-        .unwrap();
+    let _goa = serve_metadata(
+        LinkedFixture { graph: true, oauth: true, enabled: enabled.clone() },
+        calls.clone(),
+        allowed.clone(),
+        Default::default(),
+        mailcraft_net::graph::standin::TOKEN,
+    );
     let server = mailcraft_net::graph::standin::StandIn::start().unwrap();
     let _route = server.route();
     let inbox = server.state().well_known("inbox");

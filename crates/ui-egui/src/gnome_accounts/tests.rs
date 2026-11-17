@@ -88,6 +88,43 @@ fn only_a_supported_selected_account_can_be_set_up_and_duplicates_are_refused() 
 }
 
 #[test]
+fn supported_generic_mail_accounts_can_also_be_set_up_separately() {
+    let app = app(Services::default());
+    let mut generic = linkable();
+    generic.provider = Provider::Unsupported;
+    let mut form = Import { rx: None, accounts: vec![generic], error: None, selected: Some(0), link_error: None };
+    assert!(form.setup(&app).is_some());
+    form.accounts[0].linked = None;
+    assert!(form.setup(&app).is_none());
+}
+
+#[test]
+fn a_failed_goa_graph_run_clears_the_sync_status_and_directs_repair_to_gnome() {
+    for consent in [false, true] {
+        let mut app = app(Services {
+            gnome_accounts: Some(Box::new(|| channel().1)),
+            sync: Some(Box::new(|_| panic!("Graph mail must not use IMAP"))),
+            sign_in: Some(Box::new(|_| panic!("GOA repair must not open MailCraft sign-in"))),
+            graph: Some(Box::new(move |request| {
+                let (tx, rx) = channel();
+                tx.send(crate::GraphResult { account: request.account.id, sign_in_refused: !consent, consent_needed: consent, ..Default::default() })
+                    .unwrap();
+                rx
+            })),
+            ..Default::default()
+        });
+        app.session.prefs.sync_minutes = 0;
+        let form = Import { rx: None, accounts: vec![graph_linkable()], error: None, selected: Some(0), link_error: None };
+        let id = form.link(&mut app).unwrap();
+        app.execute("ui.sync", json!({"account": id})).unwrap();
+        app.poll_graph();
+        assert!(app.session.sync_status.is_empty());
+        assert!(!app.syncing());
+        assert!(app.status_msg.as_ref().is_some_and(|(text, _)| text.contains("GNOME Online Accounts")));
+    }
+}
+
+#[test]
 fn selecting_an_account_prefills_setup_without_contacting_a_provider() {
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();

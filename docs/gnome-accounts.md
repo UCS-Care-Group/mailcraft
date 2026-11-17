@@ -16,7 +16,9 @@ with its provider and availability, highlights your selection, and offers two ch
 
 The ordinary Add Account action stays unchanged. An address already in the current mailbox
 cannot be imported again. Accounts without an enabled mail service are omitted. Unsupported
-accounts remain visible with their status, and their unavailable actions are disabled.
+accounts remain visible with their status, and their unavailable actions are disabled. Supported
+generic IMAP/SMTP profiles also offer separate setup. If you edit the prefilled address, setup
+discards the imported provider hint and detects the edited address normally.
 
 GOA is optional. Ordinary Microsoft Graph accounts keep MailCraft's own sign-in and token
 renewal, whether GOA is absent, unused or managing a different account in the same mailbox.
@@ -50,7 +52,9 @@ verification is always required; configurations accepting invalid certificates a
 Numeric port overrides and bracketed IPv6 addresses are supported; symbolic ports are not guessed.
 
 PasswordBased accounts use `imap-password` and `smtp-password`, with separate incoming/outgoing
-passwords and login names when configured. OAuth2Based accounts support Google's Gmail mail
+passwords and login names when configured. If the outgoing credential alone is refused or
+invalid, sending waits in the Outbox while receiving and IMAP changes continue; the incoming
+password is never substituted for the outgoing one. OAuth2Based accounts support Google's Gmail mail
 endpoints and older Microsoft Personal (`windows_live`) mail endpoints when GOA advertises SMTP
 XOAUTH2. An account shown as unsupported lacks a capability this backend needs; its settings
 are not guessed. Google mail tokens never reach Microsoft's Graph or Google's separate APIs.
@@ -77,7 +81,9 @@ GNOME Shell by this feature.
 
 No GNOME client library is required to build or start MailCraft. Discovery and credential
 resolution run on background threads using the existing Rust D-Bus dependency, with method
-timeouts and cancellation checks. Discovery alone never requests credentials. Only selected
+timeouts and cancellation checks. Bounded D-Bus introspection enumerates object/interface names;
+only Account and Mail properties are read. Discovery never requests OAuth registration properties
+or credentials. Only selected
 linked accounts query GOA during manual and scheduled operations. Both Flatpak manifests allow
 communication with `org.gnome.OnlineAccounts`. Other platforms and hosts without the adapter
 cannot sync GOA links and never substitute a local password or MailCraft login.
@@ -99,7 +105,8 @@ dbus-run-session -- env MAILCRAFT_TEST_PRIVATE_BUS=1 cargo test --locked -p mail
 The three tests use invented identities and a synthetic GOA service. The Graph flow also uses
 the in-process Microsoft Graph stand-in: reading, downloading, searching, sending, changes,
 401 renewal and refusal/disabled/cancelled states never leave this computer. Scope checks
-prevent calendar or other extra operations from requesting credentials. No test requires a
+prevent calendar or other extra operations from requesting credentials. Own-mail search
+continuations reject other mailboxes and non-mail endpoints before sending a network request. No test requires a
 real account. Live provider and packaged Flatpak acceptance remain separate checks.
 
 ## Revision history

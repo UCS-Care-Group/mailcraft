@@ -145,6 +145,10 @@ windows = { version = "0.62", features = [
 # A `.p12` goes to the Windows Runtime's import as base64 text (`key_holders/windows_store.rs`).
 base64 = { workspace = true }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# Read only the GOA introspection shape before requesting Account/Mail metadata.
+quick-xml = { workspace = true }
+
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 # Probe X11 before choosing it for close-to-tray, so a stale DISPLAY keeps native Wayland.
 # Already part of winit's X11 backend; the pure Rust connector performs authentication too.

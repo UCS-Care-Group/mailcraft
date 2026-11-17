@@ -21,6 +21,7 @@ const PATH: &str = "/org/gnome/OnlineAccounts";
 const ACCOUNT: &str = "org.gnome.OnlineAccounts.Account";
 const MAIL: &str = "org.gnome.OnlineAccounts.Mail";
 type Properties = HashMap<String, OwnedValue>;
+mod metadata;
 
 pub fn discover() -> Discovery {
     let bus = zbus::blocking::connection::Builder::session()
@@ -32,16 +33,7 @@ pub fn discover() -> Discovery {
 }
 
 fn read(bus: &zbus::blocking::Connection) -> Discovery {
-    let proxy = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy<'_>>::new(bus)
-        .destination(SERVICE)
-        .and_then(|p| p.path(PATH))
-        .and_then(|p| p.interface("org.freedesktop.DBus.ObjectManager"))
-        .map_err(|_| DiscoveryError::Failed)?
-        .cache_properties(zbus::proxy::CacheProperties::No)
-        .build()
-        .map_err(|_| DiscoveryError::Failed)?;
-    let objects: zbus::fdo::ManagedObjects = proxy.call("GetManagedObjects", &()).map_err(|_| DiscoveryError::Failed)?;
-    parse(objects)
+    parse(metadata::snapshot(bus)?)
 }
 
 fn text<'a>(props: &'a Properties, key: &str) -> Option<&'a str> {
@@ -245,8 +237,7 @@ fn checked(bus: &zbus::blocking::Connection, account: &MailAccount, cancel: &Ato
         return Err(said!("GNOME account request cancelled."));
     }
     // Resolve the path from public Id rather than constructing it from untrusted file contents.
-    let manager = uncached(bus, PATH, "org.freedesktop.DBus.ObjectManager").map_err(|_| said!("Could not read GNOME accounts."))?;
-    let objects: zbus::fdo::ManagedObjects = manager.call("GetManagedObjects", &()).map_err(|_| said!("Could not read GNOME accounts."))?;
+    let objects = metadata::snapshot(bus).map_err(|_| said!("Could not read GNOME accounts."))?;
     if objects.len() > 256 {
         return Err(said!("GNOME returned too many accounts. Use Add Account instead."));
     }
@@ -285,7 +276,7 @@ fn checked(bus: &zbus::blocking::Connection, account: &MailAccount, cancel: &Ato
     })
 }
 
-fn resolve(bus: &zbus::blocking::Connection, request: &SyncRequest, cancel: &AtomicBool) -> Result<SyncRequest, Text> {
+fn resolve(bus: &zbus::blocking::Connection, request: &SyncRequest, cancel: &AtomicBool) -> Result<(SyncRequest, Option<Text>), Text> {
     let checked = checked(bus, &request.account, cancel)?;
     let current = &checked.account;
     let path = &checked.path;
@@ -294,6 +285,7 @@ fn resolve(bus: &zbus::blocking::Connection, request: &SyncRequest, cancel: &Ato
         return Err(said!("This GNOME account uses Microsoft Graph, not IMAP or SMTP."));
     }
     let mut resolved = request.clone();
+    let mut outgoing_error = None;
     resolved.account.goa = None;
     resolved.account.oauth = None;
     resolved.account.outgoing_without_sign_in = false;
@@ -327,19 +319,26 @@ fn resolve(bus: &zbus::blocking::Connection, request: &SyncRequest, cancel: &Ato
             return Err(said!("GNOME account request cancelled."));
         }
         if !request.outbox.is_empty() {
-            let password: String = proxy
-                .call("GetPassword", &("smtp-password",))
-                .map_err(|_| said!("Repair this account's outgoing sign-in in GNOME Online Accounts."))?;
-            if password.is_empty() || password.len() > 65536 {
-                return Err(said!("GNOME returned an invalid outgoing credential."));
+            let password: Result<String, _> = proxy.call("GetPassword", &("smtp-password",));
+            match password {
+                Ok(password) if !password.is_empty() && password.len() <= 65536 => resolved.smtp_password = Some(password),
+                other => {
+                    outgoing_error = Some(if other.is_err() {
+                        said!("Repair this account's outgoing sign-in in GNOME Online Accounts.")
+                    } else {
+                        said!("GNOME returned an invalid outgoing credential.")
+                    });
+                    // No send is attempted, and the original queue is retained. Receiving and
+                    // IMAP changes may proceed with the independently resolved incoming secret.
+                    resolved.outbox.clear();
+                }
             }
-            resolved.smtp_password = Some(password);
         }
     }
     if cancel.load(Ordering::Relaxed) {
         return Err(said!("GNOME account request cancelled."));
     }
-    Ok(resolved)
+    Ok((resolved, outgoing_error))
 }
 
 fn bus() -> Result<zbus::blocking::Connection, Text> {
@@ -444,7 +443,14 @@ pub fn sync(request: &SyncRequest, cancel: &AtomicBool, emit: &mut dyn FnMut(Syn
         .ok_or_else(|| said!("GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try again."))
         .and_then(|bus| resolve(&bus, request, cancel));
     match result {
-        Ok(resolved) => mailcraft_net::sync_with(&resolved, cancel, emit),
+        Ok((resolved, outgoing_error)) => {
+            if let Some(error) = outgoing_error {
+                let mut result = SyncResult { account: request.account.id, email: request.account.email.clone(), ..Default::default() };
+                result.problem(error);
+                emit(result);
+            }
+            mailcraft_net::sync_with(&resolved, cancel, emit);
+        }
         Err(error) => {
             let mut result = SyncResult {
                 account: request.account.id,

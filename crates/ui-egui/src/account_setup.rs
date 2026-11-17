@@ -440,7 +440,7 @@ impl GmailSwitches {
 /// The Add Account wizard, and Account Settings for an account that exists.
 pub struct AccountSetup {
     /// Provider selected in the separate system-account import dialog. Applied only on Connect.
-    imported_kind: Option<Kind>,
+    imported_kind: Option<(String, Kind)>,
     page: Page,
     /// Google refused the password: the password page links to Google's App passwords page.
     app_passwords: bool,
@@ -620,7 +620,8 @@ impl AccountSetup {
             Provider::Microsoft365 => Some(Kind::Microsoft365),
             Provider::OutlookCom => Some(Kind::OutlookCom),
             Provider::Unsupported => None,
-        };
+        }
+        .map(|kind| (account.email.trim().to_string(), kind));
         setup
     }
     fn blank(page: Page) -> AccountSetup {
@@ -1232,7 +1233,7 @@ impl AccountSetup {
 
     /// Connect on the first page: find out whose the address is, or ask, and move on.
     fn connect(&mut self, app: &mut MailApp) {
-        if let Some(kind) = self.imported_kind.take().filter(|_| !self.manual) {
+        if let Some((_, kind)) = self.imported_kind.take().filter(|(email, _)| !self.manual && email.eq_ignore_ascii_case(self.email.trim())) {
             self.pick(app, kind);
             return;
         }
@@ -2899,6 +2900,7 @@ mod tests {
     /// Servers found in the domain's own records, and the question before a password goes
     /// outside the domain (#1063).
     mod found_servers;
+    mod gnome_import;
     /// Google-specific keyboard, accessibility and compact-window behavior in both themes.
     mod google_accessibility_tests;
     /// Existing Gmail account preservation and transactional OAuth conversion.

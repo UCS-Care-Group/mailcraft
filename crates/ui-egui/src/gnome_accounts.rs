@@ -82,7 +82,7 @@ impl Import {
 
     fn setup(&self, app: &MailApp) -> Option<AccountSetup> {
         let account = self.accounts.get(self.selected?)?;
-        (account.provider != Provider::Unsupported && Self::can_select(app, account)).then(|| AccountSetup::from_gnome(app, account))
+        Self::can_select(app, account).then(|| AccountSetup::from_gnome(app, account))
     }
 
     fn link(&self, app: &mut MailApp) -> Result<mailcraft_model::Id, String> {
@@ -159,7 +159,7 @@ impl Import {
         let selected = self.selected.and_then(|i| self.accounts.get(i)).filter(|a| Self::can_select(app, a));
         let has_selected = selected.is_some();
         let linkable = selected.is_some_and(|a| a.linked.is_some());
-        let separate = selected.is_some_and(|a| a.provider != Provider::Unsupported);
+        let separate = has_selected;
         let mut setup = None;
         let mut close = false;
         if !self.accounts.is_empty() {
