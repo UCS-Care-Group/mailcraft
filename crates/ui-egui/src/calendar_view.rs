@@ -1800,7 +1800,7 @@ enum Edge {
     Hollow,
 }
 
-/// The colours of one event: a soft fill of its calendar's colour, a stronger edge, and the inks.
+/// The colors of one event: a soft fill of its calendar's color, a stronger edge, and the inks.
 struct Look {
     fill: Color32,
     edge: Color32,
@@ -1810,19 +1810,19 @@ struct Look {
     dim: Color32,
 }
 
-/// An event is a block tinted with its colour `base` (its category's, or its calendar's) with a
-/// stronger edge down its left in its calendar's colour, which also says how the time shows:
+/// An event is a block tinted with its color `base` (its category's, or its calendar's) with a
+/// stronger edge down its left in its calendar's color, which also says how the time shows:
 /// busy is solid, tentative hatched, working elsewhere dotted, free hollow and outlined.
-/// Free events without a category use a faint calendar tint. Out of office is purple. Cancelled
-/// events fade; so, when `dim`, do those of a calendar that lies under another.
+/// Tentative events without a category use a faint (60%) calendar tint. Out of office is purple.
+/// Canceled events fade; so, when `dim`, do those of a calendar that lies under another.
 fn look(ev: &Event, base: Color32, calendar: Color32, t: &Tokens, hovered: bool, dim: bool) -> Look {
     let soft = t.data_soft(hovered);
     let purple = mix(t.blue, t.red, 0.5);
     let (edge, strength, kind, outline) = match ev.show_as {
         ShowAs::Busy => (calendar, 1.0, Edge::Solid, false),
-        ShowAs::WorkingElsewhere => (calendar, 0.8, Edge::Dotted, false),
-        ShowAs::Tentative => (calendar, 0.6, Edge::Hatched, false),
-        ShowAs::Free => (calendar, if ev.categories.is_empty() { 0.2 } else { 1.0 }, Edge::Hollow, true),
+        ShowAs::WorkingElsewhere => (calendar, 1.0, Edge::Dotted, false),
+        ShowAs::Tentative => (calendar, if ev.categories.is_empty() { 0.6 } else { 1.0 }, Edge::Hatched, false),
+        ShowAs::Free => (calendar, 1.0, Edge::Hollow, true),
         ShowAs::OutOfOffice => (purple, 1.0, Edge::Solid, false),
     };
     if dim && !ev.cancelled {
