@@ -788,6 +788,11 @@ impl SyncHost {
         self.pacer.poke();
     }
 
+    /// Let go of every account held back: the mailbox they were in is gone ([`crate::Core::delete_local_data`]).
+    pub(crate) fn release_holds(&self) {
+        self.lock().sr.release_all();
+    }
+
     /// Keep the mailbox within the phone's limits at the next wake (they were changed).
     pub(crate) fn trim_soon(&self) {
         self.lock().trim.due = true;

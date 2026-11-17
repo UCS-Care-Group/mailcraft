@@ -164,6 +164,7 @@ class MailCraftApplication : Application() {
                     dir = noBackupFilesDir,
                     keep = { hub.saveNow() },
                     changed = { refreshRemindersSoon(core) },
+                    holds = holds,
                 ),
                 scope = scope,
             )

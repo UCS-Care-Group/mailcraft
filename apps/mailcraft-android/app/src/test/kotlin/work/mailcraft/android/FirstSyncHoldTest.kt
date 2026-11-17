@@ -146,4 +146,14 @@ class FirstSyncHoldTest {
         afterHolds(holds) { rounds++ }
         assertEquals(3, rounds)
     }
+
+    @Test
+    fun removingTheDataForgetsEveryHoldAndAFailedRemovalNone() = runBlocking {
+        kept.save(setOf(7uL, 8uL))
+        assertNull(holds.removing<String> { null })
+        assertEquals(setOf(7uL, 8uL), kept.load())
+        assertEquals("removed", holds.removing { "removed" })
+        assertTrue(kept.load().isEmpty())
+        assertTrue(told.isEmpty())
+    }
 }

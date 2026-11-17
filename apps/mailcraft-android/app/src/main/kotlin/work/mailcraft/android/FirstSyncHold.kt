@@ -91,6 +91,16 @@ internal class FirstSyncHolds(
     }
 
     /**
+     * The owner removed the mail and data on the phone ([remove], null when that failed): the
+     * accounts held back went with the mailbox (the core let go of them), so none is kept here
+     * either; a new account may come to have the same number. Under the lock, so that no answer
+     * lands between the removal and the forgetting.
+     */
+    suspend fun <T : Any> removing(remove: suspend () -> T?): T? = lock.withLock {
+        remove()?.also { if (store.load().isNotEmpty()) store.save(emptySet()) }
+    }
+
+    /**
      * Says every hold kept to a core that has just started (its own are gone with the last one).
      * Every hold is tried; the first failure that may pass is returned (null when every hold was
      * said), so that a round that would start by itself doesn't start without it.

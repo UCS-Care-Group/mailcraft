@@ -500,6 +500,8 @@ impl Core {
             // fresh one counts as saved, so nothing is written until the owner changes something;
             // the names of sign-ins still in the store are kept by `sync` for the retry.
             session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+            // The accounts held back went with it (a new one may come to have the same number).
+            sync.release_holds();
             if let Some(keep) = &keep {
                 keep.reset(session);
             }
