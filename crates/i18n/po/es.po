@@ -15346,7 +15346,7 @@ msgid "That key is on the card already"
 msgstr "Esa clave ya está en la tarjeta"
 
 #. what a command says
-#: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
+#: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
 msgstr "Ese inicio de sesión es del buzón de otra persona, no de esta cuenta. No se conservó nada."
@@ -15590,6 +15590,12 @@ msgstr "No se pudo leer el calendario."
 #, fuzzy
 msgid "The calendar couldn't be added"
 msgstr "No se pudo añadir el calendario"
+
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
+msgstr "No se pudo actualizar el calendario: la tarea se detuvo inesperadamente"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -16828,8 +16834,8 @@ msgstr "No se encontró el texto."
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
 msgstr "La hora se guarda en este equipo; una marca se envía al servidor de la cuenta como cualquier otra marca."
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "No se pudieron mantener sincronizadas las tareas: el trabajo se detuvo inesperadamente"

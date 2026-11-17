@@ -15393,7 +15393,7 @@ msgid "That key is on the card already"
 msgstr "Cheia aceea este deja pe card"
 
 #. what a command says
-#: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
+#: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
 msgstr "Acea autentificare este pentru cutia poștală altcuiva, nu pentru acest cont. Nu s-a păstrat nimic."
@@ -15637,6 +15637,12 @@ msgstr "Calendarul nu a putut fi citit."
 #, fuzzy
 msgid "The calendar couldn't be added"
 msgstr "Calendarul nu a putut fi adăugat"
+
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
+msgstr "Calendarul nu a putut fi actualizat: sarcina s-a oprit neașteptat"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -16877,8 +16883,8 @@ msgstr "Textul nu a fost găsit."
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
 msgstr "Ora este păstrată pe acest computer; un marcaj ajunge la serverul contului ca orice marcaj."
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "Sarcinile nu au putut fi sincronizate: operația s-a oprit neașteptat"

@@ -15364,7 +15364,7 @@ msgid "That key is on the card already"
 msgstr "Die sleutel staat al op de kaart"
 
 #. what a command says
-#: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
+#: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
 msgstr "Die aanmelding is voor de postbus van iemand anders, niet voor dit account. Er is niets bewaard."
@@ -15608,6 +15608,12 @@ msgstr "De agenda kon niet worden gelezen."
 #, fuzzy
 msgid "The calendar couldn't be added"
 msgstr "De agenda kon niet worden toegevoegd"
+
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
+msgstr "De agenda kon niet worden bijgewerkt: de taak stopte onverwacht"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -16847,8 +16853,8 @@ msgstr "De tekst is niet gevonden."
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
 msgstr "De tijd wordt op deze computer bewaard; een markering gaat zoals elke markering naar de server van het account."
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "De to-do's konden niet worden bijgehouden: het is onverwacht gestopt"

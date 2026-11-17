@@ -383,11 +383,23 @@ impl Core {
         let kept = self
             .call(move |s| {
                 let there = s.mailbox.accounts.iter().any(|a| a.id == account && a.kind == AccountKind::Microsoft);
-                Ok(match (there, sync.remembers()) {
+                let kept = match (there, sync.remembers()) {
                     (false, _) => None,
                     (true, true) => Some(signin::keep_refresh(platform.as_ref(), &for_email, &tokens_refresh)),
                     (true, false) => Some(Ok(())),
-                })
+                };
+                if matches!(kept, Some(Ok(()))) {
+                    // The sign-in that covers it is the account's newest: the session's too, so that
+                    // a job has it with sign-ins not remembered (never its access token as a mail one).
+                    let theirs = Tokens { refresh: tokens_refresh.clone(), ..Default::default() };
+                    sync.adopt_refresh(s, account, &theirs);
+                    // Allowed, as far as is known: the next to-do job finds out, at once (MB3.18).
+                    if permission == Permission::Tasks {
+                        s.driver.tasks.allowed(account);
+                    }
+                    sync.pacer.poke();
+                }
+                Ok(kept)
             })
             .await?;
         match kept {
