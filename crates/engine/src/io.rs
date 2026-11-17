@@ -695,6 +695,8 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             log::info!("import: vcf, {} contacts, into this computer", ids.len());
             s.sel.contact = ids.first().copied();
             if let Some(first) = s.sel.contact {
+                // Shown among the contacts, so People leaves the address list, as `select` does.
+                s.view.people_book = None;
                 crate::cmd::people::reveal(s, first);
             }
             Ok(json!({"format": "vcf", "contacts": ids.len(), "ids": ids}))

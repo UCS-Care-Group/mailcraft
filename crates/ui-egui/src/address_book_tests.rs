@@ -614,6 +614,36 @@ fn a_removed_accounts_list_goes_with_it() {
     assert!(cancel.load(std::sync::atomic::Ordering::Relaxed), "the download on its way is let go of");
 }
 
+/// A change of the account's server or sign-in lets go of the list of the server before, of a
+/// download of it on its way and of what the Address Book shows of it; the new server's is
+/// downloaded.
+#[test]
+fn another_server_for_the_account_lets_go_of_the_list_before() {
+    let (mut app, account, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(names(&app).len(), 4);
+    app.address_lists[0].at_ms -= REFRESH_MS;
+    app.poll_address_book(&ctx);
+    assert!(app.downloading_address_list());
+    let before = asked.lock().unwrap().last().map(|(_, _, cancel)| cancel.clone()).unwrap();
+    app.execute("account.edit", json!({"id": account, "ews": {"username": "EXAMPLE\\someone"}})).unwrap();
+    app.poll_address_book(&ctx);
+    assert!(before.load(std::sync::atomic::Ordering::Relaxed), "the download for the sign-in before is let go of");
+    assert!(app.address_list(account).is_none());
+    assert!(names(&app).is_empty(), "nothing of the list before is shown");
+    // The sign-in changed, so its password is asked again; with it, at the next try, the new
+    // sign-in's list comes.
+    assert_eq!(downloads(&asked), 2);
+    app.passwords.insert(account, "another invented password".into());
+    app.address_lists[0].at_ms -= RETRY_MS;
+    settle(&mut app, &ctx);
+    assert_eq!(downloads(&asked), 3);
+    assert_eq!(names(&app).len(), 4);
+}
+
 /// Thousands of people: only the rows on screen are drawn, and a row far down is reached.
 #[test]
 fn a_long_list_draws_only_what_is_on_screen() {

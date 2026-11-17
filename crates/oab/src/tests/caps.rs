@@ -55,3 +55,14 @@ fn a_packed_block_is_held_to_the_callers_block_size() {
     assert_eq!(crate::decompress(&file, &Limits { max_block: 22, ..Limits::default() }).unwrap(), b"abc");
     assert_eq!(crate::decompress(&file, &Limits { max_block: 21, ..Limits::default() }), Err(Error::Cap(Cap::BlockSize)));
 }
+
+/// A multi-valued property with no values still counts one against `max_values`, so that a schema
+/// repeating it can't keep thousands of them for nothing.
+#[test]
+fn an_empty_multi_valued_property_counts_one() {
+    let many = PropDef { tag: (u32::from(tag::PROXY_ADDRESSES) << 16) | 0x101F, primary_key: false, anr: false };
+    let entry = Record { values: vec![(many.tag, Value::Texts(Vec::new()))] };
+    let file = details(&[], &[many; 3], &Record::default(), &[entry]);
+    assert!(read_details(&file, &Limits { max_values: 3, ..Limits::default() }).is_ok());
+    assert_eq!(read_details(&file, &Limits { max_values: 2, ..Limits::default() }), Err(Error::Cap(Cap::Values)));
+}

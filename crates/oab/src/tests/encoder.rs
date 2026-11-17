@@ -328,8 +328,10 @@ fn tokenize(all: &[u8], base: usize, from: usize, to: usize, kind: Kind, slots: 
 
 /// Applies E8 translation (2.2.2) before compressing.
 fn e8(data: &mut [u8], size: u32) {
-    // As the decoder takes it: a size past what the signed field holds is the largest it holds.
-    let size = i64::from(size.min(i32::MAX as u32));
+    // Translation is undone exactly only for sizes the signed field holds: past them, a
+    // displacement the encoder leaves alone can read as one it translated. The tests keep to those.
+    assert!(size <= i32::MAX as u32, "an E8 size the tests' encoder can't make undoable");
+    let size = i64::from(size);
     for (index, chunk) in data.chunks_mut(CHUNK).enumerate() {
         let chunk_offset = (index * CHUNK) as i64;
         if chunk_offset >= 0x4000_0000 || chunk.len() <= 10 {

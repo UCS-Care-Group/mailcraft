@@ -110,20 +110,38 @@ fn e8_translation_is_undone() {
         data.extend_from_slice(&(i.wrapping_mul(2_654_435_761) as i32 >> (i % 20)).to_le_bytes());
         data.extend_from_slice(b"\x90\x90");
     }
-    for size in [0u32, 1000, 12_000_000, u32::MAX] {
+    for size in [0u32, 1000, 12_000_000, i32::MAX as u32] {
         round_trip(&data, &Options { e8: Some(size), ..Options::default() });
         round_trip(&data, &Options { e8: Some(size), blocks: vec![(Kind::Uncompressed, 40_000), (Kind::Aligned, 1 << 20)], ..Options::default() });
     }
 }
 
-/// A displacement near the top of the signed field, with a translation size past it, comes back
-/// as it was: both sides take the size as the largest the field holds.
+/// A displacement near the top of the signed field, with the largest translation size the field
+/// holds, comes back as it was.
 #[test]
 fn e8_translation_at_the_signed_boundary_is_undone() {
     let mut data = vec![0u8; 64];
     data[16] = 0xE8;
     data[17..21].copy_from_slice(&0x7fff_fff8u32.to_le_bytes());
-    round_trip(&data, &Options { e8: Some(u32::MAX), ..Options::default() });
+    round_trip(&data, &Options { e8: Some(i32::MAX as u32), ..Options::default() });
+}
+
+/// A translation size past the signed field is used whole: written out here, not by the encoder.
+#[test]
+fn an_e8_size_past_the_signed_field_is_used_whole() {
+    let field = |value: u32| {
+        let mut out = vec![0u8; 64];
+        out[16] = 0xE8;
+        out[17..21].copy_from_slice(&value.to_le_bytes());
+        crate::lzxd::undo_e8(&mut out, 0x8000_0000);
+        u32::from_le_bytes(out[17..21].try_into().unwrap())
+    };
+    // An absolute address below the size: less where the call is (16).
+    assert_eq!(field(0x7fff_ffff), 0x7fff_ffef);
+    // A negative one, from the end: plus the size.
+    assert_eq!(field(0xffff_ffff), 0x7fff_ffff);
+    // One before the start of the output is left alone.
+    assert_eq!(field((-17i32) as u32), (-17i32) as u32);
 }
 
 /// Reference data before the output, as a patch has it.
@@ -226,7 +244,7 @@ proptest! {
         kinds in proptest::collection::vec((0usize..3, 1usize..50_000), 1..6),
         runs in any::<bool>(),
         repeats in any::<bool>(),
-        e8 in proptest::option::of(any::<u32>()),
+        e8 in proptest::option::of(0..=i32::MAX as u32),
         window_bits in 17u32..=19,
     ) {
         let data: Vec<u8> = noise(len, seed | 1).into_iter().map(|b| b % alphabet).collect();

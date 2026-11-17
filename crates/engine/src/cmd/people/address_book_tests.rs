@@ -77,3 +77,16 @@ fn a_sender_added_to_the_contacts_leaves_the_address_list() {
         assert_eq!((shown_book(&s), s.sel.contact), (None, made["id"].as_u64()));
     }
 }
+
+/// Contacts imported from a vCard file are shown among the contacts, the first one selected:
+/// People leaves the address list for them.
+#[test]
+fn contacts_imported_leave_the_address_list() {
+    let mut s = Session::empty();
+    exchange(&mut s, "me@example.org");
+    s.run("people.addressBook", &json!({})).unwrap();
+    let file = b"BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ada Lovelace\r\nEMAIL:ada@example.org\r\nEND:VCARD\r\n";
+    assert_eq!(crate::io::import(&mut s, "ada.vcf", file, None).unwrap()["contacts"], 1);
+    assert_eq!(shown_book(&s), None);
+    assert!(s.sel.contact.is_some());
+}

@@ -230,9 +230,9 @@ fn record(rest: &[u8], at: &mut usize, schema: &[PropDef], limits: &Limits, keep
         }
         let value = data.value(prop.tag as u16)?;
         if keep(prop.tag) {
-            // Each of a multi-valued property's values counts, so that many empty ones can't
-            // pile up under one count.
-            *kept = kept.saturating_add(value.count());
+            // Each of a multi-valued property's values counts, so that many can't pile up under
+            // one count, and a property with none counts one, as every property kept does.
+            *kept = kept.saturating_add(value.count().max(1));
             if *kept > limits.max_values {
                 return Err(Error::Cap(Cap::Values));
             }

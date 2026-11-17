@@ -50,6 +50,8 @@ const CARD_W: f32 = 720.0;
 /// The whole address list of one account, downloaded, or being downloaded (#1393).
 pub(crate) struct HeldList {
     account: Id,
+    /// The account's server and sign-in it was downloaded with ([`server_of`]): changed, it goes.
+    server: String,
     /// The mailbox it is of (`Session::openings`).
     opening: u64,
     pub(crate) list: Option<EwsAddressList>,
@@ -62,6 +64,12 @@ pub(crate) struct HeldList {
     at_ms: f64,
     /// One more each time a list comes.
     version: u64,
+}
+
+/// The server and sign-in `account`'s list is downloaded with: its address, its EWS address, the
+/// user name and the certificate trusted for it (no password), or nothing when it has none.
+fn server_of(session: &mailcraft_engine::Session, account: Id) -> String {
+    ews_address_list_request(session, account).map(|r| [r.email, r.url, r.username, r.trusted].join("\n")).unwrap_or_default()
 }
 
 impl HeldList {
@@ -223,9 +231,21 @@ impl MailApp {
     fn poll_address_lists(&mut self, shown: Option<Id>) {
         let opening = self.session.openings();
         let now = crate::now_ms();
-        // A removed account's list goes with it, and a download of it is let go of.
-        let accounts = &self.session.mailbox.accounts;
-        self.address_lists.retain(|h| h.opening == opening && accounts.iter().any(|a| a.id == h.account));
+        // A removed account's list goes with it, and so does one whose server or sign-in changed;
+        // a download of it is let go of, and what the Address Book shows of it too.
+        let session = &self.session;
+        let mut gone = Vec::new();
+        self.address_lists.retain(|h| {
+            let keep =
+                h.opening == opening && session.mailbox.accounts.iter().any(|a| a.id == h.account) && server_of(session, h.account) == h.server;
+            if !keep {
+                gone.push(h.account);
+            }
+            keep
+        });
+        if self.address_book.as_ref().is_some_and(|book| gone.contains(&book.account)) {
+            self.address_book = None;
+        }
         let mut refused = Vec::new();
         for held in &mut self.address_lists {
             let Some(pending) = &held.pending else { continue };
@@ -275,6 +295,7 @@ impl MailApp {
             None => {
                 self.address_lists.push(HeldList {
                     account,
+                    server: server_of(&self.session, account),
                     opening,
                     list: None,
                     keys: Vec::new(),

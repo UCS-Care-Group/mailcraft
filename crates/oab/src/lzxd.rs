@@ -394,11 +394,10 @@ fn delta(previous: u8, code: u16) -> u8 {
     ((u16::from(previous % 17)).saturating_add(17).saturating_sub(code % 17) % 17) as u8
 }
 
-/// Undoes E8 call translation (2.2.2), chunk by chunk, on the finished output. The field is a
-/// signed 32-bit displacement, so a size past the largest one is taken as that: every value then
-/// stays within the field, and what an encoder translated with it is undone.
-fn undo_e8(out: &mut [u8], file_size: u32) {
-    let size = i64::from(file_size.min(i32::MAX as u32));
+/// Undoes E8 call translation (2.2.2), chunk by chunk, on the finished output, with the
+/// translation size as the stream gives it, all 32 bits of it.
+pub(crate) fn undo_e8(out: &mut [u8], file_size: u32) {
+    let size = i64::from(file_size);
     for (index, chunk) in out.chunks_mut(CHUNK).enumerate() {
         let chunk_offset = (index as i64).saturating_mul(CHUNK as i64);
         if chunk_offset >= 0x4000_0000 || chunk.len() <= 10 {
