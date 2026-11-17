@@ -251,8 +251,9 @@ msgstr "1 კვირა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "1. Copy the message below and send it to your organisation's administrator."
-msgstr ""
+msgstr "1. დააკოპირეთ ქვემოთ მოცემული შეტყობინება და გაუგზავნეთ თქვენი ორგანიზაციის ადმინისტრატორს."
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
@@ -280,8 +281,9 @@ msgstr "2 წელი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "2. When they have approved MailCraft, come back here and sign in again."
-msgstr ""
+msgstr "2. როცა MailCraft-ს დაამტკიცებენ, დაბრუნდით აქ და ხელახლა შედით."
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
@@ -339,8 +341,9 @@ msgstr "JMAP ანგარიშის ფოსტის გადადე�
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "A brand's name on another address."
-msgstr ""
+msgstr "ბრენდის სახელი სხვა მისამართზე."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -392,13 +395,15 @@ msgstr "ჯერ, როგორც ყოველთვის, მის გ
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "A date"
-msgstr ""
+msgstr "კონკრეტული თარიღი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
 msgid "A file"
-msgstr ""
+msgstr "ფაილი"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -444,8 +449,9 @@ msgstr "ბმული, რომლის ტექსტიც ძირი�
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "A made-up domain."
-msgstr ""
+msgstr "გამოგონილი დომენი."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -497,8 +503,9 @@ msgstr "განმეორებადი შეხვედრა გამ�
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
-msgstr ""
+msgstr "გამოწერის გაუქმების მოთხოვნა გაიგზავნება მისამართიდან {from} მისამართზე {to}, თქვენი „გასაგზავნების“ გავლით."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -520,8 +527,9 @@ msgstr "შენიშვნა ორგანიზატორისთვ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "A notification says only \"New mail\", never the sender or the subject, even when the lock screen shows everything."
-msgstr ""
+msgstr "შეტყობინებაში მხოლოდ „ახალი ფოსტა“ ჩანს, არასოდეს გამგზავნი ან თემა, მაშინაც კი, როცა ჩაკეტილი ეკრანი ყველაფერს აჩვენებს."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -573,8 +581,9 @@ msgstr "წესს სჭირდება სახელი და სა�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "A rule this editor doesn't show; it is kept as it is."
-msgstr ""
+msgstr "წესი, რომელსაც ეს რედაქტორი ვერ აჩვენებს; ის უცვლელად ინახება."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -806,13 +815,15 @@ msgstr "კალენდრის დამატება"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Add Reminder"
-msgstr ""
+msgstr "შეხსენების დამატება"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Add Reminder…"
-msgstr ""
+msgstr "შეხსენების დამატება…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -846,8 +857,9 @@ msgstr "საერთო საფოსტო ყუთის დამატ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Add a Microsoft account to read your mail here."
-msgstr ""
+msgstr "დაამატეთ Microsoft-ის ანგარიში, რომ ფოსტა აქ წაიკითხოთ."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -917,8 +929,9 @@ msgstr "დავალების დამატება მისამა�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt
+#, fuzzy
 msgid "Add account"
-msgstr ""
+msgstr "ანგარიშის დამატება"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -970,8 +983,9 @@ msgstr "ფაილიდან დამატება…"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Add somebody to send this to."
-msgstr ""
+msgstr "დაამატეთ მიმღები."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -1009,8 +1023,9 @@ msgstr "დავალებებში დამატება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "Add to calendar"
-msgstr ""
+msgstr "კალენდარში დამატება"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -1038,8 +1053,9 @@ msgstr "მისამართები ; ნიშნით გამოყ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Addresses, separated by semicolons"
-msgstr ""
+msgstr "მისამართები, წერტილმძიმით გამოყოფილი"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -1061,8 +1077,9 @@ msgstr "შემდეგ"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "After Send, a message waits in the Outbox for this long and shows Undo. Off sends it with the next Send/Receive."
-msgstr ""
+msgstr "„გაგზავნის“ შემდეგ წერილი ამდენ ხანს ელოდება „გასაგზავნებში“ და ჩანს „დაბრუნება“. „გამორთული“ მას მომდევნო „გაგზავნა/მიღებისას“ აგზავნის."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -1072,8 +1089,9 @@ msgstr "როცა ფოსტაში შეხვედრის მოთ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Agenda"
-msgstr ""
+msgstr "დღის წესრიგი"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
@@ -1119,13 +1137,15 @@ msgstr "მთელი დღე"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt
+#, fuzzy
 msgid "All mail"
-msgstr ""
+msgstr "მთელი ფოსტა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "All mail and every account kept on this phone are removed, with every sign-in. Nothing is deleted from your mail provider's servers. This can't be undone."
-msgstr ""
+msgstr "ამ ტელეფონზე შენახული მთელი ფოსტა და ყველა ანგარიში წაიშლება, ყველა შესვლასთან ერთად. თქვენი ფოსტის პროვაიდერის სერვერებიდან არაფერი წაიშლება. ამის გაუქმება შეუძლებელია."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -1225,8 +1245,9 @@ msgstr "საერთო საფოსტო ყუთებიდან გ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Allowed"
-msgstr ""
+msgstr "ნებადართულია"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -1332,8 +1353,9 @@ msgstr "ერთ-ერთ ანგარიშზე გაგზავნა
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "An address with no domain."
-msgstr ""
+msgstr "მისამართი დომენის გარეშე."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -1373,8 +1395,9 @@ msgstr "სანდოსკენ მიმავალ ჯაჭვში ე
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "An https:// or webcal:// address. Nothing is read until you press Subscribe. The calendar is listed under Other Calendars, read-only, and brought up to date from the web every hour and when you press Send/Receive; you can choose another time in File › Info. Its address is asked for over an encrypted connection, with nothing that says who you are. A private address holds a secret: it is kept like a password, in your system's credential store when you let MailCraft remember sign-ins, and otherwise until you quit."
-msgstr ""
+msgstr "https:// ან webcal:// მისამართი. „გამოწერაზე“ დაჭერამდე არაფერი იკითხება. კალენდარი ჩამოთვლილი იქნება „სხვა კალენდრებში“, მხოლოდ წასაკითხად, და ინტერნეტიდან განახლდება ყოველ საათში და „გაგზავნა/მიღებაზე“ დაჭერისას; სხვა დროის არჩევა შეგიძლიათ აქ: ფაილი › ინფორმაცია. მისი მისამართიდან მოთხოვნა დაშიფრული კავშირით ხდება და არაფერს შეიცავს, რაც თქვენს ვინაობას გაამხელს. პირადი მისამართი საიდუმლოს შეიცავს: ის პაროლივით ინახება — სისტემის ავტორიზაციის მონაცემების საცავში, თუ MailCraft-ს შესვლების დამახსოვრების უფლებას აძლევთ, სხვა შემთხვევაში კი გასვლამდე."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1390,8 +1413,9 @@ msgstr "განმეორებადი ელემენტი სხვ�
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "An unsubscribe is already on its way."
-msgstr ""
+msgstr "გამოწერის გაუქმების მოთხოვნა უკვე გზაშია."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1403,8 +1427,9 @@ msgstr[1] "და კიდევ {n} მსგავსი ბმული."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Android closed MailCraft while Microsoft's page was open, so that sign-in could not be finished. Nothing was added."
-msgstr ""
+msgstr "Android-მა MailCraft დახურა, სანამ Microsoft-ის გვერდი ღია იყო, ამიტომ შესვლა ვერ დასრულდა. არაფერი დამატებულა."
 
 #. command label, interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -1486,8 +1511,9 @@ msgstr "გამოყენება"
 
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "Apply Calendars and Contacts Server"
-msgstr ""
+msgstr "კალენდრებისა და კონტაქტების სერვერის გამოყენება"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -1611,13 +1637,15 @@ msgstr "დავალებების გაგზავნილი ცვ�
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Apply Subscribed Calendar"
-msgstr ""
+msgstr "გამოწერილი კალენდრის გამოყენება"
 
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "Apply Uploaded Calendar and Contacts Changes"
-msgstr ""
+msgstr "კალენდრისა და კონტაქტების ატვირთული ცვლილებების გამოყენება"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -1763,8 +1791,9 @@ msgstr "ამ გამგზავნის სურათების ჩა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
 msgid "Ask first again"
-msgstr ""
+msgstr "კვლავ ჯერ კითხვა"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -1804,8 +1833,9 @@ msgstr "ანგარიშის სერვერისგან კალ�
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
-msgstr ""
+msgstr "სთხოვეთ სიას, აღარ გამოგიგზავნოთ თავისი ფოსტა. MailCraft ჯერ დაგეკითხებათ და გეტყვით, როგორ."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -1815,8 +1845,9 @@ msgstr "შეტყობინების მოთხოვნა, როც
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
 msgid "Asked first"
-msgstr ""
+msgstr "ჯერ გეკითხებათ"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -1844,8 +1875,9 @@ msgstr "თქვენი დომენის DNS-ის გამოკი�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "Asks before it opens"
-msgstr ""
+msgstr "გახსნამდე გეკითხებათ"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -1855,8 +1887,9 @@ msgstr "ითხოვს მხოლოდ ფოსტას, კალე�
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "At a date and time"
-msgstr ""
+msgstr "გარკვეულ თარიღსა და დროს"
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -1872,8 +1905,9 @@ msgstr "მისამართით მაქსიმუმ {n} კალე
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
-msgstr ""
+msgstr "შეიძლება გამოიწეროთ მაქსიმუმ {n} კალენდარი: ჯერ ერთ-ერთის გამოწერა გააუქმეთ."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -1895,8 +1929,9 @@ msgstr "ამავე დროს: {items}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "At the time of the event"
-msgstr ""
+msgstr "ღონისძიების დაწყების დროს"
 
 #. interface
 #: crates/ui-egui/src/compose.rs crates/ui-egui/src/pick_item.rs
@@ -1934,8 +1969,9 @@ msgstr "საკონტაქტო ბარათის მიმაგრ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Attach a file"
-msgstr ""
+msgstr "ფაილის მიმაგრება"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -2301,8 +2337,9 @@ msgstr "შემოტანა"
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
+#, fuzzy
 msgid "Browse…"
-msgstr ""
+msgstr "არჩევა…"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -2312,8 +2349,9 @@ msgstr "იქმნება ინდექსი, რომლითაც �
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Bulleted list"
-msgstr ""
+msgstr "ბურთულებიანი სია"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -2401,13 +2439,15 @@ msgstr "კალენდარი ორჯერაა სიაში"
 
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "Calendar and Contacts Changes to Send"
-msgstr ""
+msgstr "კალენდრისა და კონტაქტების გასაგზავნი ცვლილებები"
 
 #. command label
 #: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
 msgid "Calendar and Contacts Server"
-msgstr ""
+msgstr "კალენდრისა და კონტაქტების სერვერი"
 
 #. name
 #: crates/model/src/sync/progress.rs
@@ -2423,13 +2463,15 @@ msgstr "კალენდარსა და კონტაქტებს თ
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "Calendars and contacts on a server are not read or written yet in this version."
-msgstr ""
+msgstr "სერვერზე არსებული კალენდრები და კონტაქტები ამ ვერსიაში ჯერ არ იკითხება და არ იწერება."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
-msgstr ""
+msgstr "ინტერნეტში არსებული კალენდრები (.ics მისამართი), რომლებიც აქ ახლდება, მხოლოდ წასაკითხად. გამოსაწერად: კალენდარი › კალენდრის გახსნა › ინტერნეტიდან…"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -2487,13 +2529,15 @@ msgstr "Calibri"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
+#, fuzzy
 msgid "Call"
-msgstr ""
+msgstr "დარეკვა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "Can't be opened here. Save it to keep it."
-msgstr ""
+msgstr "აქ ვერ გაიხსნება. შეინახეთ, რომ დაიტოვოთ."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -2543,8 +2587,9 @@ msgstr "საფოსტო ყუთის გახსნის გაუქ
 
 #. command label, interface
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Cancel Send"
-msgstr ""
+msgstr "გაგზავნის გაუქმება"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -2584,8 +2629,9 @@ msgstr "კატეგორიები:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
+#, fuzzy
 msgid "Categories…"
-msgstr ""
+msgstr "კატეგორიები…"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -2601,8 +2647,9 @@ msgstr "ასლი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Cc and Bcc"
-msgstr ""
+msgstr "ასლი და ფარული ასლი"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -2646,8 +2693,9 @@ msgstr "განმეორებადი ელემენტის შე�
 
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Change Send Time"
-msgstr ""
+msgstr "გაგზავნის დროის შეცვლა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2811,8 +2859,9 @@ msgstr "ახლავე შემოწმება"
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Check Recipients"
-msgstr ""
+msgstr "მიმღებების შემოწმება"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -2852,8 +2901,9 @@ msgstr "შეამოწმეთ ანგარიშის პარამ�
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Check the recipients before this message goes:"
-msgstr ""
+msgstr "სანამ წერილი გაიგზავნება, შეამოწმეთ მიმღებები:"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -2929,8 +2979,9 @@ msgstr "აირჩიეთ კატეგორია"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Choose a date…"
-msgstr ""
+msgstr "თარიღის არჩევა…"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -2970,8 +3021,9 @@ msgstr "აირჩიეთ, გაიგზავნოს თუ არა �
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Choose who this is sent from"
-msgstr ""
+msgstr "აირჩიეთ, ვისგან გაიგზავნოს"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3113,8 +3165,9 @@ msgstr "ფანჯრის დახურვა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Close and keep as draft"
-msgstr ""
+msgstr "დახურვა და მონახაზად შენახვა"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3326,8 +3379,9 @@ msgstr "უჯრაში გაგრძელება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt
+#, fuzzy
 msgid "Continues"
-msgstr ""
+msgstr "გრძელდება"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3343,13 +3397,15 @@ msgstr "მონაწილეები სახელებს თავა�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+#, fuzzy
 msgid "Conversations"
-msgstr ""
+msgstr "მიმოწერები"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Copied. Paste it into mail or chat for your administrator."
-msgstr ""
+msgstr "დაკოპირდა. ჩასვით ის წერილში ან ჩატში თქვენი ადმინისტრატორისთვის."
 
 #. name
 #: crates/engine/src/sync_driver/favorites.rs
@@ -3435,8 +3491,9 @@ msgstr "ყველაფრის კოპირება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Copy message for an administrator"
-msgstr ""
+msgstr "შეტყობინების კოპირება ადმინისტრატორისთვის"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -3494,8 +3551,9 @@ msgstr "საქაღალდეში „{name}“ დროშები ვ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Couldn't check"
-msgstr ""
+msgstr "ვერ შემოწმდა"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -3673,13 +3731,15 @@ msgstr "ფოსტა ვერ გაიგზავნა: ანგარ�
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Couldn't update {name}: {why}. What it held stays."
-msgstr ""
+msgstr "{name} ვერ განახლდა: {why}. რაც მასში იყო, რჩება."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Couldn't update: {why}. What it held stays."
-msgstr ""
+msgstr "ვერ განახლდა: {why}. რაც მასში იყო, რჩება."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3689,8 +3749,9 @@ msgstr "ქვეყანა"
 
 #. name
 #: crates/model/src/rich.rs
+#, fuzzy
 msgid "Courier New"
-msgstr ""
+msgstr "Courier New"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3766,8 +3827,9 @@ msgstr "მუქი თემა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt
+#, fuzzy
 msgid "Data Saver is on, so the pictures wait until you ask for them."
-msgstr ""
+msgstr "„მონაცემების დაზოგვა“ ჩართულია, ამიტომ სურათები ელოდება, სანამ არ მოითხოვთ."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -3889,20 +3951,23 @@ msgstr "ნაგულისხმევი"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Delay Delivery"
-msgstr ""
+msgstr "მიწოდების დაყოვნება"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Delayed message goes {when}"
 msgid_plural "{n} delayed messages: the next goes {when}"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "დაყოვნებული წერილი გაიგზავნება {when}"
+msgstr[1] "დაყოვნებული წერილები: {n}; შემდეგი გაიგზავნება {when}"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Delayed until {when}"
-msgstr ""
+msgstr "დაყოვნებულია, გაიგზავნება {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
@@ -4006,8 +4071,9 @@ msgstr "წავშალო ამ შეხვედრის თქვენ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Delete and tell the people"
-msgstr ""
+msgstr "წაშლა და მონაწილეებისთვის შეტყობინება"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -4029,8 +4095,9 @@ msgstr "ამ კატეგორიის წაშლა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Delete this event?"
-msgstr ""
+msgstr "წაიშალოს ეს ღონისძიება?"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -4046,8 +4113,9 @@ msgstr "ამ წესის წაშლა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#, fuzzy
 msgid "Delete this task?"
-msgstr ""
+msgstr "წაიშალოს ეს დავალება?"
 
 #. name
 #: crates/model/src/mailbox.rs
@@ -4261,18 +4329,21 @@ msgstr "შესრულდეს"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Do not deliver before a date and time"
-msgstr ""
+msgstr "მიწოდება არა უადრეს მითითებული თარიღისა და დროისა"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Do not deliver before:"
-msgstr ""
+msgstr "არ მიეწოდოს ამაზე ადრე:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Doesn't repeat"
-msgstr ""
+msgstr "არ მეორდება"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -4330,8 +4401,9 @@ msgstr "არ გაიგზავნოს"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Don't send a response"
-msgstr ""
+msgstr "პასუხის გარეშე"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -4449,8 +4521,9 @@ msgstr "ამ წერილის თავდაპირველი ბა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
 msgid "Downloaded automatically"
-msgstr ""
+msgstr "ავტომატურად ჩამოიტვირთება"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4522,8 +4595,9 @@ msgstr "მონახაზი შენახულია"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
 msgid "Draft saved."
-msgstr ""
+msgstr "მონახაზი შენახულია."
 
 #. name
 #: crates/model/src/mailbox.rs
@@ -4557,8 +4631,9 @@ msgstr "შესრულების ვადა"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Due Reminders"
-msgstr ""
+msgstr "ვადამოსული შეხსენებები"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4616,8 +4691,9 @@ msgstr "ელფოსტა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Each account's signature goes at the end of its new messages, replies and forwards. Leave it empty for none."
-msgstr ""
+msgstr "ყოველი ანგარიშის ხელმოწერა ემატება მისი ახალი წერილების, პასუხებისა და გადაგზავნილი წერილების ბოლოს. ხელმოწერის გარეშე დატოვეთ ცარიელი."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -4689,13 +4765,15 @@ msgstr "დავალების რედაქტირება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
+#, fuzzy
 msgid "Edit draft"
-msgstr ""
+msgstr "მონახაზის რედაქტირება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Edit event"
-msgstr ""
+msgstr "ღონისძიების რედაქტირება"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -4705,8 +4783,9 @@ msgstr "ხელმოწერის რედაქტირება ტე�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#, fuzzy
 msgid "Edit task"
-msgstr ""
+msgstr "დავალების რედაქტირება"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
@@ -4756,8 +4835,9 @@ msgstr "ელფოსტის მისამართი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Email address (optional)"
-msgstr ""
+msgstr "ელფოსტის მისამართი (არასავალდებულო)"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -4825,10 +4905,11 @@ msgstr "მთავრდება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Ends after {n} time"
 msgid_plural "Ends after {n} times"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "მთავრდება {n} გამეორების შემდეგ"
+msgstr[1] "მთავრდება {n} გამეორების შემდეგ"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4838,18 +4919,21 @@ msgstr "მთავრდება დაწყებამდე"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Ends on"
-msgstr ""
+msgstr "მთავრდება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Ends on a day"
-msgstr ""
+msgstr "მთავრდება გარკვეულ დღეს"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Enter a date and a time."
-msgstr ""
+msgstr "შეიყვანეთ თარიღი და დრო."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -4859,8 +4943,9 @@ msgstr "განტოლება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "ღონისძიება"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4876,8 +4961,9 @@ msgstr "ყველა კონტაქტი, .vcf ფორმატში"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every day"
-msgstr ""
+msgstr "ყოველდღე"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4905,8 +4991,9 @@ msgstr "ყოველ წუთს"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every month"
-msgstr ""
+msgstr "ყოველთვე"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -4916,8 +5003,9 @@ msgstr "ყველა სხვა დრო, რომელიც ამ შ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every week"
-msgstr ""
+msgstr "ყოველკვირა"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4927,29 +5015,33 @@ msgstr "ყოველ სამუშაო დღეს"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every year"
-msgstr ""
+msgstr "ყოველწლიურად"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Every {n} day"
 msgid_plural "Every {n} days"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ყოველ {n} დღეში"
+msgstr[1] "ყოველ {n} დღეში"
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Every {n} hour"
 msgid_plural "Every {n} hours"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ყოველ {n} საათში"
+msgstr[1] "ყოველ {n} საათში"
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Every {n} minute"
 msgid_plural "Every {n} minutes"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ყოველ {n} წუთში"
+msgstr[1] "ყოველ {n} წუთში"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4959,24 +5051,27 @@ msgstr "ყოველ {n} წუთში"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every {n} month"
 msgid_plural "Every {n} months"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ყოველ {n} თვეში"
+msgstr[1] "ყოველ {n} თვეში"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every {n} week"
 msgid_plural "Every {n} weeks"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ყოველ {n} კვირაში"
+msgstr[1] "ყოველ {n} კვირაში"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every {n} year"
 msgid_plural "Every {n} years"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ყოველ {n} წელიწადში"
+msgstr[1] "ყოველ {n} წელიწადში"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -5016,8 +5111,9 @@ msgstr "საქაღალდეში „{folder}“ ყველაფე�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Everything kept on this phone was removed."
-msgstr ""
+msgstr "ამ ტელეფონზე შენახული ყველაფერი წაიშალა."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5297,13 +5393,15 @@ msgstr "ანაბეჭდი:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+#, fuzzy
 msgid "Finish on Microsoft's page in your browser. MailCraft is waiting."
-msgstr ""
+msgstr "დაასრულეთ Microsoft-ის გვერდზე ბრაუზერში. MailCraft გელოდებათ."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
 msgid "Finish or close the message you are writing, then try again."
-msgstr ""
+msgstr "დაასრულეთ ან დახურეთ წერილი, რომელსაც წერთ, და კიდევ სცადეთ."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
@@ -5313,8 +5411,9 @@ msgstr "ჯერ დაასრულეთ შესვლა (ბრაუ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Finish signing in on Microsoft's page in your browser. MailCraft is waiting."
-msgstr ""
+msgstr "დაასრულეთ შესვლა Microsoft-ის გვერდზე ბრაუზერში. MailCraft გელოდებათ."
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -5354,8 +5453,9 @@ msgstr "დროშის დასმა შემდგომი რეაგ
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Flag the message and remind me:"
-msgstr ""
+msgstr "წერილზე დროშის დასმა და შეხსენება:"
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
@@ -5467,8 +5567,9 @@ msgstr "შემდგომი რეაგირება"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "Follow up"
-msgstr ""
+msgstr "შემდგომი რეაგირება"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -5678,8 +5779,9 @@ msgstr "ვისგან"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "From Internet…"
-msgstr ""
+msgstr "ინტერნეტიდან…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -5689,8 +5791,9 @@ msgstr "გამგზავნისგან"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "From a mailing list."
-msgstr ""
+msgstr "საფოსტო სიიდან."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -6126,8 +6229,9 @@ msgstr "აქვს დანართი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt
+#, fuzzy
 msgid "Has attachments"
-msgstr ""
+msgstr "აქვს დანართები"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6173,6 +6277,7 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid ""
 "Hello,\n"
 "\n"
@@ -6184,6 +6289,15 @@ msgid ""
 "\n"
 "Thank you"
 msgstr ""
+"გამარჯობა,\n"
+"\n"
+"მსურს MailCraft-ის გამოყენება ჩემს სამსახურეობრივ ანგარიშთან. MailCraft არის ღია კოდის საფოსტო და კალენდრის პროგრამა, რომელიც ჩემსავე ტელეფონზე მუშაობს. ჩვენს ორგანიზაციაში ახალ პროგრამას მხოლოდ ადმინისტრატორი ამტკიცებს, ამიტომ საჭიროა თქვენი თანხმობა ერთხელ, მთელი ორგანიზაციისთვის. Microsoft-ის გვერდი ამისთვის აქაა:\n"
+"\n"
+"{link}\n"
+"\n"
+"დამტკიცების შემდეგ ბრაუზერმა შეიძლება აჩვენოს გვერდი, რომელიც მიუწვდომელია. ეს მოსალოდნელია: ეს მისამართი თქვენსავე კომპიუტერზეა, სადაც არაფერი უსმენს, და თანხმობა ამ დროისთვის უკვე მიცემულია.\n"
+"\n"
+"გმადლობთ"
 
 #. command label, interface, name, ribbon, ribbon location
 #: crates/engine/src/cmd/help.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -6205,8 +6319,9 @@ msgstr "ორჯერ ჩამოთვლილი კალენდრი�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Hide Cc and Bcc"
-msgstr ""
+msgstr "ასლისა და ფარული ასლის დამალვა"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -6324,8 +6439,9 @@ msgstr "რამდენი ხნის წინანდელი ფოს
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "How far back mail is kept in full on this phone, by the date it arrived. Older mail keeps its sender, subject and a preview, and is fetched again when you open it. A shorter window frees space; a longer one fetches more mail, and asks first when the phone is short of room."
-msgstr ""
+msgstr "რამდენი ხნის წინანდელი ფოსტა ინახება სრულად ამ ტელეფონზე, მოსვლის თარიღის მიხედვით. უფრო ძველ ფოსტას რჩება გამგზავნი, თემა და წინასწარი ხედი, გახსნისას კი ხელახლა ჩამოიტვირთება. უფრო მოკლე პერიოდი ადგილს ათავისუფლებს; უფრო გრძელი მეტ ფოსტას ჩამოტვირთავს და ჯერ გკითხავთ, თუ ტელეფონზე ადგილი ცოტაა."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -6377,8 +6493,9 @@ msgstr "თუ ბრაუზერი არ გაიხსნა, შეა�
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "If nobody the message went to has written back in its conversation by then, a reminder is raised and the message is flagged."
-msgstr ""
+msgstr "თუ მანამდე წერილის არცერთი მიმღები მის მიმოწერაში არ უპასუხებს, გამოჩნდება შეხსენება და წერილს დროშა დაესმება."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -6570,8 +6687,9 @@ msgstr "მნიშვნელობა:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
 msgid "Important"
-msgstr ""
+msgstr "მნიშვნელოვანი"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -6713,8 +6831,9 @@ msgstr "„გასაგზავნებში“: გზაშია"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "In the Outbox: it waits for its time"
-msgstr ""
+msgstr "„გასაგზავნებში“: თავის დროს ელოდება"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -6832,8 +6951,9 @@ msgstr "სურათის ჩასმა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Insert a picture"
-msgstr ""
+msgstr "სურათის ჩასმა"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -6951,8 +7071,9 @@ msgstr "ის სერვერზე გადავა, როგორც �
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "It goes with the next Send/Receive; the list then takes you off it."
-msgstr ""
+msgstr "ის მომდევნო „გაგზავნა/მიღებისას“ გაიგზავნება; შემდეგ სია თქვენს მისამართს ამოიღებს."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7058,8 +7179,9 @@ msgstr "ამ კალენდრის ელემენტები ინ
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Its address wasn't kept (it may hold a secret): enter it again to update this calendar. What it held is shown meanwhile."
-msgstr ""
+msgstr "მისი მისამართი არ შენახულა (შესაძლოა, საიდუმლოს შეიცავდეს): ამ კალენდრის გასაახლებლად ხელახლა შეიყვანეთ. მანამდე ჩანს ის, რაც მასში იყო."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7075,8 +7197,9 @@ msgstr "მისი ფოსტა სინქრონიზდება Mic
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+#, fuzzy
 msgid "Its mail on this phone and its sign-in are removed. Nothing is deleted from Microsoft's servers, and you can add the account again later."
-msgstr ""
+msgstr "ამ ტელეფონზე მისი ფოსტა და შესვლა წაიშლება. Microsoft-ის სერვერებიდან არაფერი წაიშლება და ანგარიშის ხელახლა დამატება მოგვიანებით შეგიძლიათ."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7092,8 +7215,9 @@ msgstr "მასთან ერთად მიდის მისი წე�
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "Its subject: “{subject}”. Its text: “{body}”."
-msgstr ""
+msgstr "მისი თემა: „{subject}“. მისი ტექსტი: „{body}“."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -7225,8 +7349,9 @@ msgstr "ორივეს შენარჩუნება"
 
 #. command label
 #: crates/engine/src/cmd/device_limits.rs
+#, fuzzy
 msgid "Keep Mail Within This Device's Limits"
-msgstr ""
+msgstr "ფოსტის ამ მოწყობილობის ზღვრებში შენახვა"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7260,28 +7385,33 @@ msgstr "ლოდინის გაგრძელება"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Keep a calendar from the web up to date here: its address ends in .ics or starts with webcal://"
-msgstr ""
+msgstr "ინტერნეტის კალენდრის აქ განახლება: მისი მისამართი მთავრდება .ics-ით ან იწყება webcal://-ით"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+#, fuzzy
 msgid "Keep account"
-msgstr ""
+msgstr "ანგარიშის დატოვება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Keep data"
-msgstr ""
+msgstr "მონაცემების დატოვება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Keep it here, invite nobody"
-msgstr ""
+msgstr "აქვე დატოვება, მოწვევის გარეშე"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Keep mail from the last"
-msgstr ""
+msgstr "შესანახი ფოსტის პერიოდი"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7327,8 +7457,9 @@ msgstr "განაგრძეთ ლოდინი და გადართ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Keep your To Do tasks in step?"
-msgstr ""
+msgstr "გსურთ თქვენი To Do დავალებების სინქრონიზაცია?"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7350,8 +7481,9 @@ msgstr "შენახული საჯარო გასაღები"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#, fuzzy
 msgid "Kept in"
-msgstr ""
+msgstr "სად ინახება"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7499,8 +7631,9 @@ msgstr "აცნობეთ ხალხს, რომ არ ხართ ა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Licences"
-msgstr ""
+msgstr "ლიცენზიები"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -7588,8 +7721,9 @@ msgstr "დავალებების ჩამოთვლა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#, fuzzy
 msgid "List {n}"
-msgstr ""
+msgstr "სია {n}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -7665,8 +7799,9 @@ msgstr "ძებნა… ჯერჯერობით {folders}, {files}, {m
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Looks like a brand."
-msgstr ""
+msgstr "ბრენდს ჰგავს."
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -7712,8 +7847,9 @@ msgstr "ფოსტა"
 
 #. command label
 #: crates/engine/src/cmd/device_limits.rs
+#, fuzzy
 msgid "Mail Kept on This Device"
-msgstr ""
+msgstr "ამ მოწყობილობაზე შენახული ფოსტა"
 
 #. interface
 #: crates/ui-egui/src/close_to_tray.rs
@@ -7795,8 +7931,9 @@ msgstr "სერვერებზე არსებულ ფოსტას 
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Mail on this phone"
-msgstr ""
+msgstr "ფოსტა ამ ტელეფონზე"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -7824,8 +7961,9 @@ msgstr "ოფლაინ შესანახი ფოსტა:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Mail, accounts and sign-ins on this phone"
-msgstr ""
+msgstr "ფოსტა, ანგარიშები და შესვლები ამ ტელეფონზე"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7859,18 +7997,21 @@ msgstr "MailCraft ამ სერვერზე ამ გზით შეს�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
-msgstr ""
+msgstr "MailCraft შეიცავს ქვემოთ ჩამოთვლილ პროგრამებს. მისი ბირთვის Rust ბიბლიოთეკები ვერსიებით ჩამოთვლილია წყაროს რეპოზიტორიაში."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "MailCraft couldn't open a browser for Microsoft's page."
-msgstr ""
+msgstr "MailCraft-მა Microsoft-ის გვერდისთვის ბრაუზერი ვერ გახსნა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "MailCraft couldn't open a browser for Microsoft's page. Install or enable a browser, then try again."
-msgstr ""
+msgstr "MailCraft-მა Microsoft-ის გვერდისთვის ბრაუზერი ვერ გახსნა. დააინსტალირეთ ან ჩართეთ ბრაუზერი და კიდევ სცადეთ."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -7880,13 +8021,15 @@ msgstr "MailCraft-მა ვერ გახსნა თქვენი ბრ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "MailCraft couldn't save your latest changes yet. It will try again; if the app closes first they may be lost."
-msgstr ""
+msgstr "MailCraft-მა თქვენი ბოლო ცვლილებები ჯერ ვერ შეინახა. ის კიდევ შეეცდება; თუ აპლიკაცია მანამდე დაიხურა, ისინი შეიძლება დაიკარგოს."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."
-msgstr ""
+msgstr "MailCraft-მა გვერდზე ვერ გადადო შენახული საფოსტო ყუთი, რომლის წაკითხვაც ვერ შეძლო, ამიტომ ამჯერად ცვლილებები არ ინახება. გაათავისუფლეთ ადგილი და აპლიკაცია ხელახლა გაუშვით."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -7926,8 +8069,9 @@ msgstr "MailCraft ღია კოდისაა (MIT ან Apache-2.0). ა�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "MailCraft is open source, under the MIT and Apache 2.0 licences."
-msgstr ""
+msgstr "MailCraft ღია კოდისაა, MIT და Apache 2.0 ლიცენზიებით."
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -8015,8 +8159,9 @@ msgstr "MailCraft გასაღებს მისი საიდუმლო
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
-msgstr ""
+msgstr "MailCraft სერვერს {host} უგზავნის მხოლოდ იმ მისამართს, რომელიც ამ სიამ გამოწერის გასაუქმებლად მიუთითა და რომელმაც შეიძლება სიას თქვენი ვინაობა გაუმხილოს, სხვას არაფერს: არც ქუქი-ფაილებს, არც შესვლას. ნებისმიერი კავშირის მსგავსად, ის თქვენს ინტერნეტ-მისამართსაც აჩვენებს."
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -8070,18 +8215,21 @@ msgstr "MailCraft ანგარიშის {account} კალენდარ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "MailCraft will read and change the shared mailboxes you have access to. Microsoft's page opens in your browser to ask you."
-msgstr ""
+msgstr "MailCraft წაიკითხავს და შეცვლის საერთო საფოსტო ყუთებს, რომლებზეც წვდომა გაქვთ. თქვენს დასაკითხად ბრაუზერში Microsoft-ის გვერდი გაიხსნება."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "MailCraft will read and change your Microsoft To Do lists and tasks. Microsoft's page opens in your browser to ask you. Until you say yes, your tasks stay on this phone."
-msgstr ""
+msgstr "MailCraft წაიკითხავს და შეცვლის თქვენს Microsoft To Do სიებსა და დავალებებს. თქვენს დასაკითხად ბრაუზერში Microsoft-ის გვერდი გაიხსნება. სანამ თანხმობას არ მისცემთ, თქვენი დავალებები ამ ტელეფონზე რჩება."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "MailCraft will send mail from a shared mailbox, as it or on its behalf. Microsoft's page opens in your browser to ask you."
-msgstr ""
+msgstr "MailCraft ფოსტას საერთო საფოსტო ყუთიდან გაგზავნის, როგორც თავად ყუთი ან მისი სახელით. თქვენს დასაკითხად ბრაუზერში Microsoft-ის გვერდი გაიხსნება."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -8187,8 +8335,9 @@ msgstr "დავალების მართვა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Many organisations let only an administrator approve a new program. Nothing is wrong with your account or your phone."
-msgstr ""
+msgstr "ბევრ ორგანიზაციაში ახალ პროგრამას მხოლოდ ადმინისტრატორი ამტკიცებს. თქვენს ანგარიშსა და ტელეფონს არაფერი სჭირს."
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -8372,13 +8521,15 @@ msgstr "წერილის წინასწარი ხედი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
 msgid "Message queued. Sending from this phone is not available yet."
-msgstr ""
+msgstr "წერილი რიგშია. ამ ტელეფონიდან გაგზავნა ჯერ ხელმისაწვდომი არ არის."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
 msgid "Message sent."
-msgstr ""
+msgstr "წერილი გაიგზავნა."
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
@@ -8448,8 +8599,9 @@ msgstr "საქაღალდიდან „{name}“ საქაღალ�
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
+#, fuzzy
 msgid "Messages of this account can't be downloaded on the phone yet."
-msgstr ""
+msgstr "ამ ანგარიშის წერილების ტელეფონზე ჩამოტვირთვა ჯერ შეუძლებელია."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -8489,8 +8641,9 @@ msgstr "Microsoft-ის აპლიკაციის ID"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Microsoft account"
-msgstr ""
+msgstr "Microsoft-ის ანგარიში"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -8506,8 +8659,9 @@ msgstr "Microsoft-ის აპლიკაციის ID"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Microsoft doesn't offer this for this kind of account."
-msgstr ""
+msgstr "Microsoft ამას ამ ტიპის ანგარიშისთვის არ გთავაზობთ."
 
 #. name
 #: crates/model/src/sync.rs
@@ -8565,13 +8719,15 @@ msgstr "Microsoft-ის დამტკიცების გვერდი �
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Microsoft's page came back without giving it. You can try again."
-msgstr ""
+msgstr "Microsoft-ის გვერდი ნებართვის გარეშე დაბრუნდა. შეგიძლიათ კიდევ სცადოთ."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Microsoft's page came back without signing you in. You can try again."
-msgstr ""
+msgstr "Microsoft-ის გვერდი ისე დაბრუნდა, რომ შესვლა არ მომხდარა. შეგიძლიათ კიდევ სცადოთ."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -8629,8 +8785,9 @@ msgstr "თვე"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "More"
-msgstr ""
+msgstr "მეტი"
 
 #. ribbon location
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -8652,13 +8809,15 @@ msgstr "ვრცლად"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt
+#, fuzzy
 msgid "More actions"
-msgstr ""
+msgstr "სხვა მოქმედებები"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "More actions for {name}"
-msgstr ""
+msgstr "სხვა მოქმედებები: {name}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -8792,8 +8951,9 @@ msgstr "ამ წესის აწევა: ის უფრო ადრე
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Move to Bcc"
-msgstr ""
+msgstr "ფარულ ასლში გადატანა"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8845,8 +9005,9 @@ msgstr "ანგარიშის კალენდარში გადა�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
+#, fuzzy
 msgid "Move to…"
-msgstr ""
+msgstr "გადატანა…"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -8892,8 +9053,9 @@ msgstr "სახელი"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Name (optional)"
-msgstr ""
+msgstr "სახელი (არასავალდებულო)"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -8985,13 +9147,15 @@ msgstr "გამგზავნის დომენის არასოდ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Never ends"
-msgstr ""
+msgstr "არასოდეს მთავრდება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
 msgid "Never in Junk E-mail. With Data Saver on, a message's pictures wait until you ask for them."
-msgstr ""
+msgstr "„არასასურველ ფოსტაში“ — არასოდეს. როცა „მონაცემების დაზოგვა“ ჩართულია, წერილის სურათები ელოდება, სანამ არ მოითხოვთ."
 
 #. name
 #: crates/ui-egui/src/motion.rs
@@ -9143,8 +9307,9 @@ msgstr "ახალი კატეგორია"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "New event"
-msgstr ""
+msgstr "ახალი ღონისძიება"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -9166,13 +9331,15 @@ msgstr "ახალი ფოსტა, რომელსაც Gmail „ს�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "New mail only"
-msgstr ""
+msgstr "მხოლოდ ახალი ფოსტა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "New mail only, Primary mail only"
-msgstr ""
+msgstr "მხოლოდ ახალი ფოსტა, მხოლოდ „მთავარში“ მოსული ფოსტა"
 
 #. android, interface, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -9194,8 +9361,9 @@ msgstr "ახალი წესი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
 msgid "New task"
-msgstr ""
+msgstr "ახალი დავალება"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -9233,8 +9401,9 @@ msgstr "შემდეგი წერილი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#, fuzzy
 msgid "Next Monday"
-msgstr ""
+msgstr "მომავალი ორშაბათი"
 
 #. interface
 #: crates/ui-egui/src/date_picker.rs
@@ -9256,8 +9425,9 @@ msgstr "შემდეგი კვირა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#, fuzzy
 msgid "Next events"
-msgstr ""
+msgstr "მომავალი ღონისძიებები"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9309,8 +9479,9 @@ msgstr "საჯარო გასაღებები ჯერ არ ი�
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "No Reminder"
-msgstr ""
+msgstr "შეხსენების გარეშე"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -9338,8 +9509,9 @@ msgstr "არცერთი ანგარიში არ შედის Mi
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "No account yet"
-msgstr ""
+msgstr "ანგარიში ჯერ არ არის"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -9355,13 +9527,15 @@ msgstr "აქ ჯერ არცერთი ანგარიშის ს�
 
 #. android, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/mobile/src/attachments.rs
+#, fuzzy
 msgid "No app on this phone can open that file."
-msgstr ""
+msgstr "ამ ტელეფონზე ამ ფაილის გახსნა არცერთ აპლიკაციას არ შეუძლია."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
+#, fuzzy
 msgid "No app on this phone can open that link."
-msgstr ""
+msgstr "ამ ტელეფონზე ამ ბმულის გახსნა არცერთ აპლიკაციას არ შეუძლია."
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -9455,8 +9629,9 @@ msgstr "ავტორიზაციის მონაცემების �
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#, fuzzy
 msgid "No date"
-msgstr ""
+msgstr "თარიღის გარეშე"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -9466,8 +9641,9 @@ msgstr "ამ კომპიუტერზე ჩამოტვირთუ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
 msgid "No downloaded pictures are kept on this phone."
-msgstr ""
+msgstr "ამ ტელეფონზე ჩამოტვირთული სურათები არ ინახება."
 
 #. interface, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -9489,8 +9665,9 @@ msgstr "ჩანაწერები ჯერ არ არის"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt
+#, fuzzy
 msgid "No events"
-msgstr ""
+msgstr "ღონისძიებები არ არის"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -9536,13 +9713,15 @@ msgstr "იქ არცერთი წერილი არ იკითხ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
 msgid "No messages match."
-msgstr ""
+msgstr "შესაბამისი წერილები არ არის."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
 msgid "No messages."
-msgstr ""
+msgstr "წერილები არ არის."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -9552,8 +9731,9 @@ msgstr "ინსტალაციისთვის მზად ახალ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
+#, fuzzy
 msgid "No people found."
-msgstr ""
+msgstr "ადამიანები ვერ მოიძებნა."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -9563,18 +9743,21 @@ msgstr "ამ დანართის წინასწარი ნახვ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
+#, fuzzy
 msgid "No program can call this number."
-msgstr ""
+msgstr "ამ ნომერზე დარეკვა არცერთ პროგრამას არ შეუძლია."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
+#, fuzzy
 msgid "No program can write to this address."
-msgstr ""
+msgstr "ამ მისამართზე მიწერა არცერთ პროგრამას არ შეუძლია."
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
+#, fuzzy
 msgid "No recent files"
-msgstr ""
+msgstr "ბოლო ფაილები არ არის"
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
@@ -9584,8 +9767,9 @@ msgstr "ბოლო ძიებები არ არის"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "No reminder"
-msgstr ""
+msgstr "შეხსენების გარეშე"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -9595,8 +9779,9 @@ msgstr "ვადამოსული შეხსენებები არ 
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "No reply yet"
-msgstr ""
+msgstr "პასუხი ჯერ არ არის"
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -9648,13 +9833,15 @@ msgstr "ასეთი ანგარიში არ არსებობს
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#, fuzzy
 msgid "No tasks due."
-msgstr ""
+msgstr "შესასრულებელი დავალებები არ არის."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
 msgid "No tasks."
-msgstr ""
+msgstr "დავალებები არ არის."
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -9676,8 +9863,9 @@ msgstr "არცერთ ორ კონტაქტს არ აქვს �
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#, fuzzy
 msgid "No unread messages"
-msgstr ""
+msgstr "წაუკითხავი წერილები არ არის"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -9765,8 +9953,9 @@ msgstr "თქვენი ორგანიზაციის მიერ დ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Not allowed yet"
-msgstr ""
+msgstr "ჯერ არ არის ნებადართული"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -9788,8 +9977,9 @@ msgstr "ელფოსტის მისამართი არ არის
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Not answered"
-msgstr ""
+msgstr "არ უპასუხა"
 
 #. interface
 #: crates/ui-egui/src
@@ -9829,8 +10019,9 @@ msgstr "ყველა სერვერი ვერ მოიძებნა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Not everything could be removed. Some of it is still here. Try again."
-msgstr ""
+msgstr "ყველაფრის წაშლა ვერ მოხერხდა. ნაწილი ისევ აქაა. კიდევ სცადეთ."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9846,8 +10037,9 @@ msgstr "ჯერ არსად ინახება: გამოიყე�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Not much room on this phone"
-msgstr ""
+msgstr "ტელეფონზე ადგილი ცოტაა"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
@@ -9863,8 +10055,9 @@ msgstr "ახლა არა: ის MailCraft-იდან გასვლი
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Not read yet."
-msgstr ""
+msgstr "ჯერ არ წაკითხულა."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -9874,8 +10067,9 @@ msgstr "არ არის შენახული"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "Not unsubscribed."
-msgstr ""
+msgstr "გამოწერა არ გაუქმდა."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -9897,13 +10091,15 @@ msgstr "Microsoft-ის დამტკიცების გვერდიდ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Nothing came back from Microsoft's page. You can try again."
-msgstr ""
+msgstr "Microsoft-ის გვერდიდან არაფერი დაბრუნდა. შეგიძლიათ კიდევ სცადოთ."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Nothing came back from Microsoft's sign-in page. It may have been closed, or left open too long. You can try again."
-msgstr ""
+msgstr "Microsoft-ის შესვლის გვერდიდან არაფერი დაბრუნდა. შესაძლოა, ის დაიხურა ან ზედმეტად დიდხანს დარჩა ღია. შეგიძლიათ კიდევ სცადოთ."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -9913,8 +10109,9 @@ msgstr "შესვლის გვერდიდან დროულად 
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#, fuzzy
 msgid "Nothing coming up."
-msgstr ""
+msgstr "მოახლოებული არაფერია."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -9960,8 +10157,9 @@ msgstr "არაფერი იგზავნება და არც მ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
 msgid "Nothing is sent until you say so, and then it goes at the next sync."
-msgstr ""
+msgstr "თქვენს თანხმობამდე არაფერი იგზავნება, შემდეგ კი მომდევნო სინქრონიზაციისას გაიგზავნება."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -9995,23 +10193,27 @@ msgstr "ახალი არაფერი იმპორტირებუ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "Nothing new was found in that calendar file."
-msgstr ""
+msgstr "იმ კალენდრის ფაილში ახალი ვერაფერი მოიძებნა."
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
+#, fuzzy
 msgid "Nothing of this search can be asked of the server."
-msgstr ""
+msgstr "ამ ძიებიდან სერვერს ვერაფერს ვკითხავთ."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Nothing on in these days."
-msgstr ""
+msgstr "ამ დღეებში არაფერია დაგეგმილი."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Nothing on."
-msgstr ""
+msgstr "არაფერია დაგეგმილი."
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -10045,8 +10247,9 @@ msgstr "შეტყობინებები"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Notify only for Primary mail in Gmail accounts. Microsoft accounts do not tell Focused from Other yet, so they notify for all mail."
-msgstr ""
+msgstr "შეტყობინება მხოლოდ Gmail ანგარიშების „მთავარში“ მოსული ფოსტისთვის. Microsoft-ის ანგარიშები „ფოკუსირებულსა“ და „სხვას“ ჯერ ერთმანეთისგან ვერ არჩევს, ამიტომ ისინი მთელ ფოსტაზე გატყობინებენ."
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -10068,8 +10271,9 @@ msgstr "დღეების რაოდენობა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Numbered list"
-msgstr ""
+msgstr "დანომრილი სია"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -10103,13 +10307,15 @@ msgstr "ოქტომბერი"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Off"
-msgstr ""
+msgstr "გამორთულია"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+#, fuzzy
 msgid "Offline"
-msgstr ""
+msgstr "ოფლაინ"
 
 #. name
 #: crates/time/src/lib.rs
@@ -10275,8 +10481,9 @@ msgstr "„დროის ძებნა“ მხოლოდ თქვენ
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
 msgid "Only an unsubscribe by mail is sent from here: one click and a web page are the window's."
-msgstr ""
+msgstr "აქედან მხოლოდ ფოსტით გამოწერის გაუქმება იგზავნება: ერთი დაწკაპებითა და ვებგვერდით გაუქმებას ფანჯარა ასრულებს."
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
@@ -10286,18 +10493,21 @@ msgstr "დაადასტურეთ მხოლოდ მაშინ, �
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
 msgid "Only for the rows on screen. With Data Saver on, only pictures already kept on this phone are shown."
-msgstr ""
+msgstr "მხოლოდ ეკრანზე ხილული სტრიქონებისთვის. როცა „მონაცემების დაზოგვა“ ჩართულია, ჩანს მხოლოდ ის სურათები, რომლებიც უკვე ინახება ამ ტელეფონზე."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Only for this time, and send it"
-msgstr ""
+msgstr "მხოლოდ ამ დღისთვის, პასუხის გაგზავნით"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Only if nobody replies"
-msgstr ""
+msgstr "მხოლოდ თუ არავინ უპასუხებს"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -10373,18 +10583,21 @@ msgstr "სანდოა მხოლოდ ეს სერტიფიკა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Only this event is changed, not the series."
-msgstr ""
+msgstr "მხოლოდ ამ დღის ღონისძიება იცვლება და არა მთელი სერია."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Only this time"
-msgstr ""
+msgstr "მხოლოდ ამ დღეს"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Only this time, and tell the people"
-msgstr ""
+msgstr "მხოლოდ ამ დღეს, მონაწილეებისთვის შეტყობინებით"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -10394,8 +10607,9 @@ msgstr "მხოლოდ თქვენს მოსახსენიებ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Only used to fill in Microsoft's page for you."
-msgstr ""
+msgstr "გამოიყენება მხოლოდ Microsoft-ის გვერდის თქვენ მაგივრად შესავსებად."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10439,8 +10653,9 @@ msgstr "დანართის გახსნა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Open Calendar"
-msgstr ""
+msgstr "კალენდრის გახსნა"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -10504,8 +10719,9 @@ msgstr "გაზიარებული კალენდრის გახ�
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Open Shared Calendar…"
-msgstr ""
+msgstr "გაზიარებული კალენდრის გახსნა…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10521,8 +10737,9 @@ msgstr "გაგზავნილი წერილის ახალი წ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#, fuzzy
 msgid "Open event"
-msgstr ""
+msgstr "ღონისძიების გახსნა"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -10556,8 +10773,9 @@ msgstr "ციფრული ხელმოწერის გახსნა 
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Open shared mailboxes?"
-msgstr ""
+msgstr "გაიხსნას საერთო საფოსტო ყუთები?"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10573,8 +10791,9 @@ msgstr "ღია კოდი MIT ლიცენზიით ან Apache Lic
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#, fuzzy
 msgid "Open the Inbox"
-msgstr ""
+msgstr "„შემოსულების“ გახსნა"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -10596,8 +10815,9 @@ msgstr "წერილის გახსნა"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "Open the page"
-msgstr ""
+msgstr "გვერდის გახსნა"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -10607,8 +10827,9 @@ msgstr "გვერდის ხელახლა გახსნა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "Open this attachment?"
-msgstr ""
+msgstr "გაიხსნას ეს დანართი?"
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
@@ -10702,8 +10923,9 @@ msgstr "ან იქნებ ერთ-ერთი ესენია?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Organiser"
-msgstr ""
+msgstr "ორგანიზატორი"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -10725,8 +10947,9 @@ msgstr "ორგანიზატორი: {name}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Original message"
-msgstr ""
+msgstr "საწყისი წერილი"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
@@ -10766,8 +10989,9 @@ msgstr "სხვა ადამიანების კალენდრე�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
-msgstr ""
+msgstr "სხვა შემთხვევაში შეტყობინება აჩვენებს გამგზავნსა და თემას, არასოდეს წერილის ტექსტს ან მის სურათებს. რა ჩანს ჩაკეტილ ეკრანზე, ამას ტელეფონის კონფიდენციალურობის საკუთარი პარამეტრი წყვეტს."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10825,8 +11049,9 @@ msgstr "Outlook.com"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Outlook.com, Hotmail, and Microsoft 365 work or school accounts. You sign in on Microsoft's own page in your browser, so MailCraft never sees your password."
-msgstr ""
+msgstr "Outlook.com, Hotmail და Microsoft 365-ის სამსახურის ან სასწავლებლის ანგარიშები. ბრაუზერში შედიხართ Microsoft-ის საკუთარ გვერდზე, ამიტომ MailCraft თქვენს პაროლს ვერასოდეს ხედავს."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -10884,8 +11109,9 @@ msgstr "Page Up"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "Page opened."
-msgstr ""
+msgstr "გვერდი გაიხსნა."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -10985,8 +11211,9 @@ msgstr "ადამიანები"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "People to invite"
-msgstr ""
+msgstr "მოსაწვევი ადამიანები"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -11274,8 +11501,9 @@ msgstr "მთავარი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Primary mail only"
-msgstr ""
+msgstr "მხოლოდ „მთავარში“ მოსული ფოსტა"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -11285,8 +11513,9 @@ msgstr "„მთავარი“, „სოციალური“, „ა�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Privacy"
-msgstr ""
+msgstr "კონფიდენციალურობა"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -11440,8 +11669,9 @@ msgstr "MailCraft-იდან გასვლა"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Raise Due Reminders"
-msgstr ""
+msgstr "ვადამოსული შეხსენებების გამოტანა"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11457,8 +11687,9 @@ msgstr "წაკითხული"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
+#, fuzzy
 msgid "Read / unread"
-msgstr ""
+msgstr "წაკითხულად / წაუკითხავად მონიშვნა"
 
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -11526,8 +11757,9 @@ msgstr "კალენდრის წაკითხვა Microsoft-იდა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt
+#, fuzzy
 msgid "Reading what was shared"
-msgstr ""
+msgstr "გაზიარებულის წაკითხვა"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -11577,8 +11809,9 @@ msgstr "ბოლო ძიებები"
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
+#, fuzzy
 msgid "Recent files"
-msgstr ""
+msgstr "ბოლო ფაილები"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -11588,8 +11821,9 @@ msgstr "ბოლო ფოსტა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."
-msgstr ""
+msgstr "ბოლო დროის ფოსტა ინახება ამ ტელეფონზე, უფრო ძველი კი თქვენს საფოსტო სერვერზე რჩება. სერვერიდან არაფერი იშლება."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -11683,13 +11917,15 @@ msgstr "მოგვიანებით ხელახლა შეხსე�
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Remind me if nobody replies"
-msgstr ""
+msgstr "შეხსენება, თუ არავინ უპასუხებს"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Remind me if nobody replies by:"
-msgstr ""
+msgstr "შეხსენება, თუ ამ ვადამდე არავინ უპასუხებს:"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -11805,8 +12041,9 @@ msgstr "გამეორების მოხსნა"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Remove Reminder"
-msgstr ""
+msgstr "შეხსენების მოხსნა"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -11834,13 +12071,15 @@ msgstr "თქვენი გასაღების წაშლა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Remove account"
-msgstr ""
+msgstr "ანგარიშის წაშლა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Remove all local data?"
-msgstr ""
+msgstr "წაიშალოს ყველა ლოკალური მონაცემი?"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11850,8 +12089,9 @@ msgstr "მონაწილეების წაშლა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+#, fuzzy
 msgid "Remove filter"
-msgstr ""
+msgstr "ფილტრის მოხსნა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11883,18 +12123,21 @@ msgstr "სანდო ან დაბლოკილი გამგზავ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Remove link"
-msgstr ""
+msgstr "ბმულის წაშლა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Remove local data"
-msgstr ""
+msgstr "ლოკალური მონაცემების წაშლა"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Remove the delay"
-msgstr ""
+msgstr "დაყოვნების მოხსნა"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11904,8 +12147,9 @@ msgstr "ამ ანგარიშისა და მისთვის ა�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+#, fuzzy
 msgid "Remove this account?"
-msgstr ""
+msgstr "წაიშალოს ეს ანგარიში?"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11927,13 +12171,15 @@ msgstr "გსურთ თქვენი {format} გასაღების 
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Remove {name}"
-msgstr ""
+msgstr "წაშლა: {name}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Removes the mail, calendars, contacts and tasks kept on this phone, your accounts, and every sign-in. Nothing is deleted from your mail provider's servers, and you can add your accounts again later."
-msgstr ""
+msgstr "შლის ამ ტელეფონზე შენახულ ფოსტას, კალენდრებს, კონტაქტებსა და დავალებებს, თქვენს ანგარიშებს და ყველა შესვლას. თქვენი ფოსტის პროვაიდერის სერვერებიდან არაფერი წაიშლება და ანგარიშების ხელახლა დამატება მოგვიანებით შეგიძლიათ."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12105,8 +12351,9 @@ msgstr "წაკითხვის დადასტურების მო�
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "Request in your Outbox."
-msgstr ""
+msgstr "მოთხოვნა „გასაგზავნებშია“."
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
@@ -12186,8 +12433,9 @@ msgstr "განახლებისთვის გადატვირთ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Retry"
-msgstr ""
+msgstr "ხელახლა ცდა"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -12595,8 +12843,9 @@ msgstr "ფაილად შენახვა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "Save to Files"
-msgstr ""
+msgstr "„ფაილებში“ შენახვა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12646,8 +12895,9 @@ msgstr[1] "{n} წერილი შენახულია ფაილში
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "Saved."
-msgstr ""
+msgstr "შენახულია."
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -12953,18 +13203,21 @@ msgstr "ჯერ მონიშნეთ წერილი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt
+#, fuzzy
 msgid "Select a message to read it."
-msgstr ""
+msgstr "მონიშნეთ წერილი მის წასაკითხად."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
+#, fuzzy
 msgid "Select a person"
-msgstr ""
+msgstr "მონიშნეთ ადამიანი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#, fuzzy
 msgid "Select a task"
-msgstr ""
+msgstr "მონიშნეთ დავალება"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -13010,8 +13263,9 @@ msgstr "ხელახლა გაგზავნა"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Send Anyway"
-msgstr ""
+msgstr "მაინც გაგზავნა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13021,13 +13275,15 @@ msgstr "გაუქმების გაგზავნა"
 
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Send Later"
-msgstr ""
+msgstr "მოგვიანებით გაგზავნა"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Send Later…"
-msgstr ""
+msgstr "მოგვიანებით გაგზავნა…"
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
@@ -13083,8 +13339,9 @@ msgstr "გაიგზავნოს პასუხი?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Send a response?"
-msgstr ""
+msgstr "გაიგზავნოს პასუხი?"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13106,13 +13363,15 @@ msgstr "გაგზავნა საერთო საფოსტო ყუ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Send from shared mailboxes?"
-msgstr ""
+msgstr "გაიგზავნოს ფოსტა საერთო საფოსტო ყუთებიდან?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Send invitations"
-msgstr ""
+msgstr "მოწვევების გაგზავნა"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
@@ -13122,8 +13381,9 @@ msgstr "ჩემი შესვლის მონაცემების გ
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Send options"
-msgstr ""
+msgstr "გაგზავნის პარამეტრები"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -13163,13 +13423,15 @@ msgstr "გაეგზავნოს მათ მოწვევა? ან�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Send the invitations?"
-msgstr ""
+msgstr "გაიგზავნოს მოწვევები?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Send the response now"
-msgstr ""
+msgstr "პასუხის ახლავე გაგზავნა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13179,8 +13441,9 @@ msgstr "გაეგზავნოს მათ განახლება? �
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Send this message, but not before:"
-msgstr ""
+msgstr "ამ წერილის გაგზავნა, მაგრამ არა ამაზე ადრე:"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13190,8 +13453,9 @@ msgstr "გაგზავნა To Do-ში…"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
 msgid "Send to {account}"
-msgstr ""
+msgstr "გაგზავნა ანგარიშში {account}"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -13255,8 +13519,9 @@ msgstr "გაგზავნა/მიღება: ყველა საქ�
 
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "Send/Receive Calendars and Contacts Server"
-msgstr ""
+msgstr "კალენდრებისა და კონტაქტების სერვერთან გაგზავნა/მიღება"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -13266,8 +13531,9 @@ msgstr "გაგზავნა/მიღების პროგრესი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountsHub.kt
+#, fuzzy
 msgid "Send/Receive couldn't start. Try again."
-msgstr ""
+msgstr "„გაგზავნა/მიღება“ ვერ დაიწყო. კიდევ სცადეთ."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -13313,8 +13579,9 @@ msgstr "გაგზავნა/მიღება Microsoft Graph-ით"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Sender and subject shown"
-msgstr ""
+msgstr "ჩანს გამგზავნი და თემა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
@@ -13342,13 +13609,15 @@ msgstr "გაგზავნა და მიღება…"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Sending from a shared mailbox"
-msgstr ""
+msgstr "გაგზავნა საერთო საფოსტო ყუთიდან"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Sending in {n} s"
-msgstr ""
+msgstr "გაიგზავნება {n} წამში"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -13540,8 +13809,9 @@ msgstr "საერთო საფოსტო ყუთი · ანგარ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Shared mailboxes"
-msgstr ""
+msgstr "საერთო საფოსტო ყუთები"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -13685,8 +13955,9 @@ msgstr "ახალი ფოსტის მოსვლისას სამ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Show a notification when a calendar or task reminder falls due, even when the app is closed. Off, none is shown; the reminders themselves stay in the calendar and in Tasks."
-msgstr ""
+msgstr "შეტყობინების ჩვენება, როცა კალენდრის ან დავალების შეხსენების დრო დგება, მაშინაც კი, როცა აპლიკაცია დახურულია. გამორთულის შემთხვევაში შეტყობინება არ ჩანს; თავად შეხსენებები კალენდარსა და „დავალებებში“ რჩება."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -13712,8 +13983,9 @@ msgstr "ჩვენება მიმოწერებად"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
 msgid "Show completed tasks"
-msgstr ""
+msgstr "შესრულებული დავალებების ჩვენება"
 
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -13735,8 +14007,9 @@ msgstr "დროის ზოლში ჩვენება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Show less"
-msgstr ""
+msgstr "ნაკლების ჩვენება"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13746,8 +14019,9 @@ msgstr "წერილების ჩვენება ღია ფონზ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
 msgid "Show more tasks"
-msgstr ""
+msgstr "მეტი დავალების ჩვენება"
 
 #. interface
 #: crates/ui-egui/src/secret_field.rs
@@ -13805,8 +14079,9 @@ msgstr "ამ მიმოწერის წერილების ჩვე
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Show the whole original"
-msgstr ""
+msgstr "მთელი საწყისი წერილის ჩვენება"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -13940,8 +14215,9 @@ msgstr "ხელახლა შედით და შესვლის გ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Sign in again first"
-msgstr ""
+msgstr "ჯერ ხელახლა შედით"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -14035,8 +14311,9 @@ msgstr "შესვლა Google-ით"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Sign in with Microsoft"
-msgstr ""
+msgstr "Microsoft-ით შესვლა"
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/nav.rs
@@ -14226,8 +14503,9 @@ msgstr "გადადება"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Snooze Reminder"
-msgstr ""
+msgstr "შეხსენების გადადება"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -14261,8 +14539,9 @@ msgstr "ნაწილი ჯერ კიდევ იქ არის, რო
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "Some of the files were not attached: the message cannot carry any more."
-msgstr ""
+msgstr "ზოგიერთი ფაილი არ მიმაგრდა: წერილი მეტს ვეღარ დაიტევს."
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
@@ -14302,8 +14581,9 @@ msgstr "სორტირება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Sound, vibration and lock screen, in the phone's settings"
-msgstr ""
+msgstr "ხმა, ვიბრაცია და ჩაკეტილი ეკრანი — ტელეფონის პარამეტრებში"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14319,8 +14599,9 @@ msgstr "ძველი ფოსტის დაკავებული ად
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Space for mail, at most"
-msgstr ""
+msgstr "ფოსტისთვის მაქსიმალური ადგილი"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14426,8 +14707,9 @@ msgstr "შეჩერება"
 
 #. command label
 #: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
 msgid "Stop Using Calendar and Contacts Server"
-msgstr ""
+msgstr "კალენდრისა და კონტაქტების სერვერის გამოყენების შეწყვეტა"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -14497,8 +14779,9 @@ msgstr "ჩერდება… რაც მოვიდა, რჩება."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Storage on this phone"
-msgstr ""
+msgstr "ამ ტელეფონის მეხსიერება"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14544,33 +14827,39 @@ msgstr "თემა:"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Subscribe"
-msgstr ""
+msgstr "გამოწერა"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Subscribe to Internet Calendar"
-msgstr ""
+msgstr "ინტერნეტ-კალენდრის გამოწერა"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Subscribed Calendar Settings"
-msgstr ""
+msgstr "გამოწერილი კალენდრის პარამეტრები"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Subscribed Calendars Due"
-msgstr ""
+msgstr "გამოწერილი კალენდრები, რომელთა განახლების დროა"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Subscribed calendars"
-msgstr ""
+msgstr "გამოწერილი კალენდრები"
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Subscribed to {name}. It is listed under Other Calendars, read-only, and brought up to date from the web every hour."
-msgstr ""
+msgstr "{name} გამოწერილია. ის ჩამოთვლილია „სხვა კალენდრებში“, მხოლოდ წასაკითხად, და ინტერნეტიდან ყოველ საათში ახლდება."
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -14598,18 +14887,21 @@ msgstr "კვირა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+#, fuzzy
 msgid "Swipe actions"
-msgstr ""
+msgstr "გასრიალების მოქმედებები"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#, fuzzy
 msgid "Swipe to the left"
-msgstr ""
+msgstr "მარცხნივ გასრიალება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#, fuzzy
 msgid "Swipe to the right"
-msgstr ""
+msgstr "მარჯვნივ გასრიალება"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -14655,8 +14947,9 @@ msgstr "სიმბოლოები"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Sync anyway"
-msgstr ""
+msgstr "მაინც სინქრონიზაცია"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -14744,8 +15037,9 @@ msgstr "დავალებები"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#, fuzzy
 msgid "Tasks due"
-msgstr ""
+msgstr "შესასრულებელი დავალებები"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -14857,8 +15151,9 @@ msgstr "პირობითად: {title}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Tentatively accepted"
-msgstr ""
+msgstr "პირობითად მიღებულია"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -14922,13 +15217,15 @@ msgstr "ეს ანგარიში აღარ არსებობს."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "That address is for another host than the calendar's. To follow a calendar that moved, subscribe to its new address."
-msgstr ""
+msgstr "ეს მისამართი სხვა სერვერზეა, ვიდრე კალენდრისა. გადატანილი კალენდრის მისაყოლად გამოიწერეთ მისი ახალი მისამართი."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
+#, fuzzy
 msgid "That calendar is a copy of one on the web: it stays where it is."
-msgstr ""
+msgstr "ეს კალენდარი ინტერნეტში არსებული კალენდრის ასლია: ის თავის ადგილზე რჩება."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -14938,8 +15235,9 @@ msgstr "ეს კალენდარი უკვე ანგარიში
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "That calendar isn't a subscribed one."
-msgstr ""
+msgstr "ეს კალენდარი გამოწერილი არ არის."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -14961,43 +15259,51 @@ msgstr "ეს ცალკე ფანჯარაში ვერ გაი�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
+#, fuzzy
 msgid "That could not be done."
-msgstr ""
+msgstr "ეს ვერ შესრულდა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
+#, fuzzy
 msgid "That could not be saved."
-msgstr ""
+msgstr "ეს ვერ შეინახა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
 msgid "That did not work."
-msgstr ""
+msgstr "ეს არ გამოვიდა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "That didn't go through."
-msgstr ""
+msgstr "ვერ მოხერხდა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "That didn't go through. The limit is as it was."
-msgstr ""
+msgstr "ვერ მოხერხდა. ზღვარი უცვლელია."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "That didn't go through. The window is as it was."
-msgstr ""
+msgstr "ვერ მოხერხდა. პერიოდი უცვლელია."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarTab.kt
+#, fuzzy
 msgid "That file could not be read as a calendar."
-msgstr ""
+msgstr "ამ ფაილის კალენდრად წაკითხვა ვერ მოხერხდა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "That file could not be read."
-msgstr ""
+msgstr "ამ ფაილის წაკითხვა ვერ მოხერხდა."
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -15127,8 +15433,9 @@ msgstr "ანგარიში შეიცვალა მას შემდ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+#, fuzzy
 msgid "The account could not be removed. It and its sign-in are still here. Try again."
-msgstr ""
+msgstr "ანგარიშის წაშლა ვერ მოხერხდა. ის და მისი შესვლა ისევ აქაა. კიდევ სცადეთ."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
@@ -15144,8 +15451,9 @@ msgstr "ანგარიში ვერ დაყენდა. შეამ�
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
+#, fuzzy
 msgid "The account has to be signed in again."
-msgstr ""
+msgstr "ანგარიშში ხელახლა უნდა შეხვიდეთ."
 
 #. interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
@@ -15209,8 +15517,9 @@ msgstr "ანგარიშის სერვერი მას შეხვ
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "The address of the calendar"
-msgstr ""
+msgstr "კალენდრის მისამართი"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -15250,8 +15559,9 @@ msgstr "კალენდარი „{name}“ მხოლოდ წაკი
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" is a copy of one on the web: it can only be read here."
-msgstr ""
+msgstr "კალენდარი „{name}“ ინტერნეტში არსებული კალენდრის ასლია: აქ მისი მხოლოდ წაკითხვა შეიძლება."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -15297,18 +15607,21 @@ msgstr "კალენდართან კავშირი მუშაო�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
+#, fuzzy
 msgid "The calendar could not be read."
-msgstr ""
+msgstr "კალენდრის წაკითხვა ვერ მოხერხდა."
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "The calendar couldn't be added"
-msgstr ""
+msgstr "კალენდარი ვერ დაემატა"
 
 #. interface, what a command says
 #: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
 msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
-msgstr ""
+msgstr "კალენდარი ვერ განახლდა: სამუშაო მოულოდნელად შეწყდა"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -15384,8 +15697,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
-msgstr ""
+msgstr "კალენდარი {name} და ამ კომპიუტერზე შენახული მისი ღონისძიებები წაიშლება, ასევე მისთვის შენახული მისამართიც. არსად არაფერი იგზავნება; მისამართით შეგიძლიათ ხელახლა გამოიწეროთ."
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -15539,8 +15853,9 @@ msgstr "დომენი {domain} ავტომატური დაყე�
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
+#, fuzzy
 msgid "The download was called off."
-msgstr ""
+msgstr "ჩამოტვირთვა გაუქმდა."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -15550,23 +15865,27 @@ msgstr "იმ ადამიანის ელფოსტის მისა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
+#, fuzzy
 msgid "The event ends before it starts."
-msgstr ""
+msgstr "ღონისძიება დაწყებამდე მთავრდება."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
+#, fuzzy
 msgid "The event is gone."
-msgstr ""
+msgstr "ღონისძიება აღარ არსებობს."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "The file could not be saved there."
-msgstr ""
+msgstr "ფაილი იქ ვერ შეინახა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "The file could not be shared."
-msgstr ""
+msgstr "ფაილი ვერ გაზიარდა."
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -15576,8 +15895,9 @@ msgstr "ფაილი ვერ წაიკითხა ({why})"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The file has more events than are kept ({one} a calendar, {all} in all): the rest are left out."
-msgstr ""
+msgstr "ფაილში იმაზე მეტი ღონისძიებაა, ვიდრე ინახება (კალენდარში {one}, სულ {all}): დანარჩენი გამოტოვებულია."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -15593,8 +15913,9 @@ msgstr "ფაილში წაკითხვადი OpenPGP საიდ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "The file holds no events."
-msgstr ""
+msgstr "ფაილში ღონისძიებები არ არის."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -15744,18 +16065,21 @@ msgstr "გამგზავნთა სია სავსეა: წაშ�
 
 #. what a command says
 #: crates/mobile/src/core.rs
+#, fuzzy
 msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. The phone's own settings for MailCraft let you clear what it keeps."
-msgstr ""
+msgstr "ამ ტელეფონზე შენახული შესვლების სია დაზიანებული იყო, ამიტომ ზოგიერთი ძველი შესვლა შესაძლოა ისევ ინახებოდეს. ტელეფონის პარამეტრებში MailCraft-ისთვის შეგიძლიათ გაასუფთაოთ ის, რასაც ინახავს."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "The list's server didn't take the request: {why}."
-msgstr ""
+msgstr "სიის სერვერმა მოთხოვნა არ მიიღო: {why}."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "The list's server took the request. Mail from it may take a few days to stop."
-msgstr ""
+msgstr "სიის სერვერმა მოთხოვნა მიიღო. მისგან ფოსტის შეწყვეტას შეიძლება რამდენიმე დღე დასჭირდეს."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -15813,23 +16137,27 @@ msgstr "გაერთიანებული კონტაქტის ვ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "The message could not be closed. Try again, or discard it."
-msgstr ""
+msgstr "წერილი ვერ დაიხურა. კიდევ სცადეთ ან უარყავით."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
+#, fuzzy
 msgid "The message could not be read."
-msgstr ""
+msgstr "წერილის წაკითხვა ვერ მოხერხდა."
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
+#, fuzzy
 msgid "The message couldn't be downloaded. Try again in a few minutes."
-msgstr ""
+msgstr "წერილი ვერ ჩამოიტვირთა. სცადეთ რამდენიმე წუთში."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "The message for your administrator could not be made."
-msgstr ""
+msgstr "შეტყობინება ადმინისტრატორისთვის ვერ შეიქმნა."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -15839,8 +16167,9 @@ msgstr "წერილს ასეთი დანართი არ აქ�
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
+#, fuzzy
 msgid "The message is no longer on the server."
-msgstr ""
+msgstr "წერილი სერვერზე აღარ არის."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -15850,8 +16179,9 @@ msgstr "შეტყობინება გაცვლის ბუფერ�
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
+#, fuzzy
 msgid "The message is too large to download on the phone."
-msgstr ""
+msgstr "წერილი ზედმეტად დიდია ტელეფონზე ჩამოსატვირთად."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -15861,8 +16191,9 @@ msgstr "წერილი აღარ არსებობს"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "The message waits in your Outbox, where you can change or cancel it. MailCraft sends it at that time; if MailCraft isn't running then, it goes the next time it runs."
-msgstr ""
+msgstr "წერილი ელოდება „გასაგზავნებში“, სადაც შეგიძლიათ შეცვალოთ ან გააუქმოთ. MailCraft მას იმ დროს გაგზავნის; თუ მაშინ MailCraft გაშვებული არ იქნება, წერილი მომდევნო გაშვებისას გაიგზავნება."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -15896,8 +16227,9 @@ msgstr "ხედში არსებული საქაღალდის 
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "The most mail this phone keeps, all accounts together. Past it the oldest mail goes back to its headers, then off the phone. Nothing is deleted from the server."
-msgstr ""
+msgstr "ფოსტის მაქსიმალური მოცულობა, რომელსაც ეს ტელეფონი ინახავს, ყველა ანგარიშისთვის ერთად. მისი გადაჭარბებისას უძველეს ფოსტას ჯერ მხოლოდ სათაურები რჩება, შემდეგ კი ტელეფონიდან იშლება. სერვერიდან არაფერი იშლება."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -15913,8 +16245,9 @@ msgstr "სახელი სიმბოლოებს მალავს."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The name is another domain."
-msgstr ""
+msgstr "სახელი სხვა დომენია."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -15924,13 +16257,15 @@ msgstr "ნაცნობი ადამიანის სახელი."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "The name the calendar gives itself"
-msgstr ""
+msgstr "სახელი, რომელსაც კალენდარი თავს არქმევს"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#, fuzzy
 msgid "The notes are too long to edit here."
-msgstr ""
+msgstr "შენიშვნები ზედმეტად გრძელია აქ რედაქტირებისთვის."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15976,8 +16311,9 @@ msgstr "მფლობელს განახლებების შემ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
 msgid "The people could not be read."
-msgstr ""
+msgstr "ადამიანების წაკითხვა ვერ მოხერხდა."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -16095,8 +16431,9 @@ msgstr "გამგზავნი თქვენს სახელს იყ
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's address is at {domain}, an internet address with no domain name: real organisations rarely send from one."
-msgstr ""
+msgstr "გამგზავნის მისამართი ეკუთვნის ინტერნეტ-მისამართს {domain}, რომელსაც დომენური სახელი არ აქვს: ნამდვილი ორგანიზაციები ასეთიდან იშვიათად აგზავნიან."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -16106,8 +16443,9 @@ msgstr "გამგზავნის მისამართი ამ დო
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's domain, {domain}, looks like {brand}'s, but it isn't one of {brand}'s domains."
-msgstr ""
+msgstr "გამგზავნის დომენი, {domain}, ბრენდის {brand} დომენს ჰგავს, მაგრამ ბრენდის {brand} დომენებს შორის არ არის."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -16117,13 +16455,15 @@ msgstr "გამგზავნის დომენი, {domain}, ჰგა�
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's domain, {domain}, looks made by a machine or can't exist: real organisations rarely send from one."
-msgstr ""
+msgstr "გამგზავნის დომენი, {domain}, მანქანით შექმნილს ჰგავს ან ვერ იარსებებს: ნამდვილი ორგანიზაციები ასეთიდან იშვიათად აგზავნიან."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's name says {brand}, but this message came from {real}, and {domain} isn't one of {brand}'s domains."
-msgstr ""
+msgstr "გამგზავნის სახელში წერია {brand}, მაგრამ ეს წერილი მოვიდა მისამართიდან {real}, და {domain} ბრენდის {brand} დომენებს შორის არ არის."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -16145,8 +16485,9 @@ msgstr "სერვერმა უპასუხა, მაგრამ ა�
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
+#, fuzzy
 msgid "The server couldn't be searched. Try again in a few minutes."
-msgstr ""
+msgstr "სერვერზე ძიება ვერ მოხერხდა. სცადეთ რამდენიმე წუთში."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -16204,8 +16545,9 @@ msgstr "სერვერზე {total} საქაღალდეა: ერ�
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
+#, fuzzy
 msgid "The server is busy. Try again in a few minutes."
-msgstr ""
+msgstr "სერვერი დაკავებულია. სცადეთ რამდენიმე წუთში."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -16371,8 +16713,9 @@ msgstr "საერთო საფოსტო ყუთის ელფოს
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "The sign-in didn't go through."
-msgstr ""
+msgstr "შესვლა ვერ შესრულდა."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -16400,8 +16743,9 @@ msgstr "ანგარიშში {address} შესვლა, რომე�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "The sign-in was cancelled."
-msgstr ""
+msgstr "შესვლა გაუქმდა."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -16465,8 +16809,9 @@ msgstr "ანგარიშის {account} Microsoft Graph-ზე გად�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "The sync waits for your answer. A shorter window in Settings needs less room."
-msgstr ""
+msgstr "სინქრონიზაცია თქვენს პასუხს ელოდება. „პარამეტრებში“ უფრო მოკლე პერიოდს ნაკლები ადგილი სჭირდება."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -16488,8 +16833,9 @@ msgstr "სისტემის ავტორიზაციის მონ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#, fuzzy
 msgid "The tasks could not be read."
-msgstr ""
+msgstr "დავალებების წაკითხვა ვერ მოხერხდა."
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -16511,8 +16857,9 @@ msgstr "ტექსტი ვერ მოიძებნა."
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
-msgstr ""
+msgstr "დრო ინახება ამ კომპიუტერზე; დროშა ანგარიშის სერვერზე იგზავნება, როგორც ნებისმიერი დროშა."
 
 #. interface, what a command says
 #: crates/mobile/src/jobs.rs crates/ui-egui/src/task_sync.rs
@@ -16582,8 +16929,9 @@ msgstr "დასაბრუნებელი წინა ვერსია 
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
+#, fuzzy
 msgid "There is no network connection."
-msgstr ""
+msgstr "ქსელთან კავშირი არ არის."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -16713,8 +17061,9 @@ msgstr "ეს ანგარიში თავის წესებს ს�
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
 msgid "This account doesn't send mail from MailCraft, so it can't unsubscribe by mail."
-msgstr ""
+msgstr "ეს ანგარიში MailCraft-იდან ფოსტას არ აგზავნის, ამიტომ ფოსტით გამოწერას ვერ გააუქმებს."
 
 #. interface
 #: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
@@ -16910,8 +17259,9 @@ msgstr "ამ ანაწყობს ამ ტიპის ანგარ�
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "This build can't unsubscribe in one click."
-msgstr ""
+msgstr "MailCraft-ის ეს ვერსია ერთი დაწკაპებით გამოწერის გაუქმებას ვერ ახერხებს."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -16927,8 +17277,9 @@ msgstr "ეს კალენდარი მხოლოდ წაკითხ
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
+#, fuzzy
 msgid "This calendar is a copy of one on the web. Unsubscribe from it to remove it."
-msgstr ""
+msgstr "ეს კალენდარი ინტერნეტში არსებული კალენდრის ასლია. მის წასაშლელად გააუქმეთ მისი გამოწერა."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17058,8 +17409,9 @@ msgstr "ამ ფაილს პაროლი აქვს. მის გა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+#, fuzzy
 msgid "This folder"
-msgstr ""
+msgstr "ეს საქაღალდე"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -17195,18 +17547,21 @@ msgstr "ეს ბმული სხვაგან მიდის, ვიდ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
+#, fuzzy
 msgid "This link goes to"
-msgstr ""
+msgstr "ეს ბმული მიდის აქ:"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "This list unsubscribes on its own page, at {host}. It opens in your browser: visiting it tells the list that this address is read."
-msgstr ""
+msgstr "ეს სია გამოწერას თავის გვერდზე აუქმებს, მისამართზე {host}. ის თქვენს ბრაუზერში გაიხსნება: მისი მონახულება სიას ატყობინებს, რომ ეს მისამართი იკითხება."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "This list's page isn't one that can be opened."
-msgstr ""
+msgstr "ამ სიის გვერდი ისეთი არ არის, რომლის გახსნაც შეიძლება."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17336,8 +17691,9 @@ msgstr "ეს წერილი შეხვედრისთვის სხ
 
 #. interface, what a command says
 #: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "This message doesn't say how to unsubscribe from it."
-msgstr ""
+msgstr "ეს წერილი არ ამბობს, როგორ გააუქმოთ მისი გამოწერა."
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -17347,15 +17703,17 @@ msgstr "ეს წერილი ჩამოიტვირთება, რ�
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
 msgid "This message has a warning about its sender: move it to Junk E-mail instead of unsubscribing."
-msgstr ""
+msgstr "ამ წერილს გამგზავნის შესახებ გაფრთხილება აქვს: გამოწერის გაუქმების ნაცვლად გადაიტანეთ „არასასურველ ფოსტაში“."
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "This message has more recipients than MailCraft checks: only the first one was looked at."
 msgid_plural "This message has more recipients than MailCraft checks: only the first {n} were looked at."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ამ წერილს იმაზე მეტი მიმღები აქვს, ვიდრე MailCraft ამოწმებს: შემოწმდა მხოლოდ პირველი."
+msgstr[1] "ამ წერილს იმაზე მეტი მიმღები აქვს, ვიდრე MailCraft ამოწმებს: შემოწმდა მხოლოდ პირველი {n}."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -17377,18 +17735,21 @@ msgstr "ეს წერილი არ გაგზავნილა."
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "This message is delayed. It goes {when}."
-msgstr ""
+msgstr "ეს წერილი დაყოვნებულია. ის გაიგზავნება {when}."
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "This message is due and goes with the next Send/Receive."
-msgstr ""
+msgstr "ამ წერილის დრო დადგა და ის მომდევნო „გაგზავნა/მიღებისას“ გაიგზავნება."
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
 msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
-msgstr ""
+msgstr "ეს წერილი „არასასურველ ფოსტაშია“: გამოწერის გაუქმების ნაცვლად წაშალეთ."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -17452,13 +17813,15 @@ msgstr "ამ წერილის ციფრული ხელმოწე
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
 msgid "This person could not be read."
-msgstr ""
+msgstr "ამ ადამიანის მონაცემების წაკითხვა ვერ მოხერხდა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#, fuzzy
 msgid "This phone"
-msgstr ""
+msgstr "ეს ტელეფონი"
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -17534,13 +17897,15 @@ msgstr "ამ საერთო საფოსტო ყუთის ან�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "This signature has a picture or its own layout. Change it on the computer."
-msgstr ""
+msgstr "ამ ხელმოწერას სურათი ან საკუთარი განლაგება აქვს. შეცვალეთ ის კომპიუტერზე."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft keeps some room for the phone to go on working. Sync anyway?"
-msgstr ""
+msgstr "ამ სინქრონიზაციას დაახლოებით {needed} სჭირდება. ამ ტელეფონზე თავისუფალია {free}, და MailCraft გარკვეულ ადგილს ტოვებს, რომ ტელეფონმა მუშაობა გააგრძელოს. მაინც გაგრძელდეს სინქრონიზაცია?"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -17550,8 +17915,9 @@ msgstr "ამ სისტემაში MailCraft-მა არ იცის 
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskDraft.kt
+#, fuzzy
 msgid "This task could not be read."
-msgstr ""
+msgstr "ამ დავალების წაკითხვა ვერ მოხერხდა."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -17689,8 +18055,9 @@ msgstr "ვის"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "To Do tasks"
-msgstr ""
+msgstr "To Do დავალებები"
 
 #. name
 #: crates/engine/src/session.rs
@@ -17754,8 +18121,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
+#, fuzzy
 msgid "To me"
-msgstr ""
+msgstr "ჩემთვის"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -17831,8 +18199,9 @@ msgstr "დღეს"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Today.kt
+#, fuzzy
 msgid "Today could not be read."
-msgstr ""
+msgstr "„დღეს“ გვერდის წაკითხვა ვერ მოხერხდა."
 
 #. android, interface, name, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -17848,8 +18217,9 @@ msgstr "სერვერზე გასაგზავნად ზედმ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Too many people to change here; they are kept as they are."
-msgstr ""
+msgstr "ზედმეტად ბევრი ადამიანია აქ შესაცვლელად; ისინი უცვლელად რჩება."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -18045,8 +18415,9 @@ msgstr "დაბრუნება"
 
 #. command label
 #: crates/engine/src/cmd/send_later.rs
+#, fuzzy
 msgid "Undo Send"
-msgstr ""
+msgstr "გაგზავნის დაბრუნება"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -18108,33 +18479,39 @@ msgstr "შეუნახავი წერილი"
 
 #. command label, interface
 #: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "Unsubscribe"
-msgstr ""
+msgstr "გამოწერის გაუქმება"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Unsubscribe from Calendar"
-msgstr ""
+msgstr "კალენდრის გამოწერის გაუქმება"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Unsubscribe from Internet Calendar"
-msgstr ""
+msgstr "ინტერნეტ-კალენდრის გამოწერის გაუქმება"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "Unsubscribe on the list's page in your browser."
-msgstr ""
+msgstr "გააუქმეთ გამოწერა სიის გვერდზე, თქვენს ბრაუზერში."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "Unsubscribed."
-msgstr ""
+msgstr "გამოწერა გაუქმდა."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "Unsubscribing…"
-msgstr ""
+msgstr "გამოწერის გაუქმება…"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -18174,18 +18551,21 @@ msgstr "მომავალი"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "Update Now"
-msgstr ""
+msgstr "ახლავე განახლება"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Update Subscribed Calendars"
-msgstr ""
+msgstr "გამოწერილი კალენდრების განახლება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+#, fuzzy
 msgid "Updated just now"
-msgstr ""
+msgstr "ახლახან განახლდა"
 
 #. what a command says
 #: crates/model/src/sync/progress.rs
@@ -18195,29 +18575,33 @@ msgstr "{folder} განახლდა სერვერზე"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+#, fuzzy
 msgid "Updated {n} day ago"
 msgid_plural "Updated {n} days ago"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "განახლდა {n} დღის წინ"
+msgstr[1] "განახლდა {n} დღის წინ"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+#, fuzzy
 msgid "Updated {n} hour ago"
 msgid_plural "Updated {n} hours ago"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "განახლდა {n} საათის წინ"
+msgstr[1] "განახლდა {n} საათის წინ"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+#, fuzzy
 msgid "Updated {n} minute ago"
 msgid_plural "Updated {n} minutes ago"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "განახლდა {n} წუთის წინ"
+msgstr[1] "განახლდა {n} წუთის წინ"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Updated {when} · {held}"
-msgstr ""
+msgstr "განახლდა {when} · {held}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
@@ -18245,8 +18629,9 @@ msgstr "ანგარიშში {address} შესასვლელად 
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Use This Address"
-msgstr ""
+msgstr "ამ მისამართის გამოყენება"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18280,8 +18665,9 @@ msgstr "ამის ნაცვლად აპლიკაციის პა
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Use https:// instead"
-msgstr ""
+msgstr "https://-ის გამოყენება"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -18429,13 +18815,15 @@ msgstr "იისფერი"
 
 #. command label
 #: crates/engine/src/cmd/send_later.rs
+#, fuzzy
 msgid "Wait Before Sending"
-msgstr ""
+msgstr "გაგზავნამდე მოცდა"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Wait before sending"
-msgstr ""
+msgstr "გაგზავნამდე მოცდა"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -18511,8 +18899,9 @@ msgstr "კვირის პირველი დღე"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "What MailCraft sends, and to whom"
-msgstr ""
+msgstr "რას აგზავნის MailCraft და ვის"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -18534,8 +18923,9 @@ msgstr "რა ემართება ფოსტას მიღების
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "What is bundled in this app, and under which licence"
-msgstr ""
+msgstr "რა შედის ამ აპლიკაციაში და რომელი ლიცენზიით"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -18831,8 +19221,9 @@ msgstr "ოფლაინ მუშაობა: გაგზავნილი
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
+#, fuzzy
 msgid "Write"
-msgstr ""
+msgstr "მიწერა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -19040,8 +19431,9 @@ msgstr "თქვენი სერტიფიკატები და გა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Your data was removed"
-msgstr ""
+msgstr "თქვენი მონაცემები წაიშალა"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19099,8 +19491,9 @@ msgstr "თქვენმა საფოსტო სერვერმა ა
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
 msgid "Your mail server doesn't vouch that this message came from its sender, so its unsubscribe link isn't used."
-msgstr ""
+msgstr "თქვენი საფოსტო სერვერი არ ადასტურებს, რომ ეს წერილი მისი გამგზავნისგან მოვიდა, ამიტომ მისი გამოწერის გაუქმების ბმული არ გამოიყენება."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -19218,13 +19611,15 @@ msgstr "თქვენს ორგანიზაციაში ახალ 
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Your organisation needs an administrator to approve this first. Ask your administrator, then try again."
-msgstr ""
+msgstr "თქვენს ორგანიზაციაში ეს ჯერ ადმინისტრატორმა უნდა დაამტკიცოს. მიმართეთ ადმინისტრატორს და კიდევ სცადეთ."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
 msgid "Your organisation needs to approve MailCraft"
-msgstr ""
+msgstr "თქვენმა ორგანიზაციამ MailCraft უნდა დაამტკიცოს"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -19276,13 +19671,15 @@ msgstr "თქვენი ორგანიზაციის ადმინ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Your organisation's rules (Conditional Access) don't allow MailCraft to sign you in on this phone. This is your organisation's policy, not a fault in MailCraft or in your phone. Ask the people who run your organisation's mail whether sign-in from this kind of app can be allowed."
-msgstr ""
+msgstr "თქვენი ორგანიზაციის წესები (Conditional Access) MailCraft-ს არ აძლევს უფლებას, ამ ტელეფონზე შეგიყვანოთ. ეს თქვენი ორგანიზაციის პოლიტიკაა და არა MailCraft-ის ან თქვენი ტელეფონის ხარვეზი. ჰკითხეთ მათ, ვინც თქვენი ორგანიზაციის ფოსტას მართავს, შეიძლება თუ არა ამ ტიპის აპლიკაციიდან შესვლის დაშვება."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "Your organisation's rules don't allow this for your account. This is your organisation's policy, not a fault in MailCraft."
-msgstr ""
+msgstr "თქვენი ორგანიზაციის წესები თქვენი ანგარიშისთვის ამას არ უშვებს. ეს თქვენი ორგანიზაციის პოლიტიკაა და არა MailCraft-ის ხარვეზი."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -19406,8 +19803,9 @@ msgstr "ამ საფოსტო ყუთში .pst ფაილი შე
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "a .pst file is imported into a calendar of your own on this computer only, never an account on a server or a subscribed calendar"
-msgstr ""
+msgstr ".pst ფაილი შემოდის მხოლოდ ამ კომპიუტერზე არსებულ თქვენს საკუთარ კალენდარში და არასდროს სერვერზე არსებულ ანგარიშში ან გამოწერილ კალენდარში"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -19459,8 +19857,9 @@ msgstr "კონტაქტის ბარათი მაქსიმუმ 
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
-msgstr ""
+msgstr "მონახაზს შეხსენება ვერ ექნება: ჯერ გაგზავნეთ ან გამოიყენეთ „შემდგომი რეაგირება“ თავად წერილში"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -19758,8 +20157,9 @@ msgstr "გაუქმებულია"
 
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
+#, fuzzy
 msgid "choose a time within a year"
-msgstr ""
+msgstr "აირჩიეთ დრო ერთი წლის ფარგლებში"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -19891,8 +20291,9 @@ msgstr "საქაღალდე {id} იმ ანგარიშს არ 
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
+#, fuzzy
 msgid "folder {p} is not that account's"
-msgstr ""
+msgstr "საქაღალდე {p} იმ ანგარიშს არ ეკუთვნის"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -19992,8 +20393,9 @@ msgstr "საქაღალდე არ არის: ხელუხლე�
 
 #. why a command can't run
 #: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
 msgid "isn't switched on yet"
-msgstr ""
+msgstr "ჯერ ჩართული არ არის"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -20219,8 +20621,9 @@ msgstr "ამ მისამართისთვის ამ ანაბე
 
 #. why a command can't run
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "no account has a calendar and contacts server"
-msgstr ""
+msgstr "არცერთ ანგარიშს არ აქვს კალენდრისა და კონტაქტების სერვერი"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -20320,8 +20723,9 @@ msgstr "საქაღალდე id-ით {id} არ არსებობ�
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
+#, fuzzy
 msgid "no folder with id {p}"
-msgstr ""
+msgstr "საქაღალდე id-ით {p} არ არსებობს"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -20463,8 +20867,9 @@ msgstr "ამ ჩანაწერზე სხვა არავინაა
 
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "none of these messages has a reminder showing"
-msgstr ""
+msgstr "ამ წერილებიდან არცერთს არ აქვს ნაჩვენები შეხსენება"
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
@@ -20486,8 +20891,9 @@ msgstr "სერვერზე ჯერ ნებადართული ა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "not an address that can be sent to"
-msgstr ""
+msgstr "ამ მისამართზე გაგზავნა შეუძლებელია"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -20497,8 +20903,9 @@ msgstr "უცნობია პირველ „გაგზავნა/მ
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
-msgstr ""
+msgstr "არ გაიგზავნა: {why}. გაგზავნეთ პარამეტრით \"confirmed\": true, რომ მაინც გაიგზავნოს, ან \"moveToBcc\": true, რომ ორგანიზაციის გარეთ მყოფი ადამიანები ჯერ ფარულ ასლში გადავიდნენ"
 
 #. what a command says
 #: crates/engine/src/cmd/format.rs
@@ -20514,8 +20921,9 @@ msgstr "შემოსატანად არაფერი ელოდე�
 
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
+#, fuzzy
 msgid "nothing is waiting to be sent: it is on its way already"
-msgstr ""
+msgstr "გასაგზავნად არაფერი ელოდება: ის უკვე გზაშია"
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
@@ -20603,8 +21011,9 @@ msgstr "წერილში მხოლოდ საკუთარი კა
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "optional"
-msgstr ""
+msgstr "არასავალდებულო"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -20704,8 +21113,9 @@ msgstr "ჯერ მონიშნეთ ჩანაწერი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
+#, fuzzy
 msgid "shared mailbox"
-msgstr ""
+msgstr "საერთო საფოსტო ყუთი"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -20739,8 +21149,9 @@ msgstr "შესვლა ვერ მოხერხდა: {reason}"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "sign-in needed"
-msgstr ""
+msgstr "საჭიროა შესვლა"
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -20774,8 +21185,9 @@ msgstr "ეს ზედმეტად ბევრია ერთ წერ�
 
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
+#, fuzzy
 msgid "that is too soon: pick a time at least a minute from now (or send it now)"
-msgstr ""
+msgstr "ეს ზედმეტად მალეა: აირჩიეთ დრო ახლანდელიდან სულ მცირე ერთი წუთის შემდეგ (ან ახლავე გაგზავნეთ)"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -20809,8 +21221,9 @@ msgstr "ეს წერილი მონახაზია: გასაგ�
 
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
+#, fuzzy
 msgid "that message is being sent now"
-msgstr ""
+msgstr "ეს წერილი ახლა იგზავნება"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -20826,23 +21239,27 @@ msgstr "ეს წერილი შეჩერებული არ არ�
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
 msgid "that message isn't here"
-msgstr ""
+msgstr "ეს წერილი აქ არ არის"
 
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
+#, fuzzy
 msgid "that message isn't waiting in the Outbox"
-msgstr ""
+msgstr "ეს წერილი „გასაგზავნებში“ არ ელოდება"
 
 #. what a command says
 #: crates/engine/src/cmd/edit.rs
+#, fuzzy
 msgid "that step changes a message that is open for writing: close it first"
-msgstr ""
+msgstr "ეს ნაბიჯი ცვლის წერილს, რომელიც დასაწერად გახსნილია: ჯერ დახურეთ"
 
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
+#, fuzzy
 msgid "that time has passed: choose a time in the future"
-msgstr ""
+msgstr "ეს დრო უკვე გავიდა: აირჩიეთ მომავალი დრო"
 
 #. what a command says
 #: crates/engine/src/import_tree.rs
@@ -20930,13 +21347,15 @@ msgstr "აპლიკაციის საკუთარ კოდში შ
 
 #. what a command says
 #: crates/mobile/src/attachments.rs
+#, fuzzy
 msgid "the attachment could not be read"
-msgstr ""
+msgstr "დანართის წაკითხვა ვერ მოხერხდა"
 
 #. what a command says
 #: crates/mobile/src/attachments.rs
+#, fuzzy
 msgid "the attachment is too large"
-msgstr ""
+msgstr "დანართი ზედმეტად დიდია"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -21150,8 +21569,9 @@ msgstr "გასაღები იმაზე დიდია, რასა�
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "the last Send/Receive had problems"
-msgstr ""
+msgstr "ბოლო „გაგზავნა/მიღებისას“ პრობლემები იყო"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21179,8 +21599,9 @@ msgstr "საფოსტო ყუთი ფაილში არ ინა�
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "the mailbox wasn't opened"
-msgstr ""
+msgstr "საფოსტო ყუთი არ გაიხსნა"
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/find.rs
@@ -21286,13 +21707,15 @@ msgstr "შემოთავაზებული დასასრული �
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "the reminder time must be in the future"
-msgstr ""
+msgstr "შეხსენების დრო მომავალში უნდა იყოს"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "the request was lost"
-msgstr ""
+msgstr "მოთხოვნა დაიკარგა"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -21878,8 +22301,9 @@ msgstr "ამ ანგარიშს „გასაგზავნები�
 
 #. what a command says
 #: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
 msgid "this account has no calendar and contacts server of its own: a Microsoft account keeps its calendars through Microsoft, and a shared mailbox follows its owner's"
-msgstr ""
+msgstr "ამ ანგარიშს კალენდრისა და კონტაქტების საკუთარი სერვერი არ აქვს: Microsoft-ის ანგარიში კალენდრებს Microsoft-ის მეშვეობით ინახავს, საერთო საფოსტო ყუთი კი თავისი მფლობელისას მიჰყვება"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -21901,8 +22325,9 @@ msgstr "ამ ანგარიშს მისი შენახვის �
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"
-msgstr ""
+msgstr "ეს ანგარიში ფოსტას არ აგზავნის, ამიტომ წერილი დროს ვერ დაელოდება: ახლავე გაგზავნეთ ან მონახაზად შეინახეთ"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -22170,8 +22595,9 @@ msgstr "MailCraft-ის ეს ასლი მისი ინსტალე�
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "working offline"
-msgstr ""
+msgstr "ოფლაინ რეჟიმში მუშაობა"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -22297,8 +22723,9 @@ msgstr "{address} აქ გახსნილი საერთო საფ�
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "{address} looks like {like}, which you write to, but isn't the same address."
-msgstr ""
+msgstr "{address} ჰგავს მისამართს {like}, რომელსაც წერთ, მაგრამ იგივე მისამართი არ არის."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -22554,8 +22981,9 @@ msgstr "{name} გამოეხმაურა ამ მოწვევას
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
 msgid "{name} could not be read, so it was not attached."
-msgstr ""
+msgstr "{name} არ მიმაგრდა: მისი წაკითხვა ვერ მოხერხდა."
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -22775,18 +23203,21 @@ msgstr "{name} პირობითად დაეთანხმა ამ �
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
 msgid "{name} was not attached: it is larger than 25 MB."
-msgstr ""
+msgstr "{name} არ მიმაგრდა: ის 25 მბ-ზე დიდია."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
 msgid "{name} was not attached: it is not a file this app may read."
-msgstr ""
+msgstr "{name} არ მიმაგრდა: ეს არ არის ფაილი, რომლის წაკითხვაც ამ აპლიკაციას შეუძლია."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
 msgid "{name} was not attached: the files on a message can be 50 MB together."
-msgstr ""
+msgstr "{name} არ მიმაგრდა: წერილზე მიმაგრებული ფაილები ჯამში 50 მბ-ს არ უნდა აღემატებოდეს."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -22808,8 +23239,9 @@ msgstr "{name}: არ არის წერილის, კალენდრ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "{n} GB"
-msgstr ""
+msgstr "{n} გბ"
 
 #. what a command says
 #: crates/model/src/message.rs
@@ -22819,8 +23251,9 @@ msgstr "{n} კბ"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid "{n} MB"
-msgstr ""
+msgstr "{n} მბ"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -22848,24 +23281,27 @@ msgstr[1] "მიიღო: {n}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#, fuzzy
 msgid "{n} account"
 msgid_plural "{n} accounts"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} ანგარიში"
+msgstr[1] "{n} ანგარიში"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "{n} account has one"
 msgid_plural "{n} accounts have one"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ხელმოწერა აქვს {n} ანგარიშს"
+msgstr[1] "ხელმოწერა აქვს {n} ანგარიშს"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "{n} attachment"
 msgid_plural "{n} attachments"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "დანართი: {n}"
+msgstr[1] "დანართი: {n}"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -22971,10 +23407,11 @@ msgstr[1] "{n} დღე"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} day before"
 msgid_plural "{n} days before"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} დღით ადრე"
+msgstr[1] "{n} დღით ადრე"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -22986,10 +23423,11 @@ msgstr[1] "უარყო: {n}"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "{n} delayed message didn't go at its time"
 msgid_plural "{n} delayed messages didn't go at their time"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} დაყოვნებული წერილი თავის დროს არ გაიგზავნა"
+msgstr[1] "{n} დაყოვნებული წერილი თავის დროს არ გაიგზავნა"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -23009,10 +23447,11 @@ msgstr[1] "ჩამოტვირთული სურათები ({n}) �
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
 msgid "{n} downloaded picture is kept on this phone ({size})."
 msgid_plural "{n} downloaded pictures are kept on this phone ({size})."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ჩამოტვირთული სურათები ({n}) ამ ტელეფონზე ინახება ({size})."
+msgstr[1] "ჩამოტვირთული სურათები ({n}) ამ ტელეფონზე ინახება ({size})."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -23024,17 +23463,19 @@ msgstr[1] "ღონისძიება: {n}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} event added to the calendar, and the tasks in the file."
 msgid_plural "{n} events added to the calendar, and the tasks in the file."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "კალენდარს დაემატა ღონისძიება: {n}, ასევე ფაილში არსებული დავალებები."
+msgstr[1] "კალენდარს დაემატა ღონისძიება: {n}, ასევე ფაილში არსებული დავალებები."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} event added to the calendar."
 msgid_plural "{n} events added to the calendar."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "კალენდარს დაემატა ღონისძიება: {n}."
+msgstr[1] "კალენდარს დაემატა ღონისძიება: {n}."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -23086,10 +23527,11 @@ msgstr[1] "{n} საათი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} hour before"
 msgid_plural "{n} hours before"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} საათით ადრე"
+msgstr[1] "{n} საათით ადრე"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -23101,10 +23543,11 @@ msgstr[1] "ელემენტი: {n}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
 msgid "{n} item added to your calendar"
 msgid_plural "{n} items added to your calendar"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "თქვენს კალენდარს დაემატა ელემენტი: {n}"
+msgstr[1] "თქვენს კალენდარს დაემატა ელემენტი: {n}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -23180,10 +23623,11 @@ msgstr[1] "წერილი: {n}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
 msgid "{n} message archived"
 msgid_plural "{n} messages archived"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "დაარქივებული წერილი: {n}"
+msgstr[1] "დაარქივებული წერილი: {n}"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/lib.rs
@@ -23219,17 +23663,19 @@ msgstr[1] "Gmail-ის კატეგორიებს შორის ამ
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
 msgid "{n} message deleted"
 msgid_plural "{n} messages deleted"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "წაშლილი წერილი: {n}"
+msgstr[1] "წაშლილი წერილი: {n}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt
+#, fuzzy
 msgid "{n} message in the conversation"
 msgid_plural "{n} messages in the conversation"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} წერილი მიმოწერაში"
+msgstr[1] "{n} წერილი მიმოწერაში"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -23257,10 +23703,11 @@ msgstr[1] "დამთხვეული წერილი: {n}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
 msgid "{n} message moved"
 msgid_plural "{n} messages moved"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "გადატანილი წერილი: {n}"
+msgstr[1] "გადატანილი წერილი: {n}"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -23272,10 +23719,11 @@ msgstr[1] "ანგარიშში გადატანილი წერ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
 msgid "{n} message moved to Junk"
 msgid_plural "{n} messages moved to Junk"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "არასასურველში გადატანილი წერილი: {n}"
+msgstr[1] "არასასურველში გადატანილი წერილი: {n}"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -23365,17 +23813,19 @@ msgstr[1] "{n} წუთი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} minute before"
 msgid_plural "{n} minutes before"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} წუთით ადრე"
+msgstr[1] "{n} წუთით ადრე"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
 msgid "{n} more file was not attached: a message takes at most {max} files from a share."
 msgid_plural "{n} more files were not attached: a message takes at most {max} files from a share."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "კიდევ {n} ფაილი არ მიმაგრდა: გაზიარებიდან წერილი მაქსიმუმ {max} ფაილს იღებს."
+msgstr[1] "კიდევ {n} ფაილი არ მიმაგრდა: გაზიარებიდან წერილი მაქსიმუმ {max} ფაილს იღებს."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -23471,10 +23921,11 @@ msgstr "ჯერჯერობით {n} / {total}."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "{n} older message taken back to its headers"
 msgid_plural "{n} older messages taken back to its headers"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "სათაურებამდე შემცირებული ძველი წერილი: {n}"
+msgstr[1] "სათაურებამდე შემცირებული ძველი წერილი: {n}"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -23486,10 +23937,11 @@ msgstr[1] "ძველი წერილები ({n}) არ მოიძე
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
 msgid "{n} open"
 msgid_plural "{n} open"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ღია: {n}"
+msgstr[1] "ღია: {n}"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -23517,10 +23969,11 @@ msgstr[1] "ამ შეხვედრაზე მოწვეულია {n}
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "{n} person outside your organisation, at {domains} domains, would see the others' addresses in To and Cc."
 msgid_plural "{n} people outside your organisation, at {domains} domains, would see each other's addresses in To and Cc."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} ადამიანი თქვენი ორგანიზაციის გარეთ, {domains} დომენზე, დაინახავს სხვების მისამართებს ველებში „ვის“ და „ასლი“."
+msgstr[1] "{n} ადამიანი თქვენი ორგანიზაციის გარეთ, {domains} დომენზე, დაინახავს ერთმანეთის მისამართებს ველებში „ვის“ და „ასლი“."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -23532,10 +23985,11 @@ msgstr[1] "სხვა დრო შესთავაზა {n} ადამ�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
 msgid "{n} picture in the message"
 msgid_plural "{n} pictures in the message"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "სურათი წერილში: {n}"
+msgstr[1] "სურათი წერილში: {n}"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -23599,10 +24053,11 @@ msgstr "{n} წმ"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "{n} second"
 msgid_plural "{n} seconds"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} წამი"
+msgstr[1] "{n} წამი"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -23638,17 +24093,19 @@ msgstr[1] "მხოლოდ ამ კომპიუტერზე არს
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
 msgid "{n} task is only on this phone."
 msgid_plural "{n} tasks are only on this phone."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} დავალება მხოლოდ ამ ტელეფონზეა."
+msgstr[1] "{n} დავალება მხოლოდ ამ ტელეფონზეა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
 msgid "{n} task is only on this phone. Send it to To Do at the next sync?"
 msgid_plural "{n} tasks are only on this phone. Send them to To Do at the next sync?"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} დავალება მხოლოდ ამ ტელეფონზეა. გაიგზავნოს To Do-ში მომდევნო სინქრონიზაციისას?"
+msgstr[1] "{n} დავალება მხოლოდ ამ ტელეფონზეა. გაიგზავნოს ისინი To Do-ში მომდევნო სინქრონიზაციისას?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -23708,10 +24165,11 @@ msgstr[1] "უკვე იქ იყო: {n}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} week before"
 msgid_plural "{n} weeks before"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} კვირით ადრე"
+msgstr[1] "{n} კვირით ადრე"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -23849,10 +24307,11 @@ msgstr "{title} (მთელი დღე)"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "{used} of {cap} used by {n} message"
 msgid_plural "{used} of {cap} used by {n} messages"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "გამოყენებულია {used} / {cap}, წერილი: {n}"
+msgstr[1] "გამოყენებულია {used} / {cap}, წერილი: {n}"
 
 #. date and time
 #: crates/i18n/src/date.rs
