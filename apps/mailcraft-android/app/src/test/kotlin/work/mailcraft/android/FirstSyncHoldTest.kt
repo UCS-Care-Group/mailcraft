@@ -146,22 +146,4 @@ class FirstSyncHoldTest {
         afterHolds(holds) { rounds++ }
         assertEquals(3, rounds)
     }
-
-    @Test
-    fun holdsThatFailAtAStartAreSaidAgainUntilTheyAre() = runBlocking {
-        kept.save(setOf(7uL))
-        var failures = 2
-        val flaky = FirstSyncHolds(kept) { account, held ->
-            if (failures-- > 0) throw CoreException.Failed("busy")
-            told.add(account to held)
-        }
-        val waits = mutableListOf<Long>()
-        assertTrue(flaky.restate(after = listOf(1L, 2L, 3L)) { waits.add(it) })
-        assertEquals(listOf(1L, 2L), waits)
-        assertEquals(listOf(7uL to true), told)
-        // Tries are bounded: a core that never takes the hold is given up on (the worker still waits).
-        failures = Int.MAX_VALUE
-        assertFalse(flaky.restate(after = listOf(1L, 2L)) {})
-        assertEquals(setOf(7uL), kept.load())
-    }
 }

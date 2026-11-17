@@ -601,9 +601,11 @@ impl SyncHost {
         }
     }
 
-    /// The owner asked for a Send/Receive (or a background one does): start a round unless one is
-    /// under way, and say so. `waiter`, when given, is woken with the round's summary.
-    pub(crate) fn ask(&self, session: &mut Session, waiter: Option<Arc<Queue<Wake>>>) -> SyncAnswer {
+    /// The owner asked for a Send/Receive (or a background one does, or the app for a new
+    /// account's first one): start a round unless one is under way, and say so. `waiter`, when
+    /// given, is woken with the round's summary. `release`: the owner asked (a pull to refresh),
+    /// which lets go of every account held back first; any other round leaves them out.
+    pub(crate) fn ask(&self, session: &mut Session, waiter: Option<Arc<Queue<Wake>>>, release: bool) -> SyncAnswer {
         let mut inner = self.lock();
         let lang = session.interface_language;
         let refused = |message: &str| SyncAnswer { started: false, message: lang.t(message).to_string() };
@@ -617,9 +619,9 @@ impl SyncHost {
         if accounts.is_empty() {
             return refused("There is no account to send and receive.");
         }
-        // The owner asking (no waiter: a pull to refresh) lets go of the accounts held back; a
-        // background run leaves them out.
-        if waiter.is_none() {
+        // The owner asking (a pull to refresh) lets go of the accounts held back; a background
+        // run, and a round the app starts by itself, leave them out.
+        if release {
             inner.sr.release_all();
         }
         let mut supported = Vec::new();

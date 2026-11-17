@@ -204,6 +204,7 @@ fn the_sending_mark_is_on_disk_before_the_send_job_starts() {
         },
         SendReceive::with_runner(move |req| runner(req)),
         Some(dir.path().to_string()),
+        &[],
     )
     .unwrap();
     let account = fill(&core);

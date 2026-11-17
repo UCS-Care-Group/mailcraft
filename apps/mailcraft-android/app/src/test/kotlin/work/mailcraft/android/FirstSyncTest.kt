@@ -6,6 +6,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -44,6 +45,9 @@ class FirstSyncTest {
     private val app = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
     private val api = SigningIn()
     private var syncs = 0
+
+    /** Which rounds were asked for: the owner's ("owner", which lets the holds go) or the app's ("first"). */
+    private val rounds = mutableListOf<String>()
     private val asked = mutableListOf<Pair<ULong, Long>>()
     private var room: suspend () -> Boolean = { true }
     private val kept = MemoryHolds()
@@ -58,6 +62,12 @@ class FirstSyncTest {
         copy = {},
         sync = {
             syncs++
+            rounds.add("owner")
+            SyncAnswer(started = true, message = "")
+        },
+        firstRound = {
+            syncs++
+            rounds.add("first")
             SyncAnswer(started = true, message = "")
         },
         roomFor = { account, storageMb ->
@@ -142,6 +152,10 @@ class FirstSyncTest {
                 syncs++
                 answers.removeFirst()
             },
+            firstRound = {
+                syncs++
+                answers.removeFirst()
+            },
         )
         val actions = hub.controller.actions()
         actions.onEmail("ada@example.org")
@@ -221,5 +235,19 @@ class FirstSyncTest {
         )
         hub.syncNow()
         assertEquals(setOf(7uL), kept.load())
+    }
+
+    @Test
+    fun aNewAccountsFirstRoundLetsNoOtherHoldGo() {
+        // A pull to refresh is under way when the owner says yes to account 7's first sync...
+        hub.syncNow()
+        addAccount()
+        // ...and then "Not now" to account 8's, before that round ends.
+        runBlocking { holds.answered(8u, yes = false) }
+        hub.handle(Event.SyncFinished(0u, true))
+        // Account 7's round is the app's, not the owner's: 8 stays held, in the core and here.
+        assertEquals(listOf("owner", "first"), rounds)
+        assertEquals(setOf(8uL), kept.load())
+        assertEquals(listOf(7uL to false, 8uL to true), told)
     }
 }

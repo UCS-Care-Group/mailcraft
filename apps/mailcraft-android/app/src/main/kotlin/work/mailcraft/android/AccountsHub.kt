@@ -76,6 +76,7 @@ internal class AccountsHub(
     private val retryAfter: List<Long> = DEFAULT_RETRY,
     private val pause: suspend (Long) -> Unit = { delay(it) },
     private val sync: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
+    private val firstRound: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
     private val roomFor: suspend (account: ULong, storageMb: Long) -> Boolean = { _, _ -> true },
     private val holds: FirstSyncHolds? = null,
 ) {
@@ -127,14 +128,20 @@ internal class AccountsHub(
      * Send/Receive now, the owner having asked (pull to refresh). A second ask while one is under way
      * changes nothing; the round's end comes as the core's `SyncFinished`.
      */
-    fun syncNow() {
+    fun syncNow() = start(owner = true)
+
+    /**
+     * A round the owner asked for ([owner]) lets go of every account held back (the core does as it
+     * begins), and the holds kept here go in the same step ([FirstSyncHolds.ownerRound]). A new
+     * account's first round ([firstRound]) is the app's, not the owner's: the accounts held back
+     * stay held, in the core and here (that account's own hold the owner's yes let go already).
+     */
+    private fun start(owner: Boolean) {
         if (!syncingNow.compareAndSet(expect = false, update = true)) return
         notice.value = null
         scope.launch {
-            // A round the owner asked for lets go of every account held back (the core does as it
-            // begins), and the holds kept here go in the same step ([FirstSyncHolds.ownerRound]).
             val answer = try {
-                holds?.ownerRound(sync) ?: sync()
+                if (owner) holds?.ownerRound(sync) ?: sync() else firstRound()
             } catch (_: CoreException) {
                 SyncAnswer(started = false, message = texts.t("Send/Receive couldn't start. Try again."))
             }
@@ -168,7 +175,7 @@ internal class AccountsHub(
 
     /** Starts the first sync that waits, once no round the owner asked for is under way. */
     private fun startFollowUp() {
-        if (!syncingNow.value && followUp.getAndSet(false)) syncNow()
+        if (!syncingNow.value && followUp.getAndSet(false)) start(owner = false)
     }
 
     /** The owner has read why Send/Receive didn't start. */
