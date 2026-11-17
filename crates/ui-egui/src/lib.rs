@@ -251,6 +251,7 @@ pub mod software;
 mod subscribed;
 #[cfg(test)]
 mod subscribed_tests;
+pub mod swipe;
 mod symbol;
 mod sync_panel;
 pub mod task_sync;
@@ -887,6 +888,9 @@ pub struct UiState {
     /// New Email, a reply or a forward the owner starts opens in a window of its own rather than
     /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
     pub replies_in_window: bool,
+    /// Actions for horizontal gestures on a message row.
+    pub swipe_left: swipe::Action,
+    pub swipe_right: swipe::Action,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
@@ -1004,6 +1008,8 @@ impl Default for UiState {
             dark_style: theme::DarkStyle::default(),
             light_messages: false,
             replies_in_window: false,
+            swipe_left: swipe::Action::None,
+            swipe_right: swipe::Action::None,
             interface_size: theme::InterfaceSize::default(),
             window: None,
             window_places: Default::default(),
@@ -1101,6 +1107,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
+    ("ui.swipeAction", "Swipe Action", "File › Options", r#"{"direction": "left"|"right", "action": "none"|"delete"|"archive"|"read"|"flag"}"#),
     (
         "ui.language",
         "Interface Language",
@@ -2597,6 +2604,17 @@ impl MailApp {
                     self.ui.backstage_page = page.to_string();
                 }
                 Ok(json!({"value": self.ui.backstage, "page": self.ui.backstage_page}))
+            }
+            "ui.swipeAction" => {
+                let Some(action) = s("action").and_then(swipe::Action::from_code) else {
+                    return Some(Err("`action` must be none, delete, archive, read or flag".into()));
+                };
+                match s("direction") {
+                    Some("left") => self.ui.swipe_left = action,
+                    Some("right") => self.ui.swipe_right = action,
+                    _ => return Some(Err("`direction` must be left or right".into())),
+                }
+                Ok(json!({"action": action.code()}))
             }
             "ui.repliesInWindow" => {
                 let value = match p.get("value").filter(|v| !v.is_null()) {

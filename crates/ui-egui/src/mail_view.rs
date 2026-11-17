@@ -873,6 +873,49 @@ fn drawn_selection(app: &mut MailApp, rows: &Arc<Vec<Row>>) -> Arc<Drawn> {
 }
 
 fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>) {
+    let over = ui.rect_contains_pointer(rect) && egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()).is_none();
+    let swipe = crate::swipe::input(ui, row.id, row.copy, &row.members, over, rect.width(), (app.ui.swipe_left, app.ui.swipe_right));
+    if let Some((action, members)) = swipe.completed
+        && let Some(command) = action.command()
+    {
+        let _ = app.run(command, json!({"ids": members}));
+        return;
+    }
+    if swipe.offset.abs() < 0.1 {
+        return message_row_content(app, ui, row, rect, drawn, focus);
+    }
+    let t = Tokens::get(ui.ctx());
+    let (background, ink) = if swipe.action == crate::swipe::Action::Delete {
+        (t.red, if ui.visuals().dark_mode { t.ink_on_light } else { Color32::WHITE })
+    } else {
+        (t.accent, t.on_accent)
+    };
+    let p = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+    p.rect_filled(rect, 0.0, background);
+    let left = swipe.offset > 0.0;
+    let edge = if left { rect.min.x } else { rect.max.x };
+    let center = pos2(edge + if left { 28.0 } else { -28.0 }, rect.center().y);
+    let icon_rect = Rect::from_center_size(center, vec2(20.0, 20.0));
+    icons::paint(&p, icon_rect, swipe.action.code(), ink, ink);
+    if swipe.offset.abs() > 90.0 {
+        let x = edge + if left { 46.0 } else { -46.0 };
+        p.text(
+            pos2(x, rect.center().y),
+            if left { Align2::LEFT_CENTER } else { Align2::RIGHT_CENTER },
+            swipe.action.label(),
+            regular(LIST_TEXT),
+            ink,
+        );
+    }
+    let moved = rect.translate(vec2(swipe.offset, 0.0));
+    p.rect_filled(moved, 0.0, t.surface);
+    ui.scope(|ui| {
+        ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+        message_row_content(app, ui, row, moved, drawn, focus);
+    });
+}
+
+fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };

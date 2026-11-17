@@ -7,6 +7,7 @@
 //!
 //! The script is JSON lines: control-channel requests (`{"method": …, "params": …}`, see
 //! `docs/control-protocol.md`), `{"shot": "/abs/out.png"}` to save the window as PNG,
+//! `{"wheel": {"x": x, "y": y, "dx": dx, "dy": dy}}` to send a trackpad movement at a point,
 //! `{"open": "/abs/file.ics"}` (or a `mailto:` link) as a later start would hand it over (#505),
 //! `{"trust": "/abs/ca.der"}` to trust a certification authority as the system's are (#30),
 //! `{"steps": n}` to run extra frames (a request with `"agent": {"allow": [...]}` comes as the MCP
@@ -896,7 +897,19 @@ fn main() {
             harness.state_mut().open_from_system(what);
             step_n(&mut harness, 2);
         }
-        if let Some(p) = l.get("shot").and_then(|v| v.as_str()) {
+        if let Some(wheel) = l.get("wheel") {
+            let n = |key: &str| wheel.get(key).and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+            harness.event(egui::Event::PointerMoved(egui::pos2(n("x"), n("y"))));
+            step_n(&mut harness, 1);
+            harness.event(egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(n("dx"), n("dy")),
+                phase: egui::TouchPhase::Move,
+                source: egui::MouseWheelSource::Trackpad,
+                modifiers: egui::Modifiers::NONE,
+            });
+            step_n(&mut harness, 1);
+        } else if let Some(p) = l.get("shot").and_then(|v| v.as_str()) {
             step_n(&mut harness, 4);
             match harness.render() {
                 Ok(img) => {
