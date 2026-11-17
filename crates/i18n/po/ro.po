@@ -1824,7 +1824,7 @@ msgstr "Cereți permisiunea de a citi și modifica listele și sarcinile To Do: 
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
-msgstr "Cere permisiunea de a citi și de a trimite din cutiile poștale partajate și de a citi calendarele partajate cu tine: pagina Microsoft se deschide în browser. Fără ea, nimic din acestea nu este citit sau trimis."
+msgstr "Cereți permisiunea de a citi și de a trimite din cutiile poștale partajate și de a citi calendarele partajate cu dvs.: pagina Microsoft se deschide în browser. Fără ea, nimic din acestea nu este citit sau trimis."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -13980,7 +13980,7 @@ msgstr "Cutiile poștale și calendarele partajate nu au fost permise: {error}"
 #: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "Shared mailboxes and calendars: asking for your permission…"
-msgstr "Cutii poștale și calendare partajate: se cere permisiunea ta…"
+msgstr "Cutii poștale și calendare partajate: se cere permisiunea dvs.…"
 
 #. interface
 #: crates/ui-egui/src/shared_permission.rs
@@ -13992,7 +13992,7 @@ msgstr "Cutii poștale și calendare partajate: nepermise ({why})"
 #: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "Shared mailboxes and calendars: waiting for your permission"
-msgstr "Cutii poștale și calendare partajate: așteaptă permisiunea ta"
+msgstr "Cutii poștale și calendare partajate: se așteaptă permisiunea dvs."
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
@@ -16596,7 +16596,7 @@ msgstr "Regulile trimise nu au putut fi înregistrate: {error}"
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
-msgstr "Aceeași pagină cere să citească și să trimită din cutiile poștale partajate la care ai acces și să citească calendarele partajate cu tine, ca MailCraft să nu mai fie nevoit să întrebe din nou."
+msgstr "Aceeași pagină cere să citească și să trimită din cutiile poștale partajate la care aveți acces și să citească calendarele partajate cu dvs., ca MailCraft să nu mai fie nevoit să întrebe din nou."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19748,7 +19748,7 @@ msgstr "Organizația dvs. nu permite ca MailCraft să sincronizeze această cuti
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
-msgstr "Organizația ta nu îi permite lui MailCraft să citească cutiile poștale partajate și calendarele partajate cu tine"
+msgstr "Organizația dvs. nu îi permite lui MailCraft să citească cutiile poștale partajate și calendarele partajate cu dvs."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -19820,7 +19820,7 @@ msgstr "Administratorul organizației dvs. trebuie să aprobe, o singură dată,
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
-msgstr "Administratorul organizației tale trebuie să aprobe o dată ca MailCraft să citească cutii poștale și calendare partajate: Fișier › Informații"
+msgstr "Administratorul organizației dvs. trebuie să aprobe o dată ca MailCraft să citească cutii poștale și calendare partajate: Fișier › Informații"
 
 #. interface
 #: crates/ui-egui/src

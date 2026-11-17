@@ -1822,7 +1822,7 @@ msgstr "Pedir permiso para leer y cambiar sus listas de To Do y sus tareas: la p
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
-msgstr "Pedir permiso para leer y enviar desde buzones compartidos y para leer los calendarios compartidos contigo: la página de Microsoft se abre en tu navegador. Sin él, no se lee ni se envía nada de ellos."
+msgstr "Pedir permiso para leer y enviar desde buzones compartidos y para leer los calendarios compartidos con usted: la página de Microsoft se abre en su navegador. Sin él, no se lee ni se envía nada de ellos."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -13940,7 +13940,7 @@ msgstr "No se permitieron los buzones y calendarios compartidos: {error}"
 #: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "Shared mailboxes and calendars: asking for your permission…"
-msgstr "Buzones y calendarios compartidos: pidiendo tu permiso…"
+msgstr "Buzones y calendarios compartidos: pidiendo su permiso…"
 
 #. interface
 #: crates/ui-egui/src/shared_permission.rs
@@ -13952,7 +13952,7 @@ msgstr "Buzones y calendarios compartidos: no permitidos ({why})"
 #: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "Shared mailboxes and calendars: waiting for your permission"
-msgstr "Buzones y calendarios compartidos: esperando tu permiso"
+msgstr "Buzones y calendarios compartidos: esperando su permiso"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
@@ -16550,7 +16550,7 @@ msgstr "No se pudieron anotar las reglas enviadas: {error}"
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
-msgstr "La misma página pide leer y enviar desde los buzones compartidos a los que tienes acceso y leer los calendarios compartidos contigo, para que MailCraft no tenga que volver a preguntar."
+msgstr "La misma página pide leer y enviar desde los buzones compartidos a los que usted tiene acceso y leer los calendarios compartidos con usted, para que MailCraft no tenga que volver a preguntar."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19687,7 +19687,7 @@ msgstr "Su organización no permite que MailCraft sincronice este buzón con Out
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
-msgstr "Tu organización no permite que MailCraft lea los buzones compartidos ni los calendarios compartidos contigo"
+msgstr "Su organización no permite que MailCraft lea los buzones compartidos ni los calendarios compartidos con usted"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -19759,7 +19759,7 @@ msgstr "El administrador de su organización tiene que aprobar, una sola vez, qu
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
-msgstr "El administrador de tu organización tiene que aprobar una vez que MailCraft lea buzones y calendarios compartidos: Archivo › Información"
+msgstr "El administrador de su organización tiene que aprobar una vez que MailCraft lea buzones y calendarios compartidos: Archivo › Información"
 
 #. interface
 #: crates/ui-egui/src

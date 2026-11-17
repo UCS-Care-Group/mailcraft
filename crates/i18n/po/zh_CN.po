@@ -1822,7 +1822,7 @@ msgstr "请求读取和更改 To Do 列表及任务的权限：Microsoft 页面�
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
-msgstr "请求读取共享邮箱并从中发送邮件、读取与你共享的日历的权限：Microsoft 的页面将在浏览器中打开。没有该权限，不会读取或发送其中任何内容。"
+msgstr "请求读取共享邮箱并从中发送邮件、读取与您共享的日历的权限：Microsoft 的页面将在浏览器中打开。没有该权限，不会读取或发送其中任何内容。"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -13931,7 +13931,7 @@ msgstr "未允许共享邮箱和日历：{error}"
 #: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "Shared mailboxes and calendars: asking for your permission…"
-msgstr "共享邮箱和日历：正在请求你的许可…"
+msgstr "共享邮箱和日历：正在请求您的许可…"
 
 #. interface
 #: crates/ui-egui/src/shared_permission.rs
@@ -13943,7 +13943,7 @@ msgstr "共享邮箱和日历：未允许（{why}）"
 #: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "Shared mailboxes and calendars: waiting for your permission"
-msgstr "共享邮箱和日历：等待你的许可"
+msgstr "共享邮箱和日历：等待您的许可"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
@@ -16541,7 +16541,7 @@ msgstr "无法记录已发送的规则：{error}"
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
-msgstr "同一页面还会请求读取你有权访问的共享邮箱并从中发送邮件，以及读取与你共享的日历，这样 MailCraft 就不必再次询问。"
+msgstr "同一页面还会请求读取您有权访问的共享邮箱并从中发送邮件，以及读取与您共享的日历，这样 MailCraft 就不必再次询问。"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19675,7 +19675,7 @@ msgstr "您的组织不允许 MailCraft 将此邮箱与 Outlook 同步"
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
-msgstr "你的组织不允许 MailCraft 读取共享邮箱和与你共享的日历"
+msgstr "您的组织不允许 MailCraft 读取共享邮箱和与您共享的日历"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -19747,7 +19747,7 @@ msgstr "组织管理员需要批准一次 MailCraft 将此邮箱与 Outlook 同�
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
-msgstr "你的组织管理员需要批准一次 MailCraft 读取共享邮箱和日历：文件 › 信息"
+msgstr "您的组织管理员需要批准一次 MailCraft 读取共享邮箱和日历：文件 › 信息"
 
 #. interface
 #: crates/ui-egui/src
