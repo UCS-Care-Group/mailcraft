@@ -250,6 +250,29 @@ pub fn by_mx(host: &str) -> Option<Preset> {
     if under("zoho.com") {
         return Some(with_password("Zoho", "imap.zoho.com", ("smtp.zoho.com", 465, tls), ""));
     }
+    // IONOS (formerly 1&1): one mail system, a server name per country of contract, told apart by
+    // the exchangers. IONOS's help pages "Default DNS settings for IONOS domains" and "IONOS mail
+    // server details for IMAP, POP3 and SMTP" name both.
+    let ionos = if under("ionos.co.uk") || under("1and1.co.uk") {
+        Some("co.uk")
+    } else if under("ionos.de") || under("kundenserver.de") {
+        Some("de")
+    } else if under("ionos.es") || under("1and1.es") {
+        Some("es")
+    } else if under("ionos.fr") || under("1and1.fr") {
+        Some("fr")
+    } else if under("ionos.it") || under("servercliente.it") {
+        Some("it")
+    } else if under("ionos.mx") {
+        Some("mx")
+    } else if under("ionos.com") || under("1and1.com") || under("perfora.net") {
+        Some("com")
+    } else {
+        None
+    };
+    if let Some(cc) = ionos {
+        return Some(with_password("IONOS", &format!("imap.ionos.{cc}"), (&format!("smtp.ionos.{cc}"), 465, tls), ""));
+    }
     None
 }
 
@@ -498,8 +521,35 @@ mod tests {
         assert_eq!(by_mx("aspmx.l.google.com").unwrap().service, "Google Workspace");
         assert_eq!(by_mx("in1-smtp.messagingengine.com").unwrap().service, "Fastmail");
         assert_eq!(by_mx("mx01.mail.icloud.com").unwrap().service, "iCloud");
+        for (mx, cc) in [
+            ("mx00.ionos.co.uk", "co.uk"),
+            ("mx01.1and1.co.uk.", "co.uk"),
+            ("mx00.ionos.de", "de"),
+            ("emig.kundenserver.de", "de"),
+            ("mx00.ionos.es", "es"),
+            ("mx00.1and1.fr", "fr"),
+            ("mx00.servercliente.it", "it"),
+            ("mx00.ionos.mx", "mx"),
+            ("mx00.ionos.com", "com"),
+            ("mx00.perfora.net", "com"),
+        ] {
+            let ionos = by_mx(mx).unwrap();
+            assert_eq!((ionos.service, ionos.oauth, ionos.note), ("IONOS", None, ""), "{mx}");
+            assert_eq!(ionos.incoming, server(&format!("imap.ionos.{cc}"), 993, Security::Tls), "{mx}");
+            assert_eq!(ionos.outgoing, server(&format!("smtp.ionos.{cc}"), 465, Security::Tls), "{mx}");
+        }
         // A look-alike is not the provider, nor is a host that isn't one.
-        for host in ["evilgoogle.com", "mail.protection.outlook.com.evil.example", "mx.lumen.example", "", "a b", "x/../mx.microsoft"] {
+        for host in [
+            "evilgoogle.com",
+            "evilionos.co.uk",
+            "ionos.co.uk.evil.example",
+            "mx00.ionos.co.uk.example",
+            "mail.protection.outlook.com.evil.example",
+            "mx.lumen.example",
+            "",
+            "a b",
+            "x/../mx.microsoft",
+        ] {
             assert_eq!(by_mx(host), None, "{host}");
         }
     }

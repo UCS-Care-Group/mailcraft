@@ -159,6 +159,10 @@ fn window_commands_validate() {
     a.services.system_locale = Some("pl-PL".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "pl");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Polish);
+    // Czech too.
+    a.services.system_locale = Some("cs-CZ".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "cs");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Czech);
     // Georgian too, and Automatic in Georgia follows it.
     assert_eq!(a.execute("ui.language", json!({"language": "ka"})).unwrap()["inForce"], "ka");
     a.services.system_locale = Some("ka-GE".into());
