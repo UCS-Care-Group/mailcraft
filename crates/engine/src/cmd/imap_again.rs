@@ -97,6 +97,7 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
         read.original = None;
         no_room = needs.max(1);
     }
+    let keeps_header = mb.message(id).is_some_and(|m| mb.keeps_header_as_it_came(m.account));
     let Ok(m) = mb.message_mut(id) else { return };
     (m.refetch, m.refetched) = (false, true);
     let wanted = std::mem::take(&mut m.original_wanted);
@@ -140,8 +141,9 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     m.body = read.body;
     m.hidden_text = read.hidden_text;
     // The lines of its header read into it, for a rule with words in the header: from the same
-    // header, for a message read before they were kept (#566).
-    if m.read_header.is_empty() {
+    // header, for a message read before they were kept, while a rule of its account looks for
+    // words in the header (#566).
+    if m.read_header.is_empty() && keeps_header {
         m.read_header = read.read_header;
     }
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.

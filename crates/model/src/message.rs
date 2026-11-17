@@ -357,8 +357,10 @@ pub struct Message {
     /// only decoded (a line with encoded words), as they came, one `name: value` to a line, at most
     /// [`MAX_READ_HEADER`] bytes: with the others ([`Message::headers`], [`Message::header_block`]),
     /// the header as it came, for a rule with words in the header alone, and never written into a
-    /// message (#566). Empty for a message read before it was kept, or made here: a header rule
-    /// can't tell of such a message ([`crate::Condition::unread_in`]).
+    /// message (#566). Kept only while a rule for its account looks for words in the header
+    /// ([`crate::Mailbox::keeps_header_as_it_came`]). Empty for a message read before it was kept
+    /// or while no such rule was there, or made here: a header rule can't tell of such a message
+    /// ([`crate::Condition::unread_in`]).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub read_header: String,
     /// Whether Exchange's stamps in [`Message::headers`] were read from the message by a MailCraft
