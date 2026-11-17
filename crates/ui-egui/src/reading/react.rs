@@ -19,6 +19,21 @@ pub(crate) fn drawn(emoji: &str) -> &str {
     emoji.trim_end_matches('\u{FE0F}')
 }
 
+/// The most characters of the sender's name shown beside the emoji: a name comes from the mail, and
+/// a long one must not push the address (what matters) out of the row or fill the screen.
+const NAME_LIMIT: usize = 40;
+
+/// `Name <address>` as the row shows it: the name cut at [`NAME_LIMIT`] characters, the address whole.
+pub(crate) fn shown(a: &mailcraft_model::Address) -> String {
+    let name = a.name.trim();
+    if name.is_empty() {
+        return a.email.clone();
+    }
+    let cut: String = name.chars().take(NAME_LIMIT).collect();
+    let dots = if name.chars().count() > NAME_LIMIT { "\u{2026}" } else { "" };
+    format!("{cut}{dots} <{}>", a.email)
+}
+
 /// The React button, and its row of emoji while it is open. Greyed, with the reason of a message
 /// that can't be reacted to as the engine judges it, and not there for a message not filed.
 pub(super) fn button(app: &mut MailApp, ui: &mut Ui, m: &Message) {
@@ -32,8 +47,9 @@ pub(super) fn button(app: &mut MailApp, ui: &mut Ui, m: &Message) {
         Some(why) => crate::i18n::t(text(why)),
         None => tl!("React"),
     };
-    let to = recipient(&app.session, m).map(|a| a.full());
+    let to = recipient(&app.session, m).map(|a| shown(&a));
     let resp = crate::widgets::icon_button(ui, "react", tip, 17.0, !blocked);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, !blocked, tip));
     app.hit.add("react", m.id, resp.rect);
     if blocked {
         return;

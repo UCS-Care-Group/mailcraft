@@ -488,7 +488,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                         }
                         // React sits between Forward and Delete (#1544).
                         if *id == "mail.delete" {
-                            react::button(app, ui, m);
+                            ui.push_id(("react", m.id), |ui| react::button(app, ui, m));
                         }
                     }
                 }

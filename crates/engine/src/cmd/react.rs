@@ -60,16 +60,22 @@ const NO_MESSAGE_ID: &str = "this message has no Message-ID, so a reaction can't
 const WARNED: &str = "this message has a warning about its sender, so no reaction is sent to it";
 const ACCOUNT: &str = "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account";
 
-/// [`why_not`], and a message with a sender warning refused too (the warnings the reading pane's
-/// banner shows, links looked at, as `mail.unsubscribe` judges them). These are worked out and kept
-/// by the session, so it takes `&mut`: the window and the command ask this; only the menu's enabled
-/// state (which has the session read-only) asks [`why_not`] alone, and the command still refuses.
+/// [`why_not`], and a message with a warning about its sender refused too: the warnings that say
+/// the sender may not be who it seems (a failed check, a name that hides another address, a
+/// look-alike or made-up domain, a brand's name on another domain). A warning about a link in the
+/// body, or the External tag, is no reason: an ordinary mail from a colleague is not refused for
+/// them. These are worked out and kept by the session, so it takes `&mut`: the window and the
+/// command ask this; only the menu's enabled state (which has the session read-only) asks
+/// [`why_not`] alone, and the command still refuses.
 pub fn refusal(s: &mut Session, m: &Message) -> Option<Why> {
+    use mailcraft_model::sender_warnings::Warning;
     if let Some(why) = why_not(s, m) {
         return Some(why);
     }
-    let warned = mailcraft_model::sender_warnings::banner_level(&s.sender_warnings(m, true)).is_some();
-    warned.then_some(Why::Warned)
+    let about_sender = |w: &Warning| {
+        !matches!(w, Warning::External { .. } | Warning::LinkMismatch { .. } | Warning::LinksUnchecked)
+    };
+    s.sender_warnings(m, false).iter().any(about_sender).then_some(Why::Warned)
 }
 
 /// Whether `m` can be reacted to, apart from a sender warning ([`refusal`]), or why not. The

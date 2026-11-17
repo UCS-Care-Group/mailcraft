@@ -28,6 +28,9 @@ fn window() -> Window {
     let _ = app.execute("ui.dismissReminder", json!({"all": true}));
     app.session.mailbox.message_mut(a).unwrap().message_id = "sample-1544@example.org".into();
     app.run("mail.select", json!({"id": a})).unwrap();
+    // The tests click React on this message: the sample's must not be one the engine refuses.
+    let m = app.session.mailbox.message(a).cloned().unwrap();
+    assert_eq!(mailcraft_engine::cmd::react::refusal(&mut app.session, &m), None, "the sample message can be reacted to");
     h.run_steps(5);
     h
 }
@@ -148,4 +151,16 @@ fn the_row_shows_the_sender_not_the_reply_to() {
     let sent = reactions(&h);
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0].to[0].email, from);
+}
+
+/// The name in the row is cut; the address stays whole.
+#[test]
+fn a_long_name_is_cut_in_the_row_and_the_address_kept() {
+    let long = "N".repeat(500);
+    let a = mailcraft_model::Address::new(&long, "bo@example.org");
+    let row = super::react::shown(&a);
+    assert!(row.chars().count() < 80, "{}", row.len());
+    assert!(row.ends_with("<bo@example.org>") && row.contains('\u{2026}'));
+    assert_eq!(super::react::shown(&mailcraft_model::Address::new("", "bo@example.org")), "bo@example.org");
+    assert_eq!(super::react::shown(&mailcraft_model::Address::new("Bo", "bo@example.org")), "Bo <bo@example.org>");
 }

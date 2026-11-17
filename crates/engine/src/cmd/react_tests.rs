@@ -256,6 +256,13 @@ fn a_message_with_a_sender_warning_is_refused() {
     assert!(err.to_string().contains("warning about its sender"), "{err}");
     let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
     assert_eq!(s.mailbox.messages_in(outbox).count(), 0, "nothing queued");
+    // A warning about a link in the body, or the External tag, is not about the sender: an
+    // ordinary HTML mail from a colleague is not refused for them.
+    let (mut s, _, original) = imap();
+    s.mailbox.message_mut(original).unwrap().body.html = Some(r#"<p><a href="https://collect.example/x">https://example.org/account</a></p>"#.into());
+    let m = s.mailbox.message(original).cloned().unwrap();
+    assert_eq!(super::react::refusal(&mut s, &m), None, "a link that goes elsewhere is no sender warning");
+    assert!(react(&mut s, original, THUMBS_UP).is_ok());
     // The same message without the warning goes out.
     let (mut s, _, original) = imap();
     let m = s.mailbox.message(original).cloned().unwrap();
