@@ -1294,11 +1294,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-ber"
-<<<<<<< HEAD
-version = "0.12.0"
-=======
 version = "0.13.0"
->>>>>>> origin/main
 
 [[package]]
 name = "mailcraft-charset"
@@ -1420,11 +1416,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-jmap-types"
-<<<<<<< HEAD
-version = "0.12.0"
-=======
 version = "0.13.0"
->>>>>>> origin/main
 dependencies = [
  "serde",
  "serde_json",
@@ -1444,22 +1436,9 @@ dependencies = [
  "mailcraft-ber",
  "mailcraft-charset",
  "mailcraft-html",
-<<<<<<< HEAD
  "mailcraft-time",
  "mailcraft-tnef",
  "thiserror",
-]
-
-[[package]]
-name = "mailcraft-mime-model"
-version = "0.12.0"
-dependencies = [
- "mailcraft-html",
- "mailcraft-mime",
- "mailcraft-model",
-=======
->>>>>>> origin/main
- "mailcraft-time",
 ]
 
 [[package]]
@@ -1556,7 +1535,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-tnef"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-pst",
