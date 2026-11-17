@@ -3,7 +3,7 @@
 //! The rest of Outlook's conditions, exceptions and actions (#566): what `rules.add` takes and
 //! refuses, and what a rule does with the mail it finds.
 
-use mailcraft_model::{Action, Address, Condition, FlagStatus, FolderKind, FollowUp, Id, Importance, Message, Sensitivity};
+use mailcraft_model::{Action, Address, Condition, FlagDue, FlagStatus, FolderKind, Id, Importance, Message, Sensitivity};
 use serde_json::{Value, json};
 
 use crate::Session;
@@ -70,7 +70,7 @@ fn every_new_part_is_taken_and_one_of_the_wrong_type_is_refused() {
         r.exceptions,
         [Condition::SubjectContains(vec!["opt out".into(), "Unsubscribe".into()]), Condition::HasAttachment, Condition::Importance(Importance::Low)]
     );
-    assert_eq!(r.actions, [Action::CopyTo(kept), Action::FlagFor(FollowUp::NextWeek), Action::ClearFlag, Action::ClearCategories, Action::Delete]);
+    assert_eq!(r.actions, [Action::CopyTo(kept), Action::FlagFor(FlagDue::NextWeek), Action::ClearFlag, Action::ClearCategories, Action::Delete]);
     // A desktop alert is something to do by itself; nothing at all is not.
     let alert = json!({"name": "Boss", "conditions": [{"type": "from", "value": "boss@example.org"}], "actions": [], "alert": true});
     let boss = s.run("rules.add", &alert).unwrap()["id"].as_u64().unwrap();

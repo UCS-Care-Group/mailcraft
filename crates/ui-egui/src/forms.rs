@@ -4356,7 +4356,7 @@ pub(crate) mod rules {
     use mailcraft_engine::Session;
     use mailcraft_engine::cmd::rules::{NotOnServer, by_address, server_cannot, server_cannot_draft};
     use mailcraft_model::time::Date;
-    use mailcraft_model::{Action, FolderKind, FollowUp, Id, Importance, Keep, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
+    use mailcraft_model::{Action, FlagDue, FolderKind, Id, Importance, Keep, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
     use serde_json::{Value, json};
 
     use super::kit::{Pass, body, close_button, error, row, shown, tall_row};
@@ -4699,7 +4699,7 @@ pub(crate) mod rules {
         category: String,
         importance: Importance,
         /// When a flag falls due: none for no date.
-        due: Option<FollowUp>,
+        due: Option<FlagDue>,
     }
 
     impl Act {
@@ -4750,13 +4750,13 @@ pub(crate) mod rules {
     }
 
     /// When a flag falls due, as the Follow Up menu names it.
-    fn due_label(due: Option<FollowUp>) -> &'static str {
+    fn due_label(due: Option<FlagDue>) -> &'static str {
         match due {
             None => tl!("No Date"),
-            Some(FollowUp::Today) => tl!("Today"),
-            Some(FollowUp::Tomorrow) => tl!("Tomorrow"),
-            Some(FollowUp::ThisWeek) => tl!("This Week"),
-            Some(FollowUp::NextWeek) => tl!("Next Week"),
+            Some(FlagDue::Today) => tl!("Today"),
+            Some(FlagDue::Tomorrow) => tl!("Tomorrow"),
+            Some(FlagDue::ThisWeek) => tl!("This Week"),
+            Some(FlagDue::NextWeek) => tl!("Next Week"),
         }
     }
 
@@ -5535,7 +5535,7 @@ pub(crate) mod rules {
                         // When it falls due, as Follow Up's menu offers.
                         Do::Flag => {
                             ui.label(tl!("due"));
-                            let dues = [None, Some(FollowUp::Today), Some(FollowUp::Tomorrow), Some(FollowUp::ThisWeek), Some(FollowUp::NextWeek)];
+                            let dues = [None, Some(FlagDue::Today), Some(FlagDue::Tomorrow), Some(FlagDue::ThisWeek), Some(FlagDue::NextWeek)];
                             choice(ui, ("do_due", i), 110.0, &mut a.due, &dues, |d| due_label(d).to_string());
                         }
                         Do::ClearCategories | Do::ClearFlag | Do::MarkRead | Do::Delete => {}

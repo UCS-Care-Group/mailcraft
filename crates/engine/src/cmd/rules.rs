@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use mailcraft_model::{
-    Action, Condition, FollowUp, Id, Importance, Keep, MAX_NAME, MAX_WORD, MAX_WORDS_EACH, Mailbox, Message, Rule, RuleGone, Sensitivity, Words,
+    Action, Condition, FlagDue, Id, Importance, Keep, MAX_NAME, MAX_WORD, MAX_WORDS_EACH, Mailbox, Message, Rule, RuleGone, Sensitivity, Words,
     clean_name,
 };
 use serde_json::{Value, json};
@@ -346,7 +346,7 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
         "categorize" => Action::Categorize(category_name(p::str(v, "value").unwrap_or(""))?),
         "flag" => alone(v, kind, Action::Flag)?,
         "flagFor" => {
-            Action::FlagFor(FollowUp::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("flagFor is today, tomorrow, thisWeek or nextWeek"))?)
+            Action::FlagFor(FlagDue::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("flagFor is today, tomorrow, thisWeek or nextWeek"))?)
         }
         "clearFlag" => alone(v, kind, Action::ClearFlag)?,
         "clearCategories" => alone(v, kind, Action::ClearCategories)?,

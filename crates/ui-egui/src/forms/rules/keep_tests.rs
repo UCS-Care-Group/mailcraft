@@ -302,7 +302,7 @@ fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
     ];
     f.acts = vec![
         Act { kind: Do::Copy, folder: receipts, ..f.fresh_action() },
-        Act { kind: Do::Flag, due: Some(FollowUp::Tomorrow), ..f.fresh_action() },
+        Act { kind: Do::Flag, due: Some(FlagDue::Tomorrow), ..f.fresh_action() },
         Act { kind: Do::ClearCategories, ..f.fresh_action() },
     ];
     f.alert = true;

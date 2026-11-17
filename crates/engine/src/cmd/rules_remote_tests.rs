@@ -971,7 +971,7 @@ fn what_is_for_another_account_or_hostile_changes_nothing_it_shouldnt() {
     merge_rules(&mut s.mailbox, &RulesDownload { complete: false, ..download(account, vec![unnamed]) }).unwrap();
     assert!(!s.mailbox.rules.iter().find(|r| r.name == "Unnamed").unwrap().known());
     // And so is an action no server's rule takes, which would act here at Run Rules Now.
-    for (n, action) in [Action::FlagFor(mailcraft_model::FollowUp::Today), Action::ClearFlag, Action::ClearCategories].into_iter().enumerate() {
+    for (n, action) in [Action::FlagFor(mailcraft_model::FlagDue::Today), Action::ClearFlag, Action::ClearCategories].into_iter().enumerate() {
         let mut odd = remote(&format!("r{}", 10 + n), &format!("Odd {n}"), 10 + n as i32);
         odd.actions = vec![Action::MarkRead, action.clone()];
         merge_rules(&mut s.mailbox, &RulesDownload { complete: false, ..download(account, vec![odd]) }).unwrap();
@@ -1241,7 +1241,7 @@ fn the_owner_says_whether_a_new_rule_is_kept_on_the_server_and_is_told_why_it_ca
 #[test]
 fn the_server_keeps_the_new_parts_it_can_and_says_why_not_for_the_rest() {
     use super::rules::{NotOnServer, server_cannot};
-    use mailcraft_model::{FollowUp, Importance, Sensitivity, time::Date};
+    use mailcraft_model::{FlagDue, Importance, Sensitivity, time::Date};
     let (mut s, account, local, news) = session();
     let here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
@@ -1280,7 +1280,7 @@ fn the_server_keeps_the_new_parts_it_can_and_says_why_not_for_the_rest() {
         (Rule { actions: vec![Action::CopyTo(999_999)], ..base.clone() }, NotOnServer::CopyNotThere),
         (Rule { actions: vec![Action::CopyTo(news), Action::CopyTo(news)], ..base.clone() }, NotOnServer::TwoCopies),
         (Rule { actions: vec![Action::ClearCategories], ..base.clone() }, NotOnServer::ClearCategories),
-        (Rule { actions: vec![Action::FlagFor(FollowUp::Today)], ..base.clone() }, NotOnServer::Flag),
+        (Rule { actions: vec![Action::FlagFor(FlagDue::Today)], ..base.clone() }, NotOnServer::Flag),
         (Rule { actions: vec![Action::ClearFlag], ..base.clone() }, NotOnServer::ClearFlag),
         (
             Rule { exceptions: vec![Condition::Importance(Importance::Low), Condition::Importance(Importance::High)], ..base.clone() },

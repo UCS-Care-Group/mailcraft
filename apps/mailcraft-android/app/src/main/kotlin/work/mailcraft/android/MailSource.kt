@@ -112,4 +112,5 @@ internal fun uniffi.mailcraft_mobile.MessageRow.toRow() = InboxRow(
     categories = categories,
     account = account,
     folder = folder,
+    address = fromAddress,
 )

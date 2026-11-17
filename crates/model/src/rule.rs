@@ -408,7 +408,7 @@ pub fn fold_exceptions(list: Vec<Condition>) -> Result<Vec<Condition>, ModelErro
 /// When a flag a rule sets falls due (Outlook's "flag message for follow up at this time").
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum FollowUp {
+pub enum FlagDue {
     Today,
     Tomorrow,
     /// This week's Friday, as on the ribbon.
@@ -417,19 +417,19 @@ pub enum FollowUp {
     NextWeek,
 }
 
-impl FollowUp {
-    pub const ALL: [FollowUp; 4] = [FollowUp::Today, FollowUp::Tomorrow, FollowUp::ThisWeek, FollowUp::NextWeek];
+impl FlagDue {
+    pub const ALL: [FlagDue; 4] = [FlagDue::Today, FlagDue::Tomorrow, FlagDue::ThisWeek, FlagDue::NextWeek];
 
-    pub fn parse(s: &str) -> Option<FollowUp> {
-        FollowUp::ALL.into_iter().find(|f| f.code().eq_ignore_ascii_case(s.trim()))
+    pub fn parse(s: &str) -> Option<FlagDue> {
+        FlagDue::ALL.into_iter().find(|f| f.code().eq_ignore_ascii_case(s.trim()))
     }
 
     pub fn code(self) -> &'static str {
         match self {
-            FollowUp::Today => "today",
-            FollowUp::Tomorrow => "tomorrow",
-            FollowUp::ThisWeek => "thisWeek",
-            FollowUp::NextWeek => "nextWeek",
+            FlagDue::Today => "today",
+            FlagDue::Tomorrow => "tomorrow",
+            FlagDue::ThisWeek => "thisWeek",
+            FlagDue::NextWeek => "nextWeek",
         }
     }
 
@@ -438,10 +438,10 @@ impl FollowUp {
     pub fn day(self, today: Date) -> Date {
         let weekday = i64::from(today.weekday().index());
         match self {
-            FollowUp::Today => today,
-            FollowUp::Tomorrow => today.add_days(1),
-            FollowUp::ThisWeek => today.add_days((4 - weekday).max(0)),
-            FollowUp::NextWeek => today.add_days(11 - weekday),
+            FlagDue::Today => today,
+            FlagDue::Tomorrow => today.add_days(1),
+            FlagDue::ThisWeek => today.add_days((4 - weekday).max(0)),
+            FlagDue::NextWeek => today.add_days(11 - weekday),
         }
     }
 
@@ -468,7 +468,7 @@ pub enum Action {
     /// Put a copy in the folder with this id.
     CopyTo(Id),
     /// Flag it, due then.
-    FlagFor(FollowUp),
+    FlagFor(FlagDue),
     ClearFlag,
     ClearCategories,
 }
@@ -491,10 +491,10 @@ impl Action {
             Action::Delete => "delete it".into(),
             Action::CopyTo(_) => "copy it to a folder".into(),
             Action::FlagFor(f) => match f {
-                FollowUp::Today => "flag it for today".into(),
-                FollowUp::Tomorrow => "flag it for tomorrow".into(),
-                FollowUp::ThisWeek => "flag it for this week".into(),
-                FollowUp::NextWeek => "flag it for next week".into(),
+                FlagDue::Today => "flag it for today".into(),
+                FlagDue::Tomorrow => "flag it for tomorrow".into(),
+                FlagDue::ThisWeek => "flag it for this week".into(),
+                FlagDue::NextWeek => "flag it for next week".into(),
             },
             Action::ClearFlag => "clear its flag".into(),
             Action::ClearCategories => "clear its categories".into(),

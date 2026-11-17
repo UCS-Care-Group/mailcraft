@@ -256,6 +256,8 @@ fn a_sign_in_adds_the_account_and_keeps_only_the_refresh_token_in_the_secure_sto
     let SignInOutcome::SignedIn { account, email, name } = outcome.clone() else { panic!("{outcome:?}") };
     assert_eq!((email.as_str(), name.as_str()), (ADA, "Ada Lumen"));
     assert_eq!(rig.accounts(), vec![(account, ADA.to_string())]);
+    // A phone keeps a month of mail offline until the owner says otherwise (the desktop, twelve).
+    assert_eq!(block_on(rig.core.keep_offline(account)).unwrap(), "1m");
     // The refresh token is in the store, under the account's address, and nothing else is.
     assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
     assert_eq!(rig.secrets_kept(), 1);
@@ -799,8 +801,16 @@ fn with_sign_ins_not_remembered_add_account_keeps_nothing_in_the_store() {
     assert_eq!(rig.secrets_kept(), 0);
     // A permission given then writes nothing either.
     rig.page_comes_back_with(CODE_BACK);
+    let server2 = TokenServer::start(|_| (200, tokens_for(ADA, "Ada Lumen", "refresh-token-2")));
+    *rig.core.signins.server.lock().unwrap() =
+        Some((format!("http://127.0.0.1:{0}/authorize", server2.port), format!("http://127.0.0.1:{0}/token", server2.port)));
     assert_eq!(block_on(rig.core.grant_permission(account, Permission::Tasks)).unwrap(), PermissionOutcome::Granted);
     assert_eq!(rig.secrets_kept(), 0);
+    // It is the session's sign-in now, so the to-dos' job has one, and the engine knows it was allowed.
+    let sync = rig.core.sync.clone();
+    let (refresh, held) = block_on(rig.core.call(move |s| Ok((sync.refresh_for(s, account), s.tasks_blocked(account, Some("x")))))).unwrap();
+    assert_eq!(refresh.as_deref(), Some("refresh-token-2"));
+    assert!(!held);
 }
 
 #[test]

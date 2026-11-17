@@ -116,7 +116,7 @@ pub(crate) fn stand_in() -> (Arc<Runner>, Arc<Mutex<Vec<String>>>) {
 }
 
 /// What is waiting in the event stream now, without waiting for more.
-fn drain(core: &Core) -> Vec<Event> {
+pub(crate) fn drain(core: &Core) -> Vec<Event> {
     let mut out = Vec::new();
     let mut cx = Context::from_waker(Waker::noop());
     loop {
@@ -197,6 +197,62 @@ fn new_mail_notifications_can_be_switched_off_and_many_are_counted() {
     let events = until_finished(&core);
     assert!(!events.iter().any(|e| matches!(e, Event::Notification { .. })), "{events:?}");
     assert!(events.iter().any(|e| matches!(e, Event::SyncFinished { new_mail: 1, .. })));
+}
+
+#[test]
+fn the_privacy_switch_makes_a_notification_say_new_mail_and_nothing_else() {
+    let (runner, _) = stand_in();
+    let (core, _, _) = signed_in(runner);
+    core.set_notify_new_mail_only(true);
+    block_on(core.sync_now()).unwrap();
+    until_finished(&core);
+    block_on(core.sync_now()).unwrap();
+    let events = until_finished(&core);
+    let told: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Notification { notification } => Some(notification.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(told.len(), 1, "{events:?}");
+    assert_eq!((told[0].topic, told[0].title.as_str(), told[0].body.as_str()), (NotificationTopic::Mail, "New mail", ""));
+    // Nothing of the message is anywhere in what the app is told.
+    let all = format!("{told:?}");
+    assert!(!all.contains("Ada") && !all.contains("Budget"), "{all}");
+}
+
+#[test]
+fn the_primary_switch_drops_the_arrivals_gmail_put_in_other_categories() {
+    let (runner, _) = stand_in();
+    let (core, _, _) = signed_in(runner);
+    block_on(core.sync_now()).unwrap();
+    until_finished(&core);
+    let kept = block_on(core.call(|s| {
+        let ids: Vec<_> = s.mailbox.messages.keys().copied().collect();
+        let found: Vec<_> = ids
+            .iter()
+            .map(|id| mailcraft_engine::arrivals::Arrival {
+                message: *id,
+                account: 0,
+                folder: 0,
+                sender: String::new(),
+                subject: String::new(),
+                rule: false,
+            })
+            .collect();
+        assert_eq!(crate::sync::primary_only(&s.mailbox, &found).len(), found.len(), "no category: kept");
+        for m in s.mailbox.messages.values_mut() {
+            std::sync::Arc::make_mut(m).gmail_category = Some(mailcraft_model::GmailCategory::Promotions);
+        }
+        let other = crate::sync::primary_only(&s.mailbox, &found).len();
+        for m in s.mailbox.messages.values_mut() {
+            std::sync::Arc::make_mut(m).gmail_category = Some(mailcraft_model::GmailCategory::Primary);
+        }
+        Ok((other, crate::sync::primary_only(&s.mailbox, &found).len(), found.len()))
+    }))
+    .unwrap();
+    assert_eq!((kept.0, kept.1), (0, kept.2));
 }
 
 #[test]

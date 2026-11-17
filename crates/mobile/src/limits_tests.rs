@@ -115,3 +115,28 @@ fn a_trimming_step_is_due_once_and_again_when_asked() {
     t.step(&mut more);
     assert!(more.mailbox.messages.is_empty());
 }
+
+#[test]
+fn the_storage_cap_is_read_set_within_its_bounds_and_offered_with_the_present_one_among_the_choices() {
+    let (mut s, _) = before_the_limits();
+    let before = crate::limits::storage_of(&s);
+    assert_eq!((before.cap_mb, before.messages), (500, 0));
+    assert_eq!(before.choices_mb, [250, 500, 1024, 2048, 5120, 10240]);
+    crate::limits::set_storage(&mut s, 3000).unwrap();
+    let after = crate::limits::storage_of(&s);
+    assert_eq!(after.cap_mb, 3000);
+    assert_eq!(after.choices_mb, [250, 500, 1024, 2048, 3000, 5120, 10240]);
+    crate::limits::set_storage(&mut s, 0).unwrap();
+    assert_eq!(crate::limits::storage_of(&s).cap_mb, 50);
+}
+
+#[test]
+fn what_the_phone_holds_counts_its_messages() {
+    let (mut s, account) = before_the_limits();
+    let mut m = mailcraft_model::Message { account, subject: "Hello".into(), ..Default::default() };
+    m.id = 7;
+    s.mailbox.messages.insert(7, std::sync::Arc::new(m));
+    let held = crate::limits::storage_of(&s);
+    assert_eq!(held.messages, 1);
+    assert!(held.used_bytes >= mailcraft_engine::cmd::device_limits::HEADER_BYTES, "{held:?}");
+}

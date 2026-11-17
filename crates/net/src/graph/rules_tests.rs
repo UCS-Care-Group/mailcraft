@@ -281,7 +281,7 @@ fn two_exceptions_of_a_kind_go_up_as_one_and_two_conditions_never_do() {
     // What the server's rules can't do isn't sent.
     for (conditions, actions) in [
         (vec![Condition::ReceivedBetween { from: None, to: mailcraft_model::time::Date::new(2026, 12, 31) }], vec![Action::MarkRead]),
-        (vec![Condition::ToMe], vec![Action::FlagFor(mailcraft_model::FollowUp::Today)]),
+        (vec![Condition::ToMe], vec![Action::FlagFor(mailcraft_model::FlagDue::Today)]),
         (vec![Condition::ToMe], vec![Action::ClearFlag]),
         (vec![Condition::ToMe], vec![Action::ClearCategories]),
     ] {

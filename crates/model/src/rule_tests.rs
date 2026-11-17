@@ -254,16 +254,16 @@ fn a_flag_for_this_week_falls_due_on_its_friday_at_the_end_of_the_day() {
     // Tuesday 3 November 2026, 09:00 there.
     let now = DateTime::new(Date::new(2026, 11, 3).unwrap(), 9, 0, 0).unwrap().to_timestamp(120);
     let clock = RuleClock { now, zone, due_hour: 17 };
-    let due = |f: FollowUp| zone.wall(f.due(&clock).unwrap());
-    assert_eq!(due(FollowUp::Today), DateTime::new(Date::new(2026, 11, 3).unwrap(), 17, 0, 0).unwrap());
-    assert_eq!(due(FollowUp::Tomorrow).date, Date::new(2026, 11, 4).unwrap());
-    assert_eq!(due(FollowUp::ThisWeek).date, Date::new(2026, 11, 6).unwrap());
-    assert_eq!(due(FollowUp::NextWeek).date, Date::new(2026, 11, 13).unwrap());
+    let due = |f: FlagDue| zone.wall(f.due(&clock).unwrap());
+    assert_eq!(due(FlagDue::Today), DateTime::new(Date::new(2026, 11, 3).unwrap(), 17, 0, 0).unwrap());
+    assert_eq!(due(FlagDue::Tomorrow).date, Date::new(2026, 11, 4).unwrap());
+    assert_eq!(due(FlagDue::ThisWeek).date, Date::new(2026, 11, 6).unwrap());
+    assert_eq!(due(FlagDue::NextWeek).date, Date::new(2026, 11, 13).unwrap());
     // At the weekend, as Follow Up's menu: this week is today, next week the coming Friday.
     for (saturday_or_sunday, friday) in [(7, 13), (8, 13)] {
         let today = Date::new(2026, 11, saturday_or_sunday).unwrap();
-        assert_eq!(FollowUp::ThisWeek.day(today), today);
-        assert_eq!(FollowUp::NextWeek.day(today), Date::new(2026, 11, friday).unwrap(), "{saturday_or_sunday}");
+        assert_eq!(FlagDue::ThisWeek.day(today), today);
+        assert_eq!(FlagDue::NextWeek.day(today), Date::new(2026, 11, friday).unwrap(), "{saturday_or_sunday}");
     }
 }
 

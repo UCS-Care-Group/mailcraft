@@ -54,7 +54,9 @@ fn has_imap_microsoft(s: &Session) -> Option<&'static str> {
 /// message held in the Outbox waits for its owner, not for a run.
 pub fn waiting(s: &Session, account: Id) -> usize {
     let mb = &s.mailbox;
-    let outbox = mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty()).count());
+    let now = s.now();
+    let outbox =
+        mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty() && !m.waits_until(now)).count());
     outbox.saturating_add(left_behind(s, account))
 }
 
@@ -285,6 +287,8 @@ pub fn switch(s: &mut Session, account: Id) -> Result<Switched, CmdError> {
     let a = mb.account_mut(account).map_err(|e| fail(e.to_string()))?;
     a.kind = AccountKind::Microsoft;
     (a.incoming, a.outgoing) = (None, None);
+    // (Microsoft keeps its calendars through Graph: no calendar and contacts server of its own.)
+    a.dav = None;
     a.graph_switch = GraphSwitch::NotAsked;
     // What the session kept of the messages that went.
     let mb = &s.mailbox;

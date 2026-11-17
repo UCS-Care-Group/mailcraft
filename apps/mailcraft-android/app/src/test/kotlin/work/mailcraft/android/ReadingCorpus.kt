@@ -84,7 +84,7 @@ internal object Corpus {
     private fun view(id: ULong, subject: String, blocks: List<BlockView>, remote: UInt = 0u, attachments: List<AttachmentRecord> = emptyList()) =
         MessageView(
             1uL, id, 1uL, 1uL, ada, listOf(me), emptyList(), subject, 1_730_000_000L, false, false, emptyList(),
-            attachments, blocks, false, remote,
+            attachments, blocks, false, remote, true,
         )
 
     val plain = Entry(
@@ -209,8 +209,10 @@ internal object Corpus {
     val all = listOf(plain, newsletter, dataTable, reply, longLinks)
 
     /** The message as the reading pane gets it from the core. */
-    fun opened(entry: Entry): OpenedMessage = OpenedMessage(
+    fun opened(entry: Entry, junk: Boolean = false, vouched: Boolean = true): OpenedMessage = OpenedMessage(
         entry.view,
+        MessageFacts(entry.view.from.address, junk = junk, vouched = vouched, known = false),
         entry.links.associateWith { LinkInfo(if (it.startsWith("mailto:")) LinkGoes.Composer else if (it.startsWith("tel:")) LinkGoes.Dialer else LinkGoes.Browser, it) },
+        entry.view.attachments.map { item(it.name, index = it.index, size = it.size.toLong()) },
     )
 }

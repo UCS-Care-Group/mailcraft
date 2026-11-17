@@ -14,7 +14,7 @@ import org.junit.Test
 
 private val NOV_4: LocalDate = CalendarShots.today
 
-/** The Calendar tab on a phone: its three views, an invitation and the editor, light and dark, 100% and 200%. */
+/** The Calendar tab on a phone: its four views, an invitation and the editor, light and dark, 100% and 200%. */
 class PhoneCalendarScreenshotTest {
     @get:Rule
     val paparazzi = Paparazzi(
@@ -41,6 +41,18 @@ class PhoneCalendarScreenshotTest {
 
     @Test
     fun dayDark200() = shoot("calendar_phone_day_dark_200", true, 2f, CalendarShots.state(CalendarMode.Day))
+
+    @Test
+    fun weekLight100() = shoot("calendar_phone_week_light_100", false, 1f, CalendarShots.week())
+
+    @Test
+    fun weekDark100() = shoot("calendar_phone_week_dark_100", true, 1f, CalendarShots.week())
+
+    @Test
+    fun weekLight200() = shoot("calendar_phone_week_light_200", false, 2f, CalendarShots.week())
+
+    @Test
+    fun weekDark200() = shoot("calendar_phone_week_dark_200", true, 2f, CalendarShots.week())
 
     @Test
     fun monthLight100() = shoot("calendar_phone_month_light_100", false, 1f, CalendarShots.state(CalendarMode.Month))
@@ -102,6 +114,12 @@ class TabletCalendarScreenshotTest {
 
     @Test
     fun dayDark100() = shoot("calendar_tablet_day_dark_100", true, 1f, CalendarShots.state(CalendarMode.Day))
+
+    @Test
+    fun weekLight100() = shoot("calendar_tablet_week_light_100", false, 1f, CalendarShots.week())
+
+    @Test
+    fun weekDark200() = shoot("calendar_tablet_week_dark_200", true, 2f, CalendarShots.week())
 
     @Test
     fun monthLight200() = shoot("calendar_tablet_month_light_200", false, 2f, CalendarShots.state(CalendarMode.Month))

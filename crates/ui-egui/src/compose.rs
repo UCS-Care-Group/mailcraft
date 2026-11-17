@@ -158,7 +158,10 @@ fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text:
     let mut buf = text.to_string();
     let edit = line_edit(&mut buf, id, tl!("Names or addresses, separated by ;"), at.width());
     let layout = egui::Layout::centered_and_justified(egui::Direction::TopDown);
-    let out = ui.scope_builder(egui::UiBuilder::new().max_rect(at).layout(layout), |ui| recipient_line(ui, &app.session, id, edit, true)).inner;
+    // Nothing is suggested while a dialog is open (Check Names' choice): one list of people at a
+    // time.
+    let offer = app.dialog.is_none();
+    let out = ui.scope_builder(egui::UiBuilder::new().max_rect(at).layout(layout), |ui| recipient_line(ui, &app.session, id, edit, offer)).inner;
     if focus {
         out.text_edit.response.request_focus();
     }
@@ -183,6 +186,8 @@ struct Shown {
     /// Each attachment's name, as it is written to a file (a forward carries the sender's), and size.
     attachments: Vec<(String, String)>,
     quote: bool,
+    /// Delay Delivery: not sent before this time.
+    send_at: Option<i64>,
 }
 
 impl Shown {
@@ -190,6 +195,7 @@ impl Shown {
         let c = app.session.compose.as_ref()?;
         Some(Shown {
             mode: c.mode,
+            send_at: c.send_at,
             dirty: c.dirty,
             draft: c.draft.is_some(),
             account: c.account,
@@ -324,6 +330,11 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
         ""
     };
     let status = if state.is_empty() { title.to_string() } else { format!("{title}  {state}") };
+    // Delay Delivery is on: said beside the rest, where it can be seen before Send is pressed.
+    let status = match c.send_at.filter(|at| *at > app.session.now()) {
+        Some(at) => format!("{status}  {}", crate::i18n::fmt(tl!("Delayed until {when}"), &[("when", &crate::send_later::label(app, at))])),
+        None => status,
+    };
     let tools = [
         ("attach", tl!("Attach"), "ui.attach", true),
         ("saveDraft", tl!("Save draft"), "compose.saveDraft", c.dirty || !c.draft),
@@ -334,7 +345,7 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
         let room = ui.available_width();
         ui.set_min_width(room);
         ui.spacing_mut().item_spacing = vec2(GAP, 4.0);
-        let send_width = primary_button_width(ui, send);
+        let send_width = primary_button_width(ui, send) + 10.0 + 8.0 + GAP;
         let status_width = ui.painter().layout_no_wrap(status.clone(), regular(11.5), t.text_dim).size().x;
         let right_width = status_width + GAP + if window.is_none() { 2.0 * (WINDOW_ICON + 8.0 + GAP) } else { 0.0 };
         let recent_width = if app.services.recent_attachments.is_some() { crate::recent_attachments::ARROW + 8.0 + GAP } else { 0.0 };
@@ -347,6 +358,7 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
             if primary_button(ui, send, true).on_hover_text(format!("{send} ({shortcut})")).clicked() {
                 let _ = app.run("compose.send", json!({}));
             }
+            crate::send_later::arrow(ui, app);
             for (icon, label, command, enabled) in tools {
                 let button = if labeled { icon_text_button(ui, icon, label, enabled) } else { icon_button(ui, icon, label, ACTION_ICON, enabled) };
                 button.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));

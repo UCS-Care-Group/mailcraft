@@ -82,6 +82,8 @@ fn window(links: (bool, bool)) -> (MailApp, Id, Id, Shared) {
     let host: Shared = Default::default();
     let note = host.clone();
     app.services.graph = Some(Box::new(move |req: GraphRequest| {
+        // The owner's pass and the shared mailbox's: checked against the owner's sign-in.
+        assert_eq!(req.signer.as_ref().map(|a| a.email.as_str()), Some(OWNER));
         let mut host = note.lock().unwrap();
         let mail = req.mail.clone().unwrap_or_default();
         let (account, email) = (req.account.id, req.account.email.clone());

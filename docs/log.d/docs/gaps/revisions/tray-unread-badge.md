@@ -1,0 +1,1 @@
+| 2026-11-16 | minor | #544: Gap 11: the system tray icon indicates unread Inbox mail in the owner’s own server accounts with a red circle; shared, local, imported and filed mail do not count; numbered counts remain absent |
