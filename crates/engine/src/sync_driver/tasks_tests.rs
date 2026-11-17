@@ -38,8 +38,11 @@ fn nothing_is_due_while_the_host_cannot_or_something_else_goes_first() {
     assert_eq!(s.tasks_due(&facts(), tokens, 1e6), vec![a]);
     assert!(s.tasks_due(&TasksFacts { reachable: false, ..facts() }, tokens, 1e6).is_empty());
     assert!(s.tasks_due(&TasksFacts { running: true, ..facts() }, tokens, 1e6).is_empty());
-    let busy = Busy { signing_in: true, ..Default::default() };
+    let busy = Busy { signing_in: Some(a), ..Default::default() };
     assert!(s.tasks_due(&TasksFacts { busy, ..facts() }, tokens, 1e6).is_empty());
+    // Another account's sign-in doesn't hold this one's to-dos (#1557).
+    let busy = Busy { signing_in: Some(a + 1), ..Default::default() };
+    assert_eq!(s.tasks_due(&TasksFacts { busy, ..facts() }, tokens, 1e6), vec![a]);
     // Asked for: not again until the refresh time.
     s.tasks_started(a, 1e6);
     assert!(s.tasks_due(&facts(), tokens, 1e6 + 1_000.0).is_empty());

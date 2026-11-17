@@ -283,20 +283,25 @@ impl Session {
             driver.held.clear();
             return look;
         }
-        // One thing at a time: a Send/Receive, a sign-in, the calendar's, the tasks' and the
-        // rules' jobs go first.
-        if facts.running || !facts.reachable || facts.busy.blocks(Start::AutoReplies) {
+        // One thing at a time: a Send/Receive, the calendar's, the tasks' and the rules' jobs go
+        // first, and an account's sign-in goes before its own replies.
+        if facts.running || !facts.reachable || facts.busy.blocks_every(Start::AutoReplies) {
             return look;
         }
-        if let Some((account, change)) = self.driver.auto_replies.waiting.take() {
-            look.plans.push(RepliesPlan { account, change: Some(change) });
-            return look;
+        // A change that waits goes next, unless its account is signing in: then it waits for
+        // that, and the other accounts' replies are read meanwhile.
+        match self.driver.auto_replies.waiting.take() {
+            Some((account, change)) if !facts.busy.blocks(Start::AutoReplies, account) => {
+                look.plans.push(RepliesPlan { account, change: Some(change) });
+                return look;
+            }
+            other => self.driver.auto_replies.waiting = other,
         }
         if !self.driver.auto_sync() {
             return look;
         }
         for account in crate::cmd::auto_replies::reply_accounts(&self.mailbox) {
-            if self.auto_replies_blocked(account, refresh(account).as_deref()) {
+            if facts.busy.blocks(Start::AutoReplies, account) || self.auto_replies_blocked(account, refresh(account).as_deref()) {
                 continue;
             }
             let driver = &mut self.driver.auto_replies;
