@@ -157,8 +157,8 @@ impl Opened {
         let added = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
         let kept = self
             .kept
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |k| Some(k.saturating_add(added)))
-            .map_or(u64::MAX, |k| k.saturating_add(added));
+            .fetch_add(added, Ordering::Relaxed)
+            .saturating_add(added);
         if kept > self.max_copied {
             self.trim_copies(Some(&path));
         }

@@ -422,7 +422,7 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   `/home/<name>/.ssh/id_rsa` paths would get every one that exists attached on one Ctrl+V with
   only the name showing; so off macOS the text must be the path or address itself, and a page can attach only a file
   whose whole path it guessed (a residual risk: the status line names the file attached and the
-  owner can remove it before sending). Text that names
+  owner can remove it before sending). macOS keeps the bare-name case on purpose (Finder needs it), with the same mitigation: the status line names each file attached and the owner can remove it. Text that names
   anything else is pasted as text. The status line names the files attached, and a path of the
   network (`\\host\share`) on Windows is left out before it is looked at. The rule is one function
   taking the system as a value, tested for all three (`crates/ui-egui/src/compose/file_paste.rs`).
