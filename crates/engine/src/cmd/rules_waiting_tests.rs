@@ -1205,3 +1205,48 @@ fn a_second_delivery_at_a_later_inbox_check_is_mail_the_account_had() {
     check(&mut s, vec![twin("N3")]);
     assert_eq!((alerted(&s, "N3"), s.mailbox.messages_in(copies).count()), ((inbox, false), 2), "mail the account had");
 }
+
+/// An Exchange 2010 server didn't give the recipients of two new messages (they are listed `cut`,
+/// with no To), and a rule deletes mail when my address isn't in To: nothing is deleted as it
+/// arrives. Once downloaded, the message to me stays and the one to somebody else goes to Deleted
+/// Items.
+#[test]
+fn new_exchange_2010_mail_whose_recipients_werent_given_waits_for_the_download() {
+    let mut s = Session::empty();
+    let url = "https://exchange.example.org/EWS/Exchange.asmx";
+    let account = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": url}})).unwrap()["id"].as_u64().unwrap();
+    s.run("rules.add", &json!({"name": "Not me", "account": account, "conditions": [{"type": "notToMe"}], "actions": [{"type": "delete"}]})).unwrap();
+    let piece = || EwsMailResult { account, email: ME.into(), url: url.into(), partial: true, ..Default::default() };
+    let folders = vec![
+        GraphFolder { id: "F1".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() },
+        GraphFolder { id: "F2".into(), name: "Deleted Items".into(), kind: FolderKind::Deleted, ..Default::default() },
+    ];
+    let deltas = EwsFolderDeltas { changed: folders, afresh: true, ..Default::default() };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "HIER-1".into(), ..piece() }).unwrap();
+    let first = EwsMessagePage { folder: "F1".into(), afresh: true, last: true, state: "S-1".into(), ..Default::default() };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![first], ..piece() }).unwrap();
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { whole: true, partial: false, ..piece() }).unwrap();
+    let unanswered = |id: &str| GraphMessage { to: Vec::new(), cut: true, ..listed(id, "F1", "Plan") };
+    let delta = EwsMessagePage {
+        folder: "F1".into(),
+        messages: vec![unanswered("N1"), unanswered("N2")],
+        last: true,
+        from: "S-1".into(),
+        state: "S-2".into(),
+        ..Default::default()
+    };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![delta], ..piece() }).unwrap();
+    let binned = |s: &Session, id: &str| s.mailbox.folder(here(s, account, id).folder).is_some_and(|f| f.kind == FolderKind::Deleted);
+    assert!(!binned(&s, "N1") && !binned(&s, "N2"), "deleted as it arrived, its recipients unknown");
+    assert!(here(&s, account, "N1").rules_waiting.is_some());
+    let to_ben = GraphFetched {
+        id: "N2".into(),
+        mime: "From: Zoe Park <zoe@example.org>\r\nTo: Ben <ben@example.org>\r\nSubject: Plan\r\nMessage-ID: <N2@example.org>\r\n\r\nHi Ben.\r\n"
+            .as_bytes()
+            .to_vec(),
+    };
+    let fetched = vec![whole("N1", "Plan", "", "Hi Ada."), to_ben];
+    ews_mail::apply_ews_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    assert!(!binned(&s, "N1"), "mail to me deleted once downloaded");
+    assert!(binned(&s, "N2"), "mail to somebody else not deleted once downloaded");
+}
