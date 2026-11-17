@@ -487,3 +487,15 @@ fn an_account_held_back_is_in_no_round_until_let_go() {
         assert!(sr.eligible(&s, a));
     }
 }
+
+#[test]
+fn an_account_held_back_after_its_round_was_queued_is_left_out_of_it() {
+    let (mut s, id) = session(AccountKind::Microsoft);
+    let store = Store::default();
+    let mut sr = SendReceive::with_runner(|req| GraphResult { account: req.account.id, ..Default::default() });
+    let (h, c) = (host(), ctx(&store, 10_000.0));
+    assert!(sr.start_round(&mut s, &c, &[id]));
+    sr.hold(id, true);
+    assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::LeftOut { why: Left::Held, account } if account == id));
+    assert!(!sr.busy());
+}

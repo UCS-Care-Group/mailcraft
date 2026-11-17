@@ -107,7 +107,7 @@ impl SyncHost {
     pub(crate) fn jobs_step(&self, inner: &mut Inner, session: &mut Session, may_start: bool) -> u32 {
         self.take_calendar(inner, session);
         self.take_tasks(inner, session);
-        self.ask_tasks(inner, session);
+        self.ask_tasks(session);
         let started = if may_start && !inner.jobs.busy() { self.start_job(inner, session) } else { 0 };
         self.note_keys(inner);
         started
@@ -175,11 +175,13 @@ impl SyncHost {
 
     /// A job found that the owner hasn't allowed the to-dos: the app is asked, once, to put the
     /// question in its own words (it calls `grant_permission` on a yes; the core never answers it).
-    fn ask_tasks(&self, inner: &Inner, session: &mut Session) {
+    fn ask_tasks(&self, session: &mut Session) {
         let Some(TasksQuestion::Permission(account)) = session.tasks_question(&AskWindow::default()) else { return };
         // Being asked about: not asked again in this run unless a job finds it needed again.
         session.driver.tasks.asking(account);
-        if inner.sr.eligible(session, account) {
+        // (Only a to-do job finds the question needed, and it runs for an account of the phone's
+        // own; one held back for want of room is still asked: a question fetches nothing.)
+        if session.mailbox.account(account).is_some() {
             self.sink.push(Event::PermissionQuestion { account, permission: Permission::Tasks });
         }
     }

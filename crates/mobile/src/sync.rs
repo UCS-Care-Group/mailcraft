@@ -647,10 +647,14 @@ impl SyncHost {
             if !inner.sr.start_round(session, &ctx, &supported) {
                 return refused("Send/Receive isn't available now.");
             }
+            // A round still open (waiting for its calendar's or to-dos' job) keeps what it found:
+            // the new round goes on as part of it.
+            if !inner.active {
+                inner.ran = false;
+                inner.errors.clear();
+                inner.needs_sign_in.clear();
+            }
             inner.active = true;
-            inner.ran = false;
-            inner.errors.clear();
-            inner.needs_sign_in.clear();
         }
         if let Some(waiter) = waiter {
             inner.waiters.push(waiter);
@@ -829,7 +833,7 @@ impl SyncHost {
                 Left::NoSignIn => {
                     inner.needs_sign_in.insert(account);
                 }
-                Left::Gone => {}
+                Left::Gone | Left::Held => {}
                 Left::Refused => add_error(&mut inner.errors, words("An account couldn't be sent and received.").to_string()),
                 Left::NotSaved => add_error(&mut inner.errors, words("Your mail couldn't be saved first, so nothing was sent.").to_string()),
             },

@@ -161,6 +161,8 @@ pub enum Left {
     Refused,
     /// The messages about to go could not be marked on disk first: nothing was sent.
     NotSaved,
+    /// The owner held the account back ([`SendReceive::hold`]) after its round was queued.
+    Held,
 }
 
 /// What [`SendReceive::what_to_run`] did.
@@ -481,6 +483,11 @@ impl SendReceive {
     }
 
     fn start(&mut self, host: &Host, session: &mut Session, ctx: &Context, account: Id, quiet: bool) -> Step {
+        // Held back after its round was queued: left out of it.
+        if self.held.contains(&account) {
+            session.sync_progress.leave_out(account);
+            return Step::LeftOut { account, why: Left::Held };
+        }
         let Some(a) = session.mailbox.account(account) else {
             session.sync_progress.leave_out(account);
             return Step::LeftOut { account, why: Left::Gone };
