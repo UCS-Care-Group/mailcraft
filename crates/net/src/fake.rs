@@ -639,7 +639,9 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 let given = words(args);
                 if given == [world.user.clone(), world.password.clone()] {
                     signed_in = true;
-                    reply.extend(format!("{tag} OK welcome\r\n").bytes());
+                    // The list restated in the OK, as a server whose list doesn't change may: the
+                    // client need not ask again to know what is offered once signed in.
+                    reply.extend(format!("{tag} OK [CAPABILITY {}] welcome\r\n", world.capabilities(secured)).bytes());
                 } else {
                     // A careless server: it repeats the password it was sent.
                     let password = given.get(1).cloned().unwrap_or_default();
@@ -650,6 +652,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 let (mechanism, with_command) = args.split_once(' ').unwrap_or((args, ""));
                 if world.plain && mechanism.eq_ignore_ascii_case("PLAIN") {
                     let (user, password) = (world.user.clone(), world.password.clone());
+                    let caps = world.capabilities(secured);
                     drop(world);
                     let payload = if with_command.is_empty() {
                         let _ = reader.get_mut().write_all(b"+ \r\n");
@@ -661,7 +664,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     };
                     let expected = mailcraft_charset::base64::STANDARD.encode(format!("\0{user}\0{password}").as_bytes());
                     signed_in = payload == expected;
-                    let verdict = if signed_in { "OK welcome" } else { "NO [AUTHENTICATIONFAILED] refused" };
+                    let verdict = if signed_in { format!("OK [CAPABILITY {caps}] welcome") } else { "NO [AUTHENTICATIONFAILED] refused".to_string() };
                     let _ = reader.get_mut().write_all(format!("{tag} {verdict}\r\n").as_bytes());
                     continue;
                 }
@@ -669,6 +672,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     reply.extend(format!("{tag} NO [CANNOT] no such way to sign in\r\n").bytes());
                 } else {
                     let (user, token) = (world.user.clone(), world.token.clone());
+                    let caps = world.capabilities(secured);
                     // The rest of the exchange is read without holding the state.
                     drop(world);
                     let payload = if with_command.is_empty() {
@@ -682,7 +686,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     let (given_user, given_token) = bearer(&payload);
                     if (given_user, &given_token) == (user, &token) {
                         signed_in = true;
-                        let _ = reader.get_mut().write_all(format!("{tag} OK welcome\r\n").as_bytes());
+                        let _ = reader.get_mut().write_all(format!("{tag} OK [CAPABILITY {caps}] welcome\r\n").as_bytes());
                     } else {
                         // The reasons, and after the client's empty line the verdict. A careless
                         // server: it repeats the token it was sent.
