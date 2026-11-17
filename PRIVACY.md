@@ -94,7 +94,7 @@ On a phone (the Android app) the same rules hold, and what it connects to is the
 
 An attachment on a phone is opened only when you ask. A program, a script, an installer or a file of no known kind is never opened or shared from mail (you can save it), and a file that can carry macros or scripts is asked about first and is not shared from the message (save it first to share it). The app you choose to open or share a file with is given one read-only grant to a temporary copy kept in the app's own cache folder, which MailCraft removes at a later start once it is more than a day old (so that a viewer you left open can still read a recent one); Save to Files writes only where you choose, through the system's file picker, and the app holds no storage permission. A picture attachment is drawn inside MailCraft, from its own bytes; nothing else of an attachment is drawn or run by MailCraft.
 
-A message written on a phone is kept as a draft in the mailbox in the phone's memory (saved a few seconds after your last edit) and goes nowhere until you press Send; then it is queued in the mailbox on the phone, and the screen says so. This version of the Android app does not send queued messages yet, and the mailbox on the phone is not yet kept on disk, so a draft or a queued message is lost when the app is closed. Suggestions for a recipient come from your own contacts and sent mail on the phone; nothing is asked of a server for them. A `mailto:` link only fills the composer in: its recipients, subject and body, and nothing else it names. On Android, other apps can also share text, links and files into a new message; the files are read only through what the sharing app granted (never this app's own files), up to 20 files, 25 MB each and 50 MB together, their kind is taken from their bytes, and nothing is sent anywhere by sharing: the message waits in the composer until you send it.
+A message written on a phone is kept as a draft in the mailbox in the phone's memory (saved a few seconds after your last edit) and goes nowhere until you press Send; then it is queued in the mailbox on the phone, and the screen says so, and it goes to your provider with the next check (a Microsoft account sends it through Microsoft Graph). The mailbox, drafts and queued messages included, is kept in the app's own folder on the phone. Suggestions for a recipient come from your own contacts and sent mail on the phone; nothing is asked of a server for them. A `mailto:` link only fills the composer in: its recipients, subject and body, and nothing else it names. On Android, other apps can also share text, links and files into a new message; the files are read only through what the sharing app granted (never this app's own files), up to 20 files, 25 MB each and 50 MB together, their kind is taken from their bytes, and nothing is sent anywhere by sharing: the message waits in the composer until you send it.
 
 Read receipts go one way only. A message you write with Request a Read Receipt asks its recipients' programs to tell your own address when they read it. A request for a receipt in mail you receive is ignored: MailCraft never answers one, and nobody learns from MailCraft when you read their message.
 
@@ -252,8 +252,15 @@ not in a release yet are marked "when the app is released".
 - **Background checks, when the app is released.** Android runs a check about every 15 minutes
   (WorkManager) when there is a network, and iPhone, when that app is released, whenever the
   system grants one (BGAppRefreshTask); the app also checks when you open it and when you pull the list down. A check
-  asks your own provider (Microsoft) for the headers of each account's Inbox and for changes to
-  its calendar and To Do tasks. The bodies of new mail within how long you keep mail offline come
+  sends what waits in the Outbox and asks your own provider (Microsoft) for the headers of each
+  account's Inbox and for its calendar: the days around today, and about every quarter of an hour
+  a month back and a year ahead with your contacts, your categories and your working hours, all
+  read with the sign-in the account already has, and any change you made to the calendar on the
+  phone goes up first. Your To Do lists and tasks are read and changed only after you allowed it
+  on Microsoft's page, which the app asks you about first and never opens by itself; a task that
+  exists only on the phone is sent only after you said which account it goes to. While the app is
+  open, the calendar and the tasks are also brought up to date every few minutes. The bodies of
+  new mail within how long you keep mail offline come
   only on a connection that is not metered (when the phone can't tell, it counts as metered). Pictures, sender images and other folders come only
   when you open the app. The system decides when a check runs and may skip it: the app says
   "Updated N min ago" and "Offline" instead of promising. The app asks for no battery exemption

@@ -365,10 +365,13 @@ impl Dialog {
                 offer: None,
             },
             "link" => {
-                let c = app.session.compose.as_ref().filter(|c| c.format == mailcraft_engine::BodyFormat::Html)?;
-                let sel = c.body.selection();
+                // The text in view: the message being written, or the signature open in
+                // File › Signatures (#1552). A plain-text message has no links, and its Link
+                // button is disabled anyway.
+                let (body, _) = app.session.doc().filter(|(_, plain)| !*plain)?;
+                let sel = body.selection();
                 // The link the caret is in, or the selection starts in.
-                let url = c.body.text().link_span(sel.start()).map(|(from, _)| c.body.text().style_at(from + 1)).and_then(|s| s.link);
+                let url = body.text().link_span(sel.start()).map(|(from, _)| body.text().style_at(from + 1)).and_then(|s| s.link);
                 Dialog::Link { linked: url.is_some(), url: url.unwrap_or_default(), error: String::new() }
             }
             "dateTime" => {

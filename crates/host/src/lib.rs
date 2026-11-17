@@ -7,6 +7,9 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod calendar;
+pub mod calendar_job;
+#[cfg(test)]
+mod calendar_job_tests;
 pub mod fetch;
 #[cfg(test)]
 mod fetch_tests;
@@ -30,6 +33,9 @@ pub mod sync;
 #[cfg(test)]
 mod sync_tests;
 pub mod tasks;
+pub mod tasks_job;
+#[cfg(test)]
+mod tasks_job_tests;
 #[cfg(test)]
 mod tasks_tests;
 
