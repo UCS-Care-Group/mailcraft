@@ -414,12 +414,17 @@ pub(crate) struct SmtpWorld {
     pub(crate) password: String,
     /// Offer AUTH PLAIN and LOGIN, and insist on a sign-in before taking mail.
     pub(crate) auth: bool,
+    /// With `auth`: offer a sign-in and take mail without one all the same (a relay).
+    pub(crate) auth_optional: bool,
     /// The access token that signs `user` in (XOAUTH2, insisted on likewise); empty for a server that takes none.
     pub(crate) token: String,
     /// Say STARTTLS is on offer (it isn't: what follows the go-ahead is no handshake).
     pub(crate) offer_starttls: bool,
     /// Recipients to answer 550 for.
     pub(crate) refuse: Vec<String>,
+    /// With `auth` and `auth_optional`: take MAIL FROM, then refuse every recipient of a connection that hasn't
+    /// signed in as a relay does ("Relay access denied").
+    pub(crate) deny_relay: bool,
     pub(crate) delivered: Vec<Delivery>,
     /// Every line received (not the messages).
     pub(crate) log: Vec<String>,
@@ -1142,7 +1147,7 @@ fn serve_smtp(stream: TcpStream, shared: Arc<Mutex<SmtpWorld>>) {
                 continue;
             }
         } else if upper.starts_with("MAIL FROM:") {
-            if (world.auth || !world.token.is_empty()) && !signed_in {
+            if ((world.auth && !world.auth_optional) || !world.token.is_empty()) && !signed_in {
                 "530 5.7.0 sign in first".to_string()
             } else {
                 from = path(&line);
@@ -1151,7 +1156,9 @@ fn serve_smtp(stream: TcpStream, shared: Arc<Mutex<SmtpWorld>>) {
             }
         } else if upper.starts_with("RCPT TO:") {
             let address = path(&line);
-            if world.refuse.contains(&address) {
+            if world.deny_relay && !signed_in {
+                "554 5.7.1 <Relay access denied>".to_string()
+            } else if world.refuse.contains(&address) {
                 "550 5.1.1 no such user".to_string()
             } else {
                 recipients.push(address);
