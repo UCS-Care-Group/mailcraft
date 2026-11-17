@@ -995,7 +995,7 @@ fn bullet(painter: &egui::Painter, rect: Rect, depth: u8, color: Color32) {
 /// picture's description, when it has one. For one that was asked for and could not be had
 /// (`failed`) the mark is struck through, in the colour of a warning.
 fn stand_in(painter: &egui::Painter, rect: Rect, label: &str, paper: Paper, t: &Tokens, failed: bool) {
-    let ink = Paper { fill: paper.shade(t), own: paper.own }.text(t, true);
+    let ink = Paper { fill: paper.shade(t), own: paper.own, picture: false }.text(t, true);
     let line = paper.line(t);
     painter.rect(rect, 4.0, paper.shade(t), Stroke::new(1.0, line), egui::StrokeKind::Inside);
     // The mark: a frame, a hill and a sun, drawn here (no artwork is taken from anywhere).
