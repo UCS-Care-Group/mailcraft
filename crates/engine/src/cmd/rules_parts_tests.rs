@@ -43,7 +43,6 @@ fn every_new_part_is_taken_and_one_of_the_wrong_type_is_refused() {
         {"type": "from", "value": ["Ada@Example.org", "ada@example.org", "noor@example.org"]},
         {"type": "sentTo", "value": "team@example.org"},
         {"type": "subjectOrBodyContains", "value": "agenda"},
-        {"type": "headerContains", "value": "X-Club: yes"},
         {"type": "sizeBetween", "value": {"min": 1, "max": 100}},
         {"type": "receivedBetween", "value": {"to": "2026-10-31"}},
         {"type": "sensitivity", "value": "company-confidential"},
@@ -62,10 +61,10 @@ fn every_new_part_is_taken_and_one_of_the_wrong_type_is_refused() {
     ]);
     let id = s.run("rules.add", &rule(conditions.clone(), exceptions, actions.clone())).unwrap()["id"].as_u64().unwrap();
     let r = s.mailbox.rules.iter().find(|r| r.id == id).unwrap();
-    assert_eq!(r.conditions.len(), 16);
+    assert_eq!(r.conditions.len(), 15);
     // The same address once, as it was first written.
     assert_eq!(r.conditions[0], Condition::From(vec!["Ada@Example.org".into(), "noor@example.org".into()]));
-    assert_eq!(r.conditions[6], Condition::Sensitivity(Sensitivity::Confidential));
+    assert_eq!(r.conditions[5], Condition::Sensitivity(Sensitivity::Confidential));
     assert_eq!(
         r.exceptions,
         [Condition::SubjectContains(vec!["opt out".into(), "Unsubscribe".into()]), Condition::HasAttachment, Condition::Importance(Importance::Low)]
@@ -611,34 +610,6 @@ fn a_long_category_exception_is_refused_not_cut() {
     assert!(s.run("rules.add", &categorize(&"y".repeat(120))).is_ok());
 }
 
-/// A rule deletes Ann's mail, except if its header holds "multipart/signed" (her signed
-/// mail) or "Highest" (`X-Priority: 1 (Highest)`): both words are in lines MailCraft reads into the
-/// message (the Content-Type, X-Priority), and neither message is deleted (#566).
-#[test]
-fn an_exception_for_a_word_in_a_header_line_read_into_the_message_leaves_it_alone() {
-    let (mut s, account, inbox, _) = session();
-    let rule = json!({
-        "name": "Ann's, but signed or urgent", "account": account,
-        "conditions": [{"type": "from", "value": "ann@example.org"}],
-        "exceptions": [{"type": "headerContains", "value": ["multipart/signed", "Highest"]}],
-        "actions": [{"type": "delete"}],
-    });
-    s.run("rules.add", &rule).unwrap();
-    let mut add = |bytes: Vec<u8>| {
-        let mut m = mailcraft_mime_model::parse_fetched(&bytes);
-        m.folder = inbox;
-        s.mailbox.add_message(m).unwrap()
-    };
-    let signed = add(report("detached", 1024));
-    let urgent = add(
-        format!("From: Ann <ann@example.org>\r\nTo: Me <{ME}>\r\nSubject: Now\r\nMessage-ID: <urgent@example.org>\r\nX-Priority: 1 (Highest)\r\n\r\nCall me.\r\n")
-            .into_bytes(),
-    );
-    s.run("rules.run", &json!({"folder": inbox})).unwrap();
-    let gone: Vec<&str> = [("signed", signed), ("urgent", urgent)].into_iter().filter(|(_, id)| !here(&s, *id)).map(|(k, _)| k).collect();
-    assert!(gone.is_empty(), "deleted past their exception: {gone:?}");
-}
-
 /// A word longer than a rule keeps is refused, not cut, as a long address or category is: cut, the
 /// condition looks for less of it, and a rule that deletes takes mail it was to leave alone.
 #[test]
@@ -646,7 +617,7 @@ fn a_long_word_is_refused_not_cut() {
     assert_eq!(mailcraft_model::MAX_WORD, 200, "the Rules dialog's reason says 200");
     let word = "x".repeat(200);
     let asked = format!("{word}-2026");
-    for kind in ["subjectOrBodyContains", "subjectContains", "headerContains", "fromContains"] {
+    for kind in ["subjectOrBodyContains", "subjectContains", "fromContains"] {
         let (mut s, account, inbox, _) = session();
         let rule = |value: &str| json!({"name": "Old reports", "account": account, "conditions": [{"type": kind, "value": value}], "actions": [{"type": "delete"}]});
         let made = s.run("rules.add", &rule(&asked));

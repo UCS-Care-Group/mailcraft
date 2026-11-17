@@ -6380,12 +6380,6 @@ msgstr "Küldjenek választ a"
 msgid "Have replies sent to other addresses"
 msgstr "Válaszok fogadása más címeken"
 
-#. name
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Header contains"
-msgstr "A fejléc tartalmazza"
-
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -24897,6 +24891,10 @@ msgstr "a(z) „{subject}” üzenet túl nagy a letöltéshez, ezért csak a fe
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint egy melléklet"
+
+#, fuzzy
+#~ msgid "Header contains"
+#~ msgstr "A fejléc tartalmazza"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

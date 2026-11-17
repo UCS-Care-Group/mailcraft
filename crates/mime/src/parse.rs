@@ -34,10 +34,6 @@ pub const MAX_RECIPIENTS: usize = 2000;
 /// Most categories (`Keywords`) kept from one message.
 pub const MAX_CATEGORIES: usize = 500;
 
-/// Most bytes [`Message::read_header`] keeps: past them, the message says its header was cut
-/// ([`Message::headers_cut`]).
-pub const MAX_READ_HEADER: usize = 64 * 1024;
-
 /// Most message ids read from `References`.
 const MAX_IDS: usize = 1000;
 
@@ -101,31 +97,6 @@ fn read_headers(headers: &Headers, m: &mut Message) {
     for field in &headers.0 {
         let name = field.name.to_ascii_lowercase();
         let value = field.value.as_str();
-        // What is read into the message, or kept only decoded, is kept as it came too
-        // ([`Message::read_header`]): with the fields kept, the header as it came.
-        let into_message = !name.starts_with("x-mailcraft-")
-            && (matches!(
-                name.as_str(),
-                "to" | "cc"
-                    | "bcc"
-                    | "reply-to"
-                    | "references"
-                    | "from"
-                    | "subject"
-                    | "message-id"
-                    | "in-reply-to"
-                    | "date"
-                    | "importance"
-                    | "x-priority"
-                    | "mime-version"
-                    | "keywords"
-                    | "status"
-                    | "x-status"
-            ) || name.starts_with("content-")
-                || has_words(&name));
-        if into_message {
-            read_as_it_came(m, &field.name, value);
-        }
         match name.as_str() {
             "to" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
@@ -221,18 +192,6 @@ fn read_headers(headers: &Headers, m: &mut Message) {
     m.message_id = first_id("message-id");
     m.in_reply_to = first_id("in-reply-to");
     m.importance = headers.get("importance").and_then(Importance::parse).or_else(|| headers.get("x-priority").and_then(priority)).unwrap_or_default();
-}
-
-/// A line of the header read into the message itself (or kept only decoded), kept as it came in
-/// [`Message::read_header`]; past [`MAX_READ_HEADER`] the header says it was cut (#566).
-fn read_as_it_came(m: &mut Message, name: &str, value: &str) {
-    let line = format!("{name}: {}", value.replace(['\r', '\n'], " "));
-    if m.read_header.len().saturating_add(line.len()).saturating_add(1) <= MAX_READ_HEADER {
-        m.read_header.push_str(&line);
-        m.read_header.push('\n');
-    } else {
-        m.headers_cut = true;
-    }
 }
 
 /// `X-Priority`: 1 and 2 are high, 4 and 5 low (`1 (Highest)` is common).

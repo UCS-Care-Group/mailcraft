@@ -6410,12 +6410,6 @@ msgstr "Răspunsurile să fie trimise la"
 msgid "Have replies sent to other addresses"
 msgstr "Răspunsurile să fie trimise la alte adrese"
 
-#. name
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Header contains"
-msgstr "Antetul conține"
-
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -25082,6 +25076,10 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "Header contains"
+#~ msgstr "Antetul conține"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

@@ -6355,12 +6355,6 @@ msgstr "Faire envoyer les réponses à"
 msgid "Have replies sent to other addresses"
 msgstr "Faire envoyer les réponses à d'autres adresses"
 
-#. name
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Header contains"
-msgstr "L'en-tête contient"
-
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -24799,6 +24793,10 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "Header contains"
+#~ msgstr "L'en-tête contient"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

@@ -18,7 +18,6 @@ fn the_readers_limits_are_the_models() {
     assert_eq!(mailcraft_mime::MAX_AUTH_AS, auth_results::MAX_AUTH_AS);
     assert_eq!(mailcraft_mime::MAX_ORIGINAL, mailcraft_model::MAX_ORIGINAL);
     assert_eq!(mailcraft_mime::MAX_ARMOUR_SCAN, mailcraft_model::protected::MAX_ARMOUR_SCAN);
-    assert_eq!(mailcraft_mime::MAX_READ_HEADER, mailcraft_model::MAX_READ_HEADER);
     for word in ["low", "Normal", " HIGH ", "5", "3", "1", "urgent", "non-urgent", "medium", "whatever", ""] {
         let theirs =
             mailcraft_mime::Importance::parse(word).map(|i| to_model(mailcraft_mime::Message { importance: i, ..Default::default() }).importance);
@@ -62,7 +61,6 @@ fn what_the_format_carries_goes_both_ways() {
         draft: true,
         headers: vec![("List-Id".into(), "<news.example.org>".into())],
         header_block: mailcraft_model::headers::split(vec![("X-A".into(), "b".into()), ("List-Id".into(), "<news.example.org>".into())]).1,
-        read_header: "Subject: Hi\n".into(),
         headers_cut: true,
         fresh_stamps: true,
         original: Original::new(b"Content-Type: multipart/signed\r\n\r\n".to_vec()),
@@ -88,11 +86,10 @@ fn a_fetched_signed_message_keeps_its_original() {
 }
 
 /// Every way in that reads bytes into the mailbox's message (one message, one as its server gave
-/// it, signed or not, and an mbox read whole or one at a time) brings the reader's cut mark and
-/// the lines read into the message, and a rule with an exception on a field past the cap doesn't
-/// act on it (#566).
+/// it, signed or not, and an mbox read whole or one at a time) brings the reader's cut mark, and a
+/// rule with an exception that reads the header doesn't act on it (#566).
 #[test]
-fn every_way_in_carries_the_cut_mark_and_the_lines_read() {
+fn every_way_in_carries_the_cut_mark() {
     use mailcraft_model::{Action, Condition, Rule};
     let fields = (0..201).map(|i| format!("X-Trace-{i}: hop\r\n")).collect::<String>();
     let head = format!("From: a@example.org\r\nTo: b@example.org\r\nSubject: offer\r\n{fields}X-Gateway: keep-this\r\n");
@@ -105,7 +102,7 @@ fn every_way_in_carries_the_cut_mark_and_the_lines_read() {
         name: "r".into(),
         enabled: true,
         conditions: vec![Condition::SubjectContains(vec!["offer".into()])],
-        exceptions: vec![Condition::HeaderContains(vec!["keep-this".into()])],
+        exceptions: vec![Condition::Sensitivity(mailcraft_model::Sensitivity::Private)],
         actions: vec![Action::Delete],
         ..Default::default()
     };
@@ -120,7 +117,6 @@ fn every_way_in_carries_the_cut_mark_and_the_lines_read() {
         assert_eq!(messages.len(), 1, "{way}");
         for m in &messages {
             assert!(m.headers_cut, "{way}: the cut mark is lost");
-            assert!(m.read_header.contains("Subject: offer\n"), "{way}: {:?}", m.read_header);
             assert!(!rule.matches(m), "{way}: the rule deletes a message its exception was to leave alone");
         }
     }
@@ -128,8 +124,4 @@ fn every_way_in_carries_the_cut_mark_and_the_lines_read() {
     let whole = "From: a@example.org\r\nSubject: offer\r\nX-Gateway: keep-this\r\n\r\nbody\r\n";
     assert!(!parse(whole.as_bytes()).headers_cut && !parse_fetched(whole.as_bytes()).headers_cut);
     assert!(crate::parse_mbox(format!("From a@example.org Tue Nov 10 10:00:00 2026\r\n{whole}").as_bytes()).iter().all(|m| !m.headers_cut));
-    // Neither is written: what comes back of a cut message written out is what the bytes say.
-    let cut = parse(plain.as_bytes());
-    let back = parse(&crate::write(&cut, &crate::WriteOptions::default()));
-    assert!(!back.read_header.contains("keep-this") && back.read_header.contains("Subject: offer\n"));
 }

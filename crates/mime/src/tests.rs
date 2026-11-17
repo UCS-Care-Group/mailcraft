@@ -61,17 +61,11 @@ fn expected(m: &Message, opts: &WriteOptions) -> Message {
     }
 }
 
-/// `m` without the lines of its header read into it ([`Message::read_header`]): those a writer
-/// writes (its Date, its MIME-Version, its own boundary) are its, not the message's.
-fn unread(m: Message) -> Message {
-    Message { read_header: String::new(), ..m }
-}
-
 /// Write, read back, and compare with what must come back.
 fn round_trip(m: &Message) {
     for opts in [WriteOptions::default(), WriteOptions { include_bcc: true, offset_minutes: -330 }] {
         let bytes = write(m, &opts);
-        assert_eq!(unread(parse(&bytes)), expected(m, &opts), "{}", String::from_utf8_lossy(&bytes));
+        assert_eq!(parse(&bytes), expected(m, &opts), "{}", String::from_utf8_lossy(&bytes));
         assert_eq!(write(m, &opts), bytes, "writing is deterministic");
         check_wire_format(&bytes);
     }
@@ -250,7 +244,7 @@ fn an_attached_message_round_trips() {
     round_trip(&m);
     // The same through an mbox, where the inner `From ` line is quoted and unquoted.
     let mbox = write_mbox(&[&m], &WriteOptions::default());
-    assert_eq!(parse_mbox(&mbox).into_iter().map(unread).collect::<Vec<_>>(), [expected(&m, &WriteOptions::default())]);
+    assert_eq!(parse_mbox(&mbox), [expected(&m, &WriteOptions::default())]);
 }
 
 #[test]
@@ -329,7 +323,7 @@ fn a_foreign_message_survives_reading_writing_and_reading() {
     assert_eq!((first.importance, first.read, first.categories.len(), first.headers.len()), (Importance::High, true, 2, 1));
     let opts = WriteOptions { include_bcc: true, offset_minutes: 120 };
     let second = parse(&write(&first, &opts));
-    assert_eq!(unread(second), unread(first));
+    assert_eq!(second, first);
 }
 
 #[test]
@@ -540,7 +534,6 @@ fn message() -> impl Strategy<Value = Message> {
             categories,
             answered,
             headers,
-            read_header: "X-Priority: 9 (not carried)\n".into(),
             fresh_stamps: false,
             draft: true,
             headers_cut: false,
@@ -580,12 +573,8 @@ proptest! {
     #[test]
     fn any_message_reads_back_as_written(m in message(), opts in options()) {
         let bytes = write(&m, &opts);
-        let mut back = parse(&bytes);
+        let back = parse(&bytes);
         let want = expected(&m, &opts);
-        // The lines read into it are the writer's (its Date, its MIME-Version), never what the
-        // message kept of the header it came with.
-        prop_assert!(back.read_header.contains("MIME-Version: 1.0") && !back.read_header.contains("not carried"));
-        back.read_header.clear();
         // The fields one by one first, for a readable failure.
         prop_assert_eq!(&back.from, &want.from);
         prop_assert_eq!(&back.to, &want.to);
@@ -635,7 +624,7 @@ proptest! {
         let refs: Vec<&Message> = messages.iter().collect();
         let mbox = write_mbox(&refs, &opts);
         let want: Vec<Message> = messages.iter().map(|m| expected(m, &opts)).collect();
-        prop_assert_eq!(parse_mbox(&mbox).into_iter().map(unread).collect::<Vec<_>>(), want);
+        prop_assert_eq!(parse_mbox(&mbox), want);
     }
 
     #[test]
@@ -709,11 +698,10 @@ fn a_message_says_when_header_fields_recipients_or_categories_were_left_out() {
     assert!(message(keywords(crate::MAX_CATEGORIES + 1)).headers_cut);
 }
 
-/// A Cc past the recipients kept after the To, and a header read into the message past the 64 KB
-/// kept of it as it came: the message says its header was cut, so that a rule that reads them
-/// can't tell, as for a To or a field count past what is kept (#566).
+/// A Cc past the recipients kept after the To: the message says its header was cut, so that a
+/// rule that reads them can't tell, as for a To or a field count past what is kept (#566).
 #[test]
-fn a_cc_past_the_room_left_and_a_long_read_header_are_said_cut() {
+fn a_cc_past_the_room_left_is_said_cut() {
     let list = |n: usize| (0..n).map(|i| format!("c{i}@example.org")).collect::<Vec<_>>().join(", ");
     let with_cc = |n: usize| parse(format!("From: a@example.org\r\nTo: b@example.org\r\nCc: {}\r\nSubject: s\r\n\r\nbody\r\n", list(n)).as_bytes());
     // One in To leaves room for all but one in Cc.
@@ -721,10 +709,6 @@ fn a_cc_past_the_room_left_and_a_long_read_header_are_said_cut() {
     assert_eq!((whole.cc.len(), whole.headers_cut), (crate::MAX_RECIPIENTS - 1, false));
     let cut = with_cc(crate::MAX_RECIPIENTS);
     assert_eq!((cut.cc.len(), cut.headers_cut), (crate::MAX_RECIPIENTS - 1, true));
-    // A subject that the 64 KB of lines kept as they came can't hold.
-    let subject = |n: usize| parse(format!("From: a@example.org\r\nSubject: {}\r\n\r\nbody\r\n", "a".repeat(n)).as_bytes());
-    assert!(!subject(1_000).headers_cut);
-    assert!(subject(70_000).headers_cut);
 }
 
 #[test]

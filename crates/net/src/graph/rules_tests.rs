@@ -197,7 +197,7 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     let entry = json!({
         "id": "A4", "displayName": "Everything", "sequence": 3, "isEnabled": true,
         "conditions": {
-            "senderContains": ["shop", "store"], "bodyOrSubjectContains": ["order"], "headerContains": ["X-Shop"],
+            "senderContains": ["shop", "store"], "bodyOrSubjectContains": ["order"],
             "fromAddresses": people(&["ann@example.org"]), "sentToAddresses": people(&["team@example.org", "ops@example.org"]),
             "sensitivity": "private", "withinSizeRange": {"minimumSize": 10, "maximumSize": 500},
             "isMeetingRequest": true, "isAutomaticReply": false, "categories": ["Red"],
@@ -211,7 +211,6 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     for c in [
         Condition::FromContains(vec!["shop".into(), "store".into()]),
         Condition::SubjectOrBodyContains(vec!["order".into()]),
-        Condition::HeaderContains(vec!["X-Shop".into()]),
         Condition::From(vec!["ann@example.org".into()]),
         Condition::SentTo(vec!["team@example.org".into(), "ops@example.org".into()]),
         Condition::Sensitivity(Sensitivity::Private),
@@ -228,7 +227,7 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     }
     // `false` is a part the rule doesn't have.
     assert!(!rule.conditions.contains(&Condition::AutomaticReply));
-    assert_eq!(rule.conditions.len(), 14);
+    assert_eq!(rule.conditions.len(), 13);
     assert_eq!(rule.exceptions.len(), 2);
     assert_eq!(rule.copy_to, "IMM-copies");
     assert_eq!(rule.actions, vec![Action::MarkRead]);
@@ -237,7 +236,7 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     let again = rule_of(&json!({"id": "A4", "displayName": body["displayName"], "isEnabled": true, "conditions": body["conditions"],
         "exceptions": body["exceptions"], "actions": body["actions"]}))
     .unwrap();
-    assert_eq!((again.conditions.len(), again.exceptions.len()), (14, 2));
+    assert_eq!((again.conditions.len(), again.exceptions.len()), (13, 2));
     assert!(rule.conditions.iter().all(|c| again.conditions.contains(c)) && rule.exceptions.iter().all(|c| again.exceptions.contains(c)));
     assert_eq!((again.copy_to.as_str(), again.actions.as_slice()), ("IMM-copies", [Action::MarkRead].as_slice()));
     assert_eq!(body["conditions"]["fromAddresses"], json!([{"emailAddress": {"address": "ann@example.org"}}]));

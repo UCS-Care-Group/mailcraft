@@ -5302,11 +5302,6 @@ msgstr ""
 msgid "Have replies sent to other addresses"
 msgstr ""
 
-#. name
-#: crates/ui-egui/src/forms.rs
-msgid "Header contains"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Held:"

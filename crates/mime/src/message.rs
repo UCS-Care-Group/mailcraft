@@ -107,12 +107,6 @@ pub struct Message {
     pub draft: bool,
     /// Every other header field that isn't MIME structure, in order.
     pub headers: Vec<(String, String)>,
-    /// The lines of the header read into the message itself (From, To, Cc, Bcc, Reply-To,
-    /// Subject, Message-ID, In-Reply-To, References, Date, MIME-Version, the Content- lines,
-    /// Importance, X-Priority, Keywords, Status, X-Status), or kept in [`Message::headers`] only
-    /// decoded, as they came, one `name: value` to a line, at most [`crate::MAX_READ_HEADER`]
-    /// bytes: with [`Message::headers`], the header as it came. Never written.
-    pub read_header: String,
     /// Some of its header fields, recipients (To, Cc) or categories were left out as it was
     /// read, past what is kept of one message: what they said can't be told from it.
     pub headers_cut: bool,

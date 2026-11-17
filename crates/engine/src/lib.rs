@@ -457,8 +457,6 @@ mod many_folders_tests;
 #[cfg(test)]
 mod pop_out_tests;
 #[cfg(test)]
-mod read_header_kept_tests;
-#[cfg(test)]
 mod send_warnings_tests;
 #[cfg(test)]
 mod sender_trust_tests;
