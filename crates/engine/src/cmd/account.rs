@@ -2428,13 +2428,14 @@ fn take_in(
             for uid in came.iter().chain(&delta.removed).chain(&delta.failing_gone) {
                 f.failing.remove(uid);
             }
-            for uid in delta.failed.iter().copied().filter(|uid| *uid != 0) {
-                if f.failing.len() >= MAX_FAILING && !f.failing.contains_key(&uid) {
-                    continue;
-                }
-                let tries = f.failing.entry(uid).or_insert(0);
-                *tries = tries.saturating_add(1).min(MAX_TRIES);
+        }
+        // (What failed in the run that found the folder numbered anew is of the new numbering.)
+        for uid in delta.failed.iter().copied().filter(|uid| *uid != 0) {
+            if f.failing.len() >= MAX_FAILING && !f.failing.contains_key(&uid) {
+                continue;
             }
+            let tries = f.failing.entry(uid).or_insert(0);
+            *tries = tries.saturating_add(1).min(MAX_TRIES);
         }
         f.uid_seen = if reset { delta.uid_seen } else { delta.uid_seen.max(old_seen) };
         if reset || delta.uid_from != 0 {

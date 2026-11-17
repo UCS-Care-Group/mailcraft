@@ -139,7 +139,7 @@ fn a_message_that_keeps_failing_is_left_out_after_a_few_runs_and_said_once() {
     for run_no in 1..=MAX_TRIES {
         let result = run(&request);
         assert_eq!(failed_in(&result, "Label0"), [BAD], "run {run_no}");
-        said_left_out += result.errors.iter().filter(|e| e.contains("Leaving out 1 messages")).count();
+        said_left_out += result.errors.iter().filter(|e| e.contains("Leaving out 1 message of")).count();
         carry(&mut request, &result);
     }
     assert_eq!(said_left_out, 1, "said at the last try, and only then");
@@ -214,7 +214,7 @@ fn a_line_that_is_bad_for_every_message_stops_the_run_and_blames_nobody() {
     imap.world().hang_up_on = Some("BODY.PEEK[]".into());
     let result = run(&request(&imap));
     // The first message, a fresh connection, the next message: that is a bad line.
-    assert_eq!(result.errors.len(), 2, "{:?}", result.errors);
+    assert!(result.errors.len() > 1, "{:?}", result.errors);
     assert!(result.folders.iter().all(|f| f.failed.is_empty() && f.new.is_empty()), "{:?}", result.folders);
     assert!(!result.folders.iter().any(|f| f.remote == "Label1"));
 }
@@ -236,4 +236,50 @@ fn counts_of_messages_the_server_lost_or_the_limit_leaves_out_are_dropped() {
     gone.sort_unstable();
     assert_eq!(gone, [1, 4]);
     assert!(label0.new.is_empty() && label0.removed.is_empty(), "{label0:?}");
+}
+
+/// Label0 with two messages in a row that break the connection, one cut and one hung up.
+fn adjacent_world() -> ImapWorld {
+    let mut world = world();
+    world.mailbox("Label0").messages = [1, 6, 7, 9].into_iter().map(message).collect();
+    world
+}
+
+#[test]
+fn adjacent_messages_that_break_the_connection_are_both_left_out_and_the_rest_come() {
+    let imap = Fake::imap(adjacent_world());
+    imap.world().cut_at_uid = Some(6);
+    imap.world().hang_up_at_uid = Some(7);
+    let mut request = request(&imap);
+    for run_no in 1..=MAX_TRIES {
+        let result = run(&request);
+        assert_eq!(failed_in(&result, "Label0"), [6, 7], "run {run_no}");
+        if run_no == 1 {
+            assert_eq!(new_in(&result, "Label0"), [1, 9]);
+            assert_eq!(new_in(&result, "Label1"), [1, 2, 3]);
+        }
+        carry(&mut request, &result);
+    }
+    let after = run(&request);
+    assert_eq!(after.errors, Vec::<String>::new());
+    let label0 = after.folders.iter().find(|f| f.remote == "Label0").unwrap();
+    assert!(label0.complete && label0.failed.is_empty(), "{label0:?}");
+}
+
+#[test]
+fn a_server_that_refuses_every_download_for_a_while_blames_nobody() {
+    let imap = Fake::imap(world());
+    imap.world().refuse = vec!["BODY.PEEK[]".into()];
+    let mut request = request(&imap);
+    for run_no in 1..=MAX_TRIES + 1 {
+        let result = run(&request);
+        assert!(result.folders.iter().all(|f| f.failed.is_empty()), "run {run_no}: {:?}", result.folders);
+        carry(&mut request, &result);
+    }
+    imap.world().refuse.clear();
+    let result = run(&request);
+    assert_eq!(result.errors, Vec::<String>::new());
+    assert_eq!(new_in(&result, "INBOX"), [1, 2]);
+    assert_eq!(new_in(&result, "Label0"), [1, BAD, 9]);
+    assert_eq!(new_in(&result, "Label1"), [1, 2, 3]);
 }

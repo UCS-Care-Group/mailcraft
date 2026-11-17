@@ -6376,6 +6376,11 @@ msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
 msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
 msgstr ""
 
@@ -17952,6 +17957,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "the download stopped before it was done"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
 msgstr ""
 
 #. what a command says

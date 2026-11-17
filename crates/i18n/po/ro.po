@@ -7714,6 +7714,12 @@ msgstr "Excludeți acest cont din această Trimitere/primire"
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "1 mesaj din „{name}” care nu s-a putut descărca în {tries} rulări este omis; Reîncearcă mesajele omise îl încearcă din nou"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
 msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
 msgstr "{count} mesaje din „{name}” care nu s-au putut descărca în {tries} rulări sunt omise; Reîncearcă mesajele omise le încearcă din nou"
 
@@ -21705,6 +21711,12 @@ msgstr "descărcarea a eșuat"
 #, fuzzy
 msgid "the download stopped before it was done"
 msgstr "descărcarea s-a oprit înainte de final"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "conexiunea criptată a fost deteriorată pe drum (de obicei vinovat este un antivirus sau un firewall care scanează conexiunile de e-mail: dezactivați scanarea e-mailului sau SSL pentru MailCraft ori întrebați furnizorul de e-mail)"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs

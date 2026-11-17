@@ -65,6 +65,15 @@ fn numbered_anew_the_counts_mean_nothing() {
 }
 
 #[test]
+fn what_failed_in_the_run_that_found_the_folder_numbered_anew_is_counted() {
+    let mut s = Session::empty();
+    let a = account(&mut s);
+    apply(&mut s, a, delta(7, vec![], vec![4]));
+    apply(&mut s, a, delta(8, vec![], vec![9]));
+    assert_eq!(failing(&s, a), [(9, 1)]);
+}
+
+#[test]
 fn what_a_result_says_of_failing_messages_is_bounded() {
     let mut s = Session::empty();
     let a = account(&mut s);

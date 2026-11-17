@@ -1227,10 +1227,14 @@ impl FolderSync<'_> {
         let mut missed: Option<u32> = None;
         // Messages that were asked for and not handed over, without a word why.
         let mut silent: Vec<u32> = Vec::new();
-        // Messages that failed to download this run (#1581), and the one a lost connection is
-        // blamed on once a fresh connection has shown it was that message and not the line.
+        // Messages that failed to download this run (#1581): those the server said no to, held
+        // against the messages only if it handed over others of this folder (else it may be
+        // refusing everything for a while); and those a lost connection is blamed on once a fresh
+        // connection has shown it was a message and not the line.
         let mut blamed: Vec<u32> = Vec::new();
-        let mut suspect: Option<u32> = None;
+        let mut refused: Vec<u32> = Vec::new();
+        let mut suspects: Vec<u32> = Vec::new();
+        let mut handed = false;
         let sizes = if alive { self.sizes(imap, &wanted, run, &mut alive) } else { BTreeMap::new() };
         let total = wanted.len();
         // The bytes of the messages waiting to be handed over.
@@ -1253,11 +1257,12 @@ impl FolderSync<'_> {
             }
             let fetched = if large { imap.uid_fetch_header(uid) } else { imap.uid_fetch_message(uid) };
             if fetched.is_ok() {
-                // The fresh connection works: the message before it was the trouble.
-                blamed.extend(suspect.take());
+                // The fresh connection works: the messages before it were the trouble.
+                blamed.append(&mut suspects);
             }
             match fetched {
                 Ok(Some(fetched)) => {
+                    handed = true;
                     let bytes = fetched.body.as_ref().map_or(0, Vec::len);
                     run.limits.messages = run.limits.messages.saturating_sub(1);
                     run.limits.bytes = run.limits.bytes.saturating_sub(bytes);
@@ -1282,25 +1287,25 @@ impl FolderSync<'_> {
                         continue;
                     }
                     if alive {
-                        // The server refused this one message: the others are not its business.
-                        blamed.push(uid);
-                    } else if suspect.is_none() && run.reconnects < MAX_RECONNECTS {
+                        // The server refused this one message: the others are not its business,
+                        // if it serves them (settled below).
+                        refused.push(uid);
+                    } else if run.reconnects < MAX_RECONNECTS {
                         // One message that breaks the connection (a scanner in the way, a server
                         // that chokes on it) must not stop the rest (#1581): a fresh connection,
-                        // and on with the next one.
+                        // and on with the next one. If that breaks too it may be the next
+                        // message, and again; all are blamed once a fetch gets through.
                         run.reconnects += 1;
+                        suspects.push(uid);
                         match self.reconnect(imap, run, selected.uid_validity) {
-                            Ok(()) => {
-                                alive = true;
-                                suspect = Some(uid);
-                            }
+                            Ok(()) => alive = true,
                             Err(why) => {
                                 run.failed(said!("Couldn't reconnect to carry on with \"{name}\"", name), &why);
                             }
                         }
                     }
-                    // Else the fresh connection failed too: the line is bad, not one message, and
-                    // nothing is held against any message.
+                    // Else no fresh connection could be had, or the run's replacements are used
+                    // up: the line is bad, not a message, and nothing is held against any.
                     continue;
                 }
             }
@@ -1323,7 +1328,21 @@ impl FolderSync<'_> {
                 waiting = 0;
             }
         }
-        blamed.extend(suspect.take().filter(|_| alive));
+        if alive {
+            // Of the connection-breakers at the end, with no fetch after them to show it: one
+            // alone is the message; several, with nothing handed over, may be the line, and a
+            // message the mailbox has says which. (lean: with none to ask for, none is blamed.)
+            if !handed && suspects.len() > 1 {
+                let probe = known.iter().rev().copied().find(|uid| present.contains_key(uid));
+                if !probe.is_some_and(|uid| self.serves(imap, uid, run, &mut alive)) {
+                    suspects.clear();
+                }
+            }
+            blamed.append(&mut suspects);
+            if handed {
+                blamed.append(&mut refused);
+            }
+        }
         if alive && !silent.is_empty() && !run.cancelled() {
             // A message the mailbox still has is not passed over for the server's silence.
             let kept_back = self.kept_back(imap, &silent, run, &mut alive);
@@ -1389,18 +1408,41 @@ impl FolderSync<'_> {
         self.state.is_some_and(|s| s.failing.get(&uid).is_some_and(|tries| *tries >= MAX_TRIES))
     }
 
+    /// Whether the server hands over a message the mailbox has (#1581): a small one, or no word.
+    fn serves(&self, imap: &mut Imap<Stream<'_>>, uid: u32, run: &mut Run, alive: &mut bool) -> bool {
+        const SMALL: u64 = 256 * 1024;
+        if !self.sizes(imap, &[uid], run, alive).get(&uid).is_some_and(|size| *size <= SMALL) || !*alive {
+            return false;
+        }
+        match imap.uid_fetch_message(uid) {
+            Ok(got) => got.is_some(),
+            Err(e) => {
+                *alive = run.failed(said!("Couldn't download a message from \"{name}\"", name = shown(&self.remote)), &NetError::from(e));
+                false
+            }
+        }
+    }
+
     /// Say it, once, of the messages whose failing in this run is their last try (#1581).
     fn leave_out(&self, blamed: &[u32], run: &mut Run) {
         let last = blamed.iter().filter(|uid| self.state.is_some_and(|s| s.failing.get(uid).copied().unwrap_or(0).saturating_add(1) == MAX_TRIES));
         let count = last.count();
         if count > 0 {
             let name = shown(&self.remote);
-            run.out.problem(said!(
-                "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again",
-                count,
-                name,
-                tries = u32::from(MAX_TRIES)
-            ));
+            let tries = u32::from(MAX_TRIES);
+            run.out.problem(match count {
+                1 => said!(
+                    "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again",
+                    name,
+                    tries
+                ),
+                count => said!(
+                    "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again",
+                    count,
+                    name,
+                    tries
+                ),
+            });
         }
     }
 

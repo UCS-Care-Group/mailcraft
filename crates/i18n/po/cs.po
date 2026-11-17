@@ -7705,6 +7705,12 @@ msgstr "Vynechat tento účet z tohoto Odeslat/přijmout"
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "Zpráva ve složce „{name}“, kterou se nepodařilo stáhnout při {tries} spuštěních, se vynechává; Zkusit znovu vynechané zprávy ji zkusí znovu"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
 msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
 msgstr "{count} zpráv ve složce „{name}“, které se nepodařilo stáhnout při {tries} spuštěních, se vynechává; Zkusit znovu vynechané zprávy je zkusí znovu"
 
@@ -21680,6 +21686,12 @@ msgstr "stahování selhalo"
 #, fuzzy
 msgid "the download stopped before it was done"
 msgstr "stahování se zastavilo dřív, než bylo hotovo"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "šifrované spojení bylo cestou poškozeno (obvykle za tím stojí antivirový program nebo firewall, který kontroluje poštovní spojení: vypněte pro MailCraft kontrolu pošty či SSL, nebo se zeptejte poskytovatele pošty)"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs

@@ -7682,6 +7682,12 @@ msgstr "A fiók kihagyása a mostani küldésből és fogadásból"
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "A(z) „{name}” mappa 1 üzenete kimarad, mert {tries} futásban nem sikerült letölteni; az Átugrott üzenetek újrapróbálása újra megpróbálja"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
 msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
 msgstr "A(z) „{name}” mappa {count} üzenete kimarad, mert {tries} futásban nem sikerült letölteni; az Átugrott üzenetek újrapróbálása újra megpróbálja őket"
 
@@ -21634,6 +21640,12 @@ msgstr "a letöltés sikertelen"
 #, fuzzy
 msgid "the download stopped before it was done"
 msgstr "a letöltés leállt, mielőtt megtörtént volna"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "a titkosított kapcsolat útközben megsérült (ezt általában a levelezési kapcsolatokat átvizsgáló víruskereső vagy tűzfal okozza: kapcsolja ki a MailCraftra vonatkozó levél- vagy SSL-vizsgálatot, vagy kérdezze meg a levelezési szolgáltatót)"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs

@@ -7718,6 +7718,12 @@ msgstr "Pomiń to konto w tym Wyślij/Odbierz"
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "Pominięto 1 wiadomość z „{name}”, której nie udało się pobrać w {tries} przebiegach; Ponów pominięte wiadomości próbuje jej ponownie"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
 msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
 msgstr "Pominięto {count} wiadomości z „{name}”, których nie udało się pobrać w {tries} przebiegach; Ponów pominięte wiadomości próbuje ich ponownie"
 
@@ -21712,6 +21718,12 @@ msgstr "pobieranie nie powiodło się"
 #, fuzzy
 msgid "the download stopped before it was done"
 msgstr "pobieranie zatrzymało się przed zakończeniem"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "szyfrowane połączenie zostało uszkodzone po drodze (zwykle winny jest program antywirusowy lub zapora skanująca połączenia pocztowe: wyłącz dla MailCraft skanowanie poczty lub SSL albo zapytaj dostawcę poczty)"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs

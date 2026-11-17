@@ -7682,6 +7682,12 @@ msgstr "Escludi questo account da questo Invia/Ricevi"
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "Viene lasciato da parte 1 messaggio di \"{name}\" che non si è scaricato in {tries} esecuzioni; Riprova i messaggi saltati lo riprende"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
 msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
 msgstr "Vengono lasciati da parte {count} messaggi di \"{name}\" che non si sono scaricati in {tries} esecuzioni; Riprova i messaggi saltati li riprende"
 
@@ -21616,6 +21622,12 @@ msgstr "il download non è riuscito"
 #, fuzzy
 msgid "the download stopped before it was done"
 msgstr "il download si è interrotto prima del termine"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "la connessione cifrata è stata danneggiata lungo il percorso (di solito è colpa di un antivirus o di un firewall che analizza le connessioni di posta: disattivi l'analisi della posta o SSL per MailCraft, oppure chieda al provider di posta)"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs

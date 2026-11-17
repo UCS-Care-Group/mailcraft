@@ -7681,6 +7681,12 @@ msgstr "此次发送/接收时跳过此账户"
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "“{name}”中有 1 封邮件在 {tries} 次运行中都下载失败，已被跳过；“重试跳过的邮件”会再次尝试"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
 msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
 msgstr "“{name}”中有 {count} 封邮件在 {tries} 次运行中都下载失败，已被跳过；“重试跳过的邮件”会再次尝试"
 
@@ -21627,6 +21633,12 @@ msgstr "下载失败"
 #, fuzzy
 msgid "the download stopped before it was done"
 msgstr "下载尚未完成就已停止"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "加密连接在传输途中被破坏（通常是扫描邮件连接的杀毒或防火墙软件所致：请为 MailCraft 关闭其邮件或 SSL 扫描，或咨询邮件服务商）"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs

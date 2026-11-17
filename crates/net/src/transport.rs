@@ -396,16 +396,12 @@ fn secure<'a>(mut tcp: TcpStream, host: &str, tls: Option<Arc<ClientConfig>>) ->
     Ok(Stream::over(Io::Tls(Box::new(StreamOwned::new(connection, tcp)))))
 }
 
-/// What the owner can make of a record that failed its check in the middle of a connection
-/// (#1581): the library's own words are about the cipher, and the usual cause is outside the program.
-const DAMAGED_STREAM: &str = "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)";
-
 /// An error from the middle of an encrypted connection, with a record that failed its check said
 /// in plain words; anything else as it was.
 fn mid_connection(e: std::io::Error) -> std::io::Error {
     use rustls::Error;
     if matches!(e.get_ref().and_then(|inner| inner.downcast_ref::<Error>()), Some(Error::DecryptError)) {
-        return std::io::Error::new(ErrorKind::InvalidData, DAMAGED_STREAM);
+        return std::io::Error::new(ErrorKind::InvalidData, mailcraft_proto::DamagedStream);
     }
     e
 }
