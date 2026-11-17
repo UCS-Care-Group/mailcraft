@@ -48,7 +48,7 @@ fn the_header_as_it_came_is_kept_only_for_an_account_a_rule_reads_it_for() {
     // No rule looks for words in the header: nothing of it is kept, in memory or in the file.
     arrives(&mut s, ada, 1, vec![received(1, "Before")]);
     assert_eq!(kept(&s, "Before"), "");
-    let saved = serde_json::to_value(&*s.mailbox.messages.values().find(|m| m.subject == "Before").unwrap()).unwrap();
+    let saved = serde_json::to_value(s.mailbox.messages.values().find(|m| m.subject == "Before").unwrap()).unwrap();
     assert!(saved.get("readHeader").is_none(), "{saved}");
 
     // A rule of the other account's: still nothing for this one's mail.
