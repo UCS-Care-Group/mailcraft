@@ -1979,8 +1979,9 @@ msgstr "Atașamentele nu pot fi deschise aici: salvați-l cu Salvare ca."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Attachments:"
-msgstr ""
+msgstr "Atașamente:"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3308,8 +3309,9 @@ msgstr "Copiat. Lipiți-l într-un e-mail sau într-un mesaj pentru administrato
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Copies"
-msgstr ""
+msgstr "Copii"
 
 #. name
 #: crates/engine/src/sync_driver/favorites.rs
@@ -4438,8 +4440,9 @@ msgstr "S-a descărcat {name}"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Downloaded {name}: open it to print"
-msgstr ""
+msgstr "S-a descărcat {name}: deschideți-l pentru a-l imprima"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -7457,8 +7460,9 @@ msgstr "Suprapuneți acest calendar peste celelalte"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Laying out the pages…"
-msgstr ""
+msgstr "Se așază paginile…"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -7504,8 +7508,9 @@ msgstr "Anunțați-i pe ceilalți că sunteți plecat sau nu puteți răspunde o
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Letter"
-msgstr ""
+msgstr "Letter"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -7653,8 +7658,9 @@ msgstr "Se examinează certificatul serverului…"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Looking for printers…"
-msgstr ""
+msgstr "Se caută imprimante…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -10598,8 +10604,9 @@ msgstr "Deschis cu conectarea lui {owner}. Necesită Acces deplin la cutia poșt
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Opened {name} to print"
-msgstr ""
+msgstr "S-a deschis {name} pentru imprimare"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -10645,8 +10652,9 @@ msgstr "Deschide pagina GitHub în browser, completată: o verificați și o tri
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Opens in your PDF viewer, to print from there"
-msgstr ""
+msgstr "Se deschide în vizualizatorul PDF, pentru a imprima de acolo"
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
@@ -10860,8 +10868,9 @@ msgstr "Pagină deschisă."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Page {n} of {m}"
-msgstr ""
+msgstr "Pagina {n} din {m}"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -10871,8 +10880,9 @@ msgstr "Pagina {page} din {pages}"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Pages"
-msgstr ""
+msgstr "Pagini"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -10882,13 +10892,15 @@ msgstr "Paginile de acest tip se deschid în browser, unde rulează scripturile 
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Pages:"
-msgstr ""
+msgstr "Pagini:"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Paper"
-msgstr ""
+msgstr "Hârtie"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11278,41 +11290,48 @@ msgstr "Principale, Rețele sociale, Promoții, Actualizări și Forumuri, așa 
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print"
-msgstr ""
+msgstr "Imprimare"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print in colour"
-msgstr ""
+msgstr "Imprimare color"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print on both sides"
-msgstr ""
+msgstr "Imprimare pe ambele fețe"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printer"
-msgstr ""
+msgstr "Imprimantă"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printing isn't available here: use Save as PDF instead."
-msgstr ""
+msgstr "Imprimarea nu este disponibilă aici: folosiți în schimb Salvare ca PDF."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printing {n} page on {printer}"
 msgid_plural "Printing {n} pages on {printer}"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "Se imprimă {n} pagină pe {printer}"
+msgstr[1] "Se imprimă {n} pagini pe {printer}"
+msgstr[2] "Se imprimă {n} de pagini pe {printer}"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+#, fuzzy
 msgid "Print…"
-msgstr ""
+msgstr "Imprimare…"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -12586,13 +12605,15 @@ msgstr "Salvare semnătură"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Save as PDF"
-msgstr ""
+msgstr "Salvare ca PDF"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+#, fuzzy
 msgid "Save as PDF…"
-msgstr ""
+msgstr "Salvare ca PDF…"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13383,8 +13404,9 @@ msgstr "Se trimite raportul…"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Sending to the printer…"
-msgstr ""
+msgstr "Se trimite la imprimantă…"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -15081,8 +15103,9 @@ msgstr "Cheia aceea este deja pe card"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "That printer can't be printed to."
-msgstr ""
+msgstr "Nu se poate imprima pe acea imprimantă."
 
 #. what a command says
 #: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -15626,8 +15649,9 @@ msgstr "Fișierul este mai mare decât poate fi o cheie OpenPGP."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The file to print couldn't be written: {error}"
-msgstr ""
+msgstr "Fișierul de imprimat nu a putut fi scris: {error}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -15922,8 +15946,9 @@ msgstr "Mesajul pe care îl scriați a fost salvat în Ciorne; un link a deschis
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The messages couldn't be laid out for printing."
-msgstr ""
+msgstr "Mesajele nu au putut fi așezate pentru imprimare."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -16011,8 +16036,9 @@ msgstr "Proprietarul nu a permis verificarea actualizărilor."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The pages to print aren't a list of page numbers."
-msgstr ""
+msgstr "Paginile de imprimat nu sunt o listă de numere de pagină."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -16028,13 +16054,15 @@ msgstr "Portul; lăsați gol pentru cel obișnuit"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The printer didn't answer in time. The job may still print: look at the print queue before printing again."
-msgstr ""
+msgstr "Imprimanta nu a răspuns la timp. Lucrarea s-ar putea imprima totuși: verificați coada de imprimare înainte de a imprima din nou."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The printer didn't take the job. Check that it is on and connected, or Save as PDF instead."
-msgstr ""
+msgstr "Imprimanta nu a acceptat lucrarea. Verificați dacă este pornită și conectată sau folosiți în schimb Salvare ca PDF."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -16134,13 +16162,15 @@ msgstr "Mesajul selectat, ca .eml"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The selected messages as they print, as .pdf"
-msgstr ""
+msgstr "Mesajele selectate așa cum se imprimă, ca .pdf"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The selected messages, on a printer"
-msgstr ""
+msgstr "Mesajele selectate, la o imprimantă"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -21187,8 +21217,9 @@ msgstr "dosarul în care este acest mesaj nu mai este pe acest computer"
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "the font to print in can't be read"
-msgstr ""
+msgstr "fontul pentru imprimare nu poate fi citit"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -21696,8 +21727,9 @@ msgstr "serverul nu a vrut să trimită „{subject}” întreg, deci nu poate f
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be printed"
-msgstr ""
+msgstr "serverul nu a trimis „{subject}” complet, deci nu poate fi imprimat"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -23619,11 +23651,12 @@ msgstr[2] "{n} de sarcini deschise"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "{n} page"
 msgid_plural "{n} pages"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} pagină"
+msgstr[1] "{n} pagini"
+msgstr[2] "{n} de pagini"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -24047,8 +24080,9 @@ msgstr "„{subject}” a venit de pe server, dar nu a putut fi păstrat pe aces
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be printed"
-msgstr ""
+msgstr "„{subject}” a venit de pe server, dar nu a putut fi păstrat pe acest computer, deci nu poate fi imprimat"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24070,8 +24104,9 @@ msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecțio
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be printed"
-msgstr ""
+msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi imprimat"
 
 #, fuzzy
 #~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."

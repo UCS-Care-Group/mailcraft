@@ -1975,8 +1975,9 @@ msgstr "无法在此处打开附件，请使用“另存为”保存。"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Attachments:"
-msgstr ""
+msgstr "附件："
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3304,8 +3305,9 @@ msgstr "已复制。请将其粘贴到邮件或聊天中发给您的管理员。
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Copies"
-msgstr ""
+msgstr "份数"
 
 #. name
 #: crates/engine/src/sync_driver/favorites.rs
@@ -4433,8 +4435,9 @@ msgstr "已下载 {name}"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Downloaded {name}: open it to print"
-msgstr ""
+msgstr "已下载 {name}：打开它即可打印"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -7424,8 +7427,9 @@ msgstr "将此日历叠加到其他日历上"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Laying out the pages…"
-msgstr ""
+msgstr "正在排版页面…"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -7471,8 +7475,9 @@ msgstr "让别人知道您不在或暂时无法回复：邮箱会自动回复"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Letter"
-msgstr ""
+msgstr "Letter"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -7620,8 +7625,9 @@ msgstr "查看服务器的证书…"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Looking for printers…"
-msgstr ""
+msgstr "正在查找打印机…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -10559,8 +10565,9 @@ msgstr "使用 {owner} 的登录信息打开。此操作需要组织管理员授
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Opened {name} to print"
-msgstr ""
+msgstr "已打开 {name} 以便打印"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -10606,8 +10613,9 @@ msgstr "在浏览器中打开已填好内容的 GitHub 页面，供您检查并�
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Opens in your PDF viewer, to print from there"
-msgstr ""
+msgstr "在 PDF 查看器中打开，从那里打印"
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
@@ -10821,8 +10829,9 @@ msgstr "页面已打开。"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Page {n} of {m}"
-msgstr ""
+msgstr "第 {n} 页，共 {m} 页"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -10832,8 +10841,9 @@ msgstr "第 {page} 页，共 {pages} 页"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Pages"
-msgstr ""
+msgstr "页面"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -10843,13 +10853,15 @@ msgstr "此类页面会在浏览器中打开，页面中的脚本会运行。只
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Pages:"
-msgstr ""
+msgstr "页面："
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Paper"
-msgstr ""
+msgstr "纸张"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11237,39 +11249,46 @@ msgstr "Gmail 会将收件箱分为主要、社交、促销、更新和论坛；
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print"
-msgstr ""
+msgstr "打印"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print in colour"
-msgstr ""
+msgstr "彩色打印"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print on both sides"
-msgstr ""
+msgstr "双面打印"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printer"
-msgstr ""
+msgstr "打印机"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printing isn't available here: use Save as PDF instead."
-msgstr ""
+msgstr "此处无法打印：请改用“另存为 PDF”。"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printing {n} page on {printer}"
 msgid_plural "Printing {n} pages on {printer}"
-msgstr[0] ""
+msgstr[0] "正在 {printer} 上打印 {n} 页"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+#, fuzzy
 msgid "Print…"
-msgstr ""
+msgstr "打印…"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -12543,13 +12562,15 @@ msgstr "保存签名"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Save as PDF"
-msgstr ""
+msgstr "另存为 PDF"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+#, fuzzy
 msgid "Save as PDF…"
-msgstr ""
+msgstr "另存为 PDF…"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13334,8 +13355,9 @@ msgstr "正在发送报告…"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Sending to the printer…"
-msgstr ""
+msgstr "正在发送到打印机…"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -15026,8 +15048,9 @@ msgstr "该密钥已在卡上"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "That printer can't be printed to."
-msgstr ""
+msgstr "无法在该打印机上打印。"
 
 #. what a command says
 #: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -15571,8 +15594,9 @@ msgstr "文件超过 OpenPGP 密钥文件的大小上限。"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The file to print couldn't be written: {error}"
-msgstr ""
+msgstr "无法写入要打印的文件：{error}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -15865,8 +15889,9 @@ msgstr "您正在撰写的邮件已保存到“草稿”；链接打开了一封
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The messages couldn't be laid out for printing."
-msgstr ""
+msgstr "无法为打印排版这些邮件。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15954,8 +15979,9 @@ msgstr "用户未允许检查更新。"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The pages to print aren't a list of page numbers."
-msgstr ""
+msgstr "要打印的页面不是页码列表。"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15971,13 +15997,15 @@ msgstr "端口；留空则使用默认端口"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The printer didn't answer in time. The job may still print: look at the print queue before printing again."
-msgstr ""
+msgstr "打印机未及时响应。该作业可能仍会打印：再次打印前请查看打印队列。"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The printer didn't take the job. Check that it is on and connected, or Save as PDF instead."
-msgstr ""
+msgstr "打印机未接受该作业。请检查它是否已开启并连接，或改用“另存为 PDF”。"
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -16077,13 +16105,15 @@ msgstr "将选定邮件保存为 .eml"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The selected messages as they print, as .pdf"
-msgstr ""
+msgstr "所选邮件的打印效果，保存为 .pdf"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The selected messages, on a printer"
-msgstr ""
+msgstr "所选邮件，在打印机上打印"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -21109,8 +21139,9 @@ msgstr "此邮件所在的文件夹已不在此计算机上"
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "the font to print in can't be read"
-msgstr ""
+msgstr "无法读取用于打印的字体"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -21618,8 +21649,9 @@ msgstr "服务器未完整发送“{subject}”，因此无法将其作为附件
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be printed"
-msgstr ""
+msgstr "服务器未完整发送“{subject}”，因此无法打印"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -23377,9 +23409,10 @@ msgstr[0] "{n} 项未完成任务"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "{n} page"
 msgid_plural "{n} pages"
-msgstr[0] ""
+msgstr[0] "{n} 页"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -23755,8 +23788,9 @@ msgstr "“{subject}”来自其服务器，但无法保留在这台计算机上
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be printed"
-msgstr ""
+msgstr "“{subject}”来自其服务器，但无法保留在这台计算机上，因此无法打印"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23778,8 +23812,9 @@ msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be printed"
-msgstr ""
+msgstr "在其服务器上找不到“{subject}”，因此无法打印"
 
 #, fuzzy
 #~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."

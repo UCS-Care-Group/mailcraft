@@ -1970,8 +1970,9 @@ msgstr "Les pièces jointes ne peuvent pas être ouvertes ici : enregistrez-la
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Attachments:"
-msgstr ""
+msgstr "Pièces jointes :"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3288,8 +3289,9 @@ msgstr "Copié. Collez-le dans un message ou un chat pour votre administrateur."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Copies"
-msgstr ""
+msgstr "Copies"
 
 #. name
 #: crates/engine/src/sync_driver/favorites.rs
@@ -4413,8 +4415,9 @@ msgstr "{name} téléchargé"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Downloaded {name}: open it to print"
-msgstr ""
+msgstr "{name} téléchargé : ouvrez-le pour l'imprimer"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -7391,8 +7394,9 @@ msgstr "Superposer ce calendrier aux autres"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Laying out the pages…"
-msgstr ""
+msgstr "Mise en page…"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -7438,8 +7442,9 @@ msgstr "Prévenez les gens que vous êtes absent ou ne pouvez pas répondre pend
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Letter"
-msgstr ""
+msgstr "Lettre US"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -7585,8 +7590,9 @@ msgstr "Examen du certificat du serveur…"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Looking for printers…"
-msgstr ""
+msgstr "Recherche d'imprimantes…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -10516,8 +10522,9 @@ msgstr "Ouverte avec la connexion de {owner}. Elle nécessite un Accès total à
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Opened {name} to print"
-msgstr ""
+msgstr "{name} ouvert pour l'impression"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -10563,8 +10570,9 @@ msgstr "Ouvre la page de GitHub dans votre navigateur, remplie : vous la vérifi
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Opens in your PDF viewer, to print from there"
-msgstr ""
+msgstr "S'ouvre dans votre lecteur PDF, pour imprimer depuis celui-ci"
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
@@ -10778,8 +10786,9 @@ msgstr "Page ouverte."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Page {n} of {m}"
-msgstr ""
+msgstr "Page {n} sur {m}"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -10789,8 +10798,9 @@ msgstr "Page {page} sur {pages}"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Pages"
-msgstr ""
+msgstr "Pages"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -10800,13 +10810,15 @@ msgstr "Les pages de ce type s'ouvrent dans le navigateur, où leurs scripts s'e
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Pages:"
-msgstr ""
+msgstr "Pages :"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Paper"
-msgstr ""
+msgstr "Papier"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11188,40 +11200,47 @@ msgstr "Principale, Réseaux sociaux, Promotions, Notifications et Forums, comme
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print"
-msgstr ""
+msgstr "Imprimer"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print in colour"
-msgstr ""
+msgstr "Imprimer en couleur"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print on both sides"
-msgstr ""
+msgstr "Imprimer en recto verso"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printer"
-msgstr ""
+msgstr "Imprimante"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printing isn't available here: use Save as PDF instead."
-msgstr ""
+msgstr "L'impression n'est pas disponible ici : utilisez plutôt Enregistrer en PDF."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printing {n} page on {printer}"
 msgid_plural "Printing {n} pages on {printer}"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Impression de {n} page sur {printer}"
+msgstr[1] "Impression de {n} pages sur {printer}"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+#, fuzzy
 msgid "Print…"
-msgstr ""
+msgstr "Imprimer…"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -12482,13 +12501,15 @@ msgstr "Enregistrer la signature"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Save as PDF"
-msgstr ""
+msgstr "Enregistrer en PDF"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+#, fuzzy
 msgid "Save as PDF…"
-msgstr ""
+msgstr "Enregistrer en PDF…"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13269,8 +13290,9 @@ msgstr "Envoi du rapport…"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Sending to the printer…"
-msgstr ""
+msgstr "Envoi à l'imprimante…"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -14949,8 +14971,9 @@ msgstr "Cette clé est déjà sur la carte"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "That printer can't be printed to."
-msgstr ""
+msgstr "Impossible d'imprimer sur cette imprimante."
 
 #. what a command says
 #: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -15494,8 +15517,9 @@ msgstr "Le fichier est plus volumineux qu'une clé OpenPGP ne peut l'être."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The file to print couldn't be written: {error}"
-msgstr ""
+msgstr "Le fichier à imprimer n'a pas pu être écrit : {error}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -15789,8 +15813,9 @@ msgstr "Le message que vous rédigiez a été enregistré dans Brouillons ; un l
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The messages couldn't be laid out for printing."
-msgstr ""
+msgstr "Les messages n'ont pas pu être mis en page pour l'impression."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15878,8 +15903,9 @@ msgstr "Le propriétaire n'a pas autorisé la recherche de mises à jour."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The pages to print aren't a list of page numbers."
-msgstr ""
+msgstr "Les pages à imprimer ne sont pas une liste de numéros de page."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15894,13 +15920,15 @@ msgstr "Le port ; laissez vide pour le port habituel"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The printer didn't answer in time. The job may still print: look at the print queue before printing again."
-msgstr ""
+msgstr "L'imprimante n'a pas répondu à temps. La tâche peut encore s'imprimer : consultez la file d'impression avant de réimprimer."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The printer didn't take the job. Check that it is on and connected, or Save as PDF instead."
-msgstr ""
+msgstr "L'imprimante n'a pas accepté la tâche. Vérifiez qu'elle est allumée et connectée, ou utilisez plutôt Enregistrer en PDF."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -16000,13 +16028,15 @@ msgstr "Le message sélectionné, au format .eml"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The selected messages as they print, as .pdf"
-msgstr ""
+msgstr "Les messages sélectionnés tels qu'ils s'impriment, en .pdf"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The selected messages, on a printer"
-msgstr ""
+msgstr "Les messages sélectionnés, sur une imprimante"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -21021,8 +21051,9 @@ msgstr "le dossier contenant ce message n'est plus sur cet ordinateur"
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "the font to print in can't be read"
-msgstr ""
+msgstr "la police d'impression ne peut pas être lue"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -21530,8 +21561,9 @@ msgstr "le serveur n'a pas voulu envoyer « {subject} » en entier, il ne peut d
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be printed"
-msgstr ""
+msgstr "le serveur n'a pas envoyé « {subject} » en entier, il ne peut donc pas être imprimé"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -23369,10 +23401,11 @@ msgstr[1] "{n} tâches en cours"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "{n} page"
 msgid_plural "{n} pages"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} page"
+msgstr[1] "{n} pages"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -23769,8 +23802,9 @@ msgstr "« {subject} » est arrivé de son serveur, mais n'a pas pu être conser
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be printed"
-msgstr ""
+msgstr "« {subject} » est arrivé de son serveur, mais n'a pas pu être conservé sur cet ordinateur, il ne peut donc pas être imprimé"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23792,8 +23826,9 @@ msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas êt
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be printed"
-msgstr ""
+msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être imprimé"
 
 #, fuzzy
 #~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."

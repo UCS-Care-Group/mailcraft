@@ -1978,8 +1978,9 @@ msgstr "A mellékleteket nem lehet itt megnyitni: mentse el a Mentés As-el."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Attachments:"
-msgstr ""
+msgstr "Mellékletek:"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3303,8 +3304,9 @@ msgstr "Kimásolva. Illessze be e-mailbe vagy csevegésbe a rendszergazdájának
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Copies"
-msgstr ""
+msgstr "Példányszám"
 
 #. name
 #: crates/engine/src/sync_driver/favorites.rs
@@ -4428,8 +4430,9 @@ msgstr "Letöltött {name}"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Downloaded {name}: open it to print"
-msgstr ""
+msgstr "{name} letöltve: nyissa meg a nyomtatáshoz"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -7425,8 +7428,9 @@ msgstr "Naptár megjelenítése a többi fölött"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Laying out the pages…"
-msgstr ""
+msgstr "Oldalak tördelése…"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -7472,8 +7476,9 @@ msgstr "Tudasd az emberekkel, hogy távol vagy, vagy nem tudsz válaszolni egy i
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Letter"
-msgstr ""
+msgstr "Letter"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -7621,8 +7626,9 @@ msgstr "A szerver tanúsítványát nézve…"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Looking for printers…"
-msgstr ""
+msgstr "Nyomtatók keresése…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -10560,8 +10566,9 @@ msgstr "Megnyitva {owner} bejelentkezéssel. Teljes hozzáférést igényel a po
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Opened {name} to print"
-msgstr ""
+msgstr "{name} megnyitva nyomtatásra"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -10607,8 +10614,9 @@ msgstr "Megnyitja GitHub oldalát a böngészőjében, kitöltve: ellenőrzi és
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Opens in your PDF viewer, to print from there"
-msgstr ""
+msgstr "A PDF-megjelenítőben nyílik meg, onnan nyomtatható"
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
@@ -10822,8 +10830,9 @@ msgstr "Az oldal megnyílt."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Page {n} of {m}"
-msgstr ""
+msgstr "{n}. oldal / {m}"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -10833,8 +10842,9 @@ msgstr "{page}. oldal / {pages}"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Pages"
-msgstr ""
+msgstr "Oldalak"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -10844,13 +10854,15 @@ msgstr "Az ilyen oldalak a böngészőben nyílnak meg, ahol a szkriptek futnak.
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Pages:"
-msgstr ""
+msgstr "Oldalak:"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Paper"
-msgstr ""
+msgstr "Papír"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11240,40 +11252,47 @@ msgstr "Primary, Social, Promóciók, Frissítések és fórumok, ahogy Gmail re
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print"
-msgstr ""
+msgstr "Nyomtatás"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print in colour"
-msgstr ""
+msgstr "Színes nyomtatás"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Print on both sides"
-msgstr ""
+msgstr "Kétoldalas nyomtatás"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printer"
-msgstr ""
+msgstr "Nyomtató"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printing isn't available here: use Save as PDF instead."
-msgstr ""
+msgstr "Itt nem lehet nyomtatni: használja helyette a Mentés PDF-ként lehetőséget."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Printing {n} page on {printer}"
 msgid_plural "Printing {n} pages on {printer}"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} oldal nyomtatása ezen: {printer}"
+msgstr[1] "{n} oldal nyomtatása ezen: {printer}"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+#, fuzzy
 msgid "Print…"
-msgstr ""
+msgstr "Nyomtatás…"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -12541,13 +12560,15 @@ msgstr "Aláírás mentése"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Save as PDF"
-msgstr ""
+msgstr "Mentés PDF-ként"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+#, fuzzy
 msgid "Save as PDF…"
-msgstr ""
+msgstr "Mentés PDF-ként…"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13333,8 +13354,9 @@ msgstr "Küldöm a jelentést…"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "Sending to the printer…"
-msgstr ""
+msgstr "Küldés a nyomtatóra…"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -15028,8 +15050,9 @@ msgstr "Az a kulcs már a kártyán van."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "That printer can't be printed to."
-msgstr ""
+msgstr "Erre a nyomtatóra nem lehet nyomtatni."
 
 #. what a command says
 #: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -15573,8 +15596,9 @@ msgstr "A fájl nagyobb, mint egy OpenPGP kulcs lehet."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The file to print couldn't be written: {error}"
-msgstr ""
+msgstr "A nyomtatandó fájlt nem sikerült megírni: {error}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -15868,8 +15892,9 @@ msgstr "Az üzenet, amit írtál, a Drafts-re mentett; egy link újat nyitott."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The messages couldn't be laid out for printing."
-msgstr ""
+msgstr "Az üzeneteket nem sikerült nyomtatáshoz tördelni."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15957,8 +15982,9 @@ msgstr "A tulajdonos nem engedélyezte a frissítéseket."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The pages to print aren't a list of page numbers."
-msgstr ""
+msgstr "A nyomtatandó oldalak nem oldalszámok listája."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15974,13 +16000,15 @@ msgstr "A kikötő; hagyja üresen a szokásos"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The printer didn't answer in time. The job may still print: look at the print queue before printing again."
-msgstr ""
+msgstr "A nyomtató nem válaszolt időben. A feladat még kinyomtatódhat: ellenőrizze a nyomtatási sort, mielőtt újra nyomtat."
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "The printer didn't take the job. Check that it is on and connected, or Save as PDF instead."
-msgstr ""
+msgstr "A nyomtató nem fogadta el a feladatot. Ellenőrizze, hogy be van-e kapcsolva és csatlakoztatva van-e, vagy használja helyette a Mentés PDF-ként lehetőséget."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -16080,13 +16108,15 @@ msgstr "A kijelölt üzenet .eml-ként"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The selected messages as they print, as .pdf"
-msgstr ""
+msgstr "A kijelölt üzenetek nyomtatási képe .pdf formátumban"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The selected messages, on a printer"
-msgstr ""
+msgstr "A kijelölt üzenetek nyomtatóra"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -21116,8 +21146,9 @@ msgstr "A mappa, amiben ez az üzenet van, már nincs ezen a számítógépen."
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "the font to print in can't be read"
-msgstr ""
+msgstr "a nyomtatáshoz használt betűtípus nem olvasható"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -21625,8 +21656,9 @@ msgstr "a kiszolgáló nem adta át a teljes „{subject}” üzenetet, ezért a
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be printed"
-msgstr ""
+msgstr "a kiszolgáló nem küldte el teljesen a(z) „{subject}” üzenetet, ezért nem nyomtatható"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -23466,10 +23498,11 @@ msgstr[1] "{n} nyitott feladat"
 
 #. interface
 #: crates/ui-egui/src/printing.rs
+#, fuzzy
 msgid "{n} page"
 msgid_plural "{n} pages"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} oldal"
+msgstr[1] "{n} oldal"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -23869,8 +23902,9 @@ msgstr "a(z) „{subject}” üzenet megérkezett a kiszolgálóról, de helyben
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be printed"
-msgstr ""
+msgstr "a(z) „{subject}” üzenet megérkezett a kiszolgálóról, de helyben nem sikerült menteni, ezért nem nyomtatható"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23892,8 +23926,9 @@ msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint 
 
 #. what a command says
 #: crates/engine/src/print.rs
+#, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be printed"
-msgstr ""
+msgstr "a(z) „{subject}” üzenet nem található a kiszolgálón, ezért nem nyomtatható"
 
 #, fuzzy
 #~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
