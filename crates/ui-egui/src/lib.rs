@@ -85,6 +85,8 @@ mod dialog_scrim_tests;
 pub mod dialogs;
 #[cfg(test)]
 mod draft_continue_tests;
+#[cfg(test)]
+mod draft_selection_tests;
 mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;
@@ -100,6 +102,8 @@ mod find_replace;
 mod folder_properties;
 mod follow_up_tick;
 mod font_index;
+#[cfg(test)]
+mod foreign_sign_in_tests;
 pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
@@ -142,6 +146,8 @@ mod late_work_tests;
 mod leave_message_tests;
 #[cfg(test)]
 mod list_keys_tests;
+#[cfg(test)]
+mod list_rearrange_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
@@ -218,6 +224,9 @@ mod security_fixtures_tests;
 mod security_tests;
 mod send_later;
 mod send_receive;
+mod send_warnings;
+#[cfg(test)]
+mod send_warnings_tests;
 mod sender_images;
 mod sending;
 pub mod server_search;
@@ -226,6 +235,10 @@ mod shared_calendars;
 #[cfg(test)]
 mod shared_calendars_tests;
 mod shared_mailboxes;
+#[cfg(test)]
+mod signature_link_tests;
+#[cfg(test)]
+mod signature_rename_tests;
 mod signatures;
 #[cfg(test)]
 mod snooze_tell_tests;
@@ -889,6 +902,9 @@ pub struct UiState {
     pub people_account_address: String,
     pub folder_pane_width: f32,
     pub list_width: f32,
+    /// The message list's height with the reading pane at the bottom, as the owner dragged it
+    /// (#1372; 0: a share of the window's height).
+    pub list_height: f32,
     /// Send/Receive Progress's width, and the height of its list of accounts (0: as tall as what
     /// it lists, up to a limit), as the owner dragged them (#145).
     pub sync_panel_width: f32,
@@ -989,6 +1005,7 @@ impl Default for UiState {
             people_account_address: String::new(),
             folder_pane_width: 230.0,
             list_width: 380.0,
+            list_height: 0.0,
             sync_panel_width: sync_panel::WIDTH,
             sync_panel_height: 0.0,
             collapsed_folders: Vec::new(),
@@ -1500,6 +1517,9 @@ pub struct MailApp {
     /// The message being written whose body takes the keyboard back at its next frame (after a
     /// ribbon button or a dialog changed its text), by its id (#286).
     pub(crate) body_focus_wanted: Option<u64>,
+    /// The signature open in File › Signatures is to take the keyboard back at its next frame,
+    /// after its formatting bar or the Link dialog changed its text (#1552).
+    pub(crate) signature_focus_wanted: bool,
     /// File › Signatures was on screen in the last frame: leaving it saves and closes the open
     /// signature.
     signatures_shown: bool,
@@ -1510,6 +1530,9 @@ pub struct MailApp {
     pub(crate) input_trail: std::collections::VecDeque<String>,
     /// The message list should scroll to the selected row (after a keyboard move).
     pub(crate) reveal_selection: bool,
+    /// The list was rearranged (#1511): the scroll to the selected row puts it in the middle of
+    /// the list, not at the nearest edge as for a move from the keyboard.
+    pub(crate) reveal_centered: bool,
     /// The rows the message list was last drawn from, the selection then (its messages, and those
     /// picked as their conversation) and what the rows drew selected: worked out again only when
     /// one of them changes, not at every frame (#503).
@@ -1856,10 +1879,12 @@ impl MailApp {
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
+            signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
+            reveal_centered: false,
             drawn: None,
             list_page_rows: 10,
             passwords: Default::default(),
@@ -2047,6 +2072,8 @@ impl MailApp {
         self.ui.backstage_page = "info".into();
         self.ui.folder_pane_width = if self.ui.folder_pane_width.is_finite() { self.ui.folder_pane_width.clamp(150.0, 500.0) } else { 230.0 };
         self.ui.list_width = if self.ui.list_width.is_finite() { self.ui.list_width.clamp(240.0, 900.0) } else { 380.0 };
+        self.ui.list_height =
+            if self.ui.list_height.is_finite() && self.ui.list_height > 0.0 { self.ui.list_height.clamp(120.0, 4000.0) } else { 0.0 };
         (self.ui.sync_panel_width, self.ui.sync_panel_height) = sync_panel::sane_size(self.ui.sync_panel_width, self.ui.sync_panel_height);
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
@@ -2129,6 +2156,12 @@ impl MailApp {
             self.dialog = Some(dialogs::leaving(id, params));
             return Ok(json!({"pending": "discardDraft"}));
         }
+        // What is selected is what the reading pane shows (#727): the message being written there
+        // goes to Drafts first, as leaving it does.
+        if let Err(e) = windows::compose_window::leave_for_selection(self, id, &params) {
+            self.say_refused(id, &e);
+            return Err(e);
+        }
         if let Some(name) = dialogs::input_dialog(id, &params)
             && self.enabled(id)
         {
@@ -2164,6 +2197,27 @@ impl MailApp {
         }
         if let Some(r) = files::intercept(self, id, &params) {
             return r;
+        }
+        // Before a message goes (#509): a recipient who looks like somebody the owner writes to,
+        // or people outside the organisation who would see each other.
+        // A yes holds for the message as it was asked about.
+        let params = if id == "compose.send" { send_warnings::settle(self, params) } else { params };
+        if id == "compose.send"
+            && let Some(ask) = send_warnings::question(self, &params)
+        {
+            let mut params = if params.is_object() { params } else { json!({}) };
+            // The message asked about is the one that goes, whichever is current when the owner answers.
+            if params.get("compose").is_none()
+                && let (Some(compose), Some(map)) = (self.session.compose_id(), params.as_object_mut())
+            {
+                map.insert("compose".into(), json!(compose));
+            }
+            let asked = send_warnings::asked_about(self, &params);
+            if let Some(map) = params.as_object_mut() {
+                map.insert(send_warnings::ASKED_ABOUT.into(), asked);
+            }
+            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
+            return Ok(json!({"pending": "confirm"}));
         }
         // What can't be taken back is asked about first, once.
         // (An answer to an invitation in the mail has a question of its own.)
@@ -2251,14 +2305,21 @@ impl MailApp {
         r
     }
 
-    /// The body of the current message being written takes the keyboard back at its next frame.
+    /// The text being edited takes the keyboard back at its next frame: the body of the message
+    /// being written, or the signature open in File › Signatures.
     pub(crate) fn want_body_focus(&mut self) {
         self.body_focus_wanted = self.session.compose_id();
+        self.signature_focus_wanted = self.session.signature_edit.is_some();
     }
 
     /// Whether the body of the current message being written is to take the keyboard back now; asked once.
     pub(crate) fn take_body_focus(&mut self) -> bool {
         self.body_focus_wanted.take().is_some_and(|id| Some(id) == self.session.compose_id())
+    }
+
+    /// Whether the signature open in File › Signatures is to take the keyboard back now; asked once.
+    pub(crate) fn take_signature_focus(&mut self) -> bool {
+        std::mem::take(&mut self.signature_focus_wanted) && self.session.signature_edit.is_some()
     }
 
     /// Whether the Bcc line of the current message being written is shown.
@@ -2440,6 +2501,13 @@ impl MailApp {
                 }
             }
         }
+        // A new arrangement moves the rows: the list scrolls to the selected message, from the
+        // window's menus and keys as from an agent through the control channel (#1511). With
+        // nothing selected it stays where it is.
+        if r.is_ok() && keys::REARRANGES_LIST.contains(&id) {
+            self.reveal_selection = true;
+            self.reveal_centered = true;
+        }
         // Starting to write brings up the Message tab; finishing goes back to Home.
         // (What is remembered of a message being written goes with it.)
         let open: std::collections::HashSet<u64> = self.session.all_composing().map(|c| c.id).collect();
@@ -2454,8 +2522,12 @@ impl MailApp {
     /// Open a message from outside the message list (a task, a contact's recent mail): in Mail, in
     /// its folder's All tab with no search, the list scrolled to it (#485).
     pub(crate) fn open_in_mail(&mut self, id: Id) {
+        // A selection that is refused (the message being written in the reading pane can't be
+        // saved, #727) leaves everything as it was: nothing is switched to, nothing scrolled to.
+        if self.run("mail.select", json!({"id": id, "elsewhere": true})).is_err() {
+            return;
+        }
         self.ui.backstage = false;
-        let _ = self.run("mail.select", json!({"id": id, "elsewhere": true}));
         let _ = self.run("view.mail", json!({}));
         self.reveal_selection = true;
     }
@@ -3391,15 +3463,25 @@ impl MailApp {
         if !mailcraft_engine::sync_driver::signed_in_as_other(a, tokens) {
             return false;
         }
-        let who = tokens.email.trim();
-        // (Said on screen; never written to the log, which names nobody.)
+        // (The sign-in's own progress words go: what is said now takes their place.)
+        self.session.sync_status.clear();
+        self.say_signed_in_as_other(account, tokens.email.trim());
+        true
+    }
+
+    /// Tell the owner that a sign-in for `account` came back as `who`, somebody else, and who to
+    /// sign in as instead: in the status bar, where any sign-in of somebody else's is said (#103).
+    /// The words said come back, for the account's problems report too. (Said on screen; never
+    /// written to the log, which names nobody.)
+    pub(crate) fn say_signed_in_as_other(&mut self, account: Id, who: &str) -> String {
+        let email = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
         let said = i18n::fmt(
             tl!("You signed in as {signedIn}, but this account is {account}. Sign in again as {account}."),
-            &[("signedIn", &forms::kit::shown(who, 120)), ("account", &forms::kit::shown(a.email.trim(), 120))],
+            &[("signedIn", &forms::kit::shown(who.trim(), 120)), ("account", &forms::kit::shown(&email, 120))],
         );
-        self.session.sync_status.clear();
-        self.status(said);
-        true
+        // (The Send/Receive progress is left as it is: a background job's refusal is not its end.)
+        self.status(said.clone());
+        said
     }
 
     /// Account setup: the password that was just shown to work, for this session's Send/Receive
@@ -3555,6 +3637,9 @@ impl MailApp {
                     mail: None,
                     mail_pieces: None,
                     cancel: Default::default(),
+                    // A renewed sign-in that isn't the account's own stops the run before the
+                    // Outbox goes.
+                    signer: Some(request.account.clone()),
                 };
                 self.session.sync_status = tl!("Sending…").to_string();
                 self.session.sync_progress.phase(account, SyncPhase::Sending);
@@ -3633,6 +3718,7 @@ impl MailApp {
             Err(MailRefusal::NotGraph(why)) => return Err(why),
         };
         let (owner, oauth, refresh, mail) = (plan.owner, plan.oauth, plan.refresh, plan.mail);
+        let signer = owner.clone();
         // The Outbox goes with the mail run itself (R3.4.2): sent as drafts or with `sendMail`,
         // and a message held there is not sent again by itself.
         let outbox: Vec<mailcraft_model::Message> = Vec::new();
@@ -3659,6 +3745,9 @@ impl MailApp {
             mail: Some(mail),
             mail_pieces: Some(pieces),
             cancel: self.services.sync_cancel.clone(),
+            // A renewed sign-in that isn't the account's own stops the run before the Outbox or
+            // anything of the mail goes.
+            signer: Some(signer),
         };
         self.resume_fetch();
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -5886,5 +5975,7 @@ mod privacy_tests;
 mod problem_log_tests;
 #[cfg(test)]
 mod product_names_tests;
+#[cfg(test)]
+mod shift_delete_tests;
 #[cfg(test)]
 mod tests;

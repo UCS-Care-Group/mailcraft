@@ -130,9 +130,51 @@ class CalendarControllerTest {
         assertEquals(LocalDate.parse("2026-12-02"), c.state.value.anchor)
         c.openDay(LocalDate.parse("2026-12-24"))
         assertEquals(CalendarMode.Day, c.state.value.mode)
-        assertEquals(DateRange(LocalDate.parse("2026-12-24"), LocalDate.parse("2026-12-24")), backend.ranges.last())
+        // The day view reads the day on either side too, so that a swipe shows them as they come in.
+        assertEquals(DateRange(LocalDate.parse("2026-12-23"), LocalDate.parse("2026-12-25")), backend.ranges.last())
         c.goToday()
         assertEquals(LocalDate.parse("2026-11-02"), c.state.value.anchor)
+    }
+
+    @Test
+    fun theWeekViewReadsItsWeekAndTheWeeksBesideIt() {
+        val c = controller()
+        c.refresh()
+        c.setMode(CalendarMode.Week)
+        // 2 November 2026 is a Monday.
+        assertEquals(DateRange(LocalDate.parse("2026-10-26"), LocalDate.parse("2026-11-15")), backend.ranges.last())
+        c.step(1)
+        assertEquals(LocalDate.parse("2026-11-09"), c.state.value.anchor)
+        c.goToday()
+        assertEquals(LocalDate.parse("2026-11-02"), c.state.value.anchor)
+        assertEquals(CalendarMode.Week, c.state.value.mode)
+    }
+
+    @Test
+    fun aDayFarOutsideThePagesIsHeldToThem() {
+        val c = controller()
+        c.setMode(CalendarMode.Day)
+        c.goTo(LocalDate.parse("1800-01-01"))
+        assertEquals(CalendarPaging.heldToPages(LocalDate.parse("1800-01-01")), c.state.value.anchor)
+        assertTrue(c.state.value.anchor.year == 1900)
+        // A swipe further out asks for nothing more.
+        val reads = backend.ranges.size
+        c.goTo(c.state.value.anchor.minusDays(1))
+        assertEquals(reads, backend.ranges.size)
+    }
+
+    @Test
+    fun aSwipeGoesToItsDayAndASwipeBackToTheSameDayReadsNothing() {
+        val c = controller()
+        c.refresh()
+        c.setMode(CalendarMode.Day)
+        val reads = backend.ranges.size
+        c.goTo(LocalDate.parse("2026-11-03"))
+        assertEquals(LocalDate.parse("2026-11-03"), c.state.value.anchor)
+        assertEquals(CalendarMode.Day, c.state.value.mode)
+        assertEquals(reads + 1, backend.ranges.size)
+        c.goTo(LocalDate.parse("2026-11-03"))
+        assertEquals(reads + 1, backend.ranges.size)
     }
 
     @Test
