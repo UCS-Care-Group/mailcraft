@@ -627,6 +627,11 @@ msgid ""
 "Settings"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+msgid "Account Problems"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
 msgid "Account Settings"
@@ -6595,6 +6600,11 @@ msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+msgid "Mail doesn't arrive for these accounts until you sign in again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder"
 msgstr ""
@@ -11873,7 +11883,7 @@ msgid "Sign In Again for Automatic Replies"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/sign_in_needed.rs
 msgid "Sign in again"
 msgstr ""
 
@@ -14288,6 +14298,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 msgid "This account has no sign-in with Microsoft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
 msgstr ""
 
 #. interface
@@ -19470,6 +19485,13 @@ msgstr[1] ""
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
 msgid "{n} account has one"
 msgid_plural "{n} accounts have one"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+msgid "{n} account has to be signed in again"
+msgid_plural "{n} accounts have to be signed in again"
 msgstr[0] ""
 msgstr[1] ""
 

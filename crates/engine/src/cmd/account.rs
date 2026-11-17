@@ -851,10 +851,26 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts_in_order()
         .into_iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "outgoingWithoutSignIn": a.outgoing_without_sign_in, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "outgoingWithoutSignIn": a.outgoing_without_sign_in, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a), "signInNeeded": a.sign_in_needed})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
+}
+
+/// Note whether `account` has to be signed in again (#1556): its server turned the sign-in down
+/// or it ran out (`true`), or a sign-in went through (`false`). The one mark every kind of
+/// account has ([`mailcraft_model::Account::sign_in_needed`]); a shared mailbox's is its owner's,
+/// whose sign-in reads it. It is the server's word, not a change of the owner's: no Undo step, and
+/// the file keeps it. Answers whether it changed.
+pub fn note_sign_in_needed(s: &mut Session, account: Id, needed: bool) -> bool {
+    let Some(whose) = s.mailbox.account(account).map(|a| a.shared_of.filter(|owner| *owner != a.id).unwrap_or(a.id)) else { return false };
+    let Ok(a) = s.mailbox.account_mut(whose) else { return false };
+    if a.sign_in_needed == needed || (needed && !a.kind.has_server()) {
+        return false;
+    }
+    a.sign_in_needed = needed;
+    s.mailbox_changed();
+    true
 }
 
 /// Most changes one synchronisation is asked to push; a longer backlog goes up over several runs.

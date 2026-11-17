@@ -488,6 +488,13 @@ pub struct Account {
     /// or another language makes no second one. `None` until the first message is snoozed.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub snoozed_folder: Option<Id>,
+    /// The account's server turned its sign-in down, or the sign-in ran out (#1556): its mail
+    /// stops arriving until the owner signs in again, and the window says so (Account Problems,
+    /// and beside the account in the folder pane) until a sign-in goes through. One mark for
+    /// every kind of account, kept in the file so that a restart still says it. Off for a new
+    /// account and in a file from before there was one.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub sign_in_needed: bool,
 }
 
 impl Account {
@@ -1579,6 +1586,12 @@ impl Mailbox {
     /// and for a shared mailbox its owner's.
     pub fn asks_before_deleting_conversation(&self, account: Id) -> bool {
         self.owner_of(account).or(self.account(account)).is_none_or(|a| !a.skip_conversation_question)
+    }
+
+    /// The accounts that have to be signed in again ([`Account::sign_in_needed`], #1556), in
+    /// the folder pane's order.
+    pub fn needing_sign_in(&self) -> Vec<&Account> {
+        self.accounts_in_order().into_iter().filter(|a| a.sign_in_needed).collect()
     }
 
     pub fn owner_of(&self, account: Id) -> Option<&Account> {

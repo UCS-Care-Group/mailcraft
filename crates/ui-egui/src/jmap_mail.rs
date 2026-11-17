@@ -207,12 +207,15 @@ impl MailApp {
             }
             if std::mem::take(&mut self.sync_refused) {
                 // Turned down: the next Send/Receive asks for it again (the host for its own), and
-                // no round by itself goes back until then.
+                // no round by itself goes back until then. The window says so until a sign-in
+                // goes through (#1556).
+                self.note_sign_in_needed(account, true);
                 self.passwords.remove(&account);
                 self.jmap_refused.insert(account);
             } else if whole {
-                // And nothing is left of the last run's problems.
+                // And nothing is left of the last run's problems, nor of a sign-in turned down.
                 self.note_sync_problems(account, &[], true);
+                self.note_sign_in_needed(account, false);
             }
             self.note_pushed(account);
             // What still waits after a run whose changes were all made never went with it (a

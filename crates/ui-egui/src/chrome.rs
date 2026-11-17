@@ -377,6 +377,11 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
                         let _ = app.run("ui.backstage", json!({"value": true, "page": "info"}));
                     }
                     ui.add_space(8.0);
+                    // An account that has to be signed in again (#1556): beside the account's picture.
+                    if !app.to_sign_in().is_empty() {
+                        crate::sign_in_needed::indicator(app, ui, avatar_h.min(PILL));
+                        ui.add_space(4.0);
+                    }
                     diagnostics_pill(ui, app, avatar_h.min(PILL));
                     ui.add_space(4.0);
                     report_pill(ui, app, avatar_h.min(PILL));

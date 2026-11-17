@@ -321,8 +321,15 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
     // An account's colour (#893): a dot after its name, which leaves room for it.
     let color = app.session.mailbox.account(id).and_then(|a| a.color).filter(|_| id != FAVORITES);
     let room = if color.is_some() { ACCOUNT_DOT_ROOM } else { 0.0 };
+    // And one that has to be signed in again (#1556): a mark after that.
+    let marked = id != FAVORITES && app.session.mailbox.account(id).is_some_and(|a| a.sign_in_needed);
+    let room = room + if marked { crate::sign_in_needed::MARK_ROOM } else { 0.0 };
     let w =
         paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, y), (r.width() - NAME_LEFT - 8.0 - room).max(0.0), name, regular(HEADING_SIZE), t.text);
+    if marked {
+        let dot = if color.is_some() { ACCOUNT_DOT_ROOM } else { 0.0 };
+        crate::sign_in_needed::marker(app, ui, id, r.min.x + NAME_LEFT + w + dot, y + 1.0);
+    }
     if let Some(color) = color {
         let center = pos2(r.min.x + NAME_LEFT + w + ACCOUNT_DOT_ROOM / 2.0 + 1.0, y + 1.0);
         ui.painter().circle_filled(center, ACCOUNT_DOT_RADIUS, crate::theme::c32(color));
