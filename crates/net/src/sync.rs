@@ -755,6 +755,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         let status = statuses.get(&remote).copied();
         if let (Some(state), Some(status)) = (state, status)
             && unchanged(state, status, request.max_per_folder)
+            && !state.failing.values().any(|tries| *tries < MAX_TRIES)
             && arrived.is_empty()
             && !touched.contains(remote.as_str())
         {
@@ -1169,7 +1170,11 @@ impl FolderSync<'_> {
             .keys()
             .skip(older)
             .copied()
-            .filter(|uid| (*uid > uid_seen || *uid < uid_from) && !known.contains(uid) && !self.given_up(*uid))
+            .filter(|uid| {
+                // Numbered anew, what was counted of the old numbers means nothing (#1581).
+                let counted = !reset && self.failing(*uid);
+                (*uid > uid_seen || *uid < uid_from || counted) && !known.contains(uid) && (reset || !self.given_up(*uid))
+            })
             .collect();
         // How far the mailbox is read while messages are still to come.
         let below = wanted.first().map_or(uid_seen, |lowest| lowest.saturating_sub(1).max(uid_seen));
@@ -1359,6 +1364,12 @@ impl FolderSync<'_> {
         // It goes with the next piece: the next mailbox's first line, or the end of the run.
         run.out.folders.push(delta);
         alive
+    }
+
+    /// Whether the mailbox names the message as one that failed to download and is to be tried
+    /// again, wherever the folder has been read up to (#1581).
+    fn failing(&self, uid: u32) -> bool {
+        self.state.is_some_and(|s| s.failing.get(&uid).is_some_and(|tries| *tries < MAX_TRIES))
     }
 
     /// Whether the message failed in [`MAX_TRIES`] runs already: it is left out until the owner

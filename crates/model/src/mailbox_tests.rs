@@ -1273,3 +1273,17 @@ fn the_default_calendar_and_the_one_orphans_go_to_are_never_a_subscribed_one() {
     let home = mb.event(orphan).unwrap().calendar;
     assert!(mb.calendar(home).is_some_and(|c| !c.is_subscribed()), "orphans are not put into a copy of a web calendar");
 }
+
+#[test]
+fn repair_cuts_what_a_folder_says_of_failed_downloads() {
+    let mut mb = Mailbox::default();
+    mb.accounts.push(Account { id: 1, ..Default::default() });
+    mb.folders.push(Folder {
+        id: 5,
+        account: 1,
+        failing: (1..=crate::sync::MAX_FAILING as u32 + 50).map(|uid| (uid, 1)).collect(),
+        ..Default::default()
+    });
+    assert!(mb.repair().iter().any(|line| line.contains("failed to download")));
+    assert_eq!(mb.folders[0].failing.len(), crate::sync::MAX_FAILING);
+}

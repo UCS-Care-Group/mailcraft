@@ -3537,6 +3537,13 @@ impl Mailbox {
         if self.migrate_junk_lists() {
             fixed.push("Safe and Blocked Senders moved to each account".to_string());
         }
+        // A mailbox file can say anything of the messages that failed to download (#1581).
+        for folder in &mut self.folders {
+            if folder.failing.len() > crate::sync::MAX_FAILING {
+                folder.failing = std::mem::take(&mut folder.failing).into_iter().take(crate::sync::MAX_FAILING).collect();
+                fixed.push("the messages a folder failed to download cut".to_string());
+            }
+        }
         let mut tidied = self.junk.repair();
         let known: HashSet<Id> = self.accounts.iter().filter(|a| a.shared_of.is_none()).map(|a| a.id).collect();
         let before = self.junk_accounts.len();

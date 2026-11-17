@@ -928,7 +928,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             uid_from: f.uid_from,
             known_uids: known.remove(&f.id).unwrap_or_default(),
             again: again.remove(&f.id).unwrap_or_default(),
-            failing: f.failing.clone(),
+            failing: f.failing.iter().take(MAX_FAILING).map(|(uid, tries)| (*uid, *tries)).collect(),
             // Good to pass the folder over by until the next reading in full is due (#276).
             status: f.imap_status.filter(|st| (0..super::graph_mail::FULL_SWEEP_EVERY).contains(&now.saturating_sub(st.at))),
         })
@@ -2430,7 +2430,7 @@ fn take_in(
             }
             for uid in delta.failed.iter().copied().filter(|uid| *uid != 0) {
                 if f.failing.len() >= MAX_FAILING && !f.failing.contains_key(&uid) {
-                    break;
+                    continue;
                 }
                 let tries = f.failing.entry(uid).or_insert(0);
                 *tries = tries.saturating_add(1).min(MAX_TRIES);
@@ -2447,13 +2447,17 @@ fn take_in(
 /// folder a run reads holds.
 const MAX_LABELLED: usize = 1_000_000;
 
-/// Take up again the messages left out for failing to download (#1581).
+/// Take up again the messages left out for failing to download (#1581): their count goes back to
+/// nought, and a message that is named with no tries is asked for by the next run wherever the
+/// folder has been read up to.
 fn retry_failed(s: &mut Session, v: &Value) -> CmdResult {
     let only = p::id(v, "account");
     let mut cleared = 0usize;
-    for f in s.mailbox.folders.iter_mut().filter(|f| only.is_none_or(|a| f.account == a) && !f.failing.is_empty()) {
-        cleared += f.failing.len();
-        f.failing.clear();
+    for f in s.mailbox.folders.iter_mut().filter(|f| only.is_none_or(|a| f.account == a)) {
+        for tries in f.failing.values_mut().filter(|tries| **tries != 0) {
+            *tries = 0;
+            cleared += 1;
+        }
     }
     Ok(json!({"cleared": cleared}))
 }

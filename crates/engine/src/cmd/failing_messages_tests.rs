@@ -70,6 +70,9 @@ fn what_a_result_says_of_failing_messages_is_bounded() {
     let a = account(&mut s);
     apply(&mut s, a, delta(7, vec![], (1..=(MAX_FAILING as u32 + 500)).collect()));
     assert_eq!(failing(&s, a).len(), MAX_FAILING);
+    // One more that is tracked still counts when the map is full.
+    apply(&mut s, a, delta(7, vec![], vec![MAX_FAILING as u32 + 900, 4]));
+    assert!(failing(&s, a).contains(&(4, 2)));
 }
 
 #[test]
@@ -79,6 +82,10 @@ fn retry_takes_up_the_messages_left_out_again() {
     apply(&mut s, a, delta(7, vec![], vec![4, 5]));
     assert_eq!(s.run("sync.retryFailed", &json!({"account": a + 1000})).unwrap()["cleared"], 0);
     assert_eq!(s.run("sync.retryFailed", &json!({"account": a})).unwrap()["cleared"], 2);
-    assert_eq!(failing(&s, a), []);
+    // Named with no tries: asked for wherever the folder was read up to.
+    assert_eq!(failing(&s, a), [(4, 0), (5, 0)]);
     assert_eq!(s.run("sync.retryFailed", &json!({})).unwrap()["cleared"], 0);
+    // And counted from the start again.
+    apply(&mut s, a, delta(7, vec![], vec![4]));
+    assert_eq!(failing(&s, a), [(4, 1), (5, 0)]);
 }

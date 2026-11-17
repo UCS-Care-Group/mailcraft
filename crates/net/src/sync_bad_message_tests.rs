@@ -164,12 +164,48 @@ fn a_message_left_out_is_tried_again_when_its_count_is_cleared() {
         let result = run(&request);
         carry(&mut request, &result);
     }
-    // The server is mended, and the owner asks (`sync.retryFailed` clears the counts).
+    // A run that leaves it out reads the folder on to its end, and the folders are read whole.
+    let past = run(&request);
+    carry(&mut request, &past);
+    request.folders.iter_mut().for_each(|f| f.status = None);
+    // The server is mended, and the owner asks (`sync.retryFailed` takes the counts back to 0).
     imap.world().hang_up_at_uid = None;
-    request.folders.iter_mut().for_each(|f| f.failing.clear());
+    request.folders.iter_mut().flat_map(|f| f.failing.values_mut()).for_each(|tries| *tries = 0);
     let result = run(&request);
     assert_eq!(result.errors, Vec::<String>::new());
     assert_eq!(new_in(&result, "Label0"), [BAD]);
+}
+
+#[test]
+fn a_message_to_be_tried_again_is_not_passed_over_for_an_unchanged_folder() {
+    let imap = Fake::imap(world());
+    let mut request = request(&imap);
+    let first = run(&request);
+    carry(&mut request, &first);
+    for f in &mut request.folders {
+        f.status = first.folders.iter().find(|d| d.remote == f.remote).and_then(|d| d.status);
+    }
+    imap.world().hang_up_at_uid = None;
+    let label0 = request.folders.iter_mut().find(|f| f.remote == "Label0").unwrap();
+    // As if its message 9 had failed and been taken up again: the folder is as the server's counts say.
+    label0.known_uids.retain(|uid| *uid != 9);
+    label0.failing.insert(9, 0);
+    let result = run(&request);
+    assert_eq!(new_in(&result, "Label0"), [9]);
+}
+
+#[test]
+fn counts_of_a_folder_numbered_anew_mean_nothing() {
+    let imap = Fake::imap(world());
+    let mut request = request(&imap);
+    let first = run(&request);
+    carry(&mut request, &first);
+    // The server numbers Label0 anew, and a message of the new numbering has the UID that had failed.
+    imap.world().mailbox("Label0").uid_validity = 8;
+    let label0 = request.folders.iter_mut().find(|f| f.remote == "Label0").unwrap();
+    label0.failing.insert(BAD, MAX_TRIES);
+    let result = run(&request);
+    assert_eq!(new_in(&result, "Label0"), [1, BAD, 9]);
 }
 
 #[test]
