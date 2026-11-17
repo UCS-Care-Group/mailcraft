@@ -88,6 +88,7 @@ mod messages;
 mod people;
 mod search;
 mod send;
+mod signin;
 mod todo;
 
 pub use changes::Fault;
@@ -95,6 +96,7 @@ pub use drafts::Attached;
 pub use messages::{Mail, Message};
 pub use people::{Access, Person};
 pub use send::Sent;
+pub use signin::REFRESH;
 pub use todo::{Category, TodoList, TodoTask};
 
 use std::cell::RefCell;
@@ -149,10 +151,39 @@ impl Drop for LoopbackTokens {
     }
 }
 
-/// Where this thread's calls to Graph go instead, when a test has said so ([`route`]).
+/// Where this process's calls to Graph and to the sign-in's token endpoint go, once the phone's
+/// end-to-end build has said so ([`route_this_process`]).
+static EVERYWHERE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Where this thread's calls to Graph go instead, when a test has said so ([`route`]), or else
+/// where the whole process's go ([`route_this_process`]).
 pub(crate) fn routed() -> Option<String> {
-    ROUTE.with(|route| route.borrow().clone())
+    ROUTE.with(|route| route.borrow().clone()).or_else(routed_everywhere)
 }
+
+/// Where the whole process's calls go instead, when [`route_this_process`] said.
+pub(crate) fn routed_everywhere() -> Option<String> {
+    EVERYWHERE.get().cloned()
+}
+
+/// Have every call of this process to Graph, and every sign-in's token endpoint, go to `base` (a
+/// stand-in on this device's loopback address, `http://127.0.0.1:{port}`), for as long as the
+/// process lives; the sign-in page is named at an address that can't be reached
+/// ([`STAND_IN_PAGE`]), for the test to play. For the phone's end-to-end run alone, whose build
+/// is the only one that both has the stand-in and calls this; a test of this workspace never
+/// does, as it would hold for every test after it. The first base given stays; an address that
+/// isn't plain HTTP to loopback is refused (`false`).
+pub fn route_this_process(base: &str) -> bool {
+    let loopback = base
+        .strip_prefix("http://")
+        .and_then(|rest| rest.rsplit_once(':'))
+        .is_some_and(|(host, port)| crate::transport::is_loopback(host) && port.parse::<u16>().is_ok_and(|port| port != 0));
+    loopback && (EVERYWHERE.set(base.to_string()).is_ok() || EVERYWHERE.get().is_some_and(|kept| kept == base))
+}
+
+/// The sign-in page a process routed to a stand-in is sent to: under a name that is never found
+/// (RFC 6761 `.invalid`), so a page that escaped the test that plays it reaches nobody.
+pub const STAND_IN_PAGE: &str = "https://stand-in.invalid";
 
 /// A stand-in is being spoken to in Graph's place on this thread, for as long as this lives.
 pub struct Routed(Option<String>);
@@ -2058,6 +2089,10 @@ impl State {
             && first == "upload"
         {
             return self.upload_piece(asked, token);
+        }
+        // The sign-in's token endpoint, for a client pointed here as a whole (`route_this_process`).
+        if signin::is_token_endpoint(&asked.path) {
+            return Ok(self.token(asked));
         }
         if asked.header("authorization") != format!("Bearer {}", self.token) {
             return Err(refuse(401, "InvalidAuthenticationToken", "Access token validation failure."));

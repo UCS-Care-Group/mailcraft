@@ -427,6 +427,76 @@ pub fn due_reminders(s: &Session, now: mailcraft_time::DateTime) -> Vec<Reminder
     due
 }
 
+/// What an upcoming reminder is for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UpcomingFor {
+    /// An occurrence of an event of the owner's own calendars, by the wall-clock time it starts.
+    Event { event: mailcraft_model::Id, start: mailcraft_time::DateTime, all_day: bool, location: String },
+    /// A task that is not complete.
+    Task { task: mailcraft_model::Id },
+}
+
+/// A reminder still to come, for a phone to have the system raise while the app is closed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Upcoming {
+    pub what: UpcomingFor,
+    /// When the reminder is due (seconds since 1970, UTC).
+    pub at: mailcraft_time::Timestamp,
+    /// When the event starts, or the task's reminder time (seconds since 1970, UTC).
+    pub starts: mailcraft_time::Timestamp,
+    pub title: String,
+}
+
+/// The reminders of events and tasks still to come at `now`, soonest first and `limit` at most:
+/// an occurrence of the owner's own calendars that hasn't started yet (its reminder may be due
+/// already: the phone was off when it was), up to four weeks ahead as [`due_reminders`] looks;
+/// and a task that isn't complete whose reminder is at most a day old (as a reminder stays a day
+/// after its event) or still to come. What has been shown already is the phone's to remember.
+pub fn upcoming_reminders(s: &Session, now: mailcraft_time::Timestamp, limit: usize) -> Vec<Upcoming> {
+    const DAY: i64 = 86_400;
+    let here = super::remote::offset_of(s);
+    let instant = |wall: mailcraft_time::DateTime| mailcraft_model::zoned::instant_at(wall, &here);
+    let today = s.local(now).date;
+    let (from, to) = (today.add_days(-1), today.add_days(29));
+    let not_theirs: std::collections::HashSet<mailcraft_model::Id> =
+        s.mailbox.calendars.iter().filter(|c| !super::remote::is_own_calendar(&s.mailbox, c)).map(|c| c.id).collect();
+    let mut found: Vec<Upcoming> = Vec::new();
+    for e in s.mailbox.events.values() {
+        let Some(ahead) = e.reminder_minutes else { continue };
+        if e.cancelled || not_theirs.contains(&e.calendar) {
+            continue;
+        }
+        for o in e.occurrences_in(from, to, &here) {
+            let starts = instant(o.start);
+            if starts <= now {
+                continue;
+            }
+            found.push(Upcoming {
+                what: UpcomingFor::Event { event: e.id, start: o.start, all_day: e.all_day, location: e.location.clone() },
+                at: starts.saturating_sub(i64::from(ahead).saturating_mul(60)),
+                starts,
+                title: e.title.clone(),
+            });
+        }
+    }
+    for t in s.mailbox.tasks.values() {
+        let Some(at) = t.reminder else { continue };
+        if t.is_complete() || at < now.saturating_sub(DAY) {
+            continue;
+        }
+        found.push(Upcoming { what: UpcomingFor::Task { task: t.id }, at, starts: at, title: t.title.clone() });
+    }
+    found.sort_by_key(|u| {
+        let (kind, id, start) = match &u.what {
+            UpcomingFor::Event { event, start, .. } => (0u8, *event, Some(*start)),
+            UpcomingFor::Task { task } => (1, *task, None),
+        };
+        (u.at, kind, id, start)
+    });
+    found.truncate(limit);
+    found
+}
+
 fn reminders(s: &mut Session, _: &Value) -> CmdResult {
     let items: Vec<Value> = due_reminders(s, s.local_now())
         .into_iter()

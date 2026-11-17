@@ -60,7 +60,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("format.font", "Font", "Message › Basic Text", font)
             .pure()
-            .params(r#"{"value": "Arial"|"Calibri"|"Georgia"|"Verdana"|"System" | null (the message's own font), "from"?: number, "to"?: number}"#)
+            .params(r#"{"value": "Arial"|"Calibri"|"Courier New"|"Georgia"|"Verdana"|"System" | null (the message's own font), "from"?: number, "to"?: number}"#)
             .when_writing(needs_html),
         CommandSpec::new("format.bullets", "Bullets", "Message › Basic Text", bullets).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("format.numbering", "Numbering", "Message › Basic Text", numbering).pure().params(RANGE).when_writing(needs_html),
@@ -324,9 +324,11 @@ fn symbol(s: &mut Session, v: &Value) -> CmdResult {
 fn font(s: &mut Session, v: &Value) -> CmdResult {
     let value = match v.get("value") {
         Some(Value::Null) => None,
-        Some(_) => {
-            Some(p::str(v, "value").and_then(Font::parse).ok_or_else(|| bad("`value` is Arial, Calibri, Georgia, Verdana or System, or null"))?)
-        }
+        Some(_) => Some(
+            p::str(v, "value")
+                .and_then(Font::parse)
+                .ok_or_else(|| bad("`value` is Arial, Calibri, Courier New, Georgia, Verdana or System, or null"))?,
+        ),
         None => return Err(bad("`value` (a font, or null) is required")),
     };
     edit(s, v, |b| b.format(Format::Font(value)))?;

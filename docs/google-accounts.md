@@ -1,6 +1,6 @@
 # Gmail and Google Workspace on the desktop
 
-> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-09 · **Change:** minor
+> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-14 · **Change:** minor
 
 MailCraft offers **Sign in with Google** first for new Google accounts when its Desktop OAuth
 registration is configured. **Use an app password instead** is a separate alternative. An
@@ -335,6 +335,8 @@ sign-in is not public-app approval. See [release readiness](releasing.md#google-
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | minor | #1153: Gmail's labels: what shows on a message and what doesn't, how they are read and searched, and that they change only by moving or copying |
+| 2026-11-13 | patch | Testers-only note no longer asks people to email for access |
 | 2026-11-09 | patch | #911: how a refused request is split, the cap a Send/Receive, and a move Gmail refuses three times given up |
 | 2026-11-09 | patch | #911: named messages move with their copies of the same Gmail message; a move given up once Gmail has refused it three times |
 | 2026-11-08 | minor | #911: Gmail's inbox categories shown as five folders under a Gmail account's Inbox, read with Gmail's own search; the two account settings, the `gmail:` search and what agents see |

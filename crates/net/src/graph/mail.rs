@@ -1029,6 +1029,8 @@ mod down_tests;
 #[cfg(test)]
 mod draft_content_tests;
 #[cfg(test)]
+mod fetch_error_tests;
+#[cfg(test)]
 mod header_order_tests;
 #[cfg(test)]
 mod inbox_first_tests;
@@ -1048,3 +1050,9 @@ mod tests;
 mod threads_tests;
 #[cfg(test)]
 mod well_known_tests;
+#[cfg(test)]
+mod window_continue_tests;
+#[cfg(test)]
+mod window_plain_tests;
+#[cfg(test)]
+mod window_tests;

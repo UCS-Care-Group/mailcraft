@@ -221,6 +221,33 @@ pub fn plan_reminders(due: &[Reminder], on: bool, twelve_hour: bool) -> Vec<Plan
         .collect()
 }
 
+/// The alerts for follow-up reminders that have just been raised (#948), as [`plan_reminders`]'s:
+/// the subject is message text, cleaned and clipped like a new-mail alert's.
+pub(crate) fn plan_follow_ups(due: &[crate::reminders::MailRow], on: bool) -> Vec<Planned> {
+    if !on || due.is_empty() {
+        return Vec::new();
+    }
+    if due.len() > AT_ONCE {
+        return vec![Planned {
+            kind: AlertKind::Reminder,
+            title: tl!("Reminders").to_string(),
+            body: tln!(due.len(), "{n} reminder is due", "{n} reminders are due"),
+            opens: Opens::Reminders,
+        }];
+    }
+    due.iter()
+        .map(|r| {
+            let subject = clean(&r.subject, SUBJECT_CHARS);
+            Planned {
+                kind: AlertKind::Reminder,
+                title: if subject.is_empty() { tl!("(no subject)").to_string() } else { subject },
+                body: if r.no_reply { tl!("No reply yet").to_string() } else { tl!("Follow up").to_string() },
+                opens: Opens::Reminders,
+            }
+        })
+        .collect()
+}
+
 /// Show what was planned, through the host when there is one; what was shown is remembered.
 fn show(app: &mut MailApp, planned: Vec<Planned>) {
     let Some(host) = &app.services.alert else { return };
@@ -243,6 +270,12 @@ fn show(app: &mut MailApp, planned: Vec<Planned>) {
 /// Reminders that have just fallen due ([`crate::reminders::tick`]).
 pub fn reminders_due(app: &mut MailApp, due: &[Reminder]) {
     let planned = plan_reminders(due, app.ui.alert_reminders, app.session.prefs.twelve_hour);
+    show(app, planned);
+}
+
+/// Follow-up reminders that have just been raised ([`crate::reminders::tick`]).
+pub(crate) fn follow_ups_due(app: &mut MailApp, due: &[crate::reminders::MailRow]) {
+    let planned = plan_follow_ups(due, app.ui.alert_reminders);
     show(app, planned);
 }
 
@@ -295,9 +328,14 @@ pub fn open(app: &mut MailApp, ctx: &egui::Context, opens: Opens) {
         Opens::Message { message, folder } => {
             app.ui.backstage = false;
             if app.session.mailbox.message(message).is_some_and(|m| m.folder == folder) {
-                let _ = app.execute("folder.select", json!({"id": folder}));
-                let _ = app.execute("mail.select", json!({"id": message, "elsewhere": true}));
-                app.reveal_selection = true;
+                // As the owner's click: the message being written in the reading pane goes to
+                // Drafts, and the message is shown in its folder (#727). Selected before anything
+                // else changes, so that a draft that can't be saved leaves the folder and the
+                // selection as they were; then the mail, from wherever the window was.
+                if app.run("mail.select", json!({"id": message, "elsewhere": true})).is_ok() {
+                    let _ = app.execute("view.mail", json!({}));
+                    app.reveal_selection = true;
+                }
             } else if app.session.mailbox.folder(folder).is_some() {
                 // Moved or gone since: its folder, at least.
                 let _ = app.execute("folder.select", json!({"id": folder}));
