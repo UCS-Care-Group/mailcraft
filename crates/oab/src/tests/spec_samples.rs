@@ -13,6 +13,18 @@ fn the_patch_sample_unpacks_to_abc() {
     assert_eq!(decode(&stream, &[], 17, 3).unwrap(), b"abc");
 }
 
+/// The last chunk ends where its size says, its padding byte there: a size of 0, or the padding
+/// left off, is refused, as the same at any other chunk's end is.
+#[test]
+fn the_last_chunk_is_held_to_its_size() {
+    let stream = [0x14, 0x00, 0x00, 0x30, 0x30, 0x00, 0x01, 0, 0, 0, 0x01, 0, 0, 0, 0x01, 0, 0, 0, 0x61, 0x62, 0x63, 0x00];
+    let mut sized_nothing = stream;
+    sized_nothing[0] = 0;
+    assert!(decode(&sized_nothing, &[], 17, 3).is_err());
+    assert!(decode(&stream[..stream.len() - 1], &[], 17, 3).is_err());
+    assert_eq!(decode(&stream, &[], 17, 3).unwrap(), b"abc");
+}
+
 /// [MS-PATCH] 2.1.6 and 2.6.2: the slots of each window and the table's rows.
 #[test]
 fn position_slots_are_the_specifications() {

@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Downloading the organisation's Offline Address Book (#1393) from the strict stand-in.
 
+use std::sync::atomic::AtomicBool;
+
 use mailcraft_model::sync::DirectoryKind;
 
-use crate::oab::{FullFile, OabError, fetch, full_file, oab_url, origin};
+use crate::http::HttpResponse;
+use crate::oab::{FullFile, OabError, fetch, full_file, judged, oab_url, origin};
 use crate::standin::{AUTHORIZATION, StandIn, block_on};
 use crate::standin_directory::Person;
 use crate::standin_oab::{FILE, PATH};
@@ -42,7 +45,7 @@ fn operations(standin: &StandIn) -> Vec<String> {
 #[test]
 fn the_whole_list_comes_from_the_accounts_own_server_in_three_reads() {
     let standin = organisation();
-    let list = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION))).unwrap().unwrap();
+    let list = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false))).unwrap().unwrap();
     assert_eq!(list.sequence, 7);
     assert_eq!(list.name, "\\Global Address List");
     assert!(!list.more);
@@ -64,10 +67,25 @@ fn the_whole_list_comes_from_the_accounts_own_server_in_three_reads() {
 }
 
 #[test]
+fn once_nobody_waits_for_the_list_nothing_more_is_asked() {
+    let standin = organisation();
+    let result = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(true))).unwrap();
+    assert!(matches!(result, Err(OabError::Cancelled)), "{result:?}");
+    assert_eq!(operations(&standin), ["Autodiscover"], "the request on its way finishes, and nothing after it is asked");
+}
+
+#[test]
+fn an_answer_longer_than_its_cap_is_refused_whatever_the_transport_read() {
+    let answer = HttpResponse::new(200, vec![b' '; 11]);
+    assert!(matches!(judged(&answer, 10), Err(Error::TooLarge)));
+    assert_eq!(judged(&answer, 11).unwrap().len(), 11);
+}
+
+#[test]
 fn an_address_book_published_elsewhere_is_not_asked_for() {
     let standin = organisation();
     standin.state().oab.elsewhere = Some("https://elsewhere.example".into());
-    assert!(matches!(block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION))).unwrap(), Err(OabError::NotPublished)));
+    assert!(matches!(block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false))).unwrap(), Err(OabError::NotPublished)));
     assert_eq!(operations(&standin), ["Autodiscover"]);
 }
 
@@ -75,13 +93,13 @@ fn an_address_book_published_elsewhere_is_not_asked_for() {
 fn a_server_that_publishes_none_says_so() {
     let standin = organisation();
     standin.state().oab.published = false;
-    assert!(matches!(block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION))).unwrap(), Err(OabError::NotPublished)));
+    assert!(matches!(block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false))).unwrap(), Err(OabError::NotPublished)));
 }
 
 #[test]
 fn a_password_turned_down_is_said() {
     let standin = organisation();
-    let result = block_on(fetch(&standin, URL, ME, &Secret::new("Basic d3Jvbmc6d3Jvbmc="))).unwrap();
+    let result = block_on(fetch(&standin, URL, ME, &Secret::new("Basic d3Jvbmc6d3Jvbmc="), &AtomicBool::new(false))).unwrap();
     assert!(matches!(result, Err(OabError::Ews(Error::Unauthorized))), "{result:?}");
 }
 
@@ -153,7 +171,7 @@ fn certificates_come_with_whoever_has_them() {
     let standin = organisation();
     standin.state().directory[0].certificates =
         (vec![signed_data(), b"not one".to_vec()], vec![alice.clone(), authority, vec![0x30, 0x03, 0x02, 0x01, 0x01]]);
-    let list = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION))).unwrap().unwrap();
+    let list = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false))).unwrap().unwrap();
     let ada = list.people.iter().find(|p| p.email == "ada.lovelace@example.org").unwrap();
     let held: Vec<Vec<u8>> = ada.certificates.iter().map(|c| c.to_vec()).collect();
     assert_eq!(held, [alice]);

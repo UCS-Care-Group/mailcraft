@@ -184,12 +184,12 @@ impl Decoder<'_> {
                 self.next_chunk()?;
             }
         }
-        Ok(())
+        // The last chunk ends where its size says too, its padding there.
+        self.end_chunk()
     }
 
-    /// At 32 KB of output: the bitstream is padded to a word, the chunk must end there, and the
-    /// next one's size follows (2.2.1). In an uncompressed block, the size sits between its bytes.
-    fn next_chunk(&mut self) -> Result<(), Error> {
+    /// The bitstream is padded to a word, and the chunk must end there, within the input.
+    fn end_chunk(&mut self) -> Result<(), Error> {
         let at = match self.block {
             Block::Raw { at, .. } => at,
             _ => {
@@ -197,9 +197,16 @@ impl Decoder<'_> {
                 self.bits.byte_pos()
             }
         };
-        if at != self.chunk_end {
+        if at != self.chunk_end || self.chunk_end > self.bits.data().len() {
             return Err(Error::Corrupt("an LZX chunk of another size than it says"));
         }
+        Ok(())
+    }
+
+    /// At 32 KB of output: the bitstream is padded to a word, the chunk must end there, and the
+    /// next one's size follows (2.2.1). In an uncompressed block, the size sits between its bytes.
+    fn next_chunk(&mut self) -> Result<(), Error> {
+        self.end_chunk()?;
         match &mut self.block {
             Block::Raw { at, .. } => {
                 let size = self.bits.data().get(*at..at.saturating_add(2)).ok_or(Error::Truncated("LZX chunk size"))?;
@@ -387,9 +394,11 @@ fn delta(previous: u8, code: u16) -> u8 {
     ((u16::from(previous % 17)).saturating_add(17).saturating_sub(code % 17) % 17) as u8
 }
 
-/// Undoes E8 call translation (2.2.2), chunk by chunk, on the finished output.
+/// Undoes E8 call translation (2.2.2), chunk by chunk, on the finished output. The field is a
+/// signed 32-bit displacement, so a size past the largest one is taken as that: every value then
+/// stays within the field, and what an encoder translated with it is undone.
 fn undo_e8(out: &mut [u8], file_size: u32) {
-    let size = i64::from(file_size);
+    let size = i64::from(file_size.min(i32::MAX as u32));
     for (index, chunk) in out.chunks_mut(CHUNK).enumerate() {
         let chunk_offset = (index as i64).saturating_mul(CHUNK as i64);
         if chunk_offset >= 0x4000_0000 || chunk.len() <= 10 {

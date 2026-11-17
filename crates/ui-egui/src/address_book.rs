@@ -223,7 +223,9 @@ impl MailApp {
     fn poll_address_lists(&mut self, shown: Option<Id>) {
         let opening = self.session.openings();
         let now = crate::now_ms();
-        self.address_lists.retain(|h| h.opening == opening);
+        // A removed account's list goes with it, and a download of it is let go of.
+        let accounts = &self.session.mailbox.accounts;
+        self.address_lists.retain(|h| h.opening == opening && accounts.iter().any(|a| a.id == h.account));
         let mut refused = Vec::new();
         for held in &mut self.address_lists {
             let Some(pending) = &held.pending else { continue };
@@ -259,7 +261,7 @@ impl MailApp {
         let due = match self.address_lists.iter().find(|h| h.account == account) {
             None => true,
             Some(h) if h.pending.is_some() => false,
-            Some(h) if h.list.is_some() => now - h.at_ms >= REFRESH_MS,
+            Some(h) if h.list.is_some() && h.error.is_none() => now - h.at_ms >= REFRESH_MS,
             Some(h) => now - h.at_ms >= RETRY_MS,
         };
         if !due {
@@ -327,8 +329,9 @@ impl MailApp {
             book.typed = (typed.clone(), now);
         }
         let held = self.address_lists.iter().find(|h| h.account == account && h.opening == opening);
-        // The whole list: narrowed here, and nothing is asked.
-        if let Some(held) = held.filter(|h| h.list.is_some()) {
+        // The whole list: narrowed here, and nothing is asked. A list the download had to cut short
+        // isn't the whole of it: the server is searched as without one.
+        if let Some(held) = held.filter(|h| h.list.as_ref().is_some_and(|list| !list.more)) {
             if book.local != Some(held.version) || book.query != typed {
                 let chosen = book.chosen().map(|p| p.email.clone());
                 book.people = held.matching(&typed);

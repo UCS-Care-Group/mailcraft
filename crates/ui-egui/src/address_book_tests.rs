@@ -544,6 +544,76 @@ fn the_list_is_downloaded_again_a_day_later() {
     assert_eq!(downloads(&asked), 2);
 }
 
+/// A refresh that fails after a list has come is tried again a minute later, and the list held is
+/// listed meanwhile.
+#[test]
+fn a_refresh_that_fails_is_tried_again_a_minute_later() {
+    let (mut app, _, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 1);
+    let log = asked.clone();
+    app.services.ews_resolve = Some(Box::new(move |job| {
+        log.lock().unwrap().push((job.request.texts.clone(), job.request.address_list, job.cancel.clone()));
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(EwsResolveResult {
+            error: Some("Couldn't download the organisation's address book: the server is busy".into()),
+            ..Default::default()
+        })
+        .unwrap();
+        rx
+    }));
+    app.address_lists[0].at_ms -= REFRESH_MS;
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 2);
+    assert!(app.address_lists[0].error.is_some());
+    assert_eq!(names(&app).len(), 4, "the list held is still listed");
+    app.address_lists[0].at_ms -= RETRY_MS;
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 3);
+}
+
+/// A list the download had to cut short isn't narrowed here: what is typed is searched on the
+/// server, which says whether it found more than it shows.
+#[test]
+fn a_list_cut_short_is_searched_on_the_server() {
+    let (mut app, account, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    app.address_lists[0].list.as_mut().unwrap().more = true;
+    search(&mut app, &ctx, "ada");
+    assert_eq!(texts(&asked), [vec!["ada".to_string()]]);
+    let book = app.address_book.as_ref().unwrap();
+    assert!(book.more, "the server found more than it shows");
+    assert_eq!((book.account, book.local), (account, None));
+}
+
+/// An account removed takes its list along, and a download of it on its way is let go of.
+#[test]
+fn a_removed_accounts_list_goes_with_it() {
+    let (mut app, account, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert!(app.address_list(account).is_some());
+    app.address_lists[0].at_ms -= REFRESH_MS;
+    app.poll_address_book(&ctx);
+    assert!(app.downloading_address_list());
+    app.execute("account.remove", json!({"id": account})).unwrap();
+    assert!(app.session.mailbox.accounts.iter().all(|a| a.id != account));
+    app.poll_address_book(&ctx);
+    assert!(app.address_list(account).is_none());
+    assert!(app.address_lists.is_empty());
+    let cancel = asked.lock().unwrap().last().map(|(_, _, cancel)| cancel.clone()).unwrap();
+    assert!(cancel.load(std::sync::atomic::Ordering::Relaxed), "the download on its way is let go of");
+}
+
 /// Thousands of people: only the rows on screen are drawn, and a row far down is reached.
 #[test]
 fn a_long_list_draws_only_what_is_on_screen() {

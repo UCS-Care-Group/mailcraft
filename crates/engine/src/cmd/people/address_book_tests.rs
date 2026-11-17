@@ -3,6 +3,7 @@
 //! People's Address Book (#1262): the organisation's address list of an Exchange server account,
 //! chosen in place of the contacts.
 
+use mailcraft_model::{Address, FolderKind, Message};
 use serde_json::json;
 
 use crate::cmd::people::{address_lists, shown_book};
@@ -58,4 +59,21 @@ fn a_contact_chosen_leaves_the_address_list() {
     s.run("people.addressBook", &json!({})).unwrap();
     s.run("people.select", &json!({"id": null})).unwrap();
     assert_eq!(shown_book(&s), Some(account));
+}
+
+/// Add to Contacts on a message shows the sender's contact among the contacts, made just now or
+/// there before: People leaves the address list for it (#1393).
+#[test]
+fn a_sender_added_to_the_contacts_leaves_the_address_list() {
+    let mut s = Session::empty();
+    let account = exchange(&mut s, "me@example.org");
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let from = Address::new("Ada Lovelace", "ada@example.org");
+    let m = s.mailbox.add_message(Message { folder: inbox, from, ..Default::default() }).unwrap();
+    for existing in [false, true] {
+        s.run("people.addressBook", &json!({})).unwrap();
+        let made = s.run("people.fromMessage", &json!({"id": m})).unwrap();
+        assert_eq!(made["existing"], existing);
+        assert_eq!((shown_book(&s), s.sel.contact), (None, made["id"].as_u64()));
+    }
 }

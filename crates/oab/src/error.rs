@@ -69,7 +69,8 @@ pub struct Limits {
     pub max_record: usize,
     /// The most properties the schema may list for an entry or for the header.
     pub max_properties: usize,
-    /// The most values kept of a whole file, the header's and the entries' together.
+    /// The most values kept of a whole file, the header's and the entries' together; each of a
+    /// multi-valued property's values counts.
     pub max_values: usize,
 }
 

@@ -313,10 +313,14 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   for `OABUrl`, which is taken only when it names that same host (so the sign-in goes nowhere
   else), `oab.xml` there (at most 2 MB, read by the hostile XML reader, a file name of letters,
   digits, `.`, `-` and `_` alone), and the full file of version 4, at most 16 MB
-  (`crates/ews/src/oab.rs`). The file is unpacked and read by `mailcraft-oab`, written from
+  (`crates/ews/src/oab.rs`; each answer is held to its cap there too, whatever the transport
+  read, and a download nobody waits for any more asks nothing after the request on its way). The
+  file is unpacked and read by `mailcraft-oab`, written from
   [MS-OXOAB] and [MS-PATCH]: no panics, no indexing or unchecked arithmetic, every block's CRC
   and the file's checked, every size checked against the bytes there are and against caps before
-  anything is allocated, a match never before the start or across a block or a chunk; its own
+  anything is allocated (each value of a multi-valued property counted against the cap on
+  values), a match never before the start or across a block or a chunk, every chunk, the last
+  too, ending where its size says; its own
   property tests and fuzz target. Of each entry only what `DirectoryPerson::checked` keeps for a
   look-up is kept (at most 200,000 people), in memory while the program runs and never written,
   with the entry's own S/MIME certificates (`PidTagAddressBookX509Certificate`, and those inside

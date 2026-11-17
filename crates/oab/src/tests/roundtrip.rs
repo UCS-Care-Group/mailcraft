@@ -116,6 +116,16 @@ fn e8_translation_is_undone() {
     }
 }
 
+/// A displacement near the top of the signed field, with a translation size past it, comes back
+/// as it was: both sides take the size as the largest the field holds.
+#[test]
+fn e8_translation_at_the_signed_boundary_is_undone() {
+    let mut data = vec![0u8; 64];
+    data[16] = 0xE8;
+    data[17..21].copy_from_slice(&0x7fff_fff8u32.to_le_bytes());
+    round_trip(&data, &Options { e8: Some(u32::MAX), ..Options::default() });
+}
+
 /// Reference data before the output, as a patch has it.
 #[test]
 fn matches_reach_into_the_reference() {

@@ -53,6 +53,18 @@ pub enum Value {
     Binaries(Vec<Vec<u8>>),
 }
 
+impl Value {
+    /// How many values this is: those of a multi-valued property, else one.
+    pub fn count(&self) -> usize {
+        match self {
+            Value::Integers(v) => v.len(),
+            Value::Texts(v) => v.len(),
+            Value::Binaries(v) => v.len(),
+            _ => 1,
+        }
+    }
+}
+
 /// One record: the header's, or an entry's.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Record {
@@ -218,7 +230,9 @@ fn record(rest: &[u8], at: &mut usize, schema: &[PropDef], limits: &Limits, keep
         }
         let value = data.value(prop.tag as u16)?;
         if keep(prop.tag) {
-            *kept = kept.saturating_add(1);
+            // Each of a multi-valued property's values counts, so that many empty ones can't
+            // pile up under one count.
+            *kept = kept.saturating_add(value.count());
             if *kept > limits.max_values {
                 return Err(Error::Cap(Cap::Values));
             }
@@ -236,6 +250,9 @@ struct Cursor<'a> {
 }
 
 const VALUE: Error = Error::Truncated("an OAB value");
+
+/// The values of a multi-valued property room is made for before they are read.
+const MANY_AHEAD: usize = 16;
 
 impl Cursor<'_> {
     fn byte(&mut self) -> Result<u8, Error> {
@@ -290,7 +307,8 @@ impl Cursor<'_> {
         if count > self.left() {
             return Err(VALUE);
         }
-        let mut values = Vec::with_capacity(count);
+        // Room grows with what is read: a count is not trusted for an allocation.
+        let mut values = Vec::with_capacity(count.min(MANY_AHEAD));
         for _ in 0..count {
             values.push(one(self)?);
         }

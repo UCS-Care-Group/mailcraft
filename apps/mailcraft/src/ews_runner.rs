@@ -655,7 +655,7 @@ fn run_address_list(request: &EwsResolveRequest, password: &str, cancel: &Arc<At
         }
     };
     let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));
-    match crate::block_on::block_on(mailcraft_ews::oab::fetch(&transport, &request.url, &request.email, &secret)) {
+    match crate::block_on::block_on(mailcraft_ews::oab::fetch(&transport, &request.url, &request.email, &secret, cancel)) {
         Ok(list) => out.address_list = Some(list),
         Err(OabError::Ews(error)) => {
             out.auth_refused = matches!(error, mailcraft_ews::Error::Unauthorized) && transport.auth_problem().is_none();
@@ -666,6 +666,8 @@ fn run_address_list(request: &EwsResolveRequest, password: &str, cancel: &Arc<At
         Err(OabError::NotPublished) => out.error = Some(format!("{LINE}: the server publishes none for this account")),
         Err(OabError::TooLarge) => out.error = Some(format!("{LINE}: it is larger than MailCraft downloads")),
         Err(OabError::File(_)) => out.error = Some(format!("{LINE}: the file the server sent can't be read")),
+        // Nobody waits for it: the mailbox was closed or replaced meanwhile.
+        Err(OabError::Cancelled) => {}
     }
     out
 }

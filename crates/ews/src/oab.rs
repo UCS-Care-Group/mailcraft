@@ -21,6 +21,7 @@
 //! checked) but not kept. Nothing of it is logged.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, EwsAddressList, MAX_ADDRESS_LIST, MAX_PERSON_CERTIFICATES};
 use mailcraft_oab::{Limits, Record, tag};
@@ -125,9 +126,11 @@ pub fn full_file(body: &[u8]) -> Result<Option<FullFile>, Error> {
     Ok(found)
 }
 
-/// The body of an answer that says yes, else what it says.
-fn judged(response: &HttpResponse) -> Result<&[u8], Error> {
+/// The body of an answer that says yes and is no longer than `limit`, else what it says. The
+/// transport caps what it reads too; this holds for one that doesn't.
+fn judged(response: &HttpResponse, limit: usize) -> Result<&[u8], Error> {
     match response.status() {
+        200 if response.body().len() > limit => Err(Error::TooLarge),
         200 => Ok(response.body()),
         401 => Err(Error::Unauthorized),
         403 => Err(Error::Forbidden),
@@ -249,6 +252,8 @@ pub enum OabError {
     TooLarge,
     /// The file can't be read.
     File(mailcraft_oab::Error),
+    /// `cancel` was set: nobody waits for the list any more.
+    Cancelled,
 }
 
 impl From<Error> for OabError {
@@ -258,17 +263,28 @@ impl From<Error> for OabError {
 }
 
 /// Downloads and reads the account's address list from its own server: the three requests of the
-/// module, over `exchange`.
-pub async fn fetch<E: HttpExchange>(exchange: &E, ews_url: &str, email: &str, authorization: &Secret) -> Result<EwsAddressList, OabError> {
+/// module, over `exchange`. Once `cancel` is set, the request on its way finishes and nothing
+/// after it is asked or read.
+pub async fn fetch<E: HttpExchange>(
+    exchange: &E,
+    ews_url: &str,
+    email: &str,
+    authorization: &Secret,
+    cancel: &AtomicBool,
+) -> Result<EwsAddressList, OabError> {
+    let go_on = || if cancel.load(Ordering::Relaxed) { Err(OabError::Cancelled) } else { Ok(()) };
     let answer = exchange.exchange(&autodiscover_request(ews_url, email, authorization)?).await.map_err(Error::from)?;
-    let url = oab_url(judged(&answer)?, ews_url)?.ok_or(OabError::NotPublished)?;
+    let url = oab_url(judged(&answer, MAX_ANSWER)?, ews_url)?.ok_or(OabError::NotPublished)?;
+    go_on()?;
     let manifest = exchange.exchange(&get(&format!("{url}oab.xml"), authorization, MAX_MANIFEST)?).await.map_err(Error::from)?;
-    let full = full_file(judged(&manifest)?)?.ok_or(OabError::NotPublished)?;
+    let full = full_file(judged(&manifest, MAX_MANIFEST)?)?.ok_or(OabError::NotPublished)?;
     if full.size > MAX_FILE {
         return Err(OabError::TooLarge);
     }
+    go_on()?;
     let file = exchange.exchange(&get(&format!("{url}{}", full.name), authorization, MAX_FILE)?).await.map_err(Error::from)?;
-    let list = address_list(judged(&file)?).map_err(OabError::File)?;
+    go_on()?;
+    let list = address_list(judged(&file, MAX_FILE)?).map_err(OabError::File)?;
     Ok(list)
 }
 

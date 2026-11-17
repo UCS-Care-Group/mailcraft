@@ -61,7 +61,7 @@ pub fn decompress(file: &[u8], limits: &Limits) -> Result<Vec<u8>, Error> {
         if unpacked == 0 || unpacked > block_max || unpacked > target.saturating_sub(out.len()) {
             return Err(Error::Corrupt("an LZX_BLK of a size the file hasn't room for"));
         }
-        if packed > block_max.saturating_mul(2).max(1 << 16) {
+        if packed > block_max.saturating_mul(2).max(1 << 16) || packed > limits.max_block {
             return Err(Error::Cap(Cap::BlockSize));
         }
         let from = at.saturating_add(BLOCK_HEADER);

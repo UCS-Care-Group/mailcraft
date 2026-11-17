@@ -417,6 +417,8 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     if !from.is_valid() {
         return Err(fail("the sender has no usable e-mail address"));
     }
+    // The contact is shown among the contacts, so People leaves the address list, as `select` does.
+    s.view.people_book = None;
     if let Some(existing) = s.mailbox.contact_by_email(&from.email).map(|c| c.id) {
         s.sel.contact = Some(existing);
         reveal(s, existing);
