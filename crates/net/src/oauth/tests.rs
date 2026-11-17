@@ -2327,3 +2327,37 @@ fn a_no_for_the_rules_alone_is_a_question_for_the_owner() {
     let error = refresh_graph_rules_at(&endpoints_of(&server), &endpoints_of(&server), &oauth(), "re-fresh").unwrap_err();
     assert!(error.is_refused_sign_in() && !error.is_consent_needed(), "{error}");
 }
+
+#[test]
+fn browser_blocked_ports_are_recognised() {
+    for port in [0, 1, 22, 25, 6000, 6665, 6666, 6669, 6697, 10080, 4045, 5060, 5061, 6566, 3659, 1719, 1720, 1723] {
+        assert!(blocked_port(port), "{port} should be blocked");
+    }
+    for port in [80, 443, 8080, 49152, 54321, 6664, 6670, 6698, 10079, 10081, 65535] {
+        assert!(!blocked_port(port), "{port} should be allowed");
+    }
+}
+
+#[test]
+fn listen_never_keeps_a_blocked_port_and_gives_up_after_the_cap() {
+    // Every port blocked: refused after exactly MAX_PORT_TRIES binds, never an endless loop.
+    let tries = std::cell::Cell::new(0);
+    let all = |_: u16| {
+        tries.set(tries.get() + 1);
+        true
+    };
+    assert!(Redirect::listen_avoiding(all).is_err());
+    assert_eq!(tries.get(), MAX_PORT_TRIES);
+
+    // The first two ports drawn are blocked: the third is kept, on loopback only.
+    let seen = std::cell::RefCell::new(Vec::new());
+    let first_two = |port: u16| {
+        seen.borrow_mut().push(port);
+        seen.borrow().len() <= 2
+    };
+    let redirect = Redirect::listen_avoiding(first_two).unwrap();
+    let seen = seen.borrow();
+    assert_eq!(seen.len(), 3);
+    assert_eq!(redirect.port, seen[2]);
+    assert!(redirect.listeners.iter().all(|l| l.local_addr().is_ok_and(|a| a.ip().is_loopback())));
+}
