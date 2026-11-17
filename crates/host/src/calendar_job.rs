@@ -159,7 +159,7 @@ impl CalendarJobs {
             Ok(result) => (result, false),
             Err(TryRecvError::Empty) => return CalendarPolled::Nothing,
             Err(TryRecvError::Disconnected) => {
-                log::warn!("calendar, account {}: the job ended without an answer (its thread ended early)", running.account);
+                log::warn!("calendar: the job ended without an answer (its thread ended early)");
                 (GraphResult { account: running.account, ..Default::default() }, true)
             }
         };

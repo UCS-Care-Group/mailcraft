@@ -148,7 +148,7 @@ impl TasksJobs {
             Ok(result) => (result, false),
             Err(TryRecvError::Empty) => return None,
             Err(TryRecvError::Disconnected) => {
-                log::warn!("tasks, account {}: the job ended without an answer (its thread ended early)", running.account);
+                log::warn!("tasks: the job ended without an answer (its thread ended early)");
                 (TasksResult { account: running.account, ..Default::default() }, true)
             }
         };

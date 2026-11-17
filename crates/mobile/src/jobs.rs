@@ -127,7 +127,7 @@ impl SyncHost {
             self.keep_refresh(inner, session, account, &tokens, &mut errors);
         }
         if answer.result.sign_in_refused {
-            log::info!("calendar, account {account}: the sign-in was refused; the next Send/Receive finds out");
+            log::info!("calendar: the sign-in was refused; the next Send/Receive finds out");
         }
         let taken = take_answer(session, &answer, !errors.is_empty(), self.now_ms());
         let lang = session.interface_language;
