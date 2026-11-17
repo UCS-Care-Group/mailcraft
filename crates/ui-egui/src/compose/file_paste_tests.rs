@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use egui::{Event, Key, Modifiers};
 use serde_json::json;
 
-use super::Keys;
+use super::{Keys, Os};
 use crate::compose::tests::{Window, app, key_with, plain, type_in, window};
 
 fn release(modifiers: Modifiers) -> Event {
@@ -179,10 +179,10 @@ fn a_signature_takes_no_files() {
     let mut h = writing(&board);
     *board.0.borrow_mut() = vec![folder.file("logo.png", b"png")];
     // Only the message being written attaches: the signature's body is no message.
-    assert!(super::files_on(h.state(), super::super::Which::Signature, "", true).is_none());
-    assert!(super::files_on(h.state(), super::super::Which::Message, "", true).is_some());
+    assert!(super::files_on(h.state(), super::super::Which::Signature, "", Os::Windows).is_none());
+    assert!(super::files_on(h.state(), super::super::Which::Message, "", Os::Windows).is_some());
     h.state_mut().services.clipboard = None;
-    assert!(super::files_on(h.state(), super::super::Which::Message, "", true).is_none());
+    assert!(super::files_on(h.state(), super::super::Which::Message, "", Os::Windows).is_none());
     let _ = &mut h;
 }
 
@@ -225,39 +225,73 @@ fn what_a_file_manager_leaves_beside_the_files_is_told_by_what_it_names() {
     let (report, notes) = ("/home/ada/My Files/report.pdf".to_string(), "C:\\Users\\ada\\notes.txt".to_string());
     let files = vec![report.clone(), notes.clone()];
     let both = Some(files.clone());
-    // Nothing (Explorer): all of them. Paths, addresses (spaces as %20, a local host, a drive) and
-    // names (Finder): the ones named.
+    // Nothing (Explorer): all of them, on Windows only.
     for text in ["", "  \n"] {
-        assert_eq!(super::named_by(text, &files, true), both, "{text:?}");
+        assert_eq!(super::named_by(text, &files, Os::Windows), both, "{text:?}");
+        assert_eq!(super::named_by(text, &files, Os::Mac), None, "{text:?}");
+        assert_eq!(super::named_by(text, &files, Os::Other), None, "{text:?}");
     }
-    for text in [
-        "/home/ada/My Files/report.pdf\r\nC:\\Users\\ada\\notes.txt\r\n",
-        "report.pdf\nnotes.txt",
-        "file:///home/ada/My%20Files/report.pdf\nfile:///C:/Users/ada/notes.txt",
-    ] {
-        assert_eq!(super::named_by(text, &files, true), both, "{text:?}");
+    // Paths and addresses (spaces as %20, a local host, a drive): the ones named, on every system.
+    for os in [Os::Windows, Os::Mac, Os::Other] {
+        for text in [
+            "/home/ada/My Files/report.pdf\r\nC:\\Users\\ada\\notes.txt\r\n",
+            "file:///home/ada/My%20Files/report.pdf\nfile:///C:/Users/ada/notes.txt",
+        ] {
+            assert_eq!(super::named_by(text, &files, os), both, "{os:?} {text:?}");
+        }
+        for (text, only) in [
+            ("/home/ada/My Files/report.pdf", &report),
+            ("file:///home/ada/My%20Files/report.pdf\nfile://localhost/home/ada/My%20Files/report.pdf", &report),
+            ("file:///C:/Users/ada/notes.txt", &notes),
+        ] {
+            assert_eq!(super::named_by(text, &files, os), Some(vec![only.clone()]), "{os:?} {text:?}");
+        }
     }
-    for (text, only) in [
-        ("/home/ada/My Files/report.pdf", &report),
-        ("file:///home/ada/My%20Files/report.pdf\nfile://localhost/home/ada/My%20Files/report.pdf", &report),
-        ("file:///C:/Users/ada/notes.txt", &notes),
-        // The same one named twice names the one, not the other.
-        ("notes.txt\nnotes.txt", &notes),
-        ("report.pdf", &report),
-    ] {
-        assert_eq!(super::named_by(text, &files, true), Some(vec![only.clone()]), "{text:?}");
+    // Bare names (Finder's): on macOS only. A page can set that text beside a list of guessed paths.
+    assert_eq!(super::named_by("report.pdf\nnotes.txt", &files, Os::Mac), both);
+    assert_eq!(super::named_by("notes.txt\nnotes.txt", &files, Os::Mac), Some(vec![notes.clone()]));
+    assert_eq!(super::named_by("report.pdf", &files, Os::Mac), Some(vec![report.clone()]));
+    for os in [Os::Windows, Os::Other] {
+        for text in ["report.pdf", "report.pdf\nnotes.txt", "/home/ada/My Files/report.pdf\nnotes.txt"] {
+            assert_eq!(super::named_by(text, &files, os), None, "{os:?} {text:?}");
+        }
     }
     // Anything else, however much of it names a file.
-    for text in [
-        "hello",
-        "report.pdf and more",
-        "report.pdf\nnotes.txt\nreport.pdf",
-        "file:///etc/passwd",
-        "/home/ada/My Files/other.pdf",
-        "file:///home/ada/My%2",
-    ] {
-        assert_eq!(super::named_by(text, &files, true), None, "{text:?}");
+    for os in [Os::Windows, Os::Mac, Os::Other] {
+        for text in [
+            "hello",
+            "report.pdf and more",
+            "report.pdf\nnotes.txt\nreport.pdf",
+            "file:///etc/passwd",
+            "/home/ada/My Files/other.pdf",
+            "file:///home/ada/My%2",
+        ] {
+            assert_eq!(super::named_by(text, &files, os), None, "{os:?} {text:?}");
+        }
     }
+}
+
+/// A page's copy handler sets the text to a bare name and the `text/uri-list` to guessed paths of
+/// that name: the owner's one Ctrl+V must not attach whichever exist, off macOS (review of #871).
+#[test]
+fn a_bare_name_beside_a_list_of_guessed_paths_attaches_nothing_off_macos() {
+    let folder = Folder::new("guessed");
+    let (one, two) = (folder.0.join("a"), folder.0.join("b"));
+    std::fs::create_dir_all(&one).unwrap();
+    std::fs::create_dir_all(&two).unwrap();
+    let paths = [one.join("id_rsa"), two.join("id_rsa"), folder.0.join("gone").join("id_rsa")];
+    std::fs::write(&paths[0], b"k1").unwrap();
+    std::fs::write(&paths[1], b"k2").unwrap();
+    let board = Files::default();
+    let h = writing(&board);
+    *board.0.borrow_mut() = paths.to_vec();
+    let message = super::super::Which::Message;
+    for os in [Os::Windows, Os::Other] {
+        assert_eq!(super::files_on(h.state(), message, "id_rsa", os), None, "{os:?}");
+    }
+    // Finder leaves the bare name: on macOS every listed file of that name.
+    let all: Vec<String> = paths.iter().map(|p| p.to_str().unwrap().to_string()).collect();
+    assert_eq!(super::files_on(h.state(), message, "id_rsa", Os::Mac), Some(all));
 }
 
 #[test]
@@ -266,7 +300,7 @@ fn a_paste_names_the_files_it_attaches_and_no_others() {
     let board = Files::default();
     let mut h = writing(&board);
     *board.0.borrow_mut() = vec![folder.file("report.pdf", b"one"), folder.file("private.pdf", b"two")];
-    h.event(Event::Paste("report.pdf".into()));
+    h.event(Event::Paste(folder.0.join("report.pdf").display().to_string()));
     h.run_steps(2);
     assert_eq!(attached(&h), vec![("report.pdf".to_string(), b"one".to_vec())]);
 }
@@ -277,7 +311,7 @@ fn the_status_line_names_the_files_a_paste_attached() {
     let board = Files::default();
     let mut h = writing(&board);
     *board.0.borrow_mut() = vec![folder.file("report.pdf", b"one")];
-    h.event(Event::Paste("report.pdf".into()));
+    h.event(Event::Paste(folder.0.join("report.pdf").display().to_string()));
     h.run_steps(2);
     let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
     assert!(said.contains("Attached 1 file") && said.contains("(report.pdf)"), "{said}");
@@ -325,14 +359,22 @@ fn files_alone_are_attached_on_windows_only() {
     *board.0.borrow_mut() = vec![folder.file("photo.jpg", b"jpg")];
     let path = folder.0.join("photo.jpg").to_str().unwrap().to_string();
     let message = super::super::Which::Message;
-    assert_eq!(super::files_on(h.state(), message, "", true), Some(vec![path.clone()]));
-    assert_eq!(super::files_on(h.state(), message, "  \n", false), None);
-    assert_eq!(super::files_on(h.state(), message, "", false), None);
-    // The names beside them, as a file manager leaves them, still attach them anywhere.
-    assert_eq!(super::files_on(h.state(), message, "photo.jpg", false), Some(vec![path.clone()]));
-    assert_eq!(super::files_on(h.state(), message, &path, true), Some(vec![path]));
+    assert_eq!(super::files_on(h.state(), message, "", Os::Windows), Some(vec![path.clone()]));
+    for os in [Os::Mac, Os::Other] {
+        assert_eq!(super::files_on(h.state(), message, "  \n", os), None, "{os:?}");
+        assert_eq!(super::files_on(h.state(), message, "", os), None, "{os:?}");
+    }
+    // Their paths beside them, as a file manager leaves them, still attach them anywhere; the
+    // bare name only on macOS.
+    for os in [Os::Windows, Os::Mac, Os::Other] {
+        assert_eq!(super::files_on(h.state(), message, &path, os), Some(vec![path.clone()]), "{os:?}");
+    }
+    assert_eq!(super::files_on(h.state(), message, "photo.jpg", Os::Mac), Some(vec![path.clone()]));
+    assert_eq!(super::files_on(h.state(), message, "photo.jpg", Os::Other), None);
+    assert_eq!(super::files_on(h.state(), message, "photo.jpg", Os::Windows), None);
     // And what the real thing does here.
-    assert_eq!(super::files(h.state(), message, "").is_some(), cfg!(windows));
+    assert_eq!(super::files(h.state(), message, "").is_some(), super::Os::here() == Os::Windows);
+    assert_eq!(super::files(h.state(), message, "photo.jpg").is_some(), super::Os::here() == Os::Mac);
 }
 
 /// A key press the backend kept, with files alone on the clipboard, attaches nothing off Windows.
@@ -359,8 +401,8 @@ fn a_network_path_is_left_out_on_windows() {
     let paths = ["\\\\host\\share\\a.txt", "//host/share/b.txt", "\\\\?\\UNC\\host\\share\\c.txt", "\\\\.\\pipe\\d"];
     *board.0.borrow_mut() = paths.iter().map(PathBuf::from).chain([local.clone()]).collect();
     let message = super::super::Which::Message;
-    assert_eq!(super::files_on(h.state(), message, "", true), Some(vec![local.to_str().unwrap().to_string()]));
+    assert_eq!(super::files_on(h.state(), message, "", Os::Windows), Some(vec![local.to_str().unwrap().to_string()]));
     *board.0.borrow_mut() = paths.iter().map(PathBuf::from).collect();
-    assert_eq!(super::files_on(h.state(), message, "", true), None);
+    assert_eq!(super::files_on(h.state(), message, "", Os::Windows), None);
     assert!(super::on_the_network("\\\\host\\share") && !super::on_the_network("C:\\share") && !super::on_the_network("/home/a"));
 }

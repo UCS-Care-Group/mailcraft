@@ -1389,8 +1389,9 @@ msgstr "标记为私人的约会只显示您正忙，不会显示受邀者的姓
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "An attachment can't be copied here: save it with Save As instead."
-msgstr ""
+msgstr "此处无法复制附件：请改用“另存为”保存。"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3388,8 +3389,9 @@ msgstr "会话"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "Copied {name}"
-msgstr ""
+msgstr "已复制 {name}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -3421,8 +3423,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Copy Attachment"
-msgstr ""
+msgstr "复制附件"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -5280,8 +5283,9 @@ msgstr "文件："
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Files can't be put on the clipboard here."
-msgstr ""
+msgstr "此处无法将文件放入剪贴板。"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -10497,8 +10501,9 @@ msgstr "仅在 MailCraft 不是前台窗口时通知，且只适用于您自己�
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
-msgstr ""
+msgstr "只有您本人可以复制附件，请使用其菜单中的“复制”或 Ctrl+C。"
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
@@ -13088,8 +13093,9 @@ msgstr "请先选择邮件，再预览其附件。"
 
 #. ribbon location
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Selection"
-msgstr ""
+msgstr "所选内容"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs

@@ -413,9 +413,19 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   repeats Ctrl+C) is written once, and the copies kept come to no more than 512 MB, the oldest going
   first (the one just copied always stays) (`apps/mailcraft/src/opened_files.rs`, `crates/ui-egui/src/attachment_open.rs`). Files on
   the clipboard are attached to a message being written by a paste only when the text that comes
-  with them is nothing (then all of them) or lists files (their paths, addresses or names; then only
-  those), so a page that puts `file://` addresses beside the text copied from it gets that text
-  pasted as text; the status line names the files attached (`crates/ui-egui/src/compose/file_paste.rs`).
+  with them lists files, and then only those: their paths or `file://` addresses on every system,
+  and a bare file name on macOS alone (Finder leaves nothing else); files with no text beside
+  them (Explorer's) on Windows alone, where the clipboard's file list is a format a web page
+  cannot write. A page may be able to put a list of `file://` addresses (`text/uri-list`) on the
+  clipboard and set the text beside it (whether Firefox and Chromium do is not relied on): with
+  names accepted everywhere, a page that sets the text `id_rsa` beside guessed
+  `/home/<name>/.ssh/id_rsa` paths would get every one that exists attached on one Ctrl+V with
+  only the name showing; so off macOS the text must be the path or address itself, and a page can attach only a file
+  whose whole path it guessed (a residual risk: the status line names the file attached and the
+  owner can remove it before sending). Text that names
+  anything else is pasted as text. The status line names the files attached, and a path of the
+  network (`\\host\share`) on Windows is left out before it is looked at. The rule is one function
+  taking the system as a value, tested for all three (`crates/ui-egui/src/compose/file_paste.rs`).
 - **Secrets are in the operating system's credential store** (Windows Credential Manager, the macOS
   keychain, the Secret Service: GNOME Keyring, KWallet; `apps/mailcraft/src/secrets.rs`), never in
   the mailbox file, `ui.json`, a command line, a URL or a log line. They are `#[serde(skip)]` and redacted

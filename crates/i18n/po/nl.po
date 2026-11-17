@@ -1389,8 +1389,9 @@ msgstr "Een afspraak die als persoonlijk is gemarkeerd, toont alleen dat u bezet
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "An attachment can't be copied here: save it with Save As instead."
-msgstr ""
+msgstr "Een bijlage kan hier niet worden gekopieerd: sla de bijlage in plaats daarvan op met Opslaan als."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3390,8 +3391,9 @@ msgstr "Gesprekken"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "Copied {name}"
-msgstr ""
+msgstr "{name} gekopieerd"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -3423,8 +3425,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Copy Attachment"
-msgstr ""
+msgstr "Bijlage kopiëren"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -5289,8 +5292,9 @@ msgstr "Bestand:"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Files can't be put on the clipboard here."
-msgstr ""
+msgstr "Bestanden kunnen hier niet op het klembord worden geplaatst."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -10513,8 +10517,9 @@ msgstr "Alleen wanneer MailCraft niet het voorste venster is, en alleen voor de 
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
-msgstr ""
+msgstr "Alleen u kunt een bijlage kopiëren, met Kopiëren in het menu van de bijlage of met Ctrl+C."
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
@@ -13107,8 +13112,9 @@ msgstr "Selecteer het bericht voordat u een voorbeeld van de bijlage bekijkt."
 
 #. ribbon location
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Selection"
-msgstr ""
+msgstr "Selectie"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs

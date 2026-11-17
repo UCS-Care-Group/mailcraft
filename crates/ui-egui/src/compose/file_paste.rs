@@ -76,21 +76,57 @@ impl Keys {
 /// Elsewhere files alone on the clipboard are not attached: a page can't be told from a file
 /// manager by what is on the clipboard (a browser may put a page's `text/uri-list` there as that
 /// real type, listing paths it guessed), and the file managers there put the names beside the
-/// files as text. And on Windows a path of the network (`\\host\share\…`) is left out: looking
-/// at it would contact that host.
+/// files as text. A bare file name (`id_rsa`) names a file only on macOS, where Finder leaves
+/// nothing else: a page could set that text beside a list of guessed paths and get every listed
+/// file of that name attached with only the name showing. Elsewhere the text must be the path or
+/// the `file://` address of each file, which is then what the owner would see. And on Windows a
+/// path of the network (`\\host\share\…`) is left out: looking at it would contact that host.
 pub(super) fn files(app: &MailApp, which: super::Which, text: &str) -> Option<Vec<String>> {
-    files_on(app, which, text, cfg!(windows))
+    files_on(app, which, text, Os::here())
 }
 
-/// [`files`], as it is on Windows (`windows`) or not.
-fn files_on(app: &MailApp, which: super::Which, text: &str, windows: bool) -> Option<Vec<String>> {
+/// The systems that differ in what a paste of files may be told by (see [`files`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Os {
+    Windows,
+    Mac,
+    /// Linux and every other system.
+    Other,
+}
+
+impl Os {
+    /// The system this was built for. The only place that looks at the target: the rest takes
+    /// an `Os`, so its tests run on every system in CI.
+    pub(super) fn here() -> Os {
+        if cfg!(windows) {
+            Os::Windows
+        } else if cfg!(target_os = "macos") {
+            Os::Mac
+        } else {
+            Os::Other
+        }
+    }
+
+    /// Whether files alone on the clipboard, with no text, are attached (Explorer's).
+    fn takes_files_alone(self) -> bool {
+        self == Os::Windows
+    }
+
+    /// Whether a bare file name in the pasted text names a file (Finder's).
+    fn takes_bare_names(self) -> bool {
+        self == Os::Mac
+    }
+}
+
+/// [`files`], as it is on `os`.
+fn files_on(app: &MailApp, which: super::Which, text: &str, os: Os) -> Option<Vec<String>> {
     if which != super::Which::Message {
         return None;
     }
     let board = app.services.clipboard.as_ref()?;
     let files: Vec<String> =
-        board.files().iter().filter_map(|p| p.to_str()).filter(|p| !(windows && on_the_network(p))).map(str::to_string).collect();
-    let named = named_by(text, &files, windows)?;
+        board.files().iter().filter_map(|p| p.to_str()).filter(|p| !(os == Os::Windows && on_the_network(p))).map(str::to_string).collect();
+    let named = named_by(text, &files, os)?;
     (!named.is_empty()).then_some(named)
 }
 
@@ -100,22 +136,22 @@ fn on_the_network(path: &str) -> bool {
     path.starts_with("\\\\") || path.starts_with("//")
 }
 
-/// Of `files`, those that `text` names: all of them for no text at all where `alone` (Explorer's
-/// on Windows), else none; else each line of it must be the path of one of them, its `file://`
-/// address or its name, and the files named are the ones that are attached. `None` when a line
-/// names no file.
-fn named_by(text: &str, files: &[String], alone: bool) -> Option<Vec<String>> {
+/// Of `files`, those that `text` names: all of them for no text at all where `os` takes files
+/// alone (Explorer's on Windows), else none; else each line of it must be the path of one of
+/// them, its `file://` address or, where `os` takes bare names (Finder's on macOS), its name, and
+/// the files named are the ones that are attached. `None` when a line names no file.
+fn named_by(text: &str, files: &[String], os: Os) -> Option<Vec<String>> {
     // (Slashes either way: a Windows path in an address has them forward.)
     let slashed = |text: &str| text.replace('\\', "/");
     let names = |file: &str, line: &str, decoded: &str| {
         let path = slashed(file);
         let name = path.rsplit('/').next().unwrap_or(&path);
-        path == line || path == decoded || name == line || name == decoded
+        path == line || path == decoded || (os.takes_bare_names() && (name == line || name == decoded))
     };
     // (A paste of more lines than files can name is no list of them.)
     let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).take(files.len().saturating_add(1)).collect();
     if lines.is_empty() {
-        return alone.then(|| files.to_vec());
+        return os.takes_files_alone().then(|| files.to_vec());
     }
     if lines.len() > files.len() {
         return None;

@@ -1388,8 +1388,9 @@ msgstr "Una cita marcada como privada solo muestra que usted está ocupado. No s
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "An attachment can't be copied here: save it with Save As instead."
-msgstr ""
+msgstr "Aquí no se puede copiar un adjunto: guárdelo en su lugar con Guardar como."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3386,8 +3387,9 @@ msgstr "Conversaciones"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "Copied {name}"
-msgstr ""
+msgstr "Se copió {name}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -3419,8 +3421,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Copy Attachment"
-msgstr ""
+msgstr "Copiar adjunto"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -5285,8 +5288,9 @@ msgstr "Archivo:"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Files can't be put on the clipboard here."
-msgstr ""
+msgstr "Aquí no se pueden poner archivos en el portapapeles."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -10504,8 +10508,9 @@ msgstr "Solo cuando MailCraft no es la ventana en primer plano, y solo para las 
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
-msgstr ""
+msgstr "Solo usted puede copiar un adjunto, con Copiar en su menú o con Ctrl+C."
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
@@ -13094,8 +13099,9 @@ msgstr "Seleccione el mensaje antes de ver la vista previa de su dato adjunto."
 
 #. ribbon location
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Selection"
-msgstr ""
+msgstr "Selección"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
