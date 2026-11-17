@@ -3,6 +3,7 @@
 //! React (#1544): the button beside the reply buttons and the row of six emoji it opens.
 
 use egui::{PointerButton, Rect};
+use egui_kittest::kittest::Queryable;
 use mailcraft_model::{FolderKind, Id};
 use serde_json::json;
 

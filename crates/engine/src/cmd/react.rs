@@ -72,9 +72,7 @@ pub fn refusal(s: &mut Session, m: &Message) -> Option<Why> {
     if let Some(why) = why_not(s, m) {
         return Some(why);
     }
-    let about_sender = |w: &Warning| {
-        !matches!(w, Warning::External { .. } | Warning::LinkMismatch { .. } | Warning::LinksUnchecked)
-    };
+    let about_sender = |w: &Warning| !matches!(w, Warning::External { .. } | Warning::LinkMismatch { .. } | Warning::LinksUnchecked);
     s.sender_warnings(m, false).iter().any(about_sender).then_some(Why::Warned)
 }
 

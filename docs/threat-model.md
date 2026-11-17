@@ -283,9 +283,7 @@ nothing a caller or a message writes reaches the mail's text), the recipient is 
 message's sender, never its Reply-To: a message from `boss@company.example` with a Reply-To of
 another domain must not tell that domain the address is read, and the owner is shown the recipient
 beside the emoji), and nothing of the original is
-quoted. It is refused for a message with a sender warning (a lookalike domain, a name that shows
-another address; the same warnings `mail.unsubscribe` refuses by, as an answer would confirm the
-address to whoever is behind it), for drafts, for the owner's own mail, for Junk E-mail (an answer would tell a
+quoted. It is refused for a message with a warning about its sender (a failed check, a name that shows another address, a look-alike, made-up or brand-copying domain; not a warning about a link in the body, nor the External tag; an answer would confirm the address to whoever is behind it), for drafts, for the owner's own mail, for Junk E-mail (an answer would tell a
 spammer the address is read), for automated mail (`Auto-Submitted` other than `no`,
 `Precedence: bulk`, `list` or `junk`, a no-reply or `mailer-daemon` sender, a list's own address as
 the sender: nobody reads an answer, and a list could echo it to its members; only the headers
