@@ -8064,6 +8064,11 @@ msgstr ""
 msgid "No preview helper is available for this attachment."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview is available for this attachment."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
 msgid "No program can call this number."
@@ -8072,11 +8077,6 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
 msgid "No program can write to this address."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/attachment_preview.rs
-msgid "No preview is available for this attachment."
 msgstr ""
 
 #. interface

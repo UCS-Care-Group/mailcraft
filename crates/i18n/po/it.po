@@ -9727,6 +9727,12 @@ msgstr "Nessun contatto trovato."
 msgid "No preview helper is available for this attachment."
 msgstr "Non è disponibile un programma per l’anteprima di questo allegato."
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "No preview is available for this attachment."
+msgstr "Non è disponibile un’anteprima per questo allegato."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
 #, fuzzy
@@ -9738,12 +9744,6 @@ msgstr "Nessun programma può chiamare questo numero."
 #, fuzzy
 msgid "No program can write to this address."
 msgstr "Nessun programma può scrivere a questo indirizzo."
-
-#. interface
-#: crates/ui-egui/src/attachment_preview.rs
-#, fuzzy
-msgid "No preview is available for this attachment."
-msgstr "Non è disponibile un’anteprima per questo allegato."
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
