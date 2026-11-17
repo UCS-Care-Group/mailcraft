@@ -119,8 +119,8 @@ pub const MAX_READ: usize = 65_536;
 
 /// `text` as it reads on the screen, at most `keep` characters of it: without what
 /// [draws nothing](draws_nothing), a run of blanks (spaces, [blank fillers](blank)) as one space,
-/// and the characters drawn as an at sign (`＠`, `﹫`) or a full stop (`．`, `․`, `﹒`, `。`, `｡`,
-/// `ꓸ`, `܁`, `۔`, `⸱`) as `@` and `.`. Only `keep` characters of what is seen are kept, of at
+/// and the characters drawn as an at sign (`＠`, `﹫`), a full stop (`．`, `․`, `﹒`, `。`, `｡`,
+/// `ꓸ`, `܁`, `۔`, `⸱`) or a plus (`＋`, `﹢`) as `@`, `.` and `+`. Only `keep` characters of what is seen are kept, of at
 /// most [`MAX_READ`] read: what draws nothing doesn't use up the room of what is seen.
 pub fn as_seen(text: &str, keep: usize) -> String {
     let mut out = String::new();
@@ -139,14 +139,21 @@ pub fn as_seen(text: &str, keep: usize) -> String {
             continue;
         }
         gap = false;
-        out.push(match c {
-            '\u{ff20}' | '\u{fe6b}' => '@',
-            '\u{ff0e}' | '\u{2024}' | '\u{fe52}' | '\u{3002}' | '\u{ff61}' | '\u{a4f8}' | '\u{701}' | '\u{6d4}' | '\u{2e31}' => '.',
-            c => c,
-        });
+        out.push(drawn_as(c).unwrap_or(c));
         kept += 1;
     }
     out
+}
+
+/// The `@`, `.` or `+` that `c` is drawn as, when it is another character: `＠`, `﹫`; `．`, `․`,
+/// `﹒`, `。`, `｡`, `ꓸ`, `܁`, `۔`, `⸱`; `＋`, `﹢`.
+pub fn drawn_as(c: char) -> Option<char> {
+    match c {
+        '\u{ff20}' | '\u{fe6b}' => Some('@'),
+        '\u{ff0b}' | '\u{fe62}' => Some('+'),
+        '\u{ff0e}' | '\u{2024}' | '\u{fe52}' | '\u{3002}' | '\u{ff61}' | '\u{a4f8}' | '\u{701}' | '\u{6d4}' | '\u{2e31}' => Some('.'),
+        _ => None,
+    }
 }
 
 /// Whether `text` hides more than it shows: it is longer than [`MAX_READ`] characters, or more of

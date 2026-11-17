@@ -15,6 +15,8 @@ class LanguagesTest {
         assertEquals("nl", coreLanguage("nl-NL"))
         assertEquals("ro", coreLanguage("ro_RO"))
         assertEquals("hu", coreLanguage("hu-HU"))
+        assertEquals("pl", coreLanguage("pl-PL"))
+        assertEquals("cs", coreLanguage("cs-CZ"))
         assertEquals("en", coreLanguage("pt"))
         assertEquals("en", coreLanguage(""))
         assertEquals("en", coreLanguage(null))

@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Fuzzes every reader of an Exchange Web Services answer: the hostile XML reader, the SOAP
 //! envelope and fault, the response messages, `GetFolder`'s answer, and the mail operations'
-//! (`SyncFolderHierarchy`, `SyncFolderItems`, `GetItem` and its base64).
+//! (`SyncFolderHierarchy`, `SyncFolderItems`, `GetItem` and its base64), and `ResolveNames`'.
 //!
 //! Invariant: nothing panics, and an accepted answer can be inspected.
 
 #![no_main]
 
-use mailcraft_ews::{DistinguishedFolder, GetFolder, GetItemMime, HttpResponse, Reply, Shape, SyncFolderHierarchy, SyncFolderItems};
+use mailcraft_ews::{DistinguishedFolder, GetFolder, GetItemMime, HttpResponse, Reply, ResolveNames, Shape, SyncFolderHierarchy, SyncFolderItems};
 
 libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let _ = mailcraft_ews::xml::parse(data);
@@ -24,6 +24,9 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
             let _ = SyncFolderHierarchy::new("").answer(&reply);
             let _ = SyncFolderItems::new("AAMk", "", 200, Shape::Full).answer(&reply);
             let _ = GetItemMime::new("AAMk").answer(&reply);
+            if let Some(lookup) = ResolveNames::new("ada") {
+                let _ = lookup.answer(&reply);
+            }
             let _ = reply.busy();
         }
     }

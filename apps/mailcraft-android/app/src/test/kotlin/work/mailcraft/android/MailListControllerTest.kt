@@ -242,6 +242,19 @@ class MailListControllerTest {
     }
 
     @Test
+    fun openingAMessageMarksItReadInTurnAndWithdrawsAnEarlierUndo() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(5))
+        val c = controller(source)
+        c.show(inbox)
+        c.triage(Triage.Delete, listOf(FakeMailSource.row(1)))
+        assertTrue(c.ui.value.notice?.notice is ListNotice.Done)
+        // The reading pane marks what it opened read: Undo would take that back now, so the offer goes.
+        assertTrue(c.markRead(3uL))
+        assertEquals("mail.markRead" to """{"ids":[3]}""", source.commands.last())
+        assertNull(c.ui.value.notice)
+    }
+
+    @Test
     fun anEarlierCommandFinishingLastOffersNoUndoForIt() = runBlocking {
         val source = FakeMailSource(FakeMailSource.rows(5))
         val c = controller(source)

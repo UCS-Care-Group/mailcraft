@@ -15,7 +15,8 @@
 //!   SOAP fault (`ErrorSchemaValidation`, HTTP 500), as the service answers a request that does
 //!   not fit its schema.
 //! - **The operations.** `GetFolder` (a `FolderShape` of a `BaseShape`, and `FolderIds` of
-//!   `DistinguishedFolderId` and `FolderId`). Any operation that would change something is
+//!   `DistinguishedFolderId` and `FolderId`), and `ResolveNames` over an address list of its
+//!   own ([`State::directory`], `crate::standin_directory`). Any operation that would change something is
 //!   noted ([`State::writes`]) and refused: nothing a client of this crate does before it has
 //!   the owner's say may ever be one.
 //! - **Refusals.** An organisation that doesn't allow the service answers 403 with an
@@ -222,6 +223,8 @@ pub struct State {
     pub lists_no_recipients: bool,
     /// The versions every request asked for, in order.
     pub versions: Vec<String>,
+    /// The organisation's address list, for `ResolveNames` (#1262).
+    pub directory: Vec<crate::standin_directory::Person>,
 }
 
 impl Default for State {
@@ -295,6 +298,7 @@ impl Default for State {
             takes_any_version: false,
             lists_no_recipients: false,
             versions: Vec::new(),
+            directory: Vec::new(),
         }
     }
 }
@@ -489,6 +493,7 @@ impl State {
             "SyncFolderHierarchy" => self.sync_hierarchy(operation),
             "SyncFolderItems" => self.sync_items(operation),
             "GetItem" => self.get_item(operation),
+            "ResolveNames" => self.resolve_names(operation),
             name if crate::standin_write::HANDLED.contains(&name) => {
                 self.writes.push(name.to_owned());
                 self.write(name, operation)

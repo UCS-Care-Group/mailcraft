@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use crate::queue::{Queue, Shed, Weight};
-use crate::{NotificationRecord, Permission};
+use crate::{FetchFailure, NotificationRecord, Permission};
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
 pub enum Event {
@@ -34,6 +34,10 @@ pub enum Event {
     SaveFailed { reason: String },
     /// Something about the mailbox file the owner is told when the app starts.
     StorageNotice { notice: StorageNotice, detail: String },
+    /// A message the owner opened came whole (`Core::open_message`): read it again.
+    MessageFetched { message: u64 },
+    /// A message the owner opened couldn't be fetched, and why: the app says so in its own words.
+    FetchFailed { message: u64, reason: FetchFailure },
 }
 
 /// What the owner is told about the mailbox file.
@@ -58,9 +62,12 @@ impl Shed for Event {
             Event::SyncProgress { .. } => Weight::Progress,
             Event::RevChanged { .. } => Weight::Replaced,
             Event::Notification { .. } | Event::ReminderScheduleChanged | Event::SyncFinished { .. } => Weight::Notice,
-            Event::SignInNeeded { .. } | Event::PermissionQuestion { .. } | Event::StorageNotice { .. } | Event::SaveFailed { .. } => {
-                Weight::Actionable
-            }
+            Event::SignInNeeded { .. }
+            | Event::PermissionQuestion { .. }
+            | Event::StorageNotice { .. }
+            | Event::SaveFailed { .. }
+            | Event::MessageFetched { .. }
+            | Event::FetchFailed { .. } => Weight::Actionable,
         }
     }
 }

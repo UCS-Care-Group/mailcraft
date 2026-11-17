@@ -26,7 +26,7 @@
 //! [`Platform::open_sign_in_page`], exchange the code) and is handed in with
 //! [`SendReceive::adopt_tokens`].
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError, sync_channel};
@@ -80,6 +80,9 @@ impl Context<'_> {
 pub struct SendReceive {
     /// A Graph access token of the session, with the account's newest refresh token.
     tokens: HashMap<Id, Tokens>,
+    /// The accounts whose kept access token is known to cover Graph mail: only such a token is
+    /// handed to a mail job as it is ([`Self::mail_access`]); any other is renewed first.
+    mail_covered: HashSet<Id>,
     /// Set to stop the run under way at its next safe place.
     cancel: Arc<AtomicBool>,
     running: Option<Running>,
@@ -91,18 +94,23 @@ pub struct SendReceive {
     /// Only accounts kept in step through Graph, not shared, are started (a front end that can't
     /// run the others). Off by default: every account with a server is a candidate.
     graph_only: bool,
+    /// Accounts the owner said "not now" to (a new account's first download, with no room for
+    /// it yet on a phone): nothing starts for them by itself until [`hold`](Self::hold) lets go.
+    held: HashSet<Id>,
 }
 
 impl Default for SendReceive {
     fn default() -> Self {
         SendReceive {
             tokens: HashMap::new(),
+            mail_covered: HashSet::new(),
             cancel: Arc::default(),
             running: None,
             opening: None,
             runner: real_runner(),
             written: Vec::new(),
             graph_only: false,
+            held: HashSet::new(),
         }
     }
 }
@@ -153,6 +161,8 @@ pub enum Left {
     Refused,
     /// The messages about to go could not be marked on disk first: nothing was sent.
     NotSaved,
+    /// The owner held the account back ([`SendReceive::hold`]) after its round was queued.
+    Held,
 }
 
 /// What [`SendReceive::what_to_run`] did.
@@ -210,9 +220,30 @@ impl SendReceive {
         self
     }
 
-    /// Whether a round may include `account` (always, unless [`graph_only`](Self::graph_only)).
+    /// Hold `account` back from every round and job (`true`), or let it go again.
+    pub fn hold(&mut self, account: Id, held: bool) {
+        if held {
+            self.held.insert(account);
+        } else {
+            self.held.remove(&account);
+        }
+    }
+
+    /// Let go of every account held back (the owner asked for a Send/Receive).
+    pub fn release_all(&mut self) {
+        self.held.clear();
+    }
+
+    /// Whether `account` is held back ([`hold`](Self::hold)).
+    pub fn held(&self, account: Id) -> bool {
+        self.held.contains(&account)
+    }
+
+    /// Whether a round may include `account` (always, unless [`graph_only`](Self::graph_only) or
+    /// it is [held](Self::hold)).
     pub fn eligible(&self, session: &Session, account: Id) -> bool {
-        !self.graph_only || session.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
+        !self.held.contains(&account)
+            && (!self.graph_only || session.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared()))
     }
 
     /// The accounts with a server that a round may include.
@@ -248,6 +279,7 @@ impl SendReceive {
     /// signed out). A run under way is called off and let go of.
     pub fn forget(&mut self) {
         self.tokens.clear();
+        self.mail_covered.clear();
         self.drop_run();
     }
 
@@ -276,6 +308,13 @@ impl SendReceive {
     /// (the account is not signed in as another person), kept for the session otherwise, with the
     /// refresh token in the credential store when the owner lets it be.
     pub fn adopt_tokens(&mut self, session: &Session, ctx: &Context, account: Id, tokens: Tokens) -> Adopted {
+        self.adopt_tokens_covering(session, ctx, account, tokens, true)
+    }
+
+    /// [`adopt_tokens`](Self::adopt_tokens) saying whether the access token covers Graph mail (a
+    /// mail sign-in or a mail refresh does; what a calendar-only run got may not): a token that
+    /// doesn't is never handed to a mail job as it is, but its refresh token is kept all the same.
+    pub fn adopt_tokens_covering(&mut self, session: &Session, ctx: &Context, account: Id, tokens: Tokens, covers_mail: bool) -> Adopted {
         self.follow_opening(session);
         let Some(a) = session.mailbox.account(account) else { return Adopted::Refused };
         if ctx.held() {
@@ -289,6 +328,40 @@ impl SendReceive {
             self.remember(session, ctx, account, &tokens.refresh);
         }
         self.tokens.insert(account, mailcraft_engine::sync_driver::kept_for_session(tokens, ctx.now_s));
+        if covers_mail {
+            self.mail_covered.insert(account);
+        } else {
+            self.mail_covered.remove(&account);
+        }
+        Adopted::Kept
+    }
+
+    /// Take in the refresh token a job of another kind got (the calendar's, the to-dos', which
+    /// renew the sign-in for themselves): it is the account's newest, kept for the session and in
+    /// the credential store when the owner lets it be, while the access token Send/Receive holds
+    /// (and whether it covers the mail) stays as it is. Refused as
+    /// [`adopt_tokens`](Self::adopt_tokens) refuses.
+    pub fn adopt_refresh(&mut self, session: &Session, ctx: &Context, account: Id, tokens: &Tokens) -> Adopted {
+        self.follow_opening(session);
+        let Some(a) = session.mailbox.account(account) else { return Adopted::Refused };
+        if ctx.held() {
+            return Adopted::Refused;
+        }
+        if mailcraft_engine::sync_driver::signed_in_as_other(a, tokens) {
+            return Adopted::WrongPerson;
+        }
+        if tokens.refresh.is_empty() {
+            return Adopted::Kept;
+        }
+        self.remember(session, ctx, account, &tokens.refresh);
+        match self.tokens.get_mut(&account) {
+            Some(kept) => kept.refresh.clone_from(&tokens.refresh),
+            // (No access token of the session: the next mail job renews one with this.)
+            None => {
+                self.tokens.insert(account, Tokens { refresh: tokens.refresh.clone(), ..Default::default() });
+                self.mail_covered.remove(&account);
+            }
+        }
         Adopted::Kept
     }
 
@@ -387,7 +460,34 @@ impl SendReceive {
         if found.is_empty() { stored().filter(|r| !r.is_empty()) } else { Some(found) }
     }
 
+    /// How a job that fetches `account`'s mail (whole messages, a search on its server) gets its
+    /// Graph token (MB3.17): a token of this session that is still good at `ctx.now_s`, else the
+    /// account's refresh token as a run finds it, to be renewed on the job's thread the way a run
+    /// renews it ([`crate::fetch::with_access`]); what that renewal brings comes back through
+    /// [`adopt_tokens`](Self::adopt_tokens). `None` when there is nothing to sign in with, the
+    /// account isn't one a round may include, it isn't a Microsoft account of its own (a shared
+    /// mailbox is read with its owner's sign-in), Work Offline is on, or the mailbox is
+    /// unconfirmed or its data removed.
+    pub fn mail_access(&mut self, session: &Session, ctx: &Context, account: Id) -> Option<crate::fetch::Access> {
+        self.follow_opening(session);
+        if session.prefs.offline || ctx.held() || !self.eligible(session, account) {
+            return None;
+        }
+        let a = session.mailbox.account(account).filter(|a| a.kind == AccountKind::Microsoft && !a.is_shared())?;
+        if let Some(kept) = self.tokens.get(&account).filter(|t| t.fresh(ctx.now_s) && self.mail_covered.contains(&account)) {
+            return Some(crate::fetch::Access::Held(kept.access.clone()));
+        }
+        let oauth = a.oauth.clone()?;
+        let refresh = self.refresh_for(session, ctx, account)?;
+        Some(crate::fetch::Access::Renew { oauth: mailcraft_engine::sync_driver::effective_oauth(oauth, &ctx.ids), refresh })
+    }
+
     fn start(&mut self, host: &Host, session: &mut Session, ctx: &Context, account: Id, quiet: bool) -> Step {
+        // Held back after its round was queued: left out of it.
+        if self.held.contains(&account) {
+            session.sync_progress.leave_out(account);
+            return Step::LeftOut { account, why: Left::Held };
+        }
         let Some(a) = session.mailbox.account(account) else {
             session.sync_progress.leave_out(account);
             return Step::LeftOut { account, why: Left::Gone };
@@ -419,6 +519,12 @@ impl SendReceive {
                 session.sync_progress.leave_out(account);
                 return Step::LeftOut { account, why: Left::Refused };
             }
+        };
+        // Whose sign-in the run must come back with: the account's own (a shared mailbox's owner's).
+        let signer = if plan.owner.is_shared() { session.mailbox.owner_of(plan.owner.id).cloned() } else { Some(plan.owner.clone()) };
+        let Some(signer) = signer else {
+            session.sync_progress.leave_out(account);
+            return Step::LeftOut { account, why: Left::Gone };
         };
         // What it sends is marked so, on disk, before it leaves (AU3-26).
         let going: Vec<Id> = plan.mail.sends.iter().map(|up| up.message).collect();
@@ -452,6 +558,9 @@ impl SendReceive {
             mail: Some(plan.mail),
             mail_pieces: Some(pieces_tx),
             cancel: self.cancel.clone(),
+            // A renewed sign-in that isn't the account's own (a shared mailbox's owner's) stops
+            // the run before the Outbox or anything of the mail goes.
+            signer: Some(signer),
         };
         session.sync_progress.phase(account, SyncPhase::Sending);
         let runner = self.runner.clone();
@@ -581,10 +690,13 @@ impl SendReceive {
         errors.append(&mut result.errors);
         if result.token_refused {
             self.tokens.remove(&account);
+            self.mail_covered.remove(&account);
         }
         let mut wrong_person = false;
+        // A run that read mail got its token for it; one that only did calendars may not have.
+        let covers_mail = result.mail.is_some();
         if let Some(tokens) = result.tokens.take() {
-            wrong_person = self.adopt_tokens(session, ctx, account, tokens) == Adopted::WrongPerson;
+            wrong_person = self.adopt_tokens_covering(session, ctx, account, tokens, covers_mail) == Adopted::WrongPerson;
         }
         // Whether the calendar and contacts need the owner's permission is known from the answer.
         if result.consent_needed {

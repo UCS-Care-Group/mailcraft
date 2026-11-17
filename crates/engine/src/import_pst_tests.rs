@@ -1185,6 +1185,17 @@ fn subclasses_and_contacts_among_mail_come_in_and_the_rest_is_still_counted() {
 }
 
 #[test]
+fn a_contacts_category_in_other_letters_of_any_alphabet_comes_in_once() {
+    // As every list of categories compares names (#790): not by A to Z alone.
+    let keywords = multi_unicode(&["Ärger", "ärger", "ÄRGER", "Проект", "проект"]);
+    let pat = contact_item("Pat", vec![(0x3001, w::unicode("Pat")), (CONTACT_KEYWORDS, keywords)]);
+    let mut s = session();
+    import(&mut s, &people_file(vec![pat]), json!({"places": {"contacts": "here"}})).unwrap();
+    let pat = s.mailbox.contacts.values().find(|c| c.name() == "Pat").unwrap();
+    assert_eq!(pat.categories, ["Ärger", "Проект"]);
+}
+
+#[test]
 fn hostile_contacts_are_cut_and_capped() {
     let many: Vec<String> = (0..500).map(|i| format!("+44 20 7946 {i:04}")).collect();
     let many: Vec<&str> = many.iter().map(String::as_str).collect();
@@ -2083,4 +2094,12 @@ fn a_streamed_list_with_long_notes_shares_the_room_with_its_members() {
     import(&mut s, &people_file(vec![list]), json!({})).unwrap();
     let c = s.mailbox.contacts.values().next().unwrap();
     assert!(c.notes.ends_with("Member 9 <m9@example.org>"), "{}", &c.notes[c.notes.len() - 200..]);
+}
+
+/// A file's list that has a name twice in other letters keeps it once, in any alphabet (#788).
+#[test]
+fn the_files_list_keeps_a_name_in_other_letters_once() {
+    let xml = r#"<categories><category name="Ärger" color="1"/><category name="ärger" color="2"/><category name="Red"/><category name="red"/></categories>"#;
+    let names: Vec<String> = categories(xml).into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["Ärger", "Red"]);
 }

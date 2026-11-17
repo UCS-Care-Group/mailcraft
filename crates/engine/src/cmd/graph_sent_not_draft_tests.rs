@@ -290,7 +290,7 @@ fn a_draft_sent_here_and_still_listed_in_drafts_stays_queued_in_the_outbox() {
         assert_eq!(m.subject, "Quarterly figures, final");
         assert_eq!(m.to.len(), 2);
         assert!(!m.unfetched);
-        assert_eq!(super::super::graph_send::waiting(&mb, account), 1, "still waits to be sent ({key})");
+        assert_eq!(super::super::graph_send::waiting_at(&mb, 0, account), 1, "still waits to be sent ({key})");
     }
 }
 

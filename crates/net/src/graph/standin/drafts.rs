@@ -417,7 +417,7 @@ impl State {
         };
         let list = |name: &str| {
             field(name)
-                .map(|v| v.split(',').map(|a| a.trim().trim_start_matches('<').trim_end_matches('>').to_string()).collect())
+                .map(|v| v.split(',').map(|a| a.rsplit_once('<').map_or(a, |(_, angle)| angle).trim().trim_end_matches('>').to_string()).collect())
                 .unwrap_or_default()
         };
         let html = field("Content-Type").is_some_and(|t| t.to_ascii_lowercase().starts_with("text/html"));

@@ -27,7 +27,7 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
-        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft or Exchange server account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft or Exchange server account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's), "showGmailCategories"?: bool (a Gmail account: the folder pane shows Gmail's categories, Primary, Social, Promotions, Updates and Forums, under its Inbox; on unless turned off), "alertPrimaryOnly"?: bool (a Gmail account: a desktop alert only for new mail in Gmail's Primary category; off unless turned on)}"#),
+        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo1Mb"|"upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft or Exchange server account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft or Exchange server account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's), "showGmailCategories"?: bool (a Gmail account: the folder pane shows Gmail's categories, Primary, Social, Promotions, Updates and Forums, under its Inbox; on unless turned off), "alertPrimaryOnly"?: bool (a Gmail account: a desktop alert only for new mail in Gmail's Primary category; off unless turned on)}"#),
         CommandSpec::new("account.forgetEwsCertificate", "Forget Trusted Certificate", "File › Info", forget_ews_certificate)
             .params(r#"{"id": number} — an Exchange server account stops trusting the one certificate it was told to trust although the system doesn't: its fingerprint is forgotten, so the server's certificate is judged by the system alone and the owner is asked again if it isn't trusted. Answers {"id": id, "forgotten": bool}"#),
         CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, its rules (those its server keeps stay there; those for every account stay here), and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
@@ -45,7 +45,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
+const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "outgoingWithoutSignIn"?: bool (the outgoing server takes mail without a sign-in, a relay: it is never shown the password; not for an account that signs in on the provider's page), "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -281,13 +281,29 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         a.incoming = i;
     }
     if let Some(o) = server(v, "outgoing")? {
+        // A relay tick is for the server it was set for: another host starts without it, unless
+        // the same call says otherwise (#836).
+        let moved = a.outgoing.as_ref().map(|s| s.host.trim().to_ascii_lowercase()) != o.as_ref().map(|s| s.host.trim().to_ascii_lowercase());
+        if moved && v.get("outgoingWithoutSignIn").is_none() {
+            a.outgoing_without_sign_in = false;
+        }
         a.outgoing = o;
     }
     sign_in(a, v)?;
+    // A relay that takes mail without a sign-in (#836). An account that signs in on the
+    // provider's page always shows its token, so it has no such choice.
+    match v.get("outgoingWithoutSignIn") {
+        None => {}
+        Some(Value::Bool(true)) if a.oauth.is_some() => {
+            return Err(bad("`outgoingWithoutSignIn` is for an account that signs in with a password"));
+        }
+        Some(Value::Bool(without)) => a.outgoing_without_sign_in = *without,
+        Some(_) => return Err(bad("`outgoingWithoutSignIn` is true or false")),
+    }
     // Which messages are fetched whole in the background (R3 spec S12).
     if let Some(limit) = p::str(v, "downloadInFull") {
-        a.download_in_full =
-            serde_json::from_value(json!(limit.trim())).map_err(|_| bad("`downloadInFull` is upTo10Mb, upTo25Mb, upTo50Mb or everything"))?;
+        a.download_in_full = serde_json::from_value(json!(limit.trim()))
+            .map_err(|_| bad("`downloadInFull` is upTo1Mb, upTo10Mb, upTo25Mb, upTo50Mb or everything"))?;
     }
     // Mail to keep offline (#143).
     if let Some(keep) = p::str(v, "keepOffline") {
@@ -334,7 +350,7 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         AccountKind::Microsoft => {
             // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
             a.kind = AccountKind::Microsoft;
-            (a.incoming, a.outgoing, a.jmap, a.ews) = (None, None, None, None);
+            (a.incoming, a.outgoing, a.jmap, a.ews, a.dav) = (None, None, None, None, None);
             let o = a.oauth.get_or_insert_with(OAuth::default);
             o.provider = OAuthProvider::Microsoft;
         }
@@ -356,7 +372,15 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         _ => {
             a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
             (a.jmap, a.ews) = (None, None);
+            // An account that only lives here has no calendar and contacts server.
+            if a.kind == AccountKind::Local {
+                a.dav = None;
+            }
         }
+    }
+    // Only an account with an outgoing server that signs in with a password has the choice.
+    if a.oauth.is_some() || a.outgoing.is_none() {
+        a.outgoing_without_sign_in = false;
     }
     if a.name.is_empty() {
         a.name = a.email.clone();
@@ -597,6 +621,10 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     // Another server or another user name is another mailbox: where the folder list and the
     // folders went on from is the old one's, and is forgotten with it (below).
     let other_mailbox = a.kind == AccountKind::Exchange && (url(&before) != url(&a) || login(&before) != login(&a));
+    // (And a Microsoft account's address is its mailbox: what its server had of its categories is
+    // the old one's, #661.)
+    let was_address = before.email.trim().to_string();
+    let was_microsoft = before.kind == AccountKind::Microsoft;
     if listed_ews(s, id) && a.kind == AccountKind::Exchange {
         let moved = url(&before).is_some_and(|was| Some(was) != url(&a));
         if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) || login(&before) != login(&a) {
@@ -640,16 +668,49 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
+    // (Whatever its kind now: it may be a Microsoft account again later.)
+    let readdressed = !was_address.eq_ignore_ascii_case(a.email.trim());
     // A shorter window: what is outside it now is thinned at the next tick, for any host.
     let shortened = a.keep_offline < before.keep_offline;
+    // A longer one on a device that lists only its window's mail (a phone, MB3.16): its folders
+    // are listed afresh, to bring the older mail it now covers.
+    let lengthened = a.keep_offline > before.keep_offline && s.mailbox.device_limits.is_some();
     *s.mailbox.account_mut(id)? = a;
     if shortened {
         s.driver.thinning.now = true;
     }
+    if lengthened {
+        relist(&mut s.mailbox, id);
+    }
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
     }
+    // So is one that isn't a Microsoft account any more: nothing keeps its list in step with
+    // Outlook, and it is the owner's to change here; should it be one again, its server's list is
+    // read as a new address's is.
+    let left_microsoft = was_microsoft && s.mailbox.account(id).is_some_and(|x| x.kind != AccountKind::Microsoft);
+    if readdressed || left_microsoft {
+        s.mailbox.restart_category_sync(id);
+    }
     Ok(json!({"id": id}))
+}
+
+/// Every folder the server has of `account`, and of the shared mailboxes opened through it, is
+/// listed afresh at their next run (MB3.16).
+fn relist(mb: &mut mailcraft_model::Mailbox, account: Id) {
+    let accounts: Vec<Id> =
+        mb.accounts.iter().filter(|a| a.id == account || mb.owner_of(a.id).is_some_and(|o| o.id == account)).map(|a| a.id).collect();
+    relist_accounts(mb, &accounts);
+}
+
+/// Every folder the server has of the `accounts` is listed afresh at its next run.
+pub(super) fn relist_accounts(mb: &mut mailcraft_model::Mailbox, accounts: &[Id]) {
+    for f in mb.folders.iter_mut().filter(|f| accounts.contains(&f.account)) {
+        if let Some(server) = f.server.as_mut().filter(|s| !s.id.is_empty()) {
+            server.relist = true;
+            server.relist_gen = server.relist_gen.wrapping_add(1);
+        }
+    }
 }
 
 /// `account.forgetEwsCertificate`: the account no longer trusts the certificate it was told to trust (#252).
@@ -803,7 +864,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts_in_order()
         .into_iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "outgoingWithoutSignIn": a.outgoing_without_sign_in, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
@@ -837,9 +898,11 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let outbox_folder = s.mailbox.folder_of_kind(account, FolderKind::Outbox);
     let mut known: HashMap<Id, Vec<u32>> = HashMap::new();
     let mut outbox = Vec::new();
+    let clock = s.now();
     for m in s.mailbox.messages.values() {
         // Only what was queued with Send goes; a message moved here is held until Send Again (#607).
-        if Some(m.folder) == outbox_folder && m.held.is_empty() {
+        // (Not what waits for its Send time, #950.)
+        if Some(m.folder) == outbox_folder && m.held.is_empty() && !m.waits_until(clock) {
             outbox.push(m.as_ref().clone());
         }
         if m.uid != 0 {
@@ -1419,7 +1482,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     let gmail_moves = gmail_moves_go(s, account);
     let now = s.now();
     let mb = &mut s.mailbox;
-    let sent = file_sent(mb, account, result);
+    let sent = file_sent(mb, account, result, now);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
     // said already that it couldn't send it.)
     let mut said = Vec::new();
@@ -1517,7 +1580,7 @@ impl OnServer {
 /// each): a message of the account's that is in Sent Items and not on the server yet is marked
 /// all the same. One whose copy didn't get to the server after all (`unfiled`) is no longer
 /// expected there. Returns how many were sent.
-fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
+pub(super) fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult, now: i64) -> usize {
     let (Some(outbox), Some(sent_items)) = (mb.folder_of_kind(account, FolderKind::Outbox), mb.folder_of_kind(account, FolderKind::Sent)) else {
         return 0;
     };
@@ -1529,6 +1592,8 @@ fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
         }
         if mb.message(*id).is_some_and(|m| m.account == account && m.folder == outbox) && mb.move_message(*id, sent_items).is_ok() {
             moved += 1;
+            // A reminder "after so many days" counts them from now that it has gone (#948).
+            mb.follow_up_sent(*id, now);
             // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
             // send files it in Sent Items, so it is no longer to be put on the server as a
             // message moved in, which would put it there twice. An original elsewhere goes once

@@ -37,6 +37,23 @@ impl Core {
         self.call(move |session| Ok(sync.ask(session, None))).await
     }
 
+    /// Hold `account` back from Send/Receive, the calendar's, the to-dos' and the background's
+    /// downloads that start by themselves (`held`), or let it go again: for a new account whose
+    /// first download the owner said "not now" to, for want of room. A background run leaves it
+    /// out; the owner's yes (`held` false) or a Send/Receive asked for (`sync_now`, a pull to
+    /// refresh) lets it go. Kept while the core is (the app says it again when it starts).
+    pub async fn hold_background_sync(&self, account: u64, held: bool) -> Result<(), CoreError> {
+        let sync = self.sync.clone();
+        self.call(move |session| {
+            if session.mailbox.account(account).is_none() {
+                return Err(CoreError::BadRequest { reason: "there is no such account".to_string() });
+            }
+            sync.hold(account, held);
+            Ok(())
+        })
+        .await
+    }
+
     /// One round to its end, or until `budget_ms` runs out (a worker's time: it is held between
     /// half a second and ten minutes): the round is then called off, and the run under way stops
     /// at its next safe place. For the system's scheduler, which calls it with a network. What it
@@ -100,6 +117,20 @@ impl Core {
     /// Whether new mail raises a `Notification` event when a round brings some (on by default).
     pub fn set_notify_new_mail(&self, on: bool) {
         self.sync.set_notify_mail(on);
+    }
+
+    /// Whether a notification for new mail says "New mail" and nothing of the message: no sender,
+    /// no subject, no count, whatever the lock screen shows (the owner's privacy switch in
+    /// Settings, off by default). The app tells the core at start and when the switch changes.
+    pub fn set_notify_new_mail_only(&self, on: bool) {
+        self.sync.set_notify_new_mail_only(on);
+    }
+
+    /// Whether new mail that Gmail put in a category other than Primary raises no notification
+    /// (the owner's "Primary mail only" switch in Settings, off by default). Microsoft's
+    /// Focused and Other are not kept by the mailbox, so they are not told apart yet.
+    pub fn set_notify_primary_only(&self, on: bool) {
+        self.sync.set_notify_primary_only(on);
     }
 
     /// Remove every sign-in the core kept (from the credential store and from memory), for
