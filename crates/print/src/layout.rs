@@ -6,6 +6,8 @@
 //! stacked in order; the slabs are then dealt onto pages, a slab that doesn't fit starting the
 //! next one.
 
+use std::sync::Arc;
+
 use mailcraft_html::{Align, Block, BlockKind, Cell, Length, Line, LineStyle, Marker, Rgb, Span, Table, VAlign};
 
 use crate::font::{FaceSet, Style};
@@ -71,7 +73,7 @@ pub(crate) enum Op {
         y: f32,
         w: f32,
         h: f32,
-        url: String,
+        url: Arc<str>,
     },
 }
 
@@ -300,7 +302,7 @@ struct Run {
     strike: bool,
     italic: bool,
     fake_bold: bool,
-    link: Option<String>,
+    link: Option<Arc<str>>,
     ascent: f32,
     descent: f32,
 }
@@ -418,27 +420,62 @@ fn span_style(span: &Span, para: &Para) -> Style {
     }
 }
 
-/// The spans as atoms: words, spaces and line breaks.
-fn atoms(faces: &mut FaceSet, spans: &[Span], para: &Para) -> Vec<Atom> {
-    let mut out: Vec<Atom> = Vec::new();
-    let mut word = Atom::default();
-    let flush = |word: &mut Atom, out: &mut Vec<Atom>| {
-        if !word.runs.is_empty() {
-            out.push(std::mem::take(word));
+#[cfg(test)]
+thread_local! {
+    /// How many atoms this thread has made, for the tests that bound it.
+    pub(crate) static ATOMS_MADE: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Where atoms go as they are made: `each` takes one and says whether to go on.
+struct Sink<F: FnMut(Atom) -> bool> {
+    each: F,
+    done: bool,
+    /// Whether the last atom given was a space or a line break (or none was given yet).
+    after_gap: bool,
+}
+
+impl<F: FnMut(Atom) -> bool> Sink<F> {
+    fn give(&mut self, atom: &mut Atom) {
+        if atom.runs.is_empty() {
+            return;
         }
-    };
+        let atom = std::mem::take(atom);
+        if self.done {
+            return;
+        }
+        #[cfg(test)]
+        ATOMS_MADE.with(|n| n.set(n.get() + 1));
+        self.after_gap = atom.space || atom.newline;
+        if !(self.each)(atom) {
+            self.done = true;
+        }
+    }
+}
+
+/// The spans as atoms (words, spaces and line breaks), handed to `each` one at a time until it
+/// returns false, so that no more of a paragraph is made than is laid out. In preformatted text a
+/// run of spaces and tabs is one atom, and a tab is the spaces to the next column of eight.
+fn each_atom(faces: &mut FaceSet, spans: &[Span], para: &Para, each: impl FnMut(Atom) -> bool) {
+    let mut sink = Sink { each, done: false, after_gap: true };
+    let mut word = Atom::default();
+    // Spaces not yet given: preformatted text's run of them.
+    let mut gap = Atom::default();
     // The column of preformatted text, for its tabs.
     let mut column = 0usize;
     for span in spans {
+        if sink.done {
+            return;
+        }
         let style = span_style(span, para);
         let size = span.size.map_or(para.size, |px| (f32::from(px) * PX).clamp(5.0, 48.0));
         let (asc, desc) = faces.extent(style);
         let color = span.color.unwrap_or(if span.link.is_some() { LINK } else { para.color });
-        let link = span
+        // One address for every run of the span, however many there are.
+        let link: Option<Arc<str>> = span
             .link
             .as_deref()
             .filter(|u| mailcraft_html::is_safe_url(u) && !u.trim_start().to_ascii_lowercase().starts_with("cid:"))
-            .map(str::to_string);
+            .map(Arc::from);
         let make_run = |face: usize, fake_bold: bool| Run {
             face,
             size,
@@ -455,42 +492,43 @@ fn atoms(faces: &mut FaceSet, spans: &[Span], para: &Para) -> Vec<Atom> {
             ascent: asc * size,
             descent: desc * size,
         };
-        let expanded;
-        let text = if para.pre {
-            expanded = expand_tabs(&span.text, &mut column);
-            expanded.as_str()
-        } else {
-            span.text.as_str()
-        };
-        for c in text.chars() {
+        for c in span.text.chars() {
+            if sink.done {
+                return;
+            }
+            let newline = c == '\n' || c == '\u{2028}' || c == '\u{2029}';
+            let repeat = if para.pre && c == '\t' { 8 - column % 8 } else { 1 };
+            column = if newline { 0 } else { column.saturating_add(repeat) };
             if is_invisible(c) {
                 if c == '\u{200b}' {
-                    flush(&mut word, &mut out);
+                    sink.give(&mut word);
                 }
                 continue;
             }
-            if c == '\n' || c == '\u{2028}' || c == '\u{2029}' {
-                flush(&mut word, &mut out);
-                out.push(Atom { newline: true, runs: vec![make_run(0, false)], ..Atom::default() });
+            if newline {
+                sink.give(&mut word);
+                sink.give(&mut gap);
+                sink.give(&mut Atom { newline: true, runs: vec![make_run(0, false)], ..Atom::default() });
                 continue;
             }
             let (c, is_space) = match c {
-                '\t' => (' ', true),
-                ' ' => (' ', true),
+                '\t' | ' ' => (' ', true),
                 '\u{a0}' => (' ', false),
                 c if c.is_whitespace() => (' ', true),
                 c if c.is_control() => continue,
                 c => (c, false),
             };
             if is_space {
-                flush(&mut word, &mut out);
-                if !para.pre && out.last().is_none_or(|a| a.space || a.newline) {
+                sink.give(&mut word);
+                if !para.pre && sink.after_gap {
                     continue;
                 }
+            } else {
+                sink.give(&mut gap);
             }
             let cjk = is_cjk(c);
             if cjk {
-                flush(&mut word, &mut out);
+                sink.give(&mut word);
             }
             let placed = faces.place(c, style);
             // The missing glyph stands for every character no face has: what it stands for is
@@ -498,52 +536,29 @@ fn atoms(faces: &mut FaceSet, spans: &[Span], para: &Para) -> Vec<Atom> {
             let said = if placed.gid == 0 { String::new() } else { c.to_string() };
             let gid = faces.used.get_mut(placed.face).map_or(0, |u| u.use_glyph(placed.gid, &said));
             let advance = placed.advance * size;
-            let atom = if is_space { &mut Atom { space: true, ..Atom::default() } } else { &mut word };
+            let atom = if is_space { &mut gap } else { &mut word };
+            atom.space = is_space;
             let fits = atom.runs.last().is_some_and(|r| r.face == placed.face && r.fake_bold == placed.fake_bold && r.size == size);
             if !fits {
                 atom.runs.push(make_run(placed.face, placed.fake_bold));
             }
             if let Some(run) = atom.runs.last_mut() {
-                run.glyphs.push(gid);
-                run.text.push(c);
-                run.width += advance;
+                for _ in 0..repeat {
+                    run.glyphs.push(gid);
+                    run.text.push(c);
+                }
+                run.width += advance * repeat as f32;
             }
-            atom.width += advance;
-            if is_space {
-                let space = std::mem::take(atom);
-                out.push(space);
+            atom.width += advance * repeat as f32;
+            if is_space && !para.pre {
+                sink.give(&mut gap);
             } else if cjk {
-                flush(&mut word, &mut out);
+                sink.give(&mut word);
             }
         }
-        flush(&mut word, &mut out);
+        sink.give(&mut word);
+        sink.give(&mut gap);
     }
-    flush(&mut word, &mut out);
-    out
-}
-
-/// Preformatted `text` with each tab as the spaces to the next column of eight, from `column`,
-/// which is where the text after it starts.
-pub(crate) fn expand_tabs(text: &str, column: &mut usize) -> String {
-    let mut out = String::with_capacity(text.len());
-    for c in text.chars() {
-        match c {
-            '\t' => {
-                let n = 8 - *column % 8;
-                out.extend(std::iter::repeat_n(' ', n));
-                *column += n;
-            }
-            '\n' | '\u{2028}' | '\u{2029}' => {
-                out.push(c);
-                *column = 0;
-            }
-            c => {
-                out.push(c);
-                *column += 1;
-            }
-        }
-    }
-    out
 }
 
 /// An atom too wide for a line, cut into pieces that fit `width`, character by character.
@@ -577,13 +592,24 @@ fn split_atom(atom: Atom, width: f32) -> Vec<Atom> {
     out
 }
 
-/// Atoms broken into lines of at most `width`. Preformatted text (`pre`) keeps the spaces a line
-/// starts with: its indentation.
-fn break_lines(atoms: Vec<Atom>, width: f32, pre: bool) -> Vec<TextLine> {
-    let mut lines = Vec::new();
-    let mut line = TextLine::default();
-    let mut ended_by_break = false;
-    let finish = |line: &mut TextLine, lines: &mut Vec<TextLine>| {
+/// Atoms broken into lines of at most `width`, given one at a time; each line is in `lines` as soon
+/// as it is finished. Preformatted text (`pre`) keeps the spaces a line starts with: its
+/// indentation.
+struct Breaker {
+    width: f32,
+    pre: bool,
+    line: TextLine,
+    lines: Vec<TextLine>,
+    ended_by_break: bool,
+}
+
+impl Breaker {
+    fn new(width: f32, pre: bool) -> Breaker {
+        Breaker { width, pre, line: TextLine::default(), lines: Vec::new(), ended_by_break: false }
+    }
+
+    fn finish(&mut self) {
+        let line = &mut self.line;
         while line.runs.last().is_some_and(|(_, r)| r.text.chars().all(|c| c == ' ')) {
             if let Some((_, r)) = line.runs.pop() {
                 line.width -= r.width;
@@ -593,97 +619,159 @@ fn break_lines(atoms: Vec<Atom>, width: f32, pre: bool) -> Vec<TextLine> {
         // not glyphs drawn before it.
         let lead = line.runs.iter().take_while(|(_, r)| !r.text.is_empty() && r.text.chars().all(|c| c == ' ')).count();
         line.runs.drain(..lead);
-        lines.push(std::mem::take(line).merged());
-    };
-    let mut queue: std::collections::VecDeque<Atom> = atoms.into();
-    while let Some(atom) = queue.pop_front() {
-        if atom.newline {
-            if line.runs.is_empty()
-                && let Some(run) = atom.runs.first()
-            {
-                line.runs.push((0.0, Run { glyphs: Vec::new(), text: String::new(), width: 0.0, ..run.clone() }));
-            }
-            finish(&mut line, &mut lines);
-            ended_by_break = true;
-            continue;
-        }
-        ended_by_break = false;
-        if atom.space && line.runs.is_empty() && !pre {
-            continue;
-        }
-        if atom.width > width && !atom.space {
-            if line.width > 0.0 {
-                finish(&mut line, &mut lines);
-            }
-            for piece in split_atom(atom, width).into_iter().rev() {
-                queue.push_front(piece);
-            }
-            if queue.front().is_some_and(|a| a.width > width)
-                && let Some(piece) = queue.pop_front()
-            {
-                for run in piece.runs {
-                    let w = run.width;
-                    line.runs.push((line.width, run));
-                    line.width += w;
-                }
-                finish(&mut line, &mut lines);
-            }
-            continue;
-        }
-        if line.width + atom.width > width && line.width > 0.0 && !atom.space {
-            finish(&mut line, &mut lines);
-        }
+        self.lines.push(std::mem::take(line).merged());
+    }
+
+    fn add(&mut self, atom: Atom) {
         for run in atom.runs {
             let w = run.width;
-            line.runs.push((line.width, run));
-            line.width += w;
+            self.line.runs.push((self.line.width, run));
+            self.line.width += w;
         }
     }
-    if !line.runs.is_empty() || ended_by_break {
-        finish(&mut line, &mut lines);
+
+    /// Preformatted text's indentation (a line of nothing but spaces so far) narrowed so that a
+    /// word `w` wide still starts on the line: as much of it as leaves room for the word, none
+    /// when the word is as wide as the line.
+    fn fit_indent(&mut self, w: f32) {
+        if !self.pre || self.line.runs.is_empty() || self.line.width + w <= self.width {
+            return;
+        }
+        if !self.line.runs.iter().all(|(_, r)| r.text.chars().all(|c| c == ' ')) {
+            return;
+        }
+        let keep = (self.width - w).max(0.0);
+        let runs = std::mem::take(&mut self.line.runs);
+        self.line.width = 0.0;
+        for (_, mut run) in runs {
+            let per = if run.glyphs.is_empty() { 0.0 } else { run.width / run.glyphs.len() as f32 };
+            if self.line.width + run.width > keep {
+                let n = if per > 0.0 { ((keep - self.line.width) / per).floor().max(0.0) as usize } else { 0 };
+                run.glyphs.truncate(n);
+                // The run is spaces, a byte each.
+                run.text = " ".repeat(run.glyphs.len());
+                run.width = per * run.glyphs.len() as f32;
+            }
+            if run.glyphs.is_empty() {
+                break;
+            }
+            let rw = run.width;
+            self.line.runs.push((self.line.width, run));
+            self.line.width += rw;
+        }
     }
-    lines
+
+    /// An atom onto the current line, or a new one when it doesn't fit.
+    fn place(&mut self, atom: Atom) {
+        if self.line.width + atom.width > self.width && self.line.width > 0.0 && !atom.space {
+            self.finish();
+        }
+        self.add(atom);
+    }
+
+    fn push(&mut self, atom: Atom) {
+        if atom.newline {
+            if self.line.runs.is_empty()
+                && let Some(run) = atom.runs.first()
+            {
+                self.line.runs.push((0.0, Run { glyphs: Vec::new(), text: String::new(), width: 0.0, ..run.clone() }));
+            }
+            self.finish();
+            self.ended_by_break = true;
+            return;
+        }
+        self.ended_by_break = false;
+        if atom.space && self.line.runs.is_empty() && !self.pre {
+            return;
+        }
+        if !atom.space {
+            self.fit_indent(atom.width);
+        }
+        if atom.width > self.width && !atom.space {
+            if self.line.width > 0.0 {
+                self.finish();
+            }
+            for piece in split_atom(atom, self.width) {
+                // A single character wider than the line is a line of its own.
+                if piece.width > self.width {
+                    if self.line.width > 0.0 {
+                        self.finish();
+                    }
+                    self.add(piece);
+                    self.finish();
+                } else {
+                    self.place(piece);
+                }
+            }
+            return;
+        }
+        self.place(atom);
+    }
+
+    /// The last line, if anything is on it or a line break ended the one before.
+    fn end(&mut self) {
+        if !self.line.runs.is_empty() || self.ended_by_break {
+            self.finish();
+        }
+        self.ended_by_break = false;
+    }
 }
 
 /// One line of text, not broken.
 fn text_line(faces: &mut FaceSet, spans: &[Span], style: Style, size: f32, color: Rgb) -> TextLine {
     let para = Para { style, size, color, ..Para::default() };
     let mut line = TextLine::default();
-    for atom in atoms(faces, spans, &para) {
+    each_atom(faces, spans, &para, |atom| {
         for run in atom.runs {
             let w = run.width;
             line.runs.push((line.width, run));
             line.width += w;
         }
-    }
+        true
+    });
     line
 }
 
-/// A paragraph as slabs, a line each.
+/// A paragraph as slabs, a line each. Its atoms are made and broken into lines as they are laid
+/// out, and no further than the pages left can show.
 fn paragraph(ctx: &mut Ctx, spans: &[Span], para: &Para) -> Vec<Slab> {
     let width = (para.width - para.indent).max(12.0);
-    let lines = break_lines(atoms(ctx.faces, spans, para), width, para.pre);
     let (asc, desc) = ctx.faces.extent(para.style);
+    let budget = ctx.budget;
+    let mut breaker = Breaker::new(width, para.pre);
     let mut out = Vec::new();
     let mut laid = 0.0;
-    for line in lines {
-        // A paragraph taller than every page left is laid out no further.
-        if laid > ctx.budget {
-            break;
+    // The lines finished so far as slabs: false once the paragraph is taller than every page left.
+    let mut lay = |breaker: &mut Breaker, out: &mut Vec<Slab>| -> bool {
+        for line in breaker.lines.drain(..) {
+            if laid > budget {
+                return false;
+            }
+            let ascent = line.runs.iter().map(|(_, r)| r.ascent).fold(asc * para.size, f32::max);
+            let descent = line.runs.iter().map(|(_, r)| r.descent).fold(desc * para.size, f32::min);
+            let size = line.runs.iter().map(|(_, r)| r.size).fold(para.size, f32::max);
+            let height = para.line_height.map_or(size * 1.3, |lh| lh.of(size)).max(ascent - descent);
+            let baseline = (height - (ascent - descent)) / 2.0 + ascent;
+            let x = para.indent
+                + match para.align {
+                    Align::Left => 0.0,
+                    Align::Center => ((width - line.width) / 2.0).max(0.0),
+                    Align::Right => (width - line.width).max(0.0),
+                };
+            laid += height;
+            out.push(Slab { height, ops: line.ops(x, baseline), ..Slab::default() });
         }
-        let ascent = line.runs.iter().map(|(_, r)| r.ascent).fold(asc * para.size, f32::max);
-        let descent = line.runs.iter().map(|(_, r)| r.descent).fold(desc * para.size, f32::min);
-        let size = line.runs.iter().map(|(_, r)| r.size).fold(para.size, f32::max);
-        let height = para.line_height.map_or(size * 1.3, |lh| lh.of(size)).max(ascent - descent);
-        let baseline = (height - (ascent - descent)) / 2.0 + ascent;
-        let x = para.indent
-            + match para.align {
-                Align::Left => 0.0,
-                Align::Center => ((width - line.width) / 2.0).max(0.0),
-                Align::Right => (width - line.width).max(0.0),
-            };
-        laid += height;
-        out.push(Slab { height, ops: line.ops(x, baseline), ..Slab::default() });
+        true
+    };
+    let mut more = true;
+    each_atom(ctx.faces, spans, para, |atom| {
+        breaker.push(atom);
+        more = lay(&mut breaker, &mut out);
+        more
+    });
+    if more {
+        breaker.end();
+        lay(&mut breaker, &mut out);
     }
     out
 }
@@ -878,7 +966,7 @@ fn pictures_row(ctx: &mut Ctx, row: &[&Block], width: f32, out: &mut Vec<Slab>) 
         }
         let mut ops = vec![Op::Image { index, x: pl, y: pt, w, h }];
         if let Some(url) = link.as_deref().filter(|u| mailcraft_html::is_safe_url(u)) {
-            ops.push(Op::Link { x: pl, y: pt, w, h, url: url.to_string() });
+            ops.push(Op::Link { x: pl, y: pt, w, h, url: Arc::from(url) });
         }
         placed.push((w + pl + pr, h + pt + pb, ops));
     }
@@ -948,17 +1036,18 @@ fn measure(ctx: &mut Ctx, blocks: &[Block], depth: usize) -> (f32, f32) {
                 let mut lo: f32 = 0.0;
                 let mut line: f32 = 0.0;
                 let mut hi: f32 = 0.0;
-                for atom in atoms(ctx.faces, &block.spans, &para) {
+                each_atom(ctx.faces, &block.spans, &para, |atom| {
                     if atom.newline {
                         hi = hi.max(line);
                         line = 0.0;
-                        continue;
+                    } else {
+                        if !atom.space {
+                            lo = lo.max(atom.width);
+                        }
+                        line += atom.width;
                     }
-                    if !atom.space {
-                        lo = lo.max(atom.width);
-                    }
-                    line += atom.width;
-                }
+                    true
+                });
                 hi = hi.max(line);
                 (lo + indent, hi + indent)
             }

@@ -347,8 +347,16 @@ fn preformatted_text_keeps_its_indentation_and_tab_columns() {
     let (bar, c) = (x_of(tabbed, "abcdefgh").unwrap(), x_of(tabbed, "c").unwrap());
     let mono = 0.6 * 10.5 * 0.9;
     assert!((c - bar - 8.0 * mono).abs() < 2.0, "{bar} {c}");
-    let mut column = 2;
-    assert_eq!(layout::expand_tabs("\tc\nab\tc", &mut column), "      c\nab      c");
+    let tabbed = "<pre>abcdefgh|\nab\tc</pre>";
+    let (bar, c) = (x_of(tabbed, "abcdefgh").unwrap(), x_of(tabbed, "ab").unwrap());
+    assert!((c - bar).abs() < 0.5, "the line starts where the one above does");
+    let found = |html: &str| {
+        let mut faces = font::FaceSet::new(&fonts()).unwrap();
+        let mut pictures = picture::Pictures::default();
+        let pages = layout::pages(&[doc(html)], &mut faces, &mut pictures, &Options::default());
+        pages[0].text()
+    };
+    assert!(found(tabbed).contains("ab      c"), "the tab after ab is six spaces");
     assert!(x_of("<p>   words</p>", "words").unwrap() < outer + 1.0, "ordinary text keeps no leading spaces");
 }
 
@@ -360,4 +368,69 @@ fn links_are_written_as_seven_bit_addresses_of_the_schemes_followed() {
     for refused in ["cid:logo@x", "javascript:alert(1)", "file:///etc/passwd", "mailto:", "data:text/html,x"] {
         assert_eq!(pdf::uri(refused), None, "{refused}");
     }
+}
+
+/// The x, the y and the text of each piece of text on the first page of `html`.
+fn texts(html: &str) -> Vec<(f32, f32, String)> {
+    let mut faces = font::FaceSet::new(&fonts()).unwrap();
+    let mut pictures = picture::Pictures::default();
+    let pages = layout::pages(&[doc(html)], &mut faces, &mut pictures, &Options::default());
+    pages[0]
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            layout::Op::Text { x, y, text, .. } => Some((*x, *y, text.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn hostile_preformatted_text_prints_in_bounded_memory() {
+    // A long link round a tab and a letter, over and over: every tab used to be eight atoms, each
+    // with its own copy of the address, all made before the page budget was looked at.
+    let href = format!("https://example.org/{}", "a".repeat(1_500));
+    let reps = 900_000;
+    let html = format!(r#"<pre><a href="{href}">{}</a></pre>"#, "\tx".repeat(reps));
+    let mut faces = font::FaceSet::new(&fonts()).unwrap();
+    let mut pictures = picture::Pictures::default();
+    layout::ATOMS_MADE.with(|n| n.set(0));
+    let pages = layout::pages(&[doc(&html)], &mut faces, &mut pictures, &Options::default());
+    let made = layout::ATOMS_MADE.with(|n| n.get());
+    assert!(!pages.is_empty() && pages.len() <= MAX_PAGES);
+    // A tab's spaces are one atom and the letter another: two for each repetition at most.
+    assert!(made <= 2 * reps + reps / 100, "{made} atoms");
+    let urls: Vec<&Arc<str>> =
+        pages.iter().flat_map(|p| &p.ops).filter_map(|op| if let layout::Op::Link { url, .. } = op { Some(url) } else { None }).collect();
+    assert!(!urls.is_empty() && urls.iter().all(|u| Arc::ptr_eq(u, urls[0])), "one address shared by every link");
+    // A run of spaces alone is one atom however long.
+    layout::ATOMS_MADE.with(|n| n.set(0));
+    let spaces = format!("<pre>a{}b</pre>", "\t \t".repeat(200_000));
+    layout::pages(&[doc(&spaces)], &mut faces, &mut pictures, &Options::default());
+    assert!(layout::ATOMS_MADE.with(|n| n.get()) < 64);
+}
+
+#[test]
+fn a_paragraph_is_made_no_further_than_the_pages_left_can_show() {
+    let lines = MAX_PAGES * 200;
+    let html = format!("<pre>{}</pre>", "a line\n".repeat(lines));
+    let mut faces = font::FaceSet::new(&fonts()).unwrap();
+    let mut pictures = picture::Pictures::default();
+    layout::ATOMS_MADE.with(|n| n.set(0));
+    let pages = layout::pages(&[doc(&html)], &mut faces, &mut pictures, &Options::default());
+    let made = layout::ATOMS_MADE.with(|n| n.get());
+    assert_eq!(pages.len(), MAX_PAGES);
+    // About 70 lines fit a page; each is four atoms ("a", " ", "line", the break).
+    assert!(made < MAX_PAGES * 80 * 4, "{made} of {} atoms made", lines * 4);
+}
+
+#[test]
+fn preformatted_indentation_wider_than_the_page_leaves_room_for_the_word() {
+    let html = format!("<pre>top\n{}word</pre>", " ".repeat(400));
+    let found = texts(&html);
+    let (tx, ty, _) = found.iter().find(|t| t.2 == "top").cloned().unwrap();
+    let (wx, wy, _) = found.iter().find(|t| t.2 == "word").cloned().unwrap();
+    assert!(wy - ty < 20.0, "the word is on the line after top, not one further down: {ty} {wy}");
+    assert!(wx > tx + 100.0, "as much of the indentation as fits is kept: {tx} {wx}");
+    assert!(wx < Paper::A4.width, "the word starts on the page: {wx}");
 }
