@@ -69,14 +69,18 @@ jobs:
             -gpu swiftshader_indirect > "$RUNNER_TEMP/emulator.log" 2>&1 &
           adb="$ANDROID_HOME/platform-tools/adb"
           timeout 600 "$adb" wait-for-device
-          timeout 600 "$adb" shell 'while [ "$(getprop sys.boot_completed)" != 1 ]; do sleep 2; done'
+          timeout 600 "$adb" shell "while [ \"\$(getprop sys.boot_completed)\" != 1 ]; do sleep 2; done"
           for scale in window_animation_scale transition_animation_scale animator_duration_scale; do
             "$adb" shell settings put global "$scale" 0
           done
       - name: Start the stand-in and join the emulator's loopback port to it
         run: |
           nohup target/debug/examples/standin --port 8780 --e2e > "$RUNNER_TEMP/standin.log" 2>&1 &
-          timeout 60 bash -c 'until grep -q "Graph stand-in at" "$RUNNER_TEMP/standin.log"; do sleep 1; done'
+          for _ in $(seq 60); do
+            grep -q "Graph stand-in at" "$RUNNER_TEMP/standin.log" && break
+            sleep 1
+          done
+          grep -q "Graph stand-in at" "$RUNNER_TEMP/standin.log"
           "$ANDROID_HOME/platform-tools/adb" reverse tcp:8780 tcp:8780
       - name: The end-to-end test
         working-directory: apps/mailcraft-android
