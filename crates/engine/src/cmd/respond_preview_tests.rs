@@ -106,3 +106,15 @@ fn an_imap_message_fetched_is_answered_and_forwarded_as_before() {
         assert!(s.compose.is_some(), "{command}");
     }
 }
+
+/// A Microsoft account's message whose body comes later is answered from what is here, as before
+/// #653 (which is about IMAP): the refusal is not for it.
+#[test]
+fn a_microsoft_accounts_message_not_downloaded_yet_is_still_answered() {
+    let mut s = session();
+    let id = preview(&mut s);
+    let account = s.mailbox.message(id).unwrap().account;
+    s.mailbox.accounts.iter_mut().find(|a| a.id == account).unwrap().kind = mailcraft_model::AccountKind::Microsoft;
+    s.run("mail.reply", &json!({"id": id})).unwrap();
+    assert!(s.compose.is_some());
+}

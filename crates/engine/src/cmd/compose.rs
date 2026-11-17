@@ -474,8 +474,10 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     // refusal; they read or select the message so the app downloads it, then try again. Only
     // the window's own run (ribbon, menu, shortcut: `MailApp::run`) fetches it first and runs
     // the command again once it is whole (`Session::fetch_first_plan`); one moved within its
-    // account has no UID until the next Send/Receive, and offline nothing comes.
-    if m.unfetched {
+    // account has no UID until the next Send/Receive, and offline nothing comes. Not for a
+    // Microsoft or Exchange account's message: it was answered from its preview before (#653
+    // is about IMAP), and its own download goes on as it did.
+    if m.unfetched && !s.mailbox.account(m.account).is_some_and(|a| a.kind.has_offline_window()) {
         return Err(fail("this message isn't downloaded yet: open it once you're online, then reply to it or forward it"));
     }
     let mine: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.to_lowercase()).filter(|e| !e.is_empty()).collect();
