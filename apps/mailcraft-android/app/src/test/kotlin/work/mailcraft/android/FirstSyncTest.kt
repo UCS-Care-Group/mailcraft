@@ -46,6 +46,9 @@ class FirstSyncTest {
     private var syncs = 0
     private val asked = mutableListOf<Pair<ULong, Long>>()
     private var room: suspend () -> Boolean = { true }
+    private val kept = MemoryHolds()
+    private val told = mutableListOf<Pair<ULong, Boolean>>()
+    private val holds = FirstSyncHolds(kept) { account, held -> told.add(account to held) }
 
     private val hub = AccountsHub(
         api = api,
@@ -61,6 +64,7 @@ class FirstSyncTest {
             asked.add(account to storageMb)
             room()
         },
+        holds = holds,
     )
 
     private fun addAccount(keep: (AccountActions) -> Unit = {}) {
@@ -168,5 +172,54 @@ class FirstSyncTest {
         hub.handle(Event.SyncFinished(0u, true))
         assertEquals(2, syncs)
         assertTrue(hub.syncing.value)
+    }
+
+    @Test
+    fun notNowHoldsTheNewAccountBackAndKeepsItOverARestart() {
+        room = { false }
+        addAccount()
+        assertEquals(listOf(7uL to true), told)
+        assertEquals(setOf(7uL), kept.load())
+    }
+
+    @Test
+    fun syncAnywayLetsTheAccountGo() {
+        kept.save(setOf(7uL))
+        val answer = CompletableDeferred<Boolean>()
+        room = { answer.await() }
+        addAccount()
+        // Nothing changes while the question is open.
+        assertTrue(told.isEmpty())
+        answer.complete(true)
+        assertEquals(listOf(7uL to false), told)
+        assertTrue(kept.load().isEmpty())
+        assertEquals(1, syncs)
+    }
+
+    @Test
+    fun aPullToRefreshLetsEveryAccountHeldBackGo() {
+        room = { false }
+        addAccount()
+        assertEquals(setOf(7uL), kept.load())
+        hub.syncNow()
+        // The core let go of them as it began the round; nothing is held here either.
+        assertTrue(kept.load().isEmpty())
+        assertEquals(1, syncs)
+    }
+
+    @Test
+    fun aPullToRefreshThatDidNotStartKeepsTheHold() {
+        kept.save(setOf(7uL))
+        val hub = AccountsHub(
+            api = api,
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            sync = { SyncAnswer(started = false, message = "No network") },
+            holds = holds,
+        )
+        hub.syncNow()
+        assertEquals(setOf(7uL), kept.load())
     }
 }

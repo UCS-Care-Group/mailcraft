@@ -63,7 +63,8 @@ internal class EventDispatcher {
  *
  * A sign-in that worked starts a Send/Receive the same way ([firstSync]), so that a new account's
  * mail comes at once; a new account's first one waits for [roomFor] (the room gate, told the space
- * the owner chose for its mail in Add Account) and doesn't start on a no.
+ * the owner chose for its mail in Add Account) and doesn't start on a no: the account is then held
+ * back from the background's runs too ([holds]) until the owner says yes or pulls to refresh.
  */
 @Suppress("LongParameterList")
 internal class AccountsHub(
@@ -76,6 +77,7 @@ internal class AccountsHub(
     private val pause: suspend (Long) -> Unit = { delay(it) },
     private val sync: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
     private val roomFor: suspend (account: ULong, storageMb: Long) -> Boolean = { _, _ -> true },
+    private val holds: FirstSyncHolds? = null,
 ) {
     private val syncingNow = MutableStateFlow(false)
     private val notice = MutableStateFlow<String?>(null)
@@ -134,6 +136,8 @@ internal class AccountsHub(
             } catch (_: CoreException) {
                 SyncAnswer(started = false, message = texts.t("Send/Receive couldn't start. Try again."))
             }
+            // A round the owner asked for let go of every account held back (the core did as it began).
+            if (answer.started) holds?.releaseAll()
             if (!answer.started) {
                 notice.value = answer.message.ifEmpty { null }
                 syncingNow.value = false
@@ -150,7 +154,13 @@ internal class AccountsHub(
      * this one stays asked for and starts when that round ends, however long it takes.
      */
     suspend fun firstSync(account: ULong, keep: KeepChoice, added: Boolean): Boolean {
-        if (added && !roomFor(account, keep.storageMb)) return false
+        if (added) {
+            val yes = roomFor(account, keep.storageMb)
+            // A "Not now" holds the account back from every sync that starts by itself, kept over a
+            // restart; a yes lets it go ([holds]).
+            holds?.answered(account, yes)
+            if (!yes) return false
+        }
         followUp.set(true)
         startFollowUp()
         return true
