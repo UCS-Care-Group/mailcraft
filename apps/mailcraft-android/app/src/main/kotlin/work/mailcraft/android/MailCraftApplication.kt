@@ -135,6 +135,9 @@ class MailCraftApplication : Application() {
                 File(noBackupFilesDir, "mailbox").path,
             )
             createChannels(applicationContext, channelSpecs(core::t))
+            // (Made after the hub, which keeps the mailbox for it; the hub's first sync asks it for room,
+            // and is set before this returns, so before any sign-in can end.)
+            var settings: SettingsController? = null
             val hub = AccountsHub(
                 api = CoreAccounts(core, handback),
                 texts = CoreTexts(core),
@@ -142,8 +145,9 @@ class MailCraftApplication : Application() {
                 save = { core.saveNow() },
                 copy = { text -> copyToClipboard(applicationContext, text) },
                 sync = { core.syncNow() },
+                roomFor = { account, storageMb -> settings?.roomForFirstSync(account, storageMb) ?: false },
             )
-            val settings = SettingsController(
+            val made = SettingsController(
                 api = CoreSettings(
                     core = core,
                     store = DeviceSwitches(applicationContext),
@@ -153,7 +157,8 @@ class MailCraftApplication : Application() {
                 ),
                 scope = scope,
             )
-            Opened(core, hub, MailListController(CoreMailSource(core)), settings)
+            settings = made
+            Opened(core, hub, MailListController(CoreMailSource(core)), made)
         } catch (_: CoreException) {
             null
         } catch (_: LinkageError) {

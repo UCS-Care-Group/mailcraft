@@ -16,10 +16,14 @@ test-support = []
 log = { workspace = true }
 # The engine's own memory cap, which the device's budget is held against.
 mailcraft-engine = { workspace = true }
+# The words a to-do job's answer is said in (the engine's, in the owner's language).
+mailcraft-i18n = { workspace = true }
 mailcraft-model = { workspace = true }
 # The jobs the host runs: what they are told and what they bring back, and the requests (empty in the browser).
 mailcraft-net = { workspace = true }
 mailcraft-time = { workspace = true }
 
 [dev-dependencies]
-mailcraft-i18n = { workspace = true }
+# The stand-in for Microsoft Graph, to show that a job sends nothing it must not.
+mailcraft-net = { workspace = true, features = ["stand-in"] }
+serde_json = { workspace = true }

@@ -37,6 +37,23 @@ impl Core {
         self.call(move |session| Ok(sync.ask(session, None))).await
     }
 
+    /// Hold `account` back from Send/Receive, the calendar's, the to-dos' and the background's
+    /// downloads that start by themselves (`held`), or let it go again: for a new account whose
+    /// first download the owner said "not now" to, for want of room. A background run leaves it
+    /// out; the owner's yes (`held` false) or a Send/Receive asked for (`sync_now`, a pull to
+    /// refresh) lets it go. Kept while the core is (the app says it again when it starts).
+    pub async fn hold_background_sync(&self, account: u64, held: bool) -> Result<(), CoreError> {
+        let sync = self.sync.clone();
+        self.call(move |session| {
+            if session.mailbox.account(account).is_none() {
+                return Err(CoreError::BadRequest { reason: "there is no such account".to_string() });
+            }
+            sync.hold(account, held);
+            Ok(())
+        })
+        .await
+    }
+
     /// One round to its end, or until `budget_ms` runs out (a worker's time: it is held between
     /// half a second and ten minutes): the round is then called off, and the run under way stops
     /// at its next safe place. For the system's scheduler, which calls it with a network. What it
