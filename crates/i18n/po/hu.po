@@ -12970,6 +12970,11 @@ msgstr "Mentett ezen a számítógépen csak: ez a tétel nincs az Outlook napt�
 msgid "Saved the message to {name}"
 msgstr "Az üzenet mentve ide: {name}"
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
+msgstr ""
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
@@ -21162,6 +21167,11 @@ msgid "only the headers of “{subject}” are here, so it can't be forwarded as
 msgstr "a(z) „{subject}” üzenetnek csak a fejléce van letöltve, ezért az üzenet nem továbbítható mellékletként"
 
 #. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
 #, fuzzy
 msgid "only your own calendars can be put in a message"
@@ -22276,6 +22286,11 @@ msgstr "A szövegnek van egy karaktere, amit nem lehet elküldeni"
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
 msgstr "a(z) „{subject}” üzenet szövege ezen a számítógépen nem olvasható, ezért az üzenet nem továbbítható mellékletként"
+
+#. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -24557,10 +24572,20 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then fo
 msgstr "a(z) „{subject}” üzenet még nincs letöltve. Nyissa meg internetkapcsolattal, majd továbbítsa mellékletként"
 
 #. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
 msgstr "a(z) „{subject}” üzenet túl nagy a letöltéshez, ezért csak a fejléce érhető el. Az üzenet nem továbbítható mellékletként"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
