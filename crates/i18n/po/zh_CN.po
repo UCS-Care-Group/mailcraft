@@ -1730,8 +1730,9 @@ msgstr "联系人排列方式"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Arrange List By"
-msgstr ""
+msgstr "列表排列方式"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -1992,8 +1993,9 @@ msgstr[0] "已附加 {n} 个文件"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Attachment"
-msgstr ""
+msgstr "附件"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -3817,8 +3819,9 @@ msgstr "DOMAIN\\user 或 you@example.org；留空则使用您的地址"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "每天"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -5617,6 +5620,12 @@ msgid "For a mail server your organisation runs itself. MailCraft looks for the 
 msgstr "适用于由组织自行运行的邮件服务器。MailCraft 会根据您的地址查找服务器，您也可以在服务器设置中输入地址。点击“连接”前不会发送任何内容。"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr "适用于无需密码即可接收邮件的中继：绝不会向其发送您的密码。"
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
@@ -6468,8 +6477,9 @@ msgstr "我是管理员：为我的组织批准"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Icon"
-msgstr ""
+msgstr "图标"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7669,8 +7679,9 @@ msgstr "链接"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "List"
-msgstr ""
+msgstr "列表"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -7722,8 +7733,9 @@ msgstr "列出便笺"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "List Rows"
-msgstr ""
+msgstr "列表行"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -8795,8 +8807,9 @@ msgstr "月份"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Monthly"
-msgstr ""
+msgstr "每月"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -9059,6 +9072,12 @@ msgstr "我的任务"
 #, fuzzy
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "我的组织必须先批准 MailCraft：该怎么办"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "My outgoing server needs no sign-in"
+msgstr "我的发件服务器无需登录"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -11868,8 +11887,9 @@ msgstr "重复"
 
 #. name
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "Recurrence Pattern"
-msgstr ""
+msgstr "重复模式"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -14583,8 +14603,9 @@ msgstr "某些操作未完成，或者收到的内容与发送的不一致。下
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Sort List"
-msgstr ""
+msgstr "对列表排序"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -15722,8 +15743,9 @@ msgstr "共享邮箱的日历正在等待：{error}"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "The calendars shown hold no items."
-msgstr ""
+msgstr "所显示的日历中没有项目。"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -15778,6 +15800,12 @@ msgstr "该证书不是由该计算机信任的证书颁发机构颁发的。"
 #, fuzzy
 msgid "The colour is set in Outlook"
 msgstr "颜色是在 Outlook 中设置的"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr "连接测试只检查此服务器是否应答。如果它确实需要登录，您发送的第一封邮件会告诉您。"
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -18906,8 +18934,9 @@ msgstr "一周的第一天"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Weekly"
-msgstr ""
+msgstr "每周"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -19281,8 +19310,9 @@ msgstr "Yahoo Mail"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Yearly"
-msgstr ""
+msgstr "每年"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
@@ -23251,9 +23281,10 @@ msgstr "{name}：不是 MailCraft 可读取的邮件、日历或联系人文件"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "{name}: {n} item"
 msgid_plural "{name}: {n} items"
-msgstr[0] ""
+msgstr[0] "{name}：{n} 项"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -23568,9 +23599,10 @@ msgstr[0] "已选择 {n} 项"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} item, {left} more not listed"
 msgid_plural "{n} items, {left} more not listed"
-msgstr[0] ""
+msgstr[0] "{n} 项，另有 {left} 项未列出"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -24193,6 +24225,12 @@ msgstr "{sender} 至 {folder}"
 msgid "{sent} message sent"
 msgid_plural "{sent} messages sent"
 msgstr[0] "已发送 {sent} 封邮件"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr "{server}（此服务器需要登录：请在账户设置中取消勾选“我的发件服务器无需登录”。）"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

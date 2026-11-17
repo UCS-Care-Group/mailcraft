@@ -1732,8 +1732,9 @@ msgstr "Kapcsolatok elrendezése"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Arrange List By"
-msgstr ""
+msgstr "Lista rendezése"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -1995,8 +1996,9 @@ msgstr[1] "{n} fájl csatolva"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Attachment"
-msgstr ""
+msgstr "Melléklet"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -3816,8 +3818,9 @@ msgstr "DOMAIN\\user or you@pexage.org; üresen áll a címre"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "Naponta"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -5614,6 +5617,12 @@ msgid "For a mail server your organisation runs itself. MailCraft looks for the 
 msgstr "A postaszerverhez a szervezet fut. A MailCraft a szervert a címéről keresi, vagy beírhatja a címét a szerver beállításaiba. A Connect megnyomásáig semmi sem kerül elküldésre."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr "Jelszó nélkül levelet fogadó átjátszóhoz: az Ön jelszavát soha nem küldi el neki."
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
@@ -6467,8 +6476,9 @@ msgstr "Ügyvezető vagyok: hagyja jóvá a szervezetem számára."
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Icon"
-msgstr ""
+msgstr "Ikon"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7670,8 +7680,9 @@ msgstr "Hivatkozások"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "List"
-msgstr ""
+msgstr "Lista"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -7723,8 +7734,9 @@ msgstr "Lista megjegyzések"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "List Rows"
-msgstr ""
+msgstr "Listasorok"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -8798,8 +8810,9 @@ msgstr "Hónap"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Monthly"
-msgstr ""
+msgstr "Havonta"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -9060,6 +9073,12 @@ msgstr "Feladataim"
 #, fuzzy
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "A szervezetemnek előbb jóvá kell hagynia a MailCraft használatát. Mi a teendő?"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "My outgoing server needs no sign-in"
+msgstr "A kimenő szerverem nem kér bejelentkezést"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -11869,8 +11888,9 @@ msgstr "Ismétlődés"
 
 #. name
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "Recurrence Pattern"
-msgstr ""
+msgstr "Ismétlődési minta"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -14584,8 +14604,9 @@ msgstr "Valami nem ment át, vagy nem érkezett meg, ahogy elküldték. Az aláb
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Sort List"
-msgstr ""
+msgstr "Lista rendezése"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -15723,8 +15744,9 @@ msgstr "A megosztott postafiók naptárai várakoznak: {error}"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "The calendars shown hold no items."
-msgstr ""
+msgstr "A megjelenített naptárak nem tartalmaznak elemet."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -15779,6 +15801,12 @@ msgstr "A tanúsítványt nem egy tanúsító hatóság adta ki, hanem ez a szá
 #, fuzzy
 msgid "The colour is set in Outlook"
 msgstr "A szín az Outlook-ban van beállítva"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr "A kapcsolatteszt csak azt ellenőrzi, hogy a szerver válaszol. Ha mégis bejelentkezést kér, az első elküldött üzenet jelzi."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -18916,8 +18944,9 @@ msgstr "A hét kezdete"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Weekly"
-msgstr ""
+msgstr "Hetente"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -19285,8 +19314,9 @@ msgstr "Yahoo Mail"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Yearly"
-msgstr ""
+msgstr "Évente"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
@@ -23260,10 +23290,11 @@ msgstr "{name}: nem üzenet, naptár vagy kapcsolat fájl MailCraft olvassa"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "{name}: {n} item"
 msgid_plural "{name}: {n} items"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{name}: {n} elem"
+msgstr[1] "{name}: {n} elem"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -23619,10 +23650,11 @@ msgstr[1] "{n} kijelölt elem"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} item, {left} more not listed"
 msgid_plural "{n} items, {left} more not listed"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} elem, további {left} nincs felsorolva"
+msgstr[1] "{n} elem, további {left} nincs felsorolva"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -24315,6 +24347,12 @@ msgid "{sent} message sent"
 msgid_plural "{sent} messages sent"
 msgstr[0] "{sent} üzenet elküldve"
 msgstr[1] "{sent} üzenet elküldve"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr "{server} (Ez a szerver bejelentkezést kér: a fiók beállításaiban törölje a \"A kimenő szerverem nem kér bejelentkezést\" jelölését.)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
