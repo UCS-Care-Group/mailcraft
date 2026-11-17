@@ -109,7 +109,7 @@ msgstr "\"{shown}\" não é um endereço de e-mail"
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
-msgstr "\"{subject}\" pode ter sido enviada, mesmo que a cópia em Enviados (ou Rascunhos) ainda esteja marcada como rascunho. Ela fica na Caixa de Saída."
+msgstr "\"{subject}\" pode ter sido enviada, mesmo que a cópia em Itens Enviados (ou Rascunhos) ainda esteja marcada como rascunho. Ela fica na Caixa de Saída."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
@@ -121,7 +121,7 @@ msgstr "'{subject}' pode ter sido enviada: veja em Itens Enviados. Ela continua 
 #: crates/engine/src/cmd/snooze.rs
 #, fuzzy
 msgid "'{subject}' stays in the Snoozed folder: the server would not move it back, so it is no longer snoozed."
-msgstr "'{subject}' fica na pasta Adiados: o servidor não quis movê-lo de volta, então ele não está mais adiado."
+msgstr "'{subject}' fica na pasta Adiados: o servidor não quis movê-la de volta, então ela não está mais adiada."
 
 #. what a command says
 #: crates/engine/src/undo.rs
@@ -985,7 +985,7 @@ msgstr "Adicionar de um arquivo…"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
 msgid "Add somebody to send this to."
-msgstr "Adicione alguém para enviar isto."
+msgstr "Adicione alguém a quem enviar isto."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -1145,7 +1145,7 @@ msgstr "Todos os e-mails"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
 msgid "All mail and every account kept on this phone are removed, with every sign-in. Nothing is deleted from your mail provider's servers. This can't be undone."
-msgstr "Todos os e-mails e todas as contas guardados neste telefone são removidos, com todos os logins. Nada é excluído dos servidores do seu provedor de e-mail. Isto não pode ser desfeito."
+msgstr "Todos os e-mails e todas as contas guardados neste celular são removidos, com todos os logins. Nada é excluído dos servidores do seu provedor de e-mail. Isto não pode ser desfeito."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -1349,7 +1349,7 @@ msgstr "Um certificado X.509 (.cer, .pem) ou uma chave pública OpenPGP (.asc) d
 #: crates/mobile/src/sync.rs
 #, fuzzy
 msgid "An account couldn't be sent and received."
-msgstr "Não foi possível enviar e receber uma conta."
+msgstr "Não foi possível executar Enviar/Receber em uma das contas."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1397,7 +1397,7 @@ msgstr "Uma autoridade no caminho até uma autoridade confiável não permite qu
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "An https:// or webcal:// address. Nothing is read until you press Subscribe. The calendar is listed under Other Calendars, read-only, and brought up to date from the web every hour and when you press Send/Receive; you can choose another time in File › Info. Its address is asked for over an encrypted connection, with nothing that says who you are. A private address holds a secret: it is kept like a password, in your system's credential store when you let MailCraft remember sign-ins, and otherwise until you quit."
-msgstr "Um endereço https:// ou webcal://. Nada é lido até você pressionar Assinar. O calendário aparece em Outros Calendários, somente leitura, e é atualizado pela web a cada hora e quando você pressiona Enviar/Receber; você pode escolher outro intervalo em Arquivo › Informações. Seu endereço é pedido por uma conexão criptografada, sem nada que diga quem você é. Um endereço privado guarda um segredo: ele é mantido como uma senha, no repositório de credenciais do sistema quando você deixa o MailCraft lembrar os logins, e caso contrário até você sair."
+msgstr "Um endereço https:// ou webcal://. Nada é lido até você pressionar Assinar. O calendário aparece em Outros calendários, somente leitura, e é atualizado pela web a cada hora e quando você pressiona Enviar/Receber; você pode escolher outro intervalo em Arquivo › Informações. O endereço dele é acessado por uma conexão criptografada, sem nada que diga quem você é. Um endereço privado guarda um segredo: ele é mantido como uma senha, no repositório de credenciais do sistema quando você deixa o MailCraft lembrar os logins, e, caso contrário, até você sair."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3179,7 +3179,7 @@ msgstr "Fechar esta caixa de correio compartilhada e remover o e-mail guardado p
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Close to system tray"
-msgstr "Fechar na bandeja do sistema"
+msgstr "Fechar para a bandeja do sistema"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -3733,13 +3733,13 @@ msgstr "Não foi possível enviar e-mail: a conta não tem servidor de saída"
 #: crates/ui-egui/src/subscribed.rs
 #, fuzzy
 msgid "Couldn't update {name}: {why}. What it held stays."
-msgstr "Não foi possível atualizar {name}: {why}. O que ele tinha continua."
+msgstr "Não foi possível atualizar {name}: {why}. O que já havia nele continua."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Couldn't update: {why}. What it held stays."
-msgstr "Não foi possível atualizar: {why}. O que ele tinha continua."
+msgstr "Não foi possível atualizar: {why}. O que já havia nele continua."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3953,21 +3953,21 @@ msgstr "Padrão"
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Delay Delivery"
-msgstr "Adiar Entrega"
+msgstr "Atrasar Entrega"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Delayed message goes {when}"
 msgid_plural "{n} delayed messages: the next goes {when}"
-msgstr[0] "A mensagem adiada sai {when}"
-msgstr[1] "{n} mensagens adiadas: a próxima sai {when}"
+msgstr[0] "A mensagem agendada sai {when}"
+msgstr[1] "{n} mensagens agendadas: a próxima sai {when}"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Delayed until {when}"
-msgstr "Adiada até {when}"
+msgstr "Agendada para {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
@@ -4633,7 +4633,7 @@ msgstr "Data de vencimento"
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy
 msgid "Due Reminders"
-msgstr "Lembretes Vencidos"
+msgstr "Lembretes Pendentes"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4927,7 +4927,7 @@ msgstr "Termina em"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
 msgid "Ends on a day"
-msgstr "Termina em um dia"
+msgstr "Termina em uma data"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
@@ -5113,7 +5113,7 @@ msgstr "Tudo em \"{folder}\" será excluído permanentemente."
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Everything kept on this phone was removed."
-msgstr "Tudo o que estava guardado neste telefone foi removido."
+msgstr "Tudo o que estava guardado neste celular foi removido."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6277,12 +6277,13 @@ msgstr ""
 "\n"
 "{link}\n"
 "\n"
-"Depois que você aprovar, o navegador pode mostrar uma página que não pode ser acessada. Isso é esperado: é um endereço no meu próprio computador, onde nada está escutando, e a aprovação já terá sido dada nesse momento.\n"
+"Depois que você aprovar, o navegador pode mostrar uma página que não pode ser acessada. Isso é esperado: é um endereço no seu próprio computador, onde nada está escutando, e a aprovação já terá sido dada nesse momento.\n"
 "\n"
 "Agradeço desde já"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
 msgid ""
 "Hello,\n"
 "\n"
@@ -6294,6 +6295,15 @@ msgid ""
 "\n"
 "Thank you"
 msgstr ""
+"Olá,\n"
+"\n"
+"Gostaria de usar o MailCraft com a minha conta de trabalho. O MailCraft é um programa de e-mail e calendário de código aberto que roda no meu próprio celular. Nossa organização permite que apenas um administrador aprove um novo programa, por isso é preciso a sua aprovação uma única vez, para a organização inteira. A página da Microsoft para isso é esta:\n"
+"\n"
+"{link}\n"
+"\n"
+"Depois que você aprovar, o navegador pode mostrar uma página que não pode ser acessada. Isso é esperado: é um endereço no seu próprio computador, onde nada está escutando, e a aprovação já terá sido dada nesse momento.\n"
+"\n"
+"Agradeço desde já"
 
 #. command label, interface, name, ribbon, ribbon location
 #: crates/engine/src/cmd/help.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -6437,7 +6447,7 @@ msgstr "Quanto tempo para trás o e-mail é mantido por completo neste computado
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "How far back mail is kept in full on this phone, by the date it arrived. Older mail keeps its sender, subject and a preview, and is fetched again when you open it. A shorter window frees space; a longer one fetches more mail, and asks first when the phone is short of room."
-msgstr "Até quando atrás o e-mail é mantido por inteiro neste telefone, pela data em que chegou. O e-mail mais antigo mantém remetente, assunto e uma prévia, e é baixado de novo quando você o abre. Um período menor libera espaço; um maior baixa mais e-mails, e pergunta antes quando o telefone está com pouco espaço."
+msgstr "Até quanto tempo atrás o e-mail é mantido por inteiro neste celular, pela data em que chegou. O e-mail mais antigo mantém remetente, assunto e uma prévia, e é baixado de novo quando você o abre. Um período menor libera espaço; um maior baixa mais e-mails, e pergunta antes quando o celular está com pouco espaço."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -6733,13 +6743,13 @@ msgstr "Importação concluída ({what}) em uma pasta local: mova o conteúdo pa
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Imported {what} into the local folder Imported, on this computer"
-msgstr "{what} importado para a pasta local Importados, neste computador"
+msgstr "Importação concluída: {what} na pasta local Importados, neste computador"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Imported {what} into the local folder Imported: move it into the account to put it on its server"
-msgstr "{what} importado para a pasta local Importados: mova-o para a conta para colocá-lo no servidor"
+msgstr "Importação concluída: {what} na pasta local Importados. Mova o conteúdo para a conta para colocá-lo no servidor"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7177,7 +7187,7 @@ msgstr "Os itens deste calendário ficam somente neste computador. Acima do cale
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Its address wasn't kept (it may hold a secret): enter it again to update this calendar. What it held is shown meanwhile."
-msgstr "O endereço dela não foi guardado (pode conter um segredo): informe-o novamente para atualizar este calendário. O que ele tinha é mostrado enquanto isso."
+msgstr "O endereço dele não foi guardado (pode conter um segredo): informe-o novamente para atualizar este calendário. Enquanto isso, é mostrado o que já havia nele."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7195,7 +7205,7 @@ msgstr "O e-mail é mantido em sincronia pelo Microsoft Graph, sem servidores de
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
 #, fuzzy
 msgid "Its mail on this phone and its sign-in are removed. Nothing is deleted from Microsoft's servers, and you can add the account again later."
-msgstr "Seu e-mail neste telefone e o login dela são removidos. Nada é excluído dos servidores da Microsoft, e você pode adicionar a conta novamente depois."
+msgstr "O e-mail da conta neste celular e o login dela são removidos. Nada é excluído dos servidores da Microsoft, e você pode adicionar a conta novamente depois."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7929,7 +7939,7 @@ msgstr "O e-mail nos servidores não é alterado. Isso não pode ser desfeito."
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
 msgid "Mail on this phone"
-msgstr "E-mail neste telefone"
+msgstr "E-mail neste celular"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -7959,7 +7969,7 @@ msgstr "E-mail para manter offline:"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
 #, fuzzy
 msgid "Mail, accounts and sign-ins on this phone"
-msgstr "E-mails, contas e logins neste telefone"
+msgstr "E-mails, contas e logins neste celular"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8219,7 +8229,7 @@ msgstr "O MailCraft lerá e alterará as caixas de correio compartilhadas às qu
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
 msgid "MailCraft will read and change your Microsoft To Do lists and tasks. Microsoft's page opens in your browser to ask you. Until you say yes, your tasks stay on this phone."
-msgstr "O MailCraft lerá e alterará suas listas e tarefas do Microsoft To Do. A página da Microsoft abre no seu navegador para perguntar. Até você aceitar, suas tarefas ficam neste telefone."
+msgstr "O MailCraft lerá e alterará suas listas e tarefas do Microsoft To Do. A página da Microsoft abre no seu navegador para perguntar. Até você aceitar, suas tarefas ficam neste celular."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -8333,7 +8343,7 @@ msgstr "Gerenciar tarefa"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
 msgid "Many organisations let only an administrator approve a new program. Nothing is wrong with your account or your phone."
-msgstr "Muitas organizações deixam apenas um administrador aprovar um programa novo. Não há nada de errado com sua conta nem com seu telefone."
+msgstr "Muitas organizações deixam apenas um administrador aprovar um programa novo. Não há nada de errado com sua conta nem com seu celular."
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -8437,7 +8447,7 @@ msgstr "Diferenciar maiúsculas de minúsculas"
 #: crates/i18n/src/date.rs
 #, fuzzy
 msgid "May"
-msgstr "mai"
+msgstr "maio"
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -8519,7 +8529,7 @@ msgstr "Prévia da mensagem"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
 #, fuzzy
 msgid "Message queued. Sending from this phone is not available yet."
-msgstr "Mensagem na fila. O envio deste telefone ainda não está disponível."
+msgstr "Mensagem na fila. O envio deste celular ainda não está disponível."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
@@ -8597,7 +8607,7 @@ msgstr "As mensagens movidas de \"{name}\" para \"{to}\" também ainda estão em
 #: crates/mobile/src/fetch.rs
 #, fuzzy
 msgid "Messages of this account can't be downloaded on the phone yet."
-msgstr "As mensagens desta conta ainda não podem ser baixadas no telefone."
+msgstr "As mensagens desta conta ainda não podem ser baixadas no celular."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -9097,10 +9107,13 @@ msgstr "Navegação"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Navigation\n"
 "Bar"
 msgstr ""
+"Barra de\n"
+"navegação"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -9480,7 +9493,7 @@ msgstr "Nenhuma chave pública guardada ainda."
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "No Reminder"
-msgstr "Sem Lembrete"
+msgstr "Sem lembrete"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -9528,13 +9541,13 @@ msgstr "O servidor de nenhuma conta mantém um calendário aqui ainda, então n�
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/mobile/src/attachments.rs
 #, fuzzy
 msgid "No app on this phone can open that file."
-msgstr "Nenhum app neste telefone consegue abrir esse arquivo."
+msgstr "Nenhum app neste celular consegue abrir esse arquivo."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
 #, fuzzy
 msgid "No app on this phone can open that link."
-msgstr "Nenhum app neste telefone consegue abrir esse link."
+msgstr "Nenhum app neste celular consegue abrir esse link."
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -9642,7 +9655,7 @@ msgstr "Nenhuma imagem baixada é guardada neste computador."
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
 msgid "No downloaded pictures are kept on this phone."
-msgstr "Nenhuma imagem baixada é mantida neste telefone."
+msgstr "Nenhuma imagem baixada é mantida neste celular."
 
 #. interface, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -10038,7 +10051,7 @@ msgstr "Ainda não foi guardada em lugar nenhum: use Abrir e exportar › Salvar
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
 msgid "Not much room on this phone"
-msgstr "Pouco espaço neste telefone"
+msgstr "Pouco espaço neste celular"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
@@ -10086,31 +10099,31 @@ msgstr "Notas"
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "Nothing came back from Microsoft's approval page: it was closed, or five minutes went by before the approval was given."
-msgstr "Nada voltou da página de aprovação da Microsoft: ela foi fechada ou passaram-se cinco minutos antes de a aprovação ser dada."
+msgstr "A página de aprovação da Microsoft não deu retorno: ela foi fechada ou passaram-se cinco minutos antes de a aprovação ser dada."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
 msgid "Nothing came back from Microsoft's page. You can try again."
-msgstr "Nada voltou da página da Microsoft. Você pode tentar novamente."
+msgstr "A página da Microsoft não deu retorno. Você pode tentar novamente."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
 msgid "Nothing came back from Microsoft's sign-in page. It may have been closed, or left open too long. You can try again."
-msgstr "Nada voltou da página de login da Microsoft. Ela pode ter sido fechada ou ficado aberta por muito tempo. Você pode tentar novamente."
+msgstr "A página de login da Microsoft não deu retorno. Ela pode ter sido fechada ou ficado aberta por muito tempo. Você pode tentar novamente."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "Nothing came back from the sign-in page in time."
-msgstr "Nada voltou da página de login a tempo."
+msgstr "A página de login não deu retorno a tempo."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
 #, fuzzy
 msgid "Nothing coming up."
-msgstr "Nada por vir."
+msgstr "Nada marcado pela frente."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -10158,7 +10171,7 @@ msgstr "Nada é enviado nem recebido. Clique para conectar novamente."
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
 #, fuzzy
 msgid "Nothing is sent until you say so, and then it goes at the next sync."
-msgstr "Nada é enviado até você dizer, e então vai na próxima sincronização."
+msgstr "Nada é enviado até você confirmar, e então sai na próxima sincronização."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -10200,7 +10213,7 @@ msgstr "Nada novo foi encontrado nesse arquivo de calendário."
 #: crates/mobile/src/fetch.rs
 #, fuzzy
 msgid "Nothing of this search can be asked of the server."
-msgstr "Nada desta pesquisa pode ser pedido ao servidor."
+msgstr "Nenhuma parte desta pesquisa pode ser feita no servidor."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
@@ -10248,7 +10261,7 @@ msgstr "Notificações"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Notify only for Primary mail in Gmail accounts. Microsoft accounts do not tell Focused from Other yet, so they notify for all mail."
-msgstr "Notificar apenas e-mails Principais em contas do Gmail. As contas Microsoft ainda não distinguem Focados de Outros, então notificam todos os e-mails."
+msgstr "Notificar apenas sobre e-mails Principais em contas do Gmail. As contas Microsoft ainda não distinguem Prioritário de Outros, então notificam sobre todos os e-mails."
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -10470,7 +10483,7 @@ msgstr "Reunião online"
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "Only a Microsoft account signs in on the phone for now."
-msgstr "Por enquanto, apenas uma conta Microsoft entra no telefone."
+msgstr "Por enquanto, só contas Microsoft podem entrar no celular."
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -10494,7 +10507,7 @@ msgstr "Só confirme se você conhece estes servidores."
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
 msgid "Only for the rows on screen. With Data Saver on, only pictures already kept on this phone are shown."
-msgstr "Apenas para as linhas na tela. Com a Economia de Dados ativada, só aparecem as imagens já guardadas neste telefone."
+msgstr "Apenas para as linhas na tela. Com a Economia de Dados ativada, só aparecem as imagens já guardadas neste celular."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -10990,7 +11003,7 @@ msgstr "Os calendários de outras pessoas não foram permitidos: {error}"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
-msgstr "Caso contrário, uma notificação mostra o remetente e o assunto, nunca o texto da mensagem nem suas imagens. O que aparece na tela de bloqueio segue a configuração de privacidade do próprio telefone."
+msgstr "Caso contrário, uma notificação mostra o remetente e o assunto, nunca o texto da mensagem nem suas imagens. O que aparece na tela de bloqueio segue a configuração de privacidade do próprio celular."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11050,7 +11063,7 @@ msgstr "Outlook.com"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
 msgid "Outlook.com, Hotmail, and Microsoft 365 work or school accounts. You sign in on Microsoft's own page in your browser, so MailCraft never sees your password."
-msgstr "Outlook.com, Hotmail e contas Microsoft 365 de trabalho ou escola. Você entra na página da própria Microsoft no seu navegador, então o MailCraft nunca vê sua senha."
+msgstr "Outlook.com, Hotmail e contas corporativas ou de estudante do Microsoft 365. Você entra na página da própria Microsoft no seu navegador, então o MailCraft nunca vê sua senha."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -11668,7 +11681,7 @@ msgstr "Sair do MailCraft"
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy
 msgid "Raise Due Reminders"
-msgstr "Gerar Lembretes Vencidos"
+msgstr "Mostrar Lembretes Pendentes"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11820,7 +11833,7 @@ msgstr "E-mails recentes"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
 msgid "Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."
-msgstr "O e-mail recente é mantido neste telefone, e o mais antigo fica no seu servidor de e-mail. Nada é excluído do servidor."
+msgstr "O e-mail recente é mantido neste celular, e o mais antigo fica no seu servidor de e-mail. Nada é excluído do servidor."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -12134,7 +12147,7 @@ msgstr "Remover dados locais"
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Remove the delay"
-msgstr "Remover o adiamento"
+msgstr "Remover o agendamento"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12176,7 +12189,7 @@ msgstr "Remover {name}"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Removes the mail, calendars, contacts and tasks kept on this phone, your accounts, and every sign-in. Nothing is deleted from your mail provider's servers, and you can add your accounts again later."
-msgstr "Remove o e-mail, os calendários, os contatos e as tarefas guardados neste telefone, suas contas e todos os logins. Nada é excluído dos servidores do seu provedor de e-mail, e você pode adicionar suas contas novamente depois."
+msgstr "Remove o e-mail, os calendários, os contatos e as tarefas guardados neste celular, suas contas e todos os logins. Nada é excluído dos servidores do seu provedor de e-mail, e você pode adicionar suas contas novamente depois."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12438,13 +12451,13 @@ msgstr "Tentar novamente"
 #: crates/engine/src/cmd/snooze.rs
 #, fuzzy
 msgid "Return Now"
-msgstr "Voltar agora"
+msgstr "Trazer de volta agora"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
 #, fuzzy
 msgid "Return Snoozed Mail"
-msgstr "Devolver e-mails adiados"
+msgstr "Trazer de volta os e-mails adiados"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13954,7 +13967,7 @@ msgstr "Mostrar um alerta na área de trabalho quando chegar e-mail novo"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Show a notification when a calendar or task reminder falls due, even when the app is closed. Off, none is shown; the reminders themselves stay in the calendar and in Tasks."
-msgstr "Mostrar uma notificação quando um lembrete de calendário ou tarefa vencer, mesmo com o app fechado. Desativado, nenhuma é mostrada; os lembretes continuam no calendário e em Tarefas."
+msgstr "Mostrar uma notificação quando chegar a hora de um lembrete de calendário ou tarefa, mesmo com o app fechado. Com a opção desativada, nenhuma é mostrada; os lembretes continuam no calendário e em Tarefas."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14502,7 +14515,7 @@ msgstr "Adiar"
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy
 msgid "Snooze Reminder"
-msgstr "Adiar Lembrete"
+msgstr "Adiar lembrete"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -14580,7 +14593,7 @@ msgstr "Classificar por"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Sound, vibration and lock screen, in the phone's settings"
-msgstr "Som, vibração e tela de bloqueio, nas configurações do telefone"
+msgstr "Som, vibração e tela de bloqueio, nas configurações do celular"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14778,7 +14791,7 @@ msgstr "Parando… o que já entrou permanece."
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Storage on this phone"
-msgstr "Armazenamento neste telefone"
+msgstr "Armazenamento neste celular"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14856,7 +14869,7 @@ msgstr "Calendários assinados"
 #: crates/ui-egui/src/subscribed.rs
 #, fuzzy
 msgid "Subscribed to {name}. It is listed under Other Calendars, read-only, and brought up to date from the web every hour."
-msgstr "Calendário {name} assinado. Ele aparece em Outros Calendários, somente leitura, e é atualizado pela web a cada hora."
+msgstr "Calendário {name} assinado. Ele aparece em Outros calendários, somente leitura, e é atualizado pela web a cada hora."
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -15618,7 +15631,7 @@ msgstr "Não foi possível adicionar o calendário"
 #: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
-msgstr "Não foi possível atualizar o calendário: a tarefa parou inesperadamente"
+msgstr "Não foi possível atualizar o calendário: o processo parou inesperadamente"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -15900,7 +15913,7 @@ msgstr "Não foi possível ler o arquivo ({why})"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The file has more events than are kept ({one} a calendar, {all} in all): the rest are left out."
-msgstr "O arquivo tem mais eventos do que os guardados ({one} por calendário, {all} no total): o restante fica de fora."
+msgstr "O arquivo tem mais eventos do que o máximo guardado ({one} por calendário, {all} no total): o restante fica de fora."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -15968,7 +15981,7 @@ msgstr "O relatório completo está em:"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."
-msgstr "Os cinzas com que o tema escuro é desenhado: neutros ou com tom azulado. O tema claro continua como está."
+msgstr "Os tons de cinza usados no tema escuro: neutros ou com tom azulado. O tema claro continua como está."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -16070,7 +16083,7 @@ msgstr "A lista de remetentes está cheia: remova alguns em Arquivo › Opções
 #: crates/mobile/src/core.rs
 #, fuzzy
 msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. The phone's own settings for MailCraft let you clear what it keeps."
-msgstr "A lista de logins guardados neste telefone foi danificada, então alguns logins mais antigos ainda podem estar guardados nele. As configurações do próprio telefone para o MailCraft permitem limpar o que ele guarda."
+msgstr "A lista de logins guardados neste celular foi danificada, então alguns logins mais antigos ainda podem estar guardados nele. As configurações do próprio celular para o MailCraft permitem limpar o que ele guarda."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -16184,7 +16197,7 @@ msgstr "A mensagem está na área de transferência: cole-a em um e-mail ou chat
 #: crates/mobile/src/fetch.rs
 #, fuzzy
 msgid "The message is too large to download on the phone."
-msgstr "A mensagem é grande demais para baixar no telefone."
+msgstr "A mensagem é grande demais para baixar no celular."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -16196,7 +16209,7 @@ msgstr "A mensagem não está mais lá"
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "The message waits in your Outbox, where you can change or cancel it. MailCraft sends it at that time; if MailCraft isn't running then, it goes the next time it runs."
-msgstr "A mensagem espera na sua Caixa de Saída, onde você pode alterá-la ou cancelá-la. O MailCraft a envia nesse horário; se o MailCraft não estiver em execução então, ela vai na próxima vez em que ele executar."
+msgstr "A mensagem espera na sua Caixa de Saída, onde você pode alterá-la ou cancelá-la. O MailCraft a envia nesse horário; se o MailCraft não estiver aberto nesse horário, ela sai na próxima vez em que ele for aberto."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -16232,7 +16245,7 @@ msgstr "As mensagens da pasta exibida, como .mbox"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "The most mail this phone keeps, all accounts together. Past it the oldest mail goes back to its headers, then off the phone. Nothing is deleted from the server."
-msgstr "O máximo de e-mails que este telefone guarda, todas as contas juntas. Além disso, os e-mails mais antigos voltam a ter só os cabeçalhos e depois saem do telefone. Nada é excluído do servidor."
+msgstr "O máximo de e-mails que este celular guarda, todas as contas juntas. Passando desse limite, os e-mails mais antigos voltam a ter só os cabeçalhos e depois saem do celular. Nada é excluído do servidor."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -16268,7 +16281,7 @@ msgstr "O nome que o calendário dá a si mesmo"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
 #, fuzzy
 msgid "The notes are too long to edit here."
-msgstr "As anotações são longas demais para editar aqui."
+msgstr "As notas são longas demais para editar aqui."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16658,7 +16671,7 @@ msgstr "Os servidores abaixo são os que {domain} publica para programas de e-ma
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
-msgstr "Os servidores abaixo foram encontrados nos registros DNS de {domain} (seus registros SRV). Confira-os antes de conectar."
+msgstr "Os servidores abaixo foram encontrados nos registros DNS de {domain} (seus registros SRV). Verifique-os antes de conectar."
 
 #. interface
 #: crates/ui-egui/src/settings_notice.rs
@@ -17540,7 +17553,7 @@ msgstr "Esta chave assina com um algoritmo que o MailCraft não usa: aqui só se
 #: crates/mobile/src/sync.rs
 #, fuzzy
 msgid "This kind of account can't be sent and received on the phone yet."
-msgstr "Este tipo de conta ainda não pode ser enviado e recebido no telefone."
+msgstr "Este tipo de conta ainda não pode enviar e receber e-mails no celular."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -17558,13 +17571,13 @@ msgstr "Este link vai para"
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "This list unsubscribes on its own page, at {host}. It opens in your browser: visiting it tells the list that this address is read."
-msgstr "Esta lista cancela a inscrição na própria página, em {host}. Ela abre no seu navegador: visitá-la avisa à lista que este endereço é lido."
+msgstr "O cancelamento da inscrição desta lista é feito na página dela, em {host}."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "This list's page isn't one that can be opened."
-msgstr "A página desta lista não é uma que possa ser aberta."
+msgstr "A página desta lista não pode ser aberta."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17740,13 +17753,13 @@ msgstr "Esta mensagem não foi enviada."
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "This message is delayed. It goes {when}."
-msgstr "Esta mensagem está adiada. Ela sai {when}."
+msgstr "Esta mensagem está agendada. Ela sai {when}."
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "This message is due and goes with the next Send/Receive."
-msgstr "Esta mensagem venceu e vai no próximo Enviar/Receber."
+msgstr "O horário desta mensagem chegou, e ela vai no próximo Enviar/Receber."
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
@@ -17824,7 +17837,7 @@ msgstr "Não foi possível ler esta pessoa."
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
 #, fuzzy
 msgid "This phone"
-msgstr "Este telefone"
+msgstr "Este celular"
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -17908,7 +17921,7 @@ msgstr "Esta assinatura tem uma imagem ou um layout próprio. Altere-a no comput
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
 msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft keeps some room for the phone to go on working. Sync anyway?"
-msgstr "Esta sincronização precisa de cerca de {needed}. Este telefone tem {free} livres, e o MailCraft deixa algum espaço para o telefone continuar funcionando. Sincronizar mesmo assim?"
+msgstr "Esta sincronização precisa de cerca de {needed}. Este celular tem {free} livres, e o MailCraft deixa algum espaço para o celular continuar funcionando. Sincronizar mesmo assim?"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -18688,7 +18701,7 @@ msgstr "Usar a configuração do sistema"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
-msgstr "Usar a configuração do sistema segue Efeitos de animação nas configurações do Windows. Onde o MailCraft ainda não consegue ler a configuração do sistema, as animações são reproduzidas até você escolher Nunca reproduzir."
+msgstr "A opção \"Usar a configuração do sistema\" segue \"Efeitos de animação\" nas configurações do Windows. Onde o MailCraft ainda não consegue ler a configuração do sistema, as animações são reproduzidas até você escolher \"Nunca reproduzir\"."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19490,7 +19503,7 @@ msgstr "O seu servidor de e-mail verificou de onde esta mensagem veio e a verifi
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
-msgstr "Seu servidor de e-mail não confirmou que esta mensagem veio de {sender}, então o MailCraft não vai lembrá-lo: o endereço de um remetente pode ser falsificado."
+msgstr "Seu servidor de e-mail não confirmou que esta mensagem veio de {sender}, então o MailCraft não vai memorizar esse remetente: o endereço de um remetente pode ser falsificado."
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
@@ -19676,7 +19689,7 @@ msgstr "O administrador da sua organização precisa aprovar isto uma vez"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
 msgid "Your organisation's rules (Conditional Access) don't allow MailCraft to sign you in on this phone. This is your organisation's policy, not a fault in MailCraft or in your phone. Ask the people who run your organisation's mail whether sign-in from this kind of app can be allowed."
-msgstr "As regras da sua organização (Acesso Condicional) não permitem que o MailCraft faça o seu login neste telefone. Esta é uma política da sua organização, não uma falha do MailCraft nem do seu telefone. Pergunte a quem cuida do e-mail da sua organização se o login por este tipo de app pode ser permitido."
+msgstr "As regras da sua organização (Acesso Condicional) não permitem que o MailCraft faça o seu login neste celular. Esta é uma política da sua organização, não uma falha do MailCraft nem do seu celular. Pergunte a quem cuida do e-mail da sua organização se o login por este tipo de app pode ser permitido."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -19862,7 +19875,7 @@ msgstr "o cartão de um contato guarda no máximo 32 chaves"
 #: crates/model/src/mailbox_followup.rs
 #, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
-msgstr "um rascunho não pode ter lembrete: envie-o primeiro, ou use Acompanhar na própria mensagem"
+msgstr "um rascunho não pode ter lembrete: envie-o primeiro, ou use Acompanhamento na própria mensagem"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -20162,7 +20175,7 @@ msgstr "cancelado"
 #: crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "choose a time within a year"
-msgstr "escolha um horário dentro de um ano"
+msgstr "escolha um horário nos próximos 12 meses"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -20872,7 +20885,7 @@ msgstr "ninguém mais está convidado para este compromisso"
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy
 msgid "none of these messages has a reminder showing"
-msgstr "nenhuma destas mensagens tem um lembrete aparecendo"
+msgstr "nenhuma destas mensagens tem um lembrete na tela"
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
@@ -21970,7 +21983,7 @@ msgstr "o servidor pediu mais de uma resposta PLAIN"
 #: crates/proto/src/imap/idle.rs
 #, fuzzy
 msgid "the server said something that is no news while idle"
-msgstr "o servidor disse algo que não é novidade durante o IDLE"
+msgstr "o servidor enviou algo que não é uma atualização durante o IDLE"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
@@ -22306,7 +22319,7 @@ msgstr "esta conta não tem pasta Caixa de Saída"
 #: crates/engine/src/cmd/dav_account.rs
 #, fuzzy
 msgid "this account has no calendar and contacts server of its own: a Microsoft account keeps its calendars through Microsoft, and a shared mailbox follows its owner's"
-msgstr "esta conta não tem um servidor de calendários e contatos próprio: uma conta Microsoft mantém seus calendários pela Microsoft, e uma caixa de correio compartilhada segue a do seu dono"
+msgstr "esta conta não tem um servidor de calendários e contatos próprio: uma conta Microsoft mantém seus calendários pela Microsoft, e uma caixa de correio compartilhada segue a conta do proprietário"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23220,7 +23233,7 @@ msgstr "{name} não foi anexado: não é um arquivo que este app possa ler."
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 #, fuzzy
 msgid "{name} was not attached: the files on a message can be 50 MB together."
-msgstr "{name} não foi anexado: os arquivos de uma mensagem podem somar 50 MB."
+msgstr "{name} não foi anexado: os arquivos de uma mensagem podem somar no máximo 50 MB."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -23429,8 +23442,8 @@ msgstr[1] "{n} recusados"
 #, fuzzy
 msgid "{n} delayed message didn't go at its time"
 msgid_plural "{n} delayed messages didn't go at their time"
-msgstr[0] "{n} mensagem adiada não saiu no horário"
-msgstr[1] "{n} mensagens adiadas não saíram no horário"
+msgstr[0] "{n} mensagem agendada não saiu no horário"
+msgstr[1] "{n} mensagens agendadas não saíram no horário"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -23453,8 +23466,8 @@ msgstr[1] "{n} imagens baixadas são mantidas neste computador ({size})."
 #, fuzzy
 msgid "{n} downloaded picture is kept on this phone ({size})."
 msgid_plural "{n} downloaded pictures are kept on this phone ({size})."
-msgstr[0] "{n} imagem baixada é mantida neste telefone ({size})."
-msgstr[1] "{n} imagens baixadas são mantidas neste telefone ({size})."
+msgstr[0] "{n} imagem baixada é mantida neste celular ({size})."
+msgstr[1] "{n} imagens baixadas são mantidas neste celular ({size})."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -24021,8 +24034,8 @@ msgstr[1] "{n} logins lembrados não puderam ser removidos do repositório de cr
 #, fuzzy
 msgid "{n} reminder is due"
 msgid_plural "{n} reminders are due"
-msgstr[0] "{n} lembrete venceu"
-msgstr[1] "{n} lembretes venceram"
+msgstr[0] "{n} lembrete pendente"
+msgstr[1] "{n} lembretes pendentes"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -24099,16 +24112,16 @@ msgstr[1] "{n} tarefas existem apenas neste computador"
 #, fuzzy
 msgid "{n} task is only on this phone."
 msgid_plural "{n} tasks are only on this phone."
-msgstr[0] "{n} tarefa está só neste telefone."
-msgstr[1] "{n} tarefas estão só neste telefone."
+msgstr[0] "{n} tarefa está só neste celular."
+msgstr[1] "{n} tarefas estão só neste celular."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
 #, fuzzy
 msgid "{n} task is only on this phone. Send it to To Do at the next sync?"
 msgid_plural "{n} tasks are only on this phone. Send them to To Do at the next sync?"
-msgstr[0] "{n} tarefa está só neste telefone. Enviá-la ao To Do na próxima sincronização?"
-msgstr[1] "{n} tarefas estão só neste telefone. Enviá-las ao To Do na próxima sincronização?"
+msgstr[0] "{n} tarefa está só neste celular. Enviá-la ao To Do na próxima sincronização?"
+msgstr[1] "{n} tarefas estão só neste celular. Enviá-las ao To Do na próxima sincronização?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
