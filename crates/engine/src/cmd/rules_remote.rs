@@ -119,11 +119,7 @@ fn upload_of(mailbox: &Mailbox, account: Id) -> Result<Vec<RuleOp>, CmdError> {
         let Some(server) = rule.server.as_ref() else { continue };
         // For rules with unknown parts, don't send body (only enabled/sequence)
         // For known rules, send body with the full rule
-        let body = if rule.known() {
-            Some(remote_of(mailbox, account, rule, server.sequence))
-        } else {
-            None
-        };
+        let body = if rule.known() { Some(remote_of(mailbox, account, rule, server.sequence)) } else { None };
         ops.push(RuleOp {
             kind: RuleOpKind::Update,
             rule: rule.id,
@@ -318,14 +314,15 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             let sequence = if had.sequence != had.synced_sequence { had.sequence } else { remote.sequence };
             rule.enabled = enabled;
             rule.server = Some(fresh(sequence));
-            rule.name = if rule.name.eq_ignore_ascii_case(&remote.name) { rule.name } else { remote.name.clone() };
-            if !same_words(&rule.conditions, &remote.conditions) {
+            // Keep local values when they differ from synced_* (changed here but not sent yet)
+            rule.name = if rule.name.eq_ignore_ascii_case(&had.synced_name) { remote.name.clone() } else { rule.name };
+            if !same_words(&rule.conditions, &had.synced_conditions) {
                 rule.conditions = remote.conditions.clone();
             }
-            if !same_actions(&rule.actions, &actions) {
+            if !same_actions(&rule.actions, &had.synced_actions) {
                 rule.actions = actions;
             }
-            rule.stop = remote.stop;
+            rule.stop = if rule.stop == had.synced_stop { remote.stop } else { rule.stop };
             // After updating the rule's fields, set the synced fields to the rule's final values
             if let Some(server) = rule.server.as_mut() {
                 server.synced_name = rule.name.clone();
@@ -358,9 +355,12 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
         if let Some(i) = twin
             && let Some(rule) = mailbox.rules.get_mut(i)
         {
-            // Switched on or off here meanwhile: that stays, and the difference goes up.
+            // The server has the rule as it was sent (deduplicated if needed). Keep local enabled
+            // since it might have changed since sending. Update name/conditions/actions/stop from
+            // server (deduplicated), then set server info.
+            let local_enabled = rule.enabled;
             rule.server = Some(fresh(remote.sequence));
-            // Update the rule's fields to match the server's values
+            rule.enabled = local_enabled;
             rule.name = remote.name.clone();
             rule.conditions = remote.conditions.clone();
             rule.actions = actions;
@@ -516,8 +516,17 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                 {
                     rule.enabled = server.synced_enabled;
                     server.sequence = server.synced_sequence;
+                    // Restore local values that differ from what was sent
+                    rule.name = if rule.name.eq_ignore_ascii_case(&server.synced_name) { rule.name.clone() } else { server.synced_name.clone() };
+                    if !same_words(&rule.conditions, &server.synced_conditions) {
+                        rule.conditions = server.synced_conditions.clone();
+                    }
+                    if !same_actions(&rule.actions, &server.synced_actions) {
+                        rule.actions = server.synced_actions.clone();
+                    }
+                    rule.stop = if rule.stop == server.synced_stop { rule.stop } else { server.synced_stop };
                 }
-                merged.say(format!("The server didn't take the change to the rule \"{name}\"{why}"));
+                merged.say(format!("The server didn't take the change to the rule \"{}\"{}", name, why));
                 failed += 1;
             }
             (RuleOpKind::Create, RuleResult::Refused) => {

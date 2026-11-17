@@ -246,6 +246,18 @@ impl Rule {
         self.server.as_ref().is_none_or(|s| s.unknown.is_empty())
     }
 
+    /// Whether the server's synced values are empty/default (no sync yet).
+    pub fn synced_empty(&self) -> bool {
+        self.server.as_ref().is_some_and(|s| {
+            s.synced_name.is_empty()
+                && s.synced_conditions.is_empty()
+                && s.synced_actions.is_empty()
+                && !s.synced_stop
+                && !s.synced_enabled
+                && s.synced_sequence == 0
+        })
+    }
+
     /// Whether the server doesn't let it be changed or deleted.
     pub fn read_only(&self) -> bool {
         self.server.as_ref().is_some_and(|s| s.read_only)
@@ -280,6 +292,7 @@ impl Rule {
     pub fn changed_here(&self) -> bool {
         self.server.as_ref().is_some_and(|s| {
             !s.id.is_empty()
+                && !self.synced_empty()
                 && (self.enabled != s.synced_enabled
                     || s.sequence != s.synced_sequence
                     || !self.name.eq_ignore_ascii_case(&s.synced_name)

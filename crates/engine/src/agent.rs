@@ -1004,7 +1004,7 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
                 // No existing rule or no id - cannot edit
                 false
             }
-        },
+        }
         // Read as the commands read them: what they refuse does nothing, and needs no question.
         "rules.enable" => p::opt_bool(params, "value").is_ok_and(|value| {
             p::id(params, "id")
@@ -1583,20 +1583,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "rules.edit" => {
             // Build the rule as it would be after the edit, judging what it would do
-            let rule_id = p::id(params, "id").unwrap_or_default();
-            let existing = s.mailbox.rules.iter().find(|r| r.id == rule_id);
-            let r = crate::cmd::rules::rule_from_params(s, params).ok().and_then(|mut r| {
-                // Apply the edits from params if an existing rule is named
-                if let Some(ex) = existing {
-                    r.id = ex.id;
-                    r.account = ex.account;
-                    r.keep = ex.keep;
-                    r.server = ex.server.clone();
-                    Some(r)
-                } else {
-                    None
-                }
-            });
+            let rule_id = p::id(params, "id");
+            let r = rule_id
+                .and_then(|id| s.mailbox.rules.iter().find(|r| r.id == id))
+                .and_then(|existing| crate::cmd::rules::rule_for_edit(s, existing, params).ok());
             match r {
                 Some(r) => {
                     let addresses = s.mailbox.rule_reads_addresses(&r);

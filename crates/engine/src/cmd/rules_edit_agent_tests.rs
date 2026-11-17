@@ -248,7 +248,8 @@ mod partial_params_tests {
     fn rules_edit_agent_question_only_actions() {
         let (mut s, account) = session_with_microsoft_account();
         let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-        s.mailbox.folder_mut(inbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "in".into(), name: "Inbox".into(), ..Default::default() });
+        s.mailbox.folder_mut(inbox).unwrap().server =
+            Some(mailcraft_model::ServerFolder { id: "in".into(), name: "Inbox".into(), ..Default::default() });
         let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
         s.mailbox.folder_mut(deleted).unwrap().server =
             Some(mailcraft_model::ServerFolder { id: "del".into(), name: "Deleted Items".into(), ..Default::default() });
@@ -290,17 +291,23 @@ mod partial_params_tests {
     fn rules_edit_agent_question_only_server() {
         let (mut s, account) = session_with_microsoft_account();
         let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-        s.mailbox.folder_mut(inbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "in".into(), name: "Inbox".into(), ..Default::default() });
+        s.mailbox.folder_mut(inbox).unwrap().server =
+            Some(mailcraft_model::ServerFolder { id: "in".into(), name: "Inbox".into(), ..Default::default() });
 
         // Add a rule on this computer
         let rule_id = {
-            let made = s.run("rules.add", &json!({
-                "name": "Local Rule",
-                "account": account,
-                "conditions": [{"type": "fromContains", "value": "test@example.com"}],
-                "actions": [{"type": "markRead"}],
-                "server": false
-            })).unwrap();
+            let made = s
+                .run(
+                    "rules.add",
+                    &json!({
+                        "name": "Local Rule",
+                        "account": account,
+                        "conditions": [{"type": "fromContains", "value": "test@example.com"}],
+                        "actions": [{"type": "markRead"}],
+                        "server": false
+                    }),
+                )
+                .unwrap();
             made["id"].as_u64().unwrap()
         };
 
@@ -319,5 +326,120 @@ mod partial_params_tests {
         // Original name/conditions preserved
         assert_eq!(r.name, "Local Rule");
         assert_eq!(r.conditions.len(), 1);
+    }
+}
+
+/// Tests for agent gate questions (server_rule_deletes, rules_onto_another_server)
+/// using rule_for_edit to verify shared logic works correctly.
+#[cfg(test)]
+mod agent_gate_tests {
+    use mailcraft_model::{Action, Condition, FolderKind, Keep, Rule};
+    use serde_json::json;
+
+    use crate::{Session, agent, cmd::rules::rule_for_edit};
+
+    const EMAIL: &str = "owner@example.org";
+
+    fn session_with_microsoft_account() -> (Session, u64) {
+        let mut s = Session::empty();
+        let added = s.run("account.add", &json!({"email": EMAIL, "kind": "microsoft"})).unwrap();
+        let account = added["id"].as_u64().unwrap();
+        (s, account)
+    }
+
+    fn mark_folder_on_server(s: &mut Session, folder_id: u64, server_id: &str) {
+        s.mailbox.folder_mut(folder_id).unwrap().server =
+            Some(mailcraft_model::ServerFolder { id: server_id.into(), name: server_id.into(), ..Default::default() });
+    }
+
+    /// Test that agent gate checks server_rule_deletes works correctly with rule_for_edit
+    /// when editing a local rule to move to server with delete action.
+    #[test]
+    fn agent_gate_server_rule_deletes_with_edit() {
+        let (mut s, account) = session_with_microsoft_account();
+        let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        mark_folder_on_server(&mut s, inbox, "in");
+        let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+        mark_folder_on_server(&mut s, deleted, "del");
+
+        // Add a local rule
+        let rule = Rule {
+            id: 1,
+            name: "Local Rule".to_string(),
+            account,
+            conditions: vec![Condition::FromContains("test@example.com".to_string())],
+            actions: vec![Action::MarkRead],
+            enabled: true,
+            stop: false,
+            keep: Keep::Here,
+            ..Default::default()
+        };
+        s.mailbox.rules.push(rule);
+
+        // Check: editing to delete mail on server should trigger agent question
+        let existing = s.mailbox.rules.iter().find(|r| r.id == 1).unwrap();
+        let params = json!({
+            "id": 1,
+            "actions": [{"type": "moveTo", "value": deleted}],
+            "server": true
+        });
+
+        // Use rule_for_edit to build the rule as it would be after edit
+        let result = rule_for_edit(&s, existing, &params);
+        assert!(result.is_ok(), "rule_for_edit failed: {:?}", result);
+        let rule_after_edit = result.unwrap();
+
+        // Check server_rule_deletes through the agent gate
+        let verdict = agent::check(&s, "rules.edit", &params, &[]);
+        // Should need owner's permission because it would delete on server
+        assert!(matches!(verdict, agent::Verdict::Ask(agent::Class::Delete, _)));
+    }
+
+    /// Test that agent gate checks rules_onto_another_server works correctly with rule_for_edit
+    /// when editing to move mail to another account's folder.
+    #[test]
+    fn agent_gate_rules_onto_another_server_with_edit() {
+        let (mut s, account) = session_with_microsoft_account();
+
+        // Add another account
+        let added = s.run("account.add", &json!({"email": "other@example.org", "kind": "microsoft"})).unwrap();
+        let other_account = added["id"].as_u64().unwrap();
+        let other_inbox = s.mailbox.folder_of_kind(other_account, FolderKind::Inbox).unwrap();
+        mark_folder_on_server(&mut s, other_inbox, "in");
+
+        let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        mark_folder_on_server(&mut s, inbox, "in");
+
+        // Add a server rule
+        let rule = Rule {
+            id: 1,
+            name: "Server Rule".to_string(),
+            account,
+            conditions: vec![Condition::FromContains("test@example.com".to_string())],
+            actions: vec![Action::MarkRead],
+            enabled: true,
+            stop: false,
+            keep: Keep::Server,
+            server: Some(mailcraft_model::ServerRule { id: "rule-1".to_string(), sequence: 1, ..Default::default() }),
+            ..Default::default()
+        };
+        s.mailbox.rules.push(rule);
+
+        // Check: editing to move to other account's folder should trigger agent question
+        let existing = s.mailbox.rules.iter().find(|r| r.id == 1).unwrap();
+        let params = json!({
+            "id": 1,
+            "actions": [{"type": "moveTo", "value": other_inbox}]
+        });
+
+        // Use rule_for_edit to build the rule as it would be after edit
+        let result = rule_for_edit(&s, existing, &params);
+        assert!(result.is_ok(), "rule_for_edit failed: {:?}", result);
+        let rule_after_edit = result.unwrap();
+
+        // Check rules_onto_another_server through the agent gate
+        let verdict = agent::check(&s, "rules.edit", &params, &[]);
+        // Should need owner's permission because it would file to another account's server
+        assert!(matches!(verdict, agent::Verdict::Ask(agent::Class::Send, _)));
     }
 }

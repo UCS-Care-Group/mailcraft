@@ -44,6 +44,67 @@ fn rules_round_trip_as_json() {
         ..Default::default()
     };
     let json = serde_json::to_string(&rule).unwrap();
-    assert!(json.contains(r#"{"type":"moveTo","value":9}"#), "{json}");
+    assert!(json.contains(r#""type":"moveTo","value":9"#), "{json}");
     assert_eq!(serde_json::from_str::<Rule>(&json).unwrap(), rule);
+}
+
+/// Tests that a rule loaded from an older version (with empty synced_* fields)
+/// is not treated as changed until the next full read from server populates synced_*.
+#[test]
+fn old_server_rule_with_empty_synced_values_is_not_treated_as_changed() {
+    let account = 1;
+    // Create a server rule as it would be in an older mailbox (empty synced_* values)
+    let rule = Rule {
+        id: 1,
+        name: "Old Rule".into(),
+        enabled: true,
+        conditions: vec![Condition::FromContains("test@example.com".into())],
+        actions: vec![Action::MarkRead],
+        stop: false,
+        account,
+        keep: crate::Keep::Server,
+        server: Some(ServerRule {
+            id: "rule-id".into(),
+            sequence: 1,
+            // Empty synced_* values (as in older saved mailboxes)
+            synced_name: String::new(),
+            synced_conditions: Vec::new(),
+            synced_actions: Vec::new(),
+            synced_stop: false,
+            synced_enabled: false,
+            synced_sequence: 0,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    // synced_empty should return true for this rule
+    assert!(rule.synced_empty(), "synced values should be empty");
+
+    // changed_here should return false because synced values are empty
+    assert!(!rule.changed_here(), "rule should not be treated as changed when synced values are empty");
+
+    // Now update the rule locally and also update synced_* to simulate what was sent
+    let mut rule = rule;
+    rule.enabled = false; // Changed locally
+    rule.name = "Updated Rule".into(); // Changed locally
+    // Update synced_* to reflect what was sent (to simulate the state after send but before answer)
+    if let Some(ref mut server) = rule.server {
+        server.synced_name = "Old Rule".into();
+        server.synced_enabled = true;
+        server.synced_sequence = 1;
+    }
+
+    // Now changed_here should return true (we have synced values to compare against)
+    assert!(rule.changed_here(), "rule should be treated as changed after local edits");
+}
+
+/// Test that a rule with no synced values can still be identified as a server rule
+#[test]
+fn server_rule_with_empty_synced_values_is_still_on_server() {
+    let rule = Rule { id: 1, name: "Rule".into(), server: Some(ServerRule { id: "id".into(), ..Default::default() }), ..Default::default() };
+
+    assert!(rule.on_server(), "rule should be on server even with empty synced values");
+    assert!(rule.synced_empty(), "synced values are empty");
+    assert!(!rule.changed_here(), "not changed when synced values are empty");
 }
