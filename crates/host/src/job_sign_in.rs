@@ -8,8 +8,10 @@
 //! sign-in of the account they are opened through), nothing of the answer is that account's: it
 //! is refused whole. Nothing of it is taken into the mailbox, the token is not kept, and the front
 //! end tells the owner in its own words, as it does for a sign-in of somebody else's anywhere
-//! (#103). [`crate::calendar_job::CalendarJobs::poll`] and [`crate::tasks_job::TasksJobs::poll`]
-//! apply it before anything is handed on.
+//! (#103). The jobs themselves apply it as soon as the sign-in is renewed, before anything goes
+//! up or is read ([`crate::tasks::run_with`], and the Graph run for a request that names its
+//! [`crate::graph::GraphRequest::signer`]); [`crate::calendar_job::CalendarJobs::poll`] and
+//! [`crate::tasks_job::TasksJobs::poll`] apply it again before anything is handed on.
 //!
 //! The address the tokens name is for the screen alone: never logged, never in a `Debug` output.
 

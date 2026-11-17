@@ -225,6 +225,8 @@ impl MailApp {
             mail: Some(mail),
             mail_pieces: Some(pieces),
             cancel: cancel.clone(),
+            // (Mail's runs: the window checks whose sign-in came back.)
+            signer: None,
         };
         let graph = self.services.graph.as_ref()?;
         if !check {

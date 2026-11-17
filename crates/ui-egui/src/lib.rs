@@ -3435,6 +3435,8 @@ impl MailApp {
         if !mailcraft_engine::sync_driver::signed_in_as_other(a, tokens) {
             return false;
         }
+        // (The sign-in's own progress words go: what is said now takes their place.)
+        self.session.sync_status.clear();
         self.say_signed_in_as_other(account, tokens.email.trim());
         true
     }
@@ -3449,7 +3451,7 @@ impl MailApp {
             tl!("You signed in as {signedIn}, but this account is {account}. Sign in again as {account}."),
             &[("signedIn", &forms::kit::shown(who.trim(), 120)), ("account", &forms::kit::shown(&email, 120))],
         );
-        self.session.sync_status.clear();
+        // (The Send/Receive progress is left as it is: a background job's refusal is not its end.)
         self.status(said.clone());
         said
     }
@@ -3607,6 +3609,8 @@ impl MailApp {
                     mail: None,
                     mail_pieces: None,
                     cancel: Default::default(),
+                    // (Mail's runs: the window checks whose sign-in came back.)
+                    signer: None,
                 };
                 self.session.sync_status = tl!("Sending…").to_string();
                 self.session.sync_progress.phase(account, SyncPhase::Sending);
@@ -3711,6 +3715,8 @@ impl MailApp {
             mail: Some(mail),
             mail_pieces: Some(pieces),
             cancel: self.services.sync_cancel.clone(),
+            // (Mail's runs: the window checks whose sign-in came back.)
+            signer: None,
         };
         self.resume_fetch();
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);

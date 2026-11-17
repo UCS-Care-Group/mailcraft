@@ -117,6 +117,8 @@ impl MailApp {
             mail: Some(mail),
             mail_pieces: Some(pieces),
             cancel: self.services.sync_cancel.clone(),
+            // (Mail's runs: the window checks whose sign-in came back.)
+            signer: None,
         };
         self.resume_fetch();
         if self.offline() {

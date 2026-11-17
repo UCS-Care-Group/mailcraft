@@ -552,6 +552,8 @@ impl SendReceive {
             mail: Some(plan.mail),
             mail_pieces: Some(pieces_tx),
             cancel: self.cancel.clone(),
+            // (Mail's runs: the window checks whose sign-in came back.)
+            signer: None,
         };
         session.sync_progress.phase(account, SyncPhase::Sending);
         let runner = self.runner.clone();

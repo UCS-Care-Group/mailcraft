@@ -24,4 +24,6 @@ mailcraft-net = { workspace = true }
 mailcraft-time = { workspace = true }
 
 [dev-dependencies]
+# The stand-in for Microsoft Graph, to show that a job sends nothing it must not.
+mailcraft-net = { workspace = true, features = ["stand-in"] }
 serde_json = { workspace = true }

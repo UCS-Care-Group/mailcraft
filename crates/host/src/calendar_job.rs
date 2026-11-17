@@ -42,10 +42,13 @@ impl std::fmt::Debug for CalendarAuth {
 
 /// The request for the calendar job `plan` says, with `auth`: its changes when it carries any, then
 /// the days asked for (the wide stretch with the contacts when it brings the directory, counted
-/// from this session's clock as its asks are). Nothing of the mail. `None` when the plan's account
-/// is gone.
+/// from this session's clock as its asks are). Nothing of the mail. The run is to check that a
+/// token it renews is the signer's ([`GraphRequest::signer`]): the account's own, or for a shared
+/// mailbox the owner's it is opened through. `None` when the plan's account (or that owner) is gone.
 pub fn calendar_request(session: &Session, plan: &CalendarPlan, auth: CalendarAuth) -> Option<GraphRequest> {
     let account = session.mailbox.account(plan.account)?.clone();
+    // A shared mailbox's calendars are read with the sign-in of the account it is opened through.
+    let signer = if account.is_shared() { session.mailbox.owner_of(plan.account)?.clone() } else { account.clone() };
     Some(GraphRequest {
         account,
         oauth: auth.oauth,
@@ -62,6 +65,7 @@ pub fn calendar_request(session: &Session, plan: &CalendarPlan, auth: CalendarAu
         mail: None,
         mail_pieces: None,
         cancel: Default::default(),
+        signer: Some(signer),
     })
 }
 
@@ -146,11 +150,9 @@ impl CalendarJobs {
         if self.running.is_some() {
             return false;
         }
-        // A shared mailbox's calendars are read with the sign-in of the account it is opened through.
-        let Some(account) = session.mailbox.account(plan.account) else { return false };
-        let signer = if account.is_shared() { session.mailbox.owner_of(plan.account) } else { Some(account) };
-        let Some(signer) = signer.cloned() else { return false };
         let Some(request) = calendar_request(session, plan, auth) else { return false };
+        // (Checked again here when the answer comes: the run checks it before anything goes up.)
+        let Some(signer) = request.signer.clone() else { return false };
         let Some(rx) = launch(request) else { return false };
         session.calendar_started(plan, now);
         self.running =

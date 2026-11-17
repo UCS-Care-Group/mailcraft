@@ -91,6 +91,9 @@ pub fn graph_in_with(
     };
     // (And for sending from a shared mailbox, when it has mail to send: #70.)
     let (request, opened) = opened_token(request, shared, renew_calendars);
+    if let Some(refused) = refused_for_sign_in(&request, opened.tokens.as_ref()) {
+        return refused;
+    }
     // (And a shared mailbox's calendar change that makes the server send mail from it.)
     let mut out = if shared_calendars {
         graph_sending_with(request, zone, renew, &oauth::refresh_graph_shared_calendars_send)
@@ -146,6 +149,17 @@ fn opened_token(
         }
     }
     (request, found)
+}
+
+/// The answer of a run whose renewed sign-in names somebody else than [`GraphRequest::signer`]:
+/// nothing done, and only those tokens, for the caller to say whose they were and refuse them
+/// whole ([`crate::calendar_job::CalendarJobs::poll`]). `None` when the run may go on: no signer
+/// to check, no token renewed, or the signer's own. (Logged without naming anybody.)
+fn refused_for_sign_in(request: &GraphRequest, tokens: Option<&Tokens>) -> Option<GraphResult> {
+    let signer = request.signer.as_ref()?;
+    crate::job_sign_in::foreign_sign_in(signer, tokens)?;
+    log::warn!("graph: the renewed sign-in is another account's; nothing sent or read");
+    Some(GraphResult { account: request.account.id, tokens: tokens.cloned(), ..Default::default() })
 }
 
 /// How a job gets a token for Microsoft Graph when the window handed it none: from the sign-in
@@ -264,6 +278,11 @@ pub fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_
                 return out;
             }
         }
+    }
+    // Every token this run is to use is had by now: when it is somebody else's, nothing goes up
+    // and nothing is read with it.
+    if let Some(refused) = refused_for_sign_in(&request, out.tokens.as_ref()) {
+        return refused;
     }
     let shared_address = request.account.shared_mailbox();
     let mut refused = false;

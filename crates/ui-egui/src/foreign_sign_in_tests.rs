@@ -98,3 +98,33 @@ fn a_to_do_answer_with_somebody_elses_sign_in_is_refused_whole() {
     assert_eq!(app.session.driver.tasks.perm.get(&owner), None, "nothing learnt from it");
     assert_eq!(app.status_msg.as_ref().map(|(m, _)| m.as_str()), Some(SAID));
 }
+
+#[test]
+fn a_background_jobs_refusal_leaves_the_send_receive_words_alone() {
+    // What Send/Receive says (here, that it waits for a sign-in) stays when a calendar or To Do
+    // job running beside it is refused for its sign-in: the refusal is said in the status bar.
+    let (mut app, owner) = window();
+    let waiting = "Waiting for you to sign in…".to_string();
+    app.session.sync_status = waiting.clone();
+    app.services.graph_tasks = Some(Box::new(|job: TasksJob| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(TasksResult { account: job.account.id, tokens: Some(theirs()), ..Default::default() }).unwrap();
+        rx
+    }));
+    assert!(app.tasks_tick_at(0.0), "a to-do job started");
+    app.poll_tasks();
+    assert_eq!(app.status_msg.as_ref().map(|(m, _)| m.as_str()), Some(SAID));
+    assert_eq!(app.session.sync_status, waiting, "a background job's refusal leaves it");
+    let said = app.say_signed_in_as_other(owner, STRANGER);
+    assert_eq!(said, SAID);
+    assert_eq!(app.session.sync_status, waiting, "saying it alone leaves it too");
+}
+
+#[test]
+fn a_sign_in_of_somebody_elses_still_ends_the_sign_ins_own_words() {
+    let (mut app, owner) = window();
+    app.session.sync_status = "Signing in…".into();
+    assert!(app.signed_in_as_other(owner, &theirs()));
+    assert!(app.session.sync_status.is_empty(), "the sign-in's progress words go");
+    assert_eq!(app.status_msg.as_ref().map(|(m, _)| m.as_str()), Some(SAID));
+}

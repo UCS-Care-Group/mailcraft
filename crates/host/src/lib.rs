@@ -19,6 +19,8 @@ pub mod init;
 mod init_tests;
 pub mod job_sign_in;
 #[cfg(test)]
+mod job_sign_in_run_tests;
+#[cfg(test)]
 mod job_sign_in_tests;
 pub mod jobs;
 #[cfg(test)]
