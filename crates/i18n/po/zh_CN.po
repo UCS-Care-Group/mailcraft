@@ -15585,6 +15585,12 @@ msgstr "无法读取该日历。"
 msgid "The calendar couldn't be added"
 msgstr "无法添加该日历"
 
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
+msgstr "无法更新日历：任务意外停止"
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy

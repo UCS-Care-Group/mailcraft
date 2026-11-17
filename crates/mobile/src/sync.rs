@@ -369,6 +369,17 @@ impl SyncHost {
         adopted
     }
 
+    /// The refresh token a sign-in for a permission brought, taken in as the account's newest
+    /// (only the refresh token: the access token it came with is not the mail's).
+    pub(crate) fn adopt_refresh(&self, session: &Session, account: u64, tokens: &Tokens) -> Adopted {
+        let mut inner = self.lock();
+        let secrets = self.host.platform().secrets();
+        let ctx = self.context(session, secrets.as_deref());
+        let adopted = inner.sr.adopt_refresh(session, &ctx, account, tokens);
+        self.note_keys(&mut inner);
+        adopted
+    }
+
     /// The account's refresh token as Send/Receive finds it: this session's first, then the
     /// credential store's when the owner lets sign-ins be remembered.
     pub(crate) fn refresh_for(&self, session: &Session, account: u64) -> Option<String> {

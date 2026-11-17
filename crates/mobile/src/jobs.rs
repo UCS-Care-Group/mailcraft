@@ -120,6 +120,9 @@ impl SyncHost {
         let mut answer = *answer;
         let account = answer.account;
         let mut errors = std::mem::take(&mut answer.result.errors);
+        if answer.stopped_early {
+            errors.insert(0, words("The calendar couldn't be brought up to date: the job stopped unexpectedly").to_string());
+        }
         if let Some(tokens) = answer.result.tokens.take() {
             self.keep_refresh(inner, session, account, &tokens, &mut errors);
         }

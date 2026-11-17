@@ -200,7 +200,7 @@ impl MailApp {
             }
             CalendarPolled::Answer(answer) => answer,
         };
-        let CalendarAnswer { account, carried, started, mut result, .. } = *answer;
+        let CalendarAnswer { account, carried, started, mut result, stopped_early } = *answer;
         // A shared mailbox's calendars (#70): their own token, and their own permission.
         let shared = self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_shared);
         if result.consent_needed {
@@ -210,6 +210,9 @@ impl MailApp {
             log::warn!("calendar, account {account}: the sign-in was refused; the next Send/Receive asks the owner");
         }
         let mut errors = std::mem::take(&mut result.errors);
+        if stopped_early {
+            errors.insert(0, tl!("The calendar couldn't be brought up to date: the job stopped unexpectedly").to_string());
+        }
         if result.token_refused {
             if shared {
                 self.shared_calendar_tokens.remove(&account);

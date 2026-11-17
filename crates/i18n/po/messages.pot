@@ -12925,6 +12925,11 @@ msgstr ""
 msgid "The calendar couldn't be added"
 msgstr ""
 
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
+msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "The calendar couldn't be taken in: {error}"

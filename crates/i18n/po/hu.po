@@ -15586,6 +15586,12 @@ msgstr "A naptárt nem sikerült beolvasni."
 msgid "The calendar couldn't be added"
 msgstr "A naptárt nem sikerült hozzáadni"
 
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
+msgstr "A naptárt nem sikerült frissíteni: a feladat váratlanul leállt"
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy

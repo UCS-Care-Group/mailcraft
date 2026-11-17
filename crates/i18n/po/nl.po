@@ -15609,6 +15609,12 @@ msgstr "De agenda kon niet worden gelezen."
 msgid "The calendar couldn't be added"
 msgstr "De agenda kon niet worden toegevoegd"
 
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
+msgstr "De agenda kon niet worden bijgewerkt: de taak stopte onverwacht"
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy

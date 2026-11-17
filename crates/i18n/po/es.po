@@ -15591,6 +15591,12 @@ msgstr "No se pudo leer el calendario."
 msgid "The calendar couldn't be added"
 msgstr "No se pudo añadir el calendario"
 
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "The calendar couldn't be brought up to date: the job stopped unexpectedly"
+msgstr "No se pudo actualizar el calendario: la tarea se detuvo inesperadamente"
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
