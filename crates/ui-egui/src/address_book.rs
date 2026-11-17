@@ -136,6 +136,11 @@ impl MailApp {
             if book.account != account || book.opening != opening {
                 *book = AddressBook::new(account, opening);
             }
+            // Something else typed: who was found for what was there before goes at once, before
+            // the list and the card are drawn again, and so does a look-up still out for it.
+            if book.owner != text {
+                book.clear();
+            }
             book.owner = text.to_string();
         }
         let _ = self.execute("people.search", json!({"query": text}));
@@ -173,6 +178,13 @@ impl MailApp {
         };
         let mut refused = None;
         let Some(book) = &mut self.address_book else { return };
+        // Something else in the box (a script changed it, or the owner typed): what was found for,
+        // or is being asked for, what was there before goes, and an answer for it that has come
+        // is not taken in, so that nobody found for that is written to or kept for this.
+        if typed != book.typed.0 {
+            book.typed = (typed.clone(), now);
+            book.clear();
+        }
         if let Some(pending) = &book.pending {
             match pending.rx.try_recv() {
                 Ok(result) => {
@@ -208,13 +220,6 @@ impl MailApp {
             self.ews_password_refused_with(account, &used);
         }
         let Some(book) = &mut self.address_book else { return };
-        // Something else typed: what was found for, or is being asked for, what was there before
-        // goes (an answer still to come for it is not taken in), so that nobody found for that is
-        // written to or kept for this.
-        if typed != book.typed.0 {
-            book.typed = (typed.clone(), now);
-            book.clear();
-        }
         if typed.chars().count() < MIN_CHARS {
             book.clear();
             return;
