@@ -220,6 +220,9 @@ mod security_fixtures_tests;
 mod security_tests;
 mod send_later;
 mod send_receive;
+mod send_warnings;
+#[cfg(test)]
+mod send_warnings_tests;
 mod sender_images;
 mod sending;
 pub mod server_search;
@@ -893,6 +896,9 @@ pub struct UiState {
     pub people_account_address: String,
     pub folder_pane_width: f32,
     pub list_width: f32,
+    /// The message list's height with the reading pane at the bottom, as the owner dragged it
+    /// (#1372; 0: a share of the window's height).
+    pub list_height: f32,
     /// Send/Receive Progress's width, and the height of its list of accounts (0: as tall as what
     /// it lists, up to a limit), as the owner dragged them (#145).
     pub sync_panel_width: f32,
@@ -1004,6 +1010,7 @@ impl Default for UiState {
             people_account_address: String::new(),
             folder_pane_width: 230.0,
             list_width: 380.0,
+            list_height: 0.0,
             sync_panel_width: sync_panel::WIDTH,
             sync_panel_height: 0.0,
             collapsed_folders: Vec::new(),
@@ -2070,6 +2077,8 @@ impl MailApp {
         self.ui.backstage_page = "info".into();
         self.ui.folder_pane_width = if self.ui.folder_pane_width.is_finite() { self.ui.folder_pane_width.clamp(150.0, 500.0) } else { 230.0 };
         self.ui.list_width = if self.ui.list_width.is_finite() { self.ui.list_width.clamp(240.0, 900.0) } else { 380.0 };
+        self.ui.list_height =
+            if self.ui.list_height.is_finite() && self.ui.list_height > 0.0 { self.ui.list_height.clamp(120.0, 4000.0) } else { 0.0 };
         (self.ui.sync_panel_width, self.ui.sync_panel_height) = sync_panel::sane_size(self.ui.sync_panel_width, self.ui.sync_panel_height);
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
@@ -2188,6 +2197,27 @@ impl MailApp {
         }
         if let Some(r) = files::intercept(self, id, &params) {
             return r;
+        }
+        // Before a message goes (#509): a recipient who looks like somebody the owner writes to,
+        // or people outside the organisation who would see each other.
+        // A yes holds for the message as it was asked about.
+        let params = if id == "compose.send" { send_warnings::settle(self, params) } else { params };
+        if id == "compose.send"
+            && let Some(ask) = send_warnings::question(self, &params)
+        {
+            let mut params = if params.is_object() { params } else { json!({}) };
+            // The message asked about is the one that goes, whichever is current when the owner answers.
+            if params.get("compose").is_none()
+                && let (Some(compose), Some(map)) = (self.session.compose_id(), params.as_object_mut())
+            {
+                map.insert("compose".into(), json!(compose));
+            }
+            let asked = send_warnings::asked_about(self, &params);
+            if let Some(map) = params.as_object_mut() {
+                map.insert(send_warnings::ASKED_ABOUT.into(), asked);
+            }
+            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
+            return Ok(json!({"pending": "confirm"}));
         }
         // What can't be taken back is asked about first, once.
         // (An answer to an invitation in the mail has a question of its own.)

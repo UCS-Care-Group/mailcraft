@@ -45,7 +45,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-/** Everything the shell draws, as plain values: it reads no core and no system service. */
+/**
+ * Everything the shell draws, as plain values: it reads no core and no system service. A bag of
+ * what the screens show, so it has a field for each.
+ */
 @Suppress("LongParameterList")
 internal class ShellData(
     val accounts: List<AccountItem>,
@@ -55,6 +58,12 @@ internal class ShellData(
     val version: String,
     /** The language the owner chose in the app: its code, or "" for the system's. */
     val chosenLanguage: String,
+    /** What the Today tab shows. */
+    val today: TodayState = TodayState.Loading,
+    /** What the People tab shows. */
+    val people: PeopleData = PeopleData("", PeopleState.Loading),
+    /** What the Tasks tab shows. */
+    val tasks: TasksData = TasksData(TasksState.Loading),
     /** What the account screens draw besides the list of accounts. */
     val accountsUi: AccountsUi = AccountsUi(),
     /** What the Settings pages draw besides the accounts. */
@@ -112,6 +121,13 @@ internal class ShellActions(
     val onPictures: (PicturePrefs) -> Unit = {},
     val onClearPictures: () -> Unit = {},
     val writing: WritingActions = WritingActions(),
+    val organiser: OrganiserActions = OrganiserActions(),
+)
+
+/** What the People and Tasks tabs (and Today's cards that open them) ask of the app. */
+internal class OrganiserActions(
+    val people: PeopleActions = PeopleActions(),
+    val tasks: TasksActions = TasksActions(),
 )
 
 /** What the shell asks of the message being written: the composer's own, a new message, a line said. */
@@ -276,20 +292,56 @@ private fun ShellScreen(
             snackbar = snackbar,
             onNewMessage = if (nav.tab == Tab.Mail && nav.message == null) actions.writing.onNewMessage else null,
         ) { modifier, expanded ->
-            when (nav.tab) {
-                // (No account is said only after a read that worked and found none.)
-                Tab.Mail -> if (data.accounts.isEmpty() && data.outline == OutlineStatus.Ready) {
-                    NoAccount(texts, onAdd = { onNav(nav.openAddAccount()) }, modifier = modifier)
-                } else {
-                    val opening = actions.mail.withOpen { row -> onNav(nav.openMessage(row.id)) }
-                    MailTab(texts, data, actions.copy(mail = opening), modifier, expanded, nav.messageId)
-                }
-                Tab.Calendar -> calendar?.let { CalendarScreen(texts, it.state, it.actions, modifier) }
-                    ?: Centered(texts.t("Pending development"), modifier)
-                else -> Centered(texts.t("Pending development"), modifier)
-            }
+            TabBody(texts, data, actions, calendar, nav, onNav, modifier, expanded)
         }
     }
+}
+
+/** What the tab on show draws. */
+@Composable
+@Suppress("LongParameterList")
+private fun TabBody(
+    texts: Texts,
+    data: ShellData,
+    actions: ShellActions,
+    calendar: CalendarPane?,
+    nav: NavState,
+    onNav: (NavState) -> Unit,
+    modifier: Modifier,
+    expanded: Boolean,
+) {
+    when (nav.tab) {
+        // (No account is said only after a read that worked and found none.)
+        Tab.Mail -> if (data.accounts.isEmpty() && data.outline == OutlineStatus.Ready) {
+            NoAccount(texts, onAdd = { onNav(nav.openAddAccount()) }, modifier = modifier)
+        } else {
+            val opening = actions.mail.withOpen { row -> onNav(nav.openMessage(row.id)) }
+            MailTab(texts, data, actions.copy(mail = opening), modifier, expanded, nav.messageId)
+        }
+        Tab.Calendar -> calendar?.let { CalendarScreen(texts, it.state, it.actions, modifier) }
+            ?: Centered(texts.t("Pending development"), modifier)
+        Tab.Today -> TodayTab(texts, data, actions.organiser.tasks, modifier) { onNav(nav.select(it)) }
+        Tab.People -> PeopleScreen(texts, data.people, actions.organiser.people, modifier)
+        Tab.Tasks -> TasksScreen(texts, data.tasks, actions.organiser.tasks, modifier)
+    }
+}
+
+/** The Today tab. Its cards open the tab of what they show. */
+@Composable
+private fun TodayTab(texts: Texts, data: ShellData, tasks: TasksActions, modifier: Modifier, go: (Tab) -> Unit) {
+    TodayScreen(
+        texts,
+        data.today,
+        TodayActions(
+            onMail = { go(Tab.Mail) },
+            onEvent = { go(Tab.Calendar) },
+            onTask = {
+                tasks.onOpen(it)
+                go(Tab.Tasks)
+            },
+        ),
+        modifier,
+    )
 }
 
 /** The questions that float over whatever screen is showing: a permission to ask for, an account to remove. */
@@ -433,7 +485,7 @@ private fun isDraft(data: ShellData): Boolean {
 private fun ShellActions.copy(mail: MailListActions) =
     ShellActions(
         onFolder, onLanguage, accounts, settings, mail, onSwipe, reading, onPictures, onClearPictures,
-        writing,
+        writing, organiser,
     )
 
 @Composable
