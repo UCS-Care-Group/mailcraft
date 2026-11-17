@@ -19672,7 +19672,7 @@ msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Ou
 msgstr "您的组织不允许 MailCraft 将此邮箱与 Outlook 同步"
 
 #. interface
-#: crates/ui-egui/src/server_sync.rs
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
 msgstr "您的组织不允许 MailCraft 读取共享邮箱和与您共享的日历"

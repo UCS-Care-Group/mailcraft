@@ -2223,7 +2223,7 @@ fn tasks_are_an_extra_of_a_new_sign_ins_page_and_never_what_its_tokens_are_for()
         assert_eq!(sync.split(' ').any(|s| s == "https://graph.microsoft.com/Mail.ReadWrite"), mail_write, "{sync}");
         // The one question's page asks for exactly that, and puts the shared mailboxes' and
         // calendars' permissions to the owner beside it (one_page_tests.rs).
-        let page = sync_endpoints(&oauth(), mail_write);
+        let page = sync_endpoints(&oauth(), "ada@example.org", mail_write);
         assert_eq!((page.scope.as_str(), page.consent.as_str(), page.lesser.as_str()), (sync.as_str(), SHARED_ALL, ""));
         let plain = Endpoints::for_resource(&oauth(), if mail_write { Resource::GraphMail } else { Resource::Graph });
         assert_eq!((page.authorize, page.token), (plain.authorize, plain.token));

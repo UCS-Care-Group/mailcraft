@@ -278,7 +278,10 @@ impl MailApp {
                 self.rules_allowed(account);
                 self.auto_replies_allowed(account);
                 self.categories_allowed(account);
-                if let Some(said) = self.shared_sync_allowed(account, read) {
+                // (A page that came back without the shared permissions didn't have them for this
+                // account: they are not allowed, and it is not put again for them by itself.)
+                let said = if tokens.shared_not_given { self.shared_sync_not_given(account, read) } else { self.shared_sync_allowed(account, read) };
+                if let Some(said) = said {
                     not_read(self, said);
                 }
                 return;

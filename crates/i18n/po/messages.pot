@@ -16321,7 +16321,7 @@ msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Ou
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/server_sync.rs
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
 msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
 msgstr ""
 

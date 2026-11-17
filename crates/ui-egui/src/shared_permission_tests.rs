@@ -69,6 +69,24 @@ fn the_one_question_says_its_page_asks_for_the_shared_mailboxes_too_except_of_a_
 }
 
 #[test]
+fn an_account_of_unknown_directory_is_personal_when_its_tenant_or_its_address_says_so() {
+    let (mut app, owner, _) = window(Directory::Unknown);
+    assert!(app.shared_on_page(owner));
+    let set = |app: &mut MailApp, tenant: &str, email: &str| {
+        if let Some(a) = app.session.mailbox.accounts.iter_mut().find(|a| a.id == owner) {
+            a.email = email.into();
+            if let Some(oauth) = a.oauth.as_mut() {
+                oauth.tenant = tenant.into();
+            }
+        }
+    };
+    set(&mut app, "consumers", OWNER);
+    assert!(!app.shared_on_page(owner));
+    set(&mut app, "", "ada@outlook.com");
+    assert!(!app.shared_on_page(owner));
+}
+
+#[test]
 fn file_infos_part_for_shared_mailboxes_shows_only_while_something_of_them_waits() {
     let (mut app, owner, shared) = window(Directory::Organisation);
     assert!(app.session.mailbox.account(shared).is_some_and(|a| a.is_shared()));

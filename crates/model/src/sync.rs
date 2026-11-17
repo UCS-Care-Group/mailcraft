@@ -240,6 +240,11 @@ pub struct Tokens {
     /// identity token says it, and it tells an organisation's account from a personal one
     /// ([`crate::Directory::of_tenant`]). An identifier, not a secret; kept in memory like the rest.
     pub tenant: String,
+    /// Set by the one page for an older sign-in when it came back without the shared mailboxes'
+    /// and calendars' permissions (the account can't have them, so the page was asked again
+    /// without them): the tokens are good for everything else, and nobody may take them for
+    /// allowed to read or send from a shared mailbox.
+    pub shared_not_given: bool,
 }
 
 /// How long before an access token runs out it is renewed rather than used (seconds).

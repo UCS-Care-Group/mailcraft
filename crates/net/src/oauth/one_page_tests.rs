@@ -120,7 +120,7 @@ fn one_approval_is_exactly_what_the_pages_ask_and_the_favorites() {
         }
     }
     for mail_write in [false, true] {
-        let page = sync_endpoints(&oauth(), mail_write);
+        let page = sync_endpoints(&oauth(), "ada@example.org", mail_write);
         asked.extend(words(&format!("{} {}", page.scope, page.consent)));
     }
     asked.extend(FAVORITES.iter().map(|p| p.to_string()));
@@ -163,9 +163,17 @@ fn an_organisation_that_wants_an_administrator_for_the_new_permissions_still_sig
 #[test]
 fn the_one_page_for_an_older_sign_in_asks_for_the_shared_permissions_too_but_not_of_a_personal_account() {
     for mail_write in [false, true] {
-        for (directory, shared) in [(Directory::Unknown, true), (Directory::Organisation, true), (Directory::Personal, false)] {
-            let settings = OAuth { directory, ..oauth() };
-            let page = sync_endpoints(&settings, mail_write);
+        // (An account whose directory isn't known yet is a personal one when its tenant or its
+        // address says so: Outlook.com's own.)
+        for (directory, tenant, email, shared) in [
+            (Directory::Unknown, "", "ada@example.org", true),
+            (Directory::Organisation, "", "ada@example.org", true),
+            (Directory::Personal, "", "ada@example.org", false),
+            (Directory::Unknown, "consumers", "ada@example.org", false),
+            (Directory::Unknown, "", "ada@outlook.com", false),
+        ] {
+            let settings = OAuth { directory, tenant: tenant.into(), ..oauth() };
+            let page = sync_endpoints(&settings, email, mail_write);
             for permission in [SHARED_MAIL, SHARED_SEND, SHARED_CALENDARS] {
                 assert_eq!(has(&page.consent, permission), shared, "{directory:?}: {}", page.consent);
                 // The tokens are never for them: a shared mailbox's job asks for its own.
@@ -180,15 +188,20 @@ fn the_one_page_for_an_older_sign_in_asks_for_the_shared_permissions_too_but_not
 
 #[test]
 fn the_one_page_is_asked_again_without_the_shared_permissions_only_when_they_cant_be_had() {
-    let page = |server: &FakeHttp| at(server, sync_endpoints(&oauth(), true));
+    let page = |server: &FakeHttp| at(server, sync_endpoints(&oauth(), "ada@example.org", true));
     // No such permissions for this account: once more without them.
     let server = FakeHttp::answering(json_answer("200 OK", TOKENS));
     let (back, open, pages) = answering(&[NO_SUCH_SCOPE, YES]);
     let got = sync_page_within(&page(&server), &oauth(), "ada@example.org", &*open, &AtomicBool::new(false), PATIENCE, &via(&*back));
-    assert!(got.is_ok(), "{got:?}");
+    assert!(got.as_ref().is_ok_and(|tokens| tokens.shared_not_given), "tokens of a page asked again without the shared permissions say so: {got:?}");
     let pages = pages.lock().unwrap().clone();
     assert_eq!(pages.len(), 2);
     assert!(has(&pages[0], SHARED_MAIL) && !pages[1].contains("Shared") && has(&pages[1], TASKS), "{pages:?}");
+    // Given, they say nothing of the kind.
+    let server = FakeHttp::answering(json_answer("200 OK", TOKENS));
+    let (back, open, _) = answering(&[YES]);
+    let got = sync_page_within(&page(&server), &oauth(), "ada@example.org", &*open, &AtomicBool::new(false), PATIENCE, &via(&*back));
+    assert!(got.as_ref().is_ok_and(|tokens| !tokens.shared_not_given), "{got:?}");
     // An administrator has to approve: said as such, and not asked again without them (the
     // owner is told what to do next; an approval covers all of it).
     let server = FakeHttp::answering(json_answer("200 OK", TOKENS));

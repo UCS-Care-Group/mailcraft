@@ -19684,7 +19684,7 @@ msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Ou
 msgstr "Su organización no permite que MailCraft sincronice este buzón con Outlook"
 
 #. interface
-#: crates/ui-egui/src/server_sync.rs
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
 msgstr "Su organización no permite que MailCraft lea los buzones compartidos ni los calendarios compartidos con usted"

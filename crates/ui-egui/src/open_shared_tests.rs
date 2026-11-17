@@ -163,6 +163,22 @@ fn a_no_takes_off_what_was_never_read_and_an_approval_has_its_page() {
 }
 
 #[test]
+fn a_calendar_opened_while_another_dialog_is_up_is_answered_not_left_waiting() {
+    let (mut app, owner, answers, _, sign_ins) = window(Ok(tokens("x", "y")));
+    answers.lock().unwrap().push_back(GraphResult { shared_calendars_consent_needed: true, ..Default::default() });
+    app.begin_open_shared(owner, CY).unwrap();
+    // Another dialog took the window before the job answered.
+    app.dialog = Some(crate::dialogs::Dialog::About(Default::default()));
+    job(&mut app);
+    // The request is finished with a no that says why, and nothing is left waiting.
+    assert!(app.open_shared.waiting.is_none());
+    let Some(Err(said)) = app.open_shared.outcome.clone() else { panic!("the request has an outcome") };
+    assert!(said.contains("need your permission"), "{said}");
+    assert!(app.session.mailbox.account(owner).unwrap().opened_calendars.is_empty());
+    assert!(sign_ins.lock().unwrap().is_empty());
+}
+
+#[test]
 fn a_job_that_starts_by_itself_says_so_in_a_line_and_never_asks_twice() {
     let (mut app, owner, answers, _, sign_ins) = window(Ok(tokens("x", "y")));
     // (An entry that was opened earlier, whose permission is missing now.)

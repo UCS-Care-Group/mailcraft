@@ -19660,7 +19660,7 @@ msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Ou
 msgstr "La tua organizzazione non consente a MailCraft di sincronizzare questa cassetta postale con Outlook"
 
 #. interface
-#: crates/ui-egui/src/server_sync.rs
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
 msgstr "La tua organizzazione non consente a MailCraft di leggere le cassette postali condivise e i calendari condivisi con te"

@@ -1002,15 +1002,15 @@ pub fn sign_in_for_sync(
     open: &dyn Fn(&str),
     cancel: &AtomicBool,
 ) -> Result<Tokens, FavoritesRefusal> {
-    sync_page_within(&sync_endpoints(oauth, mail_write), oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, &RedirectStrategy::Loopback)
+    sync_page_within(&sync_endpoints(oauth, login_hint, mail_write), oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, &RedirectStrategy::Loopback)
 }
 
 /// The page and the tokens [`sign_in_for_sync`] asks for: [`sync_scope`] for the tokens, and the
 /// shared mailboxes' and calendars' permissions put to the owner beside them, unless the account
 /// is a personal one (Microsoft has no shared mailboxes for those).
-fn sync_endpoints(oauth: &OAuth, mail_write: bool) -> Endpoints {
+fn sync_endpoints(oauth: &OAuth, email: &str, mail_write: bool) -> Endpoints {
     let plain = Endpoints::for_resource(oauth, if mail_write { Resource::GraphMail } else { Resource::Graph });
-    let consent = if oauth.directory == mailcraft_model::Directory::Personal { String::new() } else { MICROSOFT_GRAPH_SHARED_ALL.to_string() };
+    let consent = if oauth.is_personal(email) { String::new() } else { MICROSOFT_GRAPH_SHARED_ALL.to_string() };
     Endpoints { scope: sync_scope(mail_write), consent, fewer: String::new(), lesser: String::new(), ..plain }
 }
 
@@ -1027,16 +1027,21 @@ fn sync_page_within(
     via: &RedirectStrategy,
 ) -> Result<Tokens, FavoritesRefusal> {
     let consent = endpoints.consent.trim();
+    let mut without_shared = consent.is_empty();
     let outcome = match attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via) {
         // (No such permissions for this kind of account, in either of Microsoft's ways of saying so.)
         Err(refused)
             if !consent.is_empty() && (refused.policy == Policy::Account || (refused.about == About::Scope && refused.policy == Policy::None)) =>
         {
             log::debug!("the one page was refused for what it asked for; asking again without the shared mailboxes' permissions");
+            without_shared = true;
             attempt_via(endpoints, "", oauth, login_hint, open, cancel, patience, via)
         }
         outcome => outcome,
     };
+    // (Tokens of a page that was not given the shared permissions say so, so that nobody takes
+    // them for allowed to use a shared mailbox: that would only ask for the page again.)
+    let outcome = outcome.map(|tokens| Tokens { shared_not_given: without_shared, ..tokens });
     outcome.map_err(|refused| match (refused.policy, refused.about) {
         (Policy::Approval, _) => FavoritesRefusal::Approval,
         (Policy::Blocked, _) => FavoritesRefusal::Organisation,

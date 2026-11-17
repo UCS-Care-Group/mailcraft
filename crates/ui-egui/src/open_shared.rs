@@ -176,7 +176,12 @@ impl MailApp {
         if asked_for && self.signing_in.is_none() && self.dialog.is_none() && self.ask_sync_again(account) {
             return;
         }
-        self.status(tl!("Calendars you opened by address need your permission to be read: open one again to be asked").to_string());
+        let said = tl!("Calendars you opened by address need your permission to be read: open one again to be asked").to_string();
+        // (A request the owner just made is answered, not left waiting: another dialog is up.)
+        if asked_for {
+            self.opened_not_allowed(account, said.clone());
+        }
+        self.status(said);
         self.open_shared.declined.insert(account);
     }
 

@@ -127,6 +127,35 @@ fn a_shared_mailbox_is_read_with_its_owners_sign_in_and_its_permission_is_asked_
 }
 
 #[test]
+fn a_page_that_came_back_without_the_shared_permissions_opens_no_second_page() {
+    let (mut app, owner, answers, jobs, sign_ins) = window();
+    let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();
+    // The page was refused for the shared permissions and asked again without them: its tokens
+    // are good for the rest, and say so.
+    let log = sign_ins.clone();
+    app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
+        log.lock().unwrap().push((req.account, req.graph, req.sync, req.email.clone()));
+        let (tx, rx) = mpsc::channel();
+        tx.send(Ok(Tokens { email: OWNER.into(), shared_not_given: true, ..tokens("shared-access", "ref-2") })).unwrap();
+        rx
+    }));
+    // Every run of the shared mailbox finds the token doesn't cover it.
+    for _ in 0..3 {
+        answers.lock().unwrap().push_back((GraphResult { account: shared, consent_needed: true, ..Default::default() }, Vec::new()));
+    }
+    app.execute("ui.sync", json!({"account": shared})).unwrap();
+    app.poll_graph();
+    assert_eq!(sign_ins.lock().unwrap().len(), 1, "the one page");
+    app.poll_sign_in();
+    app.poll_graph();
+    assert_eq!(jobs.lock().unwrap().len(), 1, "not allowed: nothing is run again by itself");
+    assert_eq!(sign_ins.lock().unwrap().len(), 1, "and no second page");
+    assert!(app.status_msg.as_ref().is_some_and(|(said, _)| said.contains("doesn't let MailCraft read shared mailboxes")), "{:?}", app.status_msg);
+    assert!(!app.shared_checking.contains(&shared) && owner != shared);
+    no_imap();
+}
+
+#[test]
 fn a_shared_mailbox_the_server_wont_open_waits_for_the_owner_to_ask() {
     let (mut app, _, answers, jobs, sign_ins) = window();
     let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();

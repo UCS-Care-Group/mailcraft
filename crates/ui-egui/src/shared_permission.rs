@@ -30,8 +30,8 @@ impl MailApp {
     /// Whether the one page puts the shared mailboxes' and calendars' permissions to the owner of
     /// `account`: Microsoft has none for a personal account.
     pub(crate) fn shared_on_page(&self, account: Id) -> bool {
-        let oauth = self.session.mailbox.account(account).and_then(|a| a.oauth.as_ref());
-        oauth.is_some_and(|o| o.directory != mailcraft_model::Directory::Personal)
+        let account = self.session.mailbox.account(account);
+        account.is_some_and(|a| a.oauth.as_ref().is_some_and(|o| !o.is_personal(&a.email)))
     }
 
     /// Whether something of `owner`'s shared mailboxes or of the calendars shared with him waits
@@ -124,6 +124,17 @@ impl MailApp {
         self.opened_allowed(owner);
         let run = read.filter(|r| self.session.mailbox.account(*r).is_some()).or(to_send)?;
         self.start_sync(&json!({"account": run})).err()
+    }
+
+    /// The page came back without the shared mailboxes' and calendars' permissions: the account
+    /// can't have them. What waited for them is held as refused (nothing is run again, so no page
+    /// opens again), and `Some(why)` says so when a mailbox was asked to be read or something of
+    /// them waited.
+    pub(crate) fn shared_sync_not_given(&mut self, owner: Id, read: Option<Id>) -> Option<String> {
+        let waited = read.is_some() || !self.shared_of(owner).is_empty() || self.opened_waiting_for(owner);
+        let said = tl!("Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you").to_string();
+        self.shared_sync_refused(owner, &said, "organisation");
+        waited.then_some(said)
     }
 
     /// The shared mailboxes' and the calendars' part of File › Info's line about keeping in step
