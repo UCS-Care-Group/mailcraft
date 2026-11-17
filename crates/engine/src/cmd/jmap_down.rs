@@ -330,20 +330,15 @@ pub(crate) fn take_window(mb: &mut Mailbox, index: &mut ServerIndex, account: Id
             _ => None,
         })
         .collect();
-    window.messages.retain_mut(|there| {
+    window.messages.retain(|there| {
         if going.contains(&there.server.id) {
             return false;
         }
         if more_than_marks(there) {
             return true;
         }
-        match index.find(mb, account, &there.server.id).and_then(|id| mb.message(id)) {
-            Some(here) => {
-                there.has_attachments = here.attachments_on_server;
-                true
-            }
-            None => false,
-        }
+        // It says nothing of attachments (`None`), which leaves them as they are (#575).
+        index.find(mb, account, &there.server.id).and_then(|id| mb.message(id)).is_some()
     });
     graph_down::take_page(mb, index, account, &window, down);
 }

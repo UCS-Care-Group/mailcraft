@@ -55,6 +55,12 @@ pub fn is_picture_part(a: &Attachment) -> bool {
     if a.is_loaded() {
         return is_picture(&a.data);
     }
+    declares_picture(a)
+}
+
+/// Whether `a` says it is a picture, by its declared type alone: the same whether its bytes are
+/// in memory or not.
+pub fn declares_picture(a: &Attachment) -> bool {
     let mime = a.mime.trim().to_ascii_lowercase();
     matches!(mime.as_str(), "image/png" | "image/jpeg" | "image/jpg" | "image/pjpeg" | "image/gif" | "image/webp")
 }

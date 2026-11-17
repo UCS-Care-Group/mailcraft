@@ -169,3 +169,24 @@ fn a_message_that_isnt_signed_has_no_bar() {
     assert!(harness.state().hit.rect("digitalSignature", ids[0]).is_none());
     assert!(harness.state().hit.rect("messageSignature", ids[0]).is_none());
 }
+
+/// #575 review: in the list laid out in columns, a signed message's row wears its seal in the From
+/// cell, after the warning (#508), before it is opened.
+#[test]
+fn in_columns_the_row_wears_the_seal_after_the_warning() {
+    let (mut harness, ids) = window(&[DETACHED.to_vec(), SHA1.to_vec()], true);
+    // A name that carries another address marks the row (#508); the address signed for stays.
+    harness.state_mut().session.mailbox.message_mut(ids[0]).unwrap().from.name = "billing@bank.example".into();
+    harness.state_mut().execute("view.readingPane", json!({"value": "off"})).unwrap();
+    harness.state_mut().execute("view.columns", json!({"enabled": true})).unwrap();
+    harness.run_steps(6);
+    let state = harness.state();
+    for &id in &ids {
+        let from = state.hit.rect("messageColumn", id * 16 + mailcraft_engine::columns::Column::From as u64).expect("laid out in columns");
+        let seal = state.hit.rect("messageSignature", id).expect("the row wears the seal");
+        assert!(from.contains_rect(seal), "{from:?} {seal:?}");
+    }
+    let warning = state.hit.rect("messageWarning", ids[0]).expect("the warning");
+    assert!(warning.max.x <= state.hit.rect("messageSignature", ids[0]).unwrap().min.x, "the seal comes after the warning");
+    assert!(state.hit.rect("messageWarning", ids[1]).is_none());
+}

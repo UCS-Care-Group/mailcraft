@@ -207,12 +207,16 @@ fn a_new_kind_of_warning_shows_the_dismissed_banner_again() {
 #[test]
 fn only_a_failed_check_or_a_hidden_address_marks_the_row() {
     let mut harness = window();
-    harness.run_steps(2);
-    let state = harness.state();
-    for (subject, marked) in [("Failed", true), ("Hidden", true), ("Lookalike", false), ("Link", false), ("Plain", false), ("Colleague", false)] {
-        let id = id(&harness, subject);
-        assert!(state.hit.rect("message", id).is_some(), "{subject} is not on screen");
-        assert_eq!(state.hit.rect("messageWarning", id).is_some(), marked, "{subject}");
+    // The same in the list laid out in columns (#344).
+    for columns in [false, true] {
+        harness.state_mut().execute("view.columns", json!({"enabled": columns})).unwrap();
+        harness.run_steps(2);
+        let state = harness.state();
+        for (subject, marked) in [("Failed", true), ("Hidden", true), ("Lookalike", false), ("Link", false), ("Plain", false), ("Colleague", false)] {
+            let id = id(&harness, subject);
+            assert!(state.hit.rect("message", id).is_some(), "{subject} is not on screen");
+            assert_eq!(state.hit.rect("messageWarning", id).is_some(), marked, "{subject}, columns {columns}");
+        }
     }
 }
 

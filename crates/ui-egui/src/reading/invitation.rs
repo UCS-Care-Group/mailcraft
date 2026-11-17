@@ -325,13 +325,11 @@ fn glance(data: &[u8]) -> Option<&'static str> {
 }
 
 /// What the message list marks a message with: the icon of the meeting mail it is (a request, a
-/// cancellation, an answer), and whether it has files besides the calendar part that makes it so.
+/// cancellation, an answer), and whether it has files besides the calendar part that makes it so
+/// (the engine's rule, which arranging by attachments goes by too).
 pub(crate) fn list_marks(m: &Message) -> (Option<&'static str>, bool) {
-    let Some((index, part)) = m.attachments.iter().enumerate().find(|(_, part)| is_calendar(part)) else { return (None, m.has_attachments()) };
-    match glance(&part.data) {
-        Some(mark) => (Some(mark), m.listed_attachments().any(|(other, _)| other != index)),
-        None => (None, m.has_attachments()),
-    }
+    let meeting = m.attachments.iter().find(|part| is_calendar(part)).and_then(|part| glance(&part.data));
+    (meeting, mailcraft_engine::columns::has_files(m))
 }
 
 /// Whether an attachment of a message is the calendar part its bar stands for: that one is not

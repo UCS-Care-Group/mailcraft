@@ -81,7 +81,17 @@ pub(super) fn height(app: &MailApp, local: &HashSet<Id>, row_h: f32) -> f32 {
 
 /// Draw what is below the local results from `top` down, in the list's columns (`width` wide
 /// from `left`), the part in `viewport` only.
-pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f32, top: f32, width: f32, row_h: f32, viewport: Rect) {
+pub(super) fn show(
+    app: &mut MailApp,
+    ui: &mut Ui,
+    local: &HashSet<Id>,
+    left: f32,
+    top: f32,
+    width: f32,
+    row_h: f32,
+    viewport: Rect,
+    in_columns: bool,
+) {
     let t = Tokens::get(ui.ctx());
     let mut y = top;
     for line in lines(app, local) {
@@ -112,7 +122,7 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
                 }
                 app.hit.add("serverProblem", 0, rect);
             }
-            Line::Result(i) => result_row(app, ui, i, rect),
+            Line::Result(i) => result_row(app, ui, i, rect, in_columns),
         }
     }
 }
@@ -152,7 +162,7 @@ fn link_line(app: &mut MailApp, ui: &mut Ui, rect: Rect, link: Link) {
 }
 
 /// One server result, as a row of the list.
-fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
+fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect, in_columns: bool) {
     let t = Tokens::get(ui.ctx());
     let Some(r) = app.session.server_search.results.get(index).cloned() else { return };
     let m = mailcraft_engine::cmd::search_server::as_message(r.account, r.folder, &r.found);
@@ -172,60 +182,70 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     }
     let rule = t.rule;
     p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
-    let left = rect.min.x + TEXT_LEFT;
-    let (time_end, text_end) = (rect.max.x - TIME_RIGHT, rect.max.x - TEXT_RIGHT);
-    let (line1, line2) = (rect.min.y + SENDER_Y, rect.min.y + SUBJECT_Y);
-    // The marks at the right of the sender's line: the flag in its column, the rest before it.
-    let mut x = time_end;
-    let flag = Rect::from_center_size(pos2(rect.max.x - 14.0, line1), vec2(12.0, 12.0));
-    match m.flag {
-        FlagStatus::Flagged => icons::paint(p, flag, "flag", t.icon, t.accent),
-        FlagStatus::Complete => icons::paint(p, flag, "complete", t.icon, t.accent),
-        FlagStatus::None => {}
+    if in_columns {
+        super::columns::paint(app, ui, &m, rect, unread, 1, false, true);
+    } else {
+        let left = rect.min.x + TEXT_LEFT;
+        let (time_end, text_end) = (rect.max.x - TIME_RIGHT, rect.max.x - TEXT_RIGHT);
+        let (line1, line2) = (rect.min.y + SENDER_Y, rect.min.y + SUBJECT_Y);
+        // The marks at the right of the sender's line: the flag in its column, the rest before it.
+        let mut x = time_end;
+        let flag = Rect::from_center_size(pos2(rect.max.x - 14.0, line1), vec2(12.0, 12.0));
+        match m.flag {
+            FlagStatus::Flagged => icons::paint(p, flag, "flag", t.icon, t.accent),
+            FlagStatus::Complete => icons::paint(p, flag, "complete", t.icon, t.accent),
+            FlagStatus::None => {}
+        }
+        let mut marker = |icon: &str, color| {
+            icons::paint(p, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)), icon, color, t.accent);
+            x -= 15.0;
+        };
+        if m.has_attachments() {
+            marker("attach", t.text_dim);
+        }
+        match m.importance {
+            Importance::High => marker("highImportance", t.icon),
+            Importance::Low => marker("lowImportance", t.icon),
+            Importance::Normal => {}
+        }
+        let who = m.from.display().to_string();
+        let who_font = if unread { semibold(SENDER_TEXT) } else { regular(SENDER_TEXT) };
+        paint_clipped(p, pos2(left, line1), (text_end.min(x - 4.0) - left).max(0.0), &who, who_font, t.text);
+        let date = crate::dates::list_label(
+            mailcraft_engine::list::when(&m),
+            app.session.now(),
+            app.session.offset_at(m.date),
+            app.session.prefs.twelve_hour,
+        );
+        let (font, color) = if unread { (semibold(LIST_TEXT), t.accent_text) } else { (regular(LIST_TEXT), t.text) };
+        let date_w = p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, font.clone(), color).width();
+        // In a search of every mailbox the folder it is in, under the time (or before it, with no
+        // preview), then its categories; its preview before them.
+        let lines = app.session.prefs.preview_lines;
+        let preview_y = rect.min.y + PREVIEW_TOP + 7.0;
+        let (mut sx, tail_y) = if lines > 0 { (time_end, preview_y) } else { (time_end - date_w - 8.0, line2) };
+        if let Some(folder) = super::shows_folder(&app.session).then(|| app.session.mailbox.folder(r.folder)).flatten() {
+            let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
+            sx = super::paint_result_folder(p, pos2(sx, tail_y), &label, &t) - 6.0;
+            app.hit.add("serverResultFolder", index as u64, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(time_end, tail_y + 7.0)));
+        }
+        for c in m.categories.iter().take(4) {
+            let color = crate::theme::c32(app.session.mailbox.category_color_of(m.account, c));
+            p.rect_filled(Rect::from_center_size(pos2(sx - 5.0, tail_y), vec2(10.0, 10.0)), 2.0, color);
+            sx -= 13.0;
+        }
+        let subject_end = if lines > 0 { text_end.min(time_end - date_w - 8.0) } else { text_end.min(sx - 6.0) };
+        let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
+        paint_clipped(p, pos2(left, line2), (subject_end - left).max(0.0), subject, font, color);
+        if lines > 0 {
+            let end = text_end.min(sx - 6.0);
+            let preview: String = m.body.text.split_whitespace().collect::<Vec<_>>().join(" ");
+            paint_clipped(p, pos2(left, preview_y), (end - left).max(0.0), &preview, regular(LIST_TEXT), t.text_dim);
+        }
     }
-    let mut marker = |icon: &str, color| {
-        icons::paint(p, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)), icon, color, t.accent);
-        x -= 15.0;
-    };
-    if m.has_attachments() {
-        marker("attach", t.text_dim);
-    }
-    match m.importance {
-        Importance::High => marker("highImportance", t.icon),
-        Importance::Low => marker("lowImportance", t.icon),
-        Importance::Normal => {}
-    }
-    let who = m.from.display().to_string();
-    let who_font = if unread { semibold(SENDER_TEXT) } else { regular(SENDER_TEXT) };
-    paint_clipped(p, pos2(left, line1), (text_end.min(x - 4.0) - left).max(0.0), &who, who_font, t.text);
-    let date =
-        crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
-    let (font, color) = if unread { (semibold(LIST_TEXT), t.accent_text) } else { (regular(LIST_TEXT), t.text) };
-    let date_w = p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, font.clone(), color).width();
-    // In a search of every mailbox the folder it is in, under the time (or before it, with no
-    // preview), then its categories; its preview before them.
-    let lines = app.session.prefs.preview_lines;
-    let preview_y = rect.min.y + PREVIEW_TOP + 7.0;
-    let (mut sx, tail_y) = if lines > 0 { (time_end, preview_y) } else { (time_end - date_w - 8.0, line2) };
-    if let Some(folder) = super::shows_folder(&app.session).then(|| app.session.mailbox.folder(r.folder)).flatten() {
-        let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
-        sx = super::paint_result_folder(p, pos2(sx, tail_y), &label, &t) - 6.0;
-        app.hit.add("serverResultFolder", index as u64, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(time_end, tail_y + 7.0)));
-    }
-    for c in m.categories.iter().take(4) {
-        let color = crate::theme::c32(app.session.mailbox.category_color_of(m.account, c));
-        p.rect_filled(Rect::from_center_size(pos2(sx - 5.0, tail_y), vec2(10.0, 10.0)), 2.0, color);
-        sx -= 13.0;
-    }
-    let subject_end = if lines > 0 { text_end.min(time_end - date_w - 8.0) } else { text_end.min(sx - 6.0) };
+    // Read out as the row shows it, in columns or not: "(no subject)" for a message without one.
     let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
-    paint_clipped(p, pos2(left, line2), (subject_end - left).max(0.0), subject, font, color);
-    if lines > 0 {
-        let end = text_end.min(sx - 6.0);
-        let preview: String = m.body.text.split_whitespace().collect::<Vec<_>>().join(" ");
-        paint_clipped(p, pos2(left, preview_y), (end - left).max(0.0), &preview, regular(LIST_TEXT), t.text_dim);
-    }
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("{who}, {subject}")));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("{}, {subject}", m.from.display())));
     if resp.clicked() {
         app.open_server_result(index);
     }

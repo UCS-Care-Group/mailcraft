@@ -336,7 +336,7 @@ fn the_rest_of_an_email_is_read_as_the_server_says_it() {
     });
     let m = whole("E1", "M7", &entry, marks);
     assert_eq!(m.preview, "A preview of the message with gaps");
-    assert_eq!((m.server.size, m.has_attachments, m.draft), (4321, true, Some(true)));
+    assert_eq!((m.server.size, m.has_attachments, m.draft), (4321, Some(true), Some(true)));
     assert_eq!(m.server.id, "E1");
     assert_eq!(m.server.folder, "M7");
     assert_eq!((m.server.read, m.server.answered, m.server.forwarded, m.server.flag), (true, true, false, FlagStatus::Flagged));
@@ -352,7 +352,7 @@ fn the_rest_of_an_email_is_read_as_the_server_says_it() {
         (json!({}), json!([]), json!({})),
     ] {
         let m = whole("E1", "M1", &json!({"size": size, "hasAttachment": attachment, "preview": preview}), Marks::default());
-        assert_eq!((m.server.size, m.has_attachments, m.preview.as_str()), (0, false, ""), "{size} {attachment} {preview}");
+        assert_eq!((m.server.size, m.has_attachments, m.preview.as_str()), (0, None, ""), "{size} {attachment} {preview}");
     }
     assert_eq!(whole("E1", "M1", &json!({"size": u64::MAX}), Marks::default()).server.size, u64::MAX);
     assert_eq!(whole("E1", "M1", &json!(null), Marks::default()).server.id, "E1");
