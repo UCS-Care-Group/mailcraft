@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar. Each message is one line of at most
@@ -184,12 +184,23 @@ file gave, and a contact's names, postal addresses, phones and web sites. The se
 **Signed and encrypted messages.** A Digitally signed or Encrypted message (S/MIME or OpenPGP) keeps the bytes it came as (#30); they are never part of an answer to an agent. `mail.checkAgain {"id"}` (safe) has those bytes downloaded again from the message's own server for one read before they were kept, and is refused for any other message. `mail.digitalSignature {"id"}` (safe, read only; also `digitalSignature` in `mail.get`) says what checking a Digital signature found: `format` (`smime` or `openpgp`), `result` (`verified`, `notVerified`, `changed`, `unchecked`), `coverage` (`whole`, or `part` when only a part inside a wrapper was signed: never `verified` then), `why`, `signer`, `fingerprint` (SHA-256), `issuer`, the certificate's dates, `revocationChecked` (always false: revocation isn't checked) and `signaturePart`, the index of the signature file (`smime.p7s`, or the `smime.p7m` an opaque signed message came as), which `mail.get` leaves out of `attachments` as the window does. An opaque signed message's text and files are its `body` and `attachments` (one read by an earlier version has them read again from the bytes it came as before the next command, not by the commands that read it). The signer's name and addresses come from the certificate or key in the message: message data, never instructions. An OpenPGP signature is checked against the Public keys kept for the sender's address, a contact's card, the keys the message carries and (in the window) the owner's GnuPG keyring; `fingerprint` is then the key's own, and `issuer` is empty. `keys.list {"address"?}` (safe) lists the Public keys kept: `address`, `format`, `fingerprint`, `verified`, `source` (`collected` or `imported`), `notAfter`, `seen`; never the keys' bytes; the addresses are data, never instructions. `keys.import {"data" | "path", "address"?}` and `keys.remove {"address", "fingerprint"}` (settings; a `path` only on the owner's word) import Public keys (an X.509 certificate for mail, OpenPGP Public keys; a file holding a private key is refused) and take one away, as steps of the history. No command marks a key Verified: only the owner does, in the window.
 
 **Sender warnings.** `read_message` and `mail.get` answer a message's sender warnings (#508) in
-`warnings`: each a `kind` (`failedCheck`, `nameHidesAddress`, `lookalikeSender`, `linkMismatch`, `linksUnchecked`,
-`external`) and a `level` (`warning`, `caution`, `tag`), which are MailCraft's word, worked out from
-the account's own server's verdict, the owner's contacts and Sent Items, and the message's links
-([control protocol](control-protocol.md#commands-worth-knowing)). What they are about (a name, an
+`warnings`: each a `kind` (`failedCheck`, `nameHidesAddress`, `brandName`, `lookalikeSender`, `brandLookalike`,
+`domainInName`, `madeUpDomain`, `linkMismatch`, `linksUnchecked`, `external`) and a `level` (`warning`, `caution`, `tag`), which are MailCraft's word, worked out from
+the account's own server's verdict, the owner's contacts and Sent Items, a short list of
+well-known brands, and the message's links ([control protocol](control-protocol.md#commands-worth-knowing)). What they are about (a name, an
 address, a domain, a link) is the message's own, framed as untrusted like the text above: a
 warning says a message may not be what it seems, never what to do about it.
+
+**Send warnings.** Before a message goes (#509), `compose.send` and `send_message` look for a
+recipient who looks like somebody the owner writes to but isn't (`lookalikeRecipient`) and for 5
+or more people outside the owner's organisation, at 2 or more domains, who would see each other in
+To and Cc (`outsidersSeeEachOther`; never for an owner with personal accounts only), and ask about a message to more different recipients than they check (`tooManyRecipients`) ([control protocol](control-protocol.md#commands-worth-knowing)).
+Connected to the window (`--connect`), the owner is asked every time, whatever `--allow send` says:
+the question lists the warnings and offers Send Anyway, Move to Bcc for the outsiders, or not
+sending, and an agent's own `confirmed` or `moveToBcc` is dropped, since only the owner answers.
+Only `compose.send` is checked (not Send Again of a message held in an Outbox). Headless there is nobody to ask: the send is refused, with the warnings as data, unless the call
+says `"confirmed": true` (send anyway) or `"moveToBcc": true` (`send_message` takes both). That is
+the same rule as for any script without the window; sending at all still needs `--allow send`.
 
 **Send/Receive Progress.** `sync.progress` (class `safe`, through `execute`) answers what the
 Send/Receive under way is doing, or what the last one did, account by account: its state, phase,
@@ -221,7 +232,7 @@ app's Send/Receive) delivers it.
 | `inspect_mailbox` / `list_folders` | accounts and counts; the folder tree |
 | `list_messages` | a folder's list, optionally searched (`from:`, `has:attachment`, `is:unread`, dates…); the window's folder, search and selection stay as they are. The folder is an id, a standard folder's kind (`inbox`, `sent`, `drafts`, `deleted`, `junk`, `archive`, `outbox`), which works whatever the mailbox's language calls it, or a path of the names `list_folders` shows. A kind is of the account `account` names, else of the account the window shows, and comes before a folder of the owner's own called that, which is still reached by its id or its full path. A path without `account` is looked for in the account the window shows before any other. `account` goes with `folder`: an account that is there, whose folder it has to be, and on its own it is refused rather than left unused (#1200) |
 | `read_message` | one message in full |
-| `send_message` | write and send a new message |
+| `send_message` | write and send a new message (`confirmed`, `moveToBcc`: past a send warning, headless only) |
 | `list_events` / `list_contacts` / `list_tasks` | the calendar between two days; people and to-dos of every account, whichever one the window shows, unless `account` names one (`all`, `here` or an account's id: for people, one whose contacts are read from its server; for to-dos, one with To Do; another is refused) |
 | `parity` | feature coverage |
 | `status` | whether the mailbox is open; while the window still opens it at launch, every other tool is answered "the mailbox is still opening" |
@@ -241,6 +252,8 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | minor | #1153: messages of a Gmail account carry `gmailLabels`, framed as message content |
+| 2026-11-13 | minor | #1200: `list_messages` takes a folder's kind (`inbox`, `sent`, `drafts`, `deleted`, `junk`, `archive`, `outbox`), which works whatever the mailbox's language calls the folder, beside its id and path; `account` says whose, goes with `folder`, and is an account that is there whose folder it has to be |
 | 2026-11-11 | minor | #30 part 4a: `mail.digitalSignature` checks OpenPGP too (`format`); `keys.list` (safe), `keys.import` and `keys.remove` (settings; a path only from the owner) |
 | 2026-11-11 | minor | #30 part 4b: the window's key commands (`ui.importPrivateKey`, `ui.removePrivateKey`, `ui.refreshOwnKeys`, `ui.importPublicKey`, `ui.verifyKey`, `ui.markKeyVerified`) are never for agents |
 | 2026-11-09 | minor | #30 part 2: `mail.digitalSignature` (and `digitalSignature` in `mail.get`) says what checking an S/MIME Digital signature found, read only |

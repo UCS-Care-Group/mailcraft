@@ -54,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.markUnread", "Mark as Unread", "Home › Tags", mark_unread).key("Mod+U").params(IDS).selection(needs_message),
         CommandSpec::new("mail.toggleRead", "Unread/ Read", "Home › Tags", toggle_read).params(IDS).selection(needs_message),
         CommandSpec::new("mail.markAllRead", "Mark All as Read", "Folder › Clean Up", mark_all_read)
-            .params(r#"{"folder"?: number} (default: the folder in view)"#),
+            .params(r#"{"folder"?: number} — a folder that is there, read strictly: an id as text, `null`, `0` or a fraction is refused rather than taken for the folder in view (default: the folder in view). Answers {"folder", "changed"}"#),
         CommandSpec::new("mail.flag", "Follow Up", "Home › Tags", flag)
             .key("Insert")
             .params(r#"{"due"?: "YYYY-MM-DD", "ids"?: [number]}"#)
@@ -834,7 +834,9 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
-    let folder = p::id(v, "folder").unwrap_or(s.view.folder);
+    // An id, read strictly (#1449): an id as text or `null` is refused, never taken to mean the
+    // folder in view, which would mark all of another folder's mail read without a word.
+    let folder = p::id_strict(v, "folder")?.unwrap_or(s.view.folder);
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }
@@ -842,7 +844,7 @@ fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
     for id in &ids {
         s.mailbox.message_mut(*id)?.read = true;
     }
-    Ok(json!({"changed": ids.len()}))
+    Ok(json!({"folder": folder, "changed": ids.len()}))
 }
 
 fn flag(s: &mut Session, v: &Value) -> CmdResult {
@@ -850,21 +852,33 @@ fn flag(s: &mut Session, v: &Value) -> CmdResult {
     let offset = s.offset_at(s.now());
     // Due at the end of the working day.
     let due = due.and_then(|d| mailcraft_time::DateTime::new(d, s.prefs.work_end.min(23), 0, 0)).map(|t| t.to_timestamp(offset));
-    each(s, v, |m| {
+    let ids = targets(s, v)?;
+    let r = each(s, v, |m| {
         m.flag = FlagStatus::Flagged;
         m.flag_due = due.or(m.flag_due);
-    })
+    });
+    // A date chosen here and a reminder's time are one time (#948): the reminder moves to it.
+    if let Some(due) = due {
+        let now = s.now();
+        s.mailbox.follow_up_due_chosen(&ids, due, now);
+    }
+    r
 }
 
 fn clear_flag(s: &mut Session, v: &Value) -> CmdResult {
     each(s, v, |m| {
         m.flag = FlagStatus::None;
         m.flag_due = None;
+        // The reminder goes with the flag (#948).
+        m.follow_up = None;
     })
 }
 
 fn complete(s: &mut Session, v: &Value) -> CmdResult {
-    each(s, v, |m| m.flag = FlagStatus::Complete)
+    each(s, v, |m| {
+        m.flag = FlagStatus::Complete;
+        m.follow_up = None;
+    })
 }
 
 fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
@@ -874,6 +888,7 @@ fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
         m.flag = if all_flagged { FlagStatus::None } else { FlagStatus::Flagged };
         if all_flagged {
             m.flag_due = None;
+            m.follow_up = None;
         }
     })
 }
@@ -1029,3 +1044,6 @@ mod from_sender_tests;
 #[cfg(test)]
 #[path = "mail_actions_tests.rs"]
 mod mail_actions_tests;
+#[cfg(test)]
+#[path = "mark_all_read_tests.rs"]
+mod mark_all_read_tests;

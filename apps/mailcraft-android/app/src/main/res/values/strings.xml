@@ -7,4 +7,6 @@
     <string name="app_name" translatable="false">MailCraft</string>
     <!-- Shown when the core could not start, so there is no catalogue to ask for the words. -->
     <string name="start_failed">The mailbox could not be opened.</string>
+    <!-- Shown while the core opens the mailbox, before its catalogue can be asked for the words. -->
+    <string name="starting">Opening the mailbox…</string>
 </resources>

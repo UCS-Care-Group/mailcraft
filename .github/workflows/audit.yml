@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: audit
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   deny:

@@ -803,6 +803,16 @@ fn click(h: &mut Window, at: egui::Pos2) {
     h.run_steps(3);
 }
 
+#[test]
+fn the_recipient_field_cannot_extend_past_its_right_edge() {
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(96.0, 72.0)).build_ui(|ui| {
+        let field = super::line(ui, "Titkos másolat", 120.0, 40.0);
+        assert!(field.width() >= 0.0, "{field:?}");
+        assert!(field.max.x <= ui.max_rect().max.x, "{field:?}");
+    });
+    h.run_steps(2);
+}
+
 /// A long To line (Reply All) takes a click at its right end, where its last address is: the
 /// Bcc link there used to take it, and then neither the line nor the body had the keyboard.
 #[test]

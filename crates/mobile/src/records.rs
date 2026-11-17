@@ -12,6 +12,9 @@ pub struct AccountRecord {
     pub name: String,
     pub email: String,
     pub display_name: String,
+    /// `microsoft`, `imap`, `local`, `jmap`, `exchange` or `other`. The phone app v1 shows
+    /// `microsoft` accounts only.
+    pub kind: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -57,6 +60,9 @@ pub struct MessageRow {
     pub categories: Vec<String>,
     /// Messages the row stands for (1 outside a conversation).
     pub members: u32,
+    /// The ids of those messages (the first 200 at most), newest first, so that a command on the row
+    /// names them and never depends on the session's own view of the list.
+    pub member_ids: Vec<u64>,
     /// The heading above the row when it starts a group (`Today`, `Last Week`), in English: the
     /// app translates it with `t`, unless `group_is_category` says it is a name the owner chose.
     pub group: Option<String>,
@@ -91,6 +97,10 @@ pub struct EventRecord {
     pub meeting: bool,
     pub cancelled: bool,
     pub categories: Vec<String>,
+    /// Somebody else organizes it and the owner is invited: it can be answered.
+    pub invited: bool,
+    /// The owner's answer to it: `none`, `accepted`, `tentative` or `declined`.
+    pub answer: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -165,6 +175,9 @@ pub struct TodayRecord {
     /// The owner's today, `YYYY-MM-DD`.
     pub date: String,
     pub events: Vec<EventRecord>,
+    /// What has not ended yet, from now through the next seven days (at most ten, none
+    /// cancelled), in order: the card of next events.
+    pub next_events: Vec<EventRecord>,
     /// Tasks not completed that are due today or were due before.
     pub tasks: Vec<TaskRecord>,
     /// Unread messages in the Inboxes of all accounts.
@@ -218,6 +231,187 @@ pub struct MessageView {
     /// Pictures on the web the message asks for (none is fetched): what the banner offering to
     /// download them counts.
     pub remote_pictures: u32,
+    /// The whole message is on the phone. When not, only its headers and preview are (the body
+    /// shows the preview): `Core::open_message` fetches it.
+    pub whole: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CalendarRecord {
+    pub id: u64,
+    /// The account whose server keeps it; 0 for a calendar on this phone only.
+    pub account: u64,
+    pub name: String,
+    /// `0xRRGGBB`.
+    pub color: u32,
+    pub visible: bool,
+    /// Events in it can be made and changed here.
+    pub editable: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CalendarList {
+    pub rev: u64,
+    pub calendars: Vec<CalendarRecord>,
+    /// The calendar new events go into (0 when there is none).
+    pub current: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct AttendeeRecord {
+    pub name: String,
+    pub address: String,
+    pub optional: bool,
+    /// `none`, `accepted`, `tentative` or `declined`.
+    pub response: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct RecurrenceRecord {
+    /// `daily`, `weekly`, `monthly` or `yearly`.
+    pub freq: String,
+    pub interval: u32,
+    /// `mon` to `sun`.
+    pub by_day: Vec<String>,
+    pub nth: Option<i8>,
+    pub count: Option<u32>,
+    /// `YYYY-MM-DD`.
+    pub until: Option<String>,
+}
+
+/// One event whole, as the editor and the detail page need it.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct EventDetail {
+    pub rev: u64,
+    pub event: u64,
+    pub calendar: u64,
+    pub title: String,
+    pub location: String,
+    pub description: String,
+    /// `YYYY-MM-DDTHH:MM:SS`, or for a whole-day event `YYYY-MM-DD` (the last day included).
+    pub start: String,
+    pub end: String,
+    pub all_day: bool,
+    pub organizer: Option<AddressRecord>,
+    pub attendees: Vec<AttendeeRecord>,
+    /// `attendees` is not the whole list (more people than are handed over, or an address cut to
+    /// size): the editor must not send it back as the list, which would drop whoever is missing.
+    pub people_cut: bool,
+    pub recurrence: Option<RecurrenceRecord>,
+    pub reminder_minutes: Option<u32>,
+    pub show_as: String,
+    pub meeting: bool,
+    pub invited: bool,
+    pub answer: String,
+    pub cancelled: bool,
+    pub editable: bool,
+    /// An account's server keeps it: a change to a meeting with people invited has to say
+    /// whether they are written to (`send`).
+    pub on_server: bool,
+}
+
+/// One event whole with the start and end of one of its times, both read in one look at the
+/// calendar, so the times and the series they belong to always agree.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct EventOccurrence {
+    pub detail: EventDetail,
+    /// `YYYY-MM-DDTHH:MM:SS` of the time asked for, as the range gives it; `None` when the event
+    /// has no time on that day (it was moved or deleted since the row was read).
+    pub start: Option<String>,
+    pub end: Option<String>,
+}
+
+/// What a window of the message list is asked for: where, how filtered, in which of the Inbox
+/// split's tabs, with or without conversations, and under which search.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct ListQuery {
+    pub folder: u64,
+    /// `all`, `unread`, `flagged`, `attachments` or `toMe`.
+    pub filter: String,
+    /// The code of one of the Inbox split's tabs (`primary`, `social`…), from [`InboxSplit`];
+    /// empty for the whole folder.
+    pub split: String,
+    /// One row for each conversation (its newest message), instead of one for each message.
+    pub conversations: bool,
+    /// Text to find in what is on this phone (sender, subject and preview); empty for none.
+    pub search: String,
+    /// A search looks through every account's mail, not the folder alone.
+    pub everywhere: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct SplitTab {
+    /// `primary`, `social`, `promotions`, `updates` or `forums`.
+    pub code: String,
+    /// Its name in English: the app translates it with `t`.
+    pub name: String,
+    pub unread: u32,
+    pub total: u32,
+}
+
+/// The row of tabs over an Inbox that its server divides (Gmail's categories): empty `tabs` for
+/// any other folder, and for an Inbox that has nothing to sort.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct InboxSplit {
+    pub rev: u64,
+    pub folder: u64,
+    pub tabs: Vec<SplitTab>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CategoryRecord {
+    pub name: String,
+    /// The category's colour, `0xRRGGBB`.
+    pub color: u32,
+}
+
+/// The categories the mail of an account can be given, with their colours.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CategoryList {
+    pub rev: u64,
+    pub categories: Vec<CategoryRecord>,
+}
+
+/// A picture downloaded from the web: its kind told from its own bytes.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct FetchedPicture {
+    /// `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `image/x-icon` for a sender's picture only.
+    pub mime: String,
+    pub bytes: Vec<u8>,
+}
+
+/// What the owner's rules for a sender's picture need to know about a message, from the mailbox
+/// and the server's word and nothing the sender wrote: who sent it, whether it is in Junk E-mail
+/// (or under it), whether the receiving server vouches for the sender (DMARC), and whether the
+/// owner knows the sender (a contact, or somebody mail in Sent Items went to).
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct SenderFacts {
+    pub address: String,
+    pub junk: bool,
+    pub vouched: bool,
+    pub known: bool,
+}
+
+/// What a link is and where it goes, as the owner is shown it and as it is launched.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct LinkTarget {
+    pub kind: LinkKind,
+    /// The address written as it is shown and launched: for a web address, the host in lower case
+    /// with international labels as Punycode, so that the host shown is the host reached.
+    pub shown: String,
+}
+
+/// The only kinds of link that are followed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum LinkKind {
+    /// `http` or `https`: to the browser.
+    Web,
+    /// `mailto`: to the composer.
+    Mail,
+    /// `tel`: to the dialer.
+    Phone,
+    /// `cid`: a part of the message itself; nothing is followed.
+    Part,
 }
 
 /// What "remove account and data" came to (`Core::delete_local_data`).
@@ -240,4 +434,58 @@ pub struct SignInsForgotten {
     /// Set when the list of the sign-ins kept was damaged (it was set aside), so older ones may
     /// still be in the phone's credential store: the words to show the owner.
     pub may_remain: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct LabeledRecord {
+    /// What the contact's card calls it (`Work`, `Mobile`), as written there.
+    pub label: String,
+    pub value: String,
+}
+
+/// One person (a contact) as the detail page shows it. Read-only: the app offers no editing.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct PersonDetail {
+    pub rev: u64,
+    pub id: u64,
+    pub name: String,
+    pub company: String,
+    pub title: String,
+    pub department: String,
+    pub emails: Vec<LabeledRecord>,
+    pub phones: Vec<LabeledRecord>,
+    /// Postal addresses, each on one line.
+    pub addresses: Vec<LabeledRecord>,
+    pub favorite: bool,
+}
+
+/// One task as the editor shows it.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct TaskDetail {
+    pub rev: u64,
+    pub task: TaskRecord,
+    pub notes: String,
+    /// The notes are longer than what is handed over: an app must not write them back as they
+    /// stand, or the rest would be lost.
+    pub notes_cut: bool,
+    /// When its reminder goes off, `YYYY-MM-DDTHH:MM:SS` in the owner's zone.
+    pub reminder: Option<String>,
+    /// The account keeps it only on this phone (made here and not sent, or kept here by choice).
+    pub only_here: bool,
+}
+
+/// Where tasks can live, and what to ask about the ones that exist only on this phone.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct TaskSetup {
+    pub rev: u64,
+    /// The accounts whose To Do is kept in step, in the owner's order.
+    pub accounts: Vec<AccountRecord>,
+    /// Tasks that exist only on this phone and could be sent to an account's To Do. Nothing is
+    /// sent until the owner has said yes (`tasks.sendLocal`).
+    pub local_waiting: u32,
+    /// The owner has been asked and said "Not now" or yes (the question is then not asked
+    /// again, only offered).
+    pub answered: bool,
+    /// The account the owner sent their local tasks to, when they did.
+    pub sent_to: Option<u64>,
 }
