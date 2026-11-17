@@ -74,6 +74,14 @@ pub fn run_with(job: TasksJob, renew: &dyn Fn(&OAuth, &str) -> Result<GraphToken
     let mut out = TasksResult { account: job.account.id, ..Default::default() };
     let access = match renew(&job.oauth, &job.refresh) {
         Ok(got) => {
+            // Somebody else's sign-in: nothing goes up and nothing is read with it. The tokens go
+            // back only so that [`crate::tasks_job::TasksJobs::poll`] can say whose they were; it
+            // refuses the answer whole and they are never kept. (Logged without naming anybody.)
+            if crate::job_sign_in::foreign_sign_in(&job.account, Some(&got.tokens)).is_some() {
+                log::warn!("tasks: the renewed sign-in is another account's; nothing sent or read");
+                out.tokens = Some(got.tokens);
+                return out;
+            }
             let access = got.tokens.access.clone();
             out.tokens = Some(got.tokens);
             access

@@ -134,9 +134,9 @@ private const val BOM = '\uFEFF'
 
 /** Characters that change how text reads without showing: direction overrides and isolates, zero-width marks, the BOM. */
 private val HIDDEN: Set<Char> = buildSet {
-    addAll('​'..'‏')
-    addAll('‪'..'‮')
-    addAll('⁠'..'⁤')
-    addAll('⁦'..'⁩')
+    addAll('\u200B'..'\u200F')
+    addAll('\u202A'..'\u202E')
+    addAll('\u2060'..'\u2064')
+    addAll('\u2066'..'\u2069')
     add(BOM)
 }

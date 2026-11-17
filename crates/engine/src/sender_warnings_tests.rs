@@ -101,7 +101,9 @@ fn a_contact_or_a_new_recipient_makes_a_lookalike_known() {
     assert_eq!(kinds(&mut s, "Second"), ["lookalikeSender", "external"]);
     s.run("mail.new", &json!({})).unwrap();
     s.run("compose.set", &json!({"to": "robin@cloudlines.example", "subject": "Hello"})).unwrap();
-    s.run("compose.send", &json!({})).unwrap();
+    // A lookalike recipient now too (#509): sent anyway.
+    assert!(s.run("compose.send", &json!({})).unwrap_err().to_string().contains("lookalikeRecipient robin@cloudlines.example"));
+    s.run("compose.send", &json!({"confirmed": true})).unwrap();
     assert_eq!(kinds(&mut s, "Second"), ["external"]);
 }
 
