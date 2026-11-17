@@ -35,7 +35,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(can_collapse)
             .params(CONVERSATION),
         CommandSpec::new("mail.get", "Get Message", "Mail", get).reads().params(r#"{"id"?: number} (default: the selected message). An `id` or `ids` that names nothing (null, text, 0, a fraction) is refused"#),
-        CommandSpec::new("mail.list", "List Messages", "Mail", list).reads().params(r#"{"limit"?: number, "folder"?: number | "Inbox/Projects", "query"?: string} — the message list in view; with `folder` or `query` the list of that folder or search, read without moving the window to it"#),
+        CommandSpec::new("mail.list", "List Messages", "Mail", list).reads().params(r#"{"limit"?: number, "folder"?: number | "sent" | "Inbox/Projects", "account"?: number, "query"?: string} — the message list in view; with `folder` or `query` the list of that folder or search, read without moving the window to it. `folder` is an id, a standard folder's kind (inbox, drafts, sent, deleted, junk, archive, outbox) in any language of the mailbox, of `account` or else the account in view, or a path; digits that name no folder are an id. A kind comes before a folder of that name, which is still reached by its id or by a path with its parent. `account` says whose folder `folder` means and goes with it: it is an account that is there, what it names must be that account's, a path without it is looked for in the account in view before any other, and `account` without `folder` is refused rather than left unused"#),
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS_WHOLE).selection(needs_message),
         CommandSpec::new("mail.deletePermanently", "Delete Permanently", "Home › Delete", delete_permanently)
             .key("Shift+Delete")
@@ -54,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.markUnread", "Mark as Unread", "Home › Tags", mark_unread).key("Mod+U").params(IDS).selection(needs_message),
         CommandSpec::new("mail.toggleRead", "Unread/ Read", "Home › Tags", toggle_read).params(IDS).selection(needs_message),
         CommandSpec::new("mail.markAllRead", "Mark All as Read", "Folder › Clean Up", mark_all_read)
-            .params(r#"{"folder"?: number} (default: the folder in view)"#),
+            .params(r#"{"folder"?: number} — a folder that is there, read strictly: an id as text, `null`, `0` or a fraction is refused rather than taken for the folder in view (default: the folder in view). Answers {"folder", "changed"}"#),
         CommandSpec::new("mail.flag", "Follow Up", "Home › Tags", flag)
             .key("Insert")
             .params(r#"{"due"?: "YYYY-MM-DD", "ids"?: [number]}"#)
@@ -126,7 +126,11 @@ const PAGE_ROWS: u64 = 10;
 /// The most a page may be, whatever a caller says.
 const MAX_PAGE_ROWS: u64 = 10_000;
 
-fn select(s: &mut Session, v: &Value) -> CmdResult {
+/// What `mail.select` is asked to select, checked as it checks it (#553): the messages named (none
+/// for `{"ids": []}`; anything else is read strictly), each in the mailbox, and the row named by
+/// `copy` one the list shows. Nothing is changed. The window asks it before it lets go of a draft
+/// for a click that `mail.select` would refuse (#727).
+pub fn select_target(s: &mut Session, v: &Value) -> Result<(Vec<Id>, u16), crate::CmdError> {
     // `{"ids": []}` selects nothing; anything else is read strictly (#553).
     let none = v.get("id").is_none() && v.get("ids").and_then(Value::as_array).is_some_and(Vec::is_empty);
     let ids = if none { Vec::new() } else { p::ids_strict(v)?.ok_or_else(|| bad("`id` or `ids` is required"))? };
@@ -134,8 +138,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         return Err(failed!("no message with id {id}", id = missing));
     }
     let Some(last) = ids.last().copied() else {
-        s.sel.clear_messages();
-        return done();
+        return Ok((ids, 0));
     };
     // Which of the message's rows was clicked, for one listed under several categories.
     // (Named wrongly, it is refused: the conversation's row, row 0, takes all of it, #503.)
@@ -150,6 +153,15 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     if copy > 0 && !s.rows().iter().any(|r| r.id == last && r.copy == copy) {
         return Err(bad("`copy` names none of the rows the list shows the message in"));
     }
+    Ok((ids, copy))
+}
+
+fn select(s: &mut Session, v: &Value) -> CmdResult {
+    let (ids, copy) = select_target(s, v)?;
+    let Some(last) = ids.last().copied() else {
+        s.sel.clear_messages();
+        return done();
+    };
     // A Shift+click from an anchor the list shows, in the list in view: the selection is that
     // span of the list's own rows, every one of them listed, so none of what is asked below of
     // whether the list shows them is (over a span of thousands of messages, that took 60 ms).
@@ -631,21 +643,27 @@ fn digital_signature(s: &mut Session, v: &Value) -> CmdResult {
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {
     let limit = p::u64(v, "limit").unwrap_or(200).min(10_000) as usize;
+    // Whose folder `folder` means (#1200), read before anything else is decided: an `account`
+    // that isn't an id is refused however the rest of the parameters look. Read inside the branch
+    // below instead, it would go unseen without `folder` and quietly become the account in view,
+    // and the answer says which folder it read but never which account.
+    let account = super::folder::account_named(s, v)?;
+    // `account` says whose folder `folder` means, so it wants one. On its own it would be read
+    // and then left unused, and the list would come from the account in view with nothing in the
+    // answer to say which account it is.
+    if account.is_some() && v.get("folder").is_none_or(Value::is_null) {
+        return Err(bad("`account` says whose folder `folder` means: name `folder` too, or leave `account` out"));
+    }
     // A named folder or a search is read from a view of its own: the owner's folder, search and
     // selection stay as they are (#620).
     let looks_elsewhere = v.get("folder").is_some_and(|f| !f.is_null()) || v.get("query").is_some_and(|q| !q.is_null());
     if !looks_elsewhere {
         return list_in_view(s, limit);
     }
+    // (An id, a standard folder's kind in any language of the mailbox, or a path, #1200.)
     let folder = match v.get("folder").filter(|f| !f.is_null()) {
         None => s.view.folder,
-        Some(f) => match f.as_u64() {
-            Some(id) => s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))?,
-            None => {
-                let path = f.as_str().unwrap_or("");
-                super::folder::by_path(s, None, path).ok_or_else(|| failed!("no folder \"{path}\"", path))?
-            }
-        },
+        Some(f) => super::folder::named(s, f, account)?,
     };
     let query: String = p::str(v, "query").unwrap_or("").chars().filter(|c| !c.is_control()).take(2000).collect();
     let (view, sel) = (s.view.clone(), s.sel.clone());
@@ -828,7 +846,9 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
-    let folder = p::id(v, "folder").unwrap_or(s.view.folder);
+    // An id, read strictly (#1449): an id as text or `null` is refused, never taken to mean the
+    // folder in view, which would mark all of another folder's mail read without a word.
+    let folder = p::id_strict(v, "folder")?.unwrap_or(s.view.folder);
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }
@@ -836,7 +856,7 @@ fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
     for id in &ids {
         s.mailbox.message_mut(*id)?.read = true;
     }
-    Ok(json!({"changed": ids.len()}))
+    Ok(json!({"folder": folder, "changed": ids.len()}))
 }
 
 fn flag(s: &mut Session, v: &Value) -> CmdResult {
@@ -844,21 +864,33 @@ fn flag(s: &mut Session, v: &Value) -> CmdResult {
     let offset = s.offset_at(s.now());
     // Due at the end of the working day.
     let due = due.and_then(|d| mailcraft_time::DateTime::new(d, s.prefs.work_end.min(23), 0, 0)).map(|t| t.to_timestamp(offset));
-    each(s, v, |m| {
+    let ids = targets(s, v)?;
+    let r = each(s, v, |m| {
         m.flag = FlagStatus::Flagged;
         m.flag_due = due.or(m.flag_due);
-    })
+    });
+    // A date chosen here and a reminder's time are one time (#948): the reminder moves to it.
+    if let Some(due) = due {
+        let now = s.now();
+        s.mailbox.follow_up_due_chosen(&ids, due, now);
+    }
+    r
 }
 
 fn clear_flag(s: &mut Session, v: &Value) -> CmdResult {
     each(s, v, |m| {
         m.flag = FlagStatus::None;
         m.flag_due = None;
+        // The reminder goes with the flag (#948).
+        m.follow_up = None;
     })
 }
 
 fn complete(s: &mut Session, v: &Value) -> CmdResult {
-    each(s, v, |m| m.flag = FlagStatus::Complete)
+    each(s, v, |m| {
+        m.flag = FlagStatus::Complete;
+        m.follow_up = None;
+    })
 }
 
 fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
@@ -868,6 +900,7 @@ fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
         m.flag = if all_flagged { FlagStatus::None } else { FlagStatus::Flagged };
         if all_flagged {
             m.flag_due = None;
+            m.follow_up = None;
         }
     })
 }
@@ -1015,3 +1048,6 @@ mod from_sender_tests;
 #[cfg(test)]
 #[path = "mail_actions_tests.rs"]
 mod mail_actions_tests;
+#[cfg(test)]
+#[path = "mark_all_read_tests.rs"]
+mod mark_all_read_tests;

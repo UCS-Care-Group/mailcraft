@@ -155,6 +155,14 @@ fn window_commands_validate() {
     a.services.system_locale = Some("ro-RO".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "ro");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Romanian);
+    // Polish too.
+    a.services.system_locale = Some("pl-PL".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "pl");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Polish);
+    // Czech too.
+    a.services.system_locale = Some("cs-CZ".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "cs");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Czech);
     assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());
@@ -282,9 +290,17 @@ fn saved_settings_come_back_and_bad_ones_are_tamed() {
     .unwrap_or_default();
     b.apply_prefs(odd);
     assert!((150.0..=500.0).contains(&b.ui.folder_pane_width) && (240.0..=900.0).contains(&b.ui.list_width));
-    let nan: UiState = UiState { folder_pane_width: f32::NAN, list_width: f32::INFINITY, ..Default::default() };
+    let nan: UiState = UiState { folder_pane_width: f32::NAN, list_width: f32::INFINITY, list_height: f32::NAN, ..Default::default() };
     b.apply_prefs(nan);
-    assert_eq!((b.ui.folder_pane_width, b.ui.list_width), (230.0, 380.0));
+    assert_eq!((b.ui.folder_pane_width, b.ui.list_width, b.ui.list_height), (230.0, 380.0, 0.0));
+    // A negative height is the share of the window again, as a new install has it (#1372).
+    b.apply_prefs(UiState { list_height: -40.0, ..Default::default() });
+    assert_eq!(b.ui.list_height, 0.0);
+    b.apply_prefs(UiState { list_height: 1e30, ..Default::default() });
+    assert_eq!(b.ui.list_height, 4000.0);
+    // A height the owner dragged comes back as it was.
+    b.apply_prefs(UiState { list_height: 610.0, ..Default::default() });
+    assert_eq!(b.ui.list_height, 610.0);
 }
 
 #[test]
@@ -854,7 +870,8 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     let who: Arc<Mutex<String>> = Arc::new(Mutex::new("admin@mail.example".into()));
     let synced: Arc<Mutex<Vec<String>>> = Default::default();
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    (a.autosave, a.auto_sync) = (false, false);
+    a.autosave = false;
+    a.session.driver.set_auto_sync(false);
     let log = synced.clone();
     a.services.sync = Some(Box::new(move |req: SyncRequest| {
         log.lock().unwrap().push(req.access_token.clone());
@@ -1075,24 +1092,24 @@ fn send_receive_runs_by_itself_without_asking_anybody() {
 
     // The next round by itself: the two it can do quietly, and still no prompt for the third.
     synced.lock().unwrap().clear();
-    a.last_auto_sync = 0.0;
+    a.session.driver.round.last_auto = 0.0;
     settle(&mut a);
     assert_eq!(*synced.lock().unwrap(), [known, signed]);
     assert!(a.dialog.is_none());
     // A sign-in that has run out is renewed quietly: no page is put in front of the owner.
     a.tokens.get_mut(&signed).unwrap().expires_at = 0;
-    a.last_auto_sync = 0.0;
+    a.session.driver.round.last_auto = 0.0;
     settle(&mut a);
     assert_eq!(sign_ins.lock().unwrap().last(), Some(&(signed, true)));
 
     // Not before it is due, not when switched off, and not when the owner wants to ask.
     synced.lock().unwrap().clear();
     settle(&mut a);
-    a.last_auto_sync = 0.0;
+    a.session.driver.round.last_auto = 0.0;
     a.execute("file.options", json!({"syncMinutes": 0})).unwrap();
     settle(&mut a);
     a.execute("file.options", json!({"syncMinutes": 5})).unwrap();
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     settle(&mut a);
     assert!(synced.lock().unwrap().is_empty());
 }
@@ -1151,8 +1168,8 @@ fn a_change_made_here_goes_out_soon_and_a_refused_one_backs_off() {
     let ids: Vec<u64> = a.session.mailbox.messages_in(inbox).map(|m| m.id).collect();
     // A look that is due now, with the round that starts by itself not due.
     let look = |a: &mut MailApp| {
-        a.last_auto_sync = crate::now_ms();
-        a.push_checked = 0.0;
+        a.session.driver.round.last_auto = crate::now_ms();
+        a.session.driver.round.push_checked = 0.0;
         for _ in 0..6 {
             a.poll_sync();
             a.auto_sync();
@@ -1174,13 +1191,13 @@ fn a_change_made_here_goes_out_soon_and_a_refused_one_backs_off() {
     a.execute("mail.markRead", json!({"ids": [ids[1]]})).unwrap();
     look(&mut a);
     assert_eq!(runs.lock().unwrap().last(), Some(&(2, 0)));
-    a.push_seen.get_mut(&id).unwrap().1 = 0.0;
+    a.session.driver.round.push_seen.get_mut(&id).unwrap().1 = 0.0;
     look(&mut a);
     assert_eq!(runs.lock().unwrap().len(), 3);
 
     // The server takes them: nothing is left, so nothing more runs.
     accept.store(true, Ordering::Relaxed);
-    a.push_seen.get_mut(&id).unwrap().1 = 0.0;
+    a.session.driver.round.push_seen.get_mut(&id).unwrap().1 = 0.0;
     look(&mut a);
     assert_eq!(mailcraft_engine::cmd::account::unpushed(&a.session, id), 0);
     let done = runs.lock().unwrap().len();
@@ -1200,7 +1217,7 @@ fn a_change_made_here_goes_out_soon_and_a_refused_one_backs_off() {
     let before = runs.lock().unwrap().len();
     look(&mut a);
     a.passwords.insert(id, "pw".into());
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     look(&mut a);
     assert_eq!(runs.lock().unwrap().len(), before);
     assert!(a.dialog.is_none());
@@ -1290,7 +1307,7 @@ fn shared_and_own() -> (MailApp, mailcraft_model::Id, mailcraft_model::Id) {
     let (mine, theirs) = (s.mailbox.folder_of_kind(owner, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap());
     let mut app = MailApp::new(s, Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     app.execute("folder.select", json!({"id": theirs})).unwrap();
     (app, mine, theirs)
 }
@@ -1814,7 +1831,7 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
     settle(&mut a);
     assert_eq!(asked.lock().unwrap().len(), 3);
     // A quarter of an hour on: the wide stretch again, with the token it has.
-    a.graph_checked.insert(id, 0.0);
+    a.session.driver.calendar.checked.insert(id, 0.0);
     a.execute("ui.sync", json!({"account": id})).unwrap();
     settle(&mut a);
     assert!(calendar(&mut a, &mut clock));
@@ -1823,7 +1840,7 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
 
     // No permission for Graph: mail goes on by the mail server, and Graph isn't asked every run.
     consent.store(false, Ordering::Relaxed);
-    a.graph_checked.insert(id, 0.0);
+    a.session.driver.calendar.checked.insert(id, 0.0);
     a.graph_tokens.clear();
     a.execute("mail.new", json!({"to": "maya@lumen.example", "subject": "By SMTP", "account": id})).unwrap();
     a.execute("compose.send", json!({})).unwrap();
@@ -1914,9 +1931,9 @@ fn mail_arrives_in_pieces_and_a_run_can_be_called_off() {
     a.execute("ui.sync", json!({"account": id})).unwrap();
     send(piece(&[6], 5, true, "Inbox: 1 of 3"));
     a.poll_sync();
-    a.sync_queue.push_back((id, true));
+    a.session.driver.round.queue.push_back((id, true));
     a.execute("ui.cancelSync", json!({})).unwrap();
-    assert!(a.services.sync_cancel.load(Ordering::Relaxed) && a.sync_queue.is_empty());
+    assert!(a.services.sync_cancel.load(Ordering::Relaxed) && a.session.driver.round.queue.is_empty());
     assert!(a.syncing(), "until the host has said it stopped");
     send(SyncResult { account: id, stopped: true, ..Default::default() });
     a.poll_sync();
@@ -1978,8 +1995,8 @@ fn a_change_made_during_a_long_download_goes_out_without_waiting_for_it() {
     let send = |p: SyncResult| pipe.lock().unwrap().as_ref().unwrap().send(p).unwrap();
     // A look that is due, with no round of its own due.
     let look = |a: &mut MailApp| {
-        a.last_auto_sync = crate::now_ms();
-        a.push_checked = 0.0;
+        a.session.driver.round.last_auto = crate::now_ms();
+        a.session.driver.round.push_checked = 0.0;
         a.poll_sync();
         a.auto_sync();
     };

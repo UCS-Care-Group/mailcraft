@@ -72,7 +72,7 @@ fn a_job_runs_when_the_tasks_are_due_and_brings_them_in() {
     app.poll_tasks();
     let t: Vec<&Task> = app.session.mailbox.tasks.values().map(|t| &**t).filter(|t| t.title == "Call Bo").collect();
     assert_eq!((t.len(), t[0].origin.account, t[0].origin.id.as_str()), (1, owner, "t1"));
-    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Given));
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), Some(&Permission::Given));
     assert_eq!(jobs.lock().unwrap()[0], (owner, "ref-1".to_string(), 0));
     // Not again until a few minutes have gone by.
     assert!(!app.tasks_tick_at(60_000.0));
@@ -109,7 +109,7 @@ fn the_owner_is_asked_once_by_itself_when_the_sign_in_does_not_cover_tasks() {
     assert!(app.tasks_tick_at(0.0));
     app.poll_tasks();
     // Found missing: nothing is sent or read; the window asks.
-    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Needed));
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), Some(&Permission::Needed));
     let (line, again) = app.tasks_line(owner).unwrap();
     assert!(again && line.contains("waiting for your permission"), "{line}");
     assert!(!app.tasks_tick_at(10.0 * 60_000.0) || jobs.lock().unwrap().len() == 1);
@@ -126,7 +126,7 @@ fn the_owner_is_asked_once_by_itself_when_the_sign_in_does_not_cover_tasks() {
     assert_eq!(*sign_ins.lock().unwrap(), [(owner, true)]);
     app.poll_sign_in();
     // Allowed: the next look runs a job again, and nobody is asked again.
-    assert_eq!(app.tasks.perm.get(&owner), None);
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), None);
     assert!(app.tasks_tick_at(11.0 * 60_000.0));
     assert_eq!(jobs.lock().unwrap().len(), 2);
     assert!(app.dialog.is_none());
@@ -143,7 +143,7 @@ fn a_question_that_goes_away_is_not_asked_again_by_itself() {
     app.dialog = None;
     assert!(!app.tasks_tick_at(10.0 * 60_000.0));
     assert!(app.dialog.is_none());
-    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Declined));
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), Some(&Permission::Declined));
     assert_eq!(jobs.lock().unwrap().len(), 1);
     let (line, again) = app.tasks_line(owner).unwrap();
     assert!(again && line.contains("this computer only"), "{line}");
@@ -155,7 +155,7 @@ fn a_sign_in_the_server_refuses_to_read_for_makes_no_changes_and_says_so() {
     answers.lock().unwrap().push_back(TasksResult { account: owner, denied: true, ..Default::default() });
     assert!(app.tasks_tick_at(0.0));
     app.poll_tasks();
-    assert!(matches!(app.tasks.perm.get(&owner), Some(Permission::Refused(_))));
+    assert!(matches!(app.session.driver.tasks.perm.get(&owner), Some(Permission::Refused(_))));
     assert!(!app.tasks_tick_at(10.0 * 60_000.0));
 }
 
@@ -277,7 +277,7 @@ fn a_refusal_just_after_the_owner_allowed_tasks_is_tried_again_before_asking() {
         app.tasks_tick_at(at);
         assert!(app.dialog.is_none(), "asked again after a refusal right after allowing");
     }
-    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Given));
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), Some(&Permission::Given));
     assert_eq!(jobs.lock().unwrap().len(), 4);
     assert_eq!(sign_ins.lock().unwrap().len(), 1);
 }
@@ -315,7 +315,7 @@ fn a_refused_sign_in_for_tasks_leaves_ask_again() {
     answers.lock().unwrap().push_back(TasksResult { account: owner, sign_in_refused: true, ..Default::default() });
     assert!(app.tasks_tick_at(0.0));
     app.poll_tasks();
-    assert!(matches!(app.tasks.perm.get(&owner), Some(Permission::SignInOver(_))));
+    assert!(matches!(app.session.driver.tasks.perm.get(&owner), Some(Permission::SignInOver(_))));
     let (line, again) = app.tasks_line(owner).unwrap();
     assert!(again && line.contains("no longer takes the sign-in"), "{line}");
     // Not by itself: no question, no page, no job.
@@ -344,7 +344,7 @@ fn a_new_sign_in_for_mail_lets_the_tasks_go_on() {
     app.tokens.insert(owner, tokens("new-access", "ref-3"));
     assert!(app.tasks_tick_at(11.0 * 60_000.0));
     assert_eq!(jobs.lock().unwrap().last().map(|j| j.1.clone()), Some("ref-3".to_string()));
-    assert_eq!(app.tasks.perm.get(&owner), None);
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), None);
 }
 
 /// #520: Graph refusing a token just renewed is no reason to stop: the next look tries again.
@@ -359,7 +359,7 @@ fn a_refusal_after_the_token_was_renewed_is_tried_again() {
     });
     assert!(app.tasks_tick_at(0.0));
     app.poll_tasks();
-    assert_eq!(app.tasks.perm.get(&owner), None);
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), None);
     assert!(app.tasks_tick_at(10.0 * 60_000.0));
     assert_eq!(jobs.lock().unwrap().len(), 2);
 }
@@ -374,7 +374,7 @@ fn a_refusal_from_before_the_owner_allowed_them_is_not_taken() {
     app.run("ui.allowTasks", json!({"account": owner, "confirmed": true})).unwrap();
     app.poll_sign_in();
     app.poll_tasks();
-    assert_eq!(app.tasks.perm.get(&owner), None);
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), None);
 }
 
 /// A synced to-do deleted in a window that has taken its first look.

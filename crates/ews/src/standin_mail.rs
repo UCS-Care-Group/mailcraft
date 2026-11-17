@@ -449,12 +449,13 @@ impl State {
         if !["IdOnly", "Default", "AllProperties"].contains(&base.text.trim()) {
             return Err(invalid("BaseShape is IdOnly, Default or AllProperties"));
         }
-        let asked_class = inside
-            .get(1)
-            .copied()
-            .flatten()
-            .is_some_and(|extra| extra.children.iter().any(|p| p.attribute("FieldURI") == Some("folder:FolderClass")));
-        let with_class = !self.class_only_when_asked || asked_class || base.text.trim() == "AllProperties";
+        let asked =
+            |field: &str| inside.get(1).copied().flatten().is_some_and(|extra| extra.children.iter().any(|p| p.attribute("FieldURI") == Some(field)));
+        let all = base.text.trim() == "AllProperties";
+        let with_class = !self.class_only_when_asked || asked("folder:FolderClass") || all;
+        // (Exchange leaves the folder above out of the Default shape, as [MS-OXWSCORE] has it: a
+        // request that doesn't ask for it gets every folder without one.)
+        let with_parent = asked("folder:ParentFolderId") || all;
         let root = self.sync_folder(Check::required(operation, parts.get(1).copied().flatten(), "SyncFolderId")?)?;
         if root.distinguished != "msgfolderroot" {
             return Err(Refusal { code: "ErrorInvalidRequest", why: "this stand-in synchronises the top of the mail".into() });
@@ -479,10 +480,11 @@ impl State {
                 _ => "Folder",
             };
             let class = if with_class { format!("<t:FolderClass>{}</t:FolderClass>", escape(&folder.class)) } else { String::new() };
+            let parent =
+                if with_parent { format!("<t:ParentFolderId Id=\"{}\" ChangeKey=\"AQAAAA==\"/>", escape(&folder.parent)) } else { String::new() };
             format!(
-                "<t:{tag}><t:{element}><t:FolderId Id=\"{id}\" ChangeKey=\"AQAAABYA\"/><t:ParentFolderId Id=\"{parent}\" ChangeKey=\"AQAAAA==\"/>{class}<t:DisplayName>{name}</t:DisplayName><t:TotalCount>{total}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{unread}</t:UnreadCount></t:{element}></t:{tag}>",
+                "<t:{tag}><t:{element}><t:FolderId Id=\"{id}\" ChangeKey=\"AQAAABYA\"/>{parent}{class}<t:DisplayName>{name}</t:DisplayName><t:TotalCount>{total}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{unread}</t:UnreadCount></t:{element}></t:{tag}>",
                 id = escape(&folder.id),
-                parent = escape(&folder.parent),
                 name = escape(&folder.name),
                 total = folder.total,
                 unread = folder.unread
@@ -534,6 +536,9 @@ impl State {
                 return Err(invalid("SyncScope is NormalItems or NormalAndAssociatedItems"));
             }
         }
+        if self.exchange2010 && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag") {
+            return Err(invalid("the schema has no such property"));
+        }
         if (self.lacks_preview && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag"))
             || (self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId"))
         {
@@ -541,6 +546,13 @@ impl State {
                 200,
                 "ErrorInvalidPropertyRequest".into(),
                 response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyRequest")),
+            ));
+        }
+        if (self.exchange2010 || self.lists_no_recipients) && extra.iter().any(|e| e == "message:ToRecipients" || e == "message:CcRecipients") {
+            return Ok((
+                200,
+                "ErrorInvalidPropertyForOperation".into(),
+                response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyForOperation")),
             ));
         }
         // Where the read goes on from: the state it was given, or the start.

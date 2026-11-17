@@ -31,6 +31,16 @@ pub struct FetchDriver {
     /// many times, and until when (milliseconds) the account is left alone. Each wait is twice
     /// the one before, and the other accounts go on meanwhile.
     pub stuck: std::collections::HashMap<Id, (u32, f64)>,
+    /// The command that waits for messages to be fetched whole ([`super::fetch_flow`]).
+    pub then: Option<super::fetch_flow::Waiting>,
+    /// A command whose messages came while a form with changes that aren't saved was open: it
+    /// goes on once that form is closed (#513).
+    pub held: Option<super::fetch_flow::Waiting>,
+    /// While a forward of several runs again once messages came: those fetched for it already,
+    /// not asked for again.
+    pub tried: Option<Vec<Id>>,
+    /// The message last asked for when it was opened (not asked again while it stays open).
+    pub opened: Option<Id>,
 }
 
 /// How far the background fetch has got, as the engine said after the last batch taken in.
@@ -85,6 +95,7 @@ impl FetchDriver {
     pub fn forget(&mut self) {
         self.stuck.clear();
         (self.idle_until, self.offline) = (0.0, false);
+        (self.then, self.held, self.tried, self.opened) = (None, None, None, None);
     }
 
     /// Whether the background is to wait at `now`: it found nothing to fetch a moment ago.

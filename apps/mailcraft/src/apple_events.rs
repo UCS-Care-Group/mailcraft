@@ -47,7 +47,7 @@ pub fn poll(inbox: &Inbox, app: &mut MailApp, ctx: &egui::Context) {
                     app.open_from_system(p);
                 }
             }
-            Event::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            Event::Quit => crate::quit::request(ctx),
         }
     }
 }

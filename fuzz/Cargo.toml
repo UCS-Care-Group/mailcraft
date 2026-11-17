@@ -171,6 +171,20 @@ doc = false
 bench = false
 
 [[bin]]
+name = "dav_answers"
+path = "fuzz_targets/dav_answers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dav_discovery"
+path = "fuzz_targets/dav_discovery.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "dav_document"
 path = "fuzz_targets/dav_document.rs"
 test = false
@@ -215,6 +229,13 @@ bench = false
 [[bin]]
 name = "assuan"
 path = "fuzz_targets/assuan.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "header_block"
+path = "fuzz_targets/header_block.rs"
 test = false
 doc = false
 bench = false

@@ -59,6 +59,12 @@ pub struct GraphRequest {
     pub mail_pieces: Option<std::sync::mpsc::SyncSender<mailcraft_model::sync::GraphMailResult>>,
     /// Set when the owner stops the run (Cancel): it stops after the page in hand.
     pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// The account whose sign-in a token this run obtains must be (the account itself, or the
+    /// owner a shared mailbox is opened through): a token that names somebody else stops the run
+    /// before anything goes up or is read ([`crate::job_sign_in::foreign_sign_in`]), and the
+    /// answer carries only those tokens, for the caller to refuse and say whose they were.
+    /// `None`: not checked in the run (the caller checks what comes back).
+    pub signer: Option<mailcraft_model::Account>,
 }
 
 /// What a [`GraphRequest`] came to. Never an error as a whole: mail goes on either way.

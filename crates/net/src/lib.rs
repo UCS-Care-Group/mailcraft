@@ -29,6 +29,8 @@ mod anchors;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod anchors_nss;
 #[cfg(not(target_arch = "wasm32"))]
+mod autoconfig;
+#[cfg(not(target_arch = "wasm32"))]
 mod cert;
 #[cfg(not(target_arch = "wasm32"))]
 mod discover;
@@ -47,6 +49,10 @@ mod http;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod https;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod idle;
+#[cfg(test)]
+mod idle_tests;
+#[cfg(not(target_arch = "wasm32"))]
 mod kept;
 #[cfg(not(target_arch = "wasm32"))]
 mod kinds;
@@ -63,6 +69,8 @@ pub mod report;
 #[cfg(not(target_arch = "wasm32"))]
 mod send;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod subscription;
+#[cfg(not(target_arch = "wasm32"))]
 mod sync;
 #[cfg(not(target_arch = "wasm32"))]
 mod tls;
@@ -72,6 +80,8 @@ mod transport;
 pub mod update;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod update_download;
+#[cfg(not(target_arch = "wasm32"))]
+mod xml_text;
 
 // (`cfg(test)` on its own line: that is how clippy knows test code, which may unwrap.)
 #[cfg(test)]
@@ -107,11 +117,11 @@ mod native {
 
     pub use crate::anchors::system_trust_anchors;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
-    pub use crate::discover::{discover, discover_at};
+    pub use crate::discover::{PLACES, Places, discover, discover_at};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::dns_srv::{
-        AutodiscoverTargets, SrvTarget, autodiscover_hosts, autodiscover_hosts_at, autodiscover_targets, autodiscover_targets_at,
-        lookup_autodiscover, lookup_autodiscover_at,
+        AutodiscoverTargets, DavRecords, DavService, SrvTarget, autodiscover_hosts, autodiscover_hosts_at, autodiscover_targets,
+        autodiscover_targets_at, lookup_autodiscover, lookup_autodiscover_at, lookup_dav, lookup_dav_at,
     };
     pub use crate::pinned::pin_check_under_way;
     pub use crate::send::send;

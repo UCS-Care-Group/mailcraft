@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-11 · **Change:** patch
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-14 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -53,8 +53,10 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
 - **Allow edits by maintainers** (the box under a new pull request, on by default for a fork):
   it lets a maintainer bring your branch up to date with `main` or fix a small thing without
   waiting for you.
-- **`cargo xtask ci` passes** on your machine before every commit (fmt, clippy, tests, assets,
-  spdx, test-files, layers, wasm, and cargo-deny when it is installed). Commits carry the task id (`R3.2: messages come down by delta`).
+- **`cargo xtask ci` passes** on your machine before every commit: the cheap checks first (fmt,
+  assets, spdx, test-files, workflows, layers, wasm-clock (no std clock in code the browser runs),
+  i18n --check, release-notes, docs-log), then clippy, the tests, wasm, and cargo-deny when it is
+  installed. Commits carry the task id (`R3.2: messages come down by delta`).
 - **Rows of the documents' tables and lines of the release notes are files of their own.** A row
   of a document's revision history goes in `docs/log.d/<document without .md>/revisions/<issue>.md`,
   a row of `ROADMAP.md`'s progress log in `docs/log.d/ROADMAP/progress/<issue>.md`
@@ -79,6 +81,31 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
 - **Changes to sync, the store, sign-in and secrets** (the paths in
   [`CODEOWNERS`](.github/CODEOWNERS), which asks a maintainer for review) are read by a maintainer
   before they land. Expect questions.
+
+## Continuous integration
+
+`ci-ok` is the check a pull request must pass (with `cla`). CI runs in tiers:
+
+- **A pull request** runs `quick` at once: the cheap checks of `cargo xtask ci` (formatting, SPDX
+  lines, the catalogues, the fragments…), so a stale `.po` or a fragment that won't join fails in
+  a few minutes. Beside it, the tests of the packages it changes and of every package that depends
+  on them, on Linux, macOS and Windows (`cargo xtask affected` turns the changed files into a
+  nextest filter; the run's log and summary say what it selected and why). A translation alone
+  (`crates/i18n/po/` and documentation) runs on Linux only; the Android app's own files run its job
+  and no Rust tests; documentation alone runs `quick` only. The check of the phone binding for
+  Android runs when something it is built from changes.
+- **The whole suite** runs on every system when the pull request changes what every package is
+  built from (`Cargo.lock`, the root `Cargo.toml`, the toolchain, `.cargo/`, `.config/`, `xtask/`,
+  `.github/workflows/`, `.github/scripts/`) or a file outside every package, on every push to
+  `main`, in the merge queue, and on a run by hand.
+- **Label a pull request `full-ci`** to run the whole suite on it: adding the label starts the run.
+- **On a schedule:** coverage (nightly and on `main`, no longer on pull requests), FreeBSD and
+  Windows on Arm (nightly), fuzzing of every reader (weekly, and on a pull request that changes
+  one), the audit and the benchmarks.
+
+A test that passed on a pull request's selection can still fail on `main` (it reads something no
+dependency leads to): `main` runs everything on every merge, and when you are unsure, use the
+label.
 
 ## A first contribution
 
@@ -119,6 +146,8 @@ issue the maintainers read. Don't press it to try the window out: build with
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | patch | `cargo xtask ci` names its wasm-clock step: no std clock or sleep in code the browser runs (#1337) |
+| 2026-11-12 | minor | An open pull request holds its feature while its author answers a review within 7 days; after that the feature is free to be built afresh |
 | 2026-11-11 | patch | #956 part 3: Send report goes to the real report relay: build with `MAILCRAFT_REPORT_URL=` to try the window out |
 | 2026-11-07 | minor | Security fixes: a fix for a security finding comes with a test that covers every site of its root cause |
 | 2026-11-04 | minor | A row of a document's revision history or of the progress log is a fragment, `docs/log.d/…`, joined in at release like a release-notes line |

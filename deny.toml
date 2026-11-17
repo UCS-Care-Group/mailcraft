@@ -72,6 +72,28 @@ allow = ["CDLA-Permissive-2.0"]
 name = "epaint_default_fonts"
 allow = ["Ubuntu-font-1.0"]
 
+# UniFFI, which joins the Rust core to the phone apps' Kotlin and Swift: MPL-2.0, a file-level
+# copyleft. Allowed for these crates alone, used unchanged at a pinned version (owner's decision,
+# 2026-11-13); the apps name it in their licences. Any other MPL-2.0 crate is still refused.
+[[licenses.exceptions]]
+name = "uniffi"
+allow = ["MPL-2.0"]
+[[licenses.exceptions]]
+name = "uniffi_core"
+allow = ["MPL-2.0"]
+[[licenses.exceptions]]
+name = "uniffi_internal_macros"
+allow = ["MPL-2.0"]
+[[licenses.exceptions]]
+name = "uniffi_macros"
+allow = ["MPL-2.0"]
+[[licenses.exceptions]]
+name = "uniffi_meta"
+allow = ["MPL-2.0"]
+[[licenses.exceptions]]
+name = "uniffi_pipeline"
+allow = ["MPL-2.0"]
+
 [licenses.private]
 ignore = true
 

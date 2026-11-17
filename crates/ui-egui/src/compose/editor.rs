@@ -131,8 +131,16 @@ pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, has: &dyn Fn(&
     }
     let size = on_screen(style.size);
     // The font chosen, from the face installed on this computer; the window's own when there is none (#582).
-    let font =
-        crate::theme::document_font(style.font, style.bold, size, has).unwrap_or_else(|| if style.bold { semibold(size) } else { regular(size) });
+    // A fixed-width font stays fixed width: its regular face for want of a bold one, else the
+    // window's own fixed-width font, so text art keeps its columns while it is written (#969).
+    let font = match crate::theme::document_font(style.font, style.bold, size, has) {
+        Some(font) => font,
+        None if style.font.is_some_and(|f| f.is_fixed_width()) => {
+            crate::theme::document_font(style.font, false, size, has).unwrap_or_else(|| egui::FontId::monospace(size))
+        }
+        None if style.bold => semibold(size),
+        None => regular(size),
+    };
     let own = style.color.as_deref().and_then(|c| egui::Color32::from_hex(c).ok()).map(|c| crate::reading::colors::readable(c, t.surface));
     let color = if style.link.is_some() { t.accent_text } else { own.unwrap_or(t.text) };
     // A highlight is drawn as it is chosen, and the text over it kept readable on it.
@@ -682,7 +690,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     // Changed since the last frame, by a command from elsewhere (an agent's or a script's
     // `compose.select`, the ribbon's): not selected by the owner here.
     own(app, which, &mut st, None);
-    if editable && (take_focus || (which == Which::Message && app.take_body_focus())) {
+    if editable && (take_focus || (which == Which::Message && app.take_body_focus()) || (which == Which::Signature && app.take_signature_focus())) {
         resp.request_focus();
     }
     let mut reveal = false;

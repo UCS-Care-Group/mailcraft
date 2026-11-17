@@ -18,7 +18,7 @@ type Window = egui_kittest::Harness<'static, MailApp>;
 fn app(overlay: bool) -> MailApp {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     app.overlay_scroll_bars = overlay;
     let inbox = app.session.view.folder;
     for i in 0..60u32 {
@@ -99,6 +99,22 @@ fn a_list_with_a_floating_bar_still_scrolls() {
     let now = harness.state().hit.rect("message", row.id);
     assert!(now.is_none_or(|now| now.min.y < was.min.y), "{now:?} {was:?}");
     assert!(harness.state().hit.rect("listScroll", 0).is_none());
+}
+
+/// Both actions stay clear of the thumb in overlay mode and keep their old positions in lane mode.
+#[test]
+fn quick_actions_make_room_only_for_a_floating_scrollbar() {
+    for overlay in [false, true] {
+        let mut harness = window(app(overlay));
+        let (row, rect) = drawn(&mut harness)[0].clone();
+        harness.event(egui::Event::PointerMoved(rect.center()));
+        harness.run_steps(2);
+        let flag = harness.state().hit.rect("messageFlag", row.id).unwrap();
+        let delete = harness.state().hit.rect("messageDelete", row.id).unwrap();
+        let inset = if overlay { crate::widgets::OVERLAY_SCROLL_INSET } else { 0.0 };
+        assert!((flag.max.x - (rect.max.x - inset)).abs() < 0.01);
+        assert!(delete.max.x < flag.min.x);
+    }
 }
 
 /// Off a Mac, the choice is the lane's unless a test asks for the other.

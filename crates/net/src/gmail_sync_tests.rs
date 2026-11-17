@@ -62,7 +62,12 @@ fn an_inbox_on_gmail_comes_with_its_categories() {
     );
     let projects = delta(&result, "Projects");
     assert!(projects.gmail.is_empty() && projects.new.iter().all(|m| m.gmail_category.is_none() && m.gmail_id == 0));
-    assert_eq!(imap.world().log.iter().filter(|line| line.contains("X-GM-MSGID")).count(), 1, "the Inbox's listing alone");
+    // The Inbox's listing asks for Gmail's ids and labels with the flags, every other folder's for
+    // its labels alone (#1153), each in the one command.
+    let log = imap.world().log.clone();
+    let listings: Vec<&String> = log.iter().filter(|line| line.contains("UID FETCH 1:*")).collect();
+    assert_eq!(listings.iter().filter(|line| line.contains("(UID FLAGS X-GM-MSGID X-GM-LABELS)")).count(), 1, "{listings:?}");
+    assert!(listings.len() > 1 && listings.iter().all(|line| line.contains("X-GM-LABELS)")), "{listings:?}");
 
     // Gmail sorts a message again: the next run says so, for the messages already here.
     let folders = applied(&local_folders(), &result);

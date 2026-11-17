@@ -26,7 +26,8 @@ const NOW: i64 = 1_791_993_600;
 /// The Inbox of the first account is in view, and nothing is fetched in the background.
 fn window() -> (MailApp, [[Id; 3]; 2], Jobs) {
     let mut app = MailApp::new(Session::at(mailcraft_model::Mailbox::default(), NOW, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let mut ids = [[0; 3]; 2];
     for (k, address) in ["one@example.org", "two@example.org"].iter().enumerate() {
         let account = app.execute("account.add", json!({"email": address, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();

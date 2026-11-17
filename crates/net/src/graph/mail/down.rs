@@ -55,7 +55,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use mailcraft_model::sync::{
-    GraphFolder, GraphMailRequest, GraphMailResult, GraphMessage, GraphProgress, MessagePage, ReadState, ServerMessage, SyncPhase, Timings,
+    GraphFolder, GraphLink, GraphMailRequest, GraphMailResult, GraphMessage, GraphProgress, MessagePage, ReadState, ServerMessage, SyncPhase, Timings,
 };
 use mailcraft_model::{Address, FlagStatus, FolderCounts, FolderKind, Importance};
 use serde_json::Value;
@@ -66,12 +66,22 @@ use super::{folders as folders_of, id_of};
 use crate::NetError;
 use crate::http::{self, Url};
 
+/// An instant as Graph's filters write it: `2026-10-15T08:00:00Z`, within the years they take.
+fn utc(t: mailcraft_model::time::Timestamp) -> String {
+    mailcraft_model::time::format_iso_utc(t.clamp(0, 253_402_300_799))
+}
+
 /// What is asked for of each message: what the message list needs (R3 spec S9).
 pub(super) const FIELDS: &str = "receivedDateTime,sentDateTime,subject,from,toRecipients,ccRecipients,bodyPreview,isRead,flag,categories,importance,parentFolderId,internetMessageId,hasAttachments,isDraft,changeKey,conversationId";
 /// A message's size on the server (`PidTagMessageSize`), which Graph gives only as an extended
 /// property: what "Download messages in full" is held against. Asked for of a message by its id,
 /// never of a delta, which refuses it.
 pub(super) const SIZE: &str = "singleValueExtendedProperties($filter=id eq 'Integer 0x0E08')";
+/// Most messages Graph's message delta gives a round that carries a `$filter` ("Applying `$filter`
+/// in a delta query returns only up to 5,000 messages", Microsoft Learn, "Get incremental changes
+/// to messages in a folder"). A window's listing that reaches it may have more mail in the window
+/// than it brought, so the window is then read once more by a plain list, which has no such limit.
+const FILTERED_DELTA_CAP: u32 = 5_000;
 /// Messages to a page.
 const PAGE_SIZE: &str = "odata.maxpagesize=100";
 /// Most pages of one folder in one run (a million messages): a server that never ends a round
@@ -114,6 +124,22 @@ struct Reading {
     listed: Option<FolderCounts>,
     /// Passed over: its counts are the ones kept with its delta link (#276).
     skipped: bool,
+    /// Which request for a listing afresh the folder's first page answers (`GraphLink::relist_gen`).
+    relist_gen: u32,
+    /// The round under way lists a window (a phone's): it began at the top, or is the rest of one
+    /// that did. It ends where its delta link comes, or is read again by a plain list (below).
+    listing: bool,
+    /// The round under way began in an earlier run: the pages of it that were read then aren't
+    /// counted here.
+    resumed: bool,
+    /// Messages the round under way has brought.
+    counted: u32,
+    /// The window's round reached [`FILTERED_DELTA_CAP`] (or its count is unknown): the window is
+    /// being read by a plain list of the folder, which Graph doesn't cut, and the folder's delta
+    /// link of the round waits in `held` until that list ends, so that a run that stops before
+    /// then reads the round's last page again and comes back here.
+    plain: bool,
+    held: Option<(String, Url)>,
 }
 
 /// The time and requests since the last piece was handed on, for the run's timings (#276).
@@ -155,6 +181,8 @@ struct Run {
     left: HashSet<String>,
     seen: HashSet<String>,
     overflow: bool,
+    /// The earliest received time a folder listed from its start lists (a phone's, MB3.16).
+    since: Option<mailcraft_model::time::Timestamp>,
 }
 
 impl Run {
@@ -199,8 +227,7 @@ pub(super) fn messages(
     emit: &mut dyn FnMut(GraphMailResult),
 ) -> GraphMailResult {
     let mut out = GraphMailResult { account: request.account, email: request.email.clone(), ..Default::default() };
-    let links: HashMap<&str, (&str, bool, Option<FolderCounts>)> =
-        request.links.iter().map(|l| (l.folder.as_str(), (l.link.as_str(), l.caught_up, l.counts))).collect();
+    let links: HashMap<&str, &mailcraft_model::sync::GraphLink> = request.links.iter().map(|l| (l.folder.as_str(), l)).collect();
     // The Inbox pass lists nothing: its folder's counts are none of the server's.
     let listing = !phase_is_inbox(phase);
     let mut folders: Vec<GraphFolder> = listed.to_vec();
@@ -208,14 +235,23 @@ pub(super) fn messages(
     let mut reading: Vec<Reading> = folders
         .into_iter()
         .map(|folder| {
+            let relist_gen = links.get(folder.id.as_str()).map_or(0, |l| l.relist_gen);
             let (link, caught_up, afresh, kept) = match links.get(folder.id.as_str()) {
                 None => (None, false, false, None),
                 // A link from the mailbox file is followed only to Graph itself.
-                Some((link, caught_up, kept)) => match Url::parse_within(link, http::MAX_LONG_URL).ok().filter(|url| graph.base.same_server(url)) {
-                    Some(url) => (Some(url), *caught_up, false, kept.filter(|_| *caught_up)),
-                    None => (None, false, true, None),
-                },
+                // To be listed afresh (MB3.16): from its start, whatever link it had.
+                Some(GraphLink { afresh: true, .. }) => (None, false, true, None),
+                Some(GraphLink { link, caught_up, counts, afresh: false, .. }) => {
+                    match Url::parse_within(link, http::MAX_LONG_URL).ok().filter(|url| graph.base.same_server(url)) {
+                        Some(url) => (Some(url), *caught_up, false, counts.filter(|_| *caught_up)),
+                        None => (None, false, true, None),
+                    }
+                }
             };
+            let resumed = link.is_some() && !caught_up;
+            // (A round that goes on from a saved link of a window is one too: Graph cuts it at the
+            // same limit.)
+            let windowed = request.since.is_some();
             let round_here = link.is_none() || caught_up;
             // Counts the server didn't give are unknown, not 0: such a folder is never passed over.
             let listed = (listing && folder.counted).then_some(FolderCounts { total: folder.total, unread: folder.unread });
@@ -234,6 +270,12 @@ pub(super) fn messages(
                 kept,
                 listed,
                 skipped: false,
+                relist_gen,
+                listing: windowed,
+                resumed,
+                counted: 0,
+                plain: false,
+                held: None,
             };
             if listing && !request.full && unchanged(&one) {
                 (one.skipped, one.done) = (true, true);
@@ -246,7 +288,7 @@ pub(super) fn messages(
     // First the newest page of each (all of what changed, for one read to its end before), then
     // each to its end.
     let mut stopped = None;
-    let mut run = Run { tracking: reading.iter().any(|one| one.skipped), ..Default::default() };
+    let mut run = Run { tracking: reading.iter().any(|one| one.skipped), since: request.since, ..Default::default() };
     'passes: for (pass, first) in [(0, true), (1, false), (2, false)] {
         // After the rest: what left a folder read and turned up in none may be in a folder passed
         // over, so those are read after all (each from its delta link: as a rule, a page).
@@ -329,9 +371,26 @@ fn page(
     }
     let url = match &one.link {
         Some(url) => url.clone(),
+        // The window's mail by a plain list: Graph cuts a delta with a filter at 5,000 messages.
+        None if one.plain => {
+            let since = run.since.map(|t| format!("receivedDateTime ge {}", utc(t)));
+            let mut fields = vec![("$select", FIELDS), ("$orderby", "receivedDateTime desc"), ("$top", "100")];
+            if let Some(filter) = since.as_deref() {
+                fields.push(("$filter", filter));
+            }
+            let query = http::form(&fields);
+            graph.url(&format!("{}/{}/messages?{query}", folders_of(graph), http::encode(&one.folder.id)))
+        }
         None => {
             // (Not the sizes: a delta refuses their expansion, see above.)
-            let query = http::form(&[("$select", FIELDS), ("$orderby", "receivedDateTime desc")]);
+            // On a phone only the window's mail (MB3.16): Graph's message delta takes a filter on
+            // the received time, and its links go on with it.
+            let since = run.since.map(|t| format!("receivedDateTime ge {}", utc(t)));
+            let mut fields = vec![("$select", FIELDS), ("$orderby", "receivedDateTime desc")];
+            if let Some(filter) = since.as_deref() {
+                fields.push(("$filter", filter));
+            }
+            let query = http::form(&fields);
             graph.url(&format!("{}/{}/messages/delta?{query}", folders_of(graph), http::encode(&one.folder.id)))
         }
     };
@@ -340,7 +399,7 @@ fn page(
     match reply.status {
         200 => {}
         // The link is no longer taken: the folder starts afresh, once a run.
-        400 | 410 if expired(&reply.body) || reply.status == 410 => {
+        400 | 410 if !one.plain && (expired(&reply.body) || reply.status == 410) => {
             if one.restarted {
                 one.left = true;
             } else {
@@ -350,6 +409,10 @@ fn page(
                 one.caught_up = false;
                 one.afresh = true;
                 one.round_here = true;
+                // (Not an answer to a request for a listing afresh; the window is listed again.)
+                one.relist_gen = 0;
+                one.listing = run.since.is_some();
+                (one.resumed, one.counted) = (false, 0);
             }
             return Ok(());
         }
@@ -374,28 +437,90 @@ fn page(
     let entries = json.get("value").and_then(Value::as_array).ok_or_else(|| nonsense("Microsoft Graph's answer has no list in it"))?;
     let next = link_of(graph, &json, "@odata.nextLink");
     let delta = link_of(graph, &json, "@odata.deltaLink");
-    let ((given, link), caught_up) = match (next, delta) {
-        (Some(next), None) => (next, false),
-        (None, Some(delta)) => (delta, true),
-        // Neither, both, or one that can't be followed: the folder waits for the next run.
-        _ => {
-            log::info!("graph mail: a page named no way on that can be followed; the folder waits for the next run");
-            one.left = true;
-            return Ok(());
+    let ((given, link), caught_up) = if one.plain {
+        // The plain list of the window: its pages go on without a link of theirs kept (a list's
+        // link is no delta link), and its end is where the round's delta link, held, is given.
+        match (next, delta) {
+            (Some((_, url)), None) => ((String::new(), url), false),
+            // (Only a page that names no continuation at all is the list's end: one that names a
+            // link that can't be followed leaves the folder for the next run.)
+            (None, None) if json.get("@odata.nextLink").is_none() && json.get("@odata.deltaLink").is_none() => match one.held.take() {
+                Some(held) => (held, true),
+                None => {
+                    one.left = true;
+                    return Ok(());
+                }
+            },
+            _ => {
+                log::info!("graph mail: a page named no way on that can be followed; the folder waits for the next run");
+                one.left = true;
+                return Ok(());
+            }
+        }
+    } else {
+        match (next, delta) {
+            (Some(next), None) => (next, false),
+            (None, Some(delta)) => (delta, true),
+            // Neither, both, or one that can't be followed: the folder waits for the next run.
+            _ => {
+                log::info!("graph mail: a page named no way on that can be followed; the folder waits for the next run");
+                one.left = true;
+                return Ok(());
+            }
         }
     };
-    let mut taken = MessagePage { folder: one.folder.id.clone(), afresh: std::mem::take(&mut one.afresh), caught_up, ..Default::default() };
+    let afresh = std::mem::take(&mut one.afresh);
+    let relist_gen = if afresh { std::mem::take(&mut one.relist_gen) } else { 0 };
+    let mut taken = MessagePage { folder: one.folder.id.clone(), afresh, relist_gen, caught_up, ..Default::default() };
     for entry in entries.iter().take(1_000) {
         match entry_of(entry, &one.folder.id) {
-            Some(Entry::Message(message)) => taken.messages.push(*message),
+            Some(Entry::Message(message)) => {
+                one.counted = one.counted.saturating_add(1);
+                // A link kept from a wider window brings what is outside this one (the window was
+                // made shorter, or time went on): it isn't taken in.
+                if run.since.is_none_or(|since| message.received >= since) {
+                    taken.messages.push(*message);
+                }
+            }
             Some(Entry::Removed(id)) => taken.removed.push(id),
-            Some(Entry::Read(id, read)) => taken.read.push(ReadState { id, read }),
+            Some(Entry::Read(id, read)) => {
+                // (Graph's limit counts every change key, a read state's too.)
+                one.counted = one.counted.saturating_add(1);
+                taken.read.push(ReadState { id, read });
+            }
             None => {}
         }
     }
     let read_alone = u32::try_from(taken.read.len()).unwrap_or(u32::MAX);
     one.read_alone = one.read_alone.saturating_add(read_alone);
     one.read = one.read.saturating_add(u32::try_from(taken.messages.len() + taken.removed.len()).unwrap_or(u32::MAX)).saturating_add(read_alone);
+    // A window's round that Graph may have cut at its limit (or that was begun before this run,
+    // so that its count is lost) is read again by a plain list before the folder is current; the
+    // round's delta link waits for that, and this page doesn't carry it.
+    if !one.plain && caught_up && one.listing && run.since.is_some() && (one.resumed || one.counted >= FILTERED_DELTA_CAP) {
+        log::info!("graph mail: a window's round may have been cut short by Graph; the window is listed again by a plain list");
+        (taken.link, taken.caught_up, taken.counts) = (String::new(), false, None);
+        one.held = Some((given, link));
+        (one.plain, one.link, one.caught_up, one.listing) = (true, None, false, false);
+        // The plain list carries no removals: it is read as a listing afresh, which marks the
+        // folder's messages gone and lets each page it returns confirm its own. What is still gone
+        // when the run ends whole is gone from the window; a list stopped or cut short sweeps
+        // nothing (the sweep waits for every folder to be done), and the round's delta link,
+        // held, is given only at the list's end.
+        (one.afresh, one.relist_gen) = (true, 0);
+        run.note(&taken);
+        emit(GraphMailResult {
+            account: out.account,
+            email: out.email.clone(),
+            pages: vec![taken],
+            partial: true,
+            progress: Some(GraphProgress { folder: one.folder.id.clone(), read: one.read, total: one.folder.total, number, folders }),
+            timings: lap.take(graph),
+            inbox_pass: phase_is_inbox(lap.phase),
+            ..Default::default()
+        });
+        return Ok(());
+    }
     taken.link = given;
     // The counts of this run's listing go with a link that ends a round begun after it; a round
     // begun in an earlier run may have missed what changed since then, and gets none.
@@ -418,6 +543,7 @@ fn page(
     if caught_up {
         one.done = one.round_here;
         one.round_here = true;
+        (one.plain, one.listing) = (false, false);
     }
     let progress = GraphProgress { folder: one.folder.id.clone(), read: one.read, total: one.folder.total, number, folders };
     emit(GraphMailResult {

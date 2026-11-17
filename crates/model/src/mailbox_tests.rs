@@ -1013,10 +1013,10 @@ fn a_jmap_account_keeps_its_setting_and_a_damaged_one_costs_only_itself() {
 fn only_a_jmap_or_microsoft_account_has_server_ids() {
     use AccountKind::*;
     assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::server_ids), [false, false, true, true, false]);
-    // A JMAP account is kept in step with a server, but nothing sends its Outbox yet. An account of a
+    // A JMAP account is kept in step with a server, and its Outbox is sent over JMAP. An account of a
     // kind this version doesn't know is neither: whatever it is, this version doesn't know how.
     assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::has_server), [false, true, true, true, false]);
-    assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::sends_mail), [false, true, true, false, false]);
+    assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::sends_mail), [false, true, true, true, false]);
 }
 
 /// A JMAP account's server's mailboxes keep their names and places until changes go up: a rename
@@ -1245,4 +1245,31 @@ fn exchange_stamps_saved_before_781_vouch_for_nothing() {
     mb.message_mut(a).unwrap().fresh_stamps = true;
     assert!(vouched(&mb));
     assert!(vouched(&from_json(&saved(&mb), usize::MAX).unwrap()));
+}
+
+#[test]
+fn the_default_calendar_and_the_one_orphans_go_to_are_never_a_subscribed_one() {
+    use crate::subscription::Subscription;
+    let mut mb = Mailbox::default();
+    mb.calendars.clear();
+    let feed = mb.alloc_id();
+    let subscription = Some(Subscription { host: "cal.example.org".into(), ..Default::default() });
+    mb.calendars.push(Calendar { id: feed, name: "Fixtures".into(), subscription, ..Default::default() });
+    assert_eq!(mb.default_calendar(), None);
+    // An event with no calendar of its own known makes one of the mailbox's own.
+    let id = mb.add_event(Event { title: "Dentist".into(), calendar: 9_999, ..Default::default() }).unwrap();
+    let home = mb.event(id).unwrap().calendar;
+    assert_ne!(home, feed);
+    assert!(mb.calendar(home).is_some_and(|c| !c.is_subscribed()));
+    // And so does the repair of an orphan.
+    let mut mb = Mailbox::default();
+    mb.calendars.clear();
+    let feed = mb.alloc_id();
+    let subscription = Some(Subscription { host: "cal.example.org".into(), ..Default::default() });
+    mb.calendars.push(Calendar { id: feed, name: "Fixtures".into(), subscription, ..Default::default() });
+    let orphan = mb.alloc_id();
+    mb.events.insert(orphan, std::sync::Arc::new(Event { id: orphan, title: "Lost".into(), calendar: 9_999, ..Default::default() }));
+    mb.repair();
+    let home = mb.event(orphan).unwrap().calendar;
+    assert!(mb.calendar(home).is_some_and(|c| !c.is_subscribed()), "orphans are not put into a copy of a web calendar");
 }

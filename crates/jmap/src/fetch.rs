@@ -55,8 +55,8 @@ const MAX_FAILED_IN_A_ROW: usize = 3;
 /// and sizes come to well under this, and what is parsed of an answer takes much more memory than the answer.
 const LOCATE_BYTES: usize = 2 << 20;
 /// The type and the file name a download is asked for: a server may put them in its answer.
-const MESSAGE_TYPE: &str = "message/rfc822";
-const MESSAGE_NAME: &str = "message.eml";
+pub(crate) const MESSAGE_TYPE: &str = "message/rfc822";
+pub(crate) const MESSAGE_NAME: &str = "message.eml";
 
 /// What fetching one message came to.
 #[derive(Clone, PartialEq, Eq)]

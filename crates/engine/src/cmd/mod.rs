@@ -22,6 +22,7 @@ pub mod calendar;
 pub mod calendar_extra;
 pub mod calendar_opened;
 pub mod calendar_settings;
+pub mod calendar_subscribed;
 pub mod category;
 #[cfg(test)]
 mod category_tests;
@@ -30,6 +31,15 @@ pub mod compose;
 mod compose_trust_tests;
 #[cfg(test)]
 mod conversation_thread_tests;
+pub mod dav_account;
+#[cfg(test)]
+mod dav_account_tests;
+pub mod dav_sync;
+pub mod device_limits;
+#[cfg(test)]
+mod device_limits_relist_tests;
+#[cfg(test)]
+mod device_limits_tests;
 pub mod edit;
 mod ews_down;
 pub mod ews_mail;
@@ -41,7 +51,14 @@ pub mod folder;
 #[cfg(test)]
 mod folder_empty_tests;
 #[cfg(test)]
+mod folder_kind_tests;
+#[cfg(test)]
+mod folder_new_tests;
+#[cfg(test)]
 mod folder_properties_tests;
+pub mod followup;
+#[cfg(test)]
+mod followup_tests;
 pub mod format;
 #[cfg(test)]
 mod format_tests;
@@ -69,6 +86,9 @@ mod hidden_selection_tests;
 pub mod imap_again;
 #[cfg(test)]
 mod imap_outbox_tests;
+pub mod imported_dupes;
+#[cfg(test)]
+mod imported_dupes_tests;
 mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
@@ -87,6 +107,8 @@ mod leave_compose_tests;
 pub mod mail;
 #[cfg(test)]
 mod moves_between_accounts_tests;
+#[cfg(test)]
+mod navigation_bar_tests;
 #[cfg(test)]
 mod newer_account_tests;
 pub mod notes;
@@ -112,6 +134,8 @@ mod range_select_tests;
 mod read_receipt_tests;
 #[cfg(test)]
 mod refused_delete_tests;
+#[cfg(test)]
+mod relay_without_sign_in_tests;
 pub mod remote;
 #[cfg(test)]
 mod reply_to_first_tests;
@@ -126,6 +150,7 @@ mod search_scope_tests;
 pub mod search_server;
 #[cfg(test)]
 mod search_suggest_tests;
+pub mod send_later;
 pub mod send_receive;
 pub mod shared;
 pub mod signature;
@@ -146,6 +171,11 @@ mod tasks_remote_tests;
 #[cfg(test)]
 mod tasks_tests;
 mod thread_ids;
+pub mod unsubscribe;
+#[cfg(test)]
+mod unsubscribe_tests;
+#[cfg(test)]
+mod upcoming_reminders_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
@@ -174,6 +204,7 @@ pub fn registry() -> Registry {
     v.extend(edit::specs());
     v.extend(mail::specs());
     v.extend(snooze::specs());
+    v.extend(followup::specs());
     v.extend(gmail_move::specs());
     v.extend(compose::specs());
     v.extend(format::specs());
@@ -184,25 +215,32 @@ pub fn registry() -> Registry {
     v.extend(calendar::specs());
     v.extend(calendar_extra::specs());
     v.extend(calendar_opened::specs());
+    v.extend(calendar_subscribed::specs());
     v.extend(calendar_settings::specs());
     v.extend(zones::specs());
     v.extend(people::specs());
     v.extend(people_merge::specs());
+    v.extend(imported_dupes::specs());
     v.extend(tasks::specs());
     v.extend(notes::specs());
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
     v.extend(junk::specs());
+    v.extend(unsubscribe::specs());
     v.extend(keys::specs());
     v.extend(category::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());
     v.extend(offline::specs());
+    v.extend(device_limits::specs());
     v.extend(send_receive::specs());
+    v.extend(send_later::specs());
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
     v.extend(ews_mail::specs());
+    v.extend(dav_account::specs());
+    v.extend(dav_sync::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());
@@ -355,6 +393,9 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
 /// A message as agents see it in lists. For a message of a Gmail account's Inbox, its
 /// `gmailCategory` too (#911): one of five words this program wrote, not message text, so it isn't
 /// framed as such.
+/// For a message of a Gmail account, its `gmailLabels` (#1153) when it has any: names the server
+/// gave, Gmail's own with their backslash (`\Inbox`); text from outside, which MCP frames as
+/// message data, never instructions.
 pub fn message_summary(s: &Session, m: &Message) -> Value {
     let mut v = json!({
         "id": m.id,
@@ -373,6 +414,9 @@ pub fn message_summary(s: &Session, m: &Message) -> Value {
     });
     if let (Some(category), Some(o)) = (m.gmail_category, v.as_object_mut()) {
         o.insert("gmailCategory".into(), json!(category.code()));
+    }
+    if let (false, Some(o)) = (m.gmail_labels.is_empty(), v.as_object_mut()) {
+        o.insert("gmailLabels".into(), json!(m.gmail_labels));
     }
     v
 }
