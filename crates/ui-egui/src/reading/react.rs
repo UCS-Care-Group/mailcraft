@@ -5,7 +5,7 @@
 //! written in a message window. The emoji are drawn with the window's own fonts (#832).
 
 use egui::{Button, Ui, vec2};
-use mailcraft_engine::cmd::react::{REACTIONS, why_not};
+use mailcraft_engine::cmd::react::{REACTIONS, recipient, refusal, text};
 use mailcraft_model::Message;
 use serde_json::json;
 
@@ -25,8 +25,14 @@ pub(super) fn button(app: &mut MailApp, ui: &mut Ui, m: &Message) {
     if m.id == 0 {
         return;
     }
-    let blocked = why_not(&app.session, m).is_some();
-    let tip = if blocked { tl!("A reaction can't be sent to this message") } else { tl!("React") };
+    // The engine's own reason (a message with a sender warning too), as the tooltip of the greyed button.
+    let why = refusal(&mut app.session, m);
+    let blocked = why.is_some();
+    let tip = match why {
+        Some(why) => crate::i18n::t(text(why)),
+        None => tl!("React"),
+    };
+    let to = recipient(&app.session, m).map(|a| a.full());
     let resp = crate::widgets::icon_button(ui, "react", tip, 17.0, !blocked);
     app.hit.add("react", m.id, resp.rect);
     if blocked {
@@ -36,6 +42,11 @@ pub(super) fn button(app: &mut MailApp, ui: &mut Ui, m: &Message) {
     // The words for the emoji of REACTIONS, in their order.
     let names = [tl!("Like"), tl!("Love"), tl!("Celebrate"), tl!("Laugh"), tl!("Surprised"), tl!("Sad")];
     egui::Popup::menu(&resp).show(|ui| {
+        // Whom it goes to: a reaction is sent at one click, so the address is shown first.
+        if let Some(to) = &to {
+            let label = ui.label(crate::i18n::fmt(tl!("to {recipient}"), &[("recipient", to)]));
+            app.hit.add("reaction-to", id, label.rect);
+        }
         ui.horizontal(|ui| {
             for (index, ((emoji, _), name)) in REACTIONS.iter().zip(names).enumerate() {
                 let r = ui.add(Button::new(egui::RichText::new(drawn(emoji)).font(regular(22.0))).frame(false).min_size(vec2(36.0, 34.0)));

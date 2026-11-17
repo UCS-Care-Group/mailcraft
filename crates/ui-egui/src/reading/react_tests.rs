@@ -86,3 +86,66 @@ fn mail_the_owner_wrote_has_a_greyed_button_that_opens_nothing() {
     assert!(h.state().hit.rect_in(0, "reaction", 0).is_none());
     assert!(reactions(&h).is_empty());
 }
+
+/// Hover the React button of message `id` and let the tooltip show.
+fn hover_button(h: &mut Window, id: Id) {
+    let r = h.state().hit.rect_in(0, "react", id).expect("the button");
+    h.hover_at(r.center() + egui::vec2(0.0, 200.0));
+    h.run_steps(5);
+    h.hover_at(r.center());
+    h.run_steps(60);
+}
+
+#[test]
+fn the_greyed_button_says_why_in_the_engines_words() {
+    let mut h = window();
+    let target_id = target(&h);
+    let sent_folder = {
+        let mb = &h.state().session.mailbox;
+        mb.folder_of_kind(mb.message(target_id).unwrap().account, FolderKind::Sent).unwrap()
+    };
+    let own = h.state().session.mailbox.messages_in(sent_folder).next().map(|m| m.id).expect("a message in Sent Items");
+    h.state_mut().run("mail.select", json!({"id": own})).unwrap();
+    h.run_steps(5);
+    hover_button(&mut h, own);
+    assert!(h.query_all_by_label_contains("a reaction can't be sent to a draft or to mail you wrote").next().is_some());
+    assert!(h.query_all_by_label_contains("A reaction can't be sent to this message").next().is_none(), "not the general text");
+}
+
+#[test]
+fn a_message_with_a_sender_warning_has_a_greyed_button_that_says_so() {
+    let mut h = window();
+    let id = target(&h);
+    h.state_mut().session.mailbox.message_mut(id).unwrap().from.name = "billing@bank.example".into();
+    h.run_steps(5);
+    hover_button(&mut h, id);
+    assert!(h.query_all_by_label_contains("warning about its sender").next().is_some());
+    let at = button(&h).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    assert!(!egui::Popup::is_any_open(&h.ctx));
+    assert!(reactions(&h).is_empty());
+}
+
+/// The row says whom the reaction goes to: the sender, whatever the Reply-To names.
+#[test]
+fn the_row_shows_the_sender_not_the_reply_to() {
+    let mut h = window();
+    let id = target(&h);
+    let from = {
+        let m = h.state_mut().session.mailbox.message_mut(id).unwrap();
+        m.reply_to = vec![mailcraft_model::Address::new("", "x@attacker.example")];
+        m.from.email.clone()
+    };
+    h.run_steps(5);
+    let at = button(&h).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    assert!(egui::Popup::is_any_open(&h.ctx));
+    assert!(h.state().hit.rect_in(0, "reaction-to", id).is_some(), "the recipient line");
+    assert!(h.query_all_by_label_contains(&from).next().is_some(), "the sender's address is shown");
+    assert!(h.query_all_by_label_contains("attacker.example").next().is_none());
+    let at = option(&h, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    let sent = reactions(&h);
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to[0].email, from);
+}

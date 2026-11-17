@@ -16,7 +16,7 @@ use crate::{CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.react", "React", "Home › Respond", react)
-            .params(r#"{"id"?: number, "emoji": "👍"|"❤️"|"🎉"|"😂"|"😮"|"😢"} (default `id`: the selected message; an `id` that is null or isn't an id, or `ids` naming other than one message, is refused) — answers the message with one emoji, as a short mail to its sender (RFC 9078: In-Reply-To, References and a part marked Content-Disposition: reaction beside the same emoji as plain text), sent like any mail (with the wait of Undo Send, if the owner set one) and filed in Sent Items; no message is opened to write. Only those six emoji; a draft, mail the owner sent, mail in Junk E-mail, mail without a sender, automated mail (Auto-Submitted, Precedence: bulk/list/junk, a no-reply sender) and mail of a Microsoft or Exchange server account are refused. Goes to one address (the message's Reply-To, else its sender; mail from a mailing list goes to the sender alone); a second reaction with the same emoji is refused. Answers {"id", "queued", "emoji", "sendAt", "wait"}"#)
+            .params(r#"{"id"?: number, "emoji": "👍"|"❤️"|"🎉"|"😂"|"😮"|"😢"} (default `id`: the selected message; an `id` that is null or isn't an id, or `ids` naming other than one message, is refused) — answers the message with one emoji, as a short mail to its sender (RFC 9078: In-Reply-To, References and a part marked Content-Disposition: reaction beside the same emoji as plain text), sent like any mail (with the wait of Undo Send, if the owner set one) and filed in Sent Items; no message is opened to write. Only those six emoji; a draft, mail the owner sent, mail in Junk E-mail, mail without a sender, automated mail (Auto-Submitted, Precedence: bulk/list/junk, a no-reply sender) and mail of a Microsoft or Exchange server account are refused. Goes to one address, the message's sender (From; its Reply-To is never used, so the owner sees whom it goes to: the window shows it beside the emoji); a message with a sender warning (a lookalike domain, a name that shows another address) is refused; a second reaction with the same emoji is refused. Answers {"id", "queued", "emoji", "sendAt", "wait"}"#)
             .selection(needs_reactable),
     ]
 }
@@ -47,6 +47,9 @@ pub enum Why {
     NoMessageId,
     /// A Microsoft or Exchange server account, or one of a kind this version doesn't know.
     Account,
+    /// The message has a warning about its sender (a lookalike domain, a name that shows another
+    /// address): an answer would tell whoever is behind it that the address is read.
+    Warned,
 }
 
 const OWN: &str = "a reaction can't be sent to a draft or to mail you wrote";
@@ -54,10 +57,23 @@ const JUNK: &str = "a reaction isn't sent to mail in Junk E-mail";
 const NO_SENDER: &str = "this message has no sender to send a reaction to";
 const AUTOMATED: &str = "a reaction isn't sent to automated mail (a no-reply address, a mailing list, bulk mail)";
 const NO_MESSAGE_ID: &str = "this message has no Message-ID, so a reaction can't say what it answers";
+const WARNED: &str = "this message has a warning about its sender, so no reaction is sent to it";
 const ACCOUNT: &str = "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account";
 
-/// Whether `m` can be reacted to, or why not. The window greys its button by the same word the
-/// command refuses by.
+/// [`why_not`], and a message with a sender warning refused too (the warnings the reading pane's
+/// banner shows, links looked at, as `mail.unsubscribe` judges them). These are worked out and kept
+/// by the session, so it takes `&mut`: the window and the command ask this; only the menu's enabled
+/// state (which has the session read-only) asks [`why_not`] alone, and the command still refuses.
+pub fn refusal(s: &mut Session, m: &Message) -> Option<Why> {
+    if let Some(why) = why_not(s, m) {
+        return Some(why);
+    }
+    let warned = mailcraft_model::sender_warnings::banner_level(&s.sender_warnings(m, true)).is_some();
+    warned.then_some(Why::Warned)
+}
+
+/// Whether `m` can be reacted to, apart from a sender warning ([`refusal`]), or why not. The
+/// window greys its button by the same word the command refuses by.
 pub fn why_not(s: &Session, m: &Message) -> Option<Why> {
     let mb = &s.mailbox;
     let own_folder = mb.folder(m.folder).is_some_and(|f| matches!(f.kind, FolderKind::Drafts | FolderKind::Sent | FolderKind::Outbox));
@@ -83,14 +99,13 @@ pub fn why_not(s: &Session, m: &Message) -> Option<Why> {
     }
 }
 
-/// Whom the reaction goes to: one address. The message's Reply-To (the first that isn't the
-/// owner's), else its sender, as a reply goes (#736); mail from a mailing list (`List-Id`) goes to
-/// its sender alone, never to the list its Reply-To names.
-fn recipient(s: &Session, m: &Message) -> Option<Address> {
-    let mine = |a: &Address| s.mailbox.accounts.iter().any(|x| !x.email.is_empty() && x.email.eq_ignore_ascii_case(&a.email));
-    let list = m.has_header("List-Id");
-    let replies = if list { None } else { m.reply_to.iter().find(|a| a.is_valid() && !mine(a)) };
-    replies.or(Some(&m.from)).filter(|a| a.is_valid() && !mine(a)).cloned()
+/// Whom the reaction goes to: the message's sender, one address, never its Reply-To (a reaction is
+/// sent without the owner seeing the address, so it must not go to one the message only names: a
+/// `Reply-To` of another domain would learn that the address is read). The window shows it beside
+/// the emoji. `None` for a sender that isn't a valid address or is the owner's own.
+pub fn recipient(s: &Session, m: &Message) -> Option<Address> {
+    let mine = s.mailbox.accounts.iter().any(|x| !x.email.is_empty() && x.email.eq_ignore_ascii_case(&m.from.email));
+    (m.from.is_valid() && !mine).then(|| m.from.clone())
 }
 
 /// Enabled with a message selected that can be reacted to.
@@ -99,7 +114,7 @@ fn needs_reactable(s: &Session) -> Option<&'static str> {
     s.mailbox.message(id).and_then(|m| why_not(s, m)).map(text)
 }
 
-fn text(why: Why) -> &'static str {
+pub fn text(why: Why) -> &'static str {
     match why {
         Why::Own => OWN,
         Why::Junk => JUNK,
@@ -107,6 +122,7 @@ fn text(why: Why) -> &'static str {
         Why::Automated => AUTOMATED,
         Why::NoMessageId => NO_MESSAGE_ID,
         Why::Account => ACCOUNT,
+        Why::Warned => WARNED,
     }
 }
 
@@ -159,7 +175,7 @@ fn react(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let emoji = canonical(p::req_str(v, "emoji")?).ok_or_else(|| bad("`emoji` is one of 👍 ❤️ 🎉 😂 😮 😢"))?;
     let original = s.mailbox.message(id).cloned().ok_or_else(|| failed!("no message with id {id}", id))?;
-    match why_not(s, &original) {
+    match refusal(s, &original) {
         None => {}
         Some(Why::Own) => return Err(fail(OWN)),
         Some(Why::Junk) => return Err(fail(JUNK)),
@@ -167,6 +183,7 @@ fn react(s: &mut Session, v: &Value) -> CmdResult {
         Some(Why::Automated) => return Err(fail(AUTOMATED)),
         Some(Why::NoMessageId) => return Err(fail(NO_MESSAGE_ID)),
         Some(Why::Account) => return Err(fail(ACCOUNT)),
+        Some(Why::Warned) => return Err(fail(WARNED)),
     }
     let to = recipient(s, &original).ok_or_else(|| fail(NO_SENDER))?;
     // The same reaction twice (a double click) is one mail: refused while the first is in this

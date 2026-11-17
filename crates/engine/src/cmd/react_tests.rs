@@ -227,15 +227,39 @@ fn the_same_reaction_twice_is_refused_another_is_not() {
     assert_eq!(s.mailbox.messages.len(), count + 1);
 }
 
+/// A Reply-To is never used: a message from the boss that names another domain there must not
+/// tell that domain the address is read (the owner is not shown it).
 #[test]
-fn it_goes_to_the_reply_to_or_else_the_sender_and_to_one_address_only() {
+fn it_goes_to_the_sender_alone_whatever_the_reply_to_says() {
     let (mut s, _, original) = imap();
-    let reply_to = vec![Address::new("", "ADA@mail.example"), Address::new("", "form@example.org"), Address::new("", "other@example.org")];
+    let reply_to = vec![Address::new("", "ADA@mail.example"), Address::new("", "x@attacker.example"), Address::new("", "other@example.net")];
     s.mailbox.message_mut(original).unwrap().reply_to = reply_to;
     let id = react(&mut s, original, THUMBS_UP).unwrap()["id"].as_u64().unwrap();
     let m = s.mailbox.message(id).unwrap();
-    assert_eq!(m.to, vec![Address::new("", "form@example.org")], "the owner's own address is skipped, and only the first is used");
+    assert_eq!(m.to, vec![Address::new("Bo", "bo@example.org")], "the sender, not the Reply-To");
     assert!(m.cc.is_empty() && m.bcc.is_empty());
+    assert!(!written(&s, id).contains("attacker.example"));
+    // What the window shows beside the emoji is the same address.
+    let shown = super::react::recipient(&s, s.mailbox.message(original).unwrap());
+    assert_eq!(shown, Some(Address::new("Bo", "bo@example.org")));
+}
+
+/// A name that shows another address, a lookalike domain: a reaction would confirm to whoever is
+/// behind it that the address is read (as `mail.unsubscribe` leaves it out).
+#[test]
+fn a_message_with_a_sender_warning_is_refused() {
+    let (mut s, a, original) = imap();
+    s.mailbox.message_mut(original).unwrap().from.name = "billing@bank.example".into();
+    let m = s.mailbox.message(original).cloned().unwrap();
+    assert_eq!(super::react::refusal(&mut s, &m), Some(super::react::Why::Warned));
+    let err = react(&mut s, original, THUMBS_UP).unwrap_err();
+    assert!(err.to_string().contains("warning about its sender"), "{err}");
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    assert_eq!(s.mailbox.messages_in(outbox).count(), 0, "nothing queued");
+    // The same message without the warning goes out.
+    let (mut s, _, original) = imap();
+    let m = s.mailbox.message(original).cloned().unwrap();
+    assert_eq!(super::react::refusal(&mut s, &m), None);
 }
 
 #[test]
