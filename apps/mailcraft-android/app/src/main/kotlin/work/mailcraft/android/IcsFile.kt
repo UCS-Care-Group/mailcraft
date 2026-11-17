@@ -29,9 +29,13 @@ internal fun isCalendarType(type: String?): Boolean {
     return base == "text/calendar" || base == "application/ics"
 }
 
-/** Reads at most [max] bytes of [stream]; null when it holds more (nothing of it is kept then). */
-internal fun readCapped(stream: InputStream, max: Int): ByteArray? {
-    val out = java.io.ByteArrayOutputStream()
+/**
+ * Reads at most [max] bytes of [stream]; null when it holds more (nothing of it is kept then). [expected] is
+ * what the sender says the size is: a hint for the first buffer only, held within [max] and never believed.
+ */
+internal fun readCapped(stream: InputStream, max: Int, expected: Long? = null): ByteArray? {
+    val first = expected?.coerceIn(BUFFER.toLong(), max.toLong().coerceAtLeast(BUFFER.toLong()))?.toInt() ?: BUFFER
+    val out = java.io.ByteArrayOutputStream(first)
     val buffer = ByteArray(BUFFER)
     while (true) {
         val n = stream.read(buffer)

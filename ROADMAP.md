@@ -12,11 +12,14 @@ rough edges is [`docs/gaps.md`](docs/gaps.md). The parity checklists stay beside
 [`docs/ui-parity.md`](docs/ui-parity.md), [`docs/file-format-parity.md`](docs/file-format-parity.md)
 and [`docs/calendar-parity.md`](docs/calendar-parity.md).
 
-## Headline numbers (2026-11-15)
+## Headline numbers (2026-11-16)
 
 | Number | Value | Kind |
 |---|---|---|
-| Ribbon/menu catalog coverage | **247 / 315 in scope (78.4%) have a command; 0 are Complete (0%)**; 17 rows out of scope | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
+| Feature breadth (ribbon and menu catalog with a command) | **251 / 316 in scope (79.4%) have a command; 0 are Complete (0%)**; 17 rows out of scope | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
+| Essentials user (one Microsoft account: read, file, search, reply, answer meetings) | **~50%** | estimated, 60–120 hours left ([how](#methodology)): built (B5–B7), not yet proven by testers; gaps 1–4, 11 and 18 of [`docs/gaps.md`](docs/gaps.md) |
+| Mainstream practitioner (the everyday Outlook user) | **~35%** | estimated, 180–340 hours left ([how](#methodology)): the essentials, then richer HTML and composing, meetings beyond Microsoft 365, printing and memory (gaps 6–10 and 15) |
+| Full target (everything Outlook does) | **~25%** | estimated, 410–800 hours left ([how](#methodology)): the mainstream, then `.ost` and `.msg`, signing and encryption, languages, the Android app and the smaller things (gaps 5, 12, 14, 16, 17 and 19) |
 | Ready for real work with a real account | **~25%** | estimated ([how](#methodology)); in daily use on one Microsoft 365 mailbox, the author's; the beta run is under way (#11) and no tester has reported a figure yet. Whether MailCraft is ready for beta is decided by [the beta checklist](#the-beta-checklist), not by this estimate |
 | Ready as a local viewer and organiser of exported mail | **~55%** | estimated ([how](#methodology)) |
 | Commands / crates | 344 commands · 27 crates, 4 apps, `xtask` | measured (source) |
@@ -47,6 +50,12 @@ run against other servers only in part (a Windows acceptance of Gmail and Google
   mail in step) are marked **Out of scope** with a reason, and left out of both percentages. Tests
   are counted by `cargo xtask stats`; the 200,000-message figures come from `mailbox_bench`, and
   the progress log says how to repeat them.
+- **The three audiences.** The essentials, mainstream and full-target figures weigh the same week of
+  work for three kinds of owner, from one Microsoft account used for the basics to everything Outlook
+  does; the full target is the "ready for real work" figure. Their hours left are the sums of the
+  Hours column of [`docs/gaps.md`](docs/gaps.md) for the gaps each one still meets. The figures by
+  dimension and by area below are judged the same way, against Outlook; where MailCraft goes further
+  than Outlook (privacy by default, agent control) the area counts as complete.
 - **Estimated.** "Ready for real work" weighs what a person does in a week (reading and filing
   mail, answering, scheduling, finding things) by how completely MailCraft does it, then discounts
   for what stops them getting started (connecting an account, an administrator's approval) and
@@ -55,7 +64,24 @@ run against other servers only in part (a Windows acceptance of Gmail and Google
   are the authors' judgement: no tester has reported figures yet. MailCraft is in public beta from 0.8.0; it
   leaves beta not by an estimate but by passing every item of [the beta checklist](#the-beta-checklist).
 
-## Parity themes
+## By dimension (2026-11-16)
+
+How far each side of MailCraft has come against Outlook (estimated, [how](#methodology)).
+
+| Dimension | Ready |
+|---|---|
+| Features (depth: how closely what has a command behaves as Outlook's does) | 45% |
+| Interface fidelity (classic Outlook's shape and look) | 60% |
+| Servers and keeping in step | 45% |
+| Calendar and meetings | 55% |
+| File formats | 60% |
+| Performance at scale (200,000 messages) | 80% |
+| Platforms and signed builds | 60% |
+| Languages (one complete, nine previews) | 20% |
+| Privacy and safety by default | 100% |
+| Agent control | 100% |
+
+## Upcoming: the parity themes
 
 The themes that close the gap to Outlook's own features, taken in this order, each finished
 against a pass/fail checklist, several at once. The shortfalls behind them are in
@@ -78,22 +104,24 @@ against a pass/fail checklist, several at once. The shortfalls behind them are i
 15. `.msg` import
 16. Clean-up commands (Ignore, Clean Up Conversation, Recover Deleted)
 
-## Where it stands, by area (2026-11-15)
+## Features: where each area stands (2026-11-16)
 
-| Area | Where it stands |
-|---|---|
-| **Reading and triage** | Virtualised list measured against Outlook's, date groups, sort, filters, conversations, pin, flags with due dates, categories, importance, junk, archive, two-step delete, full undo, drag onto folders, Send/Receive Progress. Arranged by categories too (#327). Missing: column view (in review, #344), Focused Inbox, Sweep, Ignore and Clean Up Conversation; conversations are grouped by subject ([gaps](docs/gaps.md) 17 and rough edges) |
-| **Search** | A query language with field keywords, negation and dates, answered from a word index beside the mailbox (0.16 s at 200,000 messages); More results on the server for Microsoft accounts; an Advanced Search panel with date ranges and a calendar beside each date (#329). Missing: search folders, searching on an IMAP server |
-| **Rendering mail** | Display blocks of our own: tables, colours, alignment, lists and pictures (the message's own shown, the web's on the owner's say-so), adjusted for the dark theme, nothing run; a message's `@media` follows the pane's width and the theme (#599), and its text is drawn in the first of its fonts installed on this computer, none ever fetched (#600). Missing: background pictures, right-to-left text (gap 6) |
-| **Writing mail** | A rich-text editor; HTML with a plain-text part; a reply or forward carries the original's look without what runs or tracks; rich signatures with a logo, and HTML signatures sent as written; drafts, attachments, name checking, Insert › Date & Time and Word Count (#507); a message being written is never dropped by opening another mailbox (#470). Pictures go into the body (#547). Delay Delivery (Send Later…, kept in the Outbox and sent by MailCraft at its time, also for Microsoft accounts) and Undo Send (File › Options › Wait before sending) are there (#950). Missing: spell check, templates, delivery receipts (read receipts are asked for, never answered) (gaps 7, 17) |
-| **Servers** | Microsoft accounts kept in step through Microsoft Graph (folders, mail down, changes up, drafts, sending, undo, calendars, contacts read-only, Outlook's Favorites, search on the server, shared mailboxes); other accounts over IMAP and SMTP, two-way for read marks, flags, moves, deletes and sent copies; mail moves and copies between accounts, onto the other server (#451); Safe and Blocked Senders per account (#516); an organisation's own Exchange server through Exchange Web Services, for mail, tried against Grommunio and, for reading, Exchange Server 2019 (#252, #746). In daily use on one Microsoft 365 mailbox; bounded Windows Gmail/Workspace OAuth and app-password acceptance is documented in the [Google account guide](docs/google-accounts.md); other provider limits remain in [gaps](docs/gaps.md); the browser build connects to JMAP servers only (gap 5; [jmap.md](docs/jmap.md)) |
-| **Calendar** | Day, work week, week and month; recurrence; time zones; meetings through Microsoft 365 with invitations, updates, cancellations and answers, Propose New Time, forwarding and Teams meetings; Find a Time (everyone's free and busy time) for one day; shared mailboxes' calendars and a colleague's calendar opened by address (#70); reminders with desktop alerts. Missing: rooms, Find a Time over several days, sharing or publishing one's own calendar, alerts while MailCraft is closed (gaps 9–11, [calendar-parity.md](docs/calendar-parity.md)) |
-| **People** | Contacts with several addresses and phones, favourites, categories, `.vcf` in and out in every character set, a Microsoft account's contacts read. Missing: contact groups, photos, the organisation's directory beyond searching an Exchange server account's (Check Names and the Address Book, #1262; gap 17) |
-| **Tasks** | To-dos with dates, importance, categories, completion, links to flagged mail. Kept in step with Microsoft To Do for Microsoft accounts, both ways (#248). Missing: recurrence, assignment, My Day, the To-Do bar (gap 17) |
-| **Files** | `.eml`, `.mbox`, `.ics`, `.vcf` and MailCraft's own mailbox (a log of records, with message content in files beside it). `.pst` import (mail, contacts, calendar, tasks, notes, journal). Missing: `.ost`, `.msg`, `.olm` (gap 12), printing (gap 15) |
-| **Platforms** | Built and tested in CI on Windows, macOS and Linux, FreeBSD and Windows ARM64 on a schedule, and the browser; releases carry MailCraft's own signature and update themselves, and are not signed for Windows or macOS (gap 18); on macOS an update is installed by the owner until the builds are notarized (#497) |
-| **Agents** | Ahead of Outlook: every action is a command with a documented id and parameters, reachable from a CLI, a keyed local control channel and MCP, with a headless mode; what an agent may do is the owner's to allow, an agent names the messages it acts on (#620, #553) and never changes a message the owner is writing (#577) |
-| **Privacy and safety** | Ahead of Outlook by default: nothing in a message runs or is fetched unless the owner asks for its pictures; passwords and sign-ins are kept only by the operating system's credential store; unencrypted connections to servers are refused |
+Ready and hours left are estimated ([how](#methodology)); the hours come from [`docs/gaps.md`](docs/gaps.md).
+
+| Area | Ready | Hours | Where it stands |
+|---|---|---|---|
+| **Reading and triage** | 70% | 15–30 | Virtualised list measured against Outlook's, date groups, sort, filters, conversations, pin, flags with due dates, categories, importance, junk, archive, two-step delete, full undo, drag onto folders, Send/Receive Progress. Arranged by categories too (#327). Missing: column view (in review, #344), Focused Inbox, Sweep, Ignore and Clean Up Conversation; conversations are grouped by subject ([gaps](docs/gaps.md) 17 and rough edges) |
+| **Search** | 70% | 5–15 | A query language with field keywords, negation and dates, answered from a word index beside the mailbox (0.16 s at 200,000 messages); More results on the server for Microsoft accounts; an Advanced Search panel with date ranges and a calendar beside each date (#329). Missing: search folders, searching on an IMAP server |
+| **Rendering mail** | 75% | 30–60 | Display blocks of our own: tables, colours, alignment, lists and pictures (the message's own shown, the web's on the owner's say-so), adjusted for the dark theme, nothing run; a message's `@media` follows the pane's width and the theme (#599), and its text is drawn in the first of its fonts installed on this computer, none ever fetched (#600). Missing: background pictures, right-to-left text (gap 6) |
+| **Writing mail** | 55% | 25–50 | A rich-text editor; HTML with a plain-text part; a reply or forward carries the original's look without what runs or tracks; rich signatures with a logo, and HTML signatures sent as written; drafts, attachments, name checking, Insert › Date & Time and Word Count (#507); a message being written is never dropped by opening another mailbox (#470). Pictures go into the body (#547). Delay Delivery (Send Later…, kept in the Outbox and sent by MailCraft at its time, also for Microsoft accounts) and Undo Send (File › Options › Wait before sending) are there (#950). Missing: spell check, templates, delivery receipts (read receipts are asked for, never answered) (gaps 7, 17) |
+| **Servers** | 45% | 100–195 | Microsoft accounts kept in step through Microsoft Graph (folders, mail down, changes up, drafts, sending, undo, calendars, contacts read-only, Outlook's Favorites, search on the server, shared mailboxes); other accounts over IMAP and SMTP, two-way for read marks, flags, moves, deletes and sent copies; mail moves and copies between accounts, onto the other server (#451); Safe and Blocked Senders per account (#516); an organisation's own Exchange server through Exchange Web Services, for mail, tried against Grommunio and, for reading, Exchange Server 2019 (#252, #746). In daily use on one Microsoft 365 mailbox; bounded Windows Gmail/Workspace OAuth and app-password acceptance is documented in the [Google account guide](docs/google-accounts.md); other provider limits remain in [gaps](docs/gaps.md); the browser build connects to JMAP servers only (gap 5; [jmap.md](docs/jmap.md)) |
+| **Calendar** | 55% | 36–62 | Day, work week, week and month; recurrence; time zones; meetings through Microsoft 365 with invitations, updates, cancellations and answers, Propose New Time, forwarding and Teams meetings; Find a Time (everyone's free and busy time) for one day; shared mailboxes' calendars and a colleague's calendar opened by address (#70); reminders with desktop alerts. Missing: rooms, Find a Time over several days, sharing or publishing one's own calendar, alerts while MailCraft is closed (gaps 9–11, [calendar-parity.md](docs/calendar-parity.md)) |
+| **People** | 45% | 15–30 | Contacts with several addresses and phones, favourites, categories, `.vcf` in and out in every character set, a Microsoft account's contacts read. Missing: contact groups, photos, the organisation's directory beyond searching an Exchange server account's (Check Names and the Address Book, #1262; gap 17) |
+| **Tasks** | 50% | 10–20 | To-dos with dates, importance, categories, completion, links to flagged mail. Kept in step with Microsoft To Do for Microsoft accounts, both ways (#248). Missing: recurrence, assignment, My Day, the To-Do bar (gap 17) |
+| **Files** | 55% | 50–100 | `.eml`, `.mbox`, `.ics`, `.vcf` and MailCraft's own mailbox (a log of records, with message content in files beside it). `.pst` import (mail, contacts, calendar, tasks, notes, journal). Missing: `.ost`, `.msg`, `.olm` (gap 12), printing (gap 15) |
+| **Platforms** | 60% | 49–98 | Built and tested in CI on Windows, macOS and Linux, FreeBSD and Windows ARM64 on a schedule, and the browser; releases carry MailCraft's own signature and update themselves, and are not signed for Windows or macOS (gap 18); on macOS an update is installed by the owner until the builds are notarized (#497) |
+| **Agents** | 100% | 0 | Ahead of Outlook: every action is a command with a documented id and parameters, reachable from a CLI, a keyed local control channel and MCP, with a headless mode; what an agent may do is the owner's to allow, an agent names the messages it acts on (#620, #553) and never changes a message the owner is writing (#577) |
+| **Privacy and safety** | 70% | 40–80 | Ahead of Outlook by default: nothing in a message runs or is fetched unless the owner asks for its pictures; passwords and sign-ins are kept only by the operating system's credential store; unencrypted connections to servers are refused. Missing: signing and encrypting mail (gap 16; an OpenPGP signature is already checked where a message is read) |
 
 ## Where it is strong
 
