@@ -29,6 +29,8 @@ pub mod blocks;
 mod calendar_queries;
 mod compose;
 mod core;
+#[cfg(feature = "e2e")]
+mod e2e;
 mod error;
 mod events;
 mod fetch;
