@@ -5701,6 +5701,11 @@ msgid "For a mail server your organisation runs itself. MailCraft looks for the 
 msgstr "Pentru un server de e-mail administrat chiar de organizația dvs. MailCraft caută serverul după adresa dvs. sau puteți scrie adresa lui în Setări server. Nu se trimite nimic până nu apăsați Conectare."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
@@ -9211,6 +9216,11 @@ msgstr "Sarcinile mele"
 #, fuzzy
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Organizația mea trebuie întâi să aprobe MailCraft: ce trebuie făcut"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "My outgoing server needs no sign-in"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -16057,6 +16067,11 @@ msgstr "Certificatul nu a fost emis de o autoritate de certificare în care are 
 #, fuzzy
 msgid "The colour is set in Outlook"
 msgstr "Culoarea se setează în Outlook"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -24767,6 +24782,11 @@ msgid_plural "{sent} messages sent"
 msgstr[0] "{sent} mesaj trimis"
 msgstr[1] "{sent} mesaje trimise"
 msgstr[2] "{sent} de mesaje trimise"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
