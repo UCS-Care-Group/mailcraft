@@ -82,6 +82,15 @@ impl MailApp {
         }
     }
 
+    /// The server of `account` turned down `used`, the password a look-up went with: forgotten as
+    /// [`Self::ews_password_refused`] says, unless the owner has given another meanwhile, which is
+    /// kept.
+    pub(crate) fn ews_password_refused_with(&mut self, account: Id, used: &str) {
+        if self.ews_secret(account).as_deref() == Some(used) {
+            self.ews_password_refused(account);
+        }
+    }
+
     /// A Send/Receive of the Exchange server account `account`; `p` may carry the password the owner
     /// has just typed, and `inboxPass` asks for the Inbox alone. Asks for the password the first time.
     pub(crate) fn start_ews_mail(&mut self, account: Id, quiet: bool, p: &Value) -> Result<Value, String> {

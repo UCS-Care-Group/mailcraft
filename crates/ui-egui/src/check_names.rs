@@ -49,6 +49,8 @@ pub(crate) struct Resolving {
     account: Id,
     rx: Receiver<EwsResolveResult>,
     cancel: Arc<AtomicBool>,
+    /// The password it went with: only that one is forgotten when the server turns it down.
+    used: String,
     /// The names not asked yet.
     rest: Vec<String>,
     gathered: Gathered,
@@ -132,9 +134,10 @@ impl MailApp {
         let rest = names.into_iter().filter(|name| !key(name).is_empty() && !sent.contains(&key(name))).collect();
         let account = request.account;
         let cancel = Arc::new(AtomicBool::new(false));
+        let used = secret.clone();
         let rx = resolve(EwsResolveJob { request, secret, cancel: cancel.clone() });
         gathered.asked.extend(sent);
-        self.resolving = Some(Resolving { compose, opening, account, rx, cancel, rest, gathered });
+        self.resolving = Some(Resolving { compose, opening, account, rx, cancel, used, rest, gathered });
         Ok(())
     }
 
@@ -155,7 +158,8 @@ impl MailApp {
             }
         };
         let (compose, opening, account) = (resolving.compose, resolving.opening, resolving.account);
-        let (rest, mut gathered) = (std::mem::take(&mut resolving.rest), std::mem::take(&mut resolving.gathered));
+        let (rest, mut gathered, used) =
+            (std::mem::take(&mut resolving.rest), std::mem::take(&mut resolving.gathered), std::mem::take(&mut resolving.used));
         self.resolving = None;
         // For a message no longer being written, in a mailbox no longer open, or now sent from
         // another account than the one whose address list answered: let go of.
@@ -173,7 +177,7 @@ impl MailApp {
             }
         }
         if result.auth_refused {
-            self.ews_password_refused(account);
+            self.ews_password_refused_with(account, &used);
         }
         let error = result.error;
         if error.is_none() && !result.auth_refused && !rest.is_empty() {

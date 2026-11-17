@@ -2193,7 +2193,8 @@ impl MailApp {
             return Ok(json!({"pending": "confirm"}));
         }
         // Check Names pressed by the owner looks names up in the address list too ([`check_names`]).
-        let checking_names = id == "compose.checkNames" && params.get("found").is_none() && params.get("pick").is_none();
+        // (Not for keys a script put in through the control channel: nothing is looked up for it.)
+        let checking_names = !self.driven && id == "compose.checkNames" && params.get("found").is_none() && params.get("pick").is_none();
         let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
         // Where a message it opens goes (#286): the reading pane, or a window of its own when File ›
         // Options says so or the caller asked for one.
