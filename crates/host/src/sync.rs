@@ -520,6 +520,12 @@ impl SendReceive {
                 return Step::LeftOut { account, why: Left::Refused };
             }
         };
+        // Whose sign-in the run must come back with: the account's own (a shared mailbox's owner's).
+        let signer = if plan.owner.is_shared() { session.mailbox.owner_of(plan.owner.id).cloned() } else { Some(plan.owner.clone()) };
+        let Some(signer) = signer else {
+            session.sync_progress.leave_out(account);
+            return Step::LeftOut { account, why: Left::Gone };
+        };
         // What it sends is marked so, on disk, before it leaves (AU3-26).
         let going: Vec<Id> = plan.mail.sends.iter().map(|up| up.message).collect();
         if let Some(rev) = session.send_marking(account, &going)
@@ -552,8 +558,9 @@ impl SendReceive {
             mail: Some(plan.mail),
             mail_pieces: Some(pieces_tx),
             cancel: self.cancel.clone(),
-            // (Mail's runs: the window checks whose sign-in came back.)
-            signer: None,
+            // A renewed sign-in that isn't the account's own (a shared mailbox's owner's) stops
+            // the run before the Outbox or anything of the mail goes.
+            signer: Some(signer),
         };
         session.sync_progress.phase(account, SyncPhase::Sending);
         let runner = self.runner.clone();

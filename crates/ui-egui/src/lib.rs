@@ -3609,8 +3609,9 @@ impl MailApp {
                     mail: None,
                     mail_pieces: None,
                     cancel: Default::default(),
-                    // (Mail's runs: the window checks whose sign-in came back.)
-                    signer: None,
+                    // A renewed sign-in that isn't the account's own stops the run before the
+                    // Outbox goes.
+                    signer: Some(request.account.clone()),
                 };
                 self.session.sync_status = tl!("Sending…").to_string();
                 self.session.sync_progress.phase(account, SyncPhase::Sending);
@@ -3689,6 +3690,7 @@ impl MailApp {
             Err(MailRefusal::NotGraph(why)) => return Err(why),
         };
         let (owner, oauth, refresh, mail) = (plan.owner, plan.oauth, plan.refresh, plan.mail);
+        let signer = owner.clone();
         // The Outbox goes with the mail run itself (R3.4.2): sent as drafts or with `sendMail`,
         // and a message held there is not sent again by itself.
         let outbox: Vec<mailcraft_model::Message> = Vec::new();
@@ -3715,8 +3717,9 @@ impl MailApp {
             mail: Some(mail),
             mail_pieces: Some(pieces),
             cancel: self.services.sync_cancel.clone(),
-            // (Mail's runs: the window checks whose sign-in came back.)
-            signer: None,
+            // A renewed sign-in that isn't the account's own stops the run before the Outbox or
+            // anything of the mail goes.
+            signer: Some(signer),
         };
         self.resume_fetch();
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);

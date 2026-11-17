@@ -225,8 +225,9 @@ impl MailApp {
             mail: Some(mail),
             mail_pieces: Some(pieces),
             cancel: cancel.clone(),
-            // (Mail's runs: the window checks whose sign-in came back.)
-            signer: None,
+            // A renewed sign-in that isn't the account's own (a shared mailbox's: its owner's)
+            // stops the run before anything is read.
+            signer: Some(owner.clone()),
         };
         let graph = self.services.graph.as_ref()?;
         if !check {

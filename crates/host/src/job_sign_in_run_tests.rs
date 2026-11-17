@@ -12,8 +12,8 @@ use mailcraft_engine::Session;
 use mailcraft_engine::sync_driver::{Busy, CalendarFacts, CalendarPlan};
 use mailcraft_model::remote::{EventChangeKind, EventFields, EventOp, EventsUpload};
 use mailcraft_model::remote_tasks::{TaskOp, TaskOpKind, TasksUpload};
-use mailcraft_model::sync::Tokens;
-use mailcraft_model::{Account, AccountKind, Id, OAuth, OpenedCalendar, TaskPatch};
+use mailcraft_model::sync::{GraphMailRequest, SendUp, Tokens};
+use mailcraft_model::{Account, AccountKind, Address, Id, OAuth, OpenedCalendar, TaskPatch};
 use mailcraft_net::NetError;
 use mailcraft_net::graph::standin::{StandIn, TOKEN};
 use mailcraft_net::oauth::GraphTokens;
@@ -209,4 +209,95 @@ fn the_token_for_other_peoples_calendars_is_checked_too() {
     let result = graph_in_with(request, "UTC", &|_, _| signed_in_as(STRANGER));
     nothing_done(&server, &result);
     assert_eq!(result.tokens.as_ref().map(|t| t.email.as_str()), Some(STRANGER));
+}
+
+// --- Mail's runs ---------------------------------------------------------------------------
+
+/// A mail run of `account` through Graph, every renewal naming `who`, with `outbox` to send
+/// and, when `mail`, the folders to read.
+fn mail_run(
+    account: Account,
+    signer: Account,
+    outbox: Vec<mailcraft_model::Message>,
+    mail: Option<GraphMailRequest>,
+    who: &'static str,
+) -> GraphResult {
+    let request = GraphRequest {
+        account,
+        oauth: OAuth { client_id: "app".into(), ..Default::default() },
+        refresh: "refresh".into(),
+        access: String::new(),
+        outbox,
+        directory: false,
+        calendar: None,
+        changes: None,
+        asks: Vec::new(),
+        settings: false,
+        favorites: false,
+        favorites_scopes: false,
+        mail,
+        mail_pieces: None,
+        cancel: Default::default(),
+        signer: Some(signer),
+    };
+    graph_sending_with(request, "UTC", &|_, _, _| signed_in_as(who), &|_, _| signed_in_as(who))
+}
+
+fn ada() -> Account {
+    Account { id: 4, kind: AccountKind::Microsoft, email: OWNER.into(), ..Default::default() }
+}
+
+fn hello() -> mailcraft_model::Message {
+    mailcraft_model::Message { id: 9, to: vec![Address::new("Bob", "bob@example.org")], subject: "Hello".into(), ..Default::default() }
+}
+
+#[test]
+fn an_outbox_run_with_somebody_elses_sign_in_sends_nothing() {
+    let server = stand_in();
+    let _route = server.route();
+    let out = mail_run(ada(), ada(), vec![hello()], None, STRANGER);
+    assert!(server.state().requests.is_empty(), "nothing asked of the server");
+    assert!(server.state().sent.is_empty(), "no message sent as the stranger");
+    assert!(out.sent.is_empty() && out.held.is_empty() && out.unsure.is_empty() && out.errors.is_empty());
+    assert_eq!(out.tokens.as_ref().map(|t| t.email.as_str()), Some(STRANGER), "only the tokens, for the window to refuse");
+    // The account's own sign-in: the message goes as before.
+    let out = mail_run(ada(), ada(), vec![hello()], None, OWNER);
+    assert_eq!(out.sent, [9], "{:?}", out.errors);
+    assert_eq!(server.state().sent.len(), 1);
+}
+
+#[test]
+fn a_mail_run_with_somebody_elses_sign_in_reads_and_changes_nothing() {
+    let server = stand_in();
+    let _route = server.route();
+    let request = || GraphMailRequest { account: 4, email: OWNER.into(), ..Default::default() };
+    let out = mail_run(ada(), ada(), Vec::new(), Some(request()), STRANGER);
+    assert!(server.state().requests.is_empty(), "nothing asked of the server");
+    assert!(out.mail.is_none() && out.errors.is_empty());
+    assert_eq!(out.tokens.as_ref().map(|t| t.email.as_str()), Some(STRANGER));
+    // The account's own sign-in: its folders are read as before.
+    let out = mail_run(ada(), ada(), Vec::new(), Some(request()), OWNER);
+    assert!(!server.state().requests.is_empty());
+    assert!(out.mail.is_some_and(|mail| mail.listing.is_some()));
+}
+
+#[test]
+fn a_shared_mailboxs_mail_run_is_checked_against_its_owners_sign_in() {
+    let server = stand_in();
+    let _route = server.route();
+    server.state().add_other("support@example.org", true);
+    let shared = Account { id: 5, kind: AccountKind::Microsoft, email: "support@example.org".into(), shared_of: Some(4), ..Default::default() };
+    // Mail waiting to go from it: the token is renewed for sending from it, and a stranger's
+    // stops the run before the first request.
+    let send = SendUp { message: 9, ..Default::default() };
+    let request =
+        || GraphMailRequest { account: 5, email: "support@example.org".into(), shared: true, sends: vec![send.clone()], ..Default::default() };
+    let out = mail_run(shared.clone(), ada(), Vec::new(), Some(request()), STRANGER);
+    assert!(server.state().requests.is_empty(), "nothing asked of the server");
+    assert!(server.state().sent.is_empty());
+    assert!(out.mail.is_none());
+    // The owner's own sign-in (which names the owner, not the shared mailbox): the run goes.
+    let out = mail_run(shared, ada(), Vec::new(), Some(request()), OWNER);
+    assert!(!server.state().requests.is_empty());
+    assert!(out.mail.is_some());
 }

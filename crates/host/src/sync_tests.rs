@@ -97,7 +97,9 @@ fn a_round_that_is_due_runs_the_account_with_the_stored_sign_in_and_keeps_the_ne
     let seen = Arc::new(Mutex::new(Vec::new()));
     let seen2 = seen.clone();
     let mut sr = SendReceive::with_runner(move |req: GraphRequest| {
-        seen2.lock().unwrap().push((req.refresh.clone(), req.oauth.client_id.clone(), req.access.is_empty()));
+        // (Its renewed sign-in must be the account's own: the run checks it before anything goes.)
+        let signer = req.signer.as_ref().map(|a| a.id) == Some(req.account.id);
+        seen2.lock().unwrap().push((req.refresh.clone(), req.oauth.client_id.clone(), req.access.is_empty(), signer));
         let pieces = req.mail_pieces.clone().unwrap();
         let _ = pieces.send(GraphMailResult { account: req.account.id, email: req.account.email.clone(), ..Default::default() });
         GraphResult {
@@ -113,7 +115,7 @@ fn a_round_that_is_due_runs_the_account_with_the_stored_sign_in_and_keeps_the_ne
     assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::Waiting), "one run at a time");
     assert!(matches!(until_over(&mut sr, &mut s, &c), Taken::Done { account, .. } if account == id));
     assert!(!sr.busy());
-    assert_eq!(*seen.lock().unwrap(), [("old-refresh".to_string(), "app-id".to_string(), true)]);
+    assert_eq!(*seen.lock().unwrap(), [("old-refresh".to_string(), "app-id".to_string(), true, true)]);
     assert_eq!(store.get(&key).as_deref(), Some("new-refresh"), "the newest refresh token is the account's");
     // The round is over and the next is not due for the owner's minutes.
     assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::Idle));

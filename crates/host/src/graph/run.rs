@@ -325,12 +325,18 @@ pub fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_
         // computer slept), one new one from the refresh token, the newest there is (#306).
         let renewed: std::cell::RefCell<Option<mailcraft_model::sync::Tokens>> = std::cell::RefCell::new(None);
         let refresh = out.tokens.as_ref().map(|t| t.refresh.clone()).filter(|r| !r.is_empty()).unwrap_or_else(|| request.refresh.clone());
+        // A token renewed part-way that is somebody else's: nothing more goes with it.
+        let foreign: std::cell::RefCell<Option<mailcraft_model::sync::Tokens>> = std::cell::RefCell::new(None);
         let again = || {
             let got = if mail.shared && !mail.sends.is_empty() {
                 renew_send(&request.oauth, &refresh)?
             } else {
                 renew(&request.oauth, &refresh, request.favorites_scopes)?
             };
+            if refused_for_sign_in(&request, Some(&got.tokens)).is_some() {
+                *foreign.borrow_mut() = Some(got.tokens);
+                return Err(NetError::Config("the renewed sign-in is another account's".into()));
+            }
             let access = got.tokens.access.clone();
             *renewed.borrow_mut() = Some(got.tokens);
             Ok(access)
@@ -361,6 +367,12 @@ pub fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_
                 result.errors.len()
             );
             out.mail = Some(result);
+        }
+        // Somebody else's sign-in part-way: the run ends here, with only those tokens for the
+        // caller to refuse (what came before it came with the account's own).
+        if let Some(tokens) = foreign.into_inner() {
+            out.tokens = Some(tokens);
+            return out;
         }
         // A token renewed part-way is the one kept, and the one the rest of the run shows.
         if let Some(tokens) = renewed.into_inner() {
