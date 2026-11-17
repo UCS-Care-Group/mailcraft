@@ -291,8 +291,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
-msgstr ""
+msgstr "השינוי ביומן עדיין לא נשלח. המערכת תנסה שוב: {error}"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -316,13 +317,15 @@ msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
+#, fuzzy
 msgid "A copy can't go into this Outbox: the next Send/Receive would send it"
-msgstr ""
+msgstr "אי אפשר להכניס עותק לתיבת הדואר היוצא: פעולת השליחה והקבלה הבאה תשלח אותו."
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
 msgid "A copy of the mailbox is being saved for a switch already: wait for it to finish."
-msgstr ""
+msgstr "עותק של תיבת הדואר כבר נשמר לצורך מעבר. יש להמתין לסיום השמירה."
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -347,8 +350,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "A link asked for a new message, but the one you are writing couldn't be saved first: {why}"
-msgstr ""
+msgstr "קישור ביקש לפתוח הודעה חדשה, אך לא ניתן היה לשמור תחילה את ההודעה שבכתיבה: {why}"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -496,8 +500,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "A shared mailbox's rules are its own: this version doesn't make them"
-msgstr ""
+msgstr "כללי תיבת דואר משותפת שייכים לתיבה עצמה. גרסה זו אינה יוצרת אותם."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1179,13 +1184,15 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
 msgid "Another time proposed: {title}"
-msgstr ""
+msgstr "הוצע מועד חלופי: {title}"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
 msgid "Another time was proposed to {name}"
-msgstr ""
+msgstr "הוצע מועד חלופי עבור {name}"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -1468,8 +1475,9 @@ msgstr "בקשת אישור לפני מחיקת שיחה"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Ask before downloading pictures from this domain's senders again"
-msgstr ""
+msgstr "שאל שוב לפני הורדת תמונות משולחים בדומיין הזה"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -1535,18 +1543,21 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
-msgstr ""
+msgstr "מבקש גישה לדואר בלבד, ללא יומן ואנשי קשר. אפשר לחבר אותם בהמשך."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
+#, fuzzy
 msgid "At most {max} contacts can be merged at once."
-msgstr ""
+msgstr "אפשר למזג עד {max} אנשי קשר בכל פעם."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
 msgid "At most {n} calendars can be opened by address: remove one first."
-msgstr ""
+msgstr "אפשר לפתוח לפי כתובת עד {n} יומנים. יש להסיר תחילה יומן אחד."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -2420,8 +2431,9 @@ msgstr "בודק את החיבור ללוח השנה…"
 
 #. what a command says
 #: crates/model/src/sync/progress.rs
+#, fuzzy
 msgid "Checking {folder} ({done} of {total})"
-msgstr ""
+msgstr "בודק את {folder} ({done} מתוך {total})"
 
 #. interface
 #, fuzzy
@@ -2443,8 +2455,9 @@ msgstr "בחר חתימת ברירת מחדל"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Choose Google sign-in, or select Use an app password instead."
-msgstr ""
+msgstr "בחר בכניסה באמצעות Google, או בחר במקום זאת בשימוש בסיסמת אפליקציה."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -2629,8 +2642,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Closed the page? This opens the provider's sign-in page afresh."
-msgstr ""
+msgstr "סגרת את הדף? פעולה זו תפתח מחדש את דף הכניסה של ספק השירות."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -2969,8 +2983,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "Couldn't find out whether a new version is out: {why}."
-msgstr ""
+msgstr "לא ניתן לבדוק אם זמינה גרסה חדשה: {why}."
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -3030,8 +3045,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/opening.rs
+#, fuzzy
 msgid "Couldn't open {name}: {error}"
-msgstr ""
+msgstr "לא ניתן לפתוח את {name}: {error}"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -3066,13 +3082,15 @@ msgstr "לא ניתן לקרוא את רשימת התיקיות"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
+#, fuzzy
 msgid "Couldn't save the draft '{subject}' on the server: the server says {why}."
-msgstr ""
+msgstr "לא ניתן לשמור בשרת את הטיוטה '{subject}': השרת השיב {why}."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Couldn't save the mailbox: {error}"
-msgstr ""
+msgstr "לא ניתן לשמור את תיבת הדואר: {error}"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -3081,8 +3099,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "Couldn't send '{subject}': {why}. It is held in the Outbox."
-msgstr ""
+msgstr "לא ניתן לשלוח את '{subject}': {why}. ההודעה נשמרת בתיבת הדואר היוצא."
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -3376,8 +3395,9 @@ msgstr "מחק בקשות לפגישה מתיבת הדואר הנכנס לאחר
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Delete on a conversation's row that takes more than one message asks first."
-msgstr ""
+msgstr "מחיקת שיחה הכוללת יותר מהודעה אחת מחייבת אישור תחילה."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3985,8 +4005,9 @@ msgstr "עריכה"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
 msgid "Either button writes to {name}: your answer, and the time you propose."
-msgstr ""
+msgstr "כל אחד מהלחצנים שולח אל {name} את תשובתך ואת המועד החלופי שהצעת."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
@@ -4168,8 +4189,9 @@ msgstr "כל שאר הנתונים הוסרו. MailCraft ייסגר כשתסגו
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Everything here in one .mailcraft file"
-msgstr ""
+msgstr "כל התוכן כאן בקובץ ‎.mailcraft‎ אחד"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4924,8 +4946,9 @@ msgstr "קטגוריות Gmail"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
-msgstr ""
+msgstr "Gmail טרם החזיר מזהה להודעה הזאת. יש לבצע תחילה שליחה וקבלה."
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -4953,8 +4976,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "GnuPG isn't installed: OpenPGP signing will work only with a key imported here."
-msgstr ""
+msgstr "GnuPG אינו מותקן. חתימה באמצעות OpenPGP תפעל רק עם מפתח שיובא לכאן."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5026,8 +5050,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Google blocked access to MailCraft"
-msgstr ""
+msgstr "Google חסמה את הגישה של MailCraft"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -5041,8 +5066,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Google did not confirm this unchanged account. Its previous sign-in and mail were kept."
-msgstr ""
+msgstr "Google לא אישרה מחדש את החשבון שלא השתנה. פרטי הכניסה והדואר הקודמים נשמרו."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -5056,8 +5082,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Google sign-in did not finish"
-msgstr ""
+msgstr "הכניסה באמצעות Google לא הושלמה"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -5066,13 +5093,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Google sign-in does not use Microsoft's administrator consent flow"
-msgstr ""
+msgstr "כניסה באמצעות Google אינה משתמשת בתהליך אישור מנהל המערכת של Microsoft"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Google sign-in is not configured for this build."
-msgstr ""
+msgstr "כניסה באמצעות Google אינה מוגדרת בגרסת הבנייה הזאת."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5279,8 +5308,9 @@ msgstr "חשיבות גבוהה בראש הרשימה"
 
 #. command label
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "Hold Unsent Mail"
-msgstr ""
+msgstr "השאר דואר שלא נשלח בהמתנה"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
@@ -5782,8 +5812,9 @@ msgstr "לרשימת המשימות במחשב הזה. לא יישלח דבר ל
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Invented mail, meetings, people and tasks to try things on"
-msgstr ""
+msgstr "דואר, פגישות, אנשי קשר ומשימות לדוגמה לצורך התנסות"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6431,13 +6462,15 @@ msgstr "דואר"
 
 #. what a command says
 #: crates/engine/src/io.rs
+#, fuzzy
 msgid "Mail can't be imported into an Outbox: it would be sent."
-msgstr ""
+msgstr "אי אפשר לייבא דואר לתיבת הדואר היוצא, מפני שהוא יישלח."
 
 #. what a command says
 #: crates/engine/src/io.rs
+#, fuzzy
 msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
-msgstr ""
+msgstr "אי אפשר לייבא דואר לתיבת הדואר היוצא, מפני שהוא יישלח. יש לבחור תיקייה אחרת."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
