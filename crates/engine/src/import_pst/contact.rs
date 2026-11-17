@@ -324,7 +324,7 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
 
     if let Some(id) = named.keywords {
         for name in r.text.list(r.p, id).iter().filter_map(|s| mailcraft_model::clean_name(s)) {
-            if c.categories.len() < MAX_VALUES && !c.categories.iter().any(|o| o.eq_ignore_ascii_case(&name)) {
+            if c.categories.len() < MAX_VALUES && !c.categories.iter().any(|o| mailcraft_model::sync::same_category(o, &name)) {
                 c.categories.push(name);
             }
         }
