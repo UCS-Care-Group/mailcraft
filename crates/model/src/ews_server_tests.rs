@@ -122,3 +122,13 @@ fn an_address_on_a_microsoft_host_is_refused_and_a_lookalike_is_not() {
     }
     assert!(is_microsoft_domain("hotmail.co.uk") && is_microsoft_domain("live.com.au") && !is_microsoft_domain("live.bbc.com"));
 }
+
+#[test]
+fn google_hosts_are_google_s_and_nothing_that_looks_like_them() {
+    for host in ["gmail.com", "apidata.googleusercontent.com", "www.googleapis.com", "calendar.google.com.", "Mail.Google.COM", "googlemail.com"] {
+        assert!(is_google_host(host), "{host}");
+    }
+    for host in ["evilgoogle.com", "google.com.evil.example", "notgmail.com", "dav.example.org", "", "googleusercontent.com.example.org"] {
+        assert!(!is_google_host(host), "{host}");
+    }
+}

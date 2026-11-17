@@ -49,6 +49,12 @@ class AccountScreenshotTest {
     fun addDark200() = shoot("add_account_dark_200", true, 2f) { AccountShots.AddForm() }
 
     @Test
+    fun keepChosenLight100() = shoot("add_account_keep_chosen_light_100", false, 1f, tall = true) { AccountShots.AddFormChosen() }
+
+    @Test
+    fun keepChosenDark200() = shoot("add_account_keep_chosen_dark_200", true, 2f, tall = true) { AccountShots.AddFormChosen() }
+
+    @Test
     fun conditionalAccessLight100() = shoot("add_account_conditional_access_light_100", false, 1f) { AccountShots.AddForm(Notice.OrganisationBlocks) }
 
     @Test
@@ -116,6 +122,4 @@ class AccountScreenshotTest {
     fun noAccountMailDark100() = shoot("mail_no_account_dark_100", true, 1f) { AccountShots.NoAccountMail() }
 }
 
-// The goldens are drawn on one machine and checked on another; anti-aliasing may differ by a hair.
-private const val TOLERANCE = 0.1
 private const val TALL = 5200

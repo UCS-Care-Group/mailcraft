@@ -125,6 +125,8 @@ pub(crate) enum Menu {
     Rules,
     CategorizeMail,
     FollowUp,
+    /// Follow Up in the message being written (#948).
+    ComposeFollowUp,
     FilterMail,
     ShowAs,
     Reminder,
@@ -151,6 +153,7 @@ pub(crate) enum Menu {
     Highlight,
     Junk,
     RecentAttachments,
+    OpenCalendar,
 }
 
 impl Menu {
@@ -561,8 +564,8 @@ fn home_calendar(app: &MailApp) -> Tab {
             groups.push(g("Respond", answers));
         }
     }
-    // Somebody else's calendar, by their address (#70).
-    groups.push(g("Manage Calendars", vec![Item::big("calendar", "Open\nCalendar", "calendar.openShared", no()).at(4, 9)]));
+    // Somebody else's calendar, by their address (#70), or one on the web (#209).
+    groups.push(g("Manage Calendars", vec![Item::big_menu("calendar", "calendar", "Open\nCalendar", "Open Calendar", Menu::OpenCalendar).at(4, 9)]));
     groups.push(g(
         "Share",
         vec![
@@ -722,6 +725,7 @@ pub(crate) const FONT_SIZES: [u8; 12] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 2
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
     let read_receipt = app.session.compose.as_ref().is_some_and(|c| c.read_receipt);
+    let delayed = crate::send_later::delay_is_on(app);
     let look = look_now(app);
     let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
     Tab::of(vec![
@@ -759,6 +763,7 @@ fn message(app: &MailApp) -> Tab {
         g(
             "Tags",
             vec![
+                Item::big_menu("composeFollowUp", "flag", "Follow\nUp", "Follow Up", Menu::ComposeFollowUp).at(3, 3).plain(),
                 Item::small("highImportance", "High Importance", "High Importance", "compose.highImportance", no())
                     .checked(importance == Some(Importance::High))
                     .at(4, 4),
@@ -769,6 +774,7 @@ fn message(app: &MailApp) -> Tab {
                 Item::small("read", "Request a Read Receipt", "Ask to be told when the message is read", "compose.readReceipt", no())
                     .checked(read_receipt)
                     .at(4, 6),
+                Item::small("clock", "Delay Delivery", "Do not deliver before a date and time", "compose.delay", no()).checked(delayed).at(4, 6),
             ],
         ),
         g(
@@ -1301,6 +1307,20 @@ fn plain_item(ui: &mut Ui, label: &str) -> bool {
     chosen
 }
 
+/// Add Reminder… and Remove Reminder of the selected messages (#948): Home › Tags › Follow Up and the
+/// message's context menu.
+pub(crate) fn follow_up_items(ui: &mut Ui, app: &mut MailApp) {
+    let selected = !app.session.sel.messages.is_empty();
+    if ui.add_enabled(selected, egui::Button::new(tl!("Add Reminder…")).min_size(vec2(190.0, 0.0))).clicked() {
+        let _ = app.run("ui.dialog", json!({"name": "addReminder"}));
+        ui.close();
+    }
+    let any = app.session.sel.messages.iter().any(|id| app.session.mailbox.message(*id).is_some_and(|m| m.follow_up.is_some()));
+    if any {
+        mi(ui, app, "Remove Reminder", "mail.clearReminder", json!({}));
+    }
+}
+
 /// Home › Delete › Junk ▾ (and the message's context menu): the lists and what is in Junk E-mail.
 pub(crate) fn junk_menu(ui: &mut Ui, app: &mut MailApp) {
     mi(ui, app, "Block Sender", "junk.blockSender", json!({}));
@@ -1373,6 +1393,10 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             }
         }
         Menu::Junk => junk_menu(ui, app),
+        Menu::OpenCalendar => {
+            mi(ui, app, "Open Shared Calendar…", "calendar.openShared", json!({}));
+            mi(ui, app, "From Internet…", "calendar.subscribe", json!({}));
+        }
         Menu::CategorizeMail => {
             let ids = app.session.sel.messages.clone();
             let accounts = selected_accounts(app);
@@ -1395,10 +1419,34 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             }
             mi(ui, app, "No Date", "mail.flag", json!({}));
             ui.separator();
+            follow_up_items(ui, app);
+            ui.separator();
             mi(ui, app, "Mark Complete", "mail.complete", json!({}));
             mi(ui, app, "Clear Flag", "mail.clearFlag", json!({}));
             ui.separator();
             mi(ui, app, "Add to Tasks", "tasks.fromMessage", json!({}));
+        }
+        Menu::ComposeFollowUp => {
+            let plan = app.session.compose.as_ref().and_then(|c| c.follow_up);
+            ui.label(egui::RichText::new(tl!("Remind me if nobody replies")).weak());
+            for d in crate::reminder_dialog::DAYS {
+                let label = tln!(d, "{n} day", "{n} days");
+                mi_check(
+                    ui,
+                    app,
+                    &label,
+                    plan == Some(mailcraft_engine::cmd::followup::FollowUpPlan::Days(d)),
+                    "compose.followUp",
+                    json!({"days": d}),
+                );
+            }
+            if plain_item(ui, tl!("Choose a date…")) {
+                let _ = app.run("ui.dialog", json!({"name": "followUpDate"}));
+            }
+            if plan.is_some() {
+                ui.separator();
+                mi(ui, app, "No Reminder", "compose.followUp", json!({"clear": true}));
+            }
         }
         Menu::FilterMail => {
             let filter = app.session.view.filter;

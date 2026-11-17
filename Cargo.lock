@@ -3201,6 +3201,7 @@ name = "mailcraft-dav"
 version = "0.13.0"
 dependencies = [
  "mailcraft-ical",
+ "mailcraft-link",
  "mailcraft-model",
  "mailcraft-time",
  "mailcraft-vcard",
@@ -3263,6 +3264,7 @@ dependencies = [
  "mailcraft-model",
  "mailcraft-net",
  "mailcraft-time",
+ "serde_json",
 ]
 
 [[package]]
@@ -3370,6 +3372,8 @@ dependencies = [
  "mailcraft-host",
  "mailcraft-html",
  "mailcraft-i18n",
+ "mailcraft-link",
+ "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-net",

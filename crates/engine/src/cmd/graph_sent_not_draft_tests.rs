@@ -290,7 +290,7 @@ fn a_draft_sent_here_and_still_listed_in_drafts_stays_queued_in_the_outbox() {
         assert_eq!(m.subject, "Quarterly figures, final");
         assert_eq!(m.to.len(), 2);
         assert!(!m.unfetched);
-        assert_eq!(super::super::graph_send::waiting(&mb, account), 1, "still waits to be sent ({key})");
+        assert_eq!(super::super::graph_send::waiting_at(&mb, 0, account), 1, "still waits to be sent ({key})");
     }
 }
 
@@ -338,7 +338,7 @@ fn a_draft_sent_here_is_never_a_draft_again_while_the_server_files_it() {
     // removal of the draft is no deletion of the message sent, which the sweep keeps.
     let gone = MessagePage { folder: "FD".into(), removed: vec!["AAkD1".into()], ..Default::default() };
     take_page(&mut mb, &mut index, account, &gone, &mut Down::default());
-    super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
+    super::super::graph_down::sweep(&mut mb, account, None, &mut Down::default());
     assert_eq!(in_sent(&mb), vec![(id, false)], "the sweep removed the message sent");
     assert_eq!(mb.messages.len(), 1, "and nothing else went with it");
     // Then the Sent Items listing, a draft still or not.
@@ -549,7 +549,7 @@ fn a_sent_message_an_afresh_sent_items_listing_omits_is_not_gone() {
     let afresh = MessagePage { folder: "FS".into(), afresh: true, caught_up: true, link: "next".into(), ..Default::default() };
     take_page(&mut mb, &mut index, account, &afresh, &mut Down::default());
     assert!(mb.message(id).unwrap().server.as_ref().is_some_and(|s| !s.gone), "a listing afresh that has not got it made it gone");
-    super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
+    super::super::graph_down::sweep(&mut mb, account, None, &mut Down::default());
     assert!(mb.message(id).is_some(), "the sweep removed the message sent");
 }
 
@@ -569,7 +569,7 @@ fn a_sent_message_drafts_still_lists_is_not_gone_after_a_sent_items_listing() {
     let m = mb.message(id).unwrap();
     assert!(!m.draft && m.sent_here, "the draft sent here came back as a draft");
     assert!(m.server.as_ref().is_some_and(|s| !s.gone), "Drafts still lists it, and a listing made it gone");
-    super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
+    super::super::graph_down::sweep(&mut mb, account, None, &mut Down::default());
     assert!(mb.message(id).is_some(), "the sweep removed a message Drafts still lists");
 }
 
@@ -589,7 +589,7 @@ fn a_sent_message_whose_sent_items_has_no_server_id_survives_the_draft_leaving_d
     let gone = MessagePage { folder: "FD".into(), removed: vec!["AAkD1".into()], ..Default::default() };
     take_page(&mut mb, &mut index, account, &gone, &mut Down::default());
     assert!(mb.message(id).unwrap().server.as_ref().is_some_and(|s| !s.gone), "the draft's removal made it gone");
-    super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
+    super::super::graph_down::sweep(&mut mb, account, None, &mut Down::default());
     assert!(mb.message(id).is_some(), "the sweep removed the message sent");
     assert_eq!(mb.message(id).unwrap().folder, sent);
     // The next run learns Sent Items' server id, and its listing files the message there.
@@ -614,7 +614,7 @@ fn a_sent_message_is_kept_by_an_afresh_sent_items_listing_after_the_drafts_remov
     let afresh = MessagePage { folder: "FS".into(), afresh: true, caught_up: true, link: "next".into(), ..Default::default() };
     take_page(&mut mb, &mut index, account, &afresh, &mut Down::default());
     assert!(mb.message(id).unwrap().server.as_ref().is_some_and(|s| !s.gone), "a listing afresh made it gone");
-    super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
+    super::super::graph_down::sweep(&mut mb, account, None, &mut Down::default());
     assert!(mb.message(id).is_some(), "the sweep removed the message sent");
     // Sent Items lists it: from here on a listing without it is its deletion.
     let mut filed = page("FS", "AAkD1", Some(false));
@@ -624,7 +624,7 @@ fn a_sent_message_is_kept_by_an_afresh_sent_items_listing_after_the_drafts_remov
     let later = MessagePage { folder: "FS".into(), afresh: true, caught_up: true, link: "next".into(), ..Default::default() };
     take_page(&mut mb, &mut index, account, &later, &mut Down::default());
     assert!(mb.message(id).unwrap().server.as_ref().is_some_and(|s| s.gone), "the server said it is not there");
-    super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
+    super::super::graph_down::sweep(&mut mb, account, None, &mut Down::default());
     assert!(mb.message(id).is_none(), "the server's word is kept once Sent Items has listed it");
 }
 
@@ -647,7 +647,7 @@ fn an_explicit_sent_items_removal_is_not_cleared_by_a_stale_drafts_listing() {
     stale.messages[0].server.change_key = "CK1".into();
     take_page(&mut mb, &mut index, account, &stale, &mut Down::default());
     assert!(mb.message(id).unwrap().server.as_ref().is_some_and(|s| s.gone), "a stale draft listing undid the deletion");
-    super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
+    super::super::graph_down::sweep(&mut mb, account, None, &mut Down::default());
     assert!(mb.message(id).is_none(), "the deleted message was kept");
 }
 
@@ -666,7 +666,7 @@ fn a_drafts_listing_without_the_draft_flag_does_not_end_the_pending_mark() {
     assert!(mb.message(id).unwrap().sent_pending, "a listing without isDraft ended the pending mark");
     let gone = MessagePage { folder: "FD".into(), removed: vec!["AAkD1".into()], ..Default::default() };
     take_page(&mut mb, &mut index, account, &gone, &mut Down::default());
-    super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
+    super::super::graph_down::sweep(&mut mb, account, None, &mut Down::default());
     assert!(mb.message(id).is_some(), "the Drafts removal removed the message sent");
     // A folder it was moved to is a word that it is there, and ends the mark.
     let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
