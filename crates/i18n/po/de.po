@@ -5605,6 +5605,12 @@ msgid "For a mail server your organisation runs itself. MailCraft looks for the 
 msgstr "Für einen Mailserver, den Ihre Organisation selbst betreibt. MailCraft sucht den Server anhand Ihrer Adresse, oder Sie geben seine Adresse in den Servereinstellungen ein. Es wird nichts gesendet, bis Sie auf Verbinden klicken."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr "Für ein Relay, das E-Mails ohne Kennwort annimmt: Ihr Kennwort wird nie dorthin gesendet."
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
@@ -9022,6 +9028,12 @@ msgstr "Meine Aufgaben"
 #, fuzzy
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Meine Organisation muss MailCraft zuerst genehmigen: Was ist zu tun?"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "My outgoing server needs no sign-in"
+msgstr "Mein Postausgangsserver erfordert keine Anmeldung"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -15717,6 +15729,12 @@ msgstr "Das Zertifikat wurde nicht von einer Zertifizierungsstelle ausgestellt, 
 #, fuzzy
 msgid "The colour is set in Outlook"
 msgstr "Die Farbe wird in Outlook festgelegt"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr "Der Verbindungstest prüft nur, ob dieser Server antwortet. Verlangt er doch eine Anmeldung, sagt es Ihnen die erste gesendete Nachricht."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -24213,6 +24231,12 @@ msgid "{sent} message sent"
 msgid_plural "{sent} messages sent"
 msgstr[0] "{sent} Nachricht gesendet"
 msgstr[1] "{sent} Nachrichten gesendet"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr "{server} (Dieser Server verlangt eine Anmeldung: Entfernen Sie in den Kontoeinstellungen das Häkchen bei \"Mein Postausgangsserver erfordert keine Anmeldung\".)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

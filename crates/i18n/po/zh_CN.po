@@ -5607,6 +5607,11 @@ msgid "For a mail server your organisation runs itself. MailCraft looks for the 
 msgstr "适用于由组织自行运行的邮件服务器。MailCraft 会根据您的地址查找服务器，您也可以在服务器设置中输入地址。点击“连接”前不会发送任何内容。"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
@@ -9029,6 +9034,11 @@ msgstr "我的任务"
 #, fuzzy
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "我的组织必须先批准 MailCraft：该怎么办"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "My outgoing server needs no sign-in"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -15733,6 +15743,11 @@ msgstr "该证书不是由该计算机信任的证书颁发机构颁发的。"
 #, fuzzy
 msgid "The colour is set in Outlook"
 msgstr "颜色是在 Outlook 中设置的"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -24126,6 +24141,11 @@ msgstr "{sender} 至 {folder}"
 msgid "{sent} message sent"
 msgid_plural "{sent} messages sent"
 msgstr[0] "已发送 {sent} 封邮件"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
