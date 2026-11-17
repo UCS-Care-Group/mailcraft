@@ -288,7 +288,7 @@ fn tidy_rule(mut rule: Recurrence) -> Recurrence {
 fn names(list: Vec<String>) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for name in list.iter().map(|name| line(name, MAX_NAME)).filter(|name| !name.is_empty()) {
-        if out.len() < MAX_ENTRIES && !out.iter().any(|have| have.eq_ignore_ascii_case(&name)) {
+        if out.len() < MAX_ENTRIES && !out.iter().any(|have| crate::sync::same_category(have, &name)) {
             out.push(name);
         }
     }
@@ -1205,6 +1205,9 @@ pub struct CategoriesDownload {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub email: String,
     pub categories: Vec<Category>,
+    /// Every category the server has is here. When not (a list longer than
+    /// [`MAX_REMOTE_CATEGORIES`]), none is taken for deleted there for not being here.
+    pub complete: bool,
 }
 
 impl CategoriesDownload {
@@ -1215,16 +1218,135 @@ impl CategoriesDownload {
         self
     }
 
-    /// Cut to size: names are one line, none is empty or there twice, the list is capped.
+    /// Cut to size: names are one line, none is empty or there twice, the list is capped (and is
+    /// then not the server's whole list).
     pub fn tidy(&mut self) {
         let mut kept: Vec<Category> = Vec::new();
         for category in std::mem::take(&mut self.categories) {
-            let name = line(&category.name, MAX_NAME);
-            if !name.is_empty() && kept.len() < MAX_REMOTE_CATEGORIES && !kept.iter().any(|have| have.name.eq_ignore_ascii_case(&name)) {
-                kept.push(Category { name, color: category.color });
+            let name = category_name(&category.name);
+            if name.is_empty() || kept.iter().any(|have| crate::sync::same_category(&have.name, &name)) {
+                continue;
             }
+            if kept.len() >= MAX_REMOTE_CATEGORIES {
+                self.complete = false;
+                break;
+            }
+            kept.push(Category { name, color: category.color });
         }
         self.categories = kept;
+    }
+}
+
+/// Most changes to a list of categories that one job tells its server (#661).
+pub const MAX_CATEGORY_CHANGES: usize = 100;
+
+/// What a change to an account's list of categories does on its server (#661).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CategoryChangeKind {
+    /// Make the category, in its colour. One the server has already is given that colour.
+    #[default]
+    Create,
+    /// Give the category its colour.
+    Color,
+    /// Delete the category (what carries it keeps the name).
+    Delete,
+}
+
+/// One change to tell a server of its list of categories, by name: a server knows a category by
+/// its name, and changes nothing of it but its colour.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoryChange {
+    pub kind: CategoryChangeKind,
+    pub name: String,
+    pub color: Rgb,
+}
+
+/// What an account's server is to be told of its list of categories ([`crate::Mailbox::category_upload`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoriesUpload {
+    pub account: Id,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    pub changes: Vec<CategoryChange>,
+}
+
+impl CategoriesUpload {
+    /// Cut to size: names are one line and not empty, the list is capped.
+    pub fn tidy(&mut self) {
+        let mut kept = Vec::new();
+        for mut change in std::mem::take(&mut self.changes) {
+            change.name = line(&change.name, MAX_NAME);
+            if !change.name.is_empty() && kept.len() < MAX_CATEGORY_CHANGES {
+                kept.push(change);
+            }
+        }
+        self.changes = kept;
+    }
+}
+
+/// What a server did with one change to its list of categories.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CategoryResult {
+    /// Taken (or nothing to do: a category it has made again, one it hasn't deleted again).
+    Done,
+    /// The account may not change its list (the sign-in doesn't cover it).
+    Denied,
+    /// Not now: try again later.
+    #[default]
+    Failed,
+    /// Refused for good.
+    Refused,
+}
+
+/// What a server said of one change to its list of categories.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoryOutcome {
+    pub kind: CategoryChangeKind,
+    pub name: String,
+    /// The colour it has there now (a creation, a change of colour).
+    pub color: Rgb,
+    pub result: CategoryResult,
+    /// The server's reason, in a few words, for a refusal.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub error: String,
+    /// A creation the server had a category of that name for already (#661): [`CategoryResult::Done`]
+    /// with what was there, which is the server's own and not made by this one.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub found: bool,
+}
+
+/// What a server did with a [`CategoriesUpload`].
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoriesUploaded {
+    pub account: Id,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    pub outcomes: Vec<CategoryOutcome>,
+    /// The server wouldn't take the sign-in: what wasn't told goes with the next job.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub token_refused: bool,
+}
+
+impl CategoriesUploaded {
+    pub fn for_account(mut self, account: &Account) -> CategoriesUploaded {
+        self.account = account.id;
+        self.email = account.email.trim().to_string();
+        self
+    }
+
+    /// Cut to size: names and reasons are one line, outcomes are capped.
+    pub fn tidy(&mut self) {
+        self.outcomes.truncate(MAX_CATEGORY_CHANGES);
+        for outcome in &mut self.outcomes {
+            outcome.name = line(&outcome.name, MAX_NAME);
+            outcome.error = line(&outcome.error, MAX_NAME);
+        }
     }
 }
 
@@ -1431,6 +1553,12 @@ pub(crate) fn key(text: &str) -> String {
 
 /// One line of text from outside: line breaks and control characters read as spaces, and it is
 /// at most `max` characters long.
+/// A category's name as a server lists it, as it is kept here: one line, cut to size. A change
+/// sent there finds the category by this too (#661).
+pub fn category_name(name: &str) -> String {
+    line(name, MAX_NAME)
+}
+
 pub(crate) fn line(text: &str, max: usize) -> String {
     let flat: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
     let short: String = flat.trim().chars().take(max).collect();
