@@ -128,13 +128,24 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     if pane == Pane::Bottom {
-        let h = (ui.available_height() * 0.42).clamp(140.0, 520.0);
-        egui::Panel::top("message_list")
-            .default_size(h)
-            .size_range(120.0..=(ui.available_height() - 140.0).max(160.0))
+        let max = (ui.available_height() - 140.0).max(160.0);
+        let h = if app.ui.list_height > 0.0 { app.ui.list_height } else { (ui.available_height() * 0.42).clamp(140.0, 520.0) };
+        // The splitter under the list: egui names a panel's resize handle after the panel.
+        let splitter = ui.scope_id().with_salt(egui::IdSalt::new("message_list")).with("__resize");
+        let shown = egui::Panel::top("message_list")
+            .default_size(h.min(max))
+            .size_range(120.0..=max)
             .resizable(true)
             .frame(frame)
             .show(ui, |ui| list(app, ui));
+        app.hit.add("messageList", 0, shown.response.rect);
+        // Only the owner's resize of the splitter changes the height kept, by a drag (its last frame
+        // included) or through assistive technology: a window too short for it lays the list out
+        // shorter, and that isn't kept (#1372).
+        let dragged = ui.ctx().read_response(splitter).is_some_and(|r| r.dragged() || r.drag_stopped());
+        if dragged || splitter_asked(ui, splitter) {
+            app.ui.list_height = shown.response.rect.height();
+        }
     } else {
         let max = (ui.available_width() - 260.0).max(260.0);
         let shown = egui::Panel::left("message_list")
@@ -162,6 +173,13 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             let _ = app.run("mail.editDraft", json!({}));
         }
     }
+}
+
+/// Whether assistive technology asked the splitter `id` this frame to move (AccessKit's Increment,
+/// Decrement or SetValue, which egui's panel answers by resizing).
+fn splitter_asked(ui: &Ui, id: egui::Id) -> bool {
+    use egui::accesskit::Action;
+    ui.input(|i| [Action::Increment, Action::Decrement, Action::SetValue].into_iter().any(|a| i.has_accesskit_action_request(id, a)))
 }
 
 /// A row and the line under it: 72 with one line of preview (15 clear above the sender's
@@ -581,6 +599,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let rows_end = y;
     let total = y + below;
     let reveal = std::mem::take(&mut app.reveal_selection);
+    // After a new arrangement the selected row goes to the middle of the list (#1511).
+    let centered = std::mem::take(&mut app.reveal_centered);
     // The row the focus is on: the one clicked or stepped to, else the message's first (#503: a
     // newer message of its open conversation came, and its own row there is another), and for one
     // picked as its conversation, the conversation's row.
@@ -626,7 +646,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         {
             let above = if row.group.is_some() { GROUP_H } else { 0.0 };
             let rect = Rect::from_min_max(pos2(origin.x, origin.y + top - above), pos2(origin.x + width, origin.y + top + row_h));
-            ui.scroll_to_rect(rect, None);
+            ui.scroll_to_rect(rect, centered.then_some(egui::Align::Center));
         }
         // Only the rows in view are laid out.
         let first = tops.partition_point(|top| top + row_h < viewport.min.y).saturating_sub(1);
@@ -1324,6 +1344,8 @@ mod forward_attachment_tests;
 mod from_sender_menu_tests;
 #[cfg(test)]
 mod hidden_selection_tests;
+#[cfg(test)]
+mod list_height_tests;
 #[cfg(test)]
 mod open_conversation_tests;
 #[cfg(test)]

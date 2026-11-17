@@ -10,9 +10,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
+import uniffi.mailcraft_mobile.Event
 
 /** The Rust core and what the app built on it, once both are ready. */
 internal class Opened(
@@ -83,6 +85,31 @@ class MailCraftApplication : Application() {
         runCatching { ready.core.setNotifyNewMail(mailNotificationsAllowed(applicationContext)) }
     }
 
+    /** Keeps the system's alarms in step with the core's next reminders. */
+    private val reminders by lazy {
+        ReminderScheduler(
+            AndroidAlarms(this),
+            PrefsReminderStore(this),
+            System::currentTimeMillis,
+        ) { DeviceSwitches(this).load().reminders }
+    }
+
+    /** Sets the reminders' alarms again from [core], off the caller's way. */
+    private fun refreshRemindersSoon(core: Core) {
+        scope.launch { reminders.refresh(ReminderWords.from(core::t)) { askSchedule(core, it) } }
+    }
+
+    /**
+     * Sets the reminders' alarms again from the one core, opening it when no window has (after a
+     * restart, an update, a change of the clock or the zone): true when they were set, false
+     * when the core couldn't say (worth trying again), null when there is no core.
+     */
+    internal suspend fun refreshRemindersNow(): Boolean? {
+        begin()
+        val opened = (started.first { it !is Phase.Loading } as? Phase.Ready)?.value ?: return null
+        return reminders.refresh(ReminderWords.from(opened.core::t)) { askSchedule(opened.core, it) }
+    }
+
     /**
      * The mailbox is written when no window is on screen: the system may end the process after it.
      * (A core still opening has nothing of the owner's to write yet.)
@@ -122,6 +149,7 @@ class MailCraftApplication : Application() {
                     store = DeviceSwitches(applicationContext),
                     dir = noBackupFilesDir,
                     keep = { hub.saveNow() },
+                    changed = { refreshRemindersSoon(core) },
                 ),
                 scope = scope,
             )
@@ -154,7 +182,10 @@ class MailCraftApplication : Application() {
             events.register { event -> opened.mail.handle(event, scope) }
             // A pull to refresh is the hub's Send/Receive: the list shows its spinner and its word.
             opened.mail.follow(opened.hub.syncing, opened.hub.syncNotice, opened.hub::syncNoticeShown, scope)
+            // The reminders' alarms follow the core's schedule: at every open, and when it changed.
+            events.register { event -> if (event is Event.ReminderScheduleChanged) refreshRemindersSoon(opened.core) }
             events.launchIn(scope) { nextEvent(opened.core) }
+            refreshRemindersSoon(opened.core)
             // Send/Receive while the app is closed: one periodic run, kept if it is there already.
             // (WorkManager not starting is no reason to refuse the core: the window still works.)
             runCatching { scheduleBackgroundSync(applicationContext) }
