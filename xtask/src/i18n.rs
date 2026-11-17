@@ -16,10 +16,18 @@
 //! `--check` (a `cargo xtask ci` step) changes nothing and fails when the template or a catalogue
 //! is out of date. Either way, it fails on a catalogue it can't read, or on a translation whose
 //! `{placeholders}` aren't the English's.
+//!
+//! In the merge queue and on main (`GITHUB_EVENT_NAME` `merge_group` or `push`, or `--lenient`) an
+//! out-of-date template or catalogue is only reported: two pull requests that each pass can meet in
+//! a catalogue git merges without a conflict but that neither left complete (a text one adds, a
+//! language the other adds). A text a catalogue lacks is shown in English until the catalogues are
+//! refreshed. What can't be read, and a translation that loses or adds a `{placeholder}`, still fail.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+
+use crate::i18n_kotlin;
 
 use mailcraft_i18n::plural::Rule;
 use mailcraft_i18n::po::{self, Entry};
@@ -30,7 +38,13 @@ const NAME_FNS: &[&str] = &["label", "title", "detail", "about", "default_name",
 /// Window constants that reach `tl!` through a variable (`tl!(error)`), not by name.
 const SHOWN_CONSTS: &[&str] = &["NEEDS_APPROVAL", "REFUSED_BY_ORGANISATION", "REFUSED_FOR_ACCOUNT", "FAVORITES_NOW_GRAPH", "OPEN_ELSEWHERE"];
 
-pub fn run(root: &Path, check: bool) -> Result<(), String> {
+/// Whether an out-of-date template or catalogue is only reported, not a failure: asked for, or run
+/// by CI in the merge queue or on a push to main.
+pub fn lenient(asked: bool, event: Option<&str>) -> bool {
+    asked || matches!(event, Some("merge_group" | "push"))
+}
+
+pub fn run(root: &Path, check: bool, lenient: bool) -> Result<(), String> {
     let found = gather(root)?;
     let pot = template(&found);
     let dir = root.join("crates/i18n/po");
@@ -78,6 +92,11 @@ pub fn run(root: &Path, check: bool) -> Result<(), String> {
     }
     if check && !stale.is_empty() {
         let names: Vec<String> = stale.iter().map(|p| rel(root, p)).collect();
+        if lenient {
+            // ponytail: reported, not fixed; the catalogues are refreshed by a later `cargo xtask i18n`.
+            println!("out of date, not a failure here: {} (run `cargo xtask i18n`)", names.join(", "));
+            return Ok(());
+        }
         return Err(format!("out of date: {} (run `cargo xtask i18n`)", names.join(", ")));
     }
     if !check {
@@ -145,6 +164,10 @@ fn gather(root: &Path) -> Result<Texts, String> {
     for (_, toks) in &ui {
         constants(toks, &mut ui_consts);
     }
+    // (The Favorites' refusals are the sync driver's, below the window, and shown by it.)
+    for (_, toks) in &sources(root, "crates/engine/src/sync_driver")? {
+        constants(toks, &mut ui_consts);
+    }
     for name in SHOWN_CONSTS {
         if let Some(s) = ui_consts.get(*name) {
             add(&mut texts, s, None, "crates/ui-egui/src", "interface");
@@ -189,6 +212,12 @@ fn gather(root: &Path) -> Result<Texts, String> {
             hosts_say(toks, file, &consts, &mut texts);
         }
     }
+    // What the phone binding says to its owner (`s.interface_language.t("…")`).
+    for (file, toks) in sources(root, "crates/mobile/src")? {
+        engine_says(&toks, &file, &BTreeMap::new(), &BTreeMap::new(), &mut texts);
+    }
+    // What the Android app says: `t("…")` and `tn(n, "…", "…")` in its Kotlin (`cargo xtask mobile`'s app).
+    kotlin(root, &mut texts)?;
     for (file, toks) in sources(root, "crates/time/src")? {
         names(&toks, &file, &mut texts);
     }
@@ -201,6 +230,25 @@ fn gather(root: &Path) -> Result<Texts, String> {
         }
     }
     Ok(texts)
+}
+
+/// The texts of the Android app's Kotlin sources (not its tests, and not the generated bindings).
+fn kotlin(root: &Path, texts: &mut Texts) -> Result<(), String> {
+    let dir = root.join("apps/mailcraft-android/app/src/main/kotlin");
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    let mut files = Vec::new();
+    walk_ext(&dir, "kt", &mut files)?;
+    files.sort();
+    for path in files {
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let file = rel(root, &path);
+        for said in i18n_kotlin::scan(&text) {
+            add(texts, &said.id, said.plural.as_deref(), &file, "android");
+        }
+    }
+    Ok(())
 }
 
 /// Every `.rs` file under `dir` but tests (`tests.rs`, `*_tests.rs`, `#[cfg(test)] mod tests`),
@@ -222,12 +270,16 @@ fn sources(root: &Path, dir: &str) -> Result<Vec<(String, Vec<Tok>)>, String> {
 }
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+    walk_ext(dir, "rs", out)
+}
+
+fn walk_ext(dir: &Path, ext: &str, out: &mut Vec<PathBuf>) -> Result<(), String> {
     let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            walk(&path, out)?;
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+            walk_ext(&path, ext, out)?;
+        } else if path.extension().and_then(|e| e.to_str()) == Some(ext) {
             out.push(path);
         }
     }
@@ -963,6 +1015,15 @@ fn mismatch(e: &Entry) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_catalogues_fail_a_pull_request_but_not_the_queue_or_main() {
+        assert!(!lenient(false, None));
+        assert!(!lenient(false, Some("pull_request")));
+        assert!(lenient(false, Some("merge_group")));
+        assert!(lenient(false, Some("push")));
+        assert!(lenient(true, Some("pull_request")));
+    }
 
     #[test]
     fn finds_what_the_window_says() {

@@ -6,7 +6,7 @@
 //! another program a message is only its header (`X-MailCraft-Not-Downloaded`) still goes, and the
 //! flag's own field is written from the flag.
 
-use mailcraft_model::{Address, FlagStatus, Message};
+use crate::{Address, FlagStatus, Message};
 
 use crate::{OPENED_FILE_HEADER, PLACE_HEADER, PST_ITEM_HEADER, WriteOptions, carries_place, parse, write, write_mbox, write_placed};
 

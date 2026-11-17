@@ -656,3 +656,52 @@ proptest! {
         prop_assert_eq!(serde_json::from_str::<RichText>(&json).unwrap(), t);
     }
 }
+
+/// The fixed-width font of the composer (#969).
+fn courier_new() -> Font {
+    Font::parse("courier new").unwrap_or_else(|| panic!("Courier New is not one of the composer's fonts"))
+}
+
+#[test]
+fn courier_new_is_the_one_fixed_width_font() {
+    let courier = courier_new();
+    assert_eq!(courier.label(), "Courier New");
+    assert!(courier.is_fixed_width());
+    assert_eq!(Font::ALL.iter().filter(|f| f.is_fixed_width()).collect::<Vec<_>>(), vec![&courier]);
+    // Written with a fixed-width fallback, so a recipient without Courier New keeps the columns too.
+    assert_eq!(courier.css(), "'Courier New', Courier, monospace");
+}
+
+#[test]
+fn a_fixed_width_family_comes_back_as_courier_new() {
+    let courier = courier_new();
+    for font in Font::ALL {
+        assert_eq!(Font::from_css(font.css()), Some(font), "{font:?}");
+    }
+    for first in [
+        "Courier New",
+        "\"Courier New\"",
+        "Courier",
+        "Liberation Mono",
+        "Cousine",
+        "Consolas",
+        "Menlo",
+        "DejaVu Sans Mono",
+        "monospace",
+        "ui-monospace",
+    ] {
+        assert_eq!(Font::from_css(&format!("{first}, serif")), Some(courier), "{first}");
+    }
+}
+
+#[test]
+fn a_font_this_version_doesnt_know_leaves_the_rest_of_the_look() {
+    // A font a later version adds is the message's own here, and the run keeps its bold and its
+    // colour, rather than the whole text losing its look (#969, a review point on #1327).
+    let style: Style = serde_json::from_str(r##"{"bold": true, "color": "#1f6feb", "font": "aFontFromLater"}"##).unwrap();
+    assert_eq!(style, Style { bold: true, color: Some("#1f6feb".into()), ..Style::default() });
+    for odd in [r#"{"font": 7}"#, r#"{"font": null}"#, r#"{"font": {"name": "Arial"}}"#] {
+        assert_eq!(serde_json::from_str::<Style>(odd).unwrap().font, None, "{odd}");
+    }
+    assert_eq!(serde_json::from_str::<Style>(r#"{"font": "courierNew"}"#).unwrap().font, Some(courier_new()));
+}

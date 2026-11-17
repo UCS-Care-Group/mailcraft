@@ -55,7 +55,7 @@ fn served(events: Vec<RemoteEvent>) -> (Harness, Arc<Mutex<Server>>) {
     let server = serve(&mut app);
     microsoft_account(&mut app);
     server.lock().unwrap().events = events;
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     let mut harness = egui_kittest::Harness::builder()
         .with_accessibility_check(false)
         .allow_missing_glyphs()

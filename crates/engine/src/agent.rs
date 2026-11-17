@@ -142,6 +142,10 @@ const SAFE: &[&str] = &[
     "mail.delete",
     "mail.archive",
     "mail.move",
+    // Snoozing is filing, like a move (#949): into the Snoozed folder, and back by itself.
+    "mail.snooze",
+    "mail.unsnooze",
+    "mail.returnDue",
     // Moving between Gmail's categories is a move, and asks what a move asks (#911): the messages
     // named (`NEEDS_IDS`).
     "mail.setGmailCategory",
@@ -151,6 +155,15 @@ const SAFE: &[&str] = &[
     "mail.toggleRead",
     "mail.markAllRead",
     "mail.flag",
+    // Follow-up reminders (#948): an agent may set and clear them, and read what is due (message
+    // text, data); it never dismisses or snoozes one for the owner (see NEVER).
+    "mail.reminder",
+    "mail.clearReminder",
+    "mail.settleReminders",
+    "mail.dueReminders",
+    "compose.followUp",
+    // How a message can be unsubscribed from ("send": true is asked about, `classify`).
+    "mail.unsubscribe",
     "mail.clearFlag",
     "mail.complete",
     "mail.toggleFlag",
@@ -184,6 +197,12 @@ const SAFE: &[&str] = &[
     "compose.set",
     "compose.replyTo",
     "compose.readReceipt",
+    // Delay Delivery: a time on the message being written; nothing goes until Send, which is asked about (#950).
+    "compose.delay",
+    // A message waiting in the Outbox goes back to Drafts and is not sent (#950).
+    "mail.cancelSend",
+    // The message Send put in the Outbox for its wait is taken back and opened to write again (#950).
+    "compose.undoSend",
     "compose.attach",
     "compose.attachItem",
     "insert.businessCard",
@@ -250,6 +269,7 @@ const SAFE: &[&str] = &[
     "view.readingPane",
     "view.gmailCategories",
     "view.folderPane",
+    "view.navigationBar",
     "view.conversations",
     "view.sort",
     "view.reverseSort",
@@ -271,6 +291,9 @@ const SAFE: &[&str] = &[
     "view.taskFilter",
     "view.taskAccount",
     "view.peopleAccount",
+    // (People shows the address list; nothing is looked up for an agent: only what the owner types
+    // in the window's search box is, #1262.)
+    "people.addressBook",
     "view.reset",
     "view.inspect",
     "view.days",
@@ -318,6 +341,8 @@ const SAFE: &[&str] = &[
     "calendar.join",
     "calendar.copy",
     "calendar.calendars",
+    // Makes the subscribed calendars due a look ahead of their time: they were chosen by the owner.
+    "calendar.refreshSubscribed",
     "calendar.showOnly",
     "calendar.color",
     "calendar.timeZones",
@@ -385,7 +410,9 @@ const SAFE: &[&str] = &[
     "ui.closeDialog",
     "ui.theme",
     "ui.highContrast",
+    "ui.animations",
     "ui.accent",
+    "ui.darkStyle",
     "ui.lightMessages",
     "ui.language",
     "ui.interfaceSize",
@@ -416,12 +443,17 @@ const SAFE: &[&str] = &[
 
 const SEND: &[&str] = &[
     "compose.send",
+    // Send, not before a time; and a new time for mail waiting in the Outbox, which may be sooner (#950).
+    "compose.sendLater",
+    "mail.setSendTime",
     // The server answers mail on the owner's behalf with what it says.
     "account.setAutomaticReplies",
     "mail.sendAgain",
     "calendar.propose",
     "calendar.forward",
     "ui.downloadPictures",
+    // Unsubscribes from a list: one click reaches its server, by mail writes to it.
+    "ui.unsubscribe",
     "ui.retryPictures",
     "ui.joinMeeting",
     "ui.reportProblem",
@@ -432,6 +464,9 @@ const DELETE: &[&str] = &[
     "mail.removeAttachment",
     "folder.delete",
     "folder.empty",
+    // Copies only this computer has, of mail its server has (#1401): undo brings them back, but
+    // they are gone from the mailbox. A preview only counts.
+    "mail.removeImportedDuplicates",
     "calendar.removeCalendar",
     // Local contacts, tasks, events and categories have no Deleted Items to come back from, and
     // undo is short-lived (what a server has been told of events and tasks clears it).
@@ -451,6 +486,11 @@ const ACCOUNTS: &[&str] = &[
     "account.remove",
     // An Exchange server account stops trusting the certificate its owner chose to trust (#252).
     "account.forgetEwsCertificate",
+    // Calendar and contacts servers (#209): choosing where an account's calendars and contacts
+    // are, and so where its password may be sent, is the owner's. (The question about a host
+    // outside the owner's domain and trusting a certificate join them when their commands exist.)
+    "account.davSet",
+    "account.davOff",
     "account.graphSwitch",
     "account.addSharedMailbox",
     "account.removeSharedMailbox",
@@ -458,12 +498,20 @@ const ACCOUNTS: &[&str] = &[
     // the owner's sign-in, and removing one removes what is kept of it here.
     "calendar.openShared",
     "calendar.removeShared",
+    // Calendars on the web (#209): subscribing makes this computer fetch an address (which may
+    // hold a secret) from then on; an agent never chooses one unasked.
+    "calendar.subscribe",
+    "calendar.unsubscribe",
+    "calendar.subscriptionSettings",
     // A shared mailbox's calendar listed twice (#70): hiding the copy removes it and its events
     // from this computer.
     "calendar.hideListedCopy",
     // Mail to keep offline (#143): what is kept on this computer; the server keeps it all.
     "account.thinOffline",
     "ui.keepOffline",
+    // Device limits (MB3.16): what a phone keeps; the server keeps it all.
+    "account.deviceLimits",
+    "account.trimDevice",
     "calendar.moveToAccount",
     "ui.connectMicrosoft",
     "ui.automaticRepliesSignIn",
@@ -493,6 +541,8 @@ const SETTINGS: &[&str] = &[
     "file.options",
     // Work Offline: turned off, what waits in the Outbox goes out.
     "sync.offline",
+    // Wait before sending (Undo Send): turned off, what is sent goes at the next run (#950).
+    "sync.waitBeforeSending",
     "calendar.deleteAnsweredRequests",
     "rules.add",
     "rules.remove",
@@ -529,14 +579,20 @@ const SETTINGS: &[&str] = &[
     "ui.downloadPicturesAutomatically",
     "ui.senderImages",
     "ui.desktopAlerts",
+    "ui.closeToTray",
     "ui.repliesInWindow",
     "ui.updateCheck",
     "ui.updateInstall",
     "ui.dismissUpdateNotice",
     "ui.dismissSettingsNotice",
+    "ui.dismissSoftwareNotice",
 ];
 
 const NEVER: &[&str] = &[
+    // The owner's Dismiss and Snooze of a follow-up reminder (#948): an agent never does either
+    // for the owner.
+    "mail.dismissReminder",
+    "mail.postponeReminder",
     // The host's side of a synchronisation: what came from a server is the host's to say.
     "sync.request",
     "sync.apply",
@@ -552,6 +608,11 @@ const NEVER: &[&str] = &[
     "sync.applyEws",
     "sync.ewsFetchRequest",
     "sync.applyEwsFetch",
+    // Calendars and contacts on a server (#209), likewise.
+    "sync.davRequest",
+    "sync.applyDav",
+    "sync.davChanges",
+    "sync.applyDavUploaded",
     // A search of the server goes only on the owner's own click (R6.2).
     "sync.graphSearchRequest",
     "sync.applyGraphSearch",
@@ -572,6 +633,9 @@ const NEVER: &[&str] = &[
     "sync.applyFavorites",
     "sync.applyMailboxSettings",
     "sync.applyAutomaticReplies",
+    // Subscribed calendars (#209): the addresses a host is to look at, and what it brought.
+    "sync.subscriptionRequest",
+    "sync.applySubscription",
     "sync.forgetRemote",
     // File pickers are the owner's; agents pass `data`.
     "ui.open",
@@ -745,6 +809,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         "compose.discard" if writing => return Access::Asked(Class::Delete),
         "ui.closeWindow" if unsaved(params) => return Access::Asked(Class::Delete),
         "file.new" | "file.open" if owner_writing_any(s) || unsaved(params) => return Access::Asked(Class::Mailbox),
+        "mail.removeImportedDuplicates" if p::bool(params, "preview") == Some(true) => return Access::Safe,
         _ => {}
     }
     if base != Access::Safe {
@@ -767,6 +832,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
             if ids.iter().any(|m| deletes_for_good(&s.mailbox, *m)) { Access::Owner(Class::Delete) } else { Access::Safe }
         }
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
+        "mail.unsubscribe" if sends => Access::Owner(Class::Send),
         // A command that closes the message being written, or puts another in its place, saves
         // what isn't saved of it first (#442). Letting that go instead (`discard`) is throwing it
         // away. When the owner wrote in it, the window asks them every time either way, saved or
@@ -1025,6 +1091,8 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.delete",
     "mail.deletePermanently",
     "mail.move",
+    "mail.snooze",
+    "mail.unsnooze",
     "mail.setGmailCategory",
     "mail.copy",
     "mail.archive",
@@ -1039,10 +1107,13 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.resend",
     "mail.removeAttachment",
     "mail.sendAgain",
+    "mail.cancelSend",
+    "mail.setSendTime",
 ];
 
 /// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
-const ONE_MESSAGE: &[&str] = &["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.editDraft", "mail.resend", "mail.sendAgain"];
+const ONE_MESSAGE: &[&str] =
+    &["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.editDraft", "mail.resend", "mail.sendAgain", "mail.cancelSend", "mail.setSendTime"];
 
 /// The refusal for a command in [`NEEDS_IDS`] given no messages.
 pub fn needs_ids(id: &str) -> String {
@@ -1342,6 +1413,33 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             None => "send the message being written".to_string(),
         },
+        // Not before a time (#950): said in the owner's zone, as what it sends is said as Send says it.
+        "compose.sendLater" => {
+            let when = p::i64(params, "at")
+                .map(|at| s.wall_at(at))
+                .map_or_else(|| "a time not given".to_string(), |w| format!("{} {:02}:{:02}", w.date.iso(), w.hour, w.minute));
+            match s.compose_named(params) {
+                Some(c) => {
+                    let to: Vec<String> = [c.to.as_str(), c.cc.as_str(), c.bcc.as_str()]
+                        .into_iter()
+                        .flat_map(|l| addresses(Some(&Value::String(l.to_string()))))
+                        .collect();
+                    let to = if to.is_empty() { "nobody yet".to_string() } else { some(&to, 12) };
+                    format!("send {} to {to}, not before {when}", quoted(&c.subject))
+                }
+                None => format!("send the message being written, not before {when}"),
+            }
+        }
+        "mail.setSendTime" => {
+            let when = match params.get("at") {
+                Some(Value::Null) => "the next Send/Receive".to_string(),
+                _ => p::i64(params, "at")
+                    .map(|at| s.wall_at(at))
+                    .map_or_else(|| "a time not given".to_string(), |w| format!("{} {:02}:{:02}", w.date.iso(), w.hour, w.minute)),
+            };
+            let ids = taken(params);
+            format!("let {} go not before {when}", messages_text(s, &ids))
+        }
         "mail.move" | "mail.copy" => {
             // What the agent names (#620), read as the command reads them (#503, #451).
             let ids = taken(params);
@@ -1351,8 +1449,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 Some(f) if !is_outbox(&s.mailbox, f.id) => {
                     format!("{verb} {} onto the server of {}, into {}", messages_text(s, &ids), account(f.account), quoted(&f.name))
                 }
-                // An IMAP account's holds what is put there (#607).
-                Some(f) if s.mailbox.is_imap_outbox(f.id) => {
+                // An IMAP account's holds what is put there (#607), and so does a JMAP account's
+                // what is moved there (#1074).
+                Some(f) if s.mailbox.holds_what_is_moved_in(f.id) => {
                     format!("{verb} {} into the Outbox of {}, held there unsent until Send Again", messages_text(s, &ids), account(f.account))
                 }
                 _ => format!("put {} in the Outbox, which sends them", messages_text(s, &ids)),
@@ -1372,6 +1471,16 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let verb = if id == "folder.empty" { "permanently empty" } else { "permanently delete the folder" };
             format!("{verb} {name} and the {} in it", plural(n, "{n} message", "{n} messages"))
         }
+        // (#1401) Counted now: a different count on the yes is another question.
+        "mail.removeImportedDuplicates" => {
+            let folder = p::id_strict(params, "folder").ok().flatten();
+            let n = crate::cmd::imported_dupes::twins(&s.mailbox, folder).remove.len();
+            let where_ = folder.and_then(|f| s.mailbox.folder(f)).map_or_else(|| "every folder".to_string(), |f| quoted(&f.name));
+            format!(
+                "remove {} that only this computer has, beside the same mail from its server in {where_} (the server's copies are not touched, and nothing is sent)",
+                plural(n, "{n} message", "{n} messages")
+            )
+        }
         "account.setAutomaticReplies" => {
             let account = p::id(params, "account")
                 .and_then(|a| s.mailbox.account(a))
@@ -1389,6 +1498,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "calendar.forward" => format!("forward {} to {}", event_title(s, id, params), some(&addresses(params.get("to")), 12)),
         "calendar.propose" => format!("propose another time for {} to its organizer", event_title(s, id, params)),
         "calendar.respond" => format!("answer {} ({}) and tell its organizer", event_title(s, id, params), clip(st("response"), 20)),
+        "mail.unsubscribe" | "ui.unsubscribe" => {
+            // Each by the key its command reads: what is approved is what is done.
+            let key = if id == "ui.unsubscribe" { "message" } else { "id" };
+            let from = p::id(params, key).or_else(|| if id == "ui.unsubscribe" { s.sel.focus() } else { s.sel.messages.last().copied() });
+            let sender = from.and_then(|m| s.mailbox.message(m)).map_or_else(|| "the selected message".to_string(), |m| clip(&m.from.email, 80));
+            format!("unsubscribe from the mail of {sender}, which reaches the list by its server or by mail")
+        }
         _ if id.starts_with("calendar.") && p::bool(params, "send") == Some(true) => {
             let who = invitees(s, params);
             let to = if who.is_empty() {
@@ -1636,6 +1752,25 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "calendar.openShared" => {
             format!("open the calendar of {} (its events are read from that person's mailbox with the account's sign-in)", clip(st("address"), 80))
         }
+        "calendar.subscribe" => {
+            // (The host alone: the rest of an address may hold a secret.)
+            let host = mailcraft_model::subscription::check_address(st("address")).map(|a| a.host).unwrap_or_default();
+            format!(
+                "subscribe to the calendar on the web at the host {} (its file is fetched from then on, every hour and on Send/Receive, and kept read-only under Other Calendars); the address is kept like a password",
+                clip(&host, 80)
+            )
+        }
+        "calendar.unsubscribe" => {
+            let named = p::id_strict(params, "id").ok().flatten().and_then(|c| s.mailbox.calendar(c)).map(|c| c.name.clone()).unwrap_or_default();
+            format!("unsubscribe from the calendar {} and remove it and its events from this computer", clip(&named, 80))
+        }
+        "calendar.subscriptionSettings" => {
+            let named = p::id_strict(params, "id").ok().flatten().and_then(|c| s.mailbox.calendar(c)).map(|c| c.name.clone()).unwrap_or_default();
+            format!(
+                "change how the subscribed calendar {} is kept up to date (how often it is fetched, or the address it is fetched from)",
+                clip(&named, 80)
+            )
+        }
         "calendar.removeShared" => {
             let named = p::id_strict(params, "id")
                 .ok()
@@ -1686,13 +1821,25 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 email => email,
             };
             if id == "account.edit" {
-                let moved = crate::cmd::account::edited(account, params)
-                    .map(|new| (crate::cmd::account::servers_text(account), crate::cmd::account::servers_text(&new)))
+                let new = crate::cmd::account::edited(account, params);
+                let moved = new
+                    .as_ref()
+                    .map(|new| (crate::cmd::account::servers_text(account), crate::cmd::account::servers_text(new)))
                     .filter(|(was, now)| was != now);
-                return match moved {
+                let mut text = match moved {
                     Some((was, now)) => format!("change the account {a}; its servers change from {was} to {now}"),
                     None => format!("change the account {a}"),
                 };
+                // The tick of a relay that takes mail without a sign-in (#836) is named: it decides
+                // whether the password is shown to the outgoing server.
+                match new.map(|new| new.outgoing_without_sign_in) {
+                    Some(true) if !account.outgoing_without_sign_in => {
+                        text.push_str("; the outgoing server needs no sign-in (the password is never sent to it)");
+                    }
+                    Some(false) if account.outgoing_without_sign_in => text.push_str("; MailCraft signs in to the outgoing server again"),
+                    _ => {}
+                }
+                return text;
             }
             // The only account leaves an empty mailbox, as at a first start (#313); the shared
             // mailboxes opened through it go with it. The placeholder of an empty mailbox isn't
@@ -1723,6 +1870,7 @@ fn starting_text(s: &Session, id: &str, params: &Value) -> Option<String> {
         "mail.forwardAsAttachment" => format!("forward {} as attachments", several()),
         "mail.editDraft" => format!("open the draft {}", one()),
         "mail.resend" => format!("open {} again as a new message to send", one()),
+        "compose.undoSend" => "take back the message just sent and open it again to write".to_string(),
         "people.email" => format!("start a new message to the contact {}", contact()),
         "calendar.email" => "start a new message with a summary of the owner's calendar".to_string(),
         "calendar.contactAttendees" => format!("start a new message to the people of {}", event_title(s, id, params)),

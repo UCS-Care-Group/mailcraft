@@ -31,7 +31,7 @@ fn a_long_hidden_text_leaves_the_record_comes_back_and_goes_with_a_thinned_messa
     save(&path, &mb).unwrap();
     clear_cache();
     // The record the mailbox file keeps has none of it, and names the content file.
-    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new()).unwrap();
+    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new(), None).unwrap();
     assert!(!String::from_utf8_lossy(&record.json).contains(NEEDLE));
     assert_eq!(record.parts.hidden.map(|p| p.r.len), Some(long_hidden().len() as u64));
     assert!(blob_file(&path, long_hidden().as_bytes()).is_file());
@@ -82,7 +82,7 @@ fn a_long_hidden_text_leaves_the_record_comes_back_and_goes_with_a_thinned_messa
 #[test]
 fn a_short_hidden_text_stays_in_the_record_and_old_files_load() {
     let (mb, id) = with_hidden("a short preheader");
-    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new()).unwrap();
+    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new(), None).unwrap();
     assert!(record.parts.hidden.is_none() && String::from_utf8_lossy(&record.json).contains("a short preheader"));
     let tmp = Temp::new("hidden-inline");
     let path = tmp.file();
@@ -280,7 +280,7 @@ fn a_file_that_is_no_picture_is_listed_while_the_body_is_kept_outside() {
          --B\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{html}\r\n\
          --B\r\nContent-Type: application/zip; name=tool.zip\r\nContent-Disposition: attachment; filename=tool.zip\r\nContent-ID: <t9@a.example>\r\nContent-Transfer-Encoding: base64\r\n\r\nUEsDBHYyNw==\r\n--B--\r\n"
     );
-    let parsed = mailcraft_mime::parse(eml.as_bytes());
+    let parsed = mailcraft_mime_model::parse(eml.as_bytes());
     let mut mb = mailbox(24);
     let id = first_with(&mb, |m| m.body.text.len() > INLINE_MAX);
     let mut m = Message::clone(mb.message(id).unwrap());

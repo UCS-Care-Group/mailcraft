@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Sender images: a picture in place of a sender's initials, in the message list and over the
-//! message being read.
+//! Sender images: a picture in place of a sender's initials, in the message list, over the
+//! message being read, and in place of a contact's in People.
 //!
 //! Off unless the owner turns it on in File › Options. Asking for a picture tells whoever keeps
 //! it whose picture is looked at, so it is asked for only
 //!
-//! - for a sender the owner knows: one of the contacts, or somebody mail in Sent Items went to;
+//! - for a sender the owner knows: one of the contacts, or somebody mail in Sent Items went to
+//!   (in People, the contacts alone, whose addresses are the owner's own word: the rules below
+//!   that are about a message don't apply there);
 //! - or for mail whose pictures the owner lets come anyway: all mail (Download pictures in mail
 //!   automatically), its sender's or its sender's domain's, or that message's
 //!   ([`crate::reading::remote::access`]). Anybody can write to anybody, and a stranger's
@@ -39,8 +41,10 @@ use crate::MailApp;
 use crate::reading::images;
 use crate::theme::Tokens;
 
-/// Most addresses whose picture, or lack of one, is kept in memory.
-const MAX_KEPT: usize = 1_000;
+/// Most addresses whose picture, or lack of one, is kept in memory (a picture is at most
+/// [`SIDE`] pixels a side, 64 KB): far more than a screen of rows shows, and those on screen
+/// are never let go of for another.
+const MAX_KEPT: usize = 300;
 /// Most addresses the host looks up at a time.
 const AT_A_TIME: usize = 4;
 /// Most addresses waiting for their turn.
@@ -54,6 +58,9 @@ const MAX_SIDE: u32 = 1024;
 /// How long the host is waited on for one address, in milliseconds: it may try three places,
 /// each for up to 30 s (`mailcraft_net::pictures::PATIENCE`).
 const PATIENCE_MS: f64 = 100_000.0;
+/// Longest address looked up, as the host's: a longer one (a contact's from a file can be a
+/// megabyte) is neither lowered nor kept.
+const MAX_ADDRESS: usize = 320;
 
 /// What is known of one address's picture.
 enum Look {
@@ -82,6 +89,17 @@ pub struct SenderImages {
     /// Handed to the host with every look-up, weakly: gone with this state, it stops what is in
     /// flight before its next request.
     alive: Arc<()>,
+}
+
+impl SenderImages {
+    /// Let go of the senders' pictures kept in memory (the window is out of sight,
+    /// [`crate::out_of_sight`]): they are asked for again (from the host's cache first) when a
+    /// row of theirs is next on screen. What is known to have no picture is kept, and is not
+    /// asked about again; a look-up on its way is taken in when rows are next shown.
+    pub(crate) fn let_go_of_pictures(&mut self) {
+        self.looks.retain(|_, (look, _)| matches!(look, Look::Missing | Look::Asked(..)));
+        self.decoded = None;
+    }
 }
 
 /// Whether the owner knows `address` (in lower case): it is one of the contacts', or mail in
@@ -115,10 +133,12 @@ fn tick(app: &mut MailApp, ctx: &egui::Context) {
         };
         ctx.request_repaint();
     }
+    // Taken every frame, offline too: back online, only what is on screen then is asked for.
+    let wanted = std::mem::take(&mut state.wanted);
     // (Working offline, nobody is asked: senders keep their initials.)
     if !offline && let Some(look_up) = &app.services.sender_images {
         // The rest is wanted again by its row, for as long as that is on screen.
-        for address in std::mem::take(&mut state.wanted).into_iter().take(AT_A_TIME.saturating_sub(flying)) {
+        for address in wanted.into_iter().take(AT_A_TIME.saturating_sub(flying)) {
             if state.looks.contains_key(&address) {
                 continue;
             }
@@ -159,9 +179,9 @@ pub fn picture(app: &mut MailApp, ctx: &egui::Context, m: &Message, who: &Addres
         return None;
     }
     tick(app, ctx);
-    let address = who.email.trim().to_lowercase();
+    let address = key(who)?;
     // The say-so for a message's pictures is its sender's: whoever it goes to must be known.
-    let sender = address == m.from.email.trim().to_lowercase();
+    let sender = key(&m.from).is_some_and(|from| from == address);
     // Who it went to is the owner's word (it is theirs); who sent it, only the server's.
     if sender && !crate::reading::remote::vouched(app.session.mailbox.account(m.account), m) {
         return None;
@@ -169,10 +189,38 @@ pub fn picture(app: &mut MailApp, ctx: &egui::Context, m: &Message, who: &Addres
     if !is_known(app, &address) && !(sender && crate::reading::remote::access(app, m) == crate::reading::Access::Allowed) {
         return None;
     }
+    look(app, ctx, address)
+}
+
+/// The picture to show for one of the contacts in People, in place of their initials. Their
+/// address is the owner's own word, as whoever the owner's mail went to is: no server's is needed.
+pub fn contact_picture(app: &mut MailApp, ctx: &egui::Context, who: &Address) -> Option<egui::TextureHandle> {
+    if !app.ui.sender_images || app.services.sender_images.is_none() {
+        return None;
+    }
+    tick(app, ctx);
+    let address = key(who)?;
+    if !is_known(app, &address) {
+        return None;
+    }
+    look(app, ctx, address)
+}
+
+/// `who`'s address in lower case, as pictures are kept by; none for one too long to be anybody's.
+fn key(who: &Address) -> Option<String> {
+    let email = who.email.trim();
+    (email.len() <= MAX_ADDRESS).then(|| email.to_lowercase())
+}
+
+/// The picture of `address` (in lower case), once its look-up has brought one; one that is still
+/// to be looked up is noted, and asked for at the next frame.
+fn look(app: &mut MailApp, ctx: &egui::Context, address: String) -> Option<egui::TextureHandle> {
     let frame = images::frame(ctx);
+    let offline = app.offline();
     let state = &mut app.sender_images;
     let Some((look, used)) = state.looks.get_mut(&address) else {
-        if state.wanted.len() < MAX_WANTED && !state.wanted.contains(&address) {
+        // Working offline nobody is asked, so nothing waits for its turn or repaints for it.
+        if !offline && state.wanted.len() < MAX_WANTED && !state.wanted.contains(&address) {
             state.wanted.push(address);
             // With every place taken, the 250 ms repaint of `tick` comes back for it.
             if state.flying < AT_A_TIME {
@@ -201,7 +249,18 @@ pub fn picture(app: &mut MailApp, ctx: &egui::Context, m: &Message, who: &Addres
 
 /// `who`'s round avatar on the mail `m`: their picture when there is one, else their initials.
 pub fn avatar(app: &mut MailApp, ui: &Ui, center: egui::Pos2, radius: f32, m: &Message, who: &Address) {
-    let Some(texture) = picture(app, ui.ctx(), m, who) else {
+    let texture = picture(app, ui.ctx(), m, who);
+    paint(ui, center, radius, texture, who);
+}
+
+/// A contact's round avatar in People: their picture when there is one, else their initials.
+pub fn contact_avatar(app: &mut MailApp, ui: &Ui, center: egui::Pos2, radius: f32, who: &Address) {
+    let texture = contact_picture(app, ui.ctx(), who);
+    paint(ui, center, radius, texture, who);
+}
+
+fn paint(ui: &Ui, center: egui::Pos2, radius: f32, texture: Option<egui::TextureHandle>, who: &Address) {
+    let Some(texture) = texture else {
         crate::widgets::avatar(ui, center, radius, who);
         return;
     };

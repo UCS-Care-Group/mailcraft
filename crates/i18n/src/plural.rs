@@ -17,6 +17,16 @@ pub enum Rule {
     /// Three forms (`plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)`):
     /// 1, 21, 101… / 2–4, 22–24… / the rest, 11–14 among them. Russian.
     Slavic,
+    /// Three forms (`plural=(n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < 20)) ? 1 : 2)`): Romanian.
+    /// One for 1; another for 0 and for 2 to 19 past the hundreds (101, 119); the third, written
+    /// with "de", for the rest (20, 100, 120).
+    Romanian,
+    /// Three forms (`plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)`): Polish.
+    /// One for 1; another for counts ending 2 to 4 except 12 to 14 (2, 22, 104); the third for the rest.
+    Polish,
+    /// Three forms (`plural=(n==1 ? 0 : (n>=2 && n<=4) ? 1 : 2)`): Czech (and Slovak).
+    /// One for 1; another for 2, 3 and 4 alone (22 is "22 zpráv"); the third for the rest, 0 included.
+    Czech,
 }
 
 impl Rule {
@@ -36,6 +46,22 @@ impl Rule {
                     2
                 }
             }
+            Rule::Polish => match n {
+                1 => 0,
+                n if (2..=4).contains(&(n % 10)) && !(10..20).contains(&(n % 100)) => 1,
+                _ => 2,
+            },
+            Rule::Czech => match n {
+                1 => 0,
+                2..=4 => 1,
+                _ => 2,
+            },
+            Rule::Romanian => match n {
+                1 => 0,
+                0 => 1,
+                n if (1..20).contains(&(n % 100)) => 1,
+                _ => 2,
+            },
         }
     }
 
@@ -44,7 +70,7 @@ impl Rule {
         match self {
             Rule::Single => 1,
             Rule::NotOne | Rule::AboveOne => 2,
-            Rule::Slavic => 3,
+            Rule::Slavic | Rule::Romanian | Rule::Polish | Rule::Czech => 3,
         }
     }
 
@@ -65,6 +91,9 @@ impl Rule {
             (Some(1), Some("0")) => Rule::Single,
             (Some(2), Some("n>1" | "n>=2" | "n>1?1:0")) => Rule::AboveOne,
             (Some(3), Some(SLAVIC)) => Rule::Slavic,
+            (Some(3), Some("n==1?0:(n==0||(n%100>0&&n%100<20))?1:2")) => Rule::Romanian,
+            (Some(3), Some("n==1?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2")) => Rule::Polish,
+            (Some(3), Some("n==1?0:(n>=2&&n<=4)?1:2" | "(n==1)?0:(n>=2&&n<=4)?1:2" | "n==1?0:n>=2&&n<=4?1:2")) => Rule::Czech,
             _ => Rule::NotOne,
         }
     }
@@ -103,15 +132,15 @@ mod tests {
     #[test]
     fn known_rules_by_their_shape() {
         assert_eq!(Rule::from_header("nplurals=2; plural=(n > 1);"), Rule::AboveOne);
+        let ro = Rule::from_header("nplurals=3; plural=(n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < 20)) ? 1 : 2);");
+        assert_eq!(ro, Rule::Romanian);
+        let forms: Vec<usize> = [1, 0, 2, 19, 20, 100, 101, 119, 120, 1001].iter().map(|n| ro.index(*n)).collect();
+        assert_eq!(forms, [0, 1, 1, 1, 2, 2, 1, 1, 2, 1]);
+        assert_eq!(ro.forms(), 3);
         assert_eq!(Rule::from_header("nplurals=2; plural=n>1;"), Rule::AboveOne);
         assert_eq!(Rule::from_header("nplurals=2; plural=(n != 1);"), Rule::NotOne);
         assert_eq!(Rule::from_header("nplurals=1; plural=0;"), Rule::Single);
         assert_eq!(Rule::from_header("nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : 2);"), Rule::NotOne);
-        let ru = "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);";
-        assert_eq!(Rule::from_header(ru), Rule::Slavic);
-        assert_eq!(Rule::Slavic.forms(), 3);
-        let forms: Vec<usize> = [0, 1, 2, 4, 5, 11, 12, 14, 21, 22, 25, 101, 111, 112].iter().map(|n| Rule::Slavic.index(*n)).collect();
-        assert_eq!(forms, [2, 0, 1, 1, 2, 2, 2, 2, 0, 1, 2, 0, 2, 2]);
         assert_eq!(Rule::from_header("garbage((("), Rule::NotOne);
         assert_eq!(Rule::from_header("nplurals=2; plural=(n>1)+(n>2);"), Rule::NotOne);
         assert_eq!((Rule::AboveOne.index(0), Rule::AboveOne.index(1), Rule::AboveOne.index(2)), (0, 0, 1));

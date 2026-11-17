@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
-use mailcraft_mime::rich::{Img, to_html_with};
+use mailcraft_mime_model::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
-use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
+use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, DraftKind, DraftOf, DraftState, MAX_CHECK_NAMES, MAX_RESOLVE_PEOPLE, ServerDraft};
 use mailcraft_model::{
-    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, Id, Importance, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE, RichBody,
-    Signature, format_list,
+    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, FollowUp, Id, Importance, MAX_FOLLOW_UP_AHEAD, Message, NOT_DOWNLOADED,
+    NOT_DOWNLOADED_NOTE, RichBody, Signature, format_list,
 };
 use serde_json::{Value, json};
 
+use super::followup::FollowUpPlan;
 use super::{bad, base64_decode, done, fail, needs_compose, needs_message, source};
 use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, ComposeMode, InsertedSignature, Quote, Session, p};
 
@@ -32,7 +33,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAndDelete", "Reply and Delete", "Home › Respond", reply_and_delete)
             .params(r#"{"id"?: number} (default: the selected message) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
-            .selection(super::needs_movable),
+            .selection(super::needs_message),
         CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(FORWARD).selection(needs_forwardable),
         CommandSpec::new("mail.forwardAsAttachment", "Forward as Attachment", "Home › Respond", forward_as_attachment)
             .pure()
@@ -66,7 +67,11 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"value": bool} (true: an HTML signature's simpler copy is shown and sent in place of the HTML; false: the HTML again, while that copy is unedited)"#)
             .when_writing(needs_compose),
-        CommandSpec::new("compose.checkNames", "Check Names", "Message › Names", check_names).pure().key("Mod+K").when_writing(needs_compose),
+        CommandSpec::new("compose.checkNames", "Check Names", "Message › Names", check_names)
+            .pure()
+            .key("Mod+K")
+            .params(r#"{"found"?: {name: [{"name": string, "email": string, "kind"?: "mailbox"|"list"|"contact"|"group"|"publicFolder"|"other", "company"?, "department"?, "title"?}]} (the people an Exchange server account's address list has for each name, looked up by the window), "more"?: [name] (names the address list has more people for than `found` lists: never put in by themselves, always a choice), "pick"?: {name: {"name": string, "email": string}} (the one chosen for a name of `choices`)} — replaces each name typed on the recipient lines with the one person it stands for, among the contacts and the people `found` gives for it; a name left is kept as it was typed. Answers `unresolved` (the names with nobody or several), `choices` (for a name with several: who they are, for the owner to choose one, given back as `pick`), `picked` (the names of `pick` that were still on the lines and were put in) and `directory` (the message's account has an address list to look names up in)"#)
+            .when_writing(needs_compose),
         CommandSpec::new("compose.suggest", "Suggest Recipients", "Message › Names", suggest_command)
             .pure()
             .params(r#"{"query": string, "limit"?: 1-20} — answers who the start of a name or address could be: contacts first, then people mail was exchanged with, the latest first"#),
@@ -78,9 +83,16 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"value"?: bool} (default: the other way round) — whether the message being written asks for a read receipt: `Disposition-Notification-To` naming its sender, or Exchange's flag for one. Kept with its draft. MailCraft only ever asks for receipts: it never answers a request in mail that comes in"#)
             .when_writing(needs_compose),
+        CommandSpec::new("compose.followUp", "Follow Up", "Message › Tags", super::followup::compose_follow_up)
+            .pure()
+            .when_writing(needs_compose)
+            .params(r#"{"days": 1-365 | "at": number | "YYYY-MM-DDTHH:MM", or "clear": true} — remind me if nobody replies: once the message has gone, after that many days (or at that time), if nobody it went to has replied in its conversation by then, a reminder is raised and the message flagged; a reply is noticed when the time comes, and then there is no reminder. Kept on this computer only"#),
         CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when_writing(needs_compose),
-        CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when_writing(needs_compose),
+        CommandSpec::new("compose.send", "Send", "Message", send)
+            .key("Mod+Enter / Alt+S")
+            .params(r#"{"confirmed"?: true, "moveToBcc"?: true} — a message with a send warning (#509: a recipient one character from somebody the owner writes to, or 5 or more people outside the organisation, at 2 or more domains, who would see each other in To and Cc) is refused, and stays as it is being written, unless `confirmed` sends it anyway or `moveToBcc` moves those people to Bcc first. The window asks the owner which; an agent's send is asked about in the window, whatever it says"#)
+            .when_writing(needs_compose),
         CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft).key("Mod+S").when_writing(needs_compose),
         CommandSpec::new("compose.close", "Close Message", "Message", close)
             .pure()
@@ -110,7 +122,7 @@ pub const REPLACING: [&str; 2] = ["file.new", "file.open"];
 
 /// The commands that open another message beside the one being written (#286). Run by the
 /// owner, the one put aside is saved to Drafts first when it has changes ([`saves_first`]).
-pub const STARTING: [&str; 14] = [
+pub const STARTING: [&str; 15] = [
     "mail.new",
     "mail.reply",
     "mail.replyAll",
@@ -119,6 +131,7 @@ pub const STARTING: [&str; 14] = [
     "mail.forwardAsAttachment",
     "mail.editDraft",
     "mail.resend",
+    "compose.undoSend",
     "people.email",
     "people.forward",
     "calendar.email",
@@ -557,8 +570,14 @@ fn reply(s: &mut Session, v: &Value) -> CmdResult {
 /// account without one, stays where it is: this never deletes for good.
 fn reply_and_delete(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    if s.mailbox.has_jmap_account() && s.mailbox.stays_on_server(id) {
-        return Err(fail(mailcraft_model::NOT_MOVING_YET));
+    // Mail a JMAP account's server has goes to Deleted Items only when the server has that folder
+    // too: said before the reply is begun, not after.
+    if s.mailbox.has_jmap_account()
+        && let Some(m) = s.mailbox.message(id)
+        && let Some(bin) = s.mailbox.folder_of_kind(m.account, FolderKind::Deleted).filter(|bin| !s.mailbox.subtree(*bin).contains(&m.folder))
+        && s.mailbox.stays_out_of(id, bin)
+    {
+        return Err(fail(mailcraft_model::ONLY_SERVER_FOLDERS));
     }
     let before = s.rows();
     let mut out = respond(s, &json!({"id": id}), ComposeMode::Reply)?;
@@ -782,16 +801,17 @@ fn eml_attachment(s: &Session, id: Id) -> Result<Attachment, CmdError> {
     // What is attached goes to other people: a draft's Bcc, the owner's own marks on the
     // message (read, answered, flagged, categorised), and every header kept with it but those
     // known to come from the sender or the servers on the way, stay here.
-    let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
+    let opts = mailcraft_mime_model::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
     let unmarked = Message {
         read: false,
         answered: false,
         flag: FlagStatus::None,
         categories: Vec::new(),
-        headers: m.headers.iter().filter(|(name, _)| goes_along(name)).cloned().collect(),
+        headers: m.all_headers().into_iter().filter(|(name, _)| goes_along(name)).collect(),
+        header_block: mailcraft_model::HeaderBlock::default(),
         ..Message::clone(&m)
     };
-    let bytes = mailcraft_mime::write(&unmarked, &opts);
+    let bytes = mailcraft_mime_model::write(&unmarked, &opts);
     Ok(Attachment::new(super::file::eml_name(&m), "message/rfc822", bytes))
 }
 
@@ -800,16 +820,16 @@ mod attach_item;
 #[cfg(test)]
 #[path = "attach_item_tests.rs"]
 mod attach_item_tests;
+#[cfg(test)]
+#[path = "check_names_tests.rs"]
+mod check_names_tests;
 
 /// Whether `m` is what is kept of an IMAP message too large to download: its header and, in
 /// place of its text, a note that says so, with the mark `mailcraft-net` gives it. A sender can
 /// write that mark into a message of their own; only plain text that opens as the note does,
 /// with no file, is taken for it.
 fn not_downloaded(m: &Message) -> bool {
-    m.body.html.is_none()
-        && m.attachments.is_empty()
-        && m.body.text.starts_with(NOT_DOWNLOADED_NOTE)
-        && m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED))
+    m.body.html.is_none() && m.attachments.is_empty() && m.body.text.starts_with(NOT_DOWNLOADED_NOTE) && m.has_header(NOT_DOWNLOADED)
 }
 
 /// Whether a header kept with a message goes with it when it is forwarded as an attachment. Its
@@ -854,7 +874,13 @@ fn goes_along(name: &str) -> bool {
 }
 
 fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
-    let m = source_message(s, v)?;
+    let mut m = source_message(s, v)?;
+    // A message waiting in the Outbox for its Send time is taken out of the queue to be changed
+    // (#950): it goes only when Send is pressed again, with its time kept.
+    if !m.draft && super::send_later::waits_in_outbox(s, &m) {
+        super::send_later::cancel_send(s, m.id)?;
+        m = source_message(s, &json!({"id": m.id}))?;
+    }
     if !m.draft {
         return Err(fail("that message isn't a draft"));
     }
@@ -873,6 +899,12 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
     }
     let compose = s.open_compose(Compose { mode: ComposeMode::Draft, draft: Some(m.id), ..reopened(s, &m) })?;
     Ok(json!({"composing": true, "draft": m.id, "compose": compose}))
+}
+
+/// The draft `id` opened to be written again, as Open Draft does (the draft a send was taken
+/// back into, #950).
+pub(super) fn open_draft(s: &mut Session, id: Id) -> CmdResult {
+    edit_draft(s, &json!({"id": id}))
 }
 
 /// Resend Message: a message the owner sent, as a new message with what it had (recipients,
@@ -940,7 +972,7 @@ fn read_receipt(s: &mut Session, v: &Value) -> CmdResult {
 /// says (a draft that came down from an IMAP server's Drafts). Only for the owner's own message
 /// opened to write again; a request in mail that comes in is never read, nor answered.
 fn asked_receipt(m: &Message) -> bool {
-    m.read_receipt || m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("disposition-notification-to"))
+    m.read_receipt || m.has_header("Disposition-Notification-To")
 }
 
 /// The message being written made again from `m` (a draft opened, a sent message to send again):
@@ -971,7 +1003,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
     // as a new one is; they are the text's, no longer attachments.
     let mut pictures: Vec<Picture> = Vec::new();
     let rich = own_html.as_deref().map(|html| {
-        mailcraft_mime::rich::from_html_with_pictures(html, &mut |img| {
+        mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img| {
             let id: u32 = img.cid.strip_prefix(PICTURE_CID)?.split('.').next()?.parse().ok()?;
             if pictures.iter().any(|p| p.id == id) {
                 return Some(id);
@@ -1011,7 +1043,10 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         quote,
         attachments,
         importance: m.importance,
+        // A reminder kept with a draft is "if nobody replies" for the days it was given as, or the time.
+        follow_up: m.follow_up.filter(|f| f.if_no_reply).map(|f| if f.days > 0 { FollowUpPlan::Days(f.days) } else { FollowUpPlan::At(f.at) }),
         read_receipt: asked_receipt(m),
+        send_at: m.send_at,
         in_reply_to: m.in_reply_to.clone(),
         references: m.references.clone(),
         ..Default::default()
@@ -1128,38 +1163,140 @@ fn signature_as_text(s: &mut Session, v: &Value) -> CmdResult {
     done()
 }
 
-/// Replace names typed on the recipient lines with the contact they stand for, when exactly one
-/// contact matches. Answers the names nobody matched.
-fn check_names(s: &mut Session, _: &Value) -> CmdResult {
+/// Replace names typed on the recipient lines with the one person they stand for: among the
+/// owner's contacts, and among `found`, the people an Exchange server account's address list has
+/// for the name (#1262; a host looked them up, `ews_resolve_request`). A name with nobody is
+/// answered in `unresolved`; one with several people is answered there too, and in `choices` with
+/// who they are, for the owner to choose one (given back as `pick`); so is a name `more` says the
+/// address list has more people for, even with one found. A name left is written back as it was
+/// typed, so that the next Check Names reads it as one name again (`"Smith, John"`).
+/// `directory` says whether the message's account has an address list to ask.
+fn check_names(s: &mut Session, v: &Value) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
-    let mut unresolved = Vec::new();
+    let found = directory_found(v)?;
+    let more = names_with_more(v)?;
+    let picks = picked(v)?;
+    let mut put_in: Vec<String> = Vec::new();
+    let mut unresolved: Vec<String> = Vec::new();
+    let mut choices: Vec<Value> = Vec::new();
     let mut resolve = |line: &str| -> String {
-        let list: Vec<Address> = Address::parse_list(line)
+        let parts: Vec<String> = Address::parse_list(line)
             .into_iter()
             .map(|a| {
                 if a.is_valid() {
-                    return a;
+                    return a.full();
                 }
                 let typed = a.email.clone();
-                let hits: Vec<Address> = s.mailbox.contacts.values().filter(|k| k.matches(&typed)).filter_map(|k| k.address()).collect();
-                match hits.as_slice() {
-                    [one] => one.clone(),
+                let key = text_key(&typed);
+                if let Some((_, address, given)) = picks.iter().find(|(text, _, _)| *text == key) {
+                    put_in.push(given.clone());
+                    return address.full();
+                }
+                let mut hits: Vec<Value> = Vec::new();
+                let mut addresses: Vec<Address> = Vec::new();
+                for k in s.mailbox.contacts.values().filter(|k| k.matches(&typed)) {
+                    if let Some(address) = k.address().filter(|x| !addresses.iter().any(|y| y.same_mailbox(x))) {
+                        hits.push(choice(&address, "contacts", &k.company, &k.department, &k.title, None));
+                        addresses.push(address);
+                    }
+                }
+                for person in found.iter().filter(|(text, _)| *text == key).flat_map(|(_, people)| people) {
+                    let address = person.address();
+                    if !addresses.iter().any(|y| y.same_mailbox(&address)) {
+                        hits.push(choice(&address, "directory", &person.company, &person.department, &person.title, Some(person.kind)));
+                        addresses.push(address);
+                    }
+                }
+                let incomplete = more.contains(&key);
+                match addresses.as_slice() {
+                    [one] if !incomplete => one.full(),
                     _ => {
+                        if !hits.is_empty() && (hits.len() > 1 || incomplete) && choices.len() < MAX_CHECK_NAMES {
+                            choices.push(json!({"text": typed, "people": hits}));
+                        }
                         unresolved.push(typed);
-                        a
+                        as_typed(&a)
                     }
                 }
             })
             .collect();
-        format_list(&list)
+        parts.join("; ")
     };
     let (to, cc, bcc) = (resolve(&c.to), resolve(&c.cc), resolve(&c.bcc));
+    let directory = super::ews_mail::ews_resolve_request(s, &[]).is_ok();
     let now = compose_mut(s)?;
     if (&to, &cc, &bcc) != (&now.to, &now.cc, &now.bcc) {
         (now.to, now.cc, now.bcc) = (to, cc, bcc);
         now.dirty = true;
     }
-    Ok(json!({"unresolved": unresolved}))
+    Ok(json!({"unresolved": unresolved, "choices": choices, "picked": put_in, "directory": directory}))
+}
+
+/// A name nobody stands for yet, as it was typed: quoted when it holds what splits a recipient
+/// line, so that it is read as one name again.
+fn as_typed(a: &Address) -> String {
+    if a.name.is_empty() && a.email.contains([',', ';', '"']) { a.quoted() } else { a.full() }
+}
+
+/// A name as it is matched with what was looked up: one line, as it was sent, in any letter case.
+fn text_key(text: &str) -> String {
+    mailcraft_model::sync::one_line(text, mailcraft_model::sync::MAX_RESOLVE_TEXT).to_lowercase()
+}
+
+/// One person a name could stand for, as `choices` lists them.
+fn choice(address: &Address, from: &str, company: &str, department: &str, title: &str, kind: Option<DirectoryKind>) -> Value {
+    let mut out = json!({"name": address.name, "email": address.email, "from": from});
+    for (key, value) in [("company", company), ("department", department), ("title", title)] {
+        if !value.trim().is_empty() {
+            out[key] = json!(value.trim());
+        }
+    }
+    if let Some(kind) = kind {
+        out["kind"] = json!(kind);
+    }
+    out
+}
+
+/// `pick` of Check Names: `{name as typed: {"name", "email"}}`, the one the owner chose for a
+/// name of `choices`; with each, the name as it was given.
+fn picked(v: &Value) -> Result<Vec<(String, Address, String)>, CmdError> {
+    let Some(pick) = v.get("pick").filter(|f| !f.is_null()) else { return Ok(Vec::new()) };
+    let pick = pick.as_object().ok_or_else(|| bad("`pick` is an object of names, each with the person chosen"))?;
+    let mut out = Vec::new();
+    for (text, person) in pick.iter().take(MAX_CHECK_NAMES) {
+        let person: DirectoryPerson =
+            serde_json::from_value(person.clone()).map_err(|_| bad("each name of `pick` has a person: {\"name\", \"email\"}"))?;
+        let person = person.checked().ok_or_else(|| bad("a person of `pick` has no address mail can go to"))?;
+        out.push((text_key(text), person.address(), text.clone()));
+    }
+    Ok(out)
+}
+
+/// `more` of Check Names: the names the address list has more people for than it listed.
+fn names_with_more(v: &Value) -> Result<Vec<String>, CmdError> {
+    let Some(more) = v.get("more").filter(|f| !f.is_null()) else { return Ok(Vec::new()) };
+    let more = more.as_array().ok_or_else(|| bad("`more` is a list of names"))?;
+    more.iter().take(MAX_CHECK_NAMES).map(|name| name.as_str().map(text_key).ok_or_else(|| bad("`more` is a list of names"))).collect()
+}
+
+/// `found` of Check Names: `{name as looked up: [person…]}`, read as hostile data. A person whose
+/// address mail can't go to is passed over; at most [`MAX_CHECK_NAMES`] names, [`MAX_RESOLVE_PEOPLE`]
+/// people each.
+fn directory_found(v: &Value) -> Result<Vec<(String, Vec<DirectoryPerson>)>, CmdError> {
+    let Some(found) = v.get("found").filter(|f| !f.is_null()) else { return Ok(Vec::new()) };
+    let found = found.as_object().ok_or_else(|| bad("`found` is an object of names, each with a list of people"))?;
+    let mut out = Vec::new();
+    for (text, people) in found.iter().take(MAX_CHECK_NAMES) {
+        let people = people.as_array().ok_or_else(|| bad("each name of `found` has a list of people"))?;
+        let people: Vec<DirectoryPerson> = people
+            .iter()
+            .take(MAX_RESOLVE_PEOPLE)
+            .filter_map(|p| serde_json::from_value::<DirectoryPerson>(p.clone()).ok())
+            .filter_map(DirectoryPerson::checked)
+            .collect();
+        out.push((text_key(text), people));
+    }
+    Ok(out)
 }
 
 fn toggle_importance(s: &mut Session, level: Importance) -> CmdResult {
@@ -1228,6 +1365,17 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         read: true,
         importance: c.importance,
         read_receipt: c.read_receipt,
+        follow_up: c.follow_up.map(|plan| {
+            let (at, days) = match plan {
+                FollowUpPlan::Days(d) => (now.saturating_add(i64::from(d).saturating_mul(86_400)), d),
+                FollowUpPlan::At(at) => (at, 0),
+            };
+            FollowUp {
+                days,
+                ..FollowUp::new(at.min(now.saturating_add(MAX_FOLLOW_UP_AHEAD)), true, s.mailbox.messages.keys().next_back().copied().unwrap_or(0))
+            }
+        }),
+        send_at: c.send_at,
         message_id,
         ..Default::default()
     })
@@ -1250,7 +1398,7 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
     let Some((before, sig, after)) = sent_signature(c) else {
         let plain = format!("{}{quote_text}", text.to_plain_with(say));
         return match c.format {
-            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime::rich::document(&to_html_with(text, &img), quote_html)) },
+            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&to_html_with(text, &img), quote_html)) },
             BodyFormat::Plain => Body { text: plain, html: None },
         };
     };
@@ -1264,10 +1412,10 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
             let own = c.signature_html();
             let html = [
                 before.as_ref().map(|t| to_html_with(t, &img)),
-                Some(own.map_or_else(|| mailcraft_mime::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
+                Some(own.map_or_else(|| mailcraft_mime_model::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
                 after.as_ref().map(|t| to_html_with(t, &img)),
             ];
-            Body { text: plain, html: Some(mailcraft_mime::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
+            Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
         }
         BodyFormat::Plain => Body { text: plain, html: None },
     }
@@ -1351,7 +1499,37 @@ fn answers_of(s: &Session, c: &Compose) -> Option<Answers> {
     Some(Answers { also: originals.collect(), ..first })
 }
 
-fn send(s: &mut Session, _: &Value) -> CmdResult {
+fn send(s: &mut Session, params: &Value) -> CmdResult {
+    use crate::send_warnings::{CONFIRMED, Lines, MOVE_TO_BCC, describe, said};
+    let before = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
+    // Move to Bcc (#509): the people outside the organisation go from To and Cc to Bcc first.
+    let lines = Lines::of(s).unwrap_or_default();
+    let lines = if said(params, MOVE_TO_BCC) { s.outsiders_to_bcc(&lines) } else { lines };
+    // Asked first (#509): a recipient who looks like somebody the owner writes to but isn't, or
+    // people outside the organisation who would see each other, unless the owner said to send
+    // anyway. Nothing changes: the message stays as it is being written.
+    if !said(params, CONFIRMED) {
+        let warnings = s.send_warnings_of(&lines);
+        if !warnings.is_empty() {
+            return Err(failed!(
+                "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first",
+                why = describe(&warnings)
+            ));
+        }
+    }
+    if let Some(c) = s.compose.as_mut() {
+        (c.to, c.cc, c.bcc) = (lines.to.clone(), lines.cc.clone(), lines.bcc.clone());
+    }
+    let sent = send_now(s);
+    if sent.is_err() {
+        // Not sent: the message stays exactly as it was being written.
+        s.compose = Some(before);
+    }
+    sent
+}
+
+/// Send, with the Send time Delay Delivery gave the message (#950), or the wait Undo Send adds.
+pub(super) fn send_now(s: &mut Session) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
     // A draft of a Microsoft account goes as the draft its server has (R3.4.2): the same
     // Message-ID, marker and server id, brought up to date and sent there.
@@ -1374,19 +1552,24 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
             "which sends its mail: send this message from another account, or save it as a draft to send it from that version",
         ));
     }
-    // An account kept in step with a server that doesn't send its mail yet (JMAP) has nowhere
-    // for the message: not its Outbox, where it would wait for ever, nor Sent Items, as if it had
-    // gone. It stays as it is being written.
-    if account.kind.has_server() && !account.kind.sends_mail() {
-        return Err(failed!(
-            "{not_sending_yet}: send this message from another account, or save it as a draft",
-            not_sending_yet = mailcraft_i18n::Arg::words(mailcraft_model::NOT_SENDING_YET)
-        ));
-    }
     // An account that sends its mail queues the message for the next Send/Receive; a local one
     // has nowhere to send it, so it is filed as sent (and delivered to local accounts it names).
     let queued = account.kind.sends_mail();
     let kind = if queued { FolderKind::Outbox } else { FolderKind::Sent };
+    // Not before its Send time; a time that has passed is no delay. Else the wait of Undo Send,
+    // if the owner has one. Its Date is the time it is to go, so that what is sent is the same
+    // at every run.
+    let clock = s.now();
+    let wanted = c.send_at.filter(|at| *at > clock);
+    if wanted.is_some() && !queued {
+        return Err(fail("this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"));
+    }
+    let waits = s.prefs.undo_send();
+    let by_wait = wanted.is_none() && queued && waits > 0;
+    m.send_at = wanted.or(by_wait.then(|| clock.saturating_add(i64::from(waits))));
+    if let Some(at) = m.send_at {
+        (m.date, m.received) = (at, at);
+    }
     m.folder = s
         .mailbox
         .folder_of_kind(account.id, kind)
@@ -1426,14 +1609,17 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
                 continue;
             }
             let Some(inbox) = s.mailbox.folder_of_kind(local, FolderKind::Inbox) else { continue };
-            let copy = Message { id: 0, folder: inbox, read: false, bcc: Vec::new(), answers: None, ..m.clone() };
+            let copy = Message { id: 0, folder: inbox, read: false, bcc: Vec::new(), answers: None, follow_up: None, ..m.clone() };
             let cid = s.mailbox.add_message(copy)?;
             s.mailbox.apply_rules(cid);
             delivered += 1;
         }
     }
     s.compose = None;
-    Ok(json!({"id": id, "queued": queued, "delivered": delivered}))
+    s.undo_send = by_wait.then_some(id);
+    // (This command's own step is pushed once it returns.)
+    s.undo_send_step = by_wait.then(|| s.undo_steps_moved().wrapping_add(1));
+    Ok(json!({"id": id, "queued": queued, "delivered": delivered, "sendAt": m.send_at, "wait": by_wait}))
 }
 
 fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
@@ -1537,12 +1723,8 @@ fn pop_out(s: &mut Session, _: &Value) -> CmdResult {
 
 fn discard(s: &mut Session, _: &Value) -> CmdResult {
     let draft = s.compose.take().and_then(|c| c.draft);
-    // Already gone is fine; one a JMAP account's server has stays (M6), and the answer says so.
+    // Already gone is fine. (One a JMAP account's server has goes there too, with the next run.)
     let deleted = draft.is_some_and(|d| s.mailbox.remove_message(d).is_ok() || s.mailbox.message(d).is_none());
-    // Why it stays in Drafts, for the window to say: the reason the Move menu greys for it.
-    if let Some(d) = draft.filter(|d| !deleted && s.mailbox.stays_on_server(*d)) {
-        return Ok(json!({"draftDeleted": false, "draft": d, "stays": mailcraft_model::NOT_MOVING_YET}));
-    }
     Ok(json!({"draftDeleted": deleted}))
 }
 

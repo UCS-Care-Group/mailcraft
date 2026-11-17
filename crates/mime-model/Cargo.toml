@@ -1,0 +1,19 @@
+[package]
+name = "mailcraft-mime-model"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft's messages as Internet messages: mailcraft-mime's reader and writer for the mailbox model, and rich text to HTML and back"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-mime = { workspace = true }
+mailcraft-model = { workspace = true }
+mailcraft-html = { workspace = true }
+mailcraft-time = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+serde_json = { workspace = true }

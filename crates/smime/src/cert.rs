@@ -13,7 +13,7 @@ use x509_cert::ext::pkix::name::GeneralName;
 use x509_cert::ext::pkix::{BasicConstraints, ExtendedKeyUsage, KeyUsage, NameConstraints, SubjectAltName, SubjectKeyIdentifier};
 
 use crate::algorithms::{self, Fault};
-use mailcraft_model::ber;
+use mailcraft_ber as ber;
 
 /// The largest certificate read.
 pub const MAX_CERT_BYTES: usize = 64 * 1024;

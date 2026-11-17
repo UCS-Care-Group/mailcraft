@@ -118,9 +118,18 @@ pub fn parse_iso(s: &str) -> Option<(DateTime, Option<i32>)> {
         (c, Some(0))
     } else if let Some(i) = rest.rfind(['+', '-']) {
         let z = rest.get(i..)?;
-        let digits: String = z.chars().filter(char::is_ascii_digit).collect();
-        let h: i32 = digits.get(0..2)?.parse().ok()?;
-        let m: i32 = digits.get(2..4).map_or(Some(0), |m| m.parse().ok())?;
+        let body = z.get(1..)?;
+        let (h, m): (i32, i32) = if let Some((h, m)) = body.split_once(':') {
+            if !(1..=2).contains(&h.len()) || m.len() != 2 {
+                return None;
+            }
+            (h.parse().ok()?, m.parse().ok()?)
+        } else {
+            if !matches!(body.len(), 2 | 4) {
+                return None;
+            }
+            (body.get(0..2)?.parse().ok()?, body.get(2..4).map_or(Some(0), |m| m.parse().ok())?)
+        };
         if h > 23 || m > 59 {
             return None;
         }
@@ -129,7 +138,7 @@ pub fn parse_iso(s: &str) -> Option<(DateTime, Option<i32>)> {
         (rest, None)
     };
     // Fractions of a second are dropped.
-    let clock = clock.split('.').next()?;
+    let clock = clock.split('.').next()?.trim();
     let mut parts = clock.split(':');
     let hour: u8 = parts.next()?.trim().parse().ok()?;
     let minute: u8 = parts.next().map_or(Some(0), |m| m.parse().ok())?;
@@ -184,6 +193,22 @@ mod tests {
         }
         // A junk zone reads as UTC rather than failing the whole date.
         assert_eq!(parse_rfc5322("1 Jul 2003 08:52:00 +9999").map(|x| x.1), Some(0));
+    }
+
+    #[test]
+    fn iso_space_before_offset() {
+        let d = Date::new(2026, 10, 11).unwrap();
+        let t = DateTime::new(d, 9, 30, 0).unwrap();
+        assert_eq!(parse_iso("2026-10-11 09:30 +02:00"), Some((t, Some(120))));
+        assert_eq!(parse_iso("2026-10-11 09:30 Z"), Some((t, Some(0))));
+    }
+
+    #[test]
+    fn iso_one_digit_hour_offset() {
+        assert_eq!(parse_iso("2026-10-11T09:30:00+2:00").and_then(|x| x.1), Some(120));
+        assert_eq!(parse_iso("2026-10-11T09:30:00-5:00").and_then(|x| x.1), Some(-300));
+        assert_eq!(parse_iso("2026-10-11T09:30:00+05:30").and_then(|x| x.1), Some(330));
+        assert_eq!(parse_iso("2026-10-11T09:30:00+200"), None);
     }
 
     #[test]

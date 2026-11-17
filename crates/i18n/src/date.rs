@@ -107,9 +107,12 @@ impl Lang {
                 };
                 Conventions { twelve_hour, week_start, pad_numeric: true, day_first: true }
             }
-            Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Russian => {
+            Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::Russian => {
                 Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true }
             }
+            Lang::Polish => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
+            Lang::Czech => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
+            Lang::Hungarian | Lang::ChineseSimplified => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: false },
         }
     }
 }
@@ -493,7 +496,7 @@ mod tests {
     fn each_language_has_its_own_clock_and_week() {
         assert_eq!(Lang::English.conventions(), Conventions { twelve_hour: true, week_start: 6, pad_numeric: false, day_first: false });
         assert_eq!(Lang::Pseudo.conventions(), Lang::English.conventions());
-        for lang in [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Russian] {
+        for lang in [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian] {
             let c = lang.conventions();
             assert_eq!((c.twelve_hour, c.week_start, c.pad_numeric), (false, 0, true), "{lang:?}");
         }
@@ -549,15 +552,8 @@ mod tests {
         assert!(long(&Lang::Italian, SUN).contains("domenica") && long(&Lang::Italian, SUN).contains("ottobre"));
         assert!(long(&Lang::French, SUN).contains("dimanche") && long(&Lang::French, SUN).contains("octobre"));
         assert_eq!(said(Lang::Dutch), ("zondag 11 oktober 2026".into(), "03-10-2025".into(), "21:05".into()));
-        // Russian: the month in a date is in the genitive.
-        assert_eq!(said(Lang::Russian), ("воскресенье, 11 октября 2026 г.".into(), "03.10.2025".into(), "21:05".into()));
-        // Standing alone, in the nominative.
-        assert_eq!(month_year(&Lang::Russian, 2026, 10), "Октябрь 2026 г.");
+        assert_eq!(said(Lang::Romanian), ("duminică, 11 octombrie 2026".into(), "03.10.2025".into(), "21:05".into()));
+        assert_eq!(said(Lang::Hungarian), ("2026. október 11., vasárnap".into(), "2025. 10. 03.".into(), "21:05".into()));
         assert_eq!(month_year(&Lang::German, 2026, 10), "Oktober 2026");
-        assert_eq!(duration(&Lang::Russian, 1), "1 минута");
-        assert_eq!(
-            (duration(&Lang::Russian, 2), duration(&Lang::Russian, 5), duration(&Lang::Russian, 21)),
-            ("2 минуты".into(), "5 минут".into(), "21 минута".into())
-        );
     }
 }

@@ -1,13 +1,14 @@
 # Quick static checks for the release pipeline (seconds, no Rust build): workflow syntax,
-# packaging shell/PowerShell scripts, and the Linux desktop/AppStream/Flatpak metadata.
+# packaging shell/PowerShell scripts, and the Linux desktop/AppStream/Flatpak metadata. A release-note
+# fragment alone doesn't run it (`cargo xtask ci` checks that the fragments join).
 name: Packaging lint
 
 on:
   push:
     branches: [main, release]
-    paths: [".github/workflows/**", "packaging/**", "assets/app-icon/**"]
+    paths: [".github/workflows/**", "packaging/**", "!packaging/release-notes.d/**", "assets/app-icon/**"]
   pull_request:
-    paths: [".github/workflows/**", "packaging/**", "assets/app-icon/**"]
+    paths: [".github/workflows/**", "packaging/**", "!packaging/release-notes.d/**", "assets/app-icon/**"]
   workflow_dispatch:
 
 permissions:
@@ -15,9 +16,9 @@ permissions:
 
 concurrency:
   group: packaging-lint-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
     # Pinned to a full commit SHA of the shared workflow's main branch; moved by hand, after reading the change.
-    uses: storytold/craft-common-actions/.github/workflows/packaging-lint.yml@b24513e79507103b54ead46baa8ee76017f463e5 # main # zizmor: ignore[ref-version-mismatch]
+    uses: storytold/craft-common-actions/.github/workflows/packaging-lint.yml@293de72429d3ed5d9fa92aded5e500544c0fa28f # main # zizmor: ignore[ref-version-mismatch]

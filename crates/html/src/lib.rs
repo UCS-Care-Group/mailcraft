@@ -24,6 +24,7 @@
 //! [`MAX_TABLE_DEPTH`], [`MAX_CELLS`]), and the work is linear in the input.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod bidi;
 mod blocks;
 #[doc(hidden)]
 pub mod corpus;
@@ -91,8 +92,10 @@ pub const MAX_TABLE_ROWS: usize = 1_000;
 pub const MAX_TABLE_COLUMNS: usize = 64;
 
 /// Deepest tables (and blocks with a background of their own) may nest; a table nested deeper
-/// keeps its text and loses its grid.
-pub const MAX_TABLE_DEPTH: usize = 12;
+/// keeps its text and loses its grid. Templates built by column builders nest a button or a row
+/// of a product and its picture 14 to 18 deep (a wrapper, a centred column, a section, a column,
+/// a cell for each); the reading pane's own limit is above this (`reading::layout::MAX_NESTING`).
+pub const MAX_TABLE_DEPTH: usize = 20;
 
 /// Most table cells one document keeps.
 pub const MAX_CELLS: usize = 20_000;
@@ -250,6 +253,11 @@ pub struct Span {
     /// Where the text leads. Shared by every span of one link, so a link cut into many spans by
     /// the styles inside it is held once.
     pub link: Option<Arc<str>>,
+    /// A link drawn without its line: the link itself says so (`text-decoration: none` in its
+    /// style or a rule of the message's style sheet). A link is underlined otherwise, as in a
+    /// browser; `underline` is a line the message asks for whether or not it is a link.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bare: bool,
     /// The text colour the message asks for. A UI checks it against the background it really
     /// paints on before using it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -289,6 +297,7 @@ impl Span {
             && self.strike == other.strike
             && self.code == other.code
             && self.link == other.link
+            && self.bare == other.bare
             && self.color == other.color
             && self.background == other.background
             && self.size == other.size
@@ -350,6 +359,10 @@ pub struct Block {
     pub quote: u8,
     #[serde(default)]
     pub align: Align,
+    /// The block reads from the right (its direction, not the side its text stands at): a list
+    /// item's marker hangs at the right then, whatever the alignment (#603).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rtl: bool,
     /// Blank lines above the block: 0 when it follows the one before directly (the lines of an
     /// Outlook or Gmail message), 1 for an ordinary paragraph gap, up to 3. Always 0 for the first
     /// block of its container.
@@ -399,6 +412,7 @@ impl Block {
             spans,
             quote: 0,
             align: Align::Left,
+            rtl: false,
             space: 0,
             beside: false,
             gap: 0,
@@ -600,6 +614,8 @@ mod float_tests;
 mod inline_tests;
 #[cfg(test)]
 mod nested_align_tests;
+#[cfg(test)]
+mod rtl_tests;
 #[cfg(test)]
 mod text_link_tests;
 

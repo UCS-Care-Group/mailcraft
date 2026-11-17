@@ -438,7 +438,11 @@ fn the_commands_take_anything_and_say_what_they_cannot_do() {
     );
     // An account that goes takes what was remembered of it along.
     rig.app.execute("account.remove", json!({"id": rig.account})).unwrap();
-    assert!(rig.app.favorites_note().is_none() && rig.app.favorites.notes.is_empty() && rig.app.favorites.missing.is_empty());
+    assert!(
+        rig.app.favorites_note().is_none()
+            && rig.app.session.driver.favorites.notes.is_empty()
+            && rig.app.session.driver.favorites.missing.is_empty()
+    );
 }
 
 fn window(rig: Rig) -> (egui_kittest::Harness<'static, MailApp>, Arc<Mutex<Host>>, [Id; 5]) {
@@ -446,7 +450,7 @@ fn window(rig: Rig) -> (egui_kittest::Harness<'static, MailApp>, Arc<Mutex<Host>
     let host = rig.host.clone();
     let mut app = rig.app;
     // (The harness looks at the server by the real clock: nothing is due there but the start.)
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let mut harness =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
             |ui, app: &mut MailApp| {
@@ -735,7 +739,7 @@ fn the_admin_commands_take_anything_and_say_what_they_cannot_do() {
     assert!(rig.app.execute("ui.favorites", json!({"answer": {"outcome": "blocked"}})).is_err());
     // An account that goes takes what was remembered of it along.
     rig.app.execute("account.remove", json!({"id": rig.account})).unwrap();
-    assert!(rig.app.favorites.directories.is_empty() && rig.app.favorites.tenants.is_empty());
+    assert!(rig.app.session.driver.favorites.directories.is_empty() && rig.app.session.driver.favorites.tenants.is_empty());
 }
 
 #[test]
@@ -800,8 +804,8 @@ fn file_options_offers_an_organisations_account_the_same_connection_as_any_other
 #[test]
 fn an_edited_sign_in_forgets_connected() {
     let mut rig = Rig::organisation();
-    rig.app.favorites.connected.insert(rig.account);
-    assert!(rig.app.favorites.connected.contains(&rig.account));
+    rig.app.session.driver.favorites.connected.insert(rig.account);
+    assert!(rig.app.session.driver.favorites.connected.contains(&rig.account));
     rig.app.execute("account.edit", json!({"id": rig.account, "tenant": "other.example"})).unwrap();
-    assert!(!rig.app.favorites.connected.contains(&rig.account));
+    assert!(!rig.app.session.driver.favorites.connected.contains(&rig.account));
 }

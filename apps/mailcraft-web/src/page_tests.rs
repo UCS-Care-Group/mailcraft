@@ -52,3 +52,21 @@ fn a_sample_or_empty_start_is_a_look_around() {
         assert!(!is_ephemeral(q), "{q}");
     }
 }
+
+/// Georgian is the one language whose face the browser build fetches; every other code, a
+/// region-tagged `ka-GE` and the empty code included, fetches nothing.
+#[test]
+fn only_georgian_has_a_face_to_fetch() {
+    assert_eq!(face_for("ka"), Some("NotoSansGeorgian-Regular.ttf"));
+    for code in ["en", "de", "nl", "pseudo", "ka-GE", ""] {
+        assert_eq!(face_for(code), None);
+    }
+}
+
+/// A fetched face is capped at 1 MB, to the byte.
+#[test]
+fn a_fetched_face_is_capped_at_one_megabyte() {
+    assert!(face_size_ok(35_300));
+    assert!(face_size_ok(1_000_000));
+    assert!(!face_size_ok(1_000_001));
+}

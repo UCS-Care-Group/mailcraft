@@ -79,6 +79,38 @@ fn kinds(h: &Window) -> Vec<ListKind> {
     h.state().session.compose.as_ref().unwrap().body.text().paragraphs().iter().map(|p| p.list).collect()
 }
 
+/// Inline compose keeps its actions and status separate at compact widths.
+#[test]
+fn the_inline_toolbar_fits_its_pane() {
+    use egui_kittest::kittest::Queryable as _;
+
+    let mut app = app();
+    app.execute("mail.new", json!({})).unwrap();
+    let mut h = window(app);
+    h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    for width in [850.0, 1100.0, 1280.0] {
+        h.set_size(egui::vec2(width, 760.0));
+        h.run_steps(5);
+        let mut parts: Vec<_> = ["Send", "Attach", "Save draft", "Discard"]
+            .into_iter()
+            .map(|label| {
+                let rect = h.query_all_by_label(label).map(|node| node.rect()).max_by(|a, b| a.min.y.total_cmp(&b.min.y)).unwrap();
+                (label, rect)
+            })
+            .collect();
+        parts.push(("New message", h.get_by_label("New message").rect()));
+        parts.push(("Pop Out", h.state().hit.rect("composePopOut", 0).unwrap()));
+        let body = h.state().hit.rect("composeBody", 0).unwrap();
+        assert!(body.height() > 150.0, "{width}: the toolbar squeezed the body to {body:?}");
+        for (i, (label, rect)) in parts.iter().enumerate() {
+            assert!(rect.is_positive() && rect.max.x <= width, "{width}: {label}: {rect:?}");
+            for (other, other_rect) in parts.iter().skip(i + 1) {
+                assert!(!rect.shrink(0.5).intersects(other_rect.shrink(0.5)), "{width}: {label} over {other}");
+            }
+        }
+    }
+}
+
 #[test]
 fn typing_and_the_formatting_keys() {
     let mut h = writing();
@@ -769,6 +801,16 @@ fn click(h: &mut Window, at: egui::Pos2) {
     h.step();
     h.event(Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
     h.run_steps(3);
+}
+
+#[test]
+fn the_recipient_field_cannot_extend_past_its_right_edge() {
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(96.0, 72.0)).build_ui(|ui| {
+        let field = super::line(ui, "Titkos másolat", 120.0, 40.0);
+        assert!(field.width() >= 0.0, "{field:?}");
+        assert!(field.max.x <= ui.max_rect().max.x, "{field:?}");
+    });
+    h.run_steps(2);
 }
 
 /// A long To line (Reply All) takes a click at its right end, where its last address is: the

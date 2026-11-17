@@ -69,6 +69,8 @@ pub struct Doc {
     pub responsive: bool,
     /// The window is dark and the message brings its own design for dark windows.
     pub sender_dark: bool,
+    /// What is shown is the message's text part: it has no HTML, or its HTML came to nothing here.
+    pub from_text: bool,
 }
 
 impl Doc {
@@ -92,21 +94,21 @@ impl Doc {
         let lists: Arc<[String]> = message.body.html.as_deref().map(mailcraft_html::media_lists).unwrap_or_default().into();
         let responsive = !lists.is_empty();
         let parsed = message.body.html.as_deref().map(|html| mailcraft_html::parse_in(html, &env));
-        let (blocks, sender_dark) = match parsed {
+        let (blocks, sender_dark, from_text) = match parsed {
             // HTML that came to nothing (only scripts, only pictures that can't be shown) falls back to the text.
             Some(read) if mailcraft_html::has_text(&read.blocks) || shows_a_picture(&read.blocks, message) || message.body.text.trim().is_empty() => {
-                (read.blocks, read.dark_design)
+                (read.blocks, read.dark_design, false)
             }
             Some(read) if can_download => {
                 let doc = Doc { lists: lists.clone(), responsive, sender_dark: read.dark_design, ..Doc::from_blocks(read.blocks) };
                 if !doc.remote.is_empty() {
                     return doc;
                 }
-                (mailcraft_html::text_blocks(&message.body.text), false)
+                (mailcraft_html::text_blocks(&message.body.text), false, true)
             }
-            _ => (mailcraft_html::text_blocks(&message.body.text), false),
+            _ => (mailcraft_html::text_blocks(&message.body.text), false, true),
         };
-        Doc { lists, responsive, sender_dark, ..Doc::from_blocks(blocks) }
+        Doc { lists, responsive, sender_dark, from_text, ..Doc::from_blocks(blocks) }
     }
 
     /// The blocks as a body, with what is known of their pictures on the web.
@@ -175,6 +177,7 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
                 spans,
                 quote: block.quote,
                 align: block.align,
+                rtl: block.rtl,
                 space: if n == 0 { block.space } else { 0 },
                 beside: n == 0 && block.beside,
                 gap: if n == 0 { block.gap } else { 0 },
@@ -284,6 +287,12 @@ fn same_body(a: &Message, b: &Message) -> bool {
 impl Store {
     fn of(ctx: &egui::Context) -> Arc<Mutex<Store>> {
         ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::unique("mailcraft-reading-bodies")).clone())
+    }
+
+    /// Let go of every body laid out, and the messages they were laid out from (the window is out
+    /// of sight, [`crate::out_of_sight`]): each is laid out again when it is next shown.
+    pub fn let_go(ctx: &egui::Context) {
+        Store::of(ctx).lock().unwrap_or_else(|e| e.into_inner()).entries.clear();
     }
 
     /// The entry for `message` shown at `place`, parsing its body when it is not known yet
@@ -930,6 +939,7 @@ pub(super) fn paint_link_underlines(painter: &egui::Painter, at: egui::Pos2, gal
             let from = link.range.start.saturating_sub(row_start);
             let to = link.range.end.min(row_end).saturating_sub(row_start);
             if visible
+                && link.underlined
                 && let Some(glyphs) = row.glyphs.get(from..to)
                 && let (Some(first), Some(last)) = (glyphs.first(), glyphs.last())
             {
@@ -971,7 +981,7 @@ fn bullet(painter: &egui::Painter, rect: Rect, depth: u8, color: Color32) {
 /// picture's description, when it has one. For one that was asked for and could not be had
 /// (`failed`) the mark is struck through, in the colour of a warning.
 fn stand_in(painter: &egui::Painter, rect: Rect, label: &str, paper: Paper, t: &Tokens, failed: bool) {
-    let ink = Paper { fill: paper.shade(t), own: paper.own }.text(t, true);
+    let ink = Paper { fill: paper.shade(t), own: paper.own, asked: None }.text(t, true);
     let line = paper.line(t);
     painter.rect(rect, 4.0, paper.shade(t), Stroke::new(1.0, line), egui::StrokeKind::Inside);
     // The mark: a frame, a hill and a sun, drawn here (no artwork is taken from anywhere).
