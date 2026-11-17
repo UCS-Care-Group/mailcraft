@@ -424,8 +424,11 @@ fn an_exception_in_a_header_past_what_is_kept_doesnt_let_the_rule_delete() {
         "exceptions": [{"type": "headerContains", "value": "x-keep: yes"}, {"type": "sensitivity", "value": "private"}],
         "actions": [{"type": "delete"}]});
     s.run("rules.add", &gone).unwrap();
-    let page =
-        MessagePage { folder: "F-in".into(), messages: ["N1", "N2"].iter().map(|id| listed(id, "F-in", "Plan")).collect(), ..Default::default() };
+    let page = MessagePage {
+        folder: "F-in".into(),
+        messages: ["N1", "N2", "N3"].iter().map(|id| listed(id, "F-in", "Plan")).collect(),
+        ..Default::default()
+    };
     graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
         .unwrap();
     let padding: String = (0..200).map(|i| format!("X-Trace-{i}: hop {i}\r\n")).collect();
