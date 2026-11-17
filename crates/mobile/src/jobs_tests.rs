@@ -278,3 +278,29 @@ fn a_calendar_that_came_with_somebody_elses_sign_in_is_not_taken_in() {
     let (events, _) = titles(&core);
     assert!(!events.contains(&"Standup".to_string()), "{events:?}");
 }
+
+#[test]
+fn to_dos_that_came_with_somebody_elses_sign_in_are_refused_whole() {
+    let (core, platform, _, seen) = core(false);
+    let inner = runners(seen, false);
+    let tasks = inner.tasks.clone();
+    core.sync.set_job_runners(Runners {
+        calendar: inner.calendar,
+        tasks: Arc::new(move |job| {
+            let mut result = tasks(job);
+            result.tokens =
+                Some(mailcraft_model::sync::Tokens { refresh: "bobs-refresh".into(), email: "bob@elsewhere.example".into(), ..Default::default() });
+            result
+        }),
+    });
+    let summary = block_on(core.background_sync(10_000)).unwrap();
+    assert!(summary.errors.iter().any(|e| e.contains("somebody else")), "{summary:?}");
+    let (events, tasks) = titles(&core);
+    // The calendar's own answer is taken in; nothing of the to-dos'.
+    assert!(events.contains(&"Standup".to_string()), "{events:?}");
+    assert!(!tasks.contains(&"Buy stamps".to_string()), "{tasks:?}");
+    // Their token is kept nowhere: not in the credential store, not in the session.
+    assert!(!platform.secrets.kept.lock().unwrap().iter().any(|(_, v)| v == "bobs-refresh"));
+    let perm = block_on(core.call(|s| Ok(s.driver.tasks.perm.values().cloned().collect::<Vec<Perm>>()))).unwrap();
+    assert!(!perm.contains(&Perm::Given), "nothing learnt from it: {perm:?}");
+}
