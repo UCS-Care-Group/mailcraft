@@ -220,6 +220,9 @@ mod security_fixtures_tests;
 mod security_tests;
 mod send_later;
 mod send_receive;
+mod send_warnings;
+#[cfg(test)]
+mod send_warnings_tests;
 mod sender_images;
 mod sending;
 pub mod server_search;
@@ -228,6 +231,8 @@ mod shared_calendars;
 #[cfg(test)]
 mod shared_calendars_tests;
 mod shared_mailboxes;
+#[cfg(test)]
+mod signature_link_tests;
 #[cfg(test)]
 mod signature_rename_tests;
 mod signatures;
@@ -893,6 +898,9 @@ pub struct UiState {
     pub people_account_address: String,
     pub folder_pane_width: f32,
     pub list_width: f32,
+    /// The message list's height with the reading pane at the bottom, as the owner dragged it
+    /// (#1372; 0: a share of the window's height).
+    pub list_height: f32,
     /// Send/Receive Progress's width, and the height of its list of accounts (0: as tall as what
     /// it lists, up to a limit), as the owner dragged them (#145).
     pub sync_panel_width: f32,
@@ -996,6 +1004,7 @@ impl Default for UiState {
             people_account_address: String::new(),
             folder_pane_width: 230.0,
             list_width: 380.0,
+            list_height: 0.0,
             sync_panel_width: sync_panel::WIDTH,
             sync_panel_height: 0.0,
             collapsed_folders: Vec::new(),
@@ -1509,6 +1518,9 @@ pub struct MailApp {
     /// The message being written whose body takes the keyboard back at its next frame (after a
     /// ribbon button or a dialog changed its text), by its id (#286).
     pub(crate) body_focus_wanted: Option<u64>,
+    /// The signature open in File › Signatures is to take the keyboard back at its next frame,
+    /// after its formatting bar or the Link dialog changed its text (#1552).
+    pub(crate) signature_focus_wanted: bool,
     /// File › Signatures was on screen in the last frame: leaving it saves and closes the open
     /// signature.
     signatures_shown: bool,
@@ -1868,6 +1880,7 @@ impl MailApp {
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
+            signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
@@ -2060,6 +2073,8 @@ impl MailApp {
         self.ui.backstage_page = "info".into();
         self.ui.folder_pane_width = if self.ui.folder_pane_width.is_finite() { self.ui.folder_pane_width.clamp(150.0, 500.0) } else { 230.0 };
         self.ui.list_width = if self.ui.list_width.is_finite() { self.ui.list_width.clamp(240.0, 900.0) } else { 380.0 };
+        self.ui.list_height =
+            if self.ui.list_height.is_finite() && self.ui.list_height > 0.0 { self.ui.list_height.clamp(120.0, 4000.0) } else { 0.0 };
         (self.ui.sync_panel_width, self.ui.sync_panel_height) = sync_panel::sane_size(self.ui.sync_panel_width, self.ui.sync_panel_height);
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
@@ -2178,6 +2193,27 @@ impl MailApp {
         if let Some(r) = files::intercept(self, id, &params) {
             return r;
         }
+        // Before a message goes (#509): a recipient who looks like somebody the owner writes to,
+        // or people outside the organisation who would see each other.
+        // A yes holds for the message as it was asked about.
+        let params = if id == "compose.send" { send_warnings::settle(self, params) } else { params };
+        if id == "compose.send"
+            && let Some(ask) = send_warnings::question(self, &params)
+        {
+            let mut params = if params.is_object() { params } else { json!({}) };
+            // The message asked about is the one that goes, whichever is current when the owner answers.
+            if params.get("compose").is_none()
+                && let (Some(compose), Some(map)) = (self.session.compose_id(), params.as_object_mut())
+            {
+                map.insert("compose".into(), json!(compose));
+            }
+            let asked = send_warnings::asked_about(self, &params);
+            if let Some(map) = params.as_object_mut() {
+                map.insert(send_warnings::ASKED_ABOUT.into(), asked);
+            }
+            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
+            return Ok(json!({"pending": "confirm"}));
+        }
         // What can't be taken back is asked about first, once.
         // (An answer to an invitation in the mail has a question of its own.)
         if params.get("confirmed").and_then(Value::as_bool) != Some(true)
@@ -2261,14 +2297,21 @@ impl MailApp {
         r
     }
 
-    /// The body of the current message being written takes the keyboard back at its next frame.
+    /// The text being edited takes the keyboard back at its next frame: the body of the message
+    /// being written, or the signature open in File › Signatures.
     pub(crate) fn want_body_focus(&mut self) {
         self.body_focus_wanted = self.session.compose_id();
+        self.signature_focus_wanted = self.session.signature_edit.is_some();
     }
 
     /// Whether the body of the current message being written is to take the keyboard back now; asked once.
     pub(crate) fn take_body_focus(&mut self) -> bool {
         self.body_focus_wanted.take().is_some_and(|id| Some(id) == self.session.compose_id())
+    }
+
+    /// Whether the signature open in File › Signatures is to take the keyboard back now; asked once.
+    pub(crate) fn take_signature_focus(&mut self) -> bool {
+        std::mem::take(&mut self.signature_focus_wanted) && self.session.signature_edit.is_some()
     }
 
     /// Whether the Bcc line of the current message being written is shown.
@@ -5903,5 +5946,7 @@ mod privacy_tests;
 mod problem_log_tests;
 #[cfg(test)]
 mod product_names_tests;
+#[cfg(test)]
+mod shift_delete_tests;
 #[cfg(test)]
 mod tests;
