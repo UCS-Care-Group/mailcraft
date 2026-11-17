@@ -223,3 +223,38 @@ fn a_round_that_waits_for_the_calendar_job_of_its_account_goes_on_once_that_has_
     assert!(summary.ran && summary.finished, "{summary:?}");
     assert_eq!(seen.calendar.lock().unwrap().len(), 1, "taken in once, not asked again in the same look");
 }
+
+#[test]
+fn an_account_held_back_for_want_of_room_is_left_out_of_a_background_run_until_the_owner_asks() {
+    let (runner, mail) = stand_in();
+    let (core, _, account) = signed_in(runner);
+    // The owner said "not now" to the new account's first download.
+    block_on(core.hold_background_sync(account, true)).unwrap();
+    let seen = Arc::new(Seen::default());
+    core.sync.set_job_runners(runners(seen.clone(), false));
+    assert!(block_on(core.hold_background_sync(account + 99, true)).is_err());
+    let summary = block_on(core.background_sync(2_000)).unwrap();
+    assert!(!summary.ran, "{summary:?}");
+    assert!(mail.lock().unwrap().is_empty(), "no mail asked for");
+    assert!(
+        seen.calendar.lock().unwrap().is_empty() && seen.tasks.lock().unwrap().is_empty(),
+        "nor the calendar, nor the to-dos: {} {}",
+        seen.calendar.lock().unwrap().len(),
+        seen.tasks.lock().unwrap().len()
+    );
+    // A pull to refresh lets it go.
+    assert!(block_on(core.sync_now()).unwrap().started);
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while mail.lock().unwrap().is_empty() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(!mail.lock().unwrap().is_empty());
+    // And the owner's yes does too.
+    let (runner, mail) = stand_in();
+    let (core, _, account) = signed_in(runner);
+    core.sync.set_job_runners(runners(Arc::new(Seen::default()), false));
+    block_on(core.hold_background_sync(account, true)).unwrap();
+    block_on(core.hold_background_sync(account, false)).unwrap();
+    assert!(block_on(core.background_sync(10_000)).unwrap().ran);
+    assert!(!mail.lock().unwrap().is_empty());
+}

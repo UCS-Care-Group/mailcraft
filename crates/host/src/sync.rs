@@ -94,6 +94,9 @@ pub struct SendReceive {
     /// Only accounts kept in step through Graph, not shared, are started (a front end that can't
     /// run the others). Off by default: every account with a server is a candidate.
     graph_only: bool,
+    /// Accounts the owner said "not now" to (a new account's first download, with no room for
+    /// it yet on a phone): nothing starts for them by itself until [`hold`](Self::hold) lets go.
+    held: HashSet<Id>,
 }
 
 impl Default for SendReceive {
@@ -107,6 +110,7 @@ impl Default for SendReceive {
             runner: real_runner(),
             written: Vec::new(),
             graph_only: false,
+            held: HashSet::new(),
         }
     }
 }
@@ -214,9 +218,30 @@ impl SendReceive {
         self
     }
 
-    /// Whether a round may include `account` (always, unless [`graph_only`](Self::graph_only)).
+    /// Hold `account` back from every round and job (`true`), or let it go again.
+    pub fn hold(&mut self, account: Id, held: bool) {
+        if held {
+            self.held.insert(account);
+        } else {
+            self.held.remove(&account);
+        }
+    }
+
+    /// Let go of every account held back (the owner asked for a Send/Receive).
+    pub fn release_all(&mut self) {
+        self.held.clear();
+    }
+
+    /// Whether `account` is held back ([`hold`](Self::hold)).
+    pub fn held(&self, account: Id) -> bool {
+        self.held.contains(&account)
+    }
+
+    /// Whether a round may include `account` (always, unless [`graph_only`](Self::graph_only) or
+    /// it is [held](Self::hold)).
     pub fn eligible(&self, session: &Session, account: Id) -> bool {
-        !self.graph_only || session.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
+        !self.held.contains(&account)
+            && (!self.graph_only || session.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared()))
     }
 
     /// The accounts with a server that a round may include.

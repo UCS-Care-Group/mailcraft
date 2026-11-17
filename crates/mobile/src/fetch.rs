@@ -564,7 +564,7 @@ impl SyncHost {
         }
         let accounts = session.fetch_background_accounts(|kind| kind == AccountKind::Microsoft, now);
         for account in accounts {
-            if inner.fetch.running.contains_key(&account) || !self.runs(session, account) {
+            if inner.fetch.running.contains_key(&account) || !self.runs(session, account) || inner.sr.held(account) {
                 continue;
             }
             let Ok(mut request) = graph_mail::graph_fetch_request(session, account, None, BACKGROUND_BATCH) else { continue };

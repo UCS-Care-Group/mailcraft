@@ -617,13 +617,26 @@ impl SyncHost {
         if accounts.is_empty() {
             return refused("There is no account to send and receive.");
         }
+        // The owner asking (no waiter: a pull to refresh) lets go of the accounts held back; a
+        // background run leaves them out.
+        if waiter.is_none() {
+            inner.sr.release_all();
+        }
         let mut supported = Vec::new();
+        let mut held = false;
         for id in accounts {
+            if inner.sr.held(id) {
+                held = true;
+                continue;
+            }
             if inner.sr.eligible(session, id) {
                 supported.push(id);
             } else if let Some(a) = session.mailbox.account(id) {
                 inner.unsupported.insert(id, a.kind);
             }
+        }
+        if supported.is_empty() && held {
+            return refused("Send/Receive isn't available now.");
         }
         if supported.is_empty() {
             return refused("This kind of account can't be sent and received on the phone yet.");
@@ -761,6 +774,12 @@ impl SyncHost {
                 self.pacer.poke();
             }
         }
+    }
+
+    /// Hold `account` back from what starts by themselves, or let it go ([`crate::Core::hold_background_sync`]).
+    pub(crate) fn hold(&self, account: u64, held: bool) {
+        self.lock().sr.hold(account, held);
+        self.pacer.poke();
     }
 
     /// Keep the mailbox within the phone's limits at the next wake (they were changed).

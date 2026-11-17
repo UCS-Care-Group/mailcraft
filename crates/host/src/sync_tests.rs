@@ -470,3 +470,20 @@ fn a_refresh_token_another_job_got_is_kept_and_leaves_the_mail_token_alone() {
     assert_eq!(fresh.adopt_refresh(&s, &c, id, &theirs), Adopted::Kept);
     assert!(matches!(fresh.mail_access(&s, &c, id), Some(crate::fetch::Access::Renew { refresh, .. }) if refresh == "second"));
 }
+
+#[test]
+fn an_account_held_back_is_in_no_round_until_let_go() {
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), 1_791_993_600, 0);
+    let added = s.run("account.add", &serde_json::json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap();
+    let a = added["id"].as_u64().unwrap();
+    for mut sr in [SendReceive::default(), SendReceive::default().graph_only()] {
+        assert!(sr.eligible(&s, a));
+        sr.hold(a, true);
+        assert!(sr.held(a) && !sr.eligible(&s, a));
+        sr.hold(a, false);
+        assert!(sr.eligible(&s, a));
+        sr.hold(a, true);
+        sr.release_all();
+        assert!(sr.eligible(&s, a));
+    }
+}
