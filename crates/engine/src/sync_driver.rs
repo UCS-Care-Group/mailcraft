@@ -7,6 +7,9 @@
 
 use std::collections::HashMap;
 
+pub mod as_received;
+#[cfg(test)]
+mod as_received_tests;
 pub mod ask;
 #[cfg(test)]
 mod ask_tests;
