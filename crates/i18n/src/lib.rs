@@ -81,7 +81,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 12] = [
+    pub const ALL: [Lang; 13] = [
         Lang::English,
         Lang::French,
         Lang::German,
