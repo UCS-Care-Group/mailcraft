@@ -159,6 +159,9 @@ impl Core {
     /// there is one.
     /// `held`: the accounts held back from what starts by itself ([`Core::hold_background_sync`]).
     pub(crate) fn start_in(platform: Arc<dyn Platform>, dir: &str, held: &[u64]) -> Result<Arc<Core>, CoreError> {
+        // (The end-to-end build's one seam: its sign-in and Graph are the stand-in's.)
+        #[cfg(feature = "e2e")]
+        crate::e2e::route()?;
         Core::start_stored(
             platform,
             |keep| keep.map_or_else(Session::empty, |k| Session::new(k.open())),
