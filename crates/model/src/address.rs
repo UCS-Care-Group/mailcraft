@@ -32,7 +32,18 @@ impl Address {
             let name = name.strip_suffix('"').unwrap_or(name).replace("\\\"", "\"");
             return Some(Address::new(name.trim(), email));
         }
+        // Wholly quoted (a name written back as it was typed): `\"` and `\\` stand for what they
+        // escape.
+        if let Some(inner) = s.strip_prefix('"').and_then(|rest| rest.strip_suffix('"')) {
+            return Some(Address::new("", unescape(inner)));
+        }
         Some(Address::new("", s.trim_matches('"')))
+    }
+
+    /// The address part quoted for a recipient line, `"` and `\` escaped, so that a comma, a
+    /// semicolon or a quote in it stays inside the quotes.
+    pub fn quoted(&self) -> String {
+        format!("\"{}\"", self.email.replace('\\', "\\\\").replace('"', "\\\""))
     }
 
     /// Split a recipient line on `,` and `;` (outside quotes and angle brackets) and parse each part.
@@ -145,6 +156,19 @@ pub fn format_list(list: &[Address]) -> String {
 pub fn format_list_capped(list: &[Address], max: usize) -> (String, usize) {
     let shown = list.get(..max).unwrap_or(list);
     (format_list(shown), list.len().saturating_sub(shown.len()))
+}
+
+/// Text between quotes with each `\x` read as `x`.
+fn unescape(inner: &str) -> String {
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => out.extend(chars.next()),
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 #[cfg(test)]

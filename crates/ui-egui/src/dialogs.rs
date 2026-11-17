@@ -168,6 +168,8 @@ pub enum Dialog {
     /// Insert › Item and Insert › Contact Card ([`crate::pick_item`]): it only chooses, then
     /// runs `compose.attachItem` or `insert.businessCard`.
     Pick(Box<crate::pick_item::Pick>),
+    /// Check Names' question: which of several people a name typed stands for ([`crate::check_names`]).
+    NameChoice(Box<crate::check_names::NameChoice>),
     /// View Source: a message's source as plain text ([`crate::view_source`]).
     ViewSource(Box<crate::view_source::Source>),
     /// File › Options › Security's: importing a private key, verifying a Public key (#30;
@@ -244,6 +246,15 @@ impl Question {
 }
 
 impl Dialog {
+    /// The message being written that the dialog is about, when it comes up over that message's
+    /// own window and not over the main one behind it: Check Names' choice.
+    pub(crate) fn compose(&self) -> Option<u64> {
+        match self {
+            Dialog::NameChoice(choice) => Some(choice.compose()),
+            _ => None,
+        }
+    }
+
     /// The name `ui.dialog` opens it by (and `ui.inspect` reports).
     pub fn name(&self) -> &'static str {
         match self {
@@ -281,6 +292,7 @@ impl Dialog {
                 crate::pick_item::PickKind::Message => "attachItem",
                 crate::pick_item::PickKind::Contact => "businessCard",
             },
+            Dialog::NameChoice(_) => "checkNames",
             Dialog::ViewSource(_) => "viewSource",
             Dialog::Security(d) => d.name(),
             Dialog::Symbol(_) => "symbol",
@@ -365,10 +377,13 @@ impl Dialog {
                 offer: None,
             },
             "link" => {
-                let c = app.session.compose.as_ref().filter(|c| c.format == mailcraft_engine::BodyFormat::Html)?;
-                let sel = c.body.selection();
+                // The text in view: the message being written, or the signature open in
+                // File › Signatures (#1552). A plain-text message has no links, and its Link
+                // button is disabled anyway.
+                let (body, _) = app.session.doc().filter(|(_, plain)| !*plain)?;
+                let sel = body.selection();
                 // The link the caret is in, or the selection starts in.
-                let url = c.body.text().link_span(sel.start()).map(|(from, _)| c.body.text().style_at(from + 1)).and_then(|s| s.link);
+                let url = body.text().link_span(sel.start()).map(|(from, _)| body.text().style_at(from + 1)).and_then(|s| s.link);
                 Dialog::Link { linked: url.is_some(), url: url.unwrap_or_default(), error: String::new() }
             }
             "dateTime" => {
@@ -2243,6 +2258,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Pick(dialog) => {
             let mut done = false;
             let open = window(ctx, dialog.title(), crate::pick_item::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
+        Dialog::NameChoice(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Check Names"), crate::check_names::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
         }
         Dialog::MergeContacts(dialog) => {

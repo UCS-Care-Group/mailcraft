@@ -258,6 +258,7 @@ private fun CoreShell(
             query = change(query)
         }
     }
+    val hosted = rememberHosted(core, texts, ready = outlined != null, reload = reload)
     AppShell(
         texts = texts,
         data = ShellData(
@@ -279,6 +280,9 @@ private fun CoreShell(
             attachments = pictured.attachments,
             compose = writing.ui(),
             snack = writing.snack,
+            today = hosted.today,
+            people = hosted.people,
+            tasks = hosted.tasks,
         ),
         actions = ShellActions(
             onFolder = { _, selected -> query = MailQuery(selected.id) },
@@ -294,6 +298,7 @@ private fun CoreShell(
             onPictures = pictures::changed,
             onClearPictures = pictures::clear,
             writing = WritingActions(writing.actions(), writing::newMessage, writing::snackShown),
+            organiser = OrganiserActions(hosted.peopleActions, hosted.tasksActions),
         ),
         calendar = calendar.pane,
         requestTab = calendar.requestTab, onTabRequested = calendar.onTabRequested,
