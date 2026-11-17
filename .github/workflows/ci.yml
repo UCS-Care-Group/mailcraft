@@ -1,9 +1,14 @@
 # The gates every change must pass: formatting, clippy with warnings as errors, the tests, asset
 # attribution, crate layering, the wasm build and cargo-deny (`cargo xtask ci`), on the three desktop systems
-# (clippy and wasm on Linux only). Changes to documentation alone don't run it, nor changes under
-# .github/ alone (templates, the CodeQL set-up), save to the workflows, which `cargo xtask
-# workflows` reads; `ci-ok` reports on every pull request either way, and is the check that
+# (clippy and wasm on Linux only). `ci-ok` reports on every pull request, and is the check that
 # protection of main requires.
+#
+# Two tiers (CONTRIBUTING.md › Continuous integration). A pull request runs the cheap checks in
+# `quick` at once, and the tests of the packages it changes and of every package that depends on
+# them (`cargo xtask affected`, a nextest filter); a translation runs on Linux alone, the Android
+# app's own files and documentation run no Rust tests. A push to main, the merge queue, a run by
+# hand, and a pull request labelled `full-ci` or changing what every package is built from run the
+# whole suite on every system.
 name: CI
 
 on:
@@ -11,6 +16,11 @@ on:
     branches: [main]
     paths: ['**', '!docs/**', '!**/*.md', '!.github/**', 'ATTRIBUTION.md', '.github/workflows/**', '.github/scripts/**']
   pull_request:
+    # `labeled`: adding `full-ci` runs the whole suite at once. Any other label starts the pull
+    # request's own run again (one run per head, so `ci-ok` always comes from a real one).
+    types: [opened, synchronize, reopened, labeled]
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 permissions:
@@ -20,56 +30,88 @@ env:
   # A dropped connection to crates.io is tried again rather than failing the run.
   CARGO_NET_RETRY: 10
 
+# A newer push to a pull request replaces its run; a run on main or in the merge queue always
+# finishes, so every merged commit is tested whole.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Whether a pull request changes anything but documentation (Markdown files and docs/;
-  # ATTRIBUTION.md counts as code, since `cargo xtask assets` reads it) and .github/ (nothing the
-  # build reads; the workflows count as code, since `cargo xtask workflows` reads them).
+  # What this run covers (`cargo xtask affected`, xtask/src/affected.rs): `rust` (the matrix and
+  # cargo-deny), `matrix` (Linux alone for a translation), `android_app`, `android_rust`, and
+  # `filter`, the nextest filter of a pull request's tests (empty: all of them). The log and the
+  # run's summary say what was selected and why.
   changes:
     runs-on: ubuntu-24.04
     outputs:
-      code: ${{ steps.diff.outputs.code }}
-      android: ${{ steps.diff.outputs.android }}
+      rust: ${{ steps.affected.outputs.rust }}
+      matrix: ${{ steps.affected.outputs.matrix }}
+      android_app: ${{ steps.affected.outputs.android_app }}
+      android_rust: ${{ steps.affected.outputs.android_rust }}
+      filter: ${{ steps.affected.outputs.filter }}
+    steps:
+      # A pull request's run checks out its merge commit: against the first parent (the tip of main
+      # it was merged into), only the pull request's own changes count.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        # xtask alone, shared with `quick`; written by main only.
+        with:
+          shared-key: xtask
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: false
+      - id: affected
+        env:
+          EVENT: ${{ github.event_name }}
+          FULL_CI: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+        run: |
+          set -euo pipefail
+          args=(--event "$EVENT" --base HEAD^1)
+          if [ "$FULL_CI" = true ]; then args+=(--full-ci); fi
+          cargo run --locked --package xtask -- affected "${args[@]}"
+
+  # The checks that need no build of the workspace (seconds together): formatting, attribution,
+  # SPDX lines, test files, the workflows, the layering, the browser build's clock, the
+  # catalogues, and that the fragments join. On every pull request, documentation alone included,
+  # beside the matrix rather than before it, so a stale catalogue fails in a few minutes and a
+  # green pull request waits no longer. The matrix runs them again with the rest.
+  quick:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0
-      - id: diff
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
+        with:
+          toolchain: 1.98.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        # `changes`' cache, read and never written here.
+        with:
+          shared-key: xtask
+          save-if: false
+      - run: cargo run --locked --package xtask -- ci
         env:
-          EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ "$EVENT" != pull_request ]; then echo code=true >> "$GITHUB_OUTPUT"; echo android=true >> "$GITHUB_OUTPUT"; exit 0; fi
-          files=$(git diff --name-only "$BASE"...HEAD)
-          # The Android app is built and linted only when it or what it is built from changes.
-          if printf '%s\n' "$files" | grep -qE '^(apps/mailcraft-android/|crates/mobile/|crates/host/|xtask/src/mobile|\.github/workflows/ci\.yml)'; then
-            echo android=true >> "$GITHUB_OUTPUT"
-          else
-            echo android=false >> "$GITHUB_OUTPUT"
-          fi
-          if printf '%s\n' "$files" | grep -qvE '^docs/|^\.github/|\.md$|^$' || printf '%s\n' "$files" | grep -qxE 'ATTRIBUTION\.md|\.github/workflows/.*\.ya?ml'; then
-            echo code=true >> "$GITHUB_OUTPUT"
-          else
-            echo code=false >> "$GITHUB_OUTPUT"
-          fi
+          XTASK_CI_ONLY: fmt,assets,spdx,test-files,workflows,layers,wasm-clock,i18n,release-notes,docs-log
 
   ci:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.rust == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-latest, windows-latest]
+        os: ${{ fromJSON(needs.changes.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
           components: rustfmt, clippy
@@ -78,11 +120,10 @@ jobs:
         # Pull requests read main's cache but don't write their own: a cache per PR fills the
         # repository's 10 GB and pushes out the caches that matter (FreeBSD's above all).
         with:
-          # The same cache as `fragments` reads.
           shared-key: ci
           save-if: ${{ github.ref == 'refs/heads/main' }}
-          # A main run whose tests fail still keeps what it compiled for the next run.
-          cache-on-failure: true
+          # A failed run saves nothing: a half-filled cache would stay until the key changes.
+          cache-on-failure: false
       # Runs the test binaries side by side (`cargo xtask ci` uses it when it is there).
       - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
@@ -93,15 +134,17 @@ jobs:
         run: .github/scripts/apt-mirrors.sh && sudo apt-get install -y libxkbcommon-dev libwayland-dev libgtk-3-dev
       # Clippy and the wasm check run on Linux only: wasm is the same from any host, and the
       # tests still build every platform's code.
+      # On a pull request, XTASK_TEST_FILTER holds the tests `changes` selected; empty, all of them.
       - run: cargo run --locked --package xtask -- ci
         env:
           XTASK_CI_SKIP: ${{ runner.os != 'Linux' && 'clippy,wasm,deny' || 'deny' }}
+          XTASK_TEST_FILTER: ${{ needs.changes.outputs.filter }}
 
   # cargo-deny (deny.toml): RustSec advisories, licences, duplicate crates, sources. Its own job,
   # since it needs no build; `ci` skips the step it would otherwise run.
   deny:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -112,39 +155,18 @@ jobs:
           tool: cargo-deny@0.20.2
       - run: cargo run --locked --package xtask -- deny
 
-  # A pull request of documentation alone skips `ci`, but its fragments (`docs/log.d/`,
-  # `packaging/release-notes.d/`) are joined at release time: they are checked here, so that one
-  # that wouldn't join fails the pull request that adds it and not the release.
-  fragments:
-    needs: changes
-    if: needs.changes.outputs.code != 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: 1.98.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        # `ci`'s cache (main writes it), read and never written here.
-        with:
-          shared-key: ci
-          save-if: false
-      - run: cargo run --locked --package xtask -- docs-log --check
-      - run: cargo run --locked --package xtask -- release-notes > /dev/null
-
   # The phone binding (`mailcraft-mobile`) must keep building for Android: a check, no tests, with
-  # the NDK the runner image provides. Its own job and not behind `changes`: a change anywhere
-  # below it (the engine, the network crate, the model) can break it, so it runs on every pull
-  # request, and it is cheap (a check of one target).
+  # the NDK the runner image provides. When a package it is built from changes (the engine, the
+  # network crate, the model…), or the Android app, or the run covers everything (`changes`).
   android:
+    needs: changes
+    if: needs.changes.outputs.android_rust == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
           targets: aarch64-linux-android
@@ -152,7 +174,7 @@ jobs:
         with:
           shared-key: android
           save-if: ${{ github.ref == 'refs/heads/main' }}
-          cache-on-failure: true
+          cache-on-failure: false
       # The NDK's clang for C code in the build scripts (ring) and as the linker, at Android 10's
       # level (API 29), the least the app supports.
       - name: cargo check for Android
@@ -167,17 +189,17 @@ jobs:
   # Android with cargo-ndk, generates the Kotlin bindings, builds the debug and release apps, runs
   # Android Lint and detekt as errors and the unit tests, checks the licences of what ships and that
   # no Play Services or Firebase is in the tree. Only when the app, the binding or the host crate
-  # changes (`changes`).
+  # changes, or the run covers everything (`changes`).
   android-app:
     needs: changes
-    if: needs.changes.outputs.android == 'true'
+    if: needs.changes.outputs.android_app == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
           targets: aarch64-linux-android,x86_64-linux-android
@@ -185,7 +207,7 @@ jobs:
         with:
           shared-key: android-app
           save-if: ${{ github.ref == 'refs/heads/main' }}
-          cache-on-failure: true
+          cache-on-failure: false
       - name: Android SDK pieces the app is built with
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
@@ -197,10 +219,11 @@ jobs:
           export JAVA_HOME="$JAVA_HOME_21_X64"  # Paparazzi 2 runs on 21; the app still targets 17
           cargo run --locked --package xtask -- mobile
 
-  # The one check main's protection requires: passes when every platform passed, or when there
-  # was nothing but documentation to check.
+  # The one check main's protection requires (and the merge queue's): passes when every job that
+  # ran passed; a job this run had no need of is skipped, and a skip counts as a pass. A failed or
+  # cancelled job, `changes` included, fails it.
   ci-ok:
-    needs: [changes, ci, deny, fragments, android, android-app]
+    needs: [changes, quick, ci, deny, android, android-app]
     if: always()
     runs-on: ubuntu-24.04
     steps:

@@ -19,9 +19,10 @@ import org.junit.Test
 import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.Event
 import uniffi.mailcraft_mobile.StorageNotice
+import uniffi.mailcraft_mobile.SyncAnswer
 
 private class HubApi(val gate: CompletableDeferred<Unit>) : AccountsApi {
-    override suspend fun signIn(email: String): SignInResult {
+    override suspend fun signIn(email: String, keep: KeepChoice): SignInResult {
         gate.await()
         return SignInResult.SignedIn(7u, "ada@example.org", "Ada Example")
     }
@@ -129,8 +130,7 @@ class AccountsHubTest {
     @Test
     fun aSaveThatFailsAfterSavingWasTurnedOffLeavesThatNoticeAlone() = runBlocking {
         val gate = CompletableDeferred<Unit>()
-        lateinit var saving: AccountsHub
-        saving = AccountsHub(
+        val saving = AccountsHub(
             api = HubApi(CompletableDeferred()),
             texts = EnglishTexts,
             scope = app,
@@ -190,5 +190,61 @@ class AccountsHubTest {
     @Test
     fun theApplicationsScopeIsAJobNoWindowOwns() {
         assertTrue(app.coroutineContext[Job]?.isActive == true)
+    }
+
+    @Test
+    fun syncNowSpinsUntilTheCoreSaysTheRoundIsOver() {
+        var asked = 0
+        val hub = AccountsHub(
+            api = HubApi(gate),
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            sync = {
+                asked++
+                SyncAnswer(started = true, message = "")
+            },
+        )
+        hub.syncNow()
+        assertTrue(hub.syncing.value)
+        // A second pull while the round runs asks for nothing more.
+        hub.syncNow()
+        assertEquals(1, asked)
+        hub.handle(Event.SyncFinished(newMail = 0u, finished = true))
+        assertFalse(hub.syncing.value)
+        assertEquals(null, hub.syncNotice.value)
+    }
+
+    @Test
+    fun aSyncThatDoesNotStartSaysWhyAndStopsSpinning() {
+        val hub = AccountsHub(
+            api = HubApi(gate),
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            sync = { SyncAnswer(started = false, message = "You're working offline.") },
+        )
+        hub.syncNow()
+        assertFalse(hub.syncing.value)
+        assertEquals("You're working offline.", hub.syncNotice.value)
+        hub.syncNoticeShown()
+        assertEquals(null, hub.syncNotice.value)
+    }
+
+    @Test
+    fun aCoreThatFailsToStartASyncIsSaidInWordsAndNeverACrash() {
+        val hub = AccountsHub(
+            api = HubApi(gate),
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            sync = { throw CoreException.Cancelled() },
+        )
+        hub.syncNow()
+        assertFalse(hub.syncing.value)
+        assertEquals("Send/Receive couldn't start. Try again.", hub.syncNotice.value)
     }
 }

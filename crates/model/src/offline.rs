@@ -172,6 +172,14 @@ impl OfflineWindow {
         OfflineWindow::with(mb, since)
     }
 
+    /// Every message of a Microsoft or Exchange server account counts as outside, but for those
+    /// that are always within: what of the mailbox may leave a device whose limits say so
+    /// (MB3.16), the server having it as it is here.
+    pub fn server_copies(mb: &Mailbox) -> OfflineWindow {
+        let since = mb.accounts.iter().filter(|a| a.kind.has_offline_window()).map(|a| (a.id, Timestamp::MAX)).collect();
+        OfflineWindow::with(mb, since)
+    }
+
     fn with(mb: &Mailbox, since: HashMap<Id, Timestamp>) -> OfflineWindow {
         let always =
             mb.folders.iter().filter(|f| matches!(f.kind, FolderKind::Drafts | FolderKind::Outbox) || f.server.is_none()).map(|f| f.id).collect();
