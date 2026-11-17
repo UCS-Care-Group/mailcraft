@@ -125,6 +125,8 @@ pub(crate) enum Menu {
     Rules,
     CategorizeMail,
     FollowUp,
+    /// Follow Up in the message being written (#948).
+    ComposeFollowUp,
     FilterMail,
     ShowAs,
     Reminder,
@@ -136,6 +138,7 @@ pub(crate) enum Menu {
     MoveFolder,
     ReadingPane,
     GmailCategories,
+    NavigationBar,
     Preview,
     ArrangeBy,
     Theme,
@@ -149,6 +152,61 @@ pub(crate) enum Menu {
     FontColor,
     Highlight,
     Junk,
+    RecentAttachments,
+    OpenCalendar,
+}
+
+impl Menu {
+    /// The command a menu stands for, when all it does is run it with a choice (the font menus):
+    /// it is greyed when that command can't run, as a button would be.
+    pub(crate) fn command(self) -> Option<&'static str> {
+        match self {
+            Menu::Font => Some("format.font"),
+            Menu::FontSize => Some("format.size"),
+            Menu::FontColor => Some("format.color"),
+            Menu::Highlight => Some("format.highlight"),
+            Menu::RecentAttachments => Some("ui.attach"),
+            _ => None,
+        }
+    }
+}
+
+/// Whether a control can be used now: its command can run, or the command its menu stands for
+/// ([`Menu::command`]); a menu that stands for none always can. Every layout draws by it.
+pub(crate) fn usable(app: &MailApp, item: &Item) -> bool {
+    match (&item.command, item.menu) {
+        (Some((command, _)), _) => app.enabled(command),
+        (None, Some(menu)) => menu_usable(app, menu),
+        (None, None) => true,
+    }
+}
+
+/// Whether a menu can be opened now: the command it stands for can run, or it stands for none.
+fn menu_usable(app: &MailApp, menu: Menu) -> bool {
+    (menu != Menu::RecentAttachments || crate::recent_attachments::available(app)) && menu.command().is_none_or(|command| app.enabled(command))
+}
+
+/// A menu as an entry of another (a `▾`, a `…`): it opens while it can ([`menu_usable`]), and is
+/// greyed otherwise, saying why when hovered.
+pub(crate) fn submenu(ui: &mut Ui, app: &mut MailApp, name: String, menu: Menu) {
+    if menu_usable(app, menu) {
+        ui.menu_button(name, |ui| menu_contents(ui, app, menu));
+        return;
+    }
+    let reason = menu.command().and_then(|c| app.session.registry.get(c)).and_then(|spec| (spec.enabled)(&app.session));
+    let entry = ui.add_enabled(false, egui::Button::new(name).min_size(vec2(190.0, 0.0)));
+    if let Some(reason) = reason {
+        entry.on_disabled_hover_text(crate::i18n::fmt(tl!("Not available: {reason}"), &[("reason", tl!(reason))]));
+    }
+}
+
+/// A menu button's tooltip: its name, and when its menu stands for a command that can't run now
+/// ([`usable`]), why, as a greyed button's says.
+fn menu_tooltip(app: &MailApp, resp: egui::Response, item: &Item, on: bool) -> egui::Response {
+    match item.menu.and_then(Menu::command) {
+        Some(command) if !on => command_tooltip(app, resp, &item.tip_text(), command),
+        _ => resp.on_hover_text(item.tip_text()),
+    }
 }
 
 /// How a control is drawn in the classic layout.
@@ -335,6 +393,13 @@ pub(crate) fn describe_tab(app: &MailApp, name: &str) -> Tab {
             Module::Tasks => (home_tasks(app), "Home tasks"),
         },
     };
+    if app.services.recent_attachments.is_some() {
+        for item in tab.groups.iter_mut().flat_map(|group| &mut group.items) {
+            if item.command.as_ref().is_some_and(|(command, _)| *command == "ui.attach") {
+                item.menu = Some(Menu::RecentAttachments);
+            }
+        }
+    }
     fit::prioritise(&mut tab, which);
     tab
 }
@@ -499,8 +564,8 @@ fn home_calendar(app: &MailApp) -> Tab {
             groups.push(g("Respond", answers));
         }
     }
-    // Somebody else's calendar, by their address (#70).
-    groups.push(g("Manage Calendars", vec![Item::big("calendar", "Open\nCalendar", "calendar.openShared", no()).at(4, 9)]));
+    // Somebody else's calendar, by their address (#70), or one on the web (#209).
+    groups.push(g("Manage Calendars", vec![Item::big_menu("calendar", "calendar", "Open\nCalendar", "Open Calendar", Menu::OpenCalendar).at(4, 9)]));
     groups.push(g(
         "Share",
         vec![
@@ -660,6 +725,7 @@ pub(crate) const FONT_SIZES: [u8; 12] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 2
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
     let read_receipt = app.session.compose.as_ref().is_some_and(|c| c.read_receipt);
+    let delayed = crate::send_later::delay_is_on(app);
     let look = look_now(app);
     let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
     Tab::of(vec![
@@ -697,6 +763,7 @@ fn message(app: &MailApp) -> Tab {
         g(
             "Tags",
             vec![
+                Item::big_menu("composeFollowUp", "flag", "Follow\nUp", "Follow Up", Menu::ComposeFollowUp).at(3, 3).plain(),
                 Item::small("highImportance", "High Importance", "High Importance", "compose.highImportance", no())
                     .checked(importance == Some(Importance::High))
                     .at(4, 4),
@@ -707,6 +774,7 @@ fn message(app: &MailApp) -> Tab {
                 Item::small("read", "Request a Read Receipt", "Ask to be told when the message is read", "compose.readReceipt", no())
                     .checked(read_receipt)
                     .at(4, 6),
+                Item::small("clock", "Delay Delivery", "Do not deliver before a date and time", "compose.delay", no()).checked(delayed).at(4, 6),
             ],
         ),
         g(
@@ -978,6 +1046,7 @@ fn view_of_any(app: &MailApp) -> Tab {
     let mut layout = vec![
         Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
         Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
+        Item::big_menu("navigationBar", "navigationBar", "Navigation\nBar", "Navigation Bar", Menu::NavigationBar).at(0, 3),
     ];
     // Gmail's categories as folders or as tabs (#911): only with a Gmail account that shows them.
     if mailcraft_engine::gmail::offered(&app.session).is_none() {
@@ -1031,7 +1100,9 @@ fn help() -> Tab {
                 Item::big("report", "Report a\nProblem", "ui.reportProblem", no()).at(0, 4),
             ],
         )],
-        note: "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands.",
+        note: tl!(
+            "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands."
+        ),
         note_width: 420.0,
     }
 }
@@ -1236,6 +1307,20 @@ fn plain_item(ui: &mut Ui, label: &str) -> bool {
     chosen
 }
 
+/// Add Reminder… and Remove Reminder of the selected messages (#948): Home › Tags › Follow Up and the
+/// message's context menu.
+pub(crate) fn follow_up_items(ui: &mut Ui, app: &mut MailApp) {
+    let selected = !app.session.sel.messages.is_empty();
+    if ui.add_enabled(selected, egui::Button::new(tl!("Add Reminder…")).min_size(vec2(190.0, 0.0))).clicked() {
+        let _ = app.run("ui.dialog", json!({"name": "addReminder"}));
+        ui.close();
+    }
+    let any = app.session.sel.messages.iter().any(|id| app.session.mailbox.message(*id).is_some_and(|m| m.follow_up.is_some()));
+    if any {
+        mi(ui, app, "Remove Reminder", "mail.clearReminder", json!({}));
+    }
+}
+
 /// Home › Delete › Junk ▾ (and the message's context menu): the lists and what is in Junk E-mail.
 pub(crate) fn junk_menu(ui: &mut Ui, app: &mut MailApp) {
     mi(ui, app, "Block Sender", "junk.blockSender", json!({}));
@@ -1259,6 +1344,7 @@ pub(crate) fn junk_menu(ui: &mut Ui, app: &mut MailApp) {
 /// What `menu` lists.
 fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
     match menu {
+        Menu::RecentAttachments => crate::recent_attachments::contents(ui, app),
         Menu::NewItems => new_items(ui, app),
         Menu::MoveMessages => {
             if app.session.sel.messages.is_empty() {
@@ -1307,6 +1393,10 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             }
         }
         Menu::Junk => junk_menu(ui, app),
+        Menu::OpenCalendar => {
+            mi(ui, app, "Open Shared Calendar…", "calendar.openShared", json!({}));
+            mi(ui, app, "From Internet…", "calendar.subscribe", json!({}));
+        }
         Menu::CategorizeMail => {
             let ids = app.session.sel.messages.clone();
             let accounts = selected_accounts(app);
@@ -1329,10 +1419,34 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             }
             mi(ui, app, "No Date", "mail.flag", json!({}));
             ui.separator();
+            follow_up_items(ui, app);
+            ui.separator();
             mi(ui, app, "Mark Complete", "mail.complete", json!({}));
             mi(ui, app, "Clear Flag", "mail.clearFlag", json!({}));
             ui.separator();
             mi(ui, app, "Add to Tasks", "tasks.fromMessage", json!({}));
+        }
+        Menu::ComposeFollowUp => {
+            let plan = app.session.compose.as_ref().and_then(|c| c.follow_up);
+            ui.label(egui::RichText::new(tl!("Remind me if nobody replies")).weak());
+            for d in crate::reminder_dialog::DAYS {
+                let label = tln!(d, "{n} day", "{n} days");
+                mi_check(
+                    ui,
+                    app,
+                    &label,
+                    plan == Some(mailcraft_engine::cmd::followup::FollowUpPlan::Days(d)),
+                    "compose.followUp",
+                    json!({"days": d}),
+                );
+            }
+            if plain_item(ui, tl!("Choose a date…")) {
+                let _ = app.run("ui.dialog", json!({"name": "followUpDate"}));
+            }
+            if plan.is_some() {
+                ui.separator();
+                mi(ui, app, "No Reminder", "compose.followUp", json!({"clear": true}));
+            }
         }
         Menu::FilterMail => {
             let filter = app.session.view.filter;
@@ -1418,6 +1532,11 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             for (label, code, pane) in [("Right", "right", Pane::Right), ("Bottom", "bottom", Pane::Bottom), ("Off", "off", Pane::Off)] {
                 mi_check(ui, app, label, cur == pane, "view.readingPane", json!({"value": code}));
             }
+        }
+        Menu::NavigationBar => {
+            let foot = app.session.view.nav_foot;
+            mi_check(ui, app, "Bar on the Left", !foot, "view.navigationBar", json!({"value": "bar"}));
+            mi_check(ui, app, "At the Foot of the Pane", foot, "view.navigationBar", json!({"value": "foot"}));
         }
         Menu::GmailCategories => {
             let tabs = app.session.view.gmail_tabs;
@@ -1737,9 +1856,7 @@ fn drop_menu(ui: &mut Ui, app: &mut MailApp, b: &Button<'_>) {
     for under in &b.drops {
         match under.menu {
             Some(menu) if alone => menu_contents(ui, app, menu),
-            Some(menu) => {
-                ui.menu_button(under.name(), |ui| menu_contents(ui, app, menu));
-            }
+            Some(menu) => submenu(ui, app, under.name(), menu),
             None => entry(ui, app, under),
         }
     }
@@ -1753,18 +1870,21 @@ fn more_entries(ui: &mut Ui, app: &mut MailApp, b: &Button<'_>) {
         return;
     }
     if b.item.command.is_none() {
-        ui.menu_button(b.item.name(), |ui| drop_menu(ui, app, b));
+        match b.item.menu {
+            Some(menu) if b.drops.is_empty() => submenu(ui, app, b.item.name(), menu),
+            _ => {
+                ui.menu_button(b.item.name(), |ui| drop_menu(ui, app, b));
+            }
+        }
         return;
     }
     entry(ui, app, b.item);
     if let Some(menu) = b.item.menu {
-        ui.menu_button(b.item.tip_text(), |ui| menu_contents(ui, app, menu));
+        submenu(ui, app, b.item.tip_text(), menu);
     }
     for under in &b.drops {
         match under.menu {
-            Some(menu) => {
-                ui.menu_button(under.name(), |ui| menu_contents(ui, app, menu));
-            }
+            Some(menu) => submenu(ui, app, under.name(), menu),
             None => entry(ui, app, under),
         }
     }
@@ -1779,7 +1899,7 @@ pub(crate) fn drop_mark(ui: &Ui, c: egui::Pos2, color: egui::Color32) {
 fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, labelled: bool, rect: Rect) {
     let item = b.item;
     let id = ui.scope_id().with(("ribbon", item.key));
-    let on = item.command.as_ref().is_none_or(|(command, _)| app.enabled(command));
+    let on = usable(app, item);
     let drop_rect = Rect::from_min_max(pos2(rect.max.x - DROP_W, rect.min.y), rect.max);
     let main_rect = if b.is_split() { Rect::from_min_max(rect.min, pos2(drop_rect.min.x, rect.max.y)) } else { rect };
     // (A control still to be built takes no clicks and no keyboard.)
@@ -1806,8 +1926,10 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let Some((command, params)) = &item.command else {
         // The whole button opens its menu.
         drop_mark(ui, drop_rect.center(), ink);
-        let main = main.on_hover_text(item.tip_text());
-        egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
+        let main = menu_tooltip(app, main, item, on);
+        if on {
+            egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
+        }
         return;
     };
     let main = command_tooltip(app, main, &item.tip_text(), command);
@@ -1819,12 +1941,16 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     }
     // Its other half: the `▾` opens the menu, whether or not the command can run now.
     let drop = ui.interact(drop_rect, id.with("menu"), Sense::click());
-    app.hit.add("ribbonMenu", hit_id(item.key), drop_rect);
+    if item.menu != Some(Menu::RecentAttachments) {
+        app.hit.add("ribbonMenu", hit_id(item.key), drop_rect);
+    }
     bg(ui, drop_rect, &drop, false, t);
     drop_mark(ui, drop_rect.center(), t.icon);
     let tip = b.drops.first().map_or_else(|| item.tip_text(), |under| under.tip_text());
     let drop = drop.on_hover_text(tip);
-    egui::Popup::menu(&drop).show(|ui| drop_menu(ui, app, b));
+    if item.menu != Some(Menu::RecentAttachments) || menu_usable(app, Menu::RecentAttachments) {
+        egui::Popup::menu(&drop).show(|ui| drop_menu(ui, app, b));
+    }
 }
 
 /// The keys of the buttons that were behind `…` in the frame just laid out.
@@ -1893,10 +2019,28 @@ fn simplified(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, area: Rect)
 
 // ---- the classic layout ----
 
+fn classic_recent_attachments(app: &mut MailApp, response: &egui::Response, enabled: bool) {
+    if !enabled {
+        return;
+    }
+    if crate::recent_attachments::available(app) {
+        egui::Popup::menu(response).show(|ui| crate::recent_attachments::contents(ui, app));
+    } else if response.clicked() {
+        let _ = app.run("ui.attach", json!({}));
+    }
+}
+
 /// A large button of the classic layout.
 fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
     let label = tl!(item.label);
     match (&item.command, item.menu) {
+        (_, Some(Menu::RecentAttachments)) => {
+            let on = usable(app, item);
+            let (resp, text) = big_frame(ui, item.icon, label, on, false, true);
+            app.hit.add("ribbon", hit_id(item.key), resp.rect);
+            app.hit.add("ribbonLabel", hit_id(item.key), text);
+            classic_recent_attachments(app, &resp, on);
+        }
         (Some((command, params)), _) => {
             let on = app.enabled(command);
             let (resp, text) = big_frame(ui, item.icon, label, on, item.checked, false);
@@ -1908,14 +2052,17 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             }
         }
         (None, Some(menu)) => {
-            let (resp, text) = big_frame(ui, item.icon, label, true, false, true);
-            let resp = resp.on_hover_text(item.tip_text());
+            let on = usable(app, item);
+            let (resp, text) = big_frame(ui, item.icon, label, on, false, true);
+            let resp = menu_tooltip(app, resp, item, on);
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
-            egui::Popup::menu(&resp).show(|ui| {
-                ui.set_min_width(200.0);
-                menu_contents(ui, app, menu);
-            });
+            if on {
+                egui::Popup::menu(&resp).show(|ui| {
+                    ui.set_min_width(200.0);
+                    menu_contents(ui, app, menu);
+                });
+            }
         }
         (None, None) if item.pending => {
             let (resp, _) = big_frame(ui, item.icon, label, false, false, false);
@@ -1937,6 +2084,12 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
             let name = item.name();
             let label = labelled.then_some(name.as_str());
             match (&item.command, item.menu) {
+                (_, Some(Menu::RecentAttachments)) => {
+                    let on = usable(app, item);
+                    let resp = menu_tooltip(app, small_frame(ui, item.icon, label, on, false, true), item, on);
+                    app.hit.add("ribbon", hit_id(item.key), resp.rect);
+                    classic_recent_attachments(app, &resp, on);
+                }
                 (Some((command, params)), _) => {
                     let on = app.enabled(command);
                     let resp = small_frame(ui, item.icon, label, on, item.checked, false);
@@ -1947,12 +2100,15 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     }
                 }
                 (None, Some(menu)) => {
-                    let resp = small_frame(ui, item.icon, label, true, false, true).on_hover_text(item.tip_text());
+                    let on = usable(app, item);
+                    let resp = menu_tooltip(app, small_frame(ui, item.icon, label, on, false, true), item, on);
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
-                    egui::Popup::menu(&resp).show(|ui| {
-                        ui.set_min_width(200.0);
-                        menu_contents(ui, app, menu);
-                    });
+                    if on {
+                        egui::Popup::menu(&resp).show(|ui| {
+                            ui.set_min_width(200.0);
+                            menu_contents(ui, app, menu);
+                        });
+                    }
                 }
                 (None, None) if item.pending => {
                     let resp = small_frame(ui, item.icon, label, false, false, false);
@@ -1982,10 +2138,12 @@ fn group_entries(ui: &mut Ui, app: &mut MailApp, group: &Group) {
         if item.pending {
             let entry = ui.add_enabled(false, egui::Button::new(item.name()).min_size(vec2(190.0, 0.0)));
             entry.on_disabled_hover_text(tl!("Pending development"));
+        } else if item.menu == Some(Menu::RecentAttachments) && crate::recent_attachments::available(app) {
+            submenu(ui, app, item.name(), Menu::RecentAttachments);
         } else if item.command.is_some() {
             entry(ui, app, item);
         } else if let Some(menu) = item.menu {
-            ui.menu_button(item.name(), |ui| menu_contents(ui, app, menu));
+            submenu(ui, app, item.name(), menu);
         }
     }
 }
@@ -2226,6 +2384,9 @@ fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
 
 #[cfg(test)]
 mod fit_tests;
+
+#[cfg(test)]
+mod plain_tests;
 
 #[cfg(test)]
 mod tests {

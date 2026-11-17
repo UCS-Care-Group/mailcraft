@@ -132,12 +132,12 @@ fn a_message_goes_to_graph_in_base64() {
     // The body is base64 and nothing else: of the message exactly as it is written for the wire.
     assert!(!body.is_empty() && body.bytes().all(|b| b.is_ascii_alphanumeric() || b"+/=".contains(&b)), "{body}");
     let sent = sent_message(&request);
-    assert_eq!(sent, mailcraft_mime::write(&message(), &WriteOptions { include_bcc: true, offset_minutes: 120 }));
+    assert_eq!(sent, mailcraft_mime_model::write(&message(), &WriteOptions { include_bcc: true, offset_minutes: 120 }));
     let text = String::from_utf8(sent.clone()).unwrap();
     assert!(text.starts_with("Date: Mon, 12 Oct 2026 10:00:00 +0200\r\n") && text.contains("\r\nSubject: Tea on Thursday?\r\n"), "{text}");
     // Nobody gets a blind copy: no such field.
     assert!(!text.to_lowercase().contains("\r\nbcc:"), "{text}");
-    let read = mailcraft_mime::parse(&sent);
+    let read = mailcraft_mime_model::parse(&sent);
     assert_eq!(
         (read.subject.as_str(), read.from.email.as_str(), read.message_id.as_str()),
         ("Tea on Thursday?", "ada@example.org", "mc.1.1@example.org")
@@ -148,7 +148,7 @@ fn a_message_goes_to_graph_in_base64() {
     // A message that was never dated is dated as it goes.
     let before = mailcraft_time::now();
     send_at(&server.url(""), TOKEN, &Message { date: 0, ..message() }, &SendOptions::default()).unwrap();
-    let dated = mailcraft_mime::parse(&sent_message(&server.request(1))).date;
+    let dated = mailcraft_mime_model::parse(&sent_message(&server.request(1))).date;
     assert!((before..=mailcraft_time::now()).contains(&dated), "{dated}");
 }
 
@@ -162,7 +162,7 @@ fn blind_copies_are_named_to_graph_in_the_message() {
     let sent = sent_message(&server.request(0));
     let text = String::from_utf8(sent.clone()).unwrap();
     assert!(text.contains("\r\nBcc: ") && text.contains("eve@example.org") && text.contains("dee@example.org"), "{text}");
-    let read = mailcraft_mime::parse(&sent);
+    let read = mailcraft_mime_model::parse(&sent);
     assert_eq!((read.to, read.cc, read.bcc), (message.to.clone(), message.cc.clone(), blind.clone()));
     // Once, to everybody: not a second time for those it names.
     assert_eq!(server.asked(), 1);
@@ -170,7 +170,7 @@ fn blind_copies_are_named_to_graph_in_the_message() {
     // A message for blind copies alone can be sent.
     let only = Message { to: Vec::new(), cc: Vec::new(), ..message };
     send_at(&server.url(""), TOKEN, &only, &SendOptions::default()).unwrap();
-    let read = mailcraft_mime::parse(&sent_message(&server.request(1)));
+    let read = mailcraft_mime_model::parse(&sent_message(&server.request(1)));
     assert_eq!((read.to.len(), read.cc.len(), read.bcc), (0, 0, blind));
 }
 
@@ -298,7 +298,7 @@ fn what_cannot_be_sent_is_refused_before_graph_is_asked() {
     let server = FakeHttp::answering(ACCEPTED.to_vec());
     let (base, options) = (server.url(""), SendOptions::default());
     let config = |result: Result<(), NetError>| match result {
-        Err(NetError::Config(why)) => why,
+        Err(NetError::Config(why)) => why.to_string(),
         other => panic!("expected the message to be refused, got {other:?}"),
     };
     // Nobody to send it to.
@@ -324,7 +324,12 @@ fn what_cannot_be_sent_is_refused_before_graph_is_asked() {
             Message { bcc: stranger.clone(), ..message() },
         ] {
             let why = config(send_at(&base, TOKEN, &message, &options));
-            assert!(why.contains("isn't an address mail can be sent to") && !why.contains('\r') && !why.contains('\n'), "{bad:?}: {why}");
+            assert!(
+                why.to_string().contains("isn't an address mail can be sent to")
+                    && !why.to_string().contains('\r')
+                    && !why.to_string().contains('\n'),
+                "{bad:?}: {why}"
+            );
         }
     }
     // No token, or what couldn't be one: there is no sign-in to show, and nothing to show it to.
@@ -746,7 +751,7 @@ fn hostile_calendar_answers_give_events_or_nothing() {
     ] {
         let result = listed(junk);
         assert!(
-            matches!(&result, Err(NetError::Proto(ProtoError::Protocol(why))) if why.starts_with("Microsoft Graph's answer")),
+            matches!(&result, Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().starts_with("Microsoft Graph's answer")),
             "{junk:.40}: {result:?}"
         );
     }

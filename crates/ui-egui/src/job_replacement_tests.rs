@@ -86,7 +86,7 @@ impl SecretStore for Store {
     fn get(&self, _: &str) -> Option<String> {
         None
     }
-    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+    fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
         *self.0.lock().unwrap() += 1;
         Ok(())
     }

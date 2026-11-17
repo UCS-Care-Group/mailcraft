@@ -119,7 +119,7 @@ pub fn any_on(s: &Session) -> bool {
 
 /// `2026-11-02T08:00` in the zone the calendar is shown in.
 fn shown(s: &Session, at: Timestamp) -> String {
-    let wall = s.zone().wall(at);
+    let wall = s.wall_at(at);
     format!("{}T{:02}:{:02}", wall.date.iso(), wall.hour, wall.minute)
 }
 
@@ -153,7 +153,7 @@ fn time_param(s: &Session, v: &Value, key: &str) -> Result<Option<Timestamp>, Cm
     let wall = (text.len() <= 40).then(|| mailcraft_time::parse_iso(text)).flatten().map(|(wall, _)| wall);
     let wall = wall.filter(|wall| (FIRST_YEAR..=LAST_YEAR).contains(&wall.date.year));
     let wall = wall.ok_or_else(|| bad(format!("`{key}` is a time: YYYY-MM-DDTHH:MM")))?;
-    Ok(Some(s.zone().instant(wall)))
+    Ok(Some(s.instant_of(wall)))
 }
 
 /// A reply the owner typed: at most [`MAX_REPLY_TEXT`] characters, no control characters but line

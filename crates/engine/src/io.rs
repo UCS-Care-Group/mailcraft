@@ -384,14 +384,14 @@ pub fn import_opened(s: &mut Session, name: &str, bytes: &[u8]) -> Result<Value,
         return Err(failed!("{name}: not a message file", name));
     }
     let folder = s.mailbox.imported_folder(false)?;
-    let mut m = mailcraft_mime::parse_fetched(bytes);
-    m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
+    let mut m = mailcraft_mime_model::parse_fetched(bytes);
+    m.remove_header(OPENED_FROM);
     let hash = file_sha256(bytes);
     // The same Message-ID (none for both, too), and, when the copy there keeps the SHA-256 of the
     // file it came from, the same file; a copy without one (imported before) by its Message-ID
     // alone, when there is one.
     let same = |x: &mailcraft_model::Message| {
-        let stored = x.headers.iter().find(|(key, _)| key.eq_ignore_ascii_case(OPENED_FROM)).map(|(_, value)| value.as_str());
+        let stored = x.header(OPENED_FROM);
         x.message_id == m.message_id
             && match stored {
                 Some(stored) => hash.as_deref() == Some(stored),
@@ -424,8 +424,8 @@ pub fn parse_unfiled(name: &str, bytes: &[u8]) -> Result<mailcraft_model::Messag
     if Format::detect(name, bytes) != Some(Format::Eml) {
         return Err(failed!("{name}: not a message file", name));
     }
-    let mut m = mailcraft_mime::parse_fetched(bytes);
-    m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
+    let mut m = mailcraft_mime_model::parse_fetched(bytes);
+    m.remove_header(OPENED_FROM);
     (m.id, m.uid, m.folder, m.draft, m.read) = (0, 0, 0, false, true);
     (m.server, m.synced) = (None, None);
     if m.received == 0 {
@@ -442,31 +442,98 @@ fn show_opened(s: &mut Session, id: Id) {
     s.show_selected();
 }
 
-/// Bring a file's contents into the mailbox: messages go to `folder` (default: the folder in
-/// view, or the Inbox), events to the default calendar, contacts and to-dos to their lists.
-pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> Result<Value, CmdError> {
-    let format = Format::detect(name, bytes).ok_or_else(|| failed!("{name}: not a message, calendar or contact file MailCraft reads", name))?;
+/// How many messages a file of mail holds, as [`import`] would take them, without reading them
+/// (for a question asked before an import, #1401): one for a message file, the separators of an
+/// mbox file (at most [`MAX_IMPORT_MESSAGES`]); `None` for any other file.
+pub fn count_messages(name: &str, bytes: &[u8]) -> Option<usize> {
+    match Format::detect(name, bytes)? {
+        Format::Eml => Some(1),
+        Format::Mbox => Some(mailcraft_mime_model::count_mbox(bytes).min(MAX_IMPORT_MESSAGES)),
+        _ => None,
+    }
+}
+
+/// The kind of account the folder an import was meant for belongs to, as the log names it (#1401).
+fn kind_name(kind: AccountKind) -> &'static str {
+    match kind {
+        AccountKind::Local => "this computer",
+        AccountKind::Imap => "an IMAP account",
+        AccountKind::Microsoft => "a Microsoft account",
+        AccountKind::Jmap => "a JMAP account",
+        AccountKind::Exchange => "an Exchange server account",
+        AccountKind::Unknown => "an account of a newer MailCraft",
+    }
+}
+
+/// The same, as the answer of `file.import` names it (`account`).
+fn kind_word(kind: AccountKind) -> &'static str {
+    match kind {
+        AccountKind::Local => "local",
+        AccountKind::Imap => "imap",
+        AccountKind::Microsoft => "microsoft",
+        AccountKind::Jmap => "jmap",
+        AccountKind::Exchange => "exchange",
+        AccountKind::Unknown => "unknown",
+    }
+}
+
+/// The folder mail from a file is meant for (#1401): `folder` (default: the folder in view, or the
+/// Inbox), but never an Outbox: with one in view the account's Drafts (or its Inbox), and one named
+/// outright is refused. `mail`: the file holds mail (for a calendar or contacts file only the
+/// folder is checked). Mail meant for a folder of an account a server keeps then lands on this
+/// computer ([`lands_in`]).
+pub fn mail_aimed_at(mb: &mailcraft_model::Mailbox, view_folder: Id, folder: Option<Id>, mail: bool) -> Result<Id, CmdError> {
     let explicit = folder.is_some();
     let folder = match folder {
-        Some(f) => s.mailbox.folder(f).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id = f))?,
-        None => s.mailbox.folder(s.view.folder).map(|f| f.id).or_else(|| s.mailbox.inbox()).ok_or_else(|| fail("the mailbox has no folders"))?,
+        Some(f) => mb.folder(f).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id = f))?,
+        None => mb.folder(view_folder).map(|f| f.id).or_else(|| mb.inbox()).ok_or_else(|| fail("the mailbox has no folders"))?,
     };
     // Mail brought in from a file is mail the owner has not written: it never lands where the next
     // Send/Receive would send it. With an Outbox in view it goes to the account's Drafts instead
     // (or its Inbox); an Outbox named outright is refused.
-    let folder = if matches!(format, Format::Eml | Format::Mbox) && s.mailbox.is_send_queue(folder) {
+    if mail && mb.is_send_queue(folder) {
         if explicit {
             return Err(fail("Mail can't be imported into an Outbox: it would be sent. Choose another folder."));
         }
-        let account = s.mailbox.folder(folder).map_or(0, |f| f.account);
-        [FolderKind::Drafts, FolderKind::Inbox]
+        let account = mb.folder(folder).map_or(0, |f| f.account);
+        return [FolderKind::Drafts, FolderKind::Inbox]
             .into_iter()
-            .find_map(|kind| s.mailbox.folder_of_kind(account, kind))
-            .filter(|id| !s.mailbox.is_send_queue(*id))
-            .ok_or_else(|| fail("Mail can't be imported into an Outbox: it would be sent."))?
-    } else {
-        folder
-    };
+            .find_map(|kind| mb.folder_of_kind(account, kind))
+            .filter(|id| !mb.is_send_queue(*id))
+            .ok_or_else(|| fail("Mail can't be imported into an Outbox: it would be sent."));
+    }
+    Ok(folder)
+}
+
+/// Where mail meant for a folder lands ([`lands_in`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lands {
+    /// In this folder: the one meant, of this computer's, or this computer's Drafts.
+    Folder(Id),
+    /// In this computer's Imported folder (made when it isn't there yet).
+    Imported,
+}
+
+/// Where mail meant for `aimed` ([`mail_aimed_at`]) lands (#1401): there, for a folder of this
+/// computer's; for a folder of an account a server keeps, this computer's Drafts when it was
+/// meant for Drafts and there is one, else the Imported folder.
+pub fn lands_in(mb: &mailcraft_model::Mailbox, aimed: Id) -> Lands {
+    let Some(f) = mb.folder(aimed) else { return Lands::Folder(aimed) };
+    if mb.account(f.account).is_none_or(|a| a.kind == AccountKind::Local) {
+        return Lands::Folder(aimed);
+    }
+    let drafts = mb.accounts.iter().find(|a| a.kind == AccountKind::Local).and_then(|l| mb.folder_of_kind(l.id, FolderKind::Drafts));
+    match drafts {
+        Some(d) if f.kind == FolderKind::Drafts => Lands::Folder(d),
+        _ => Lands::Imported,
+    }
+}
+
+/// Bring a file's contents into the mailbox: messages go to `folder` (default: the folder in
+/// view, or the Inbox), events to a calendar on this computer (#1050), contacts and to-dos to their lists.
+pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> Result<Value, CmdError> {
+    let format = Format::detect(name, bytes).ok_or_else(|| failed!("{name}: not a message, calendar or contact file MailCraft reads", name))?;
+    let folder = mail_aimed_at(&s.mailbox, s.view.folder, folder, matches!(format, Format::Eml | Format::Mbox))?;
     let now = s.now();
     match format {
         Format::Mailbox => Err(bad(format!("{name} is a whole mailbox; open it with File › Open"))),
@@ -474,19 +541,23 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             // At most MAX_IMPORT_MESSAGES are taken from a file; the one after them tells whether
             // the file went on ("stopped after N").
             let mut messages: Vec<_> = if format == Format::Eml {
-                vec![mailcraft_mime::parse_fetched(bytes)]
+                vec![mailcraft_mime_model::parse_fetched(bytes)]
             } else {
-                mailcraft_mime::mbox_messages(bytes).take(MAX_IMPORT_MESSAGES + 1).collect()
+                mailcraft_mime_model::mbox_messages(bytes).take(MAX_IMPORT_MESSAGES + 1).collect()
             };
             let stopped = messages.len() > MAX_IMPORT_MESSAGES;
             messages.truncate(MAX_IMPORT_MESSAGES);
             if messages.is_empty() {
                 return Err(failed!("{name} has no messages", name));
             }
-            // Mail imported for a Microsoft account goes to a local folder, which is shown (R3
-            // spec S30); moved into the account from there, it is put on the server (#451).
-            let microsoft = s.mailbox.folder(folder).and_then(|f| s.mailbox.account(f.account)).is_some_and(|a| a.kind == AccountKind::Microsoft);
-            let folder = if microsoft {
+            // Mail imported for an account that a server keeps goes to a local folder, which is
+            // shown (R3 spec S30, #1401): kept among the server's mail, it would look like the
+            // server's and never be compared with it. Moved into a Microsoft or an IMAP account
+            // from there, it is put on the server (#451).
+            let kind = s.mailbox.folder(folder).and_then(|f| s.mailbox.account(f.account)).map_or(AccountKind::Local, |a| a.kind);
+            let served = kind != AccountKind::Local;
+            let aimed = folder;
+            let folder = if served {
                 let drafts = s.mailbox.folder(folder).is_some_and(|f| f.kind == FolderKind::Drafts);
                 let local = s.mailbox.imported_folder(drafts)?;
                 s.view.folder = local;
@@ -497,20 +568,37 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 folder
             };
             let drafts = s.mailbox.folder(folder).is_some_and(|f| f.kind == FolderKind::Drafts);
+            // What the folder it lands in holds already, whole, and, when it was sent to Imported
+            // instead, the folder it was meant for (a folder exported and dropped back on the
+            // window): the same mail again is left out, and so is a message the file holds twice
+            // (#1401). Never what is anywhere else: a folder exported to be kept in an archive of
+            // this computer's comes in whole. One index, built once; one with no Message-ID or no
+            // date is never taken for another, and always comes in.
+            let looked_in: Vec<Id> = if aimed == folder { vec![folder] } else { vec![folder, aimed] };
+            let mut here = crate::cmd::imported_dupes::Twins::of(&s.mailbox, &looked_in);
             let mut ids = Vec::new();
+            let mut already = 0usize;
             for mut m in messages {
+                if here.holds(&m) {
+                    already += 1;
+                    continue;
+                }
+                here.add(&m);
                 m.id = 0;
                 m.uid = 0;
                 m.folder = folder;
                 m.left_gmail_inbox();
                 m.draft = drafts;
                 // Only a message opened from a file keeps that file's SHA-256 (`import_opened`).
-                m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
+                m.remove_header(OPENED_FROM);
                 if m.received == 0 {
                     m.received = if m.date != 0 { m.date } else { now };
                 }
                 ids.push(s.mailbox.add_message(m)?);
             }
+            let format_name = if format == Format::Eml { "eml" } else { "mbox" };
+            // What came in, for the log: never a name, an address or a subject.
+            log::info!("import: {format_name}, {} imported, {already} already there, meant for a folder of {}", ids.len(), kind_name(kind));
             if let Some(last) = ids.last() {
                 // What a search in view finds is asked of the mailbox with them in it.
                 s.list_due();
@@ -519,9 +607,17 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 // leaves it out.
                 s.show_selected();
             }
-            Ok(
-                json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft, "drafts": drafts, "stoppedAfter": stopped.then_some(ids.len())}),
-            )
+            Ok(json!({
+                "format": format_name,
+                "messages": ids.len(),
+                "already": already,
+                "ids": ids,
+                "folder": folder,
+                "local": served,
+                "account": kind_word(kind),
+                "drafts": drafts,
+                "stoppedAfter": stopped.then_some(ids.len()),
+            }))
         }
         Format::Ics => {
             let text = String::from_utf8_lossy(bytes);
@@ -535,7 +631,8 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             // The events of this computer's own, by UID: looked up once, not once for every event.
             let mut own_uids: std::collections::HashMap<String, (mailcraft_model::Id, mailcraft_model::Id)> = std::collections::HashMap::new();
             for x in s.mailbox.events.values() {
-                if !x.uid.is_empty() && x.origin.is_local() {
+                // (Not a copy of a calendar on the web: the next refresh would take the import away.)
+                if !x.uid.is_empty() && x.origin.is_local() && s.mailbox.calendar(x.calendar).is_none_or(|c| !c.is_subscribed()) {
                     own_uids.entry(x.uid.clone()).or_insert((x.id, x.calendar));
                 }
             }
@@ -550,16 +647,20 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 let existing = if e.uid.is_empty() { None } else { own_uids.get(&e.uid).copied() };
                 // (Two that name nobody are the owner's own appointment, exported and imported again.)
                 let existing = existing.filter(|(id, _)| s.mailbox.event(*id).is_some_and(|have| crate::cmd::calendar::same_organizer(have, &e)));
+                // What a file brings is the owner's, on this computer, until the owner moves it
+                // (#1050): never into a calendar that an account's server keeps, where it would
+                // look sent and never be, and where nothing would offer to send it.
                 match existing {
                     Some((id, calendar)) => {
                         e.id = id;
-                        e.calendar = calendar;
+                        e.calendar = if crate::cmd::calendar::served(s, calendar) { crate::cmd::calendar::own_calendar_or_new(s)? } else { calendar };
                         *s.mailbox.event_mut(id)? = e;
                         updated += 1;
                         events.push(id);
                     }
                     None => {
                         let uid = e.uid.clone();
+                        e.calendar = crate::cmd::calendar::own_calendar_or_new(s)?;
                         let (calendar, id) = (e.calendar, s.mailbox.add_event(e)?);
                         if !uid.is_empty() {
                             own_uids.entry(uid).or_insert((id, calendar));
@@ -577,6 +678,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 s.view.date = first.start.date;
                 s.sel.event = Some(first.id);
             }
+            log::info!("import: ics, {} events ({updated} replacing one already here), {} tasks, into this computer", events.len(), tasks.len());
             // (`notes`: what was unclear about a time zone in the file, for the owner to read.)
             Ok(json!({"format": "ics", "events": events.len(), "tasks": tasks.len(), "updated": updated, "method": file.method, "notes": notes}))
         }
@@ -590,6 +692,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 c.id = 0;
                 ids.push(s.mailbox.add_contact(c));
             }
+            log::info!("import: vcf, {} contacts, into this computer", ids.len());
             s.sel.contact = ids.first().copied();
             if let Some(first) = s.sel.contact {
                 crate::cmd::people::reveal(s, first);

@@ -38,7 +38,8 @@ fn a_token_refused_part_way_through_a_send_receive_is_renewed_once_and_kept() {
     server.state().mailbox.generate(&projects, 3, NOW);
     let session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     // Every refresh token a new access token was asked for with, in order; each answer comes
     // with the next refresh token, as Microsoft rotates them.
     let asked: Arc<Mutex<Vec<String>>> = Arc::default();

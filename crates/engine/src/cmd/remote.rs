@@ -772,14 +772,15 @@ pub fn only_here(mailbox: &Mailbox) -> Vec<(Id, usize)> {
     if server_calendar(mailbox).is_none() {
         return Vec::new();
     }
-    let own = mailbox.calendars.iter().filter(|calendar| keeper(mailbox, &calendar.origin).is_none());
+    let own = mailbox.calendars.iter().filter(|calendar| keeper(mailbox, &calendar.origin).is_none() && !calendar.is_subscribed());
     own.map(|calendar| (calendar.id, mailbox.events.values().filter(|event| event.calendar == calendar.id).count())).filter(|(_, n)| *n > 0).collect()
 }
 
 /// Whether the event `id` is kept on this computer only although an account's server keeps a
 /// calendar here ([`only_here`]): a change to it goes nowhere, and whoever makes one is told.
 pub fn stays_here(mailbox: &Mailbox, id: Id) -> bool {
-    let own = |calendar: Id| mailbox.calendar(calendar).is_some_and(|calendar| keeper(mailbox, &calendar.origin).is_none());
+    let own =
+        |calendar: Id| mailbox.calendar(calendar).is_some_and(|calendar| keeper(mailbox, &calendar.origin).is_none() && !calendar.is_subscribed());
     server_calendar(mailbox).is_some() && mailbox.event(id).is_some_and(|event| own(event.calendar))
 }
 
@@ -789,7 +790,8 @@ pub fn stays_here(mailbox: &Mailbox, id: Id) -> bool {
 /// not one that is only free and busy blocks.
 pub fn is_own_calendar(mailbox: &Mailbox, calendar: &Calendar) -> bool {
     match keeper(mailbox, &calendar.origin) {
-        None => true,
+        // (Not a copy of somebody's calendar on the web either: nothing in it is the owner's.)
+        None => !calendar.is_subscribed(),
         Some(account) => !account.is_shared() && calendar.rights != Rights::FreeBusy && !super::calendar_settings::is_shared_with(account, calendar),
     }
 }
@@ -855,6 +857,8 @@ fn new_token(event: Id, salt: u64) -> String {
 /// only read (somebody else's, a calendar of holidays): the server would refuse it anyway.
 pub(crate) fn writable(mailbox: &Mailbox, calendar: Id) -> Result<(), CmdError> {
     match mailbox.calendar(calendar) {
+        // A copy of a calendar on the web (Internet Calendars): the next look would take a change back.
+        Some(c) if c.is_subscribed() => Err(failed!("The calendar \"{name}\" is a copy of one on the web: it can only be read here.", name = c.name)),
         // A shared mailbox's calendar, with the rights this account has on it (#70): the owner
         // of the mailbox sets them, and they are read again at every listing.
         Some(c) if !c.can_edit() && keeper(mailbox, &c.origin).is_some_and(Account::is_shared) => {
@@ -1217,7 +1221,11 @@ fn keep_on_this_computer(mailbox: &mut Mailbox, id: Id) -> bool {
     if mailbox.event(id).is_none() {
         return false;
     }
-    let own = mailbox.calendars.iter().find(|calendar| keeper(mailbox, &calendar.origin).is_none()).map(|calendar| calendar.id);
+    let own = mailbox
+        .calendars
+        .iter()
+        .find(|calendar| keeper(mailbox, &calendar.origin).is_none() && !calendar.is_subscribed())
+        .map(|calendar| calendar.id);
     let own = match own {
         Some(own) => own,
         None if mailbox.calendars.len() < MAX_CALENDARS => {
@@ -2686,6 +2694,7 @@ fn settle_calendars(mailbox: &mut Mailbox) {
     if !mailbox.calendars.iter().any(|calendar| server_kept(mailbox, calendar)) {
         return;
     }
+    rehome_strays(mailbox);
     let renamed: Vec<Id> = mailbox
         .calendars
         .iter()
@@ -2710,6 +2719,41 @@ fn settle_calendars(mailbox: &mut Mailbox) {
     }
     mailbox.calendars.retain(|calendar| !(own.contains(&calendar.id) && !in_use.contains(&calendar.id)));
 }
+
+/// An event of the owner's own in a calendar that a server keeps (an `.ics` file put one there
+/// before #1050) is on that server nowhere, and nothing would ever send it: it goes to a calendar
+/// on this computer, which says where it is and offers to move it to the account's calendar.
+fn rehome_strays(mailbox: &mut Mailbox) {
+    let served = |mailbox: &Mailbox, calendar: Id| mailbox.calendar(calendar).is_some_and(|c| keeper(mailbox, &c.origin).is_some());
+    // What is on its way to a server is never a stray: one made or moved into a server's
+    // calendar has that account in its origin from then on ([`note_created`], [`note_moved`]),
+    // and anything a waiting change names stays where it is all the same.
+    let waiting: HashSet<Id> = mailbox.event_changes.iter().map(|change| change.event).collect();
+    let stray = |e: &Event| e.origin.is_local() && !waiting.contains(&e.id) && served(mailbox, e.calendar);
+    let strays: Vec<Id> = mailbox.events.values().filter(|e| stray(e)).map(|e| e.id).take(MAX_STRAYS).collect();
+    if strays.is_empty() {
+        return;
+    }
+    // (One that is shown, when there is one: what was in view stays in view.)
+    let own = || mailbox.calendars.iter().filter(|c| keeper(mailbox, &c.origin).is_none() && !c.is_subscribed());
+    let home = match own().find(|c| c.visible).or_else(|| own().next()).map(|c| c.id) {
+        Some(calendar) => calendar,
+        None if mailbox.calendars.len() < MAX_CALENDARS => {
+            let (id, color) = (mailbox.alloc_id(), super::calendar::next_color(mailbox));
+            mailbox.calendars.push(Calendar { id, name: LOCAL_CALENDAR.into(), color, visible: true, ..Default::default() });
+            id
+        }
+        None => return,
+    };
+    for id in strays {
+        if let Ok(event) = mailbox.event_mut(id) {
+            event.calendar = home;
+        }
+    }
+}
+
+/// Most events [`rehome_strays`] moves in one go (the rest at the next download).
+const MAX_STRAYS: usize = 10_000;
 
 /// What a download makes of the changes that were sent and are yet to be seen ([`check_sent`]).
 #[derive(Default)]
@@ -3457,8 +3501,14 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
 /// The local zone's offset at an instant, as the session's clock has it.
 pub(crate) fn offset_of(s: &Session) -> impl Fn(Timestamp) -> i32 + use<> {
     // The zone the calendar is shown in, which is the one the mailbox's times are by.
-    let (fixed, zone) = (s.clock.offset, s.zone());
-    move |instant| fixed.unwrap_or_else(|| zone.offset_at(instant))
+    // Where the system names no zone, the phone's offset stands in, as in `Session::offset_at`.
+    let (fixed, zone, fallback) = (s.clock.offset, s.zone(), s.fallback_offset.clone());
+    move |instant| {
+        fixed.unwrap_or_else(|| match &fallback {
+            Some(phone) if zone.is_local() => phone(instant).clamp(-18 * 60, 18 * 60),
+            _ => zone.offset_at(instant),
+        })
+    }
 }
 
 /// Take in the events a host downloaded ([`merge_events`]), with times in the session's zone.
@@ -3562,7 +3612,7 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     // to: not another account's, whose server would never be sent it.
     let left_in = |event: &std::sync::Arc<Event>| mailbox.calendars.iter().any(|calendar| calendar.id == event.calendar && followed(calendar));
     let homeless = mailbox.events.values().any(left_in);
-    let own_stays = mailbox.calendars.iter().any(|calendar| !followed(calendar) && calendar.origin.is_local());
+    let own_stays = mailbox.calendars.iter().any(|calendar| !followed(calendar) && calendar.is_own());
     if calendars > 0 && (calendars == mailbox.calendars.len() || (homeless && !own_stays)) {
         // No calendar of the mailbox's own would be left (for what was made here, or at all):
         // one becomes that, the account's main one when it is here (not a Birthdays it lists
@@ -3576,7 +3626,7 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     }
     let gone: Vec<Id> = mailbox.calendars.iter().filter(|calendar| followed(calendar)).map(|calendar| calendar.id).collect();
     // Events made here that sat in a calendar that goes move to one of the mailbox's own.
-    let home = mailbox.calendars.iter().find(|calendar| !followed(calendar) && calendar.origin.is_local());
+    let home = mailbox.calendars.iter().find(|calendar| !followed(calendar) && calendar.is_own());
     if let Some(home) = home.map(|calendar| calendar.id) {
         for event in mailbox.events.values_mut().filter(|event| gone.contains(&event.calendar)) {
             std::sync::Arc::make_mut(event).calendar = home;
@@ -3908,3 +3958,6 @@ mod shared_calendar_tests;
 
 #[cfg(test)]
 mod cross_move_tests;
+
+#[cfg(test)]
+mod fallback_offset_tests;

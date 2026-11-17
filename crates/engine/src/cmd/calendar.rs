@@ -101,7 +101,8 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
 fn changing(s: &Session, v: &Value) -> Result<Event, CmdError> {
     let id = target(s, v)?;
     let e = s.mailbox.event(id).cloned().ok_or_else(|| fail("the event is gone"))?;
-    if kept_by(s, &e).is_some() {
+    // (A copy of a calendar on the web is read here, as one the account may only read is.)
+    if kept_by(s, &e).is_some() || s.mailbox.calendar(e.calendar).is_some_and(|c| c.is_subscribed()) {
         writable(s, e.calendar)?;
     }
     Ok(e)
@@ -119,13 +120,13 @@ fn kept_by(s: &Session, e: &Event) -> Option<String> {
 }
 
 /// Whether a calendar is one that an account's server keeps.
-fn served(s: &Session, calendar: Id) -> bool {
+pub(crate) fn served(s: &Session, calendar: Id) -> bool {
     s.mailbox.calendar(calendar).is_some_and(|c| remote::keeper(&s.mailbox, &c.origin).is_some())
 }
 
 /// The first calendar that is the mailbox's own.
 fn own_calendar(s: &Session) -> Id {
-    let own = s.mailbox.calendars.iter().find(|c| remote::keeper(&s.mailbox, &c.origin).is_none());
+    let own = s.mailbox.calendars.iter().find(|c| remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed());
     own.map_or(0, |c| c.id)
 }
 
@@ -204,7 +205,8 @@ fn comment(v: &Value) -> String {
 /// the main calendar of the account's server when a download has brought one, so that the event
 /// shows wherever the account is read; otherwise the first calendar of the mailbox's own.
 pub fn current_calendar(s: &Session) -> Id {
-    if s.mailbox.calendar(s.view.in_calendar).is_some() {
+    // (Never a copy of a calendar on the web: nothing new goes into it.)
+    if s.mailbox.calendar(s.view.in_calendar).is_some_and(|c| !c.is_subscribed()) {
         return s.view.in_calendar;
     }
     match remote::server_calendar(&s.mailbox) {
@@ -215,7 +217,7 @@ pub fn current_calendar(s: &Session) -> Id {
 
 /// A calendar of the mailbox's own, for what is not to be on a server (a meeting nobody is to be
 /// invited to yet): the first there is, or a new one that says where it lives.
-fn own_calendar_or_new(s: &mut Session) -> Result<Id, CmdError> {
+pub(crate) fn own_calendar_or_new(s: &mut Session) -> Result<Id, CmdError> {
     match own_calendar(s) {
         0 => {
             if s.mailbox.calendars.len() >= 200 {
@@ -1064,8 +1066,11 @@ fn remove_calendar(s: &mut Session, v: &Value) -> CmdResult {
     let Some(calendar) = s.mailbox.calendar(id) else { return Err(failed!("no calendar with id {id}", id)) };
     // A calendar that a server keeps would be back with the next download, its events with it.
     super::remote::changeable(&s.mailbox, &calendar.origin, "calendar")?;
+    if calendar.is_subscribed() {
+        return Err(fail("This calendar is a copy of one on the web. Unsubscribe from it to remove it."));
+    }
     // One calendar of the mailbox's own stays, for new events to go in.
-    let own = |c: &Calendar| super::remote::keeper(&s.mailbox, &c.origin).is_none();
+    let own = |c: &Calendar| super::remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed();
     if !s.mailbox.calendars.iter().any(|c| c.id != id && own(c)) {
         return Err(fail("the last calendar can't be deleted"));
     }
@@ -1086,12 +1091,17 @@ fn move_to_account(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("No account's server keeps a calendar here yet, so there is nowhere to move these to."));
     };
     writable(s, target)?;
-    let own = |s: &Session, calendar: Id| s.mailbox.calendar(calendar).is_some_and(|c| remote::keeper(&s.mailbox, &c.origin).is_none());
+    let own = |s: &Session, calendar: Id| {
+        s.mailbox.calendar(calendar).is_some_and(|c| remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed())
+    };
     let from: Vec<Id> = match p::id(v, "calendar") {
         Some(calendar) if own(s, calendar) => vec![calendar],
+        Some(calendar) if s.mailbox.calendar(calendar).is_some_and(Calendar::is_subscribed) => {
+            return Err(fail("That calendar is a copy of one on the web: it stays where it is."));
+        }
         Some(calendar) if s.mailbox.calendar(calendar).is_some() => return Err(fail("That calendar is kept by an account's server already.")),
         Some(calendar) => return Err(failed!("no calendar with id {id}", id = calendar)),
-        None => s.mailbox.calendars.iter().filter(|c| remote::keeper(&s.mailbox, &c.origin).is_none()).map(|c| c.id).collect(),
+        None => s.mailbox.calendars.iter().filter(|c| remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed()).map(|c| c.id).collect(),
     };
     let ids: Vec<Id> = s.mailbox.events.values().filter(|e| from.contains(&e.calendar)).map(|e| e.id).take(10_000).collect();
     let meetings = ids.iter().filter(|id| s.mailbox.event(**id).is_some_and(|e| !e.attendees.is_empty())).count();

@@ -252,7 +252,9 @@ impl Transport {
 
     /// A request on the held connection, opened and signed in when there is none. A connection that
     /// has closed is opened again, for a request that may be made again; one whose request may have
-    /// gone out and is not to be repeated is [`TransportError::Lost`].
+    /// gone out and is not to be repeated is [`TransportError::Lost`]. A request the server turns
+    /// down with 401 on a connection signed in earlier (a server that keeps a sign-in for one
+    /// request only, #1085) is signed in again on a new connection and sent once more.
     fn over_ntlm(&self, state: &mut SignIn, request: &HttpRequest) -> Result<HttpResponse, TransportError> {
         let Some(credentials) = &self.ntlm else {
             self.note(AuthProblem::NtlmFailed);
@@ -307,6 +309,14 @@ impl Transport {
                 trusted: &self.trusted,
             };
             match connection.send(&ask) {
+                // A server that keeps no sign-in past one request (IIS `Persistent-Auth: false`)
+                // answers a request sent on a signed-in connection without credentials with 401:
+                // the server did nothing with it, so sign in again on a new connection and send
+                // the request with the third leg, once. A 401 to the third leg itself is a refused
+                // sign-in, and goes back to the run as it always has.
+                Ok(answer) if answer.status == 401 && third.is_none() && attempt == 0 => {
+                    state.connection = None;
+                }
                 Ok(answer) => return Ok(Self::response(answer)),
                 Err(error) if mailcraft_net::https::is_closed(&error) => {
                     state.connection = None;

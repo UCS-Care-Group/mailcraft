@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Mail to keep offline (#143): mail of a Microsoft account older than its window goes back to
+//! Mail to keep offline (#143): mail of a Microsoft or Exchange server (#966) account older than its window goes back to
 //! its headers and preview, and the content files it kept on disk go with it.
 //!
 //! - **What goes back** is mail outside its account's window ([`OfflineWindow`]) that is here
@@ -17,7 +17,7 @@
 
 use std::collections::HashSet;
 
-use mailcraft_model::{AccountKind, Id, KeepOffline, Message, OfflineWindow, size_label};
+use mailcraft_model::{Id, KeepOffline, Message, OfflineWindow, size_label};
 use serde_json::{Value, json};
 
 use super::{bad, fail, graph_down};
@@ -30,7 +30,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.thinOffline", "Remove Older Mail from This Computer", "File › Info", thin_offline)
             .pure()
-            .params(r#"{"account"?: number (and the shared mailboxes opened through it; default every account), "most"?: number (default and at most 100000)} — mail of a Microsoft account older than its mail to keep offline goes back to its headers and preview here, and its content files leave the disk once the mailbox is saved; it stays on the server and is fetched again when it is opened. Never mail the server lacks (local folders, Drafts, the Outbox, held messages), the message shown, or one fetched this session by opening it (that goes back the next time the mailbox is opened). Not an undo step. The window runs it at start, once a day, and when its owner shortens the window. Answers {"thinned": number, "bytes": number, "left": number (still to go, past "most")}"#)
+            .params(r#"{"account"?: number (and the shared mailboxes opened through it; default every account), "most"?: number (default and at most 100000)} — mail of a Microsoft or Exchange server account older than its mail to keep offline goes back to its headers and preview here, and its content files leave the disk once the mailbox is saved; it stays on the server and is fetched again when it is opened. Never mail the server lacks (local folders, Drafts, the Outbox, held messages), the message shown, or one fetched this session by opening it (that goes back the next time the mailbox is opened). Not an undo step. The window runs it at start, once a day, and when its owner shortens the window. Answers {"thinned": number, "bytes": number, "left": number (still to go, past "most")}"#)
             .when(has_graph_account),
         CommandSpec::new("account.offlineSize", "Space Older Mail Takes", "File › Info", offline_size)
             .pure()
@@ -39,22 +39,22 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 fn has_graph_account(s: &Session) -> Option<&'static str> {
-    if s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft) {
+    if s.mailbox.accounts.iter().any(|a| a.kind.has_offline_window()) {
         None
     } else {
-        Some("no account is kept in step through Microsoft Graph")
+        Some("no Microsoft or Exchange server account keeps mail offline")
     }
 }
 
-/// The Microsoft account a command names (not a shared mailbox: it follows its owner).
+/// The Microsoft or Exchange server account a command names (not a shared mailbox: it follows its owner).
 fn account_of(s: &Session, v: &Value, required: bool) -> Result<Option<Id>, crate::CmdError> {
     let id = match v.get("account") {
         None | Some(Value::Null) if !required => return Ok(None),
         _ => p::req_id(v, "account")?,
     };
     let a = s.mailbox.account(id).ok_or_else(|| failed!("no account with id {id}", id))?;
-    if a.kind != AccountKind::Microsoft {
-        return Err(failed!("{name} isn't kept in step through Microsoft Graph", name = a.name));
+    if !a.kind.has_offline_window() {
+        return Err(failed!("{name} isn't a Microsoft or Exchange server account", name = a.name));
     }
     if a.is_shared() {
         return Err(fail("a shared mailbox keeps as much mail offline as the account it is opened through: name that account"));
@@ -133,7 +133,7 @@ pub(crate) fn content_bytes(m: &Message) -> u64 {
 
 /// The preview message `id` keeps: the first words of its text (read from disk when only that
 /// is kept there).
-fn preview_of(s: &Session, id: Id) -> String {
+pub(crate) fn preview_of(s: &Session, id: Id) -> String {
     let Some(m) = s.mailbox.message(id) else { return String::new() };
     if !m.body.text.trim().is_empty() || m.body.html.is_some() {
         return crate::list::preview(m, PREVIEW);
@@ -156,11 +156,22 @@ fn preview_of(s: &Session, id: Id) -> String {
 /// preview, `most` messages at most. Not an undo step.
 pub fn thin(s: &mut Session, account: Option<Id>, most: usize) -> Thinned {
     let waiting = outside(s, account);
-    let mut done = Thinned { left: waiting.len().saturating_sub(most), ..Default::default() };
+    let left = waiting.len().saturating_sub(most);
+    let done = thin_these(s, waiting.into_iter().take(most));
+    if done.messages > 0 {
+        log::info!("{} message(s) outside their mail to keep offline went back to their headers and preview ({} bytes)", done.messages, done.bytes);
+    }
+    Thinned { left, ..done }
+}
+
+/// The messages `ids` go back to their headers and preview, their content files leaving the disk
+/// with the next save. Not an undo step.
+pub(crate) fn thin_these(s: &mut Session, ids: impl IntoIterator<Item = Id>) -> Thinned {
+    let mut done = Thinned::default();
     let mut thinned = HashSet::new();
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
     let mut refs: Vec<mailcraft_model::ContentRef> = Vec::new();
-    for id in waiting.into_iter().take(most) {
+    for id in ids {
         let preview = preview_of(s, id);
         let Some(m) = s.mailbox.messages.get(&id) else { continue };
         done.bytes = done.bytes.saturating_add(content_bytes(m));
@@ -185,6 +196,5 @@ pub fn thin(s: &mut Session, account: Option<Id>, most: usize) -> Thinned {
     }
     #[cfg(target_arch = "wasm32")]
     drop(refs);
-    log::info!("{} message(s) outside their mail to keep offline went back to their headers and preview ({} bytes)", done.messages, done.bytes);
     done
 }

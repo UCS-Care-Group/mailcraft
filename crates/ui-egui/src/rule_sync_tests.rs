@@ -101,7 +101,7 @@ fn a_rule_waits_here_until_the_owner_allows_changing_the_rules_on_the_server() {
     assert!(app.rules_tick_at(0.0));
     assert_eq!(*jobs.lock().unwrap(), [(owner, 1)]);
     app.poll_rules();
-    assert_eq!(app.rules.perm.get(&owner), Some(&Permission::Needed));
+    assert_eq!(app.session.driver.rules.perm.get(&owner), Some(&Permission::Needed));
     // It runs here meanwhile, and says why it is not on the server.
     let r = app.session.mailbox.rules.iter().find(|r| r.id == rule).unwrap().clone();
     assert!(r.waiting() && !r.on_server());
@@ -117,7 +117,7 @@ fn a_rule_waits_here_until_the_owner_allows_changing_the_rules_on_the_server() {
     // Not now: the server's rules are still read, as due, and nothing is sent.
     app.dialog = None;
     assert!(!app.rules_tick_at(7_000.0));
-    assert_eq!(app.rules.perm.get(&owner), Some(&Permission::Declined));
+    assert_eq!(app.session.driver.rules.perm.get(&owner), Some(&Permission::Declined));
     let (line, again) = app.rules_line(owner).unwrap();
     assert!(again && line.contains("not allowed on the server yet"), "{line}");
     assert!(!app.rules_tick_at(60_000.0), "what waits for a permission makes no job");
@@ -132,7 +132,7 @@ fn a_rule_waits_here_until_the_owner_allows_changing_the_rules_on_the_server() {
     assert_eq!(app.run("ui.allowRules", json!({"account": owner, "confirmed": true})).unwrap()["account"], owner);
     assert_eq!(*sign_ins.lock().unwrap(), [(owner, true, false)]);
     app.poll_sign_in();
-    assert_eq!(app.rules.perm.get(&owner), None);
+    assert_eq!(app.session.driver.rules.perm.get(&owner), None);
     // Allowed: the next look sends it.
     assert!(app.rules_tick_at(7.0 * 60_000.0));
     assert_eq!(jobs.lock().unwrap().last(), Some(&(owner, 1)));
@@ -151,11 +151,11 @@ fn a_yes_for_the_automatic_replies_is_a_yes_for_the_rules_and_back() {
     assert!(!app.rules_tick_at(6_000.0));
     app.dialog = None;
     assert!(!app.rules_tick_at(7_000.0));
-    assert_eq!(app.rules.perm.get(&owner), Some(&Permission::Declined));
+    assert_eq!(app.session.driver.rules.perm.get(&owner), Some(&Permission::Declined));
     // The owner allows changing the automatic replies, on Microsoft's page.
     app.run("ui.allowAutomaticReplies", json!({"account": owner, "confirmed": true})).unwrap();
     app.poll_sign_in();
-    assert_eq!(app.rules.perm.get(&owner), None);
+    assert_eq!(app.session.driver.rules.perm.get(&owner), None);
     let (line, again) = app.rules_line(owner).unwrap();
     assert!(!again, "{line}");
     // The rule goes with the next look, and nobody is asked again.
@@ -165,12 +165,12 @@ fn a_yes_for_the_automatic_replies_is_a_yes_for_the_rules_and_back() {
     assert!(app.dialog.is_none());
     assert_eq!(sign_ins.lock().unwrap().len(), 1);
     // And back: a yes for the rules is one for the automatic replies.
-    app.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Declined);
+    app.session.driver.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Declined);
     app.ask_rules_again(owner);
     app.dialog = None;
     app.run("ui.allowRules", json!({"account": owner, "confirmed": true})).unwrap();
     app.poll_sign_in();
-    assert_eq!(app.auto_replies.perm.get(&owner), None);
+    assert_eq!(app.session.driver.auto_replies.perm.get(&owner), None);
 }
 
 /// Working offline, nothing of the rules goes to the server or is read from it, and the owner
@@ -184,7 +184,7 @@ fn working_offline_the_rules_wait_and_nobody_is_asked() {
     assert!(jobs.lock().unwrap().is_empty());
     assert!(!app.session.mailbox.rules.iter().find(|r| r.id == rule).unwrap().unanswered);
     // A permission found missing before: not asked for while offline.
-    app.rules.perm.insert(owner, Permission::Needed);
+    app.session.driver.rules.perm.insert(owner, Permission::Needed);
     assert!(!app.rules_tick_at(6_000.0));
     assert!(app.dialog.is_none() && sign_ins.lock().unwrap().is_empty());
     // Back online: the owner is asked.
@@ -200,7 +200,7 @@ fn a_server_that_refuses_changes_is_said_and_the_rules_stay_here() {
     answers.lock().unwrap().push_back(RulesResult { account: owner, denied: true, ..Default::default() });
     assert!(app.rules_tick_at(0.0));
     app.poll_rules();
-    assert!(matches!(app.rules.perm.get(&owner), Some(Permission::Refused(_))));
+    assert!(matches!(app.session.driver.rules.perm.get(&owner), Some(Permission::Refused(_))));
     let (line, again) = app.rules_line(owner).unwrap();
     assert!(again && line.contains("not allowed on the server"), "{line}");
     // Rules of an account whose server keeps none have no line.
@@ -345,7 +345,7 @@ fn a_rule_that_went_nowhere_goes_with_the_next_job() {
     app.poll_rules();
     assert!(app.session.mailbox.rules.iter().any(|r| r.id == rule && !r.unanswered));
     // And a second job while the first is out sends nothing more: one job at a time.
-    app.rules.perm.remove(&owner);
+    app.session.driver.rules.perm.remove(&owner);
     assert!(app.rules_tick_at(60_000.0));
     assert!(!app.rules_tick_at(61_000.0));
     assert_eq!(*jobs.lock().unwrap(), [(owner, 1), (owner, 1)]);
@@ -383,19 +383,19 @@ fn changes_held_back_from_the_server_say_the_server_still_has_the_rule_as_it_was
     app.poll_rules();
     let id = |app: &MailApp, name: &str| app.session.mailbox.rules.iter().find(|r| r.name == name).map(|r| r.id).unwrap();
     let (shop, club) = (id(&app, "Shop"), id(&app, "Club"));
-    app.rules.perm.insert(owner, Permission::Declined);
+    app.session.driver.rules.perm.insert(owner, Permission::Declined);
     app.execute("rules.enable", json!({"id": shop, "value": false})).unwrap();
     app.execute("rules.remove", json!({"id": club})).unwrap();
     let r = app.session.mailbox.rules.iter().find(|r| r.id == shop).unwrap().clone();
     let mark = crate::forms::rules::mark(&app, &r, owner);
     assert!(mark.starts_with("On the server, still as it was") && mark.contains("File › Info"), "{mark}");
     // Allowed, the change is the rule's own again.
-    app.rules.perm.remove(&owner);
+    app.session.driver.rules.perm.remove(&owner);
     assert_eq!(crate::forms::rules::mark(&app, &r, owner), "On the server");
     // The rule deleted here is said in the Rules window while it is still on the server.
-    app.rules.perm.insert(owner, Permission::Declined);
+    app.session.driver.rules.perm.insert(owner, Permission::Declined);
     app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let h = shown(app);
     let said = "1 rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again).";
     assert!(h.query_by_label(said).is_some());
@@ -406,7 +406,7 @@ fn the_new_rule_is_not_filled_in_from_a_shared_mailboxs_message_or_an_id_that_is
     use mailcraft_model::sync::{FolderListing, GraphFolder, GraphMailResult};
     use mailcraft_model::{Address, FolderKind, Message};
     let (mut app, _, _, _, _) = window();
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let shared = app.execute("account.addSharedMailbox", json!({"address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
     let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
     let folders = vec![folder("t-in", "Inbox", FolderKind::Inbox), folder("t-ar", "Archive", FolderKind::Archive)];

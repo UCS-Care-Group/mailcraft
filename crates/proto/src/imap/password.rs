@@ -10,10 +10,10 @@ impl<S: Read + Write> Imap<S> {
     /// A refusal never triggers a second attempt with another mechanism.
     pub fn authenticate_password(&mut self, user: &str, password: &str) -> Result<(), ProtoError> {
         if password.is_empty() {
-            return Err(ProtoError::Auth("enter a password to sign in".into()));
+            return Err(ProtoError::Auth(said!("enter a password to sign in")));
         }
         if user.is_empty() {
-            return Err(ProtoError::Auth("enter a user name to sign in".into()));
+            return Err(ProtoError::Auth(said!("enter a user name to sign in")));
         }
         if self.capabilities.is_none() {
             self.capabilities()?;
@@ -22,10 +22,10 @@ impl<S: Read + Write> Imap<S> {
             return self.login(user, password);
         }
         if user.contains('\0') || password.contains('\0') {
-            return Err(ProtoError::Auth("PLAIN needs a user name and password without NUL characters".into()));
+            return Err(ProtoError::Auth(said!("PLAIN needs a user name and password without NUL characters")));
         }
         if user.len().saturating_add(password.len()) > 32 * 1024 {
-            return Err(ProtoError::Auth("the user name or password is too long".into()));
+            return Err(ProtoError::Auth(said!("the user name or password is too long")));
         }
         // Empty authorization identity: the server derives it from the authentication identity.
         let response = mailcraft_charset::base64::STANDARD.encode(format!("\0{user}\0{password}").as_bytes());
@@ -44,7 +44,7 @@ impl<S: Read + Write> Imap<S> {
                 break verdict;
             }
             if cancelled {
-                return Err(ProtoError::Protocol("the server continued a cancelled password authentication".into()));
+                return Err(ProtoError::Protocol(said!("the server continued a cancelled password authentication")));
             }
             let answer = if sent {
                 cancelled = true;
@@ -58,8 +58,8 @@ impl<S: Read + Write> Imap<S> {
             self.wire.flush()?;
         };
         match verdict.status {
-            _ if cancelled => Err(ProtoError::Auth("the server requested more than one PLAIN response".into())),
-            Status::Ok if !sent => Err(ProtoError::Protocol("the server accepted a password that was not sent".into())),
+            _ if cancelled => Err(ProtoError::Auth(said!("the server requested more than one PLAIN response"))),
+            Status::Ok if !sent => Err(ProtoError::Protocol(said!("the server accepted a password that was not sent"))),
             Status::Ok => {
                 self.authenticated = true;
                 Ok(())

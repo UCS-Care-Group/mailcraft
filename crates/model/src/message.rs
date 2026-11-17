@@ -7,6 +7,7 @@ use std::sync::Arc;
 use mailcraft_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
+use crate::headers::HeaderBlock;
 use crate::sync::{MovingOut, RemoteFlags, ServerMessage};
 use crate::{Address, Id};
 
@@ -272,6 +273,9 @@ pub struct Message {
     /// Follow-up due date of a flagged message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flag_due: Option<Timestamp>,
+    /// Its follow-up reminder (#948), kept on this computer only. `None` for a message with none.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub follow_up: Option<crate::FollowUp>,
     pub importance: Importance,
     /// Written here with Request a Read Receipt on: it goes with `Disposition-Notification-To`
     /// naming its sender (RFC 8098), or Exchange's own flag for one. Only ever set by the owner's
@@ -284,14 +288,23 @@ pub struct Message {
     pub forwarded: bool,
     pub draft: bool,
     pub pinned: bool,
+    /// Its snooze (#949): when it comes back and where it came from; once it has come back, the
+    /// mark it wears until opened. `None` for a message never snoozed.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub snooze: Option<crate::Snooze>,
     /// The kinds of sender warning ([`crate::sender_warnings::Warning::kind`]) the owner dismissed
     /// the banner for (#508). The banner is hidden while every kind it would show is among these;
     /// a kind that appears later brings it back.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub warnings_dismissed: Vec<String>,
-    /// Headers MailCraft doesn't model, kept so a saved message round-trips.
+    /// The header lines MailCraft doesn't model that it reads by name ([`crate::headers::WORKING`],
+    /// and its own notes), in order; the others are its [`Message::header_block`].
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,
+    /// Every other header line it kept, so a saved message round-trips: in memory, or kept beside
+    /// the mailbox file and read when the message is written out ([`crate::headers`]).
+    #[serde(skip_serializing_if = "HeaderBlock::none_in_memory")]
+    pub header_block: HeaderBlock,
     /// Whether Exchange's stamps in [`Message::headers`] were read from the message by a MailCraft
     /// that leaves them behind when mail goes to another account (#781). Only then are they
     /// believed: one saved before may be a sender's own, carried in from another account.
@@ -340,6 +353,14 @@ pub struct Message {
     /// server gave it; 0 when it gave none.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
     pub gmail_id: u64,
+    /// For a message of a Gmail account: Gmail's labels of it (`X-GM-LABELS`, #1153), as its
+    /// server last said for the folder it is in, cleaned as names are and at most
+    /// [`crate::gmail::MAX_GMAIL_LABELS`] ([`crate::gmail::tidy_labels`]). Gmail's own keep their
+    /// backslash (`\Inbox`, `\Important`). Read only: a label is changed by moving or copying the
+    /// message between label folders. Text from the server, data and never instructions. Empty for
+    /// mail of every other account, and of a file from before.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::gmail::labels_from_file")]
+    pub gmail_labels: Vec<String>,
     /// For a message of a Microsoft account that the server has: its server id and what the
     /// server last said of it ([`ServerMessage`], ADR 0003). `None` for a message the server
     /// hasn't got (or hasn't said so yet), and for every message of any other account; `uid` and
@@ -395,6 +416,12 @@ pub struct Message {
     /// what to check. It isn't sent again until the owner says so. Empty for every other message.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub held: String,
+    /// Send later (#950): for a message in an Outbox, the time (seconds since 1970) before which
+    /// it is not sent. It is due once the clock says that time or a later one, judged at each run
+    /// ([`Message::waits_until`]); there is no timer that decides. `None` for mail that goes at
+    /// the next run, and for every message that is not waiting in an Outbox.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub send_at: Option<i64>,
     /// The message was handed to a server to be sent and what became of it hasn't been taken in
     /// yet (AU3-26). Saved before the send leaves; cleared when the run's answer is applied. A
     /// message still marked when the next run of its account begins is **held** (it may have
@@ -402,6 +429,13 @@ pub struct Message {
     /// stopped mid-send.
     #[serde(skip_serializing_if = "is_false")]
     pub sending: bool,
+    /// A Microsoft account's draft sent here as the draft its server has (#1160): kept in Sent
+    /// Items under that server id while the server may still list it in Drafts, a draft, for a
+    /// while. No move into Sent Items goes up for it (Exchange files it there itself), and a
+    /// listing of it as a draft outside Sent Items is not followed. Cleared once the server says
+    /// it is gone from a folder other than Sent Items. False for every other message.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sent_here: bool,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.
@@ -549,6 +583,13 @@ fn is_zero_u64(n: &u64) -> bool {
 }
 
 impl Message {
+    /// Whether the message waits for its Send time (#950) at the clock's `now`: it has one and it
+    /// has not come. The one test every run asks before it sends from an Outbox, so that nothing
+    /// delayed goes early, whatever the account; a clock set back only makes it wait longer.
+    pub fn waits_until(&self, now: i64) -> bool {
+        self.send_at.is_some_and(|at| at > now)
+    }
+
     /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server
     /// mailbox (0: none yet), of which the server last said `synced`. A copy of it that was
     /// expected where it lay is no longer what it waits for ([`Message::placed`], #451). Out of the
@@ -561,11 +602,13 @@ impl Message {
         self.placed.clear();
     }
 
-    /// It is in none of Gmail's categories, and Gmail's id of it and a move between them waiting
-    /// for Gmail are forgotten: what the server says of the folder it is in now says them again,
-    /// if anything (#911).
+    /// It is in none of Gmail's categories, and Gmail's id of it, a move between them waiting
+    /// for Gmail and Gmail's labels of it are forgotten: what the server says of the folder it is
+    /// in now says them again, if anything (#911, #1153). A copy into another folder, a local one
+    /// or another account's, takes none of them.
     pub fn left_gmail_inbox(&mut self) {
         (self.gmail_category, self.gmail_synced, self.gmail_refusals, self.gmail_id) = (None, None, 0, 0);
+        self.gmail_labels.clear();
     }
 
     /// Every recipient: To, Cc, Bcc.
@@ -628,7 +671,7 @@ impl Message {
         if let Some(size) = said.filter(|_| self.unfetched || self.incomplete) {
             return Some(size);
         }
-        if self.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED)) {
+        if self.has_header(NOT_DOWNLOADED) {
             return None;
         }
         // The bytes it came as are a second copy of what its parts hold (#30).

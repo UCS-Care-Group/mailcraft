@@ -20,6 +20,135 @@ fn para(text: &str) -> Block {
     Block::new(BlockKind::Paragraph, vec![Span::plain(text)])
 }
 
+/// The reading pane keeps newsletter type sizes up to 48 px. Paste retains its original cap.
+#[test]
+fn newsletter_type_and_button_line_height_survive_parsing() {
+    let html = "<div style='font-size:54px'>A large headline</div>\
+                <div style='font-size:44px'>A smaller headline</div>\
+                <div><a href='https://example.org' style='font-size:34px;line-height:1'>Read</a></div>";
+    let blocks = parse(html);
+    assert_eq!(blocks[0].spans[0].size, Some(48));
+    assert_eq!(blocks[1].spans[0].size, Some(44));
+    assert_eq!(parse_text(html)[0].spans[0].size, Some(32));
+    let button = &blocks[2];
+    assert_eq!(button.line_height, Some(LineHeight::Scale(100)));
+    assert_eq!(button.spans[0].size, Some(34));
+    assert_eq!(button.spans[0].link.as_deref(), Some("https://example.org"));
+}
+
+#[test]
+fn an_inline_lead_in_does_not_set_the_paragraph_line_height() {
+    let blocks = parse("<p style='line-height:1.6'><span style='line-height:1'>Lead-in</span> plain tail<br>next line</p>");
+    assert_eq!(blocks[0].line_height, Some(LineHeight::Scale(160)));
+    assert_eq!(blocks[0].text(), "Lead-in plain tail\nnext line");
+
+    let whole = parse("<p style='line-height:1.6'><a href='https://example.org/' style='line-height:1'>Read <b>more</b></a> </p>");
+    assert_eq!(whole[0].line_height, Some(LineHeight::Scale(100)));
+}
+
+/// Inline and stylesheet roles build the same rows and cells as native tags, including limits.
+#[test]
+fn css_table_parts_use_native_layout_and_limits() {
+    let styled = "<style>.row{display:table-row}.cell{display:table-cell}</style>\
+        <table role='presentation'><div class='row' style='vertical-align:middle' valign='bottom'>\
+        <div class='cell' style='width:75%;padding:6px'><div>First</div> still first</div>\
+        <span style='display:table-cell;width:25%'>Second</span></div>\
+        <div style='display:table-row'><span class='cell' style='width:99999px' colspan='9000' rowspan='9000' bgcolor='red'>Wide</span></div></table>";
+    let native = "<table role='presentation'><tr style='vertical-align:middle'>\
+        <td style='width:75%;padding:6px'><div>First</div> still first</td>\
+        <td style='width:25%'>Second</td></tr>\
+        <tr><td style='width:99999px'>Wide</td></tr></table>";
+    assert_eq!(parse(styled), parse(native));
+    let blocks = parse(styled);
+    let BlockKind::Table(table) = &blocks[0].kind else { panic!("expected a table") };
+    assert_eq!(table.rows[0].cells.len(), 2);
+    assert_eq!(table.rows[1].cells[0].rowspan, 1);
+    assert_eq!(table.rows[1].cells[0].colspan, 1);
+}
+
+/// Inline roles leave links, running text and list markers in their original blocks.
+#[test]
+fn css_table_roles_only_apply_in_a_block_context() {
+    for html in [
+        "<p><a href='https://example.org/x'><span style='display:table-cell'>click</span></a> plain tail text</p><p>Next</p>",
+        "<p>Hello <span style='display:table-cell'>x</span> world</p>",
+        "<ul><li><span style='display:table-cell'>List text</span> continues</li></ul>",
+        "<a href='https://example.org/x'><div><span style='display:table-cell'>click</span></div></a> plain tail",
+    ] {
+        assert_eq!(parse(html), parse(&html.replace("display:table-cell", "")), "{html}");
+    }
+}
+
+/// A bare CSS cell inside a real cell keeps its ordinary layout, including inside a button.
+#[test]
+fn css_cells_do_not_replace_their_native_cell() {
+    for content in [
+        "<div style='display:table-cell'>A</div>",
+        "<a href='https://shop.example/'><span style='display:table-cell;padding:12px'>Shop now</span></a>",
+    ] {
+        let html = format!("<table border=1><tr><td>{content}</td><td>C</td></tr><tr><td>D</td><td>E</td></tr></table><p>after</p>");
+        assert_eq!(parse(&html), parse(&html.replace("display:table-cell", "")), "{content}");
+    }
+}
+
+/// A native cell closes any unfinished CSS grid it holds before the next cell opens.
+#[test]
+fn a_native_cell_end_closes_an_unfinished_css_grid() {
+    let html = "<table border=1><tr><td><div><div style='display:table-row'>\
+        <span style='display:table-cell'>A</span><span style='display:table-cell'>B</span>\
+        </td><td>C</td></tr><tr><td>D</td><td>E</td></tr></table><p>after</p>";
+    let closed = html.replace("</td><td>C", "</div></div></td><td>C");
+    assert_eq!(parse(html), parse(&closed));
+}
+
+/// Closing a styled cell through a native end tag also forgets the styled tag's name.
+#[test]
+fn an_old_css_cell_end_does_not_close_a_later_native_cell() {
+    let html = "<table><tr><div style='display:table-cell'>A</td></tr></table>\
+        <table border=1><tr><td>one</div>two</td><td>three</td></tr></table>";
+    let expected = "<table><tr><td>A</td></tr></table>\
+        <table border=1><tr><td>one</div>two</td><td>three</td></tr></table>";
+    assert_eq!(parse(html), parse(expected));
+}
+
+/// CSS row and cell tags may imply a table inside a regular newsletter container.
+#[test]
+fn css_table_parts_form_a_grid_inside_a_regular_wrapper() {
+    let styled = "<div style='display:table'><div style='display:table-row'>\
+        <span style='display:table-cell'>One</span><span style='display:table-cell'>Two</span>\
+        </div></div><p>After</p>";
+    let blocks = parse(styled);
+    assert!(matches!(&blocks[0].kind, BlockKind::Table(t) if t.rows.len() == 1 && t.rows[0].cells.len() == 2));
+    assert_eq!(blocks[1].text(), "After");
+    assert_eq!(parse("<div style='display:table'>Plain</div>"), parse("<div>Plain</div>"));
+}
+
+/// Closing a CSS grid must happen before the following ordinary element applies its style.
+#[test]
+fn an_ordinary_sibling_after_a_css_grid_keeps_its_link() {
+    let grid = "<div style='display:table-row'><span style='display:table-cell'>A</span><span style='display:table-cell'>B</span></div>";
+    let tail = "<a href='https://example.org/'>Read more</a>";
+    let blocks = parse(&format!("<div>{grid}{tail}</div>"));
+    assert!(matches!(blocks[0].kind, BlockKind::Table(_)));
+    assert_eq!(blocks[1].spans[0].link.as_deref(), Some("https://example.org/"));
+}
+
+/// A capped cell still takes overflow text, and its closing div stays distinct from the row's.
+#[test]
+fn css_rows_close_after_a_capped_cell_with_the_same_tag_name() {
+    let mut styled = String::from("<div><div style='display:table-row'>");
+    let mut native = String::from("<div><table><tr>");
+    for _ in 0..=MAX_TABLE_COLUMNS {
+        styled.push_str("<div style='display:table-cell'>cell</div>");
+        native.push_str("<td>cell</td>");
+    }
+    styled.push_str("</div></div><p>After</p>");
+    native.push_str("</tr></table></div><p>After</p>");
+    let blocks = parse(&styled);
+    assert_eq!(blocks, parse(&native));
+    assert_eq!(blocks.last().unwrap().text(), "After");
+}
+
 fn hex(c: Rgb) -> String {
     format!("{:02x}{:02x}{:02x}", c.0, c.1, c.2)
 }

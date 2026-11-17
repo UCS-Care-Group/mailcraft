@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
-use mailcraft_mime::rich::{Img, to_html_with};
+use mailcraft_mime_model::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
 use mailcraft_model::{
-    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, Id, Importance, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE, RichBody,
-    Signature, format_list,
+    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, FollowUp, Id, Importance, MAX_FOLLOW_UP_AHEAD, Message, NOT_DOWNLOADED,
+    NOT_DOWNLOADED_NOTE, RichBody, Signature, format_list,
 };
 use serde_json::{Value, json};
 
+use super::followup::FollowUpPlan;
 use super::{bad, base64_decode, done, fail, needs_compose, needs_message, source};
 use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, ComposeMode, InsertedSignature, Quote, Session, p};
 
@@ -32,7 +33,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAndDelete", "Reply and Delete", "Home › Respond", reply_and_delete)
             .params(r#"{"id"?: number} (default: the selected message) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
-            .selection(super::needs_movable),
+            .selection(super::needs_message),
         CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(FORWARD).selection(needs_forwardable),
         CommandSpec::new("mail.forwardAsAttachment", "Forward as Attachment", "Home › Respond", forward_as_attachment)
             .pure()
@@ -78,9 +79,16 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"value"?: bool} (default: the other way round) — whether the message being written asks for a read receipt: `Disposition-Notification-To` naming its sender, or Exchange's flag for one. Kept with its draft. MailCraft only ever asks for receipts: it never answers a request in mail that comes in"#)
             .when_writing(needs_compose),
+        CommandSpec::new("compose.followUp", "Follow Up", "Message › Tags", super::followup::compose_follow_up)
+            .pure()
+            .when_writing(needs_compose)
+            .params(r#"{"days": 1-365 | "at": number | "YYYY-MM-DDTHH:MM", or "clear": true} — remind me if nobody replies: once the message has gone, after that many days (or at that time), if nobody it went to has replied in its conversation by then, a reminder is raised and the message flagged; a reply is noticed when the time comes, and then there is no reminder. Kept on this computer only"#),
         CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when_writing(needs_compose),
-        CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when_writing(needs_compose),
+        CommandSpec::new("compose.send", "Send", "Message", send)
+            .key("Mod+Enter / Alt+S")
+            .params(r#"{"confirmed"?: true, "moveToBcc"?: true} — a message with a send warning (#509: a recipient one character from somebody the owner writes to, or 5 or more people outside the organisation, at 2 or more domains, who would see each other in To and Cc) is refused, and stays as it is being written, unless `confirmed` sends it anyway or `moveToBcc` moves those people to Bcc first. The window asks the owner which; an agent's send is asked about in the window, whatever it says"#)
+            .when_writing(needs_compose),
         CommandSpec::new("compose.saveDraft", "Save Draft", "Message", save_draft).key("Mod+S").when_writing(needs_compose),
         CommandSpec::new("compose.close", "Close Message", "Message", close)
             .pure()
@@ -110,7 +118,7 @@ pub const REPLACING: [&str; 2] = ["file.new", "file.open"];
 
 /// The commands that open another message beside the one being written (#286). Run by the
 /// owner, the one put aside is saved to Drafts first when it has changes ([`saves_first`]).
-pub const STARTING: [&str; 14] = [
+pub const STARTING: [&str; 15] = [
     "mail.new",
     "mail.reply",
     "mail.replyAll",
@@ -119,6 +127,7 @@ pub const STARTING: [&str; 14] = [
     "mail.forwardAsAttachment",
     "mail.editDraft",
     "mail.resend",
+    "compose.undoSend",
     "people.email",
     "people.forward",
     "calendar.email",
@@ -349,8 +358,9 @@ pub(crate) const QUOTE_MARK: &str = "<div id=\"mailcraft-quote\">";
 /// The original under a reply or forward, in HTML: Outlook's header lines (written here, every
 /// value escaped) and the original's look, without anything in it that runs, embeds or tracks
 /// (`mailcraft_html::quotable`): it goes to other people, whose programs might run what ours never
-/// would.
-fn quoted_html(s: &Session, m: &Message, html: &str) -> String {
+/// would. With it, the pictures written into the original (`data:`) that it shows, each to go
+/// as a part of its own ([`Written`]).
+fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>) {
     let e = mailcraft_html::escape;
     let [from, sent, to, cc, subject] = header_names(s).map(e);
     let mut out = String::from(QUOTE_MARK);
@@ -364,9 +374,84 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> String {
         out.push_str(&format!("<b>{cc}</b> {}<br>", e(&quoted_list(&m.cc))));
     }
     out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
-    out.push_str(&mailcraft_html::quotable(html));
+    let mut written = Written::of(m);
+    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture)));
     out.push_str("\r\n</div>");
-    out
+    // (One the quote left out after all, before a `<body>` that came later, doesn't go: only
+    // those a picture of the quote refers to. The Content-ID is no secret, so the sender may
+    // refer to one from before the `<body>` with a picture of his own in it: what goes then is
+    // still a picture of his own message, within the caps.)
+    let mut pictures = written.pictures;
+    pictures.retain(|a: &Attachment| out.contains(&format!("src=\"cid:{}\"", mailcraft_html::escape(&a.content_id))));
+    (out, pictures)
+}
+
+/// The pictures written into the original (#602), as Outlook sends them under a reply or
+/// forward: each a part of its own beside the HTML, which refers to it by its Content-ID.
+struct Written {
+    pictures: Vec<Attachment>,
+    /// Each picture's fingerprint, beside it: the same picture twice is one part.
+    hashes: Vec<u64>,
+    /// The Content-IDs the original's own parts have, in small letters (a sender can plant one).
+    taken: std::collections::HashSet<String>,
+}
+
+impl Written {
+    fn of(m: &Message) -> Written {
+        let taken = m.attachments.iter().map(|a| a.content_id.to_ascii_lowercase()).collect();
+        Written { pictures: Vec::new(), hashes: Vec::new(), taken }
+    }
+
+    /// The Content-ID `picture` goes out under: unique to the picture, naming nothing of the
+    /// owner, and never one the original's parts have; `None` when no such one is left, and the
+    /// picture is left out. Its type is what its own bytes say, else what its address said.
+    fn add(&mut self, mime: &str, picture: &mailcraft_html::Picture) -> Option<String> {
+        let hash = mailcraft_model::sync::fingerprint(picture);
+        let same = self.hashes.iter().zip(&self.pictures).find(|(h, a)| **h == hash && a.data.as_slice() == &picture[..]);
+        if let Some((_, same)) = same {
+            return Some(same.content_id.clone());
+        }
+        let n = self.pictures.len().saturating_add(1);
+        // (Ours differ from each other by `n`; only the original's can be in the way.)
+        let cid = (0..=self.taken.len())
+            .map(|again| match again {
+                0 => format!("quote-{n}.{hash:016x}@mailcraft.invalid"),
+                _ => format!("quote-{n}-{again}.{hash:016x}@mailcraft.invalid"),
+            })
+            .find(|cid| !self.taken.contains(cid))?;
+        let mime = sniffed(picture).unwrap_or(mime);
+        let kind = match mime {
+            "image/jpeg" => "jpg",
+            "image/gif" => "gif",
+            "image/webp" => "webp",
+            _ => "png",
+        };
+        self.hashes.push(hash);
+        self.pictures.push(Attachment {
+            name: format!("picture{n}.{kind}"),
+            mime: mime.to_string(),
+            content_id: cid.clone(),
+            inline: true,
+            data: picture.0.clone(),
+            kept: None,
+        });
+        Some(cid)
+    }
+}
+
+/// A picture's type by how its bytes begin.
+fn sniffed(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("image/png")
+    } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("image/jpeg")
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if bytes.get(..4) == Some(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+        Some("image/webp")
+    } else {
+        None
+    }
 }
 
 /// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
@@ -434,10 +519,13 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     // An original in HTML is carried below with its look; one in plain text is quoted in the body.
     let quote = match &m.body.html {
         Some(html) if quoting => {
-            let html = quoted_html(s, &m, html);
+            let (html, written) = quoted_html(s, &m, html);
             let text = quote_text(s.interface_language.t(ORIGINAL), &html);
-            // The pictures the quote still shows: not those of what was left out of it.
-            let pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
+            // The pictures the quote still shows: not those of what was left out of it. (A
+            // forward carries the original's own as its attachments.) And those written into
+            // the original, which go with both (#602).
+            let mut pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
+            pictures.extend(written);
             Some(Quote { text, html, pictures })
         }
         _ => None,
@@ -478,8 +566,14 @@ fn reply(s: &mut Session, v: &Value) -> CmdResult {
 /// account without one, stays where it is: this never deletes for good.
 fn reply_and_delete(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    if s.mailbox.has_jmap_account() && s.mailbox.stays_on_server(id) {
-        return Err(fail(mailcraft_model::NOT_MOVING_YET));
+    // Mail a JMAP account's server has goes to Deleted Items only when the server has that folder
+    // too: said before the reply is begun, not after.
+    if s.mailbox.has_jmap_account()
+        && let Some(m) = s.mailbox.message(id)
+        && let Some(bin) = s.mailbox.folder_of_kind(m.account, FolderKind::Deleted).filter(|bin| !s.mailbox.subtree(*bin).contains(&m.folder))
+        && s.mailbox.stays_out_of(id, bin)
+    {
+        return Err(fail(mailcraft_model::ONLY_SERVER_FOLDERS));
     }
     let before = s.rows();
     let mut out = respond(s, &json!({"id": id}), ComposeMode::Reply)?;
@@ -703,16 +797,17 @@ fn eml_attachment(s: &Session, id: Id) -> Result<Attachment, CmdError> {
     // What is attached goes to other people: a draft's Bcc, the owner's own marks on the
     // message (read, answered, flagged, categorised), and every header kept with it but those
     // known to come from the sender or the servers on the way, stay here.
-    let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
+    let opts = mailcraft_mime_model::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
     let unmarked = Message {
         read: false,
         answered: false,
         flag: FlagStatus::None,
         categories: Vec::new(),
-        headers: m.headers.iter().filter(|(name, _)| goes_along(name)).cloned().collect(),
+        headers: m.all_headers().into_iter().filter(|(name, _)| goes_along(name)).collect(),
+        header_block: mailcraft_model::HeaderBlock::default(),
         ..Message::clone(&m)
     };
-    let bytes = mailcraft_mime::write(&unmarked, &opts);
+    let bytes = mailcraft_mime_model::write(&unmarked, &opts);
     Ok(Attachment::new(super::file::eml_name(&m), "message/rfc822", bytes))
 }
 
@@ -727,10 +822,7 @@ mod attach_item_tests;
 /// write that mark into a message of their own; only plain text that opens as the note does,
 /// with no file, is taken for it.
 fn not_downloaded(m: &Message) -> bool {
-    m.body.html.is_none()
-        && m.attachments.is_empty()
-        && m.body.text.starts_with(NOT_DOWNLOADED_NOTE)
-        && m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED))
+    m.body.html.is_none() && m.attachments.is_empty() && m.body.text.starts_with(NOT_DOWNLOADED_NOTE) && m.has_header(NOT_DOWNLOADED)
 }
 
 /// Whether a header kept with a message goes with it when it is forwarded as an attachment. Its
@@ -775,7 +867,13 @@ fn goes_along(name: &str) -> bool {
 }
 
 fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
-    let m = source_message(s, v)?;
+    let mut m = source_message(s, v)?;
+    // A message waiting in the Outbox for its Send time is taken out of the queue to be changed
+    // (#950): it goes only when Send is pressed again, with its time kept.
+    if !m.draft && super::send_later::waits_in_outbox(s, &m) {
+        super::send_later::cancel_send(s, m.id)?;
+        m = source_message(s, &json!({"id": m.id}))?;
+    }
     if !m.draft {
         return Err(fail("that message isn't a draft"));
     }
@@ -794,6 +892,12 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
     }
     let compose = s.open_compose(Compose { mode: ComposeMode::Draft, draft: Some(m.id), ..reopened(s, &m) })?;
     Ok(json!({"composing": true, "draft": m.id, "compose": compose}))
+}
+
+/// The draft `id` opened to be written again, as Open Draft does (the draft a send was taken
+/// back into, #950).
+pub(super) fn open_draft(s: &mut Session, id: Id) -> CmdResult {
+    edit_draft(s, &json!({"id": id}))
 }
 
 /// Resend Message: a message the owner sent, as a new message with what it had (recipients,
@@ -861,7 +965,7 @@ fn read_receipt(s: &mut Session, v: &Value) -> CmdResult {
 /// says (a draft that came down from an IMAP server's Drafts). Only for the owner's own message
 /// opened to write again; a request in mail that comes in is never read, nor answered.
 fn asked_receipt(m: &Message) -> bool {
-    m.read_receipt || m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("disposition-notification-to"))
+    m.read_receipt || m.has_header("Disposition-Notification-To")
 }
 
 /// The message being written made again from `m` (a draft opened, a sent message to send again):
@@ -892,7 +996,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
     // as a new one is; they are the text's, no longer attachments.
     let mut pictures: Vec<Picture> = Vec::new();
     let rich = own_html.as_deref().map(|html| {
-        mailcraft_mime::rich::from_html_with_pictures(html, &mut |img| {
+        mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img| {
             let id: u32 = img.cid.strip_prefix(PICTURE_CID)?.split('.').next()?.parse().ok()?;
             if pictures.iter().any(|p| p.id == id) {
                 return Some(id);
@@ -932,7 +1036,10 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         quote,
         attachments,
         importance: m.importance,
+        // A reminder kept with a draft is "if nobody replies" for the days it was given as, or the time.
+        follow_up: m.follow_up.filter(|f| f.if_no_reply).map(|f| if f.days > 0 { FollowUpPlan::Days(f.days) } else { FollowUpPlan::At(f.at) }),
         read_receipt: asked_receipt(m),
+        send_at: m.send_at,
         in_reply_to: m.in_reply_to.clone(),
         references: m.references.clone(),
         ..Default::default()
@@ -1149,6 +1256,17 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         read: true,
         importance: c.importance,
         read_receipt: c.read_receipt,
+        follow_up: c.follow_up.map(|plan| {
+            let (at, days) = match plan {
+                FollowUpPlan::Days(d) => (now.saturating_add(i64::from(d).saturating_mul(86_400)), d),
+                FollowUpPlan::At(at) => (at, 0),
+            };
+            FollowUp {
+                days,
+                ..FollowUp::new(at.min(now.saturating_add(MAX_FOLLOW_UP_AHEAD)), true, s.mailbox.messages.keys().next_back().copied().unwrap_or(0))
+            }
+        }),
+        send_at: c.send_at,
         message_id,
         ..Default::default()
     })
@@ -1171,7 +1289,7 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
     let Some((before, sig, after)) = sent_signature(c) else {
         let plain = format!("{}{quote_text}", text.to_plain_with(say));
         return match c.format {
-            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime::rich::document(&to_html_with(text, &img), quote_html)) },
+            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&to_html_with(text, &img), quote_html)) },
             BodyFormat::Plain => Body { text: plain, html: None },
         };
     };
@@ -1185,10 +1303,10 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
             let own = c.signature_html();
             let html = [
                 before.as_ref().map(|t| to_html_with(t, &img)),
-                Some(own.map_or_else(|| mailcraft_mime::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
+                Some(own.map_or_else(|| mailcraft_mime_model::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
                 after.as_ref().map(|t| to_html_with(t, &img)),
             ];
-            Body { text: plain, html: Some(mailcraft_mime::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
+            Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
         }
         BodyFormat::Plain => Body { text: plain, html: None },
     }
@@ -1272,7 +1390,37 @@ fn answers_of(s: &Session, c: &Compose) -> Option<Answers> {
     Some(Answers { also: originals.collect(), ..first })
 }
 
-fn send(s: &mut Session, _: &Value) -> CmdResult {
+fn send(s: &mut Session, params: &Value) -> CmdResult {
+    use crate::send_warnings::{CONFIRMED, Lines, MOVE_TO_BCC, describe, said};
+    let before = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
+    // Move to Bcc (#509): the people outside the organisation go from To and Cc to Bcc first.
+    let lines = Lines::of(s).unwrap_or_default();
+    let lines = if said(params, MOVE_TO_BCC) { s.outsiders_to_bcc(&lines) } else { lines };
+    // Asked first (#509): a recipient who looks like somebody the owner writes to but isn't, or
+    // people outside the organisation who would see each other, unless the owner said to send
+    // anyway. Nothing changes: the message stays as it is being written.
+    if !said(params, CONFIRMED) {
+        let warnings = s.send_warnings_of(&lines);
+        if !warnings.is_empty() {
+            return Err(failed!(
+                "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first",
+                why = describe(&warnings)
+            ));
+        }
+    }
+    if let Some(c) = s.compose.as_mut() {
+        (c.to, c.cc, c.bcc) = (lines.to.clone(), lines.cc.clone(), lines.bcc.clone());
+    }
+    let sent = send_now(s);
+    if sent.is_err() {
+        // Not sent: the message stays exactly as it was being written.
+        s.compose = Some(before);
+    }
+    sent
+}
+
+/// Send, with the Send time Delay Delivery gave the message (#950), or the wait Undo Send adds.
+pub(super) fn send_now(s: &mut Session) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
     // A draft of a Microsoft account goes as the draft its server has (R3.4.2): the same
     // Message-ID, marker and server id, brought up to date and sent there.
@@ -1295,19 +1443,24 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
             "which sends its mail: send this message from another account, or save it as a draft to send it from that version",
         ));
     }
-    // An account kept in step with a server that doesn't send its mail yet (JMAP) has nowhere
-    // for the message: not its Outbox, where it would wait for ever, nor Sent Items, as if it had
-    // gone. It stays as it is being written.
-    if account.kind.has_server() && !account.kind.sends_mail() {
-        return Err(failed!(
-            "{not_sending_yet}: send this message from another account, or save it as a draft",
-            not_sending_yet = mailcraft_i18n::Arg::words(mailcraft_model::NOT_SENDING_YET)
-        ));
-    }
     // An account that sends its mail queues the message for the next Send/Receive; a local one
     // has nowhere to send it, so it is filed as sent (and delivered to local accounts it names).
     let queued = account.kind.sends_mail();
     let kind = if queued { FolderKind::Outbox } else { FolderKind::Sent };
+    // Not before its Send time; a time that has passed is no delay. Else the wait of Undo Send,
+    // if the owner has one. Its Date is the time it is to go, so that what is sent is the same
+    // at every run.
+    let clock = s.now();
+    let wanted = c.send_at.filter(|at| *at > clock);
+    if wanted.is_some() && !queued {
+        return Err(fail("this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"));
+    }
+    let waits = s.prefs.undo_send();
+    let by_wait = wanted.is_none() && queued && waits > 0;
+    m.send_at = wanted.or(by_wait.then(|| clock.saturating_add(i64::from(waits))));
+    if let Some(at) = m.send_at {
+        (m.date, m.received) = (at, at);
+    }
     m.folder = s
         .mailbox
         .folder_of_kind(account.id, kind)
@@ -1347,14 +1500,17 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
                 continue;
             }
             let Some(inbox) = s.mailbox.folder_of_kind(local, FolderKind::Inbox) else { continue };
-            let copy = Message { id: 0, folder: inbox, read: false, bcc: Vec::new(), answers: None, ..m.clone() };
+            let copy = Message { id: 0, folder: inbox, read: false, bcc: Vec::new(), answers: None, follow_up: None, ..m.clone() };
             let cid = s.mailbox.add_message(copy)?;
             s.mailbox.apply_rules(cid);
             delivered += 1;
         }
     }
     s.compose = None;
-    Ok(json!({"id": id, "queued": queued, "delivered": delivered}))
+    s.undo_send = by_wait.then_some(id);
+    // (This command's own step is pushed once it returns.)
+    s.undo_send_step = by_wait.then(|| s.undo_steps_moved().wrapping_add(1));
+    Ok(json!({"id": id, "queued": queued, "delivered": delivered, "sendAt": m.send_at, "wait": by_wait}))
 }
 
 fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
@@ -1458,12 +1614,8 @@ fn pop_out(s: &mut Session, _: &Value) -> CmdResult {
 
 fn discard(s: &mut Session, _: &Value) -> CmdResult {
     let draft = s.compose.take().and_then(|c| c.draft);
-    // Already gone is fine; one a JMAP account's server has stays (M6), and the answer says so.
+    // Already gone is fine. (One a JMAP account's server has goes there too, with the next run.)
     let deleted = draft.is_some_and(|d| s.mailbox.remove_message(d).is_ok() || s.mailbox.message(d).is_none());
-    // Why it stays in Drafts, for the window to say: the reason the Move menu greys for it.
-    if let Some(d) = draft.filter(|d| !deleted && s.mailbox.stays_on_server(*d)) {
-        return Ok(json!({"draftDeleted": false, "draft": d, "stays": mailcraft_model::NOT_MOVING_YET}));
-    }
     Ok(json!({"draftDeleted": deleted}))
 }
 

@@ -563,13 +563,26 @@ fn expiry(created: u32, sig: &Signature) -> Option<u64> {
 /// How many packet headers `bytes` holds, counted without reading them (RFC 9580 §4.2): a
 /// cap on work for a block of many tiny packets.
 fn count_packets(bytes: &[u8]) -> usize {
+    packet_tags(bytes, MAX_PACKETS.saturating_add(1)).len()
+}
+
+/// The tags of the first `max` packets of `bytes` (RFC 9580 §4.2), read from their headers
+/// alone: as far as a header reads, and a packet of partial length as the last.
+pub(crate) fn packet_tags(bytes: &[u8], max: usize) -> Vec<u8> {
+    packets(bytes, max).0
+}
+
+/// [`packet_tags`], with where the packets read end: the length of `bytes` when they are all
+/// there is, short of it when something follows that isn't a packet (or a packet of partial or
+/// indeterminate length, or more than `max`), past it when the last says more than is there.
+pub(crate) fn packets(bytes: &[u8], max: usize) -> (Vec<u8>, usize) {
     let mut at = 0usize;
-    let mut count = 0usize;
+    let mut tags = Vec::new();
     while let Some(&tag) = bytes.get(at) {
-        if tag & 0x80 == 0 || count > MAX_PACKETS {
+        if tag & 0x80 == 0 || tags.len() >= max {
             break;
         }
-        count = count.saturating_add(1);
+        tags.push(if tag & 0x40 != 0 { tag & 0x3f } else { (tag >> 2) & 0x0f });
         let len = |o: usize| bytes.get(at.saturating_add(o)).copied().map_or(0usize, usize::from);
         let (header, body) = if tag & 0x40 != 0 {
             match len(1) {
@@ -589,7 +602,7 @@ fn count_packets(bytes: &[u8]) -> usize {
         };
         at = at.saturating_add(header).saturating_add(body);
     }
-    count
+    (tags, at)
 }
 
 /// Of two revocations of one thing, the one that counts for more: a hard one (it undoes

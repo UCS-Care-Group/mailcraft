@@ -27,7 +27,9 @@ impl Address {
             && open < close
         {
             let email = s.get(open + 1..close)?.trim();
-            let name = s.get(..open)?.trim().trim_matches('"').replace("\\\"", "\"");
+            let name = s.get(..open)?.trim();
+            let name = name.strip_prefix('"').unwrap_or(name);
+            let name = name.strip_suffix('"').unwrap_or(name).replace("\\\"", "\"");
             return Some(Address::new(name.trim(), email));
         }
         Some(Address::new("", s.trim_matches('"')))

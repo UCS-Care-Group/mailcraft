@@ -84,6 +84,36 @@ fn html_or_text_on_the_clipboard_is_pasted_instead_of_the_picture() {
 }
 
 #[test]
+fn a_browsers_copy_image_pastes_the_picture_not_its_address() {
+    // Copy Image puts an `<img>` of the picture's web address beside the picture, and a page's
+    // address as text (#1217): the picture is pasted, not a link and its caption.
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    let copied = r#"<meta charset="utf-8"><a href="https://pics.example/p"><img src="https://pics.example/cat.png" alt="A cat"></a>"#;
+    *board.0.borrow_mut() = (Some(png(40)), Some(copied.into()));
+    h.event(Event::Paste("https://pics.example/cat.png".into()));
+    h.run_steps(2);
+    assert_eq!((plain(&h), pictures(&h)), (OBJECT.to_string(), 1));
+    // A picture with words around it is the HTML's, as before.
+    *board.0.borrow_mut() = (Some(png(40)), Some(r#"<p>Look: <img src="https://pics.example/cat.png" alt="A cat"></p>"#.into()));
+    paste(&mut h);
+    assert_eq!(pictures(&h), 1, "{:?}", plain(&h));
+    assert!(plain(&h).contains("Look:"), "{:?}", plain(&h));
+    // A table, a rule or a second picture beside it is the HTML's too (a signature, a letterhead,
+    // a row of photos): nothing of it is lost to the one picture on the clipboard.
+    for html in [
+        r#"<img src="https://pics.example/logo.png"><table><tr><td>Jane Doe, Sales</td></tr></table>"#,
+        r#"<img src="https://pics.example/a.png"><hr><p></p>"#,
+        r#"<img src="https://pics.example/a.png"><img src="https://pics.example/b.png">"#,
+    ] {
+        *board.0.borrow_mut() = (Some(png(40)), Some(html.into()));
+        paste(&mut h);
+        assert_eq!(pictures(&h), 1, "{html}: {:?}", plain(&h));
+    }
+    assert!(plain(&h).contains("Jane Doe"), "{:?}", plain(&h));
+}
+
+#[test]
 fn a_picture_too_big_or_not_one_is_refused_and_the_message_is_unchanged() {
     let board = PictureBoard::default();
     let mut h = writing_with(&board);

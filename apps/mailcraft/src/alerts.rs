@@ -24,7 +24,8 @@
 //!   known here (that needs a delegate object, which can't be made without `unsafe`).
 //!
 //! Nothing of what an alert says is logged. No sound of our own: the system's default, which the
-//! owner controls in the system's settings.
+//! owner controls in the system's settings (on Linux and the BSDs, the desktop's sound theme's
+//! for new mail and for an alarm, named in the alert, since some desktops play none unnamed).
 
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -204,11 +205,7 @@ mod freedesktop {
             let body = if markup { escape_markup(&alert.body) } else { alert.body.clone() };
             // The default action is a click on the notification itself.
             let offered: Vec<&str> = if actions { vec!["default", "Open"] } else { Vec::new() };
-            let mut hints: HashMap<&str, Value<'_>> = HashMap::new();
-            hints.insert("desktop-entry", Value::from(DESKTOP_ENTRY));
-            if alert.kind == AlertKind::Mail {
-                hints.insert("category", Value::from("email.arrived"));
-            }
+            let hints: HashMap<&str, Value<'_>> = hints(alert.kind).into_iter().map(|(name, value)| (name, Value::from(value))).collect();
             let sent: zbus::Result<u32> = proxy.call("Notify", &("MailCraft", 0u32, "", alert.title.as_str(), body.as_str(), offered, hints, -1i32));
             match sent {
                 Ok(id) => {
@@ -223,6 +220,19 @@ mod freedesktop {
             }
         }
         Ok(())
+    }
+
+    /// What an alert of `kind` asks the service for besides its text (string hints).
+    pub(super) fn hints(kind: AlertKind) -> Vec<(&'static str, &'static str)> {
+        let mut hints = vec![("desktop-entry", DESKTOP_ENTRY)];
+        // A sound from the desktop's theme (the freedesktop Sound Naming Specification); whether
+        // and how it plays is the notification service's to decide. GNOME plays none without one,
+        // and none when sounds are off for MailCraft or Do Not Disturb is on (#1309).
+        match kind {
+            AlertKind::Mail => hints.extend([("category", "email.arrived"), ("sound-name", "message-new-email")]),
+            AlertKind::Reminder => hints.push(("sound-name", "alarm-clock-elapsed")),
+        }
+        hints
     }
 
     /// Listen for clicks on a thread of its own, for as long as the session's bus is there.
@@ -283,6 +293,10 @@ mod freedesktop {
         }
     }
 }
+
+#[cfg(all(test, any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly")))]
+#[path = "alert_hints_tests.rs"]
+mod alert_hints_tests;
 
 #[cfg(target_os = "windows")]
 mod toasts {

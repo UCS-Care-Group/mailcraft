@@ -20,8 +20,16 @@
 //! when the run ends well, matching by item id.
 //!
 //! **What a server lacks is left out** (E7): a server that doesn't know the preview or the flag
-//! (`ErrorInvalidPropertyRequest`) is asked again without them, for the rest of the run; folders
-//! that are not mail folders are passed over. These are logged as counts, once per run.
+//! (`ErrorInvalidPropertyRequest`, or a schema fault from a server answering in a version older
+//! than Exchange 2013's, whose schema hasn't them) is asked again without them, for the rest of the run; folders that are not mail
+//! folders are passed over. These are logged as counts, once per run.
+//!
+//! **An older server** (#1349): a server that answers in a version older than Exchange 2013's
+//! (the client stepped down to it, [`Client::version`]) is asked for neither the preview nor the
+//! flag nor the recipients in `SyncFolderItems`, as Exchange 2010 refuses all three there
+//! (the recipients with `ErrorInvalidPropertyForOperation`, which also steps any server down to
+//! that shape). The recipients of each page's messages are then asked with `GetItem`, a hundred to
+//! a request; a page goes on without the recipients the server won't give.
 //!
 //! **The lines of trouble** name no folder, no address and nothing a server said.
 
@@ -31,7 +39,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
     EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, FolderChange, GraphFetchResult, GraphFetched,
-    GraphFolder, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
+    GraphFolder, GraphMessage, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
 };
 
 use crate::client::Client;
@@ -39,7 +47,7 @@ use crate::error::{Error, ResponseCode};
 use crate::folder::{DistinguishedFolder, FolderInfo, GetFolder};
 use crate::hierarchy::{MAX_NAME, SyncFolderHierarchy};
 use crate::http::{HttpExchange, TransportError};
-use crate::items::{GetItemConversations, GetItemMime, MAX_CONVERSATIONS, Shape, SyncFolderItems};
+use crate::items::{GetItemConversations, GetItemMime, GetItemRecipients, MAX_CONVERSATIONS, MAX_RECIPIENTS_ASKED, Shape, SyncFolderItems};
 use crate::reply::Reply;
 use crate::soap::Element;
 
@@ -57,6 +65,9 @@ const MAX_HIERARCHY_PAGES: usize = 20;
 const MAX_FETCH: usize = 100;
 /// After this many folders in a row that couldn't be read, the run ends.
 const MAX_IN_A_ROW: usize = 3;
+/// The most `GetItem`s for recipients one page asks ([`Shape::Bare`]): a page of the most changes
+/// the model takes in, at a hundred to a request.
+const MAX_RECIPIENT_ASKS: usize = 20;
 
 /// Why a request didn't give an answer: the run has to stop, or the server answered with a code.
 pub(crate) enum Asked {
@@ -136,6 +147,29 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     /// A folder deleted here is still on the server (it refused, or it is one of its own): the
     /// folder list is read afresh, as a delta wouldn't bring it back.
     pub(crate) reread_folders: bool,
+    /// The server changes an item only when it is named with its change key (Exchange 2010,
+    /// #1349): every change of a message asks for the key first, for the rest of the run.
+    pub(crate) needs_change_key: bool,
+    /// The recipients of some messages couldn't be had with `GetItem`: said once a run.
+    pub(crate) recipients_unsaid: bool,
+}
+
+impl<'a, E: HttpExchange> Run<'a, E> {
+    pub(crate) fn new(client: &'a Client, exchange: &'a E, cancel: &'a AtomicBool, wait: &'a mut dyn FnMut(u32) -> bool) -> Self {
+        Run {
+            client,
+            exchange,
+            cancel,
+            wait,
+            shape: Shape::Full,
+            flag_lacking: false,
+            read_unsaid: false,
+            own: HashSet::new(),
+            reread_folders: false,
+            needs_change_key: false,
+            recipients_unsaid: false,
+        }
+    }
 }
 
 impl<E: HttpExchange> Run<'_, E> {
@@ -345,16 +379,41 @@ impl<E: HttpExchange> Run<'_, E> {
         Ok(out)
     }
 
-    /// The folder list from `state`: all of it (a read afresh when the state is lost).
+    /// The folder list from `state`: all of it (a read afresh when the state is lost). A read afresh
+    /// that passed over a mail folder it couldn't read says where that folder lies, so that the
+    /// folder (and the mail kept of it) isn't taken away for not being in it (#1108).
     async fn folders(&mut self, state: &str, specials: &Specials) -> Result<(EwsFolderDeltas, String), Asked> {
         let (mut state, mut deltas, mut tried_afresh) =
             (state.to_owned(), EwsFolderDeltas { afresh: state.is_empty(), ..EwsFolderDeltas::default() }, false);
         let mut skipped = 0usize;
+        // (What is in `unreadable_in` already, looked up in one step: a server may name thousands.)
+        let mut seen = std::collections::HashSet::new();
         for _ in 0..MAX_HIERARCHY_PAGES {
             let op = SyncFolderHierarchy::new(&state);
             match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(page) => {
                     skipped = skipped.saturating_add(page.skipped);
+                    for parent in page.unreadable {
+                        // (A delta keeps none of it, and once anywhere is said nothing more is needed.)
+                        if !deltas.afresh || deltas.unreadable_anywhere {
+                            break;
+                        }
+                        // (None at all: that couldn't be read either. The root's id is the top here.)
+                        if parent.is_empty() {
+                            deltas.unreadable_anywhere = true;
+                            continue;
+                        }
+                        let parent = if specials.root.as_deref() == Some(parent.as_str()) { String::new() } else { parent };
+                        if seen.contains(&parent) {
+                            continue;
+                        }
+                        if deltas.unreadable_in.len() < MAX_FOLDERS {
+                            seen.insert(parent.clone());
+                            deltas.unreadable_in.push(parent);
+                        } else {
+                            deltas.unreadable_anywhere = true;
+                        }
+                    }
                     for mut folder in page.changed {
                         if specials.root.as_deref() == Some(folder.parent.as_str()) {
                             folder.parent.clear();
@@ -366,13 +425,25 @@ impl<E: HttpExchange> Run<'_, E> {
                     state = page.state;
                     if page.last {
                         if skipped > 0 {
-                            log::info!("ews folders: {skipped} folders that are not mail folders are left out");
+                            log::info!("ews folders: {skipped} folders that are not mail folders or can't be read are left out");
+                        }
+                        if !deltas.afresh {
+                            // (A delta removes nothing for not being in it: where they lie means nothing.)
+                            (deltas.unreadable_in, deltas.unreadable_anywhere) = (Vec::new(), false);
+                        } else if deltas.unreadable_anywhere {
+                            log::info!("ews folders: a mail folder couldn't be read, nor where it lies; nothing is removed for not being listed");
+                        } else if !deltas.unreadable_in.is_empty() {
+                            log::info!(
+                                "ews folders: mail folders in {} folders couldn't be read; what lies there is kept",
+                                deltas.unreadable_in.len()
+                            );
                         }
                         return Ok((deltas, state));
                     }
                 }
                 Err(Asked::Code(ResponseCode::InvalidSyncState)) if !tried_afresh => {
-                    (state, tried_afresh) = (String::new(), true);
+                    (state, tried_afresh, skipped) = (String::new(), true, 0);
+                    seen.clear();
                     deltas = EwsFolderDeltas { afresh: true, ..EwsFolderDeltas::default() };
                     log::info!("ews folders: the server no longer knows the folder list's state; reading it afresh");
                 }
@@ -398,17 +469,7 @@ pub async fn sync_mail<E: HttpExchange>(
     wait: &mut dyn FnMut(u32) -> bool,
     emit: &mut dyn FnMut(EwsMailResult),
 ) {
-    let mut run = Run {
-        client,
-        exchange,
-        cancel,
-        wait,
-        shape: Shape::Full,
-        flag_lacking: false,
-        read_unsaid: false,
-        own: HashSet::new(),
-        reread_folders: false,
-    };
+    let mut run = Run::new(client, exchange, cancel, wait);
     let mut out = Outcome::default();
     if let Err(stop) = run.all(request, &mut out, emit).await {
         match stop {
@@ -581,6 +642,11 @@ impl<E: HttpExchange> Run<'_, E> {
     ) -> Result<bool, Asked> {
         let (mut state, mut afresh, mut lost) = (state.to_owned(), state.is_empty(), false);
         let mut read = 0u32;
+        // (A server older than Exchange 2013 is asked for what its schema has from the start, #1349.)
+        if self.shape != Shape::Bare && !self.client.version().has_preview() {
+            self.shape = Shape::Bare;
+            log::info!("ews mail: the server is older than Exchange 2013; the recipients are asked message by message");
+        }
         for _ in 0..MAX_PAGES {
             let op = SyncFolderItems::new(folder, &state, PAGE, self.shape);
             let page = match self.ask(&op.element(), &|reply| op.answer(reply)).await {
@@ -597,15 +663,29 @@ impl<E: HttpExchange> Run<'_, E> {
                     log::info!("ews mail: the server no longer knows a folder's sync state; reading the folder afresh");
                     continue;
                 }
-                Err(Asked::Code(ResponseCode::InvalidPropertyRequest)) if self.shape == Shape::Full => {
+                // (A schema fault is read as a missing property only from a server older than Exchange
+                // 2013: a newer one's has another cause, and isn't hidden by asking for less.)
+                Err(Asked::Code(code @ (ResponseCode::InvalidPropertyRequest | ResponseCode::SchemaValidation)))
+                    if self.shape == Shape::Full && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
+                {
                     self.shape = Shape::Lean;
                     log::info!("ews mail: the server lacks the preview or the flag; asking for the rest");
+                    continue;
+                }
+                Err(Asked::Code(code @ (ResponseCode::InvalidPropertyForOperation | ResponseCode::SchemaValidation)))
+                    if self.shape != Shape::Bare && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
+                {
+                    self.shape = Shape::Bare;
+                    log::info!("ews mail: the server won't list the recipients with the changes; they are asked message by message");
                     continue;
                 }
                 Err(other) => return Err(other),
             };
             read = read.saturating_add(u32::try_from(page.messages.len()).unwrap_or(u32::MAX));
             let mut messages = page.messages;
+            if self.shape == Shape::Bare {
+                self.recipients(&mut messages).await?;
+            }
             messages.iter_mut().for_each(|m| m.server.folder = folder.to_owned());
             let last = page.last;
             // (The page carries the state it was read from and the one that goes on from it, so that
@@ -636,6 +716,42 @@ impl<E: HttpExchange> Run<'_, E> {
     }
 }
 
+impl<E: HttpExchange> Run<'_, E> {
+    /// The recipients of `messages`, asked with `GetItem` ([`GetItemRecipients`]) for a server whose
+    /// `SyncFolderItems` won't give them. What stops the run stops it here too (the page is then
+    /// not taken in, and is read again); anything else the server says leaves those messages
+    /// without recipients, said once a run.
+    async fn recipients(&mut self, messages: &mut [GraphMessage]) -> Result<(), Asked> {
+        let at: HashMap<String, usize> = messages.iter().enumerate().map(|(n, m)| (m.server.id.clone(), n)).collect();
+        let ids: Vec<String> = messages.iter().map(|m| m.server.id.clone()).collect();
+        let mut short = false;
+        for some in ids.chunks(MAX_RECIPIENTS_ASKED).take(MAX_RECIPIENT_ASKS) {
+            let op = GetItemRecipients::new(some);
+            if op.is_empty() {
+                continue;
+            }
+            match self.ask(&op.element(), &|reply| op.answer(reply)).await {
+                Ok(found) => {
+                    short |= found.len() < some.len();
+                    for one in found {
+                        if let Some(message) = at.get(&one.id).and_then(|n| messages.get_mut(*n)) {
+                            (message.to, message.cc) = (one.to, one.cc);
+                        }
+                    }
+                }
+                Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+                Err(_) => short = true,
+            }
+        }
+        short |= ids.len() > MAX_RECIPIENTS_ASKED.saturating_mul(MAX_RECIPIENT_ASKS);
+        if short && !self.recipients_unsaid {
+            self.recipients_unsaid = true;
+            log::info!("ews mail: the server didn't give the recipients of some messages; they are listed without them");
+        }
+        Ok(())
+    }
+}
+
 /// The end of a run that could not begin: the client could not be made (the address or the
 /// credentials cannot be used).
 pub fn failed_run(request: &EwsMailRequest, why: &str) -> EwsMailResult {
@@ -652,17 +768,7 @@ pub async fn fetch_messages<E: HttpExchange>(
     cancel: &AtomicBool,
     wait: &mut dyn FnMut(u32) -> bool,
 ) -> GraphFetchResult {
-    let mut run = Run {
-        client,
-        exchange,
-        cancel,
-        wait,
-        shape: Shape::Full,
-        flag_lacking: false,
-        read_unsaid: false,
-        own: HashSet::new(),
-        reread_folders: false,
-    };
+    let mut run = Run::new(client, exchange, cancel, wait);
     let mut out = GraphFetchResult { account: request.account, email: request.email.clone(), ..GraphFetchResult::default() };
     let mut outcome = Outcome::default();
     for id in request.ids.iter().take(MAX_FETCH) {

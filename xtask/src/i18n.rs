@@ -21,6 +21,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+use crate::i18n_kotlin;
+
 use mailcraft_i18n::plural::Rule;
 use mailcraft_i18n::po::{self, Entry};
 
@@ -145,6 +147,10 @@ fn gather(root: &Path) -> Result<Texts, String> {
     for (_, toks) in &ui {
         constants(toks, &mut ui_consts);
     }
+    // (The Favorites' refusals are the sync driver's, below the window, and shown by it.)
+    for (_, toks) in &sources(root, "crates/engine/src/sync_driver")? {
+        constants(toks, &mut ui_consts);
+    }
     for name in SHOWN_CONSTS {
         if let Some(s) = ui_consts.get(*name) {
             add(&mut texts, s, None, "crates/ui-egui/src", "interface");
@@ -177,6 +183,24 @@ fn gather(root: &Path) -> Result<Texts, String> {
         names(toks, file, &mut texts);
         engine_says(toks, file, &says, &consts, &mut texts);
     }
+    // What the hosts say of a mail server they couldn't use (#872): their texts alone, for these
+    // crates also hold stand-ins for servers, whose words are the servers'.
+    for dir in ["crates/proto/src", "crates/net/src"] {
+        let files = sources(root, dir)?;
+        let mut consts = BTreeMap::new();
+        for (_, toks) in &files {
+            constants(toks, &mut consts);
+        }
+        for (file, toks) in &files {
+            hosts_say(toks, file, &consts, &mut texts);
+        }
+    }
+    // What the phone binding says to its owner (`s.interface_language.t("…")`).
+    for (file, toks) in sources(root, "crates/mobile/src")? {
+        engine_says(&toks, &file, &BTreeMap::new(), &BTreeMap::new(), &mut texts);
+    }
+    // What the Android app says: `t("…")` and `tn(n, "…", "…")` in its Kotlin (`cargo xtask mobile`'s app).
+    kotlin(root, &mut texts)?;
     for (file, toks) in sources(root, "crates/time/src")? {
         names(&toks, &file, &mut texts);
     }
@@ -189,6 +213,25 @@ fn gather(root: &Path) -> Result<Texts, String> {
         }
     }
     Ok(texts)
+}
+
+/// The texts of the Android app's Kotlin sources (not its tests, and not the generated bindings).
+fn kotlin(root: &Path, texts: &mut Texts) -> Result<(), String> {
+    let dir = root.join("apps/mailcraft-android/app/src/main/kotlin");
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    let mut files = Vec::new();
+    walk_ext(&dir, "kt", &mut files)?;
+    files.sort();
+    for path in files {
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let file = rel(root, &path);
+        for said in i18n_kotlin::scan(&text) {
+            add(texts, &said.id, said.plural.as_deref(), &file, "android");
+        }
+    }
+    Ok(())
 }
 
 /// Every `.rs` file under `dir` but tests (`tests.rs`, `*_tests.rs`, `#[cfg(test)] mod tests`),
@@ -210,12 +253,16 @@ fn sources(root: &Path, dir: &str) -> Result<Vec<(String, Vec<Tok>)>, String> {
 }
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+    walk_ext(dir, "rs", out)
+}
+
+fn walk_ext(dir: &Path, ext: &str, out: &mut Vec<PathBuf>) -> Result<(), String> {
     let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            walk(&path, out)?;
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+            walk_ext(&path, ext, out)?;
+        } else if path.extension().and_then(|e| e.to_str()) == Some(ext) {
             out.push(path);
         }
     }
@@ -700,6 +747,30 @@ fn names(toks: &[Tok], file: &str, texts: &mut Texts) {
     }
 }
 
+/// What a host says of a mail server it couldn't use: the template of each `said!("…", …)` and
+/// the words of `Arg::words(…)`, a literal or a constant. Nothing else of theirs: the hosts'
+/// stand-ins for servers say what servers say, and that stays as it was said.
+fn hosts_say(toks: &[Tok], file: &str, consts: &BTreeMap<String, String>, texts: &mut Texts) {
+    const KIND: &str = "why a mail server couldn't be used";
+    for i in 0..toks.len() {
+        let open = if is(toks, i, &["said", "!", "("]) {
+            i + 2
+        } else if is(toks, i, &["Arg", ":", ":", "words", "("]) {
+            i + 4
+        } else {
+            continue;
+        };
+        let text = match args(toks, open).first() {
+            Some([Tok::Str(s)]) => Some(s.clone()),
+            Some([Tok::Ident(name)]) => consts.get(name).cloned(),
+            _ => None,
+        };
+        if let Some(s) = text {
+            add(texts, &s, None, file, KIND);
+        }
+    }
+}
+
 /// Every `const NAME: &str = "…";`, by name.
 fn constants(toks: &[Tok], out: &mut BTreeMap<String, String>) {
     for i in 0..toks.len() {
@@ -880,8 +951,10 @@ fn merge(old: &[Entry], found: &Texts) -> Vec<Entry> {
         }
         out.push(e);
     }
+    // Two branches that each keep the same old text leave it twice after a merge; keep one.
+    let mut kept = std::collections::BTreeSet::new();
     for was in old.iter().filter(|e| !e.is_header() && !found.contains_key(&e.key())) {
-        if was.strs.iter().any(|s| !s.is_empty()) {
+        if was.strs.iter().any(|s| !s.is_empty()) && kept.insert(was.key()) {
             out.push(Entry { obsolete: true, references: Vec::new(), extracted: Vec::new(), ..(*was).clone() });
         }
     }
@@ -1010,6 +1083,28 @@ mod tests {
     }
 
     #[test]
+    fn what_the_hosts_say() {
+        let src = r#"
+            const NO_SUBJECT: &str = "(no subject)";
+            fn run() {
+                Err(ProtoError::Auth(said!("the server doesn't take a password on this connection")));
+                let why = said!("Couldn't open \"{name}\"", name);
+                let who = Arg::words(NO_SUBJECT);
+                let theirs = Text::verbatim("Basic authentication is disabled.");
+                return Err(invalid("The Start property is required."));
+                Err(ProtoError::Rejected("no such mailbox".into()));
+            }
+        "#;
+        let toks = lex(src);
+        let mut consts = BTreeMap::new();
+        constants(&toks, &mut consts);
+        let mut texts = Texts::new();
+        hosts_say(&toks, "crates/net/src/x.rs", &consts, &mut texts);
+        let ids: Vec<&str> = texts.keys().map(String::as_str).collect();
+        assert_eq!(ids, ["(no subject)", "Couldn't open \"{name}\"", "the server doesn't take a password on this connection"]);
+    }
+
+    #[test]
     fn what_the_engine_says() {
         let src = r#"
             const BUSY: &str = "the mailbox is busy";
@@ -1050,6 +1145,14 @@ mod tests {
                 "{who} was added later, {then}"
             ]
         );
+    }
+
+    #[test]
+    fn an_old_text_kept_twice_by_a_merge_is_kept_once() {
+        let old =
+            po::parse("msgid \"\"\nmsgstr \"\"\n\n#~ msgid \"Gone\"\n#~ msgstr \"Parti\"\n\n#, fuzzy\n#~ msgid \"Gone\"\n#~ msgstr \"Parti\"\n");
+        let merged = merge(&old.entries, &Texts::new());
+        assert_eq!(merged.iter().filter(|e| e.id == "Gone").count(), 1);
     }
 
     #[test]

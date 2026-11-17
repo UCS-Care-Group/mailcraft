@@ -109,6 +109,14 @@ fn ask(control: &Sender<ControlRequest>, method: &str, params: Value) -> std::sy
 }
 
 #[test]
+fn snoozed_mail_is_not_looked_at_until_the_mailbox_has_opened() {
+    let (mut app, _tx, _progress, _built, _control) = waiting();
+    app.snooze_tick();
+    // The first look is still to come, so it happens once the mailbox is in (#949).
+    assert_eq!(app.snooze_last, 0);
+}
+
+#[test]
 fn while_opening_every_command_and_control_request_is_refused_but_the_status() {
     let (app, _tx, progress, _built, control) = waiting();
     progress.set_total(2_000_000);
