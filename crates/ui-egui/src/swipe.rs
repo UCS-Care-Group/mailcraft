@@ -59,6 +59,12 @@ impl Action {
 #[derive(Clone, Default)]
 struct Gesture {
     active: bool,
+    /// A phased stream was cancelled before it ended: ignore its remaining movement.
+    discarded: bool,
+    /// A terminal event was consumed in this frame; other rows must not replay its events.
+    blocked_frame: Option<u64>,
+    /// A terminal phase observed even if the originating row is not drawn in that frame.
+    terminal_frame: Option<u64>,
     scope: Option<Scope>,
     frame: u64,
     row: u64,
@@ -71,6 +77,16 @@ struct Gesture {
     settled_at: f64,
     from: f32,
     action: Action,
+}
+
+impl Gesture {
+    fn discard(&self) -> Self {
+        Self {
+            discarded: self.has_phases && (!self.settling || self.discarded) && self.terminal_frame.is_none(),
+            blocked_frame: self.terminal_frame,
+            ..Default::default()
+        }
+    }
 }
 
 /// The list and mailbox in which a gesture started. IDs are only meaningful in that opening.
@@ -93,9 +109,33 @@ pub(crate) fn reconcile(ui: &egui::Ui, scope: Scope, visible: impl FnOnce(u64, u
             && state.active
             && (state.scope != Some(scope) || frame.saturating_sub(state.frame) > 1 || !visible(state.row, state.copy))
         {
-            data.remove_temp::<Gesture>(slot());
+            data.insert_temp(slot(), state.discard());
         }
     });
+    observe_cancelled(ui.ctx());
+}
+
+/// A cancelled stream can end while the mail list is hidden or empty.
+pub(crate) fn observe_cancelled(ctx: &egui::Context) {
+    let ended = ctx.input(|input| {
+        input.events.iter().any(|event| {
+            matches!(event, Event::MouseWheel { unit, phase: TouchPhase::End | TouchPhase::Cancel, source, .. }
+            if scale(*unit, *source, cfg!(target_os = "windows")).is_some())
+        })
+    });
+    if ended {
+        let frame = ctx.cumulative_frame_nr();
+        ctx.data_mut(|data| {
+            if let Some(mut state) = data.get_temp::<Gesture>(slot()) {
+                if state.discarded && !state.active {
+                    state = Gesture { blocked_frame: Some(frame), ..Default::default() };
+                } else if state.active && state.has_phases {
+                    state.terminal_frame = Some(frame);
+                }
+                data.insert_temp(slot(), state);
+            }
+        });
+    }
 }
 
 #[derive(Default)]
@@ -124,14 +164,33 @@ pub(crate) fn input(ui: &egui::Ui, scope: Scope, key: (u64, u16), members: &[u64
     let width = if width.is_finite() { width.clamp(0.0, 100_000.0) } else { 0.0 };
     let id = slot();
     let (events, now) = ui.input(|i| (i.events.clone(), i.time));
+    let frame_nr = ui.ctx().cumulative_frame_nr();
     let mut state = ui.ctx().data_mut(|data| data.get_temp::<Gesture>(id).unwrap_or_default());
     if state.active && state.scope != Some(scope) {
-        state = Gesture::default();
+        state = state.discard();
+    }
+    if state.blocked_frame == Some(frame_nr) {
+        return Frame::default();
     }
     let mut end = false;
     let mut cancel = false;
     for event in events {
         let Event::MouseWheel { unit, mut delta, phase, source, modifiers } = event else { continue };
+        if state.discarded && !state.active {
+            match phase {
+                TouchPhase::Start if hovered && modifiers == egui::Modifiers::NONE && scale(unit, source, cfg!(target_os = "windows")).is_some() => {
+                    state = Gesture::default();
+                }
+                TouchPhase::End | TouchPhase::Cancel if scale(unit, source, cfg!(target_os = "windows")).is_some() => {
+                    state = Gesture { blocked_frame: Some(frame_nr), ..Default::default() };
+                    break;
+                }
+                _ => continue,
+            }
+        }
+        if state.active && state.settling && state.discarded && matches!(phase, TouchPhase::End | TouchPhase::Cancel) {
+            state.discarded = false;
+        }
         if modifiers != egui::Modifiers::NONE {
             if matches!(phase, TouchPhase::End | TouchPhase::Cancel) && state.active && !state.settling && (state.row, state.copy) == key {
                 end = true;
@@ -143,7 +202,14 @@ pub(crate) fn input(ui: &egui::Ui, scope: Scope, key: (u64, u16), members: &[u64
         delta *= scale;
         // If its row vanished, a later gesture can start elsewhere without acting on it.
         if state.active && hovered && now - state.last > 1.0 && (state.row != row || state.copy != copy) {
-            state = Gesture::default();
+            state = state.discard();
+            if state.discarded {
+                if phase == TouchPhase::Start {
+                    state = Gesture::default();
+                } else {
+                    continue;
+                }
+            }
         }
         if !state.active && hovered && phase != TouchPhase::End && phase != TouchPhase::Cancel {
             state = Gesture {
@@ -189,6 +255,7 @@ pub(crate) fn input(ui: &egui::Ui, scope: Scope, key: (u64, u16), members: &[u64
         state.settled_at = now;
         state.from = offset;
         state.action = if !cancel && !timed_out && horizontal && state.delta.x.abs() >= 80.0 { action } else { Action::None };
+        state.discarded = timed_out;
     }
     let mut frame = Frame { offset, action, completed: None };
     if state.settling {
@@ -199,7 +266,7 @@ pub(crate) fn input(ui: &egui::Ui, scope: Scope, key: (u64, u16), members: &[u64
         frame.offset = state.from + (target - state.from) * eased;
         if progress >= 1.0 {
             frame.completed = state.action.command().map(|_| (state.action, state.members.clone()));
-            state = Gesture::default();
+            state = Gesture { discarded: state.discarded, ..Default::default() };
         }
     }
     if state.active {

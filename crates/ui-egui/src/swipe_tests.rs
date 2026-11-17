@@ -77,6 +77,146 @@ fn a_replaced_mailbox_changed_list_or_missing_row_discards_the_gesture() {
 }
 
 #[test]
+fn a_discarded_phased_stream_cannot_restart_until_a_terminal_event_or_fresh_start() {
+    for terminal in [TouchPhase::End, TouchPhase::Cancel, TouchPhase::Start] {
+        let ctx = egui::Context::default();
+        let old = Scope { opening: 1, folder: 1, list: egui::Id::unique("list") };
+        let new = Scope { folder: 2, ..old };
+        let run = |time, scope, row, events| {
+            let mut result = Frame::default();
+            let raw = egui::RawInput { time: Some(time), events, ..Default::default() };
+            let mut output = ctx.run_ui(raw, |ui| {
+                super::reconcile(ui, scope, |_, _| true);
+                result = super::input(ui, scope, (row, 0), &[row], true, 400.0, (Action::Delete, Action::Archive));
+            });
+            output.textures_delta.clear();
+            result
+        };
+        run(1.0, old, 1, vec![wheel(-50.0, 0.0, TouchPhase::Start, MouseWheelSource::Trackpad)]);
+        let continued = run(1.1, new, 2, vec![wheel(-90.0, 0.0, TouchPhase::Move, MouseWheelSource::Trackpad)]);
+        assert_eq!(continued.offset, 0.0);
+        assert_eq!(run(1.2, new, 2, vec![wheel(-90.0, 0.0, TouchPhase::Move, MouseWheelSource::Trackpad)]).completed, None);
+        let terminal_delta = if terminal == TouchPhase::Start { -20.0 } else { 0.0 };
+        let result = run(1.3, new, 2, vec![wheel(terminal_delta, 0.0, terminal, MouseWheelSource::Trackpad)]);
+        assert_eq!(result.offset, terminal_delta);
+        if terminal != TouchPhase::Start {
+            assert_eq!(run(1.4, new, 2, vec![wheel(-20.0, 0.0, TouchPhase::Start, MouseWheelSource::Trackpad)]).offset, -20.0);
+        }
+    }
+}
+
+#[test]
+fn unphased_input_can_start_in_a_new_scope_after_a_scope_change() {
+    let ctx = egui::Context::default();
+    let old = Scope { opening: 1, folder: 1, list: egui::Id::unique("list") };
+    let new = Scope { folder: 2, ..old };
+    for (time, scope, row) in [(1.0, old, 1), (1.1, new, 2)] {
+        let mut result = Frame::default();
+        let raw =
+            egui::RawInput { time: Some(time), events: vec![wheel(-30.0, 0.0, TouchPhase::Move, MouseWheelSource::Unknown)], ..Default::default() };
+        let mut output = ctx.run_ui(raw, |ui| {
+            super::reconcile(ui, scope, |_, _| true);
+            result = super::input(ui, scope, (row, 0), &[row], true, 400.0, (Action::Delete, Action::Archive));
+        });
+        output.textures_delta.clear();
+        assert_eq!(result.offset, -30.0);
+    }
+}
+
+#[test]
+fn terminal_event_does_not_let_another_row_replay_the_same_frames_movement() {
+    let ctx = egui::Context::default();
+    let old = Scope { opening: 1, folder: 1, list: egui::Id::unique("list") };
+    let new = Scope { folder: 2, ..old };
+    let mut start = ctx.run_ui(
+        egui::RawInput { time: Some(1.0), events: vec![wheel(-30.0, 0.0, TouchPhase::Start, MouseWheelSource::Trackpad)], ..Default::default() },
+        |ui| {
+            let _ = super::input(ui, old, (1, 0), &[1], true, 400.0, (Action::Delete, Action::Archive));
+        },
+    );
+    start.textures_delta.clear();
+    let raw = egui::RawInput {
+        time: Some(1.1),
+        events: vec![wheel(0.0, 0.0, TouchPhase::End, MouseWheelSource::Trackpad), wheel(-100.0, 0.0, TouchPhase::Move, MouseWheelSource::Trackpad)],
+        ..Default::default()
+    };
+    let mut result = Frame::default();
+    let mut output = ctx.run_ui(raw, |ui| {
+        super::reconcile(ui, new, |_, _| true);
+        let _ = super::input(ui, new, (2, 0), &[2], false, 400.0, (Action::Delete, Action::Archive));
+        result = super::input(ui, new, (3, 0), &[3], true, 400.0, (Action::Delete, Action::Archive));
+    });
+    output.textures_delta.clear();
+    assert_eq!(result.offset, 0.0);
+    assert_eq!(result.completed, None);
+}
+
+#[test]
+fn a_cancelled_stream_can_end_while_the_list_is_hidden() {
+    let ctx = egui::Context::default();
+    let old = Scope { opening: 1, folder: 1, list: egui::Id::unique("list") };
+    let new = Scope { folder: 2, ..old };
+    let mut output = ctx.run_ui(
+        egui::RawInput { time: Some(1.0), events: vec![wheel(-30.0, 0.0, TouchPhase::Start, MouseWheelSource::Trackpad)], ..Default::default() },
+        |ui| {
+            let _ = super::input(ui, old, (1, 0), &[1], true, 400.0, (Action::Delete, Action::Archive));
+        },
+    );
+    output.textures_delta.clear();
+    let mut output = ctx.run_ui(egui::RawInput { time: Some(1.1), ..Default::default() }, |ui| {
+        super::reconcile(ui, new, |_, _| false);
+    });
+    output.textures_delta.clear();
+    let mut output = ctx.run_ui(
+        egui::RawInput { time: Some(1.2), events: vec![wheel(0.0, 0.0, TouchPhase::End, MouseWheelSource::Trackpad)], ..Default::default() },
+        |ui| {
+            super::observe_cancelled(ui.ctx());
+        },
+    );
+    output.textures_delta.clear();
+    let mut result = Frame::default();
+    let mut output = ctx.run_ui(
+        egui::RawInput { time: Some(1.3), events: vec![wheel(-30.0, 0.0, TouchPhase::Move, MouseWheelSource::Unknown)], ..Default::default() },
+        |ui| {
+            result = super::input(ui, new, (2, 0), &[2], true, 400.0, (Action::Delete, Action::Archive));
+        },
+    );
+    output.textures_delta.clear();
+    assert_eq!(result.offset, -30.0);
+}
+
+#[test]
+fn terminal_event_while_the_original_list_is_hidden_does_not_block_later_unphased_input() {
+    let ctx = egui::Context::default();
+    let old = Scope { opening: 1, folder: 1, list: egui::Id::unique("list") };
+    let new = Scope { folder: 2, ..old };
+    let mut output = ctx.run_ui(
+        egui::RawInput { time: Some(1.0), events: vec![wheel(-30.0, 0.0, TouchPhase::Start, MouseWheelSource::Trackpad)], ..Default::default() },
+        |ui| {
+            let _ = super::input(ui, old, (1, 0), &[1], true, 400.0, (Action::Delete, Action::Archive));
+        },
+    );
+    output.textures_delta.clear();
+    let mut output = ctx.run_ui(
+        egui::RawInput { time: Some(1.1), events: vec![wheel(0.0, 0.0, TouchPhase::End, MouseWheelSource::Trackpad)], ..Default::default() },
+        |ui| {
+            super::observe_cancelled(ui.ctx());
+        },
+    );
+    output.textures_delta.clear();
+    let mut result = Frame::default();
+    let mut output = ctx.run_ui(
+        egui::RawInput { time: Some(1.2), events: vec![wheel(-30.0, 0.0, TouchPhase::Move, MouseWheelSource::Unknown)], ..Default::default() },
+        |ui| {
+            super::reconcile(ui, new, |_, _| true);
+            result = super::input(ui, new, (2, 0), &[2], true, 400.0, (Action::Delete, Action::Archive));
+        },
+    );
+    output.textures_delta.clear();
+    assert_eq!(result.offset, -30.0);
+}
+
+#[test]
 fn a_conversation_changed_during_animation_keeps_the_original_targets() {
     let ctx = egui::Context::default();
     let source = MouseWheelSource::Trackpad;
@@ -271,4 +411,48 @@ fn leaving_the_folder_cancels_a_gesture_before_the_row_can_reappear() {
     w.event(wheel(0.0, 0.0, TouchPhase::End, MouseWheelSource::Trackpad));
     w.run_steps(40);
     assert!(row.members.iter().any(|id| w.state().session.mailbox.messages.get(id).is_some_and(|message| !message.read)));
+}
+
+#[test]
+fn a_swipe_continued_over_a_draft_after_changing_folders_does_not_delete_it() {
+    use crate::{MailApp, Services};
+    use mailcraft_engine::Session;
+    use serde_json::json;
+
+    let now = 1_791_993_600;
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(now, 0), now, 0), Services::default());
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
+    app.ui.swipe_left = Action::Delete;
+    let mut w =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
+    w.run_steps(4);
+    let _ = w.state_mut().execute("ui.dismissReminder", json!({"all": true}));
+    w.run_steps(3);
+    let inbox_rows = w.state_mut().session.rows();
+    let inbox = inbox_rows.iter().find_map(|row| w.state().hit.rect("message", row.id)).unwrap();
+    w.event(Event::PointerMoved(inbox.center()));
+    w.step();
+    w.event(wheel(-30.0, 0.0, TouchPhase::Start, MouseWheelSource::Trackpad));
+    w.step();
+    w.state_mut().execute("folder.select", json!({"kind": "drafts"})).unwrap();
+    w.run_steps(3);
+    let draft_rows = w.state_mut().session.rows();
+    let draft = draft_rows.iter().find(|row| w.state().hit.rect("message", row.id).is_some()).unwrap().clone();
+    let original_folder = w.state().session.mailbox.messages.get(&draft.id).unwrap().folder;
+    let draft_rect = w.state().hit.rect("message", draft.id).unwrap();
+    w.event(Event::PointerMoved(draft_rect.center()));
+    w.step();
+    w.event(wheel(-90.0, 0.0, TouchPhase::Move, MouseWheelSource::Trackpad));
+    w.step();
+    w.event(wheel(0.0, 0.0, TouchPhase::End, MouseWheelSource::Trackpad));
+    w.run_steps(40);
+    assert_eq!(w.state().session.mailbox.messages.get(&draft.id).map(|message| message.folder), Some(original_folder));
 }

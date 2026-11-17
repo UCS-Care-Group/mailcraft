@@ -4913,6 +4913,7 @@ impl MailApp {
     /// Per-frame logic before layout: control requests, screenshots, background results, file
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
+        swipe::observe_cancelled(ctx);
         attachment_preview::poll(self, ctx);
         self.apply_language();
         // The system's authorities for mail, once the host has read them: what was checked
