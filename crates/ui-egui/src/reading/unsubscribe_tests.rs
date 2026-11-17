@@ -191,7 +191,7 @@ fn a_selection_unsubscribes_each_list_once_one_click_at_a_time() {
     let page = add(&mut app, "club@club.example", "<http://club.example/leave>");
     let asked = host(&mut app, Ok(()));
     let ids = json!([first, second, page]);
-    let q = super::question_many(&app, &json!({"ids": ids})).unwrap();
+    let (q, _) = super::question_many(&mut app, &json!({"ids": ids})).unwrap();
     assert!(q.text.contains("3 lists") && q.text.contains("2 in one click"), "{}", q.text);
     let said = app.execute("ui.unsubscribeMany", json!({"ids": ids})).unwrap();
     assert_eq!((said["oneClick"].as_u64(), said["pages"].as_u64()), (Some(2), Some(1)));
@@ -270,7 +270,7 @@ fn the_question_counts_each_sender_by_the_message_that_goes() {
     // Named first, the older message says nothing; the newer one, which goes, unsubscribes by mail.
     let old = add_at(&mut app, "deals@shop.example", 9_000, &[]);
     let new = add_at(&mut app, "deals@shop.example", 60, &[("List-Unsubscribe", "<mailto:leave@shop.example>")]);
-    let q = super::question_many(&app, &json!({"ids": [old, new]})).unwrap();
+    let (q, _) = super::question_many(&mut app, &json!({"ids": [old, new]})).unwrap();
     assert!(q.text.starts_with("Unsubscribe from 1 list.") && q.text.contains("1 by a message from your account"), "{}", q.text);
     assert!(!q.text.contains("1 lists"), "{}", q.text);
 }
@@ -280,7 +280,7 @@ fn messages_named_wrongly_are_refused_not_taken_for_the_selection() {
     let (mut app, id) = list_app(&ONE_CLICK);
     app.session.sel.messages = vec![id];
     for ids in [json!("all"), json!([id, "x"]), json!({"id": id})] {
-        assert!(super::question_many(&app, &json!({"ids": ids})).is_none(), "{ids}");
+        assert!(super::question_many(&mut app, &json!({"ids": ids})).is_err(), "{ids}");
         assert!(app.execute("ui.unsubscribeMany", json!({"ids": ids})).is_err(), "{ids}");
     }
     assert!(app.unsubscribing.waiting.is_empty() && app.unsubscribing.flying.is_none());
@@ -289,10 +289,67 @@ fn messages_named_wrongly_are_refused_not_taken_for_the_selection() {
 #[test]
 fn without_a_host_one_click_is_left_to_its_page() {
     let (mut app, id) = list_app(&ONE_CLICK);
-    let q = super::question_many(&app, &json!({"ids": [id]})).unwrap();
+    let (q, _) = super::question_many(&mut app, &json!({"ids": [id]})).unwrap();
     assert!(q.text.contains("1 unsubscribes on its own page"), "{}", q.text);
     let said = app.execute("ui.unsubscribeMany", json!({"ids": [id]})).unwrap();
     assert_eq!((said["oneClick"].as_u64(), said["pages"].as_u64()), (Some(0), Some(1)));
     assert!(app.unsubscribing.waiting.is_empty() && app.unsubscribing.flying.is_none());
     assert_eq!(app.unsubscribing.said.get(&id), None, "its bar still offers the page");
+}
+
+#[test]
+fn each_request_by_mail_is_shown_and_only_those_shown_are_sent() {
+    let (mut app, _) = list_app(&[]);
+    let shop = add_at(&mut app, "deals@shop.example", 60, &[("List-Unsubscribe", "<mailto:leave@shop.example?subject=Stop%20please>")]);
+    // A sender that passes DMARC for its own domain may name any address: it is shown all the same.
+    let other = add_at(&mut app, "news@lure.example", 120, &[("List-Unsubscribe", "<mailto:anyone@victim.example?subject=Hello>")]);
+    let (q, params) = super::question_many(&mut app, &json!({"ids": [shop, other]})).unwrap();
+    for seen in ["to leave@shop.example, subject “Stop please”", "to anyone@victim.example, subject “Hello”"] {
+        assert!(q.text.contains(seen), "{}", q.text);
+    }
+    assert_eq!(params["mail"], json!([shop, other]));
+    let outbox = |app: &MailApp| {
+        let id = app.session.mailbox.folders.iter().find(|f| f.kind == mailcraft_model::FolderKind::Outbox).map(|f| f.id).unwrap();
+        app.session.mailbox.messages_in(id).map(|m| m.to.first().map(|a| a.email.clone()).unwrap_or_default()).collect::<Vec<_>>()
+    };
+    // Without the requests the question listed (an agent's call naming none), nothing is written.
+    let said = app.execute("ui.unsubscribeMany", json!({"ids": [shop, other]})).unwrap();
+    assert_eq!((said["mail"].as_u64(), said["leftOut"].as_u64()), (Some(0), Some(2)));
+    assert!(outbox(&app).is_empty());
+    // The yes sends those it listed, and only those.
+    let said = app.execute("ui.unsubscribeMany", json!({"ids": [shop, other], "mail": [shop]})).unwrap();
+    assert_eq!((said["mail"].as_u64(), said["leftOut"].as_u64()), (Some(1), Some(1)));
+    assert_eq!(outbox(&app), ["leave@shop.example"]);
+}
+
+#[test]
+fn the_owner_is_asked_what_goes_and_refused_before_when_it_cant() {
+    let (mut app, id) = list_app(&ONE_CLICK);
+    let _ = host(&mut app, Ok(()));
+    // Mail its server doesn't vouch for is counted as left out, not as a list.
+    let inbox = app.session.mailbox.inbox().unwrap();
+    let unvouched = Message {
+        folder: inbox,
+        from: Address::new("", "alerts@bank.example"),
+        subject: "Check".into(),
+        uid: 9,
+        date: NOW - 60,
+        headers: vec![("List-Unsubscribe".into(), "<https://bank.example/u>".into())],
+        ..Message::default()
+    };
+    let unvouched = app.session.mailbox.add_message(unvouched).unwrap();
+    assert_eq!(app.run("ui.unsubscribeMany", json!({"ids": [id, unvouched]})).unwrap()["pending"], "confirm");
+    match &app.dialog {
+        Some(crate::dialogs::Dialog::Confirm { ask, params, .. }) => {
+            assert!(ask.text.starts_with("Unsubscribe from 1 list.") && ask.text.contains("1 sender is left out"), "{}", ask.text);
+            assert_eq!(params["ids"], json!([id, unvouched]));
+        }
+        _ => panic!("nothing was asked"),
+    }
+    // Too many, or none that can be unsubscribed from: refused before anything is asked.
+    app.dialog = None;
+    let many: Vec<u64> = (1..=501).collect();
+    assert!(app.run("ui.unsubscribeMany", json!({"ids": many})).is_err());
+    assert!(app.run("ui.unsubscribeMany", json!({"ids": [unvouched]})).is_err());
+    assert!(app.dialog.is_none());
 }

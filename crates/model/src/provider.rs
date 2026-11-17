@@ -250,6 +250,29 @@ pub fn by_mx(host: &str) -> Option<Preset> {
     if under("zoho.com") {
         return Some(with_password("Zoho", "imap.zoho.com", ("smtp.zoho.com", 465, tls), ""));
     }
+    // IONOS (formerly 1&1): one mail system, a server name per country of contract, told apart by
+    // the exchangers. IONOS's help pages "Default DNS settings for IONOS domains" and "IONOS mail
+    // server details for IMAP, POP3 and SMTP" name both.
+    let ionos = if under("ionos.co.uk") || under("1and1.co.uk") {
+        Some("co.uk")
+    } else if under("ionos.de") || under("kundenserver.de") {
+        Some("de")
+    } else if under("ionos.es") || under("1and1.es") {
+        Some("es")
+    } else if under("ionos.fr") || under("1and1.fr") {
+        Some("fr")
+    } else if under("ionos.it") || under("servercliente.it") {
+        Some("it")
+    } else if under("ionos.mx") {
+        Some("mx")
+    } else if under("ionos.com") || under("1and1.com") || under("perfora.net") {
+        Some("com")
+    } else {
+        None
+    };
+    if let Some(cc) = ionos {
+        return Some(with_password("IONOS", &format!("imap.ionos.{cc}"), (&format!("smtp.ionos.{cc}"), 465, tls), ""));
+    }
     None
 }
 
@@ -281,6 +304,68 @@ pub fn by_autodiscover(hosts: &[String]) -> Autodiscover {
     }
     let exchange = |host: &String| !IMAP_AUTODISCOVER.iter().any(|imap| crate::is_within(host, imap));
     if hosts.iter().any(exchange) { Autodiscover::Exchange } else { Autodiscover::Nothing }
+}
+
+/// Where a known provider keeps an account's calendars and contacts (CalDAV and CardDAV, Q6 of
+/// the server-calendars spec): addresses a host uses without looking anything up, and the hosts
+/// the password may go to for that provider's accounts (and no other account's).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DavPreset {
+    /// The provider's name.
+    pub service: &'static str,
+    /// The CalDAV server's address.
+    pub caldav: &'static str,
+    /// The CardDAV server's address.
+    pub carddav: &'static str,
+    /// Host names that a numbered host of the provider ends in: `p<digits>-` and one of these
+    /// (iCloud puts each account on a numbered host of its own, which the server's answer names).
+    shards: &'static [&'static str],
+}
+
+impl DavPreset {
+    /// Whether `host` (lower case, no port) is one of the provider's own DAV hosts: the two
+    /// addresses' hosts, or a numbered one (`p07-caldav.icloud.com`).
+    pub fn trusts(&self, host: &str) -> bool {
+        let host = host.trim_end_matches('.').to_ascii_lowercase();
+        let named = |address: &str| address.strip_prefix("https://").and_then(|rest| rest.split('/').next()).is_some_and(|own| own == host);
+        named(self.caldav)
+            || named(self.carddav)
+            || self.shards.iter().any(|tail| {
+                host.strip_suffix(tail)
+                    .and_then(|front| front.strip_prefix('p'))
+                    .and_then(|front| front.strip_suffix('-'))
+                    .is_some_and(|digits| !digits.is_empty() && digits.len() <= 4 && digits.bytes().all(|b| b.is_ascii_digit()))
+            })
+    }
+}
+
+const ICLOUD_DAV: DavPreset = DavPreset {
+    service: "iCloud",
+    caldav: "https://caldav.icloud.com/",
+    carddav: "https://contacts.icloud.com/",
+    shards: &["caldav.icloud.com", "contacts.icloud.com"],
+};
+const FASTMAIL_DAV: DavPreset =
+    DavPreset { service: "Fastmail", caldav: "https://caldav.fastmail.com/", carddav: "https://carddav.fastmail.com/", shards: &[] };
+
+/// The calendar and contacts servers of the provider whose address's domain this is (`icloud.com`,
+/// `fastmail.com`), or whose IMAP server (`imap.fastmail.com`) holds the account; `None` for any
+/// other domain. Only iCloud and Fastmail: the others wait until their public documents are checked.
+pub fn dav_by_domain(domain: &str) -> Option<DavPreset> {
+    match domain.trim().trim_end_matches('.').to_ascii_lowercase().as_str() {
+        "icloud.com" | "me.com" | "mac.com" => Some(ICLOUD_DAV),
+        "fastmail.com" | "fastmail.fm" => Some(FASTMAIL_DAV),
+        _ => None,
+    }
+}
+
+/// [`dav_by_domain`] for an account whose mail is on `imap_host` (a custom domain at a provider).
+pub fn dav_by_imap_host(imap_host: &str) -> Option<DavPreset> {
+    match imap_host.trim().trim_end_matches('.').to_ascii_lowercase().as_str() {
+        "imap.mail.me.com" => Some(ICLOUD_DAV),
+        "imap.fastmail.com" => Some(FASTMAIL_DAV),
+        _ => None,
+    }
 }
 
 /// From the provider's name, for an owner who says whose the account is (`microsoft365`,
@@ -436,8 +521,35 @@ mod tests {
         assert_eq!(by_mx("aspmx.l.google.com").unwrap().service, "Google Workspace");
         assert_eq!(by_mx("in1-smtp.messagingengine.com").unwrap().service, "Fastmail");
         assert_eq!(by_mx("mx01.mail.icloud.com").unwrap().service, "iCloud");
+        for (mx, cc) in [
+            ("mx00.ionos.co.uk", "co.uk"),
+            ("mx01.1and1.co.uk.", "co.uk"),
+            ("mx00.ionos.de", "de"),
+            ("emig.kundenserver.de", "de"),
+            ("mx00.ionos.es", "es"),
+            ("mx00.1and1.fr", "fr"),
+            ("mx00.servercliente.it", "it"),
+            ("mx00.ionos.mx", "mx"),
+            ("mx00.ionos.com", "com"),
+            ("mx00.perfora.net", "com"),
+        ] {
+            let ionos = by_mx(mx).unwrap();
+            assert_eq!((ionos.service, ionos.oauth, ionos.note), ("IONOS", None, ""), "{mx}");
+            assert_eq!(ionos.incoming, server(&format!("imap.ionos.{cc}"), 993, Security::Tls), "{mx}");
+            assert_eq!(ionos.outgoing, server(&format!("smtp.ionos.{cc}"), 465, Security::Tls), "{mx}");
+        }
         // A look-alike is not the provider, nor is a host that isn't one.
-        for host in ["evilgoogle.com", "mail.protection.outlook.com.evil.example", "mx.lumen.example", "", "a b", "x/../mx.microsoft"] {
+        for host in [
+            "evilgoogle.com",
+            "evilionos.co.uk",
+            "ionos.co.uk.evil.example",
+            "mx00.ionos.co.uk.example",
+            "mail.protection.outlook.com.evil.example",
+            "mx.lumen.example",
+            "",
+            "a b",
+            "x/../mx.microsoft",
+        ] {
             assert_eq!(by_mx(host), None, "{host}");
         }
     }

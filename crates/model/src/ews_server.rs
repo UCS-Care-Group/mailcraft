@@ -159,6 +159,19 @@ pub fn is_microsoft_domain(domain: &str) -> bool {
     is_exchange_online(domain) || is_microsoft_consumer_domain(domain)
 }
 
+/// Hosts that are Google's: the mail, calendar and contacts services and the hosts they answer
+/// from (Google's CalDAV is at `apidata.googleusercontent.com`, its CardDAV at
+/// `www.googleapis.com`): a name and every name under it. Fixed, as [`EXCHANGE_ONLINE`] is.
+const GOOGLE: [&str; 7] = ["google.com", "googleapis.com", "googleusercontent.com", "googlemail.com", "gmail.com", "gstatic.com", "googlegroups.com"];
+
+/// Whether `host` (or a domain: an address's, say) is, or is under, one of Google's names
+/// ([`GOOGLE`]). A password is never sent there by a program that is not Google's: a Google
+/// account signs in on Google's page, with a token (spec C3.7).
+pub fn is_google_host(host: &str) -> bool {
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    GOOGLE.iter().any(|google| is_within(&host, google))
+}
+
 /// Whether `host` is `domain` or a name under it (`mail.example.org` is within `example.org`;
 /// `evil-example.org` is not).
 pub fn is_within(host: &str, domain: &str) -> bool {

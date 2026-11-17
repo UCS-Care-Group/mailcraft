@@ -212,12 +212,14 @@ fn many_messages_give_each_sender_once_and_say_what_is_left_out() {
     let left = said["leftOut"].as_array().unwrap();
     assert_eq!(left.len(), 1);
     assert_eq!(left[0]["sender"], "spoof@bank.example");
-    assert_eq!(said["sent"], 0, "nothing is sent without \"send\"");
-    // With "send", the request by mail goes to the Outbox; one click and pages are the window's.
-    let said = s.run("mail.unsubscribeMany", &json!({"ids": ids, "send": true})).unwrap();
-    assert_eq!(said["sent"], 1);
+    // A request by mail says where it goes and with what subject, so that both are seen first.
+    let shop = senders.iter().find(|x| x["sender"] == "deals@shop.example").unwrap();
+    assert_eq!((shop["way"].as_str(), shop["to"].as_str(), shop["subject"].as_str()), (Some("mail"), Some("leave@shop.example"), Some("leave")));
+    // Nothing is ever sent from here: each request by mail goes on its own (`mail.unsubscribe`).
+    assert!(s.run("mail.unsubscribeMany", &json!({"ids": ids, "send": true})).is_err());
+    assert!(s.run("mail.unsubscribeMany", &json!({"ids": ids, "send": false})).is_err());
     let outbox = s.mailbox.folders.iter().find(|f| f.kind == FolderKind::Outbox).map(|f| f.id).unwrap();
-    assert_eq!(s.mailbox.messages_in(outbox).map(|m| m.subject.clone()).collect::<Vec<_>>(), ["leave"]);
+    assert_eq!(s.mailbox.messages_in(outbox).count(), 0);
     // Named wrongly, refused.
     assert!(s.run("mail.unsubscribeMany", &json!({"ids": "all"})).is_err());
 }

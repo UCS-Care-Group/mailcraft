@@ -68,7 +68,7 @@ server. They exercise preservation, conservative refusals, namespace separation,
 and failed propstats, hostile XML and the size/depth/count budgets.
 
 The pure `mailcraft-dav` crate is at layer 3 and builds for WebAssembly. Cargo-fuzz targets
-`dav_xml` and `dav_document` exercise both readers; CI runs them when `crates/dav` changes.
+`dav_xml` and `dav_document` exercise both readers, `dav_answers` the typed multistatus answers, addresses and statuses, and `dav_discovery` the discovery state machine fed hostile answers (it checks that a password goes only to a host that challenged for it, and never to a Microsoft or Google host); CI runs them when `crates/dav` changes.
 Structured property tests also mutate valid cards and events (folds, stray CRs, quotes and
 missing END lines).
 
