@@ -1,0 +1,1 @@
+- Save Mailbox As writes large mailboxes a message at a time, avoiding a second in-memory copy of all their content and the complete export file. A failed export leaves an existing destination unchanged ([#1527](https://github.com/UCS-Care-Group/mailcraft/issues/1527)).

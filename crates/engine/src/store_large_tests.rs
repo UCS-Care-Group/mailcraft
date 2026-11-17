@@ -104,6 +104,35 @@ fn save_single_refuses_to_write_what_open_would_refuse() {
 }
 
 #[test]
+fn a_failed_single_file_export_keeps_the_destination_and_removes_its_temporary_file() {
+    let tmp = Temp::new("export-failure");
+    let path = tmp.file();
+    let before = crate::io::write_mailbox(&mailbox(2, 100)).unwrap();
+    fs::write(&path, &before).unwrap();
+    let mb = mailbox(3, 100);
+    let last = *mb.messages.keys().last().unwrap();
+    let error =
+        save_single_with(
+            &path,
+            &mb,
+            |id| {
+                if id == last { Err("synthetic missing attachment".into()) } else { Ok(mb.messages.get(&id).unwrap().clone()) }
+            },
+        )
+        .unwrap_err();
+    assert!(error.contains("synthetic missing attachment"), "{error}");
+    assert_eq!(fs::read(&path).unwrap(), before);
+    assert_eq!(fs::read_dir(&tmp.0).unwrap().count(), 1);
+
+    // The size limit is checked while writing, not after allocating the whole JSON file.
+    let error = save_single(&path, &mailbox(2_000, 10_000)).unwrap_err();
+    assert!(error.contains("nothing was written"), "{error}");
+    assert_eq!(fs::read(&path).unwrap(), before);
+    assert_eq!(fs::read_dir(&tmp.0).unwrap().count(), 1);
+    assert_eq!(open(&path).unwrap().mailbox.messages.len(), 2);
+}
+
+#[test]
 fn the_log_form_refuses_to_grow_past_what_it_opens_and_keeps_the_file_readable() {
     let tmp = Temp::new("index");
     let path = tmp.file();
