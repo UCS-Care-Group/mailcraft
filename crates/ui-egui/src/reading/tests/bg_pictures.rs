@@ -212,3 +212,70 @@ fn the_pictures_behind_boxes_and_the_others_share_one_cap() {
         assert_eq!((laid.stats.behind, laid.stats.pictures), (MAX_PICTURES_PER_MESSAGE, 0), "{:?}", laid.stats);
     });
 }
+
+/// The colour the first run of the text that starts with `start` is painted in.
+fn ink_of(laid: &Laid, start: &str) -> Color32 {
+    let ItemKind::Text(text) = &laid.items[text_at(laid, start)].kind else { panic!("no text") };
+    text.job.sections[0].format.color
+}
+
+fn attached(m: &mut mailcraft_model::Message) {
+    m.attachments =
+        vec![Attachment { content_id: "hero@example.org".into(), inline: true, ..Attachment::new("hero.png", "image/png", png(300, 100)) }];
+}
+
+#[test]
+fn text_over_a_picture_shown_as_it_is_keeps_its_colour() {
+    // The newsletter case: white text over a dark banner, with a light fallback colour for the
+    // programs that show no picture. The text is not darkened for the cream.
+    let mut m = hero("<td background=\"cid:hero@example.org\" bgcolor=\"#f4efe6\" style=\"background-repeat:no-repeat\">");
+    attached(&mut m);
+    // The same with a colour of the cell's own that the dark theme leaves as it is: a dark one.
+    let mut dark_fallback = hero("<td background=\"cid:hero@example.org\" bgcolor=\"#203040\">");
+    attached(&mut dark_fallback);
+    // And the picture behind the whole table, over its colour.
+    let html = "<table width=600 bgcolor=\"#f4efe6\" background=\"cid:hero@example.org\"><tr><td><p style=\"color:#ffffff\">Autumn sale</p></td></tr></table>";
+    let mut table = html_message(0, ("Rowan Ash", "rowan@example.org"), "Autumn", html);
+    attached(&mut table);
+    in_frame(false, |ctx| {
+        for message in [&m, &dark_fallback, &table] {
+            let laid = laid(ctx, message, false);
+            assert_eq!(behind(&laid).len(), 1);
+            assert_eq!(ink_of(&laid, "Autumn sale"), Color32::WHITE);
+        }
+    });
+    // In the dark theme the cream is turned dark and the picture dimmed with it: white stays.
+    in_frame(true, |ctx| {
+        for message in [&m, &dark_fallback, &table] {
+            assert_eq!(ink_of(&laid(ctx, message, false), "Autumn sale"), Color32::WHITE);
+        }
+    });
+}
+
+#[test]
+fn text_with_only_a_colour_behind_it_is_adjusted_as_before() {
+    let cell = |attributes: &str| hero(&format!("<td {attributes}>"));
+    // A colour and no picture: white on cream is darkened in the light theme.
+    let plain = cell("bgcolor=\"#f4efe6\"");
+    // A picture that can't be shown (not attached): the colour alone is what is there.
+    let missing = cell("background=\"cid:absent@example.org\" bgcolor=\"#f4efe6\"");
+    in_frame(false, |ctx| {
+        for message in [&plain, &missing] {
+            let laid = laid(ctx, message, false);
+            assert!(behind(&laid).is_empty());
+            let ink = ink_of(&laid, "Autumn sale");
+            assert_ne!(ink, Color32::WHITE);
+            assert!(crate::reading::colors::contrast(ink, Color32::from_rgb(0xf4, 0xef, 0xe6)) >= crate::reading::colors::MIN_CONTRAST);
+        }
+    });
+    // A picture dimmed with a colour turned dark (the dark theme) is read against that colour, as before:
+    // black text on it is turned light.
+    let html = "<table width=600><tr><td background=\"cid:hero@example.org\" bgcolor=\"#f4efe6\"><p style=\"color:#000000\">Autumn sale</p></td></tr></table>";
+    let mut black = html_message(0, ("Rowan Ash", "rowan@example.org"), "Autumn", html);
+    attached(&mut black);
+    in_frame(true, |ctx| {
+        let laid = laid(ctx, &black, false);
+        assert_eq!(behind(&laid)[0].1.tint, DARK_TINT);
+        assert!(crate::reading::colors::luminance(ink_of(&laid, "Autumn sale")) > 0.5);
+    });
+}

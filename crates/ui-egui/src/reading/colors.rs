@@ -22,9 +22,13 @@
 //!    window's surface, and near black or near white on a background of the message's own. So
 //!    nothing is invisible: not white on white, not black in a dark window.
 //!
-//! A picture behind a box (#601) is not looked at for its colours: the text on it is checked
-//! against the box's colour, the one its sender gives for programs that show no picture, and in
-//! the dark theme the picture is dimmed as that colour is turned dark ([`super::backdrop`]).
+//! A picture behind a box (#601) is not looked at for its colours. Where it is painted as it is
+//! (a box with a colour of its own that is not turned dark: any box in the light theme), the text
+//! colours the message asks for there are left as asked ([`Paper::picture`]): the colour under
+//! the picture is only the sender's fallback, and judging text against it would darken white text
+//! over a dark picture. Where the picture is dimmed (the dark theme, with the colour turned dark
+//! as it is) or veiled (a box with no colour), the text is checked against that colour or the
+//! paper as before ([`super::backdrop`]).
 
 use egui::Color32;
 use mailcraft_html::Rgb;
@@ -153,12 +157,15 @@ pub struct Paper {
     pub fill: Color32,
     /// The message asked for it.
     pub own: bool,
+    /// One of the message's own pictures lies over this colour, painted as it is: what a text
+    /// asks for is judged against that picture, which isn't looked at, so it is left as asked.
+    pub picture: bool,
 }
 
 impl Paper {
     /// The window's surface.
     pub fn window(t: &Tokens) -> Paper {
-        Paper { fill: t.surface, own: false }
+        Paper { fill: t.surface, own: false, picture: false }
     }
 
     /// A background the message asks for, as it is painted in this theme.
@@ -166,16 +173,16 @@ impl Paper {
         let asked = c32(asked);
         // (A message with its own design for dark windows has its backgrounds as it asks.)
         if !t.dark || t.sender_dark {
-            return Paper { fill: asked, own: true };
+            return Paper { fill: asked, own: true, picture: false };
         }
         let (h, s, l) = hsl(asked);
         if l <= 0.5 {
-            return Paper { fill: asked, own: true };
+            return Paper { fill: asked, own: true, picture: false };
         }
         // White lands on the window's surface; a half stays a half, so nothing jumps there.
         let floor = hsl(t.surface).2.clamp(0.0, 0.4);
         let dark = floor + (1.0 - l) * (1.0 - 2.0 * floor);
-        Paper { fill: from_hsl(h, s * 0.6, dark), own: true }
+        Paper { fill: from_hsl(h, s * 0.6, dark), own: true, picture: false }
     }
 
     /// The colour of text that names none.
@@ -221,6 +228,8 @@ impl Paper {
     /// else that one adjusted; a link's or the text's own when it asks for none.
     pub fn ink(&self, t: &Tokens, asked: Option<Rgb>, link: bool, quoted: bool) -> Color32 {
         match asked {
+            // Over a picture shown as it is, the sender's colour stays: the colour behind it is not what the text is on.
+            Some(asked) if self.picture => c32(asked),
             Some(asked) if t.high_contrast => readable_strong(c32(asked), self.fill),
             Some(asked) => readable(c32(asked), self.fill),
             None if link => self.link(t),
@@ -292,7 +301,7 @@ mod tests {
         for asked in
             [Rgb(255, 255, 255), Rgb(0xf4, 0xf4, 0xf4), Rgb(0xff, 0xf8, 0xe1), Rgb(0x00, 0x66, 0xcc), Rgb(0x11, 0x11, 0x11), Rgb(255, 255, 0)]
         {
-            assert_eq!(Paper::of(asked, &light), Paper { fill: c32(asked), own: true });
+            assert_eq!(Paper::of(asked, &light), Paper { fill: c32(asked), own: true, picture: false });
         }
         // White becomes the window's surface, a pale grey a little lighter than that.
         let white = Paper::of(Rgb(255, 255, 255), &dark).fill;

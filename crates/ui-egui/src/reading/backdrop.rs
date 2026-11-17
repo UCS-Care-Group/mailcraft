@@ -13,12 +13,15 @@
 //! together take at most [`MAX_FRAME_TILES`] a frame (a box past it has fewer, larger copies).
 //!
 //! The text on it is read against the box's colour, the one its sender gives for the programs
-//! that show no picture ([`super::colors`]). In the dark theme that colour is turned dark when it
-//! is light, and the picture is dimmed with it ([`DARK_TINT`]), so the text made readable on the
-//! colour stays readable on the picture; a dark colour, which stays, leaves its picture as it is
-//! too, and so do a message with its own design for dark windows and a message read on a light
-//! page. A box with a picture and no colour has its text read against the paper round it, and
-//! the picture is veiled with that paper ([`VEIL`]; dimmed under it too in the dark theme) so the text stays readable on it in either
+//! that show no picture ([`super::colors`]), except where the picture is painted as it is over a
+//! colour of the box's own: there the text colours the message asks for are kept
+//! ([`super::colors::Paper::picture`]), as the picture, which isn't looked at, is what the sender
+//! wrote them for. In the dark theme a light colour is turned dark and the picture is dimmed with
+//! it ([`DARK_TINT`]), so the text made readable on the colour stays readable on the picture; a
+//! dark colour, which stays, leaves its picture as it is too, and so do a message with its own
+//! design for dark windows and a message read on a light page. A box with a picture and no colour
+//! has its text read against the paper round it, and the picture is veiled with that paper
+//! ([`VEIL`]; dimmed under it too in the dark theme) so the text stays readable on it in either
 //! theme. With high contrast on, no picture is painted behind a box: the text is on its colour
 //! alone.
 

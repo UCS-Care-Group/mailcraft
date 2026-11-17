@@ -484,6 +484,16 @@ impl Cx<'_> {
         Some(Behind { slot: self.slot(), data, size })
     }
 
+    /// `paper` (the box's colour, `asked`) as the text in the box is read on it: with `picture` set
+    /// where the picture kept for it is painted as it is, so that the colours of the text there
+    /// are not judged against the colour under the picture.
+    fn lit(&self, behind: &Option<Behind>, asked: Option<Rgb>, paper: Paper) -> Paper {
+        match asked {
+            Some(asked) if behind.is_some() && Paper::of(asked, &self.t).fill == super::colors::c32(asked) => Paper { picture: true, ..paper },
+            _ => paper,
+        }
+    }
+
     /// Put the picture behind a box at `rect` into the place kept for it. `asked`: the box's own
     /// colour; `paper`: what its text is read against.
     fn fill_behind(&mut self, behind: Option<Behind>, rect: Rect, picture: Option<&BgPicture>, asked: Option<Rgb>, paper: Paper) {
@@ -1904,7 +1914,7 @@ fn cell_paper(cx: &Cx<'_>, table: &Table, cell: &Cell, around: Paper) -> (Paper,
     match cell.background {
         Some(bg) => (Paper::of(bg, &cx.t), true),
         // A header cell of a data table is shaded a little when the message gives it no colour.
-        None if cell.header && !table.layout => (Paper { fill: around.shade(&cx.t), own: around.own }, true),
+        None if cell.header && !table.layout => (Paper { fill: around.shade(&cx.t), own: around.own, picture: false }, true),
         None => (around, false),
     }
 }
@@ -1985,6 +1995,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     let around = table.background.map_or(paper, |bg| Paper::of(bg, &cx.t));
     let table_slot = table.background.map(|_| cx.slot());
     let table_behind = cx.behind_slot(table.bg_picture.as_deref());
+    let around = cx.lit(&table_behind, table.background, around);
     let gap = gaps(table);
     let ruled = ruled(table);
     // The left edge of each column, and the right edge of the last.
@@ -2022,6 +2033,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
             let (inside, own) = cell_paper(cx, table, placed.cell, around);
             let slot = own.then(|| cx.slot());
             let behind = cx.behind_slot(placed.cell.bg_picture.as_deref());
+            let inside = cx.lit(&behind, placed.cell.background, inside);
             let width = (right - left - pad.across()).max(MIN_CELL.min(right - left));
             let bottom =
                 flow(cx, &placed.cell.blocks, left + pad.left.min((right - left) / 2.0), top + pad.top, width, inside, depth + 1) + pad.bottom;
@@ -2143,6 +2155,7 @@ fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Pap
     let around = table.background.map_or(paper, |bg| Paper::of(bg, &cx.t));
     let table_slot = table.background.map(|_| cx.slot());
     let table_behind = cx.behind_slot(table.bg_picture.as_deref());
+    let around = cx.lit(&table_behind, table.background, around);
     let between = gaps(table).y;
     let ruled = ruled(table);
     let mut at = y;
@@ -2161,6 +2174,7 @@ fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Pap
             let (inside, own) = cell_paper(cx, table, cell, around);
             let slot = own.then(|| cx.slot());
             let behind = cx.behind_slot(cell.bg_picture.as_deref());
+            let inside = cx.lit(&behind, cell.background, inside);
             let width = (room - pad.across()).max(MIN_CELL.min(room));
             let bottom = if depth >= MAX_NESTING {
                 // Too deep to go on: what is in the cell is not laid out.
