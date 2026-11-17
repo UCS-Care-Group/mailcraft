@@ -757,6 +757,19 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         if !takes_commands(app) {
             break;
         }
+        // On Windows the system's cut key is Shift+Delete (alongside Ctrl+X): the window layer
+        // turns the press into a cut instead of a key, so the permanent delete's shortcut
+        // arrives as a cut (#1438). Run it as the key would, when a widget isn't keeping the
+        // keyboard (a text field keeps its own cut) and the cut is the shift one (Ctrl+X stays
+        // the text fields' cut).
+        if matches!(e, egui::Event::Cut)
+            && !typing
+            && ctx.input(|i| i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.command && !i.modifiers.alt)
+            && let Some(id) = resolve(app, "Shift+Delete").and_then(|id| window_command(app, id))
+        {
+            let _ = app.run(id, json!({}));
+            continue;
+        }
         let egui::Event::Key { key, pressed: true, modifiers, .. } = e else { continue };
         // Escape alone is handed out above (an open menu keeps it, to close).
         if key == Key::Escape && modifiers.is_none() {
