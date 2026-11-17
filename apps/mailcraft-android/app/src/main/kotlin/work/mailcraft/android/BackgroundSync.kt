@@ -115,9 +115,8 @@ internal class CoreSyncTarget(
 ) : SyncTarget {
     override suspend fun backgroundSync(budgetMs: Long): SyncSummary {
         // The worker's process may have started without a window: the accounts held back are said
-        // to the core before its round, so that none of them is fetched.
-        holds?.reapply()
-        return core.backgroundSync(budgetMs.coerceAtLeast(0L).toULong())
+        // to the core before its round, so that none of them is fetched (no round when one can't be).
+        return afterHolds(holds) { core.backgroundSync(budgetMs.coerceAtLeast(0L).toULong()) }
     }
 
     override suspend fun save(): Boolean = hub.saveNow()

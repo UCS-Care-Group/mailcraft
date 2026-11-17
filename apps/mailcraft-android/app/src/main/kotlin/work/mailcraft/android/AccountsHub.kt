@@ -131,13 +131,13 @@ internal class AccountsHub(
         if (!syncingNow.compareAndSet(expect = false, update = true)) return
         notice.value = null
         scope.launch {
+            // A round the owner asked for lets go of every account held back (the core does as it
+            // begins), and the holds kept here go in the same step ([FirstSyncHolds.ownerRound]).
             val answer = try {
-                sync()
+                holds?.ownerRound(sync) ?: sync()
             } catch (_: CoreException) {
                 SyncAnswer(started = false, message = texts.t("Send/Receive couldn't start. Try again."))
             }
-            // A round the owner asked for let go of every account held back (the core did as it began).
-            if (answer.started) holds?.releaseAll()
             if (!answer.started) {
                 notice.value = answer.message.ifEmpty { null }
                 syncingNow.value = false

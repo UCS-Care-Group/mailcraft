@@ -7,6 +7,7 @@ import android.content.Context
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import uniffi.mailcraft_mobile.CoreException
+import uniffi.mailcraft_mobile.SyncAnswer
 
 /** Where the accounts whose first sync waits are kept: their ids and nothing else. */
 internal interface HoldStore {
@@ -78,26 +79,52 @@ internal class FirstSyncHolds(
     }
 
     /**
-     * The owner asked for a Send/Receive (a pull to refresh): the core let go of every account held
-     * back when it started the round, and nothing is held here either.
+     * A Send/Receive the owner asked for (a pull to refresh): [start] asks the core for the round,
+     * and the core lets go of every account held back as it begins one, so nothing is held here
+     * either once it has. Both happen under the lock, so that a "Not now" answered while the ask is
+     * on its way lands either before the round (and is let go with the rest) or after it (and is
+     * kept, as the core keeps it), never between the core's letting go and this one's.
      */
-    suspend fun releaseAll() = lock.withLock {
-        if (store.load().isNotEmpty()) store.save(emptySet())
+    suspend fun ownerRound(start: suspend () -> SyncAnswer): SyncAnswer = lock.withLock {
+        start().also { if (it.started && store.load().isNotEmpty()) store.save(emptySet()) }
     }
 
-    /** Says every hold kept to a core that has just started (its own are gone with the last one). */
-    suspend fun reapply() = lock.withLock {
-        for (account in store.load()) tell(account, held = true)
+    /**
+     * Says every hold kept to a core that has just started (its own are gone with the last one).
+     * Every hold is tried; the first failure that may pass is returned (null when every hold was
+     * said), so that a round that would start by itself doesn't start without it.
+     */
+    suspend fun reapply(): CoreException? = lock.withLock {
+        var failed: CoreException? = null
+        for (account in store.load()) {
+            val failure = tell(account, held = true)
+            if (failed == null) failed = failure
+        }
+        failed
     }
 
-    /** Tells the core; an account it refuses (gone from the mailbox) is held no more. */
-    private suspend fun tell(account: ULong, held: Boolean) {
+    /**
+     * Tells the core; an account it refuses (gone from the mailbox) is held no more. Another failure
+     * may pass: the hold stays kept, is said again at the next start, and is returned.
+     */
+    private suspend fun tell(account: ULong, held: Boolean): CoreException? =
         try {
             hold(account, held)
+            null
         } catch (_: CoreException.BadRequest) {
             store.save(store.load() - account)
-        } catch (_: CoreException) {
-            // (Another failure may pass: the hold stays kept and is said again at the next start.)
+            null
+        } catch (failure: CoreException) {
+            failure
         }
-    }
+}
+
+/**
+ * A round that starts by itself (the background worker's): every hold kept is said to the core
+ * first, and when one couldn't be, the round doesn't start (the failure is thrown, and the worker
+ * tries again later), so that no account held back is fetched against the owner's "Not now".
+ */
+internal suspend fun <T> afterHolds(holds: FirstSyncHolds?, round: suspend () -> T): T {
+    holds?.reapply()?.let { throw it }
+    return round()
 }
