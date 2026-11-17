@@ -23,15 +23,10 @@ import androidx.compose.ui.test.printToString
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.InetSocketAddress
-import java.net.Socket
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.runBlocking
-import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -40,6 +35,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import uniffi.mailcraft_mobile.Core
+import uniffi.mailcraft_mobile.standInSentTo
 
 /**
  * The whole app on an emulator against the Graph stand-in (MB3.15): sign in, Send/Receive, read a
@@ -174,31 +170,12 @@ class EndToEndTest {
         return checkNotNull((application.started.value as? Phase.Ready)?.value?.core) { "the core isn't open" }
     }
 
-    /** The recipients of the answer in the stand-in's Sent Items, or null while it isn't there. */
-    private fun sentToStandIn(): String? {
-        val answer = standIn("/v1.0/me/mailFolders/sentitems/messages?\$select=subject,toRecipients") ?: return null
-        val list = JSONObject(answer).optJSONArray("value") ?: return null
-        return (0 until list.length()).map { list.getJSONObject(it) }
-            .firstOrNull { it.optString("subject").contains(SUBJECT) }
-            ?.optJSONArray("toRecipients")?.toString()
-    }
-
     /**
-     * A GET to the stand-in on the device's loopback address, over a plain socket (the app's network
-     * security config allows no cleartext, and this is the test's own question, not the app's).
+     * The recipients of the answer in the stand-in's Sent Items, or null while it isn't there. Rust
+     * asks the stand-in and reads its answer (`stand_in_sent_to`, crates/mobile/src/e2e.rs).
      */
-    @Suppress("MagicNumber")
-    private fun standIn(target: String): String? = runCatching {
-        Socket().use { socket ->
-            socket.connect(InetSocketAddress("127.0.0.1", STAND_IN_PORT), 5_000)
-            socket.soTimeout = 10_000
-            val request = "GET $target HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer $STAND_IN_TOKEN\r\n" +
-                "Connection: close\r\n\r\n"
-            socket.getOutputStream().apply { write(request.toByteArray()); flush() }
-            val whole = BufferedReader(InputStreamReader(socket.getInputStream())).readText()
-            if (!whole.startsWith("HTTP/1.1 200")) null else whole.substringAfter("\r\n\r\n")
-        }
-    }.getOrNull()
+    private fun sentToStandIn(): List<String>? =
+        runCatching { standInSentTo(SUBJECT) }.getOrNull()?.takeIf { it.isNotEmpty() }
 
     /** Waits for a node that [matcher] finds; else fails with what the window shows (its text, nothing else). */
     private fun waitFor(matcher: SemanticsMatcher, millis: Long = UI_WAIT) {
@@ -237,10 +214,7 @@ class EndToEndTest {
 
     private companion object {
         /** What `standin --e2e` holds and takes (crates/net/examples/standin.rs, graph/standin.rs). */
-        const val STAND_IN_PORT = 8780
         const val STAND_IN_PAGE_HOST = "stand-in.invalid"
-        // A made-up word the stand-in takes as its token; no service's (graph::standin::TOKEN).
-        const val STAND_IN_TOKEN = "standin.acc-ess_tok.en-0123456789"
         const val SUBJECT = "Quarterly figures for review"
         const val BODY = "The quarterly figures are ready for your review"
         const val SENDER = "ada@example.org"
