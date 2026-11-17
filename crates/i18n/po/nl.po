@@ -1208,28 +1208,10 @@ msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page tha
 msgstr "Sta MailCraft op de pagina die in uw browser is geopend toe dit postvak gelijk te houden met Outlook…"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr "Sta MailCraft toe de agenda's van anderen te lezen op de pagina die in uw browser is geopend…"
-
-#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Allow MailCraft to read shared mailboxes on the page that opened in your browser…"
 msgstr "MailCraft toestaan gedeelde postvakken te lezen op de pagina die in uw browser is geopend…"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr "Sta MailCraft toe de agenda's van gedeelde postvakken te lezen op de pagina die in uw browser is geopend…"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
-msgstr "MailCraft toestaan te verzenden vanuit gedeelde postvakken op de pagina die in uw browser is geopend…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1838,10 +1820,10 @@ msgid "Ask for permission to read and change your To Do lists and tasks: Microso
 msgstr "Vraag toestemming om uw To Do-lijsten en taken te lezen en te wijzigen: de pagina van Microsoft opent in uw browser. Zonder die toestemming blijven taken op deze computer."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-msgstr "Vraag toestemming om de agenda's van gedeelde postvakken te lezen: de pagina van Microsoft opent in uw browser. Zonder die toestemming wordt niets van de agenda's van dit postvak gelezen."
+msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
+msgstr "Toestemming vragen om gedeelde postvakken te lezen en eruit te verzenden en de met u gedeelde agenda's te lezen: de pagina van Microsoft wordt in uw browser geopend. Zonder deze toestemming wordt er niets van gelezen of verzonden."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -3480,7 +3462,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr "Contactpersonen gaan niet naar Verwijderde items."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "Doorgaan"
@@ -5735,6 +5717,12 @@ msgstr "Voor een e-mailserver die uw organisatie zelf beheert. MailCraft zoekt d
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
 msgstr "Voor een account dat zich aanmeldt met Microsoft: de mappen die u onder favorieten in Outlook bewaart, in dezelfde volgorde. Ze worden van de server gelezen en daar nooit gewijzigd. Zonder dit worden de favorieten getoond die u in MailCraft markeert."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, nothing of shared mailboxes is read or sent: {error}"
+msgstr "Voorlopig wordt er niets van gedeelde postvakken gelezen of verzonden: {error}"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -8032,12 +8020,6 @@ msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive 
 msgstr "E-mail uit een ander postvak kan niet in een Postvak UIT worden gezet: bij het volgende Verzenden/ontvangen zou die worden verzonden"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Mail from the shared mailbox waits: {error}"
-msgstr "E-mail uit het gedeelde postvak wacht: {error}"
-
-#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
@@ -8224,7 +8206,7 @@ msgid "MailCraft is up to date ({version})."
 msgstr "MailCraft is actueel ({version})."
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr "MailCraft mag de agenda's van anderen nog niet lezen."
@@ -10868,7 +10850,7 @@ msgid "Open Result from the Server"
 msgstr "Resultaat van de server openen"
 
 #. command label, interface
-#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Open Shared Calendar"
 msgstr "Gedeelde agenda openen"
@@ -11136,12 +11118,6 @@ msgstr "Andere accounts en Op deze computer"
 #, fuzzy
 msgid "Other people's calendars can be opened under a Microsoft work or school account"
 msgstr "Agenda's van anderen kunnen worden geopend onder een werk- of schoolaccount van Microsoft"
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Other people's calendars weren't allowed: {error}"
-msgstr "Agenda's van anderen waren niet toegestaan: {error}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -13498,12 +13474,6 @@ msgstr "Automatisch verzenden en ontvangen"
 msgid "Send automatic replies"
 msgstr "Automatische antwoorden verzenden"
 
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Send from a Shared Mailbox"
-msgstr "Verzenden vanuit een gedeeld postvak"
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -13933,6 +13903,12 @@ msgid "Shared Calendars"
 msgstr "Gedeelde agenda's"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Shared Mailboxes and Calendars"
+msgstr "Gedeelde postvakken en agenda's"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Shared mailbox · No access: Microsoft won't open it for you. Send/Receive tries again"
@@ -13957,16 +13933,28 @@ msgid "Shared mailboxes"
 msgstr "Gedeelde postbussen"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Shared mailboxes weren't allowed: {error}"
-msgstr "Gedeelde postvakken waren niet toegestaan: {error}"
+msgid "Shared mailboxes and calendars weren't allowed: {error}"
+msgstr "Gedeelde postvakken en agenda's zijn niet toegestaan: {error}"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
+#: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
-msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr "Agenda's van gedeelde postvakken waren niet toegestaan: {error}"
+msgid "Shared mailboxes and calendars: asking for your permission…"
+msgstr "Gedeelde postvakken en agenda's: uw toestemming wordt gevraagd…"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: not allowed ({why})"
+msgstr "Gedeelde postvakken en agenda's: niet toegestaan ({why})"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: waiting for your permission"
+msgstr "Gedeelde postvakken en agenda's: wachten op uw toestemming"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
@@ -14077,12 +14065,6 @@ msgstr "Taken tonen van"
 #, fuzzy
 msgid "Show Training"
 msgstr "Training weergeven"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Show a Shared Mailbox's Calendars"
-msgstr "Agenda's van een gedeeld postvak tonen"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -15514,12 +15496,6 @@ msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at m
 msgstr "Dat is geen GitHub-gebruikersnaam: letters, cijfers en enkele koppeltekens, maximaal 39. Laat het vak leeg als u er geen hebt."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "That isn't a shared mailbox"
-msgstr "Dat is geen gedeeld postvak"
-
-#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "That isn't the password of this file."
@@ -15860,12 +15836,6 @@ msgstr ""
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
 msgstr "De agenda {name} en de afspraken die op deze computer zijn bewaard worden verwijderd, evenals het adres dat ervoor is bewaard. Er wordt niets verzonden; u kunt opnieuw abonneren met het adres."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "The calendars of the shared mailbox wait: {error}"
-msgstr "De agenda's van het gedeelde postvak wachten: {error}"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -16578,6 +16548,12 @@ msgid "The rules sent couldn't be noted: {error}"
 msgstr "De verzonden regels konden niet worden vastgelegd: {error}"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
+msgstr "Dezelfde pagina vraagt om de gedeelde postvakken waartoe u toegang hebt te lezen en eruit te verzenden en de met u gedeelde agenda's te lezen, zodat MailCraft het niet opnieuw hoeft te vragen."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The search for your Exchange server asks to start again with an address in another domain, {host}."
@@ -17243,7 +17219,7 @@ msgid "This account has no mail server to send the answer through."
 msgstr "Dit account heeft geen e-mailserver om het antwoord door te verzenden."
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Dit account heeft geen aanmelding bij Microsoft"
@@ -18061,7 +18037,7 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "Deze reeks is nog onderweg naar de server van het account. Wijzig een van de dagen zodra deze daar is (zo meteen)."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
 msgstr "Het account van dit gedeelde postvak is verdwenen"
@@ -18249,18 +18225,6 @@ msgid "To add another Google address, go back and start a new account setup."
 msgstr "Om een ander adres van Google toe te voegen, gaat u terug en zet u een afzonderlijk account op."
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
-msgstr ""
-"Om vergaderingen te beantwoorden of te verzenden vanuit {address}, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-"\n"
-"Of het antwoord als {address} of namens dat adres gaat, is de keuze van uw organisatie. Totdat u het toestaat, wacht het antwoord op deze computer, en er wordt niets verzonden vanaf uw eigen adres."
-
-#. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
@@ -18327,40 +18291,16 @@ msgid "To me"
 msgstr "Aan mij"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+"To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"
 "\n"
-"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+"Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr ""
-"Om agenda's van anderen te openen, heeft MailCraft uw toestemming nodig om de agenda's te lezen die personen met u delen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+"Om de gedeelde postvakken die u met {address} opent te lezen en eruit te verzenden, en om de met u gedeelde agenda's te tonen, heeft MailCraft uw toestemming nodig. De pagina van Microsoft wordt in uw browser geopend om u één keer te vragen naar alles wat MailCraft gebruikt en wat u nog niet hebt toegestaan.\n"
 "\n"
-"Wat u opent, wordt alleen op deze computer bewaard: het verschijnt niet in Outlook of op uw andere apparaten."
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr ""
-"Om vanaf {address} te verzenden, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft wordt eenmalig in uw browser geopend om het u te vragen.\n"
-"\n"
-"Of uw e-mail als {address} of namens dat adres wordt verzonden, bepaalt uw organisatie. Tot u dit toestaat, wacht de e-mail in het Postvak UIT en wordt er niets vanaf uw eigen adres verzonden."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid ""
-"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-msgstr ""
-"Om de agenda's van {address} te tonen, heeft MailCraft uw toestemming nodig om de agenda's van gedeelde postvakken te lezen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-"\n"
-"Wat u van een agenda mag zien, bepalen de eigenaar en uw organisatie: dit verandert daar niets aan. Totdat u het toestaat, wordt niets van de agenda's van {address} gelezen."
+"Totdat u het toestaat, wordt er niets van die postvakken en agenda's gelezen, wachten e-mail en antwoorden op vergaderingen uit een gedeeld postvak op deze computer, en wordt er in hun plaats niets vanaf uw eigen adres verzonden."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19738,12 +19678,6 @@ msgid "Your organisation doesn't allow Exchange Web Services for this account. A
 msgstr "Uw organisatie staat Exchange Web Services voor dit account niet toe. Vraag het uw beheerder."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr "Uw organisatie staat MailCraft niet toe de agenda's van gedeelde postvakken te lezen"
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
@@ -19754,6 +19688,12 @@ msgstr "Uw organisatie staat MailCraft niet toe uw automatische antwoorden te wi
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
 msgstr "Uw organisatie staat MailCraft niet toe dit postvak gelijk te houden met Outlook"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
+msgstr "Uw organisatie staat niet toe dat MailCraft gedeelde postvakken en de met u gedeelde agenda's leest"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -19822,22 +19762,10 @@ msgid "Your organisation's administrator has to approve MailCraft keeping this m
 msgstr "De beheerder van uw organisatie moet eenmalig goedkeuren dat MailCraft dit postvak gelijk houdt met Outlook: Bestand › Info"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr "De beheerder van uw organisatie moet het lezen van agenda's van anderen één keer goedkeuren: Bestand › Info"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-msgstr "De beheerder van uw organisatie moet het lezen van gedeelde postvakken eenmalig goedkeuren: Bestand › Info"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr "De beheerder van uw organisatie moet het lezen van agenda's van gedeelde postvakken één keer goedkeuren: Bestand › Info"
+msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
+msgstr "De beheerder van uw organisatie moet één keer goedkeuren dat MailCraft gedeelde postvakken en agenda's leest: Bestand › Info"
 
 #. interface
 #: crates/ui-egui/src
@@ -24598,6 +24526,110 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
+#~ msgstr "Sta MailCraft toe de agenda's van anderen te lezen op de pagina die in uw browser is geopend…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
+#~ msgstr "Sta MailCraft toe de agenda's van gedeelde postvakken te lezen op de pagina die in uw browser is geopend…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
+#~ msgstr "MailCraft toestaan te verzenden vanuit gedeelde postvakken op de pagina die in uw browser is geopend…"
+
+#, fuzzy
+#~ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
+#~ msgstr "Vraag toestemming om de agenda's van gedeelde postvakken te lezen: de pagina van Microsoft opent in uw browser. Zonder die toestemming wordt niets van de agenda's van dit postvak gelezen."
+
+#, fuzzy
+#~ msgid "Mail from the shared mailbox waits: {error}"
+#~ msgstr "E-mail uit het gedeelde postvak wacht: {error}"
+
+#, fuzzy
+#~ msgid "Other people's calendars weren't allowed: {error}"
+#~ msgstr "Agenda's van anderen waren niet toegestaan: {error}"
+
+#, fuzzy
+#~ msgid "Send from a Shared Mailbox"
+#~ msgstr "Verzenden vanuit een gedeeld postvak"
+
+#, fuzzy
+#~ msgid "Shared mailboxes weren't allowed: {error}"
+#~ msgstr "Gedeelde postvakken waren niet toegestaan: {error}"
+
+#, fuzzy
+#~ msgid "Shared mailboxes' calendars weren't allowed: {error}"
+#~ msgstr "Agenda's van gedeelde postvakken waren niet toegestaan: {error}"
+
+#, fuzzy
+#~ msgid "Show a Shared Mailbox's Calendars"
+#~ msgstr "Agenda's van een gedeeld postvak tonen"
+
+#, fuzzy
+#~ msgid "That isn't a shared mailbox"
+#~ msgstr "Dat is geen gedeeld postvak"
+
+#, fuzzy
+#~ msgid "The calendars of the shared mailbox wait: {error}"
+#~ msgstr "De agenda's van het gedeelde postvak wachten: {error}"
+
+#, fuzzy
+#~ msgid ""
+#~ "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "Om vergaderingen te beantwoorden of te verzenden vanuit {address}, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+#~ "\n"
+#~ "Of het antwoord als {address} of namens dat adres gaat, is de keuze van uw organisatie. Totdat u het toestaat, wacht het antwoord op deze computer, en er wordt niets verzonden vanaf uw eigen adres."
+
+#, fuzzy
+#~ msgid ""
+#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+#~ msgstr ""
+#~ "Om agenda's van anderen te openen, heeft MailCraft uw toestemming nodig om de agenda's te lezen die personen met u delen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+#~ "\n"
+#~ "Wat u opent, wordt alleen op deze computer bewaard: het verschijnt niet in Outlook of op uw andere apparaten."
+
+#, fuzzy
+#~ msgid ""
+#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "Om vanaf {address} te verzenden, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft wordt eenmalig in uw browser geopend om het u te vragen.\n"
+#~ "\n"
+#~ "Of uw e-mail als {address} of namens dat adres wordt verzonden, bepaalt uw organisatie. Tot u dit toestaat, wacht de e-mail in het Postvak UIT en wordt er niets vanaf uw eigen adres verzonden."
+
+#, fuzzy
+#~ msgid ""
+#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
+#~ msgstr ""
+#~ "Om de agenda's van {address} te tonen, heeft MailCraft uw toestemming nodig om de agenda's van gedeelde postvakken te lezen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+#~ "\n"
+#~ "Wat u van een agenda mag zien, bepalen de eigenaar en uw organisatie: dit verandert daar niets aan. Totdat u het toestaat, wordt niets van de agenda's van {address} gelezen."
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+#~ msgstr "Uw organisatie staat MailCraft niet toe de agenda's van gedeelde postvakken te lezen"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
+#~ msgstr "De beheerder van uw organisatie moet het lezen van agenda's van anderen één keer goedkeuren: Bestand › Info"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
+#~ msgstr "De beheerder van uw organisatie moet het lezen van gedeelde postvakken eenmalig goedkeuren: Bestand › Info"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
+#~ msgstr "De beheerder van uw organisatie moet het lezen van agenda's van gedeelde postvakken één keer goedkeuren: Bestand › Info"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"

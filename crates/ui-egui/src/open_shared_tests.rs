@@ -47,7 +47,7 @@ fn window(answer: Result<Tokens, String>) -> (MailApp, Id, Answers, Jobs, SignIn
     }));
     let asked = sign_ins.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        asked.lock().unwrap().push((req.graph, req.shared_calendars));
+        asked.lock().unwrap().push((req.graph, req.sync));
         let (tx, rx) = mpsc::channel();
         tx.send(answer.clone()).unwrap();
         rx
@@ -116,18 +116,18 @@ fn a_refusal_says_why_and_adds_nothing() {
 }
 
 #[test]
-fn the_owner_is_asked_first_then_microsofts_page_by_itself_and_a_yes_reads_it_at_once() {
+fn an_older_sign_in_is_put_the_one_question_first_then_the_one_page_and_a_yes_reads_it_at_once() {
     let (mut app, owner, answers, jobs, sign_ins) = window(Ok(Tokens { email: OWNER.into(), ..tokens("cal-access", "ref-9") }));
     answers.lock().unwrap().push_back(GraphResult { shared_calendars_consent_needed: true, ..Default::default() });
     answers.lock().unwrap().push_back(listed(owner, vec![main_calendar(), cy_calendar()], vec![]));
     app.begin_open_shared(owner, CY).unwrap();
     job(&mut app);
-    // The window asks; nothing was asked of Microsoft yet.
+    // The window puts the one question for an older sign-in; nothing was asked of Microsoft yet.
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("the owner is asked first") };
-    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSharedCalendars", Some(owner)));
-    assert!(ask.text.contains("this computer only"), "{}", ask.text);
+    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSync", Some(owner)));
+    assert!(ask.text.contains("calendars shared with you"), "{}", ask.text);
     assert!(sign_ins.lock().unwrap().is_empty());
-    // Go ahead: the page, for other people's calendars alone, never an ordinary sign-in.
+    // Go ahead (the older id is the same as the one question's): the one page.
     app.dialog = None;
     assert_eq!(app.run("ui.allowSharedCalendars", json!({"account": owner, "confirmed": true})).unwrap()["account"], owner);
     assert_eq!(*sign_ins.lock().unwrap(), [(true, true)]);

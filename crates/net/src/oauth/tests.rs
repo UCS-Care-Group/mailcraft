@@ -41,6 +41,7 @@ fn endpoints_of(server: &FakeHttp) -> Endpoints {
         token: server.url("/token"),
         scope: "mail.read mail.send offline_access".into(),
         consent: String::new(),
+        fewer: String::new(),
         lesser: String::new(),
     }
 }
@@ -77,7 +78,8 @@ fn a_sign_in_that_lacks_the_newest_permission_keeps_everything_it_had() {
         "{wanted:?}"
     );
     assert_eq!(format!("{GRAPH_SCOPES_BEFORE} {}", wanted.lesser), GRAPH_SCOPES);
-    assert_eq!(wanted.consent, format!("{} {TASKS_SCOPE} {SETTINGS_WRITE}", wanted.lesser));
+    assert_eq!(wanted.fewer, format!("{} {TASKS_SCOPE} {SETTINGS_WRITE}", wanted.lesser));
+    assert_eq!(wanted.consent, format!("{} {SHARED_ALL}", wanted.fewer));
 
     // The owner agreed to all of it: one question.
     let server = FakeHttp::answering(ok(granted));
@@ -154,7 +156,10 @@ fn a_host_that_keeps_nothing_in_step_beyond_mail_asks_for_none_of_what_that_take
         let plain = Endpoints::for_resource_without_sync(&oauth(), resource);
         assert!(full.consent.contains(MICROSOFT_GRAPH_TASKS) && full.consent.contains(MICROSOFT_GRAPH_SETTINGS_WRITE), "{}", full.consent);
         assert!(!plain.consent.contains(MICROSOFT_GRAPH_TASKS) && !plain.consent.contains(MICROSOFT_GRAPH_SETTINGS_WRITE), "{}", plain.consent);
-        assert_eq!((plain.scope.as_str(), plain.consent.as_str(), plain.lesser.as_str()), (full.scope.as_str(), full.lesser.as_str(), ""));
+        // (Only the shared mailboxes it reads and sends from, beside what it asked before.)
+        let phone_shared = "https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared";
+        assert_eq!(plain.consent, format!("{} {phone_shared}", full.lesser));
+        assert_eq!((plain.scope.as_str(), plain.fewer.as_str(), plain.lesser.as_str()), (full.scope.as_str(), "", full.lesser.as_str()));
         assert_eq!((plain.authorize, plain.token), (full.authorize, full.token));
     }
 }
@@ -334,7 +339,8 @@ fn microsoft_endpoints() {
     // keeping the to-dos and the mailbox's settings in step (#661); a page that won't have those
     // is asked again for the rest.
     assert_eq!(common.lesser, GRAPH_SCOPES);
-    assert_eq!(common.consent, format!("{GRAPH_SCOPES} {TASKS_SCOPE} {SETTINGS_WRITE}"));
+    assert_eq!(common.consent, format!("{GRAPH_SCOPES} {TASKS_SCOPE} {SETTINGS_WRITE} {SHARED_ALL}"));
+    assert_eq!(common.fewer, format!("{GRAPH_SCOPES} {TASKS_SCOPE} {SETTINGS_WRITE}"));
     assert_eq!(Endpoints::for_resource(&oauth(), Resource::Mail), common);
     // Graph's own: the same addresses, its own scopes, and the optional extras for the owner to
     // agree to on the page (a page that won't have them all is asked again for the first alone).
@@ -343,7 +349,7 @@ fn microsoft_endpoints() {
     assert_eq!(graph.token, "https://login.microsoftonline.com/consumers/oauth2/v2.0/token");
     assert_eq!(graph.scope, format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email"));
     assert_eq!(graph.lesser, "https://graph.microsoft.com/MailboxSettings.Read");
-    assert_eq!(graph.consent, format!("https://graph.microsoft.com/MailboxSettings.Read {TASKS_SCOPE} {SETTINGS_WRITE}"));
+    assert_eq!(graph.consent, format!("https://graph.microsoft.com/MailboxSettings.Read {TASKS_SCOPE} {SETTINGS_WRITE} {SHARED_ALL}"));
     // A request for tokens names one resource: neither asks for a scope of the other's.
     assert!(!common.scope.contains("graph.microsoft.com") && !graph.scope.contains("outlook.office.com"));
     // Reading and changing mail through Graph is asked for only for an account kept in step that
@@ -352,7 +358,9 @@ fn microsoft_endpoints() {
     assert_eq!(mail.scope, format!("{GRAPH_SCOPES_BEFORE} https://graph.microsoft.com/Mail.ReadWrite offline_access openid profile email"));
     assert_eq!((mail.authorize.as_str(), mail.consent.as_str()), (common.authorize.as_str(), graph.consent.as_str()));
     for other in [&common, &graph] {
-        assert!(!other.scope.contains("Mail.ReadWrite") && !other.consent.contains("Mail.ReadWrite"));
+        // (Its shared twin, `Mail.ReadWrite.Shared`, is another permission: on every page.)
+        let own = |scope: &str| scope.split(' ').any(|s| s == "https://graph.microsoft.com/Mail.ReadWrite");
+        assert!(!own(&other.scope) && !own(&other.consent));
     }
 }
 
@@ -671,7 +679,7 @@ fn the_page_is_asked_for_more_than_the_tokens_are_for() {
     assert_eq!(
         fields(url.split_once('?').unwrap().1)["scope"],
         format!(
-            "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email {GRAPH_SCOPES} {TASKS_SCOPE} {SETTINGS_WRITE}"
+            "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email {GRAPH_SCOPES} {TASKS_SCOPE} {SETTINGS_WRITE} {SHARED_ALL}"
         )
     );
 }
@@ -692,7 +700,7 @@ fn graph_can_be_signed_in_to_on_its_own() {
     let expected = format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email");
     assert_eq!(
         visit_asked(&visits, 0)["scope"],
-        format!("{expected} https://graph.microsoft.com/MailboxSettings.Read {TASKS_SCOPE} {SETTINGS_WRITE}")
+        format!("{expected} https://graph.microsoft.com/MailboxSettings.Read {TASKS_SCOPE} {SETTINGS_WRITE} {SHARED_ALL}")
     );
     assert_eq!(visit_asked(&visits, 0)["login_hint"], "ada@example.org");
     let form = form_of(&server, 0);
@@ -1231,8 +1239,14 @@ fn settings_that_cannot_work_are_refused_before_anything_happens() {
         ("javascript:alert(1)", "https://login.example.org/token"),
         ("", ""),
     ] {
-        let endpoints =
-            Endpoints { authorize: authorize.into(), token: token.into(), scope: "mail".into(), consent: "more".into(), lesser: String::new() };
+        let endpoints = Endpoints {
+            authorize: authorize.into(),
+            token: token.into(),
+            scope: "mail".into(),
+            consent: "more".into(),
+            fewer: String::new(),
+            lesser: String::new(),
+        };
         let why = config(sign_in_at(&endpoints, &oauth(), "", &open, &cancel));
         assert!(why.to_string().starts_with("the server's address "), "{why}");
         if !Url::parse(token).is_ok_and(|url| url.secure) {
@@ -2083,11 +2097,12 @@ proptest! {
 const SHARED_SCOPE: &str = "https://graph.microsoft.com/Mail.ReadWrite.Shared";
 
 #[test]
-fn a_shared_mailboxs_permission_is_never_asked_for_with_a_sign_in() {
+fn a_shared_mailboxs_permission_is_on_a_sign_ins_page_and_never_what_its_tokens_are_for() {
     for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
         let endpoints = Endpoints::for_resource(&oauth(), resource);
-        let asked = format!("{} {} {}", endpoints.scope, endpoints.consent, endpoints.lesser);
-        assert!(!asked.contains("Shared"), "{resource:?}: {asked}");
+        assert!(endpoints.consent.split(' ').any(|s| s == SHARED_SCOPE), "{resource:?}: {}", endpoints.consent);
+        let rest = format!("{} {} {}", endpoints.scope, endpoints.fewer, endpoints.lesser);
+        assert!(!rest.contains("Shared"), "{resource:?}: {rest}");
     }
     assert!(shared_scope().split(' ').any(|scope| scope == SHARED_SCOPE));
     assert!(shared_scope().contains("https://graph.microsoft.com/Mail.ReadWrite ") && shared_scope().contains("offline_access"));
@@ -2131,11 +2146,12 @@ fn a_shared_mailboxs_tokens_are_asked_for_with_its_permission_and_nothing_less()
 const SHARED_CALENDARS_SCOPE: &str = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
 
 #[test]
-fn a_shared_mailboxs_calendars_are_asked_for_by_themselves_and_never_with_a_sign_in() {
+fn a_shared_mailboxs_calendars_are_on_a_sign_ins_page_and_never_what_its_tokens_are_for() {
     for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
         let endpoints = Endpoints::for_resource(&oauth(), resource);
-        let asked = format!("{} {} {}", endpoints.scope, endpoints.consent, endpoints.lesser);
-        assert!(!asked.contains(SHARED_CALENDARS_SCOPE), "{resource:?}: {asked}");
+        assert!(endpoints.consent.split(' ').any(|s| s == SHARED_CALENDARS_SCOPE), "{resource:?}: {}", endpoints.consent);
+        let rest = format!("{} {} {}", endpoints.scope, endpoints.fewer, endpoints.lesser);
+        assert!(!rest.contains(SHARED_CALENDARS_SCOPE), "{resource:?}: {rest}");
     }
     // Reading mail from a shared mailbox, or sending from one, doesn't ask for its calendars.
     assert!(!shared_scope().contains(SHARED_CALENDARS_SCOPE) && !shared_send_scope().contains(SHARED_CALENDARS_SCOPE));
@@ -2183,6 +2199,9 @@ fn calendars_opened_by_address_are_asked_for_with_their_permission_and_nothing_m
 }
 
 const TASKS_SCOPE: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
+/// What reading and sending from shared mailboxes and reading the calendars shared with the owner
+/// take: on a sign-in's page since 2026-11-17, never asked for by themselves.
+const SHARED_ALL: &str = "https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared";
 
 #[test]
 fn tasks_are_an_extra_of_a_new_sign_ins_page_and_never_what_its_tokens_are_for() {
@@ -2202,9 +2221,10 @@ fn tasks_are_an_extra_of_a_new_sign_ins_page_and_never_what_its_tokens_are_for()
         assert!(sync.split(' ').any(|s| s == TASKS_SCOPE) && sync.split(' ').any(|s| s == SETTINGS_WRITE), "{sync}");
         assert!(!sync.contains("Shared") && !sync.contains("MailboxConfigItem"), "{sync}");
         assert_eq!(sync.split(' ').any(|s| s == "https://graph.microsoft.com/Mail.ReadWrite"), mail_write, "{sync}");
-        // The one question's page asks for exactly that, with nothing less to fall back to.
+        // The one question's page asks for exactly that, and puts the shared mailboxes' and
+        // calendars' permissions to the owner beside it (one_page_tests.rs).
         let page = sync_endpoints(&oauth(), mail_write);
-        assert_eq!((page.scope.as_str(), page.consent.as_str(), page.lesser.as_str()), (sync.as_str(), "", ""));
+        assert_eq!((page.scope.as_str(), page.consent.as_str(), page.lesser.as_str()), (sync.as_str(), SHARED_ALL, ""));
         let plain = Endpoints::for_resource(&oauth(), if mail_write { Resource::GraphMail } else { Resource::Graph });
         assert_eq!((page.authorize, page.token), (plain.authorize, plain.token));
     }
