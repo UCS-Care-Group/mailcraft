@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-12 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-17 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -407,7 +407,13 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   first download, older mail, a mailbox the server numbered anew), nor of mail moved into the
   Inbox on another device while the folder it left still holds it here, known by its Message-ID;
   one with no Message-ID, or whose folder was read without it first, is new mail and may be
-  copied again. The rules leave a shared mailbox's mail alone, Run Rules Now too.
+  copied again. The rules leave a shared mailbox's mail alone, Run Rules Now too. A sender
+  chooses part of what a rule reads: the words, the header and, for mail of an IMAP account or
+  brought in from a file, the categories, which the message's own `Keywords` header gives, as
+  classic Outlook keeps them on such mail; a Microsoft or Exchange server removes a sender's
+  categories as mail arrives unless its administrator says otherwise (`ClearCategories`), and a
+  Microsoft account's categories are its server's. So a rule that moves or copies mail into
+  another account by a category does so on a sender's say-so there, as one by a word does.
 - An agent is asked before it deletes a contact, task, event or category (class `delete`; none
   has a Deleted Items to come back from), and before an Undo or Redo that would put back the
   accounts, rules or signatures of before. The question shows the call in full: one too long to

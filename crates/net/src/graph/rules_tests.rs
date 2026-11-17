@@ -256,6 +256,26 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     }
 }
 
+/// An address the server gives that isn't an Internet address (an Exchange organisation's own,
+/// X500) is no sender or recipient a rule here can find: the rule has a part not known here, and
+/// isn't run here without it.
+#[test]
+fn an_exchange_organisations_own_address_is_a_part_not_known_here() {
+    let x500 = "/o=ExchangeLabs/ou=Exchange Administrative Group (FYDIBOHF23SPDLT)/cn=Recipients/cn=ann";
+    for (key, part) in [("conditions", "fromAddresses"), ("conditions", "sentToAddresses"), ("exceptions", "fromAddresses")] {
+        let mut graph = json!({"id": "A6", "displayName": "Ann", "sequence": 1, "isEnabled": true,
+            "conditions": {"subjectContains": ["plan"]}, "actions": {"markAsRead": true}});
+        graph[key][part] =
+            json!([{"emailAddress": {"name": "Ann", "address": "ann@example.org"}}, {"emailAddress": {"name": "Ann", "address": x500}}]);
+        let rule = rule_of(&graph).unwrap();
+        let named = if key == "conditions" { part.to_owned() } else { format!("{key}.{part}") };
+        assert_eq!(rule.unknown, [named], "{key} {part}");
+        // An Internet address alone is read.
+        graph[key][part] = json!([{"emailAddress": {"name": "Ann", "address": "ann@example.org"}}]);
+        assert!(rule_of(&graph).unwrap().unknown.is_empty(), "{key} {part}");
+    }
+}
+
 /// The server's flag for an action (`messageActionFlag`: any, call, reply…) is one a sender puts
 /// on mail, not the owner's own flag: a rule with it, as a condition or an exception, has a part
 /// not known here and is never run here, and a rule that looks at the owner's flag never goes up

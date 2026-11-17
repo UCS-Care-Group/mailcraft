@@ -161,12 +161,20 @@ fn words_of(value: &Value) -> Option<Vec<String>> {
 }
 
 /// The addresses of a list of recipients (Graph's `fromAddresses`), each by its address alone;
-/// none when one has none.
+/// none when one has none, or one that isn't an Internet address (an Exchange organisation's
+/// own, `/o=…/cn=…`, which no message's sender or recipient is read here as): a rule with it is
+/// one with a part not known here.
 fn addresses_of(value: &Value) -> Option<Vec<String>> {
     let list = value.as_array()?;
     let addresses: Vec<String> = list
         .iter()
-        .map(|r| r.get("emailAddress").and_then(|e| e.get("address")).and_then(Value::as_str).map(|a| a.trim().to_string()).filter(|a| !a.is_empty()))
+        .map(|r| {
+            r.get("emailAddress")
+                .and_then(|e| e.get("address"))
+                .and_then(Value::as_str)
+                .map(|a| a.trim().to_string())
+                .filter(|a| mailcraft_model::search::is_address(a))
+        })
         .collect::<Option<_>>()?;
     (!addresses.is_empty()).then_some(addresses)
 }
