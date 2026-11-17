@@ -185,10 +185,13 @@ fn an_answer_for_what_was_typed_before_is_not_taken_in() {
     app.run("people.addressBook", json!({})).unwrap();
     search(&mut app, &ctx, "ada");
     assert_eq!(texts(&asked), [vec!["ada".to_string()]]);
-    app.type_people_search("bea");
-    app.poll_address_book(&ctx);
+    // An answer that has come and not been read yet, as "bea" is typed.
     let (tx, account) = senders.lock().unwrap().remove(0);
     let _ = tx.send(EwsResolveResult { account, found: answer("ada"), ..Default::default() });
+    app.type_people_search("bea");
+    // Gone at once, before the list and the card are drawn again.
+    let book = app.address_book.as_ref().unwrap();
+    assert!(book.people.is_empty() && book.chosen().is_none() && !book.searching());
     app.poll_address_book(&ctx);
     let book = app.address_book.as_ref().unwrap();
     assert!(book.people.is_empty() && book.selected.is_none() && book.chosen().is_none());
@@ -225,6 +228,25 @@ fn a_password_typed_meanwhile_is_kept_when_the_one_before_is_turned_down() {
     app.poll_address_book(&ctx);
     assert_eq!(app.passwords.get(&account).map(String::as_str), Some("a newer invented password"));
     assert!(!app.jmap_refused.contains(&account));
+}
+
+/// Somebody found and chosen goes from the card the moment something else is typed.
+#[test]
+fn who_was_found_goes_the_moment_something_else_is_typed() {
+    let (mut app, _, _) = window(false);
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    search(&mut app, &ctx, "ada");
+    app.address_book.as_mut().unwrap().selected = Some(0);
+    assert!(app.address_book.as_ref().unwrap().chosen().is_some());
+    app.type_people_search("bea");
+    let book = app.address_book.as_ref().unwrap();
+    assert!(book.people.is_empty() && book.chosen().is_none());
+    // The same text again keeps what was found.
+    search(&mut app, &ctx, "ada");
+    app.address_book.as_mut().unwrap().selected = Some(0);
+    app.type_people_search("ada");
+    assert!(app.address_book.as_ref().unwrap().chosen().is_some());
 }
 
 #[test]

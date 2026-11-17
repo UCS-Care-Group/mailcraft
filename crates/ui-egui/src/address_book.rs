@@ -190,6 +190,12 @@ impl MailApp {
             if book.account != account || book.opening != opening {
                 *book = AddressBook::new(account, opening);
             }
+            // Something else typed: who was found for what was there before goes at once, before
+            // the list and the card are drawn again, and so does a look-up still out for it. (The
+            // whole list is narrowed again instead, and the person chosen stays when still in it.)
+            if book.owner != text && book.local.is_none() {
+                book.clear();
+            }
             book.owner = text.to_string();
         }
         let _ = self.execute("people.search", json!({"query": text}));
@@ -335,9 +341,9 @@ impl MailApp {
             book.clear();
             book.local = None;
         }
-        // Something else typed: what was found for, or is being asked for, what was there before
-        // goes (an answer still to come for it is not taken in), so that nobody found for that is
-        // written to or kept for this.
+        // Something else in the box (a script changed it, or the owner typed): what was found for,
+        // or is being asked for, what was there before goes, and an answer for it that has come
+        // is not taken in, so that nobody found for that is written to or kept for this.
         if changed {
             book.clear();
         }
