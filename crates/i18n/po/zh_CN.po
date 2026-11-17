@@ -3030,6 +3030,11 @@ msgid "City"
 msgstr "城市"
 
 #. name
+#: crates/ui-egui/src/theme.rs
+msgid "Classic Light"
+msgstr ""
+
+#. name
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Classic Ribbon"
