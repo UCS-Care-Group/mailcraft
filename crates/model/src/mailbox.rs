@@ -12,15 +12,18 @@ use bulk::Removal;
 
 #[path = "mailbox_bulk.rs"]
 mod bulk;
+#[path = "mailbox_followup.rs"]
+mod followup;
 #[path = "mailbox_snooze.rs"]
 mod snooze;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
-    Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
-    clean_name,
+    Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
+    ThreadIndex, clean_name,
 };
 #[cfg(test)]
 pub(crate) use bulk::MOVE_EACH_CALLS;
+pub use followup::{FollowUp, FollowUpsSettled, MAX_FOLLOW_UP_AHEAD, PendingFollowUp};
 pub use snooze::{MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, Settled, Snooze};
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
@@ -198,6 +201,15 @@ pub struct ServerFolder {
     /// False until a listing says so.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub well_known: bool,
+    /// To be listed afresh from its start at the next run (MB3.16: a phone's window made longer
+    /// brings the older mail it now covers). Cleared once a page of the new listing is in.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub relist: bool,
+    /// Which request for `relist` this is: counted up each time one is made, and echoed by the
+    /// first page of the listing it brought ([`crate::sync::MessagePage::relist_gen`]), so that a
+    /// page of an earlier listing never says a later request has been met.
+    #[serde(skip_serializing_if = "is_zero", deserialize_with = "crate::sync::lenient_or_default")]
+    pub relist_gen: u32,
 }
 
 /// What an IMAP server's STATUS said of a folder (#276), with the limit on how many of its
@@ -433,6 +445,12 @@ pub struct Account {
     /// there were any.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub ews: Option<EwsServer>,
+    /// Where the account's calendars and contacts are on a CalDAV and CardDAV server, the user
+    /// name, the certificate it trusts and what is known of each collection ([`DavServer`], #209).
+    /// Plain settings: the password is never kept here, and is held per origin. `None` when the
+    /// account has none, and in a file from before there were any.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::dav_server::lenient_repaired")]
+    pub dav: Option<DavServer>,
     /// Delete on a whole conversation of more than one message goes ahead without asking first
     /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
     /// for a new account and in a file from before there was one: the question is asked. A
@@ -629,6 +647,8 @@ impl GraphSwitch {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DownloadInFull {
+    /// The phone's default (MB3.16): a message of more than 1 MB is fetched only when it is opened.
+    UpTo1Mb,
     #[default]
     UpTo10Mb,
     UpTo25Mb,
@@ -644,6 +664,7 @@ impl DownloadInFull {
     /// The largest message fetched in the background, in bytes; `None` for no limit.
     pub fn limit(self) -> Option<u64> {
         match self {
+            DownloadInFull::UpTo1Mb => Some(1 << 20),
             DownloadInFull::UpTo10Mb => Some(10 << 20),
             DownloadInFull::UpTo25Mb => Some(25 << 20),
             DownloadInFull::UpTo50Mb => Some(50 << 20),
@@ -1245,7 +1266,16 @@ pub struct Mailbox {
     /// collected from Digitally signed mail, contact or not.
     #[serde(skip_serializing_if = "crate::public_keys::PublicKeys::is_empty")]
     pub public_keys: crate::public_keys::PublicKeys,
+    /// The limits of a device that can't hold a whole mailbox (a phone, MB3.16): how much mail
+    /// it keeps on its disk and in memory, and that mail older than an account's mail to keep
+    /// offline isn't listed at all ([`crate::DeviceLimits`]). `None` on a computer: everything
+    /// is as it always was.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient_or_default")]
+    pub device_limits: Option<crate::DeviceLimits>,
     next_id: Id,
+    /// Reminders of mail sent whose copy the server files in Sent Items ([`PendingFollowUp`], #948).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub follow_ups_pending: Vec<PendingFollowUp>,
 }
 
 impl Default for Mailbox {
@@ -1284,7 +1314,9 @@ impl Default for Mailbox {
             redecoded: false,
             unhollowed: false,
             public_keys: Default::default(),
+            device_limits: None,
             next_id: 1,
+            follow_ups_pending: Vec::new(),
         }
     }
 }
@@ -1521,6 +1553,14 @@ impl Mailbox {
     /// (#143: it has none of its own). All for an account that isn't here.
     pub fn keep_offline_of(&self, account: Id) -> KeepOffline {
         self.owner_of(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
+    }
+
+    /// The earliest received time of `account`'s mail that is listed from its server at `now`:
+    /// on a device with limits (a phone, MB3.16), the start of its mail to keep offline, so that
+    /// older mail isn't listed at all; `None` (everything) on a computer and for a window of All.
+    pub fn listed_since(&self, account: Id, now: crate::time::Timestamp) -> Option<crate::time::Timestamp> {
+        self.device_limits?;
+        self.keep_offline_of(account).since(now)
     }
 
     /// The colour a new account is given (#893): the first of [`PALETTE`] no account has yet, and
@@ -2102,6 +2142,7 @@ impl Mailbox {
             m.id = self.alloc_id();
         }
         self.next_id = self.next_id.max(m.id.saturating_add(1));
+        self.take_pending_follow_up(&mut m);
         let id = m.id;
         self.messages.insert(id, Arc::new(m));
         Ok(id)
@@ -2800,7 +2841,7 @@ impl Mailbox {
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
-            copy.snooze = None;
+            (copy.snooze, copy.follow_up) = (None, None);
             copy.placed.clear();
             copy.left_gmail_inbox();
             crate::auth_results::forget_stamps(&mut copy);
@@ -2824,8 +2865,8 @@ impl Mailbox {
         copy.synced = None;
         copy.server = None;
         copy.moving_out = None;
-        // (A copy is not snoozed.)
-        copy.snooze = None;
+        // (A copy is not snoozed, and has no reminder.)
+        (copy.snooze, copy.follow_up) = (None, None);
         // (Put back after a refused copy is said of the message, not of a copy of it, and so is
         // the copy on a server it waits for.)
         copy.returned = 0;
@@ -3155,13 +3196,24 @@ impl Mailbox {
     }
 
     pub fn default_calendar(&self) -> Option<Id> {
-        self.calendars.first().map(|c| c.id)
+        // (A copy of a calendar on the web is read-only: never where an event goes unasked.)
+        self.calendars.iter().find(|c| !c.is_subscribed()).map(|c| c.id)
+    }
+
+    /// [`Self::default_calendar`], and a calendar of the mailbox's own made when there is none.
+    fn default_calendar_or_new(&mut self) -> Id {
+        if let Some(id) = self.default_calendar() {
+            return id;
+        }
+        let id = self.alloc_id();
+        self.calendars.push(Calendar { id, name: "Calendar".into(), color: Rgb(0x2F, 0x6F, 0xD0), visible: true, ..Default::default() });
+        id
     }
 
     /// Add an event; without a (known) calendar it goes to the default one.
     pub fn add_event(&mut self, mut e: Event) -> Result<Id, ModelError> {
         if self.calendar(e.calendar).is_none() {
-            e.calendar = self.default_calendar().ok_or_else(|| invalid("the mailbox has no calendar"))?;
+            e.calendar = self.default_calendar_or_new();
         }
         if e.id == 0 || self.events.contains_key(&e.id) {
             e.id = self.alloc_id();
@@ -3470,6 +3522,9 @@ impl Mailbox {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
         }
+        if self.repair_follow_ups_pending() {
+            fixed.push("reminders waiting for a sent copy cut".to_string());
+        }
         if self.migrate_junk_lists() {
             fixed.push("Safe and Blocked Senders moved to each account".to_string());
         }
@@ -3598,6 +3653,13 @@ impl Mailbox {
                 }
                 seen.insert(a.id);
                 fixed.push("an account id corrected".into());
+            }
+        }
+        // A calendar and contacts server a file names is held to the limits and to the addresses a
+        // password may go to (#209).
+        for a in &mut self.accounts {
+            if a.dav.as_mut().is_some_and(DavServer::repair) {
+                fixed.push("an account's calendar and contacts server tidied".into());
             }
         }
         // A list of categories is an account's own: a shared mailbox has its owner's.
@@ -3795,12 +3857,11 @@ impl Mailbox {
         if dropped > 0 {
             fixed.push(format!("{dropped} change(s) waiting for the mail server dropped"));
         }
-        if self.calendars.is_empty() && !self.events.is_empty() {
-            let id = self.alloc_id();
-            self.calendars.push(Calendar { id, name: "Calendar".into(), color: Rgb(0x2F, 0x6F, 0xD0), visible: true, ..Default::default() });
-        }
-        if let Some(default) = self.default_calendar() {
-            let known: HashSet<Id> = self.calendars.iter().map(|c| c.id).collect();
+        let known: HashSet<Id> = self.calendars.iter().map(|c| c.id).collect();
+        if (self.calendars.is_empty() && !self.events.is_empty()) || self.events.values().any(|e| !known.contains(&e.calendar)) {
+            // (Orphans go to a calendar of the mailbox's own, made when there is none: never to one
+            // that is a copy of a calendar on the web.)
+            let default = self.default_calendar_or_new();
             for e in self.events.values_mut().filter(|e| !known.contains(&e.calendar)) {
                 Arc::make_mut(e).calendar = default;
             }

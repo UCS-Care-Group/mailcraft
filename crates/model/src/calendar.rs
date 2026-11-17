@@ -158,6 +158,10 @@ pub struct Calendar {
     /// the server's refusal is what says no).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub online_providers: Option<Vec<OnlineProvider>>,
+    /// Set for a calendar that is a copy of an `.ics` file on the web (Internet Calendars): what
+    /// the mailbox keeps of the subscription. The address itself is never kept here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subscription: Option<crate::subscription::Subscription>,
 }
 
 fn is_edit(rights: &Rights) -> bool {
@@ -180,6 +184,8 @@ struct CalendarFile {
     group: String,
     own_color: Option<Rgb>,
     online_providers: Option<Vec<OnlineProvider>>,
+    #[serde(deserialize_with = "crate::sync::lenient")]
+    subscription: Option<crate::subscription::Subscription>,
 }
 
 impl From<CalendarFile> for Calendar {
@@ -190,11 +196,13 @@ impl From<CalendarFile> for Calendar {
             color: file.color,
             visible: file.visible,
             origin: file.origin,
-            rights: file.rights.unwrap_or_else(|| Rights::from_read_only(file.read_only)),
+            // (A copy of a calendar on the web is read, whatever a file says.)
+            rights: if file.subscription.is_some() { Rights::Read } else { file.rights.unwrap_or_else(|| Rights::from_read_only(file.read_only)) },
             owner: file.owner.and_then(|owner| owner.cleaned()),
             group: file.group,
             own_color: file.own_color,
             online_providers: file.online_providers,
+            subscription: file.subscription,
         }
     }
 }
@@ -202,7 +210,18 @@ impl From<CalendarFile> for Calendar {
 impl Calendar {
     /// Whether the events of this calendar may be changed here.
     pub fn can_edit(&self) -> bool {
-        self.rights.can_edit()
+        self.rights.can_edit() && self.subscription.is_none()
+    }
+
+    /// Whether the calendar is the mailbox's own, kept on this computer and changed here: no
+    /// server keeps it and it is not a copy of one on the web.
+    pub fn is_own(&self) -> bool {
+        self.origin.is_local() && !self.is_subscribed()
+    }
+
+    /// Whether the calendar is a copy of one on the web, which is never changed here.
+    pub fn is_subscribed(&self) -> bool {
+        self.subscription.is_some()
     }
 
     /// Whether a meeting in this calendar may be made a Teams meeting, as far as is known: its

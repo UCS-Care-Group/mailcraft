@@ -95,10 +95,23 @@ class SignInHandbackTest {
         val got = mutableListOf<String>()
         val h = SignInHandback()
         h.sink = { got.add(it) }
-        h.arm()
-        h.disarm()
+        val armed = h.arm()
+        h.disarm(armed)
         assertFalse(h.deliver(good))
         assertTrue(got.isEmpty())
+    }
+
+    @Test
+    fun aLateDisarmOfAnEarlierPageLeavesALaterArmAlone() {
+        val got = mutableListOf<String>()
+        val h = SignInHandback()
+        h.sink = { got.add(it) }
+        val earlier = h.arm()
+        // A later attempt arms before the earlier page's failure to open is told.
+        h.arm()
+        h.disarm(earlier)
+        assertTrue("the later sign-in's redirect is taken", h.deliver(good))
+        assertEquals(1, got.size)
     }
 
     @Test
@@ -193,7 +206,7 @@ class SignInHandbackTest {
         val dir = tmp.newFolder("r")
         val record = java.io.File(dir, "pending")
         val handback = SignInHandback(PendingSignIn(record))
-        val ticket = handback.begin("ada@example.org")!!
+        val ticket = checkNotNull(handback.begin("ada@example.org"))
         assertTrue(record.exists())
         handback.end(ticket)
         assertFalse(record.exists())
@@ -224,7 +237,7 @@ class SignInHandbackTest {
         val got = mutableListOf<String>()
         val handback = SignInHandback(PendingSignIn(record))
         handback.sink = { got.add(it) }
-        val first = handback.begin("ada@example.org")!!
+        val first = checkNotNull(handback.begin("ada@example.org"))
         handback.arm()
         // A second sign-in, or a grant, finds the first under way and touches nothing.
         assertNull(handback.begin("bob@example.org"))
@@ -242,9 +255,9 @@ class SignInHandbackTest {
         val got = mutableListOf<String>()
         val handback = SignInHandback(PendingSignIn(record))
         handback.sink = { got.add(it) }
-        val a = handback.begin("ada@example.org")!!
+        val a = checkNotNull(handback.begin("ada@example.org"))
         handback.end(a)
-        val b = handback.begin("bob@example.org")!!
+        val b = checkNotNull(handback.begin("bob@example.org"))
         handback.arm()
         // A's completion arrives late, after B armed: it changes nothing of B's.
         handback.end(a)

@@ -474,6 +474,15 @@ pub struct GraphFetchRequest {
     /// Nobody is waiting: it gets the share of requests background work has.
     #[serde(skip_serializing_if = "is_false")]
     pub background: bool,
+    /// The most bytes one message may come as: one larger is passed over, named in
+    /// [`GraphFetchResult::too_large`]. 0 is the host's own cap (160 MB); a phone asks for less
+    /// (MB3.17).
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub most_bytes: u64,
+    /// The most bytes the batch brings together: once past it, the messages not asked for yet
+    /// wait for the next batch (they are neither fetched nor failed). 0: no cap of its own.
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub most_total: u64,
 }
 
 /// What fetching brought: each message's MIME as it came, and what the server no longer has.
@@ -498,6 +507,10 @@ pub struct GraphFetchResult {
     /// up the rest. Opening one still asks for it.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub failed: Vec<String>,
+    /// Of `failed`, those larger than the request's [`GraphFetchRequest::most_bytes`] (or the
+    /// host's own cap): they wait until the owner opens them on a device that takes them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub too_large: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<String>,
     /// The server could not be reached: whatever wasn't fetched waits until it can.
@@ -1168,6 +1181,11 @@ pub struct GraphMailRequest {
     /// asked for those ids after the rest of the run, at most [`MAX_THREAD_ASKS`] (#795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<String>,
+    /// On a device with limits (a phone, MB3.16): a folder listed from its start lists only mail
+    /// received at or after this time ([`crate::Mailbox::listed_since`]); its delta link goes on
+    /// with the same filter. `None`, a computer's: everything.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub since: Option<Timestamp>,
 }
 
 /// Most changes of messages one Graph run is asked to make; more go over several runs.
@@ -1315,6 +1333,15 @@ pub struct GraphLink {
     /// be passed over (#276).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub counts: Option<FolderCounts>,
+    /// The folder is listed afresh from its start, whatever `link` says (S11): what the listing
+    /// doesn't bring is gone here at the end of a whole run. A phone whose window was made longer
+    /// lists its folders so (MB3.16), to bring the older mail the window now covers.
+    #[serde(skip_serializing_if = "is_false")]
+    pub afresh: bool,
+    /// Which request for a listing afresh this is ([`crate::ServerFolder::relist_gen`]), echoed by
+    /// the first page of the listing it began.
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub relist_gen: u32,
 }
 
 /// A message as a folder's delta gives it: what the message list needs (R3 spec S9).
@@ -1368,6 +1395,10 @@ pub struct MessagePage {
     /// (R3 spec S11).
     #[serde(skip_serializing_if = "is_false")]
     pub afresh: bool,
+    /// For a page that begins a listing afresh that a request for one asked for: the request's
+    /// number ([`GraphLink::relist_gen`]), so that only that request is met by it.
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub relist_gen: u32,
     /// For a page that ends a round begun after this run's listing: the folder's counts in that
     /// listing, kept with the link ([`crate::ServerFolder::counts`], #276). Otherwise `None`,
     /// and the counts kept for the folder are forgotten with its old link.

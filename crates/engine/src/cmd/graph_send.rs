@@ -51,7 +51,9 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
     let exchange = kind == Some(mailcraft_model::AccountKind::Exchange);
     // A JMAP account's message always goes whole: its server keeps no draft of this program's.
     let jmap = kind == Some(mailcraft_model::AccountKind::Jmap);
-    let mut waiting: Vec<_> = mb.messages_in(outbox).filter(|m| m.held.is_empty() && !from_server(m)).map(|m| m.id).collect();
+    // (Not what waits for its Send time: due is judged here, at each run, #950.)
+    let now = s.now();
+    let mut waiting: Vec<_> = mb.messages_in(outbox).filter(|m| m.held.is_empty() && !m.waits_until(now) && !from_server(m)).map(|m| m.id).collect();
     waiting.sort_unstable();
     waiting
         .into_iter()
@@ -95,13 +97,25 @@ pub fn date_undated(mb: &mut Mailbox, account: Id, now: i64) -> bool {
 }
 
 /// How many messages of `account` wait in its Outbox to be sent (held ones aren't).
-pub fn waiting(mb: &Mailbox, account: Id) -> usize {
-    mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |outbox| mb.messages_in(outbox).filter(|m| m.held.is_empty() && !from_server(m)).count())
+pub fn waiting(s: &Session, account: Id) -> usize {
+    waiting_at(&s.mailbox, s.now(), account)
+}
+
+/// [`waiting`] against a mailbox and a clock: a message with a Send time ahead of `now` doesn't wait to go.
+pub fn waiting_at(mb: &Mailbox, now: i64, account: Id) -> usize {
+    mb.folder_of_kind(account, FolderKind::Outbox)
+        .map_or(0, |outbox| mb.messages_in(outbox).filter(|m| m.held.is_empty() && !m.waits_until(now) && !from_server(m)).count())
 }
 
 /// Take in what became of one message sent. Whether anything changed; a line for the owner when
 /// it is held.
 pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft_i18n::Lang, said: &mut Vec<String>) -> bool {
+    send_done_at(mb, account, done, lang, said, None)
+}
+
+/// [`send_done`] at `now`: a message's follow-up reminder set as "after so many days" counts them
+/// from the moment it went (#948), and one whose copy the server files in Sent Items waits for it.
+pub fn send_done_at(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft_i18n::Lang, said: &mut Vec<String>, now: Option<i64>) -> bool {
     let mut changed = false;
     // Whether the owner queued it here, as it stood before the answer: `draft_done` may take away
     // the pending change that alone says so of a draft begun elsewhere without a marker (#738).
@@ -159,6 +173,9 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
                 changed = true;
             }
             mb.mark_answered(done.message);
+            if let Some(now) = now {
+                mb.follow_up_sent(done.message, now);
+            }
             // Sent as the draft its server has (`…/messages/{id}/send`): Exchange files it in
             // Sent Items under the same id, but the delta may list it in Drafts, a draft, a while
             // longer. Kept here as the message sent, in Sent Items, under that id, it is that
@@ -172,6 +189,8 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
                 m.sent_here = true;
                 return true;
             }
+            // The server's copy comes down as a message of its own: it takes the reminder.
+            mb.keep_follow_up_for_copy(done.message, now.unwrap_or_default());
             mb.forget_message(done.message).is_ok() || changed
         }
         // Exchange won't let the owner send as the shared mailbox nor on its behalf (#70): said
@@ -336,7 +355,9 @@ fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
     }
     let why = p::str(v, "why").and_then(hold_reason).ok_or_else(|| bad("`why` is declined, approval or organisation"))?;
     let Some(outbox) = s.mailbox.folder_of_kind(account, FolderKind::Outbox) else { return Ok(json!({"held": []})) };
-    let waiting: Vec<Id> = s.mailbox.messages_in(outbox).filter(|m| m.held.is_empty()).map(|m| m.id).take(MAX_SENDS).collect();
+    let now = s.now();
+    // (A delayed message that isn't due isn't waiting to go, so there is nothing to hold.)
+    let waiting: Vec<Id> = s.mailbox.messages_in(outbox).filter(|m| m.held.is_empty() && !m.waits_until(now)).map(|m| m.id).take(MAX_SENDS).collect();
     let mut said = Vec::new();
     for id in &waiting {
         let done =

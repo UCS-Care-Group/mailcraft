@@ -89,13 +89,30 @@ fn every_query_with_junk_answers_and_never_panics() {
     let dates = ["", "2026-10-14", "9999-12-31", "0000-00-00", "0001-01-01", "2026-13-45", "x", "20261014", "2026-10-14T10:00", "-2026-10-14"];
     let widths = [0.0f32, -1.0, 1.0, 390.0, 16_384.0, 1e30, f32::NAN, f32::INFINITY, f32::NEG_INFINITY];
     let huge = "x".repeat(200_000);
+    let splits = ["", "primary", "social", "FORUMS", "nonsense", "\u{0}"];
 
     for n in numbers {
         not_internal("folders", &block_on(core.folders(n)));
+        not_internal("person", &block_on(core.person(n)));
+        not_internal("task", &block_on(core.task(n)));
+        not_internal("inbox_split", &block_on(core.inbox_split(n)));
+        not_internal("categories", &block_on(core.categories(n)));
         for t in texts {
             for off in counts {
                 for c in counts {
                     not_internal("messages", &block_on(core.messages(n, t.to_string(), off, c)));
+                    for split in splits {
+                        let q = crate::ListQuery {
+                            folder: n,
+                            filter: t.to_string(),
+                            split: split.to_string(),
+                            conversations: c % 2 == 0,
+                            search: t.to_string(),
+                            everywhere: off % 2 == 0,
+                        };
+                        not_internal("row_members", &block_on(core.row_members(q.clone(), u64::from(off))));
+                        not_internal("message_list", &block_on(core.message_list(q, off, c)));
+                    }
                     not_internal("people", &block_on(core.people(t.to_string(), off, c)));
                     not_internal("tasks", &block_on(core.tasks(n, t.to_string(), c % 2 == 0, off, c)));
                 }
@@ -110,17 +127,55 @@ fn every_query_with_junk_answers_and_never_panics() {
             not_internal("picture", &block_on(core.picture(n, t.to_string())));
         }
         not_internal("picture", &block_on(core.picture(n, huge.clone())));
+        not_internal("sender_facts", &block_on(core.sender_facts(n)));
+        // Settings: the windows, the thinning and the signatures, for any account and any text.
+        not_internal("keep_offline", &block_on(core.keep_offline(n)));
+        for t in texts {
+            not_internal("set_keep_offline", &block_on(core.set_keep_offline(n, t.to_string())));
+            not_internal("offline_freed", &block_on(core.offline_freed(n, t.to_string())));
+            not_internal("set_account_signature", &block_on(core.set_account_signature(n, t.to_string())));
+            assert!(crate::settings::offline_estimate(t.to_string()) > 0);
+            let _ = crate::settings::parse_device_settings(t.to_string());
+        }
+        not_internal("account_signature", &block_on(core.account_signature(n)));
+        not_internal("set_account_signature", &block_on(core.set_account_signature(n, huge.clone())));
+        not_internal("set_keep_offline", &block_on(core.set_keep_offline(n, huge.clone())));
     }
+    for c in counts {
+        not_internal("thin_offline", &block_on(core.thin_offline(c)));
+    }
+    // The pure exports and the downloads take any text: none panics, and none connects anywhere it must not.
+    for t in texts.iter().copied().chain(["https://127.0.0.1/x", "http://[::1]/", "mailto:a@b.example", "tel:1", "cid:x", "http://exa mple.org/"]) {
+        let _ = crate::links::link_target(t.to_string());
+        let _ = crate::pictures::sender_picture_urls(t.to_string());
+        not_internal("fetch_picture", &crate::pictures::fetch_picture(t.to_string(), crate::pictures::PictureStop::new()));
+        not_internal("fetch_sender_picture", &crate::pictures::fetch_sender_picture(t.to_string()));
+    }
+    let _ = crate::links::link_target(huge.clone());
+    let _ = crate::pictures::sender_picture_urls(huge.clone());
+    not_internal("fetch_picture", &crate::pictures::fetch_picture(huge.clone(), crate::pictures::PictureStop::new()));
     for a in dates {
         for b in dates {
             not_internal("calendar", &block_on(core.calendar(a.to_string(), b.to_string())));
         }
     }
+    let big = crate::ListQuery { folder: 1, filter: "all".into(), split: huge.clone(), conversations: true, search: huge.clone(), everywhere: true };
+    not_internal("message_list", &block_on(core.message_list(big.clone(), 0, 5)));
+    not_internal("message_list", &block_on(core.message_list(crate::ListQuery { split: String::new(), ..big }, 0, 5)));
     not_internal("people", &block_on(core.people(huge.clone(), 0, 5)));
     not_internal("messages", &block_on(core.messages(1, huge.clone(), 0, 5)));
     not_internal("tasks", &block_on(core.tasks(0, huge, true, 0, 5)));
     not_internal("task_lists", &block_on(core.task_lists()));
     not_internal("today", &block_on(core.today()));
+    not_internal("task_setup", &block_on(core.task_setup()));
+    not_internal("calendars", &block_on(core.calendars()));
+    for count in [0, 1, 64, 65, u32::MAX] {
+        not_internal("reminder_schedule", &block_on(core.reminder_schedule(count, vec![0, u64::MAX])));
+        not_internal("reminder_schedule", &block_on(core.reminder_schedule(count, vec![7; 100_000])));
+    }
+    for id in [0, 1, 2, 3, u64::MAX] {
+        not_internal("event", &block_on(core.event(id)));
+    }
 
     // Every real message of the sample reads, at every width and theme, in the ways a phone asks.
     let folder = block_on(core.folders(0)).unwrap().folders.iter().find(|f| f.kind == "inbox").map(|f| f.id).unwrap_or(0);
