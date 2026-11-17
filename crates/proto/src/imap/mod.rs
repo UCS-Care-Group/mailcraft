@@ -752,8 +752,8 @@ impl<S: Read + Write> Imap<S> {
     /// Nothing is sent to a server that doesn't offer `ID`, and a server that refuses the command
     /// (NO or BAD) still leaves the owner signed in: what the command says is a courtesy, never
     /// what the session rests on. A server that hasn't said what it can do yet — after STARTTLS,
-    /// whose [`resume`] clears the list — is asked for its capabilities first. The version is this
-    /// build's own; nothing of the owner or the sign-in is in it.
+    /// whose [`resume`] clears the list — is asked for its capabilities first. Only the program's
+    /// name goes out, `("name" "MailCraft")`: no version, and nothing of the owner or the sign-in.
     fn identify(&mut self) -> Result<(), ProtoError> {
         // A server that hasn't said what it can do (after STARTTLS, whose `resume` clears them, or
         // one whose greeting had no `CAPABILITY` code) is asked first: RFC 3501 §6.2.1 has the
@@ -764,20 +764,27 @@ impl<S: Read + Write> Imap<S> {
         if !self.offers("ID") {
             return Ok(());
         }
-        let id = format!("(\"name\" \"MailCraft\" \"version\" \"{}\")", env!("CARGO_PKG_VERSION"));
-        let _ = self.exchange(Command::new("ID").arg(&id), &mut ignore)?;
+        let id = "(\"name\" \"MailCraft\")";
+        let _ = self.exchange(Command::new("ID").arg(id), &mut ignore)?;
         Ok(())
     }
 
     /// The sign-in the server accepted: signed in, with what it can do read afresh unless the
     /// tagged OK restated the list (RFC 3501 §6.2.1: it can differ once signed in, and a server
     /// may offer `ID` only then), then [`identify`](Self::identify).
+    ///
+    /// Neither the `CAPABILITY` asked for there nor `ID` itself can take the sign-in back: a
+    /// server that fails either is logged and the owner stays signed in, none of it being what
+    /// the session rests on.
     fn signed_in(&mut self, line: &StatusLine) -> Result<(), ProtoError> {
         self.authenticated = true;
         if line.code != "CAPABILITY" {
             self.capabilities = None;
         }
-        self.identify()
+        if let Err(error) = self.identify() {
+            log::debug!("the server was not told which client this is: {error}");
+        }
+        Ok(())
     }
 
     /// AUTHENTICATE XOAUTH2: an OAuth access token in place of a password. NO → `ProtoError::Auth`.

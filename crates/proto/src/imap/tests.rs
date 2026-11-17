@@ -1070,20 +1070,13 @@ fn namespace_reads_personal_prefix_and_delimiter() {
 /// password (Coremail refuses every mailbox until a client has said which it is).
 #[test]
 fn a_token_sign_in_is_followed_by_the_id_command_where_it_is_offered() {
-    let version = env!("CARGO_PKG_VERSION");
     let mut s = Script::new(
         "* OK [CAPABILITY IMAP4rev1 SASL-IR AUTH=XOAUTH2 ID] ready\r\nA0001 OK [CAPABILITY IMAP4rev1 IDLE ID] welcome\r\nA0002 OK ID done\r\n",
     );
     let mut imap = Imap::connect(&mut s).unwrap();
     imap.authenticate_xoauth2("ada@example.org", TOKEN).unwrap();
     assert!(imap.is_authenticated());
-    assert_eq!(
-        s.sent(),
-        format!(
-            "A0001 AUTHENTICATE XOAUTH2 {}\r\nA0002 ID (\"name\" \"MailCraft\" \"version\" \"{version}\")\r\n",
-            bearer()
-        ),
-    );
+    assert_eq!(s.sent(), format!("A0001 AUTHENTICATE XOAUTH2 {}\r\nA0002 ID (\"name\" \"MailCraft\")\r\n", bearer()),);
     assert!(s.finished());
 }
 
@@ -1091,18 +1084,11 @@ fn a_token_sign_in_is_followed_by_the_id_command_where_it_is_offered() {
 /// out: a token sign-in over STARTTLS is followed by `ID` there too.
 #[test]
 fn a_token_sign_in_after_starttls_asks_what_the_server_can_do_before_id() {
-    let version = env!("CARGO_PKG_VERSION");
     let mut s = Script::new("+ \r\nA0001 OK welcome\r\n* CAPABILITY IMAP4rev1 ID\r\nA0002 OK done\r\nA0003 OK ID done\r\n");
     let mut imap = Imap::resume(&mut s);
     imap.authenticate_xoauth2("ada@example.org", TOKEN).unwrap();
     assert!(imap.is_authenticated());
-    assert_eq!(
-        s.sent(),
-        format!(
-            "A0001 AUTHENTICATE XOAUTH2\r\n{}\r\nA0002 CAPABILITY\r\nA0003 ID (\"name\" \"MailCraft\" \"version\" \"{version}\")\r\n",
-            bearer()
-        ),
-    );
+    assert_eq!(s.sent(), format!("A0001 AUTHENTICATE XOAUTH2\r\n{}\r\nA0002 CAPABILITY\r\nA0003 ID (\"name\" \"MailCraft\")\r\n", bearer()),);
     assert!(s.finished());
 
     // Asked, and it doesn't offer `ID`: nothing more goes out.
