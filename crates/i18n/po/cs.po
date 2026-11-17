@@ -22345,6 +22345,12 @@ msgstr "server nemůže uchovat pravidla v tomto pořadí: pravidlo, které nedo
 msgid "the server can't look at the day mail came"
 msgstr "server neumí sledovat den, kdy pošta přišla"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "server neumí sledovat, zda jste poštu označili příznakem"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy

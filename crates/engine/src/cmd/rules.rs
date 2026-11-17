@@ -80,6 +80,9 @@ pub enum NotOnServer {
     ClearFlag,
     /// It looks at the day mail came.
     Days,
+    /// It looks at whether the owner flagged mail: the server's rules look at a flag for an action
+    /// that a sender put on it (a call, a reply…), which isn't the owner's.
+    Flagged,
     /// It shows a desktop alert.
     Alert,
     /// Two exceptions of one kind that look for other things (two importances, say): the server
@@ -108,6 +111,7 @@ impl NotOnServer {
             NotOnServer::ClearCategories => "the server can't clear categories",
             NotOnServer::ClearFlag => "the server can't clear a flag",
             NotOnServer::Days => "the server can't look at the day mail came",
+            NotOnServer::Flagged => "the server can't look at whether you flagged mail",
             NotOnServer::Alert => "the server can't show a desktop alert",
             NotOnServer::TwoExceptionsOfAKind => "it has two exceptions of one kind that look for different things, and the server takes one",
         }
@@ -132,6 +136,9 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
     let parts = || rule.conditions.iter().chain(exceptions);
     if parts().any(|c| matches!(c, Condition::ReceivedBetween { .. })) {
         return Some(NotOnServer::Days);
+    }
+    if parts().any(|c| matches!(c, Condition::Flagged)) {
+        return Some(NotOnServer::Flagged);
     }
     if parts().any(|c| matches!(c, Condition::FromContains(w) | Condition::ToContains(w) if w.iter().any(|t| !in_an_address(t)))) {
         return Some(NotOnServer::Names);

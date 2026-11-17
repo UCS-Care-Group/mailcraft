@@ -22373,6 +22373,12 @@ msgstr "serverul nu poate păstra regulile în această ordine: o regulă pe car
 msgid "the server can't look at the day mail came"
 msgstr "serverul nu poate verifica ziua în care a sosit e-mailul"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "serverul nu poate verifica dacă ați semnalizat mesajul"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy

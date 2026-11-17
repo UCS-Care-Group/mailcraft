@@ -18508,6 +18508,11 @@ msgstr ""
 msgid "the server can't look at the day mail came"
 msgstr ""
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server can't look at whether you flagged mail"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"

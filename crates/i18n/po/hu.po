@@ -22302,6 +22302,12 @@ msgstr "a kiszolgáló nem tudja ebben a sorrendben tárolni a szabályokat: egy
 msgid "the server can't look at the day mail came"
 msgstr "a kiszolgáló nem tudja figyelni, melyik napon érkezett a levél"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "a kiszolgáló nem tudja figyelni, hogy megjelölte-e a levelet"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy

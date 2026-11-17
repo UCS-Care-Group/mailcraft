@@ -22209,6 +22209,12 @@ msgstr "le serveur ne peut pas garder les règles dans cet ordre : une règle 
 msgid "the server can't look at the day mail came"
 msgstr "le serveur ne peut pas tenir compte du jour d'arrivée du courrier"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "le serveur ne peut pas vérifier si vous avez marqué le message d'un indicateur"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy

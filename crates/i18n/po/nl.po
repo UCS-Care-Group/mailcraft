@@ -21678,6 +21678,12 @@ msgstr "de server kan de regels niet in die volgorde houden: een regel die hij n
 msgid "the server can't look at the day mail came"
 msgstr "de server kan niet kijken naar de dag waarop e-mail binnenkwam"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "de server kan niet zien of u e-mail hebt gemarkeerd"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy

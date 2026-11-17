@@ -22295,6 +22295,12 @@ msgstr "服务器无法按此顺序保存规则：一条不允许更改的规则
 msgid "the server can't look at the day mail came"
 msgstr "服务器无法查看邮件到达的日期"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "服务器无法查看您是否标记了邮件"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy

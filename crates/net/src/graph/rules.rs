@@ -196,8 +196,6 @@ fn condition_of(name: &str, value: &Value) -> Option<Condition> {
         }
         "isMeetingRequest" if yes => Some(Condition::MeetingRequest),
         "isAutomaticReply" if yes => Some(Condition::AutomaticReply),
-        // Flagged for any action: Outlook's flags for one action (call, reply…) aren't MailCraft's.
-        "messageActionFlag" if value.as_str() == Some("any") => Some(Condition::Flagged),
         "sentOnlyToMe" if yes => Some(Condition::SentOnlyToMe),
         "sentToMe" if yes => Some(Condition::ToMe),
         "sentCcMe" if yes => Some(Condition::CcMe),
@@ -309,7 +307,9 @@ fn predicate(condition: &Condition) -> Result<(&'static str, Value), &'static st
         Condition::SizeBetween { min, max } => ("withinSizeRange", json!({"minimumSize": min, "maximumSize": max})),
         Condition::MeetingRequest => ("isMeetingRequest", json!(true)),
         Condition::AutomaticReply => ("isAutomaticReply", json!(true)),
-        Condition::Flagged => ("messageActionFlag", json!("any")),
+        // (The server's `messageActionFlag` is the flag for an action a sender puts on mail, not
+        // the owner's own flag: a rule with it is one with a part not known here.)
+        Condition::Flagged => return Err("the server's rules have no condition on the owner's flag"),
         Condition::SentOnlyToMe => ("sentOnlyToMe", json!(true)),
         Condition::ToMe => ("sentToMe", json!(true)),
         Condition::CcMe => ("sentCcMe", json!(true)),

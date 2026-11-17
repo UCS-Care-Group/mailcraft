@@ -1262,7 +1262,6 @@ fn the_server_keeps_the_new_parts_it_can_and_says_why_not_for_the_rest() {
             Condition::MeetingRequest,
             Condition::AutomaticReply,
             Condition::Category(vec!["Red category".into()]),
-            Condition::Flagged,
         ],
         exceptions: vec![Condition::SubjectContains(vec!["unsubscribe".into()]), Condition::Importance(Importance::Low)],
         actions: vec![Action::CopyTo(news), Action::MarkRead],
@@ -1273,6 +1272,8 @@ fn the_server_keeps_the_new_parts_it_can_and_says_why_not_for_the_rest() {
     for (rule, why) in [
         (Rule { conditions: vec![Condition::ReceivedBetween { from: day, to: None }], ..base.clone() }, NotOnServer::Days),
         (Rule { exceptions: vec![Condition::ReceivedBetween { from: None, to: day }], ..base.clone() }, NotOnServer::Days),
+        (Rule { conditions: vec![Condition::Flagged], ..base.clone() }, NotOnServer::Flagged),
+        (Rule { exceptions: vec![Condition::Flagged], ..base.clone() }, NotOnServer::Flagged),
         (Rule { exceptions: vec![Condition::FromContains(vec!["Noor Smith".into()])], ..base.clone() }, NotOnServer::Names),
         (Rule { alert: true, ..base.clone() }, NotOnServer::Alert),
         (Rule { actions: vec![Action::CopyTo(here)], ..base.clone() }, NotOnServer::CopyHere),
@@ -1345,14 +1346,14 @@ fn a_rule_this_version_couldnt_show_before_is_shown_once_its_parts_are_known() {
     assert!(!rule(&s, id).known());
     // Read whole by this one: all of it is known.
     let mut now = remote("r1", "Club", 1);
-    now.exceptions = vec![Condition::Flagged];
+    now.exceptions = vec![Condition::MeetingRequest];
     now.copy_to = "news".into();
     merge_rules(&mut s.mailbox, &download(account, vec![now])).unwrap();
     let r = rule(&s, id);
     assert!(r.known(), "{:?}", r.server);
     assert_eq!(
         (r.exceptions.as_slice(), r.actions.as_slice()),
-        ([Condition::Flagged].as_slice(), [Action::CopyTo(news), Action::MarkRead].as_slice())
+        ([Condition::MeetingRequest].as_slice(), [Action::CopyTo(news), Action::MarkRead].as_slice())
     );
 }
 

@@ -200,7 +200,7 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
             "senderContains": ["shop", "store"], "bodyOrSubjectContains": ["order"], "headerContains": ["X-Shop"],
             "fromAddresses": people(&["ann@example.org"]), "sentToAddresses": people(&["team@example.org", "ops@example.org"]),
             "sensitivity": "private", "withinSizeRange": {"minimumSize": 10, "maximumSize": 500},
-            "isMeetingRequest": true, "isAutomaticReply": false, "categories": ["Red"], "messageActionFlag": "any",
+            "isMeetingRequest": true, "isAutomaticReply": false, "categories": ["Red"],
             "sentOnlyToMe": true, "sentToMe": true, "sentCcMe": true, "sentToOrCcMe": true, "notSentToMe": true
         },
         "exceptions": {"isAutomaticReply": true, "subjectContains": ["draft", "test"]},
@@ -218,7 +218,6 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
         Condition::SizeBetween { min: 10, max: 500 },
         Condition::MeetingRequest,
         Condition::Category(vec!["Red".into()]),
-        Condition::Flagged,
         Condition::SentOnlyToMe,
         Condition::ToMe,
         Condition::CcMe,
@@ -229,7 +228,7 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     }
     // `false` is a part the rule doesn't have.
     assert!(!rule.conditions.contains(&Condition::AutomaticReply));
-    assert_eq!(rule.conditions.len(), 15);
+    assert_eq!(rule.conditions.len(), 14);
     assert_eq!(rule.exceptions.len(), 2);
     assert_eq!(rule.copy_to, "IMM-copies");
     assert_eq!(rule.actions, vec![Action::MarkRead]);
@@ -238,7 +237,7 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     let again = rule_of(&json!({"id": "A4", "displayName": body["displayName"], "isEnabled": true, "conditions": body["conditions"],
         "exceptions": body["exceptions"], "actions": body["actions"]}))
     .unwrap();
-    assert_eq!((again.conditions.len(), again.exceptions.len()), (15, 2));
+    assert_eq!((again.conditions.len(), again.exceptions.len()), (14, 2));
     assert!(rule.conditions.iter().all(|c| again.conditions.contains(c)) && rule.exceptions.iter().all(|c| again.exceptions.contains(c)));
     assert_eq!((again.copy_to.as_str(), again.actions.as_slice()), ("IMM-copies", [Action::MarkRead].as_slice()));
     assert_eq!(body["conditions"]["fromAddresses"], json!([{"emailAddress": {"address": "ann@example.org"}}]));
@@ -254,6 +253,29 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     ] {
         let rule = RemoteRule { conditions: vec![Condition::Sensitivity(sensitivity)], ..rule.clone() };
         assert_eq!(rule_body(&rule).unwrap()["conditions"]["sensitivity"], json!(said), "{sensitivity:?}");
+    }
+}
+
+/// The server's flag for an action (`messageActionFlag`: any, call, reply…) is one a sender puts
+/// on mail, not the owner's own flag: a rule with it, as a condition or an exception, has a part
+/// not known here and is never run here, and a rule that looks at the owner's flag never goes up
+/// as one with it (#566).
+#[test]
+fn the_servers_flag_for_an_action_is_never_taken_for_the_owners_flag() {
+    for (key, flag) in [("conditions", "any"), ("conditions", "followUp"), ("exceptions", "any")] {
+        let mut graph = json!({"id": "A5", "displayName": "Flagged", "sequence": 1, "isEnabled": true,
+            "conditions": {"subjectContains": ["plan"]}, "actions": {"moveToFolder": "IMM-archive"}});
+        graph[key]["messageActionFlag"] = json!(flag);
+        let rule = rule_of(&graph).unwrap();
+        let named = if key == "conditions" { "messageActionFlag".to_owned() } else { format!("{key}.messageActionFlag") };
+        assert_eq!(rule.unknown, [named], "{key} {flag}");
+        assert!(!rule.conditions.contains(&Condition::Flagged) && !rule.exceptions.contains(&Condition::Flagged), "{key} {flag}");
+    }
+    for rule in [
+        RemoteRule { conditions: vec![Condition::Flagged], actions: vec![Action::MarkRead], ..Default::default() },
+        RemoteRule { conditions: vec![Condition::ToMe], exceptions: vec![Condition::Flagged], actions: vec![Action::MarkRead], ..Default::default() },
+    ] {
+        assert!(rule_body(&rule).is_err(), "{rule:?}");
     }
 }
 
