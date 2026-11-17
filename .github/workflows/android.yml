@@ -78,7 +78,7 @@ jobs:
             exit 1
           fi
           { echo "version=$VERSION"; echo "code=$code"; } >>"$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
           targets: aarch64-linux-android,x86_64-linux-android
@@ -166,7 +166,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          tools="$(ls -d "$ANDROID_HOME"/build-tools/36.* | sort -V | tail -n 1)"
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d -name '36.*' | sort -V | tail -n 1)"
           ks="$RUNNER_TEMP/upload.keystore"
           trap 'rm -f -- "$ks"' EXIT
           printf '%s' "$KEYSTORE" | base64 --decode >"$ks"
@@ -230,7 +230,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
       - name: Build xtask
