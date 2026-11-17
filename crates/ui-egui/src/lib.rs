@@ -92,6 +92,8 @@ mod drag_pointer_tests;
 mod ews_info_tests;
 pub mod ews_mail;
 pub mod ews_setup;
+#[cfg(test)]
+mod ews_sign_in_again_tests;
 pub mod favorites_sync;
 #[cfg(test)]
 mod field_drag_tests;
@@ -1739,6 +1741,10 @@ pub struct MailApp {
     /// JMAP accounts the owner pressed Send in while their secret wasn't at hand: each is asked
     /// for it once, when nothing else is under way ([`MailApp::ask_for_jmap_send`]).
     jmap_send_asks: std::collections::HashSet<Id>,
+    /// An Exchange server account whose server turned down the password a Send/Receive the owner
+    /// asked for went with, while another question was open (Add Account's last page, say): its
+    /// password is asked for as soon as nothing else is under way ([`ews_mail`], #971).
+    ews_ask_again: Option<Id>,
     /// How many changes the server made in the JMAP run under way, as its pieces said so far.
     jmap_made: usize,
     last_autosave: f64,
@@ -1966,6 +1972,7 @@ impl MailApp {
             snooze_last: 0,
             follow_up_last: 0,
             jmap_send_asks: Default::default(),
+            ews_ask_again: None,
             jmap_made: 0,
             last_autosave: 0.0,
             draft_saved_at: None,
@@ -3783,6 +3790,7 @@ impl MailApp {
             self.graph_tokens.clear();
             self.jmap_refused.clear();
             self.jmap_send_asks.clear();
+            self.ews_ask_again = None;
             self.ews_unreadable.clear();
             self.ews_signed_in.clear();
             self.ews_certificate.clear();
@@ -3886,6 +3894,10 @@ impl MailApp {
         }
         // The owner pressed Send in a JMAP account whose secret isn't at hand: asked for now (M6).
         if self.ask_for_jmap_send() {
+            return;
+        }
+        // An Exchange server account turned down while another question was open: asked now (#971).
+        if self.ask_ews_again() {
             return;
         }
         self.settle_progress();

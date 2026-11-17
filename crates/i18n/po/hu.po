@@ -14153,7 +14153,7 @@ msgid "Sign In"
 msgstr "Bejelentkezés"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Sign In Again"
 msgstr "Újbóli bejelentkezés"
@@ -16536,11 +16536,21 @@ msgstr "A szerveren van egy igazolás, amire szükség van."
 msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
 msgstr "A szerver lehalkította a fiók bejelentkezését. A Send/Receive használatával újra bejelentkezhet."
 
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "The server turned down the sign-in for {account}: type its password again"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "A szerver lehalkította a {name} bejelentkezését: jelentkezzen be újra"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The server turned down the sign-in. Type the password again. If it was right, check the user name in the account's settings (File › Info)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs

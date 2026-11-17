@@ -18,7 +18,9 @@
 //! be, by the Add Account page and by a run as soon as the server has answered it with its
 //! folders or its mail (#802). A password the server turns down (a 401) is forgotten, so that the
 //! next Send/Receive asks again rather than send it once more; a round by itself leaves the
-//! account out until the owner asks for its Send/Receive.
+//! account out until the owner asks for its Send/Receive. The window asks for it again at once
+//! when the run was the owner's (the first one after Add Account among them), and the status bar
+//! offers Sign In Again until a password is typed (#971).
 //!
 //! **A certificate** the system doesn't trust, or one that is not the one trusted for the account,
 //! stops the run at its first request, before the password goes: the account says it needs the
@@ -70,20 +72,54 @@ impl MailApp {
         self.remembered("password", account)
     }
 
+    /// Whether the server of the Exchange server account `account` turned its password down and no
+    /// other has been typed since (#971): the password dialog says so, and the status bar offers
+    /// Sign In Again. (A run that stopped at a certificate keeps its password, so it isn't one.)
+    pub(crate) fn ews_turned_down(&self, account: Id) -> bool {
+        self.jmap_refused.contains(&account)
+            && self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange)
+            && self.ews_secret(account).is_none()
+    }
+
+    /// Ask for the password of the account a Send/Receive the owner asked for was turned down for
+    /// while another question was open (`ews_ask_again`), now that none is: `true` when
+    /// it asked. Called by the round when nothing else is under way. An account that has a password
+    /// again, or is gone, is not asked about.
+    pub(crate) fn ask_ews_again(&mut self) -> bool {
+        if self.dialog.is_some() {
+            return false;
+        }
+        let Some(account) = self.ews_ask_again.take().filter(|account| self.ews_turned_down(*account)) else { return false };
+        self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+        self.dialog.is_some()
+    }
+
+    /// The first Exchange server account, in the folder pane's order, whose server turned its
+    /// password down ([`MailApp::ews_turned_down`]), and its address: the one the status bar's Sign
+    /// In Again is for.
+    pub(crate) fn ews_to_sign_in(&self) -> Option<(Id, String)> {
+        if self.jmap_refused.is_empty() {
+            return None;
+        }
+        self.session.mailbox.accounts_in_order().into_iter().find(|a| self.ews_turned_down(a.id)).map(|a| (a.id, a.email.clone()))
+    }
+
     /// A Send/Receive of the Exchange server account `account`; `p` may carry the password the owner
     /// has just typed, and `inboxPass` asks for the Inbox alone. Asks for the password the first time.
     pub(crate) fn start_ews_mail(&mut self, account: Id, quiet: bool, p: &Value) -> Result<Value, String> {
         if let Some(typed) = p.get("password").and_then(Value::as_str).filter(|typed| !typed.is_empty()) {
             self.passwords.insert(account, typed.to_string());
         }
-        // The owner asked: a password turned down before is tried again.
-        if !quiet {
-            self.jmap_refused.remove(&account);
-        }
+        // (An account its server turned down stays so until a password is typed for it: the
+        // dialog says why it asks, and the status bar keeps Sign In Again if it is closed.)
         let Some(secret) = self.ews_secret(account) else {
             self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
             return Ok(json!({"pending": "password"}));
         };
+        // The owner asked: a password turned down before is tried again.
+        if !quiet {
+            self.jmap_refused.remove(&account);
+        }
         let inbox_pass = p.get("inboxPass").and_then(Value::as_bool).unwrap_or(false);
         let params = json!({"account": account, "background": quiet, "inboxPass": inbox_pass});
         let request = self.session.run("sync.ewsRequest", &params).map_err(|e| e.to_string())?;
@@ -192,6 +228,8 @@ impl MailApp {
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
             self.session.send_run_answered(account);
+            // (Whether the owner asked for this run, or it came by itself.)
+            let asked = matches!(self.sync_run, Some((_, _, _, false)));
             // Called off for something else (a shared mailbox's first read): it goes on after.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
                 self.session.driver.round.queue.push_front((whose, quiet));
@@ -205,6 +243,15 @@ impl MailApp {
                     let key = Self::secret_key("password", a);
                     store.delete(&key);
                     self.secret_cache.remove(&key);
+                }
+                // A run the owner asked for asks for the password again at once, rather than only
+                // say it was turned down (#971); a question already open (Add Account's last page,
+                // say) is left as it is, and the password is asked for once it is closed. A round
+                // by itself asks nothing: the status bar offers Sign In Again.
+                if asked && self.dialog.is_none() {
+                    self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+                } else if asked {
+                    self.ews_ask_again = Some(account);
                 }
             } else if untrusted {
                 // The certificate question comes first (File › Info): no round by itself tries again.
