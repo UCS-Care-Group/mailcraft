@@ -77,7 +77,7 @@ jobs:
           # Each version its own code, rising in release order (1.2.3-rc.1 < 1.2.3-rc.2 < 1.2.3):
           # worked out and tested in one place, xtask/src/version_code.rs. A version without one
           # (another kind of prerelease, a number too big) stops the build here.
-          code="$(cargo xtask version-code "$VERSION")"
+          code="$(cargo run --locked --quiet --package xtask -- version-code "$VERSION")"
           { echo "version=$VERSION"; echo "code=$code"; } >>"$GITHUB_OUTPUT"
       - name: Android SDK pieces the app is built with
         run: |
