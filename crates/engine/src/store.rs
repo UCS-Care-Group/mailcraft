@@ -319,14 +319,8 @@ impl Parts {
     /// The same, each with whether it is the header block, told by the field it is kept in and
     /// never by its bytes: an attachment may hold the very same ones (#1399).
     fn all_with_kind(&self) -> impl Iterator<Item = (bool, &Part)> {
-        let ordinary = self
-            .text
-            .iter()
-            .chain(&self.html)
-            .chain(&self.hidden)
-            .chain(self.attachments.iter().flatten())
-            .chain(&self.original)
-            .map(|p| (false, p));
+        let ordinary =
+            self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).chain(&self.original).map(|p| (false, p));
         let loose_headers = self.headers.iter().filter(|_| self.headers_at.is_none()).map(|p| (true, p));
         ordinary.chain(loose_headers)
     }
