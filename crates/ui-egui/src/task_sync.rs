@@ -112,6 +112,11 @@ impl MailApp {
         if answer.stopped_early {
             errors.insert(0, tl!("The to-dos couldn't be kept in step: the job stopped unexpectedly").to_string());
         }
+        // Somebody else's sign-in: the host refused the answer whole (nothing of it is taken in and
+        // its token is not kept); the owner is told who to sign in as, as for any sign-in (#103).
+        if let Some(foreign) = &answer.foreign {
+            errors.push(self.say_signed_in_as_other(account, &foreign.signed_in_as));
+        }
         if let Some(tokens) = &answer.tokens
             && !tokens.refresh.is_empty()
             && !self.signed_in_as_other(account, tokens)

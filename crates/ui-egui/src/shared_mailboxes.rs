@@ -117,6 +117,9 @@ impl MailApp {
             mail: Some(mail),
             mail_pieces: Some(pieces),
             cancel: self.services.sync_cancel.clone(),
+            // A renewed sign-in that isn't the owner's stops the run before the Outbox or
+            // anything of the mail goes.
+            signer: Some(owner.clone()),
         };
         self.resume_fetch();
         if self.offline() {
