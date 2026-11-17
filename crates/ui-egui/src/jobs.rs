@@ -45,7 +45,7 @@ impl MailApp {
     /// What is at work now, as the engine's rules of precedence ([`Busy::blocks`]) ask for it.
     pub(crate) fn job_busy(&self) -> Busy {
         Busy {
-            calendar: self.calendar.rx.is_some(),
+            calendar: self.calendar.jobs.busy(),
             tasks: self.tasks.busy(),
             rules: self.rules.busy(),
             auto_replies: self.auto_replies.busy(),
@@ -73,7 +73,7 @@ impl MailApp {
             JobKind::Jmap => matches!(self.sync_rx, Some(MailRun::Jmap { .. })),
             JobKind::Inbox => self.inbox_run.is_some() || self.inbox_check.under_way() || self.inbox_check.gave_way_waiting(),
             JobKind::Shared => graph_for(true) || !self.shared_checking.is_empty(),
-            JobKind::Calendar => self.calendar.rx.is_some(),
+            JobKind::Calendar => self.calendar.jobs.busy(),
             JobKind::CalendarCheck => self.checking_calendar(),
             JobKind::FreeBusy => self.free_busy.busy(),
             JobKind::Tasks => self.tasks.busy(),
