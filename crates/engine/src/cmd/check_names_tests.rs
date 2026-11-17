@@ -98,6 +98,22 @@ fn a_name_with_a_comma_stays_one_name() {
     assert_eq!(s.compose.as_ref().unwrap().to, "John Smith <john.smith@example.org>; \"Doe; Jane\"");
 }
 
+/// A name holding a quote and a comma stays one name pass after pass: the quote is escaped where
+/// it is written back.
+#[test]
+fn a_name_with_a_quote_and_a_comma_stays_one_name() {
+    let mut s = session();
+    s.run("people.new", &json!({"first": "John", "last": "Other", "email": "john.other@example.org"})).unwrap();
+    to(&mut s, "O\"Brien, Pat");
+    for _ in 0..3 {
+        let answer = check(&mut s, json!({}));
+        assert_eq!(answer["unresolved"], json!(["O\"Brien, Pat"]));
+        assert_eq!(s.compose.as_ref().unwrap().to, "\"O\\\"Brien, Pat\"");
+    }
+    check(&mut s, json!({"found": {"O\"Brien, Pat": [person("Pat O'Brien", "pat@example.org")]}}));
+    assert_eq!(s.compose.as_ref().unwrap().to, "Pat O'Brien <pat@example.org>");
+}
+
 /// A name the address list has more people for than it listed is never put in by itself, even
 /// with one found: the owner chooses, or types more of it.
 #[test]
