@@ -1,0 +1,104 @@
+# The Android app end to end on an emulator (MB3.15): sign in, Send/Receive, read a message,
+# answer it, and a calendar reminder, against the Graph stand-in on the runner
+# (`crates/net/examples/standin.rs --e2e`), which the emulator reaches through `adb reverse`.
+# Nothing reaches Microsoft or any real account: the app is built with `-Pmailcraft.e2e=true`,
+# whose Rust library sends the sign-in's token endpoint and Graph to the stand-in and names the
+# sign-in page at an address that is never found, and the instrumented test plays that page
+# (apps/mailcraft-android/app/src/androidTest; docs/android.md › End to end).
+#
+# Slow (an emulator boots and the app is built), so never on a pull request: every week, by hand
+# (Actions › Android end to end › Run workflow, on any branch), and from release.yml for every
+# release tag and dry run.
+name: Android end to end
+
+on:
+  schedule:
+    - cron: '41 3 * * 2'
+  workflow_dispatch:
+  workflow_call:
+
+permissions: {}
+
+concurrency:
+  group: android-e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  emulator:
+    name: Emulator run against the stand-in
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    env:
+      # The emulator image: Android 15's test image (AOSP ATD, x86_64), without Google's apps.
+      IMAGE: system-images;android-35;aosp_atd;x86_64
+      ANDROID_SERIAL: emulator-5554
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
+        with:
+          toolchain: 1.98.1
+          targets: x86_64-linux-android
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: android-e2e
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: false
+      - name: Android SDK pieces, the emulator and its image
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "emulator" "platform-tools" "$IMAGE" > /dev/null
+      - name: cargo-ndk
+        run: cargo install cargo-ndk --locked --version 4.1.2
+      - name: The Graph stand-in
+        run: cargo build --locked -p mailcraft-net --features stand-in --example standin
+      # The runner's KVM, for the user the emulator runs as.
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Start the emulator
+        run: |
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n e2e -k "$IMAGE" -d pixel_6 > /dev/null
+          nohup "$ANDROID_HOME/emulator/emulator" -avd e2e -port 5554 -no-window -no-audio -no-boot-anim -no-snapshot \
+            -gpu swiftshader_indirect > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          adb="$ANDROID_HOME/platform-tools/adb"
+          timeout 600 "$adb" wait-for-device
+          timeout 600 "$adb" shell "while [ \"\$(getprop sys.boot_completed)\" != 1 ]; do sleep 2; done"
+          for scale in window_animation_scale transition_animation_scale animator_duration_scale; do
+            "$adb" shell settings put global "$scale" 0
+          done
+      - name: Start the stand-in and join the emulator's loopback port to it
+        run: |
+          nohup target/debug/examples/standin --port 8780 --e2e > "$RUNNER_TEMP/standin.log" 2>&1 &
+          for _ in $(seq 60); do
+            grep -q "Graph stand-in at" "$RUNNER_TEMP/standin.log" && break
+            sleep 1
+          done
+          grep -q "Graph stand-in at" "$RUNNER_TEMP/standin.log"
+          "$ANDROID_HOME/platform-tools/adb" reverse tcp:8780 tcp:8780
+      - name: The end-to-end test
+        working-directory: apps/mailcraft-android
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          ./gradlew --no-daemon -Pmailcraft.e2e=true connectedDebugAndroidTest
+      - name: What the emulator said
+        if: failure()
+        run: |
+          "$ANDROID_HOME/platform-tools/adb" logcat -d > "$RUNNER_TEMP/logcat.txt" 2>&1 || true
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-e2e
+          path: |
+            apps/mailcraft-android/app/build/reports/androidTests/
+            apps/mailcraft-android/app/build/outputs/androidTest-results/
+            ${{ runner.temp }}/emulator.log
+            ${{ runner.temp }}/standin.log
+            ${{ runner.temp }}/logcat.txt
+          if-no-files-found: ignore

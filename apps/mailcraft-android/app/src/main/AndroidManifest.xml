@@ -10,6 +10,16 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- New-mail notifications (Android 13 and later ask the owner, once an account exists). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Calendar and task reminders at their time while the app is closed: exact alarms, as a
+         calendar's (Android 13 and later grant USE_EXACT_ALARM at install; on Android 12 it is
+         SCHEDULE_EXACT_ALARM, which the owner may take away, and the alarm then comes within the
+         system's window). Exact alarms are for reminders only, never to check for mail. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+    <!-- A restart forgets every alarm: the reminders' are set again after it. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- The background Send/Receive never runs as a foreground service: WorkManager's is left out,
          and the permission for it with it. -->
     <uses-permission
@@ -42,6 +52,22 @@
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             tools:node="remove" />
+
+        <!-- The reminders' alarms, their Dismiss and Snooze, and the system's word that the phone
+             restarted, the app was updated or the clock, the zone or the right to exact alarms
+             changed (the alarms are set again then). Not exported: only the system and the
+             app's own alarms reach it. -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".MainActivity"
