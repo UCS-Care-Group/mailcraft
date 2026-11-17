@@ -382,6 +382,11 @@ pub struct Account {
     /// Login name; the password is never stored in the mailbox.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub username: String,
+    /// The outgoing server takes mail without a sign-in (a relay, #836): the password is not
+    /// shown to it even when it offers a way to sign in. Off in a file from before there was
+    /// one, and for an account that signs in on the provider's page, whose token always goes.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub outgoing_without_sign_in: bool,
     /// The signature new messages start with (a [`Signature`] name; empty for none).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub signature: String,

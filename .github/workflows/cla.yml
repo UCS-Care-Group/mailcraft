@@ -30,7 +30,9 @@ concurrency:
 
 jobs:
   cla:
-    if: github.event_name == 'pull_request_target' || github.event_name == 'merge_group' || github.event.issue.pull_request
+    # A comment starts it only when it may be the signing sentence (`contains` ignores case), so
+    # ordinary review comments don't each take a runner.
+    if: github.event_name == 'pull_request_target' || github.event_name == 'merge_group' || (github.event.issue.pull_request && contains(github.event.comment.body, 'MailCraft CLA'))
     runs-on: ubuntu-24.04
     # Writes the signatures branch (contents), comments (issues, pull-requests), sets `cla` (statuses).
     permissions:

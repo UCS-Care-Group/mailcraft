@@ -21,7 +21,10 @@
 //! bound of windows ([`super::MAX_WINDOWS`]) New Email, a reply or a forward stays in the reading
 //! pane, and anything else is refused with a line in the status bar.
 
+use std::collections::HashSet;
+
 use egui::{Key, Ui};
+use mailcraft_model::Id;
 use serde_json::{Value, json};
 
 use super::{Open, Opens, What, embedded_layer, viewport_of};
@@ -67,6 +70,107 @@ pub(crate) fn settle_pane(app: &mut MailApp) {
         _ => pane_compose(app).or_else(|| s.composing.iter().rev().map(|c| c.id).find(|c| !windowed(*c))),
     };
     app.windows.pane = now;
+}
+
+/// Before the owner moves the selection in the message list (a click on a row, Next Message,
+/// Select All…): the messages being written in the reading pane are let go of, so that what is
+/// selected is what the reading pane shows, and what acts on the selection (Delete, Reply) acts on
+/// what is in view (#727). Each is saved to Drafts when it has changes (or its draft is gone), as
+/// the five-minute timer saves it: no step to undo, since the click is none, so that Undo after it
+/// undoes what was done before it rather than the save, with no message left open to hold what
+/// was written. A draft with none is not saved again, and then it is closed; one put aside for
+/// another in the reading pane goes too, as it would come back there. One in a window of its own
+/// stays where it is, and so does the reading pane's when the selection asked for is its own
+/// draft alone (a click on its row). Every one is saved before any is closed: a draft that can't
+/// be saved leaves them all open, the selection as it was, and the error says why. A selection
+/// that would be refused (a message that isn't there) lets go of nothing.
+pub(crate) fn leave_for_selection(app: &mut MailApp, id: &str, params: &Value) -> Result<(), String> {
+    let moving = crate::keys::MOVES_IN_LIST.contains(&id) || id == "mail.selectAll";
+    // (A move that can't be made, or that goes nowhere, moves nothing.)
+    if !(id == "mail.select" && selectable(app, params) || moving && app.enabled(id) && !goes_nowhere(app, id, params)) {
+        return Ok(());
+    }
+    settle_pane(app);
+    let Some(shown) = pane_compose(app) else { return Ok(()) };
+    if keeps(app, id, params, shown) {
+        return Ok(());
+    }
+    let s = &app.session;
+    let unsaved: Vec<u64> = s
+        .all_composing()
+        .filter(|c| app.windows.of_compose(c.id).is_none() && (c.dirty || mailcraft_engine::cmd::compose::draft_gone(s, c)))
+        .map(|c| c.id)
+        .collect();
+    for c in unsaved {
+        app.session.save_in_background(c).map_err(|e| e.to_string())?;
+    }
+    for _ in 0..mailcraft_engine::composing::MAX_COMPOSING {
+        settle_pane(app);
+        let Some(c) = pane_compose(app) else { return Ok(()) };
+        if keeps(app, id, params, c) {
+            return Ok(());
+        }
+        app.execute("compose.close", json!({"compose": c}))?;
+    }
+    settle_pane(app);
+    Ok(())
+}
+
+/// Whether `mail.select` takes `params`, as the engine reads them (#553, `select_target`). (What
+/// it refuses changes nothing, so nothing is let go of for it.)
+fn selectable(app: &mut MailApp, params: &Value) -> bool {
+    mailcraft_engine::cmd::mail::select_target(&mut app.session, params).is_ok()
+}
+
+/// Whether the list move `id` leaves the selection as it is, as the engine moves it: Next Message
+/// or Page Down on the last row, Previous Message, Page Up or First Message on the first, Last
+/// Message on the last, each from a selection of the focused row alone; Select All with every row
+/// selected already; any of them in an empty list. (A move with Shift, which the menus don't give,
+/// is taken as going somewhere.)
+fn goes_nowhere(app: &mut MailApp, id: &str, params: &Value) -> bool {
+    let s = &mut app.session;
+    let rows = s.rows();
+    if rows.is_empty() {
+        return true;
+    }
+    if id == "mail.selectAll" {
+        let all: HashSet<Id> = rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).map(|r| r.id).collect();
+        let whole: HashSet<Id> = rows.iter().filter(|r| r.conversation() && all.contains(&r.id)).map(|r| r.id).collect();
+        return s.sel.messages.iter().copied().collect::<HashSet<Id>>() == all && s.sel.whole.iter().copied().collect::<HashSet<Id>>() == whole;
+    }
+    if params.get("extend").and_then(Value::as_bool) == Some(true) {
+        return false;
+    }
+    let (Some(at), Some(end)) = (s.sel.focus_in(&rows), rows.len().checked_sub(1)) else { return false };
+    let edge = match id {
+        "mail.next" | "mail.pageDown" | "mail.last" => end,
+        "mail.previous" | "mail.pageUp" | "mail.first" => 0,
+        _ => return false,
+    };
+    let Some(row) = rows.get(at) else { return false };
+    at == edge && s.sel.messages == [row.id] && s.sel.whole == if row.conversation() { vec![row.id] } else { Vec::new() }
+}
+
+/// Whether the reading pane keeps the message being written `c` through `id` with `params`: a
+/// click that selects its own draft and nothing else, on a row of the draft alone (a conversation's
+/// row it heads stands for all of the conversation, #503).
+fn keeps(app: &mut MailApp, id: &str, params: &Value, c: u64) -> bool {
+    if id != "mail.select" {
+        return false;
+    }
+    let Some(d) = app.session.composing_by_id(c).and_then(|c| c.draft).filter(|d| selects_only(params, *d)) else { return false };
+    let copy = params.get("copy").and_then(Value::as_u64).unwrap_or(0);
+    !app.session.rows().iter().any(|r| r.id == d && u64::from(r.copy) == copy && r.conversation())
+}
+
+/// Whether `mail.select` with `params` selects the message `id` and nothing else.
+fn selects_only(params: &Value, id: mailcraft_model::Id) -> bool {
+    let more = ["extend", "range"].iter().any(|k| params.get(*k).and_then(Value::as_bool) == Some(true));
+    let named = match params.get("ids") {
+        Some(ids) => ids.as_array().is_some_and(|ids| ids.len() == 1 && ids.first().and_then(Value::as_u64) == Some(id)),
+        None => params.get("id").and_then(Value::as_u64) == Some(id),
+    };
+    named && !more
 }
 
 /// Where a command the owner runs opens a message being written, unless the caller said

@@ -211,6 +211,8 @@ mod public_keys_tests;
 #[cfg(test)]
 mod recurrence_tests;
 #[cfg(test)]
+mod relay_without_sign_in_tests;
+#[cfg(test)]
 mod rule_tests;
 #[cfg(test)]
 mod search_advanced_tests;

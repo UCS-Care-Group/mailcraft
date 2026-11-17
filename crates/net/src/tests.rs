@@ -755,6 +755,89 @@ fn one_message_is_sent() {
 }
 
 #[test]
+fn a_relay_that_needs_no_sign_in_is_never_shown_the_password() {
+    // #836: the relay offers a sign-in, and takes mail without one.
+    let smtp = Fake::smtp(SmtpWorld { auth_optional: true, ..smtp_world() });
+    let mut relay = account(None, Some(&smtp));
+    relay.outgoing_without_sign_in = true;
+    let message = Message { to: vec![Address::new("Bob", "bob@example.org")], subject: "Hello".into(), date: SENT_AT, ..Default::default() };
+    assert_eq!(send(&relay, PASSWORD, &message), Ok(()));
+    assert_eq!(test_account(&relay, PASSWORD), Ok(()));
+    {
+        let world = smtp.world();
+        assert_eq!((world.delivered.len(), world.sign_ins), (1, 0));
+        assert!(!world.log.iter().any(|line| line.starts_with("AUTH") || line.contains(PASSWORD)), "{:?}", world.log);
+    }
+    // Without the choice the same server is signed in to, as before.
+    relay.outgoing_without_sign_in = false;
+    assert_eq!(send(&relay, PASSWORD, &message), Ok(()));
+    assert_eq!(smtp.world().sign_ins, 1);
+    // A relay that turns out to want one says so, with a hint to untick the choice; the password still isn't sent.
+    smtp.world().auth_optional = false;
+    relay.outgoing_without_sign_in = true;
+    let Err(NetError::Proto(ProtoError::Rejected(why))) = send(&relay, PASSWORD, &message) else { panic!("sent without a sign-in") };
+    let why = why.to_string();
+    assert!(why.contains("530") && why.contains("untick \"My outgoing server needs no sign-in\""), "{why}");
+    assert_eq!(smtp.world().sign_ins, 1);
+    // An account that signs in on the provider's page always shows its token.
+    let (_, tokens) = token_servers();
+    let mut oauth = oauth_account(None, Some(&tokens));
+    oauth.outgoing_without_sign_in = true;
+    assert_eq!(send(&oauth, TOKEN, &message), Ok(()));
+    assert_eq!(tokens.world().sign_ins, 1);
+}
+
+#[test]
+fn a_relay_that_refuses_at_a_recipient_gets_the_hint_too() {
+    // #836: a relay usually refuses at RCPT, with 5.7.1 and not 530, and the address in front of what it said.
+    let smtp = Fake::smtp(SmtpWorld { auth: true, auth_optional: true, deny_relay: true, ..smtp_world() });
+    let mut relay = account(None, Some(&smtp));
+    relay.outgoing_without_sign_in = true;
+    let message = Message { to: vec![Address::new("Bob", "bob@example.org")], subject: "Hello".into(), date: SENT_AT, ..Default::default() };
+    let Err(NetError::Proto(ProtoError::Rejected(why))) = send(&relay, PASSWORD, &message) else { panic!("sent through a relay that denies") };
+    let why = why.to_string();
+    assert!(why.starts_with("bob@example.org: 554 5.7.1"), "{why}");
+    assert!(why.contains("untick \"My outgoing server needs no sign-in\""), "{why}");
+    // Without the tick it is signed in to, and the same server takes the mail.
+    relay.outgoing_without_sign_in = false;
+    assert_eq!(send(&relay, PASSWORD, &message), Ok(()));
+}
+
+#[test]
+fn the_hint_is_for_a_refusal_that_asks_for_a_sign_in_and_for_nothing_else() {
+    let mut relay = Account { outgoing_without_sign_in: true, ..Account::default() };
+    let hinted = |account: &Account, said: &str| {
+        let error = NetError::Proto(ProtoError::Rejected(said.into()));
+        crate::send::relay_hint(account, error.clone()) != error
+    };
+    for yes in [
+        "530 5.7.0 Authentication required",
+        "530 Authentication required",
+        "bob@example.org: 554 5.7.1 Relay access denied",
+        "bob@example.org: 550 5.7.1 Relay access denied",
+        "bob@example.org: 454 4.7.1 Relay access denied",
+        "554 5.7.1 <bob@example.org>: Relay access denied",
+    ] {
+        assert!(hinted(&relay, yes), "{yes}");
+    }
+    for no in [
+        // A mailbox that isn't there, a full one, a busy server.
+        "bob@example.org: 550 5.1.1 no such user",
+        "bob@example.org: 552 5.2.2 mailbox full",
+        "421 4.3.2 shutting down",
+        // 530 is what STARTTLS is asked for with, too.
+        "530 5.7.0 Must issue a STARTTLS command first",
+        "530 Must issue a STARTTLS command first",
+        "bob@example.org: 554 5.7.1 Relay access denied (STARTTLS needed)",
+    ] {
+        assert!(!hinted(&relay, no), "{no}");
+    }
+    // Never without the tick.
+    relay.outgoing_without_sign_in = false;
+    assert!(!hinted(&relay, "530 5.7.0 Authentication required"));
+}
+
+#[test]
 fn only_the_newest_are_downloaded_when_there_is_a_limit() {
     let imap = Fake::imap(imap_world());
     let mut request = request(account(Some(&imap), None), local_folders());
