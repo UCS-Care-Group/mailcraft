@@ -7,6 +7,7 @@ package work.mailcraft.android
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -73,9 +74,49 @@ class CalendarPagingTest {
     }
 
     @Test
+    fun theWeekStartsOnTheWeekStartAndStepsByWeeks() {
+        // 4 November 2026 is a Wednesday.
+        val monday = CalendarPaging.range(CalendarMode.Week, day("2026-11-04"), DayOfWeek.MONDAY)
+        assertEquals(DateRange(day("2026-11-02"), day("2026-11-08")), monday)
+        val sunday = CalendarPaging.range(CalendarMode.Week, day("2026-11-04"), DayOfWeek.SUNDAY)
+        assertEquals(DateRange(day("2026-11-01"), day("2026-11-07")), sunday)
+        val saturday = CalendarPaging.range(CalendarMode.Week, day("2026-11-07"), DayOfWeek.SATURDAY)
+        assertEquals(day("2026-11-07"), saturday.from)
+        assertEquals(day("2026-11-11"), CalendarPaging.shift(CalendarMode.Week, day("2026-11-04"), 1))
+        assertEquals(CalendarPaging.weekOf(day("2026-11-04"), DayOfWeek.SUNDAY), (0L..6L).map { day("2026-11-01").plusDays(it) })
+    }
+
+    @Test
+    fun aDayWeekOrMonthIsAlwaysTheSamePageAndNeighboursAreNeighbours() {
+        for (mode in listOf(CalendarMode.Day, CalendarMode.Week, CalendarMode.Month)) {
+            for (start in DayOfWeek.entries) {
+                val here = day("2026-11-04")
+                val page = CalendarPaging.pageOf(mode, here, start)
+                assertEquals(page + 1, CalendarPaging.pageOf(mode, CalendarPaging.shift(mode, here, 1), start))
+                assertEquals(page - 1, CalendarPaging.pageOf(mode, CalendarPaging.shift(mode, here, -1), start))
+                assertEquals(page + 25, CalendarPaging.pageOf(mode, CalendarPaging.shift(mode, here, 25), start))
+                // Any day of the same week or month is on the same page.
+                val sameWeek = CalendarPaging.weekOf(here, start).map { CalendarPaging.pageOf(CalendarMode.Week, it, start) }
+                assertTrue(sameWeek.all { it == sameWeek.first() })
+            }
+        }
+        assertEquals(CalendarPaging.pageOf(CalendarMode.Month, day("2026-11-01"), DayOfWeek.MONDAY), CalendarPaging.pageOf(CalendarMode.Month, day("2026-11-30"), DayOfWeek.MONDAY))
+    }
+
+    @Test
+    fun pagesAreHeldToThePagesThereAre() {
+        for (mode in CalendarMode.entries) {
+            assertEquals(0, CalendarPaging.pageOf(mode, day("1800-01-01"), DayOfWeek.MONDAY))
+            assertEquals(CalendarPaging.pageCount(mode) - 1, CalendarPaging.pageOf(mode, day("2500-01-01"), DayOfWeek.MONDAY))
+            assertTrue(CalendarPaging.pageOf(mode, day("2026-11-04"), DayOfWeek.MONDAY) in 1 until CalendarPaging.pageCount(mode) - 1)
+        }
+    }
+
+    @Test
     fun noRangeIsLongerThanTheCoreAnswersFor() {
         for (mode in CalendarMode.entries) {
             for (start in DayOfWeek.entries) {
+                assertTrue(CalendarPaging.loadRange(mode, day("2026-12-31"), start).days <= 100)
                 assertTrue(CalendarPaging.range(mode, day("2026-12-31"), start).days <= 100)
             }
         }
@@ -83,11 +124,11 @@ class CalendarPagingTest {
 
     @Test
     fun stepsMoveByTheirOwnUnitAndCrossTheYear() {
-        assertEquals(day("2027-01-19"), CalendarPaging.step(CalendarMode.Agenda, day("2026-12-20"), 1))
-        assertEquals(day("2026-11-20"), CalendarPaging.step(CalendarMode.Agenda, day("2026-12-20"), -1))
-        assertEquals(day("2027-01-01"), CalendarPaging.step(CalendarMode.Day, day("2026-12-31"), 1))
-        assertEquals(day("2026-02-28"), CalendarPaging.step(CalendarMode.Month, day("2026-01-31"), 1))
-        assertEquals(day("2025-12-15"), CalendarPaging.step(CalendarMode.Month, day("2026-01-15"), -1))
+        assertEquals(day("2027-01-19"), CalendarPaging.shift(CalendarMode.Agenda, day("2026-12-20"), 1))
+        assertEquals(day("2026-11-20"), CalendarPaging.shift(CalendarMode.Agenda, day("2026-12-20"), -1))
+        assertEquals(day("2027-01-01"), CalendarPaging.shift(CalendarMode.Day, day("2026-12-31"), 1))
+        assertEquals(day("2026-02-28"), CalendarPaging.shift(CalendarMode.Month, day("2026-01-31"), 1))
+        assertEquals(day("2025-12-15"), CalendarPaging.shift(CalendarMode.Month, day("2026-01-15"), -1))
     }
 
     @Test
@@ -242,9 +283,57 @@ class CalendarEventTest {
     fun aMonthCellSaysItsDateItsTodayAndItsEvents() {
         val en = java.util.Locale.ENGLISH
         val d = day("2026-11-03")
-        assertEquals("Tuesday, November 3, 2026, No events", monthCellDescription(EnglishTexts, d, false, 0, en))
-        assertEquals("Tuesday, November 3, 2026, Today, 1 event", monthCellDescription(EnglishTexts, d, true, 1, en))
-        assertEquals("Tuesday, November 3, 2026, 5 events", monthCellDescription(EnglishTexts, d, false, 5, en))
+        assertEquals("Tuesday, November 3, 2026, No events", dayDescription(EnglishTexts, d, false, 0, en))
+        assertEquals("Tuesday, November 3, 2026, Today, 1 event", dayDescription(EnglishTexts, d, true, 1, en))
+        assertEquals("Tuesday, November 3, 2026, 5 events", dayDescription(EnglishTexts, d, false, 5, en))
+    }
+
+    @Test
+    fun aPageSaysWhatItShowsWhenItComes() {
+        val en = Locale.US
+        val events = listOf(
+            event(1, "2026-11-02T09:00", "2026-11-02T10:00"),
+            event(2, "2026-11-04T00:00", "2026-11-05T00:00", allDay = true),
+            event(3, "2026-11-09T09:00", "2026-11-09T10:00"),
+        )
+        val state = CalendarUiState(mode = CalendarMode.Week, anchor = day("2026-11-04"), today = day("2026-11-04"))
+        assertEquals(
+            "Nov 1 – Nov 7, 2026, 2 events",
+            pageDescription(EnglishTexts, state, events, DayOfWeek.SUNDAY, en),
+        )
+        assertEquals(
+            "Wednesday, November 4, 2026, Today, 1 event",
+            pageDescription(EnglishTexts, state.copy(mode = CalendarMode.Day), events, DayOfWeek.SUNDAY, en),
+        )
+        assertEquals("November 2026", pageDescription(EnglishTexts, state.copy(mode = CalendarMode.Month), events, DayOfWeek.SUNDAY, en))
+    }
+
+    @Test
+    fun aWeekBlockSaysItsWholeTitleAndTime() {
+        val e = event(1, "2026-11-04T09:00", "2026-11-04T10:30", title = "A long title that the column cuts short")
+        assertEquals(
+            "A long title that the column cuts short, 9:00 AM – 10:30 AM",
+            blockDescription(EnglishTexts, e, day("2026-11-04"), Locale.US).replace('\u202F', ' '),
+        )
+        assertEquals("(No title), All day", blockDescription(EnglishTexts, event(2, "2026-11-04T00:00", "2026-11-05T00:00", allDay = true, title = ""), day("2026-11-04"), Locale.US))
+    }
+
+    @Test
+    fun aWeeksTitleNamesTheYearOnceWhenItHasOne() {
+        val d = day("2026-11-04")
+        assertEquals("Nov 1 – Nov 7, 2026", rangeTitle(CalendarMode.Week, d, Locale.US, DayOfWeek.SUNDAY))
+        assertEquals("02.11. – 08.11.2026", rangeTitle(CalendarMode.Week, d, Locale.GERMANY, DayOfWeek.MONDAY))
+        assertEquals("11月2日 – 2026年11月8日", rangeTitle(CalendarMode.Week, d, Locale.CHINA, DayOfWeek.MONDAY))
+        assertEquals("Dec 28, 2026 – Jan 3, 2027", rangeTitle(CalendarMode.Week, day("2026-12-30"), Locale.US, DayOfWeek.MONDAY))
+        val pt = rangeTitle(CalendarMode.Week, d, Locale.forLanguageTag("pt-BR"), DayOfWeek.SUNDAY)
+        assertFalse(pt, pt.substringBefore(" – ").contains("2026"))
+        assertFalse(pt, pt.substringBefore(" – ").endsWith("de"))
+    }
+
+    @Test
+    fun theWeekHoursFollowTheLocalesClock() {
+        assertEquals("9 AM", LocalTime.of(9, 0).format(hourFormat(Locale.US)).replace('\u202F', ' '))
+        assertEquals("09", LocalTime.of(9, 0).format(hourFormat(Locale.GERMANY)))
     }
 
     private fun at(from: String, to: String) = LocalDateTime.parse(from) to LocalDateTime.parse(to)

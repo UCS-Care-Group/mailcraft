@@ -12,8 +12,8 @@ import java.time.temporal.ChronoUnit
 import java.time.temporal.WeekFields
 import java.util.Locale
 
-/** The three ways of looking at the calendar. */
-internal enum class CalendarMode { Agenda, Day, Month }
+/** The four ways of looking at the calendar. */
+internal enum class CalendarMode { Agenda, Day, Week, Month }
 
 /** Days from [from] to [to], both included. */
 internal data class DateRange(val from: LocalDate, val to: LocalDate) {
@@ -27,6 +27,12 @@ internal const val MONTH_WEEKS = 6
 internal const val AGENDA_DAYS = 30L
 internal const val MINUTES_IN_HOUR = 60
 private const val MINUTES_IN_DAY = 1440
+private const val MONTHS_IN_YEAR = 12
+private const val PAGED_YEARS = 400
+
+/** The first day the swiped views page from, and how many days they page through (400 years exactly). */
+private val PAGE_ORIGIN: LocalDate = LocalDate.of(1900, 1, 1)
+private const val PAGED_DAYS = 146_097
 
 /** The first day of the week in [locale]. */
 internal fun weekStartOf(locale: Locale): DayOfWeek = WeekFields.of(locale).firstDayOfWeek
@@ -37,25 +43,73 @@ internal object CalendarPaging {
     fun range(mode: CalendarMode, anchor: LocalDate, weekStart: DayOfWeek): DateRange = when (mode) {
         CalendarMode.Agenda -> DateRange(anchor, anchor.plusDays(AGENDA_DAYS - 1))
         CalendarMode.Day -> DateRange(anchor, anchor)
+        CalendarMode.Week -> weekStartOf(anchor, weekStart).let { DateRange(it, it.plusDays(DAYS_IN_WEEK - 1L)) }
         CalendarMode.Month -> {
             val first = gridStart(anchor, weekStart)
             DateRange(first, first.plusDays((MONTH_WEEKS * DAYS_IN_WEEK - 1).toLong()))
         }
     }
 
-    /** The anchor one page [direction] (-1 or 1) away: a page of agenda, a day, a month. */
-    fun step(mode: CalendarMode, anchor: LocalDate, direction: Int): LocalDate = when (mode) {
-        CalendarMode.Agenda -> anchor.plusDays(AGENDA_DAYS * direction)
-        CalendarMode.Day -> anchor.plusDays(direction.toLong())
-        CalendarMode.Month -> anchor.plusMonths(direction.toLong())
+    /**
+     * The days read for a view: its own, and for the day and the week the page on either side too, so
+     * that a swipe shows the next page's events while it is still being dragged in. Never more than
+     * the core answers for at once (the month has its six weeks alone).
+     */
+    fun loadRange(mode: CalendarMode, anchor: LocalDate, weekStart: DayOfWeek): DateRange {
+        val own = range(mode, anchor, weekStart)
+        return when (mode) {
+            CalendarMode.Day -> DateRange(own.from.minusDays(1), own.to.plusDays(1))
+            CalendarMode.Week -> DateRange(own.from.minusWeeks(1), own.to.plusWeeks(1))
+            CalendarMode.Agenda, CalendarMode.Month -> own
+        }
+    }
+
+    /** The anchor [pages] pages away from [anchor], either way: pages of agenda, days, weeks, months. */
+    fun shift(mode: CalendarMode, anchor: LocalDate, pages: Int): LocalDate = when (mode) {
+        CalendarMode.Agenda -> anchor.plusDays(AGENDA_DAYS * pages)
+        CalendarMode.Day -> anchor.plusDays(pages.toLong())
+        CalendarMode.Week -> anchor.plusWeeks(pages.toLong())
+        CalendarMode.Month -> anchor.plusMonths(pages.toLong())
+    }
+
+    /** How many pages the swiped views have: one for each day, week or month from 1900 to 2299. */
+    fun pageCount(mode: CalendarMode): Int = when (mode) {
+        CalendarMode.Agenda, CalendarMode.Day -> PAGED_DAYS
+        CalendarMode.Week -> PAGED_DAYS / DAYS_IN_WEEK
+        CalendarMode.Month -> PAGED_YEARS * MONTHS_IN_YEAR
+    }
+
+    /**
+     * The page of a swiped view that shows [anchor]: the same day, week or month is always the same
+     * page, so the pager turned back after the phone is turned lands where it was. Held to the pages
+     * there are; the agenda counts in days like the day view.
+     */
+    fun pageOf(mode: CalendarMode, anchor: LocalDate, weekStart: DayOfWeek): Int {
+        val page = when (mode) {
+            CalendarMode.Agenda, CalendarMode.Day -> anchor.toEpochDay() - PAGE_ORIGIN.toEpochDay()
+            CalendarMode.Week ->
+                Math.floorDiv(
+                    weekStartOf(anchor, weekStart).toEpochDay() - PAGE_ORIGIN.toEpochDay(),
+                    DAYS_IN_WEEK.toLong(),
+                )
+            CalendarMode.Month ->
+                (anchor.year - PAGE_ORIGIN.year).toLong() * MONTHS_IN_YEAR + anchor.monthValue - 1
+        }
+        return page.coerceIn(0L, pageCount(mode) - 1L).toInt()
+    }
+
+    /** The first day of the week that holds [day]. */
+    fun weekStartOf(day: LocalDate, weekStart: DayOfWeek): LocalDate =
+        day.minusDays(Math.floorMod(day.dayOfWeek.value - weekStart.value, DAYS_IN_WEEK).toLong())
+
+    /** The seven days of the week that holds [day], in the locale's order. */
+    fun weekOf(day: LocalDate, weekStart: DayOfWeek): List<LocalDate> {
+        val first = weekStartOf(day, weekStart)
+        return List(DAYS_IN_WEEK) { first.plusDays(it.toLong()) }
     }
 
     /** The first day of the month grid: the start of the week that holds the first of the month. */
-    fun gridStart(anchor: LocalDate, weekStart: DayOfWeek): LocalDate {
-        val first = anchor.withDayOfMonth(1)
-        val back = Math.floorMod(first.dayOfWeek.value - weekStart.value, DAYS_IN_WEEK)
-        return first.minusDays(back.toLong())
-    }
+    fun gridStart(anchor: LocalDate, weekStart: DayOfWeek): LocalDate = weekStartOf(anchor.withDayOfMonth(1), weekStart)
 
     /** Six weeks of seven days, so that the grid keeps its height from month to month. */
     fun monthGrid(anchor: LocalDate, weekStart: DayOfWeek): List<List<LocalDate>> {
