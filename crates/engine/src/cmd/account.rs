@@ -334,7 +334,7 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         AccountKind::Microsoft => {
             // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
             a.kind = AccountKind::Microsoft;
-            (a.incoming, a.outgoing, a.jmap, a.ews) = (None, None, None, None);
+            (a.incoming, a.outgoing, a.jmap, a.ews, a.dav) = (None, None, None, None, None);
             let o = a.oauth.get_or_insert_with(OAuth::default);
             o.provider = OAuthProvider::Microsoft;
         }
@@ -356,6 +356,10 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         _ => {
             a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
             (a.jmap, a.ews) = (None, None);
+            // An account that only lives here has no calendar and contacts server.
+            if a.kind == AccountKind::Local {
+                a.dav = None;
+            }
         }
     }
     if a.name.is_empty() {

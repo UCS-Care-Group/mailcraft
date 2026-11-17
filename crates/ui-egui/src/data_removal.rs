@@ -188,6 +188,7 @@ impl MailApp {
             ));
         }
         self.passwords.clear();
+        self.dav_passwords.clear();
         self.subscribed.forget_addresses();
         self.tokens.clear();
         self.graph_tokens.clear();
