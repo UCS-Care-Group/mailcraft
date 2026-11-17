@@ -13166,6 +13166,11 @@ msgstr "Salvat doar pe acest computer: acest element nu este în calendarul Outl
 msgid "Saved the message to {name}"
 msgstr "Mesajul a fost salvat în {name}"
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
+msgstr ""
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
@@ -21422,6 +21427,11 @@ msgid "only the headers of “{subject}” are here, so it can't be forwarded as
 msgstr "aici sunt doar anteturile „{subject}”, deci nu poate fi redirecționat ca atașament"
 
 #. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
 #, fuzzy
 msgid "only your own calendars can be put in a message"
@@ -22536,6 +22546,11 @@ msgstr "textul conține un caracter care nu poate fi trimis"
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
 msgstr "textul „{subject}” nu poate fi citit pe acest computer, deci nu poate fi redirecționat ca atașament"
+
+#. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -24963,10 +24978,20 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then fo
 msgstr "„{subject}” nu este încă descărcat: deschideți-l când sunteți online, apoi redirecționați-l ca atașament"
 
 #. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
 msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lui, deci nu poate fi redirecționat ca atașament"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
