@@ -195,6 +195,16 @@ jobs:
           path: artifacts/SHA256SUMS.txt*
           if-no-files-found: error
 
+  # The Android app end to end on an emulator against the Graph stand-in (MB3.15), for every
+  # release tag and dry run. It holds no secret and gates nothing yet: the Android app is not in a
+  # release. A failure shows on the run.
+  android-e2e:
+    name: Android end to end
+    needs: [version]
+    uses: ./.github/workflows/android-e2e.yml # zizmor: ignore[self-repository]
+    permissions:
+      contents: read
+
   # A pushed version tag: signed, in the `release` environment (package.yml's signing jobs).
   package:
     name: Package

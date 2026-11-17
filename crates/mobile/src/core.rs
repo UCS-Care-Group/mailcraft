@@ -156,6 +156,9 @@ impl Core {
     /// A core over the mailbox kept in `dir` (the app's private, no-backup folder), restored when
     /// there is one.
     pub(crate) fn start_in(platform: Arc<dyn Platform>, dir: &str) -> Result<Arc<Core>, CoreError> {
+        // (The end-to-end build's one seam: its sign-in and Graph are the stand-in's.)
+        #[cfg(feature = "e2e")]
+        crate::e2e::route()?;
         Core::start_stored(platform, |keep| keep.map_or_else(Session::empty, |k| Session::new(k.open())), SendReceive::new(), Some(dir.to_string()))
     }
 
