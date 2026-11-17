@@ -16,7 +16,8 @@
 //!   the mail came from inside the owner's own organisation. What the window lets a remembered
 //!   sender's pictures come by, and a sender's own picture.
 //! - [`failed_check`]: the server says it failed DMARC, or, when the server gives no DMARC
-//!   verdict at all, SPF for the sender's domain. A **sender warning**.
+//!   verdict at all, SPF for the sender's domain. A **sender warning**. Not when Exchange Online
+//!   says it judged a service in front of it rather than the sender (`compauth=none reason=905`).
 //!
 //! Everything is bounded: so many headers looked through, so many characters of the value, so
 //! many clauses.
@@ -444,7 +445,8 @@ impl Failed {
 /// no `dmarc` clause at all, `spf=fail` for a `smtp.mailfrom` at the sender's domain or one under
 /// the domain it judged; a DMARC failure for a domain whose policy is `p=none` is
 /// [`Failed::DmarcPolicyNone`]. A server that says nothing, or says it of another domain, gives `None`,
-/// and so does Exchange Online's `compauth=pass` for the sender, which is its last word.
+/// and so does Exchange Online's `compauth=pass` for the sender, which is its last word, and its
+/// `compauth=none reason=905`, which says its checks judged the route ([`complex_routing`]).
 pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
     let clauses = own_clauses(account, m)?;
     // Unlike `vouched`, any address is read: a sender whose name is written in other letters
@@ -454,8 +456,12 @@ pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
     let judged =
         |words: &[String], key: &str| property(words, key).map(|v| sender_warnings::sender_domain(v).or_else(|| sender_warnings::normal_domain(v)));
     let of_sender = |words: &[String]| judged(words, "header.from").is_none_or(|j| j.is_some_and(|j| judged_for(&j, &sender_domain)));
-    // Exchange Online's composite verdict overrides a DMARC failure it chose to let through.
-    if clauses.iter().any(|words| result(words).is_some_and(|(method, outcome)| method == "compauth" && outcome == "pass") && of_sender(words)) {
+    // Exchange Online's composite verdict overrides a DMARC failure it chose to let through, and
+    // so does its word that its checks judged the service in front of it and not the sender.
+    if clauses.iter().any(|words| {
+        result(words).is_some_and(|(method, outcome)| method == "compauth" && (outcome == "pass" || (outcome == "none" && complex_routing(words))))
+            && of_sender(words)
+    }) {
         return None;
     }
     let mut dmarc_said = false;
@@ -477,6 +483,18 @@ pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
             && judged(words, "smtp.mailfrom").flatten().is_some_and(|j| j == sender_domain || judged_for(&sender_domain, &j))
     });
     spf_fails.then_some(Failed::Spf)
+}
+
+/// Whether a `compauth` clause gives Exchange Online's reason `905`: it did not enforce DMARC
+/// because of complex routing, the mail having come in through another service first (a
+/// filtering gateway in front of Microsoft 365, or an organisation's own server). It then checked
+/// the address of that service, which the sender's SPF doesn't name, and a signature that service
+/// changed the message under (a rewritten link, a banner, a tag on the subject), so its `dmarc`
+/// and `spf` failures are about the route and not the sender. Only that one code: the other
+/// codes of `compauth=none` (an administrator's allow list, among others) let mail by for reasons
+/// that say nothing of the checks, which then still stand.
+fn complex_routing(words: &[String]) -> bool {
+    property(words, "reason") == Some("905")
 }
 
 /// Whether a `dmarc` clause says the domain's policy is `none`: in the server's comment

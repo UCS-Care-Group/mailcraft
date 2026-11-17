@@ -150,10 +150,15 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above, and like it never from a last clause
   cut off at 4,000 characters or left open) says `dmarc=fail` for the sender's domain, or, with no
-  DMARC verdict at all, `spf=fail` for it, unless Exchange Online's `compauth=pass`
-  overrides it (the sender's domain is read from whatever its address is written in, `xn--`
-  labels as the letters they stand for, and only labels that write back to exactly themselves are
-  read so); or the sender's name carries another address, or is a contact's or the owner's own
+  DMARC verdict at all, `spf=fail` for it (the sender's domain is read from whatever its address
+  is written in, `xn--` labels as the letters they stand for, and only labels that write back to
+  exactly themselves are read so), unless Exchange Online's `compauth=pass` overrides it, or its
+  `compauth=none reason=905` says it didn't enforce DMARC because the mail came through another
+  service first, such as a filtering gateway in front of it, whose address and changes to the
+  message its SPF and DKIM then judged instead of the sender's (#1568). Only that code: the other
+  `compauth=none` codes, an allow list among them, leave the failure standing, and the gateway's
+  own verdict below the edge hop is still not read, so such mail is not vouched for either. Or
+  the sender's name carries another address, or is a contact's or the owner's own
   name on an address that isn't theirs. Amber for **cautions** alone: a `dmarc=fail` for a domain
   whose policy is `p=none` (said in the server's comment, `(p=NONE …)`, or a `policy.` property),
   which asks for nothing to be done about mail that fails; the sender's domain is one character
