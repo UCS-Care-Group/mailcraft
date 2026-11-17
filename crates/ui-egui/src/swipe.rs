@@ -59,6 +59,8 @@ impl Action {
 #[derive(Clone, Default)]
 struct Gesture {
     active: bool,
+    scope: Option<Scope>,
+    frame: u64,
     row: u64,
     copy: u16,
     members: Vec<u64>,
@@ -69,6 +71,31 @@ struct Gesture {
     settled_at: f64,
     from: f32,
     action: Action,
+}
+
+/// The list and mailbox in which a gesture started. IDs are only meaningful in that opening.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Scope {
+    pub opening: u64,
+    pub folder: u64,
+    pub list: egui::Id,
+}
+
+fn slot() -> egui::Id {
+    egui::Id::unique("message_swipe_gesture")
+}
+
+/// Cancel a gesture if its list or mailbox changed, the list missed a frame, or its row left view.
+pub(crate) fn reconcile(ui: &egui::Ui, scope: Scope, visible: impl FnOnce(u64, u16) -> bool) {
+    let frame = ui.ctx().cumulative_frame_nr();
+    ui.ctx().data_mut(|data| {
+        if let Some(state) = data.get_temp::<Gesture>(slot())
+            && state.active
+            && (state.scope != Some(scope) || frame.saturating_sub(state.frame) > 1 || !visible(state.row, state.copy))
+        {
+            data.remove_temp::<Gesture>(slot());
+        }
+    });
 }
 
 #[derive(Default)]
@@ -92,16 +119,24 @@ fn scale(unit: MouseWheelUnit, source: MouseWheelSource, windows: bool) -> Optio
 
 /// Follow the input while fingers are down, then settle back or slide away before acting.
 /// A short idle ends input on platforms that report no end phase (notably Windows).
-pub(crate) fn input(ui: &egui::Ui, row: u64, copy: u16, members: &[u64], hovered: bool, width: f32, actions: (Action, Action)) -> Frame {
+pub(crate) fn input(ui: &egui::Ui, scope: Scope, key: (u64, u16), members: &[u64], hovered: bool, width: f32, actions: (Action, Action)) -> Frame {
+    let (row, copy) = key;
     let width = if width.is_finite() { width.clamp(0.0, 100_000.0) } else { 0.0 };
-    let id = egui::Id::unique("message_swipe_gesture");
+    let id = slot();
     let (events, now) = ui.input(|i| (i.events.clone(), i.time));
     let mut state = ui.ctx().data_mut(|data| data.get_temp::<Gesture>(id).unwrap_or_default());
+    if state.active && state.scope != Some(scope) {
+        state = Gesture::default();
+    }
     let mut end = false;
     let mut cancel = false;
     for event in events {
         let Event::MouseWheel { unit, mut delta, phase, source, modifiers } = event else { continue };
         if modifiers != egui::Modifiers::NONE {
+            if matches!(phase, TouchPhase::End | TouchPhase::Cancel) && state.active && !state.settling && (state.row, state.copy) == key {
+                end = true;
+                cancel = true;
+            }
             continue;
         }
         let Some(scale) = scale(unit, source, cfg!(target_os = "windows")) else { continue };
@@ -113,10 +148,11 @@ pub(crate) fn input(ui: &egui::Ui, row: u64, copy: u16, members: &[u64], hovered
         if !state.active && hovered && phase != TouchPhase::End && phase != TouchPhase::Cancel {
             state = Gesture {
                 active: true,
+                scope: Some(scope),
                 row,
                 copy,
                 members: members.to_vec(),
-                has_phases: source == MouseWheelSource::Trackpad && phase == TouchPhase::Start,
+                has_phases: phase == TouchPhase::Start,
                 last: now,
                 ..Default::default()
             };
@@ -140,16 +176,19 @@ pub(crate) fn input(ui: &egui::Ui, row: u64, copy: u16, members: &[u64], hovered
         }
     }
     if !state.active || state.row != row || state.copy != copy {
+        ui.ctx().data_mut(|data| data.insert_temp(id, state));
         return Frame::default();
     }
+    state.frame = ui.ctx().cumulative_frame_nr();
     let horizontal = state.delta.x.abs() > state.delta.y.abs() * 2.0;
     let action = if state.delta.x < 0.0 { actions.0 } else { actions.1 };
     let offset = if horizontal && action != Action::None { state.delta.x.clamp(-width * 0.85, width * 0.85) } else { 0.0 };
-    if !state.settling && (end || (!state.has_phases && now - state.last >= 0.18)) {
+    let timed_out = state.has_phases && now - state.last >= 5.0;
+    if !state.settling && (end || timed_out || (!state.has_phases && now - state.last >= 0.18)) {
         state.settling = true;
         state.settled_at = now;
         state.from = offset;
-        state.action = if !cancel && horizontal && state.delta.x.abs() >= 80.0 { action } else { Action::None };
+        state.action = if !cancel && !timed_out && horizontal && state.delta.x.abs() >= 80.0 { action } else { Action::None };
     }
     let mut frame = Frame { offset, action, completed: None };
     if state.settling {

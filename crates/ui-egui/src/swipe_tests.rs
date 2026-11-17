@@ -15,10 +15,65 @@ fn frame_with_members(ctx: &egui::Context, time: f64, row: u64, members: &[u64],
     let mut result = Frame::default();
     let input = egui::RawInput { time: Some(time), events, ..Default::default() };
     let mut output = ctx.run_ui(input, |ui| {
-        result = super::input(ui, row, 0, members, true, 400.0, (Action::Delete, Action::Archive));
+        let scope = Scope { opening: 1, folder: 1, list: egui::Id::unique("test-list") };
+        result = super::input(ui, scope, (row, 0), members, true, 400.0, (Action::Delete, Action::Archive));
     });
     output.textures_delta.clear();
     result
+}
+
+#[test]
+fn modified_end_cancels_a_phased_gesture() {
+    let ctx = egui::Context::default();
+    let source = MouseWheelSource::Trackpad;
+    frame(&ctx, 1.0, 1, vec![wheel(-100.0, 0.0, TouchPhase::Start, source)]);
+    let mut end = wheel(0.0, 0.0, TouchPhase::End, source);
+    if let Event::MouseWheel { modifiers, .. } = &mut end {
+        modifiers.shift = true;
+    }
+    frame(&ctx, 1.1, 1, vec![end]);
+    assert_eq!(frame(&ctx, 1.4, 1, vec![]).completed, None);
+    assert_eq!(frame(&ctx, 1.5, 1, vec![wheel(-20.0, 0.0, TouchPhase::Start, source)]).offset, -20.0);
+}
+
+#[test]
+fn unknown_source_with_phases_waits_for_end_and_missing_end_cancels() {
+    let ctx = egui::Context::default();
+    frame(&ctx, 1.0, 1, vec![wheel(-100.0, 0.0, TouchPhase::Start, MouseWheelSource::Unknown)]);
+    let held = frame(&ctx, 2.0, 1, vec![]);
+    assert_eq!(held.offset, -100.0);
+    assert_eq!(held.completed, None);
+    frame(&ctx, 6.1, 1, vec![]);
+    assert_eq!(frame(&ctx, 6.4, 1, vec![]).completed, None);
+    assert_eq!(frame(&ctx, 6.5, 1, vec![wheel(-20.0, 0.0, TouchPhase::Start, MouseWheelSource::Unknown)]).offset, -20.0);
+}
+
+#[test]
+fn a_replaced_mailbox_changed_list_or_missing_row_discards_the_gesture() {
+    let ctx = egui::Context::default();
+    for change in 0..4 {
+        let start =
+            egui::RawInput { time: Some(1.0), events: vec![wheel(-100.0, 0.0, TouchPhase::Start, MouseWheelSource::Trackpad)], ..Default::default() };
+        let old = Scope { opening: 1, folder: 1, list: egui::Id::unique("list") };
+        let mut output = ctx.run_ui(start, |ui| {
+            let _ = super::input(ui, old, (1, 0), &[1], true, 400.0, (Action::Delete, Action::Archive));
+        });
+        output.textures_delta.clear();
+        let mut result = Frame::default();
+        let input = egui::RawInput { time: Some(2.0), ..Default::default() };
+        let mut output = ctx.run_ui(input, |ui| {
+            let scope = Scope {
+                opening: if change == 1 { 2 } else { 1 },
+                folder: if change == 2 { 2 } else { 1 },
+                list: if change == 3 { egui::Id::unique("other-list") } else { old.list },
+            };
+            super::reconcile(ui, scope, |_, _| change != 0);
+            result = super::input(ui, scope, (1, 0), &[1], false, 400.0, (Action::Delete, Action::Archive));
+        });
+        output.textures_delta.clear();
+        assert_eq!(result.offset, 0.0);
+        assert_eq!(result.completed, None);
+    }
 }
 
 #[test]
@@ -111,6 +166,35 @@ fn choices_round_trip_and_unknown_codes_are_refused() {
 }
 
 #[test]
+fn swipe_selectors_have_distinct_accessible_names() {
+    use crate::{MailApp, Services};
+    use egui_kittest::kittest::Queryable as _;
+    use mailcraft_engine::Session;
+    use serde_json::json;
+
+    let now = 1_791_993_600;
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(now, 0), now, 0), Services::default());
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
+    let mut w =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
+    w.run_steps(4);
+    let _ = w.state_mut().execute("ui.dismissReminder", json!({"all": true}));
+    w.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    w.run_steps(4);
+    for name in ["Swipe to the left", "Swipe to the right"] {
+        assert!(w.query_by_role_and_label(egui::accesskit::Role::ComboBox, name).is_some(), "{name}");
+    }
+}
+
+#[test]
 fn swipe_marks_the_hovered_message_not_the_selected_one() {
     use crate::{MailApp, Services};
     use mailcraft_engine::Session;
@@ -147,4 +231,44 @@ fn swipe_marks_the_hovered_message_not_the_selected_one() {
     w.run_steps(40);
     assert!(row.members.iter().all(|id| w.state().session.mailbox.messages.get(id).is_some_and(|message| message.read)));
     assert!(w.state_mut().session.acting_on().contains(&other));
+}
+
+#[test]
+fn leaving_the_folder_cancels_a_gesture_before_the_row_can_reappear() {
+    use crate::{MailApp, Services};
+    use mailcraft_engine::Session;
+    use serde_json::json;
+
+    let now = 1_791_993_600;
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(now, 0), now, 0), Services::default());
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
+    app.session.prefs.mark_read_on_open = false;
+    app.ui.swipe_left = Action::Read;
+    let mut w =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
+    w.run_steps(4);
+    let _ = w.state_mut().execute("ui.dismissReminder", json!({"all": true}));
+    w.run_steps(3);
+    let rows = w.state_mut().session.rows();
+    let row = rows.iter().find(|r| r.unread > 0 && w.state().hit.rect("message", r.id).is_some()).unwrap().clone();
+    let rect = w.state().hit.rect("message", row.id).unwrap();
+    w.event(Event::PointerMoved(rect.center()));
+    w.step();
+    w.event(wheel(-100.0, 0.0, TouchPhase::Start, MouseWheelSource::Trackpad));
+    w.step();
+    w.state_mut().execute("folder.select", json!({"kind": "drafts"})).unwrap();
+    w.run_steps(3);
+    w.state_mut().execute("folder.select", json!({"kind": "inbox"})).unwrap();
+    w.run_steps(3);
+    w.event(wheel(0.0, 0.0, TouchPhase::End, MouseWheelSource::Trackpad));
+    w.run_steps(40);
+    assert!(row.members.iter().any(|id| w.state().session.mailbox.messages.get(id).is_some_and(|message| !message.read)));
 }
