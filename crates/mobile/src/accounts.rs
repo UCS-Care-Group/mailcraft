@@ -416,8 +416,9 @@ impl Core {
     pub async fn permission_state(&self, account: u64, permission: Permission) -> Result<PermissionState, CoreError> {
         let email = self.email_of(account).await?;
         let Some(o) = signin::client_oauth() else { return Ok(PermissionState::Unknown) };
-        let mail = self.signins.at(Endpoints::for_resource(&o, Resource::GraphMail));
-        let graph = self.signins.at(Endpoints::for_resource(&o, Resource::Graph));
+        // (Only the tokens' scopes are asked for here; the phone's endpoints all the same, #661.)
+        let mail = self.signins.at(Endpoints::for_resource_without_sync(&o, Resource::GraphMail));
+        let graph = self.signins.at(Endpoints::for_resource_without_sync(&o, Resource::Graph));
         let sync = self.sync.clone();
         let refresh = self.call(move |s| Ok(sync.refresh_for(s, account))).await?;
         let reply = Queue::<Checked>::new();
@@ -520,7 +521,10 @@ impl Core {
             return Err(CoreError::Cancelled);
         }
         let endpoints = match signin::client_oauth() {
-            Some(o) => self.signins.at(Endpoints::for_resource(&o, Resource::GraphMail)),
+            // (The page of a phone's sign-in asks for nothing of the to-dos, the rules, the automatic
+            // replies and the categories: the to-dos are asked for by themselves, and the rest the
+            // phone doesn't keep in step, #661.)
+            Some(o) => self.signins.at(Endpoints::for_resource_without_sync(&o, Resource::GraphMail)),
             None => return Ok(Err(failed("this build of MailCraft has no Microsoft sign-in set up"))),
         };
         let page = self.page(endpoints, hint, Why::Account, place.cancel_flag()).await;
