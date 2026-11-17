@@ -288,7 +288,9 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   in that set and below the mailbox's UIDNEXT, at most twice its EXISTS plus 1,000 distinct ones;
   more is the command's error and nothing of it is taken in.
 - **Secrets aren't handed to the wrong party:** a sign-in goes only to the server the account names,
-  over TLS (below). OAuth uses the authorization code with PKCE and a loopback redirect
+  over TLS (below). An outgoing server the owner marked as needing no sign-in (a relay,
+  #836) is never shown the password, even when it offers a way to sign in; an account that signs in
+  on its provider's page has no such choice. OAuth uses the authorization code with PKCE and a loopback redirect
   (`crates/net/src/oauth.rs`).
 - A compromised server can still read and change the mail it holds. That is the server's job, not
   something a client can prevent; end-to-end encryption would be (see Known limits).

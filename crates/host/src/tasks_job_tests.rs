@@ -135,3 +135,31 @@ fn an_answer_for_a_mailbox_that_is_no_longer_open_is_let_go_of() {
     assert!(!jobs.busy());
     assert_eq!(s.driver.tasks.to_ask(), None);
 }
+
+#[test]
+fn an_answer_with_somebody_elses_sign_in_is_refused_whole() {
+    let (mut s, a) = session();
+    let mut jobs = TasksJobs::default();
+    let download = TasksDownload {
+        account: a,
+        email: "ada@example.org".into(),
+        complete: true,
+        lists: vec![RemoteTaskList { id: "l-1".into(), complete: true, shared: false }],
+        tasks: vec![RemoteTask { id: "t-9".into(), list: "l-1".into(), title: "Not yours".into(), ..Default::default() }],
+    };
+    let theirs = Tokens { refresh: "theirs".into(), email: "mallory@example.net".into(), ..Default::default() };
+    let result = TasksResult { tokens: Some(theirs), download: Some(download), consent_needed: true, ..Default::default() };
+    start(&mut s, &mut jobs, a, result);
+    let answer = loop {
+        if let Some(answer) = jobs.poll(&mut s, Lang::English) {
+            break answer;
+        }
+    };
+    assert_eq!(answer.foreign.as_ref().map(|f| f.signed_in_as.as_str()), Some("mallory@example.net"));
+    assert!(answer.tokens.is_none() && !answer.consent_needed, "nothing of it handed back");
+    assert!(!format!("{answer:?}").contains("mallory"));
+    assert!(!s.mailbox.tasks.values().any(|t| t.title == "Not yours"), "nothing taken in");
+    // Neither given nor asked about on its word.
+    assert_eq!(s.driver.tasks.perm.get(&a), None);
+    assert_eq!(s.driver.tasks.to_ask(), None);
+}

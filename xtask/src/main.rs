@@ -48,8 +48,10 @@ commands:
                   i18n --check, release-notes, docs-log), then clippy -D warnings, test, wasm, deny
                   (stops at first failure; XTASK_CI_ONLY=a,b runs only those steps, XTASK_CI_SKIP=a,b skips them)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
-  i18n [--check]  gather the interface's English into crates/i18n/po/messages.pot and merge it into
+  i18n [--check] [--lenient]
+                  gather the interface's English into crates/i18n/po/messages.pot and merge it into
                   each language's .po (coverage per language); --check changes nothing, fails if out of date
+                  (only reports it with --lenient, and in CI's merge queue and on main)
   parity          recompute the Outlook feature-parity summary in docs/parity-checklist.md
   ico <out.ico> <in.png>...
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
@@ -84,7 +86,7 @@ fn main() -> ExitCode {
         Some("ci") => cmd_ci(),
         Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
         Some("parity") => parity::run(&root()),
-        Some("i18n") => i18n::run(&root(), rest.contains(&"--check")),
+        Some("i18n") => i18n::run(&root(), rest.contains(&"--check"), i18n::lenient(rest.contains(&"--lenient"), event().as_deref())),
         Some("ico") => ico::run(&rest),
         Some("icon") => icon::run(&root()),
         Some("version") => version::run(&root(), &rest),
@@ -104,6 +106,11 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// The GitHub Actions event this runs for (`pull_request`, `merge_group`, `push`), when in CI.
+fn event() -> Option<String> {
+    std::env::var("GITHUB_EVENT_NAME").ok()
 }
 
 /// Workspace root (parent of the xtask crate).
@@ -303,7 +310,7 @@ fn cmd_ci() -> Result<(), String> {
         ("workflows", Box::new(|| workflows::run(&root()))),
         ("layers", Box::new(cmd_layers)),
         ("wasm-clock", Box::new(|| metadata().and_then(|m| wasm_clock::run(&root(), &m)))),
-        ("i18n", Box::new(|| i18n::run(&root(), true))),
+        ("i18n", Box::new(|| i18n::run(&root(), true, i18n::lenient(false, event().as_deref())))),
         ("release-notes", Box::new(|| release_notes::check(&root()))),
         ("docs-log", Box::new(|| docs_log::check(&root()))),
         (

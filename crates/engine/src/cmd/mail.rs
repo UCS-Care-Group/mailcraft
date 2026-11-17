@@ -126,7 +126,11 @@ const PAGE_ROWS: u64 = 10;
 /// The most a page may be, whatever a caller says.
 const MAX_PAGE_ROWS: u64 = 10_000;
 
-fn select(s: &mut Session, v: &Value) -> CmdResult {
+/// What `mail.select` is asked to select, checked as it checks it (#553): the messages named (none
+/// for `{"ids": []}`; anything else is read strictly), each in the mailbox, and the row named by
+/// `copy` one the list shows. Nothing is changed. The window asks it before it lets go of a draft
+/// for a click that `mail.select` would refuse (#727).
+pub fn select_target(s: &mut Session, v: &Value) -> Result<(Vec<Id>, u16), crate::CmdError> {
     // `{"ids": []}` selects nothing; anything else is read strictly (#553).
     let none = v.get("id").is_none() && v.get("ids").and_then(Value::as_array).is_some_and(Vec::is_empty);
     let ids = if none { Vec::new() } else { p::ids_strict(v)?.ok_or_else(|| bad("`id` or `ids` is required"))? };
@@ -134,8 +138,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         return Err(failed!("no message with id {id}", id = missing));
     }
     let Some(last) = ids.last().copied() else {
-        s.sel.clear_messages();
-        return done();
+        return Ok((ids, 0));
     };
     // Which of the message's rows was clicked, for one listed under several categories.
     // (Named wrongly, it is refused: the conversation's row, row 0, takes all of it, #503.)
@@ -150,6 +153,15 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     if copy > 0 && !s.rows().iter().any(|r| r.id == last && r.copy == copy) {
         return Err(bad("`copy` names none of the rows the list shows the message in"));
     }
+    Ok((ids, copy))
+}
+
+fn select(s: &mut Session, v: &Value) -> CmdResult {
+    let (ids, copy) = select_target(s, v)?;
+    let Some(last) = ids.last().copied() else {
+        s.sel.clear_messages();
+        return done();
+    };
     // A Shift+click from an anchor the list shows, in the list in view: the selection is that
     // span of the list's own rows, every one of them listed, so none of what is asked below of
     // whether the list shows them is (over a span of thousands of messages, that took 60 ms).
