@@ -100,6 +100,8 @@ mod find_replace;
 mod folder_properties;
 mod follow_up_tick;
 mod font_index;
+#[cfg(test)]
+mod foreign_sign_in_tests;
 pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
@@ -3433,15 +3435,23 @@ impl MailApp {
         if !mailcraft_engine::sync_driver::signed_in_as_other(a, tokens) {
             return false;
         }
-        let who = tokens.email.trim();
-        // (Said on screen; never written to the log, which names nobody.)
+        self.say_signed_in_as_other(account, tokens.email.trim());
+        true
+    }
+
+    /// Tell the owner that a sign-in for `account` came back as `who`, somebody else, and who to
+    /// sign in as instead: in the status bar, where any sign-in of somebody else's is said (#103).
+    /// The words said come back, for the account's problems report too. (Said on screen; never
+    /// written to the log, which names nobody.)
+    pub(crate) fn say_signed_in_as_other(&mut self, account: Id, who: &str) -> String {
+        let email = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
         let said = i18n::fmt(
             tl!("You signed in as {signedIn}, but this account is {account}. Sign in again as {account}."),
-            &[("signedIn", &forms::kit::shown(who, 120)), ("account", &forms::kit::shown(a.email.trim(), 120))],
+            &[("signedIn", &forms::kit::shown(who.trim(), 120)), ("account", &forms::kit::shown(&email, 120))],
         );
         self.session.sync_status.clear();
-        self.status(said);
-        true
+        self.status(said.clone());
+        said
     }
 
     /// Account setup: the password that was just shown to work, for this session's Send/Receive

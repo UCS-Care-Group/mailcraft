@@ -1,0 +1,1 @@
+- A calendar or Microsoft To Do update that came back signed in as somebody else than the account is now refused whole, on the desktop and on Android: nothing of it reaches your calendar or your to-dos, its sign-in isn't kept, and you are told to sign in again as the account. Before, the desktop and the phone's To Do took in what it brought and refused only the sign-in.

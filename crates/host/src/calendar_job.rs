@@ -17,9 +17,10 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 
 use mailcraft_engine::Session;
 use mailcraft_engine::sync_driver::{CalendarCame, CalendarPlan, CalendarTaken};
-use mailcraft_model::{Id, OAuth};
+use mailcraft_model::{Account, Id, OAuth};
 
 use crate::graph::{GraphRequest, GraphResult};
+use crate::job_sign_in::{ForeignSignIn, foreign_sign_in};
 
 /// The sign-in a calendar job goes with, as the front end found it.
 pub struct CalendarAuth {
@@ -67,6 +68,9 @@ pub fn calendar_request(session: &Session, plan: &CalendarPlan, auth: CalendarAu
 /// The job under way.
 struct Running {
     account: Id,
+    /// The account whose sign-in the job went with (a shared mailbox's owner), as it was: the
+    /// tokens that come back must be its own ([`foreign_sign_in`]).
+    signer: Account,
     carried: bool,
     started: f64,
     opening: u64,
@@ -96,6 +100,10 @@ pub struct CalendarAnswer {
     pub result: GraphResult,
     /// The job ended without an answer (its thread ended early).
     pub stopped_early: bool,
+    /// The answer came with somebody else's sign-in: it was refused whole (`result` is empty, and
+    /// its token is not to be kept). The front end tells the owner; the engine takes it as a job
+    /// that failed ([`take_answer`]).
+    pub foreign: Option<ForeignSignIn>,
 }
 
 /// What [`CalendarJobs::poll`] found.
@@ -138,10 +146,15 @@ impl CalendarJobs {
         if self.running.is_some() {
             return false;
         }
+        // A shared mailbox's calendars are read with the sign-in of the account it is opened through.
+        let Some(account) = session.mailbox.account(plan.account) else { return false };
+        let signer = if account.is_shared() { session.mailbox.owner_of(plan.account) } else { Some(account) };
+        let Some(signer) = signer.cloned() else { return false };
         let Some(request) = calendar_request(session, plan, auth) else { return false };
         let Some(rx) = launch(request) else { return false };
         session.calendar_started(plan, now);
-        self.running = Some(Running { account: plan.account, carried: plan.changes.is_some(), started: now, opening: session.openings(), rx });
+        self.running =
+            Some(Running { account: plan.account, signer, carried: plan.changes.is_some(), started: now, opening: session.openings(), rx });
         true
     }
 
@@ -164,12 +177,22 @@ impl CalendarJobs {
             }
         };
         let Some(running) = self.running.take() else { return CalendarPolled::Nothing };
+        // Somebody else's sign-in: nothing of what it brought is this account's calendar, and its
+        // token is not kept. (Logged without naming anybody.)
+        let foreign = foreign_sign_in(&running.signer, result.tokens.as_ref());
+        let result = if foreign.is_some() {
+            log::warn!("calendar: the answer came with another account's sign-in; refused whole");
+            GraphResult { account: running.account, ..Default::default() }
+        } else {
+            result
+        };
         CalendarPolled::Answer(Box::new(CalendarAnswer {
             account: running.account,
             carried: running.carried,
             started: running.started,
             result,
             stopped_early,
+            foreign,
         }))
     }
 }
@@ -195,7 +218,9 @@ pub fn came(result: &GraphResult, job_errors: bool) -> CalendarCame<'_> {
 
 /// Have the engine take a calendar job's answer in at `now` (milliseconds): what the server said
 /// to the changes and what it has in the days asked for, and where the owner's permission stands.
-/// What the owner is to be told comes back.
+/// What the owner is to be told comes back. An answer refused for its sign-in
+/// ([`CalendarAnswer::foreign`]) is a job that failed, whatever `job_errors` says.
 pub fn take_answer(session: &mut Session, answer: &CalendarAnswer, job_errors: bool, now: f64) -> CalendarTaken {
+    let job_errors = job_errors || answer.foreign.is_some();
     session.calendar_answered(answer.account, answer.carried, answer.started, now, &came(&answer.result, job_errors))
 }
