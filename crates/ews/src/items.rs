@@ -302,11 +302,14 @@ pub struct Recipients {
     pub to: Vec<Address>,
     /// `CcRecipients`.
     pub cc: Vec<Address>,
+    /// Some of them were left out, past what is kept of a list or as a recipient that can't be
+    /// kept: a rule can't tell from them who it was sent to (#566).
+    pub cut: bool,
 }
 
 impl std::fmt::Debug for Recipients {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Recipients").field("to", &self.to.len()).field("cc", &self.cc.len()).finish()
+        f.debug_struct("Recipients").field("to", &self.to.len()).field("cc", &self.cc.len()).field("cut", &self.cut).finish()
     }
 }
 
@@ -355,7 +358,10 @@ impl GetItemRecipients {
                     let Some(item) = node.child_in(MESSAGES, "Items").and_then(|items| items.children.iter().find(|c| *c.namespace == *TYPES)) else {
                         continue;
                     };
-                    out.push(Recipients { id: id.clone(), to: people(item, "ToRecipients"), cc: people(item, "CcRecipients") });
+                    let listed = |name: &str| item.child_in(TYPES, name).map_or(0, |list| list.children.len());
+                    let (to, cc) = (people(item, "ToRecipients"), people(item, "CcRecipients"));
+                    let cut = to.len() < listed("ToRecipients") || cc.len() < listed("CcRecipients");
+                    out.push(Recipients { id: id.clone(), to, cc, cut });
                 }
                 Err(busy @ Error::Busy { .. }) => return Err(busy),
                 Err(_) => {}

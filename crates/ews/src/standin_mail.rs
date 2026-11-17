@@ -644,7 +644,7 @@ impl State {
             Check::is(one, TYPES, "ItemId", &["Id", "ChangeKey"])?;
             Check::empty(one)?;
             let id = Check::attribute(one, "Id")?;
-            let code = match self.item(id) {
+            let code = match self.item(id).filter(|_| !self.gone_from_get_item.iter().any(|gone| gone == id)) {
                 Some(_) if self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId") => {
                     messages.push_str(&error_message("GetItem", "ErrorInvalidPropertyRequest"));
                     "ErrorInvalidPropertyRequest"

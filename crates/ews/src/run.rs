@@ -720,11 +720,12 @@ impl<E: HttpExchange> Run<'_, E> {
     /// The recipients of `messages`, asked with `GetItem` ([`GetItemRecipients`]) for a server whose
     /// `SyncFolderItems` won't give them. What stops the run stops it here too (the page is then
     /// not taken in, and is read again); anything else the server says leaves those messages
-    /// without recipients, said once a run.
+    /// without recipients, said once a run, and marked as cut ([`GraphMessage::cut`]): a rule
+    /// can't tell from them who they were sent to, and waits for them to be here whole (#566).
     async fn recipients(&mut self, messages: &mut [GraphMessage]) -> Result<(), Asked> {
         let at: HashMap<String, usize> = messages.iter().enumerate().map(|(n, m)| (m.server.id.clone(), n)).collect();
         let ids: Vec<String> = messages.iter().map(|m| m.server.id.clone()).collect();
-        let mut short = false;
+        let mut answered = vec![false; messages.len()];
         for some in ids.chunks(MAX_RECIPIENTS_ASKED).take(MAX_RECIPIENT_ASKS) {
             let op = GetItemRecipients::new(some);
             if op.is_empty() {
@@ -732,18 +733,28 @@ impl<E: HttpExchange> Run<'_, E> {
             }
             match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(found) => {
-                    short |= found.len() < some.len();
                     for one in found {
-                        if let Some(message) = at.get(&one.id).and_then(|n| messages.get_mut(*n)) {
+                        let Some(&n) = at.get(&one.id) else { continue };
+                        if let Some(message) = messages.get_mut(n) {
                             (message.to, message.cc) = (one.to, one.cc);
+                            message.cut |= one.cut;
+                        }
+                        if let Some(answer) = answered.get_mut(n) {
+                            *answer = true;
                         }
                     }
                 }
                 Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
-                Err(_) => short = true,
+                Err(_) => {}
             }
         }
-        short |= ids.len() > MAX_RECIPIENTS_ASKED.saturating_mul(MAX_RECIPIENT_ASKS);
+        // Whatever left a message unanswered (the request refused, the server leaving it out, an id
+        // it can't be asked by, past what is asked in one page), it is so marked.
+        let mut short = false;
+        for (message, _) in messages.iter_mut().zip(&answered).filter(|(_, answered)| !**answered) {
+            message.cut = true;
+            short = true;
+        }
         if short && !self.recipients_unsaid {
             self.recipients_unsaid = true;
             log::info!("ews mail: the server didn't give the recipients of some messages; they are listed without them");

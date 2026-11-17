@@ -221,6 +221,11 @@ pub struct State {
     /// The server's `SyncFolderItems` won't give the recipients (`ErrorInvalidPropertyForOperation`),
     /// as Exchange 2010's doesn't ([`State::exchange2010`] implies it).
     pub lists_no_recipients: bool,
+    /// Every `GetItem` is refused as a whole: a fault of `ErrorInternalServerError`, HTTP 500.
+    pub refuses_get_item: bool,
+    /// `GetItem` answers these items with `ErrorItemNotFound`, as when they went between the
+    /// listing and the question.
+    pub gone_from_get_item: Vec<String>,
     /// The versions every request asked for, in order.
     pub versions: Vec<String>,
     /// The organisation's address list, for `ResolveNames` (#1262).
@@ -297,6 +302,8 @@ impl Default for State {
             exchange2010: false,
             takes_any_version: false,
             lists_no_recipients: false,
+            refuses_get_item: false,
+            gone_from_get_item: Vec::new(),
             versions: Vec::new(),
             directory: Vec::new(),
         }
@@ -468,6 +475,13 @@ impl State {
                 self.busy.1
             ));
             return Ok((500, "ErrorServerBusy".into(), body));
+        }
+        if self.refuses_get_item && operation.name == "GetItem" {
+            let body = envelope(&format!(
+                "<s:Fault><faultcode xmlns:a=\"{TYPES}\">a:ErrorInternalServerError</faultcode><faultstring>An internal server error occurred.</faultstring>\
+                 <detail><e:ResponseCode xmlns:e=\"{ERRORS}\">ErrorInternalServerError</e:ResponseCode></detail></s:Fault>"
+            ));
+            return Ok((500, "ErrorInternalServerError".into(), body));
         }
         if self.busy_get_item && operation.name == "GetItem" {
             self.busy.0 = self.busy.0.max(1);
