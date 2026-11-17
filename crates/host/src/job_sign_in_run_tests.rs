@@ -301,3 +301,97 @@ fn a_shared_mailboxs_mail_run_is_checked_against_its_owners_sign_in() {
     assert!(!server.state().requests.is_empty());
     assert!(out.mail.is_some());
 }
+
+// --- A sign-in renewed part-way --------------------------------------------------------------
+
+/// How many requests the stand-in had seen at each renewal.
+type Renewals = std::sync::Mutex<Vec<usize>>;
+
+#[test]
+fn a_calendar_or_to_do_job_renews_its_sign_in_only_before_its_first_request() {
+    // A calendar or To Do job's answer that is refused for its sign-in loses nothing done with the
+    // account's own token: its jobs renew the sign-in only before the first request, even when
+    // the server stops taking the token part-way, so a refused answer has nothing in it to keep.
+    let server = stand_in();
+    let _route = server.route();
+    let seen = Renewals::default();
+    let renewing = |who: &'static str| {
+        seen.lock().unwrap().push(server.state().requests.len());
+        signed_in_as(who)
+    };
+    // The calendar, with a meeting to send, a calendar opened by address and the token refused
+    // after the meeting went up.
+    let (mut s, a) = session();
+    let plan = plan_with_meeting(&mut s, a);
+    let mut request = calendar_request(&s, &plan, auth()).unwrap();
+    request.account.opened_calendars =
+        vec![OpenedCalendar { address: "lee@example.org".into(), name: "Lee".into(), ticked: true, ..Default::default() }];
+    server.state().fail_next.push(("GET".into(), 401, "InvalidAuthenticationToken".into()));
+    let result = graph_in_with(request, "UTC", &|_, _| renewing(OWNER));
+    assert!(result.uploaded.is_some(), "the meeting went up");
+    // The shared mailbox's calendar, whose meeting takes the sign-in for sending from it.
+    let shared = s.run("account.addSharedMailbox", &json!({"address": "support@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let plan = plan_with_meeting(&mut s, shared);
+    let request = calendar_request(&s, &plan, auth()).unwrap();
+    server.state().fail_next.push(("GET".into(), 401, "InvalidAuthenticationToken".into()));
+    let _ = graph_sending_with(request, "UTC", &|_, _, _| renewing(OWNER), &|_, _| renewing(OWNER));
+    // To Do, its token refused at the first read.
+    let before = server.state().requests.len();
+    server.state().fail_next.push(("GET".into(), 401, "InvalidAuthenticationToken".into()));
+    let out = run_with(tasks_job(), &|_, _| renewing(OWNER));
+    assert!(out.uploaded.is_some() && out.sign_in_refused);
+    let seen = seen.lock().unwrap().clone();
+    let total = server.state().requests.len();
+    assert!(total > before);
+    // Each renewal came when nothing of its job had been asked yet: none part-way.
+    let firsts = [0, seen.get(1).copied().unwrap_or(usize::MAX), before];
+    assert_eq!(seen.len(), 3, "one renewal a job: {seen:?}");
+    assert_eq!(seen, firsts, "every renewal before the job's first request");
+}
+
+#[test]
+fn a_mail_run_whose_sign_in_turns_out_somebody_elses_part_way_keeps_what_went_with_its_own() {
+    // Mail's run renews part-way when the server stops taking the token (#306). The renewed one
+    // is somebody else's: the run stops there, nothing is asked with it, and what went before it
+    // with the account's own token (the Outbox message sent) is in the answer, to be taken in.
+    let server = stand_in();
+    let _route = server.route();
+    let seen = Renewals::default();
+    let renewals = std::sync::atomic::AtomicUsize::new(0);
+    let renew = |_: &OAuth, _: &str, _: bool| {
+        seen.lock().unwrap().push(server.state().requests.len());
+        let first = renewals.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 0;
+        signed_in_as(if first { OWNER } else { STRANGER })
+    };
+    let request = GraphRequest {
+        account: ada(),
+        oauth: OAuth { client_id: "app".into(), ..Default::default() },
+        refresh: "refresh".into(),
+        access: String::new(),
+        outbox: vec![hello()],
+        directory: false,
+        calendar: None,
+        changes: None,
+        asks: Vec::new(),
+        settings: false,
+        favorites: false,
+        favorites_scopes: false,
+        mail: Some(GraphMailRequest { account: 4, email: OWNER.into(), ..Default::default() }),
+        mail_pieces: None,
+        cancel: Default::default(),
+        signer: Some(ada()),
+    };
+    // The message goes; part-way through the walk, the Inbox's read is told the token is no
+    // longer good.
+    let inbox = server.state().well_known("inbox");
+    server.state().fail_next.push((format!("GET /v1.0/me/mailFolders/{inbox}/messages/delta"), 401, "InvalidAuthenticationToken".into()));
+    let out = graph_sending_with(request, "UTC", &renew, &|o, r| renew(o, r, false));
+    let seen = seen.lock().unwrap().clone();
+    assert_eq!(seen.len(), 2, "renewed at the start and once part-way");
+    assert_eq!(seen.first(), Some(&0));
+    assert_eq!(server.state().requests.len(), seen[1], "nothing asked after the stranger's renewal");
+    assert_eq!(out.sent, [9], "what went with the account's own token is kept");
+    assert!(out.mail.is_some(), "and what was read with it");
+    assert_eq!(server.state().sent.len(), 1);
+    assert_eq!(out.tokens.as_ref().map(|t| t.email.as_str()), Some(STRANGER), "the stranger's tokens, to be refused");
+}

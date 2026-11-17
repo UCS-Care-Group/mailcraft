@@ -501,3 +501,36 @@ fn an_account_held_back_after_its_round_was_queued_is_left_out_of_it() {
     assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::LeftOut { why: Left::Held, account } if account == id));
     assert!(!sr.busy());
 }
+
+#[test]
+fn a_run_refused_for_its_sign_in_still_takes_in_what_went_with_the_accounts_own() {
+    // A run whose sign-in turned out somebody else's part-way: the message that went before, with
+    // the account's own token, is filed as sent and never sent again; the tokens are not kept.
+    let (mut s, id) = session(AccountKind::Microsoft);
+    let outbox = s.mailbox.folder_of_kind(id, mailcraft_model::FolderKind::Outbox).unwrap();
+    let message =
+        s.mailbox.add_message(mailcraft_model::Message { folder: outbox, account: id, subject: "Invoice".into(), ..Default::default() }).unwrap();
+    let store = Store::default();
+    let key = secret_key("refresh", s.mailbox.account(id).unwrap());
+    store.set(&key, "mine").unwrap();
+    let mut sr = SendReceive::with_runner(move |req| GraphResult {
+        account: req.account.id,
+        sent: vec![message],
+        tokens: Some(Tokens { refresh: "theirs".into(), email: "you@example.org".into(), ..Default::default() }),
+        ..Default::default()
+    });
+    let h = host();
+    let c = ctx(&store, 10_000.0);
+    // (The message waiting to go queues a round first; then the account's run starts.)
+    let mut started = false;
+    for _ in 0..3 {
+        started = matches!(sr.what_to_run(&h, &mut s, &c), Step::Started { .. });
+        if started {
+            break;
+        }
+    }
+    assert!(started);
+    assert_eq!(until_over(&mut sr, &mut s, &c), Taken::WrongPerson { account: id });
+    assert_eq!(store.get(&key).as_deref(), Some("mine"), "the stranger's tokens are not kept");
+    assert!(s.mailbox.message(message).is_none_or(|m| m.folder != outbox), "sent, and gone from the Outbox");
+}
