@@ -77,7 +77,7 @@ How far each side of MailCraft has come against Outlook (estimated, [how](#metho
 | File formats | 60% |
 | Performance at scale (200,000 messages) | 80% |
 | Platforms and signed builds | 60% |
-| Languages (one complete, nine previews) | 20% |
+| Languages (one complete, ten previews) | 20% |
 | Privacy and safety by default | 100% |
 | Agent control | 100% |
 
