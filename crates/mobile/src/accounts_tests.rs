@@ -271,6 +271,9 @@ fn a_sign_in_adds_the_account_and_keeps_only_the_refresh_token_in_the_secure_sto
     assert_eq!(page["redirect_uri"], format!("{SCHEME}://oauth2redirect"));
     assert_eq!(page["login_hint"], ADA);
     assert!(page["scope"].contains("Mail.ReadWrite") && !page["scope"].contains("Tasks") && !page["scope"].contains("Shared"));
+    // (Nor what keeping the rules, the automatic replies and the categories in step takes, #661:
+    // the mailbox's settings are only read.)
+    assert!(page["scope"].contains("MailboxSettings.Read") && !page["scope"].contains("MailboxSettings.ReadWrite"), "{}", page["scope"]);
     // The code went to the token endpoint once, with the verifier whose hash the page was shown.
     assert_eq!(server.asked(), 1);
     // The next hand-back finds nobody waiting.

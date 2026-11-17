@@ -21,6 +21,7 @@ use mailcraft_engine::sync_driver::{TasksCame, fingerprint};
 use mailcraft_model::sync::Tokens;
 use mailcraft_model::{Account, Id, OAuth};
 
+use crate::job_sign_in::{ForeignSignIn, foreign_sign_in};
 use crate::tasks::{TasksJob, TasksResult};
 
 /// The job under way: for which account, since when, the fingerprint of the refresh token it was
@@ -60,6 +61,9 @@ pub struct TasksAnswer {
     pub stopped_early: bool,
     /// The sign-in doesn't cover the to-dos: the owner is to be asked (the engine noted it).
     pub consent_needed: bool,
+    /// The answer came with somebody else's sign-in: it was refused whole (nothing of it taken in,
+    /// no tokens handed back), and the front end tells the owner.
+    pub foreign: Option<ForeignSignIn>,
 }
 
 impl std::fmt::Debug for TasksAnswer {
@@ -70,6 +74,7 @@ impl std::fmt::Debug for TasksAnswer {
             .field("errors", &self.errors.len())
             .field("stopped_early", &self.stopped_early)
             .field("consent_needed", &self.consent_needed)
+            .field("foreign", &self.foreign.is_some())
             .finish()
     }
 }
@@ -153,9 +158,18 @@ impl TasksJobs {
             }
         };
         let running = self.running.take()?;
+        // Somebody else's sign-in: nothing of what it brought is this account's, and its token is
+        // not kept; the engine takes it as a job that failed. (Logged without naming anybody.)
+        let foreign = foreign_sign_in(&running.ran_for, result.tokens.as_ref());
+        let result = if foreign.is_some() {
+            log::warn!("tasks: the answer came with another account's sign-in; refused whole");
+            TasksResult { account: running.account, ..Default::default() }
+        } else {
+            result
+        };
         let mut errors = result.errors;
         let came = TasksCame {
-            job_errors: !errors.is_empty() || stopped_early,
+            job_errors: !errors.is_empty() || stopped_early || foreign.is_some(),
             consent_needed: result.consent_needed,
             sign_in_refused: result.sign_in_refused,
             new_tokens: result.tokens.is_some(),
@@ -165,6 +179,6 @@ impl TasksJobs {
         };
         let said = session.tasks_answered(running.account, running.started, running.given, &running.ran_for, lang, &came);
         errors.extend(said.iter().map(|e| e.in_lang(lang)));
-        Some(TasksAnswer { account: running.account, tokens: result.tokens, errors, stopped_early, consent_needed: result.consent_needed })
+        Some(TasksAnswer { account: running.account, tokens: result.tokens, errors, stopped_early, consent_needed: result.consent_needed, foreign })
     }
 }

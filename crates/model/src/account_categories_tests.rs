@@ -84,10 +84,14 @@ fn a_shared_mailbox_uses_its_owners_list() {
     mb.account_categories.insert(a, vec![tagged("Red", RED)]);
     assert_eq!(mb.category_list_owner(shared), Some(a));
     assert_eq!(mb.category_color_of(shared, "Red"), RED);
-    // Its items are the owner's to rename.
+    // Its items are its server's, which has a list of its own: a rename of the owner's list
+    // leaves them as they are (#661), and its mail shows the old name in grey, a name off the list.
     let m = message_of(&mut mb, shared, &["Red"]);
+    let own = message_of(&mut mb, a, &["Red"]);
     mb.rename_category(a, "Red", "Urgent").unwrap();
-    assert_eq!(mb.message(m).unwrap().categories, ["Urgent"]);
+    assert_eq!(mb.message(m).unwrap().categories, ["Red"]);
+    assert_eq!(mb.message(own).unwrap().categories, ["Urgent"]);
+    assert_eq!(mb.category_color_of(shared, "Red"), GREY_CATEGORY);
 }
 
 #[test]
@@ -339,4 +343,150 @@ fn a_first_read_doesnt_build_a_list_repair_would_cut() {
     mb.add_message(Message { folder, categories: vec!["carried".into()], ..Default::default() }).unwrap();
     mb.start_account_categories(a, &[]);
     assert!(mb.categories_of(a).len() <= MAX_CATEGORIES);
+}
+
+#[test]
+fn the_renames_a_list_waits_on_are_in_the_file_each_counting_and_junk_costs_only_itself() {
+    let (mut mb, a, _) = two_accounts();
+    mb.category_renames.insert(a, [("new".to_string(), "Old".to_string())].into());
+    let back: Mailbox = serde_json::from_str(&serde_json::to_string(&mb).unwrap()).unwrap();
+    assert_eq!(back.category_renames, mb.category_renames);
+    // An empty mailbox writes none.
+    assert!(!serde_json::to_string(&Mailbox::default()).unwrap().contains("categoryRenames"));
+
+    // Each one counts as it is read.
+    let room = 200;
+    mb.category_renames.insert(a, (0..room).map(|i| (format!("c{i}"), format!("o{i}"))).collect());
+    let bytes = serde_json::to_vec(&mb).unwrap();
+    assert!(crate::from_json(&bytes, room).is_err());
+    assert!(crate::from_json(&bytes, 2 * room + 1).is_ok());
+
+    // What isn't one is left out, and the file opens; at most a list's worth an account is kept.
+    let mut value = serde_json::to_value(&mb).unwrap();
+    let file = value.as_object_mut().unwrap();
+    let id = a.to_string();
+    let long = "x".repeat(10_000);
+    file.insert("categoryRenames".into(), serde_json::json!({&id: {"new": "Old", "seven": 7, &long: "Old"}, "12": "x", "nonsense": {"a": "b"}}));
+    let back: Mailbox = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(back.category_renames.into_iter().collect::<Vec<_>>(), [(a, [("new".to_string(), "Old".to_string())].into())]);
+    let file = value.as_object_mut().unwrap();
+    let many: serde_json::Map<String, serde_json::Value> = (0..MAX_CATEGORIES + 5).map(|i| (format!("c{i}"), serde_json::json!("o"))).collect();
+    file.insert("categoryRenames".into(), serde_json::json!({&id: many}));
+    let back: Mailbox = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(back.category_renames.get(&a).map(|r| r.len()), Some(MAX_CATEGORIES));
+    value.as_object_mut().unwrap().insert("categoryRenames".into(), serde_json::json!([1, 2]));
+    assert!(serde_json::from_value::<Mailbox>(value).unwrap().category_renames.is_empty());
+}
+
+#[test]
+fn the_renames_a_list_waits_on_go_with_its_account_and_a_stray_one_with_the_file_tidied() {
+    let (mut mb, a, b) = two_accounts();
+    for account in [a, b] {
+        mb.start_account_categories(account, &["Old".to_string()]);
+        mb.server_categories.insert(account, vec!["Old".into()]);
+        mb.category_renames.insert(account, [("new".to_string(), "Old".to_string())].into());
+    }
+    mb.remove_account(b).unwrap();
+    assert!(mb.category_renames.keys().eq([&a]));
+    mb.category_renames.insert(9_999_999, [("new".to_string(), "Old".to_string())].into());
+    mb.repair();
+    assert!(mb.category_renames.keys().eq([&a]));
+}
+
+#[test]
+fn a_file_with_long_lists_of_categories_opens_in_time() {
+    // A hostile file: one account's list and what its server had, long and with no name in common.
+    let mut mb = Mailbox::default();
+    mb.account_categories.insert(1, (0..20_000).map(|i| tagged(&format!("Here {i}"), RED)).collect());
+    mb.synced_categories.insert(1, (0..20_000).map(|i| tagged(&format!("There {i}"), RED)).collect());
+    let mut opened = crate::load_limit::from_json(&serde_json::to_vec(&mb).unwrap(), 4_000_000).unwrap();
+    let started = std::time::Instant::now();
+    opened.repair();
+    assert!(started.elapsed() < std::time::Duration::from_secs(2), "{:?}", started.elapsed());
+}
+
+#[test]
+fn a_file_that_says_a_list_is_kept_in_step_without_the_servers_list_sends_nothing() {
+    // A file says the list may be changed and what the server had, but not the server's list:
+    // nothing in it is taken for deleted there, and nothing goes.
+    let (mut mb, a, _) = two_accounts();
+    mb.account_categories.insert(a, Vec::new());
+    mb.synced_categories.insert(a, vec![tagged("Red", RED), tagged("Blue", WINE)]);
+    mb.category_writes.insert(a);
+    mb.category_renames.entry(a).or_default().insert("red".into(), "Old".into());
+    let mut back: Mailbox = serde_json::from_str(&serde_json::to_string(&mb).unwrap()).unwrap();
+    back.repair();
+    assert!(back.category_upload(a).is_empty(), "{:?}", back.category_upload(a));
+    assert!(!back.synced_categories.contains_key(&a) && !back.category_writes.contains(&a) && !back.category_renames.contains_key(&a));
+    // (Even before a repair, nothing goes for a list whose server's wasn't read.)
+    assert!(mb.category_upload(a).is_empty() && mb.categories_to_write(a).is_empty());
+}
+
+/// An event a server gives a name twice in other letters keeps it once, in any alphabet (#788).
+#[test]
+fn a_servers_event_keeps_a_name_in_other_letters_once() {
+    let mut event =
+        crate::remote::RemoteEvent { categories: vec!["Ärger".into(), "ärger".into(), "Red".into(), "red".into()], ..Default::default() };
+    event.tidy();
+    assert_eq!(event.categories, ["Ärger", "Red"]);
+}
+
+/// A file from an older build that kept Outlook's list for an account that is no longer a
+/// Microsoft account (changed to IMAP there) opens with that account's list its own to change:
+/// nothing keeps it in step with Outlook, and nothing is ever asked or sent for it (#661).
+#[test]
+fn an_account_that_is_no_longer_a_microsoft_account_has_a_list_it_can_change() {
+    let (mut mb, a, _) = two_accounts();
+    mb.account_categories.insert(a, vec![tagged("Red", RED)]);
+    mb.server_categories.insert(a, vec!["Red".to_string()]);
+    mb.accounts.iter_mut().find(|x| x.id == a).unwrap().kind = AccountKind::Imap;
+    mb.repair();
+    assert!(mb.synced_list_owner(a).is_none());
+    assert!(mb.categories_read_only(a).is_none());
+    assert!(!mb.server_categories.contains_key(&a));
+    mb.set_category(a, "New", GREY_CATEGORY).unwrap();
+    mb.rename_category(a, "Red", "Urgent").unwrap();
+    assert_eq!(mb.categories_of(a).iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["Urgent", "New"]);
+    assert!(mb.category_upload(a).is_empty());
+}
+
+/// Renames waiting on a full list are tidied with each list keyed once, as every job's answer and
+/// every read tidies them (#661). (A key for each pair took about 7 s here, keying once about 0.01 s.)
+#[test]
+fn renames_waiting_on_a_full_list_are_tidied_in_one_pass() {
+    let name = |what: &str, i: usize| format!("A category with a long name shared by many, {what} {i:04}");
+    let mut mb = Mailbox::default();
+    mb.account_categories.insert(1, (0..MAX_CATEGORIES).map(|i| tagged(&name("new", i), RED)).collect());
+    mb.synced_categories.insert(1, (0..MAX_CATEGORIES).map(|i| tagged(&name("old", i), RED)).collect());
+    mb.category_renames.insert(1, (0..MAX_CATEGORIES).map(|i| (crate::category_key(&name("new", i)), name("old", i))).collect());
+    let started = std::time::Instant::now();
+    for _ in 0..4 {
+        let mut tidied = mb.clone();
+        tidied.tidy_renames(1);
+        assert_eq!(tidied.category_renames, mb.category_renames, "each still waits");
+    }
+    assert!(started.elapsed() < std::time::Duration::from_secs(2), "{:?}", started.elapsed());
+    // One whose new name is Outlook's by now, or whose old one Outlook no longer has, waits no more.
+    let mut tidied = mb.clone();
+    tidied.synced_categories.get_mut(&1).unwrap().retain(|c| c.name != name("old", 1));
+    tidied.synced_categories.get_mut(&1).unwrap().push(tagged(&name("NEW", 2), RED));
+    tidied.tidy_renames(1);
+    assert_eq!(tidied.category_renames[&1].len(), MAX_CATEGORIES - 2);
+}
+
+/// A file's names kept on this computer only are cleaned as its lists' names are, so one written
+/// there with a control character is still known as kept here, and nothing of it goes to Outlook
+/// (#661).
+#[test]
+fn a_files_names_kept_here_alone_are_cleaned_as_the_lists_are() {
+    let (mut mb, a, _) = two_accounts();
+    mb.account_categories.insert(a, vec![tagged("A\u{0}", RED)]);
+    mb.server_categories.insert(a, Vec::new());
+    mb.synced_categories.insert(a, Vec::new());
+    mb.category_writes.insert(a);
+    mb.local_categories.insert(a, vec!["A\u{0}".into()]);
+    mb.repair();
+    assert_eq!(mb.account_categories[&a][0].name, "A");
+    assert!(mb.category_is_local(a, "A"));
+    assert!(mb.category_upload(a).is_empty(), "{:?}", mb.category_upload(a));
 }
