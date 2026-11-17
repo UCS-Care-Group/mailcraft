@@ -3735,6 +3735,12 @@ msgstr "Impossibile leggere le categorie di Gmail di «{name}»"
 msgid "Couldn't read the list of folders"
 msgstr "Impossibile leggere l'elenco delle cartelle"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Impossibile riconnettersi per continuare con \"{name}\""
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
@@ -7672,6 +7678,12 @@ msgstr "Lascia non verificato"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Escludi questo account da questo Invia/Ricevi"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "Vengono lasciati da parte {count} messaggi di \"{name}\" che non si sono scaricati in {tries} esecuzioni; Riprova i messaggi saltati li riprende"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12538,6 +12550,12 @@ msgstr "Solo il proprietario può fare clic su Riavvia per aggiornare."
 #, fuzzy
 msgid "Retry"
 msgstr "Riprova"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Riprova i messaggi saltati"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -21682,6 +21700,12 @@ msgstr "la cartella in cui veniva importato il file .pst è stata spostata in Po
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "la cartella che contiene questo messaggio non è più su questo computer"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "la cartella è stata rinumerata durante la lettura"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

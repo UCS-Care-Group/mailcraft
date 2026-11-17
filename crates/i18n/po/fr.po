@@ -3726,6 +3726,12 @@ msgstr "Impossible de lire les catégories Gmail de « {name} »"
 msgid "Couldn't read the list of folders"
 msgstr "Impossible de lire la liste des dossiers"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Impossible de se reconnecter pour poursuivre avec « {name} »"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
@@ -7641,6 +7647,12 @@ msgstr "Le laisser non vérifié"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Exclure ce compte de cet Envoyer/Recevoir"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "{count} messages de « {name} » sont laissés de côté après un échec de téléchargement en {tries} passages ; Réessayer les messages ignorés les reprend"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12487,6 +12499,12 @@ msgstr "Seul le propriétaire peut cliquer sur Redémarrer pour mettre à jour."
 #, fuzzy
 msgid "Retry"
 msgstr "Réessayer"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Réessayer les messages ignorés"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -21610,6 +21628,12 @@ msgstr "le dossier dans lequel le fichier .pst était importé a été déplacé
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "le dossier contenant ce message n'est plus sur cet ordinateur"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "le dossier a été renuméroté pendant sa lecture"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

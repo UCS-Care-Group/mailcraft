@@ -124,6 +124,10 @@ pub struct Folder {
     /// and when what was read wasn't the whole of it.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub imap_status: Option<ImapStatus>,
+    /// IMAP messages that failed to download, by UID, and in how many runs (#1581); see
+    /// [`crate::sync::FolderState::failing`].
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub failing: std::collections::BTreeMap<u32, u8>,
     /// An IMAP folder's first download has ended with all of it here, or it was empty when first
     /// read (#504): what arrives in it from then on is new mail, which the Safe and Blocked
     /// Senders lists sort. `false` again when the server numbers it anew. A file from before

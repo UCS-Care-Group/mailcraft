@@ -3597,6 +3597,12 @@ msgstr "Kon de Gmail-categorieën van \"{name}\" niet lezen"
 msgid "Couldn't read the list of folders"
 msgstr "De lijst met mappen kon niet worden gelezen"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Opnieuw verbinden om met \"{name}\" door te gaan is mislukt"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
@@ -7377,6 +7383,12 @@ msgstr "Niet geverifieerd laten"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Dit account overslaan bij deze Verzenden/ontvangen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "{count} berichten van \"{name}\" die in {tries} rondes niet te downloaden waren, worden overgeslagen; Overgeslagen berichten opnieuw proberen probeert ze weer"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12080,6 +12092,12 @@ msgstr "Opnieuw starten om bij te werken is de klik van de eigenaar."
 #, fuzzy
 msgid "Retry"
 msgstr "Opnieuw proberen"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Overgeslagen berichten opnieuw proberen"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -21083,6 +21101,12 @@ msgstr "de map waar het .pst-bestand in werd geïmporteerd, werd verplaatst naar
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "de map waarin dit bericht staat, is niet meer op deze computer"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "de map is tijdens het lezen opnieuw genummerd"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

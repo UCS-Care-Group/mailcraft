@@ -3745,6 +3745,12 @@ msgstr "Nu s-au putut citi categoriile Gmail ale „{name}”"
 msgid "Couldn't read the list of folders"
 msgstr "Lista de dosare nu a putut fi citită"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Nu s-a putut reconecta pentru a continua cu „{name}”"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
@@ -7704,6 +7710,12 @@ msgstr "Las-o neverificată"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Excludeți acest cont din această Trimitere/primire"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "{count} mesaje din „{name}” care nu s-au putut descărca în {tries} rulări sunt omise; Reîncearcă mesajele omise le încearcă din nou"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12585,6 +12597,12 @@ msgstr "Repornirea pentru actualizare e decizia proprietarului."
 #, fuzzy
 msgid "Retry"
 msgstr "Reîncercare"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Reîncearcă mesajele omise"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -21771,6 +21789,12 @@ msgstr "dosarul în care se importa fișierul .pst a fost mutat în Elemente șt
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "dosarul în care este acest mesaj nu mai este pe acest computer"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "dosarul a fost renumerotat în timpul citirii"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

@@ -3737,6 +3737,12 @@ msgstr "Kategorie Gmailu pro „{name}“ se nepodařilo načíst"
 msgid "Couldn't read the list of folders"
 msgstr "Seznam složek se nepodařilo načíst"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Nepodařilo se znovu připojit a pokračovat se složkou „{name}“"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
@@ -7695,6 +7701,12 @@ msgstr "Ponechat neověřený"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Vynechat tento účet z tohoto Odeslat/přijmout"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "{count} zpráv ve složce „{name}“, které se nepodařilo stáhnout při {tries} spuštěních, se vynechává; Zkusit znovu vynechané zprávy je zkusí znovu"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12567,6 +12579,12 @@ msgstr "Restartovat a aktualizovat musí kliknout vlastník."
 #, fuzzy
 msgid "Retry"
 msgstr "Zkusit znovu"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Zkusit znovu vynechané zprávy"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -21746,6 +21764,12 @@ msgstr "složka, do které se importoval soubor .pst, byla přesunuta do Odstran
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "složka, ve které tato zpráva je, už v tomto počítači není"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "složka byla během čtení přečíslována"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

@@ -55,7 +55,18 @@ pub struct FolderState {
     /// too old, so that every folder is read in full now and then.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<crate::ImapStatus>,
+    /// Messages of the folder that failed to download, by UID, and how many runs they failed
+    /// (#1581). Tried again until [`MAX_TRIES`], then left out until the owner asks for them
+    /// again (`sync.retryFailed`).
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub failing: std::collections::BTreeMap<u32, u8>,
 }
+
+/// How many runs a message that fails to download is tried in before it is left out (#1581).
+pub const MAX_TRIES: u8 = 3;
+
+/// Most failing messages kept for one folder (#1581): a result can say anything.
+pub const MAX_FAILING: usize = 1000;
 
 /// A change made here for the server to take on. Server mailboxes are named by their path
 /// ([`FolderState::remote`]), messages by their UID there.
@@ -607,6 +618,10 @@ pub struct FolderDelta {
     /// after, so many times.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub refetch_refused: Vec<u32>,
+    /// UIDs of messages that failed to download in this run (#1581): the mailbox counts the run
+    /// against each ([`FolderState::failing`]); one that downloads is not named.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub failed: Vec<u32>,
     /// For a Gmail account's Inbox: which of Gmail's categories each message of it is in, as
     /// Gmail's searches said this run (#911), and Gmail's id of it. Said once, with the piece that
     /// ends the folder's reading; empty from every other server and folder.
@@ -952,6 +967,7 @@ impl SyncResult {
                         refetch_done,
                         refetch_too_large,
                         refetch_refused,
+                        failed,
                         gmail,
                         gmail_labels,
                     } = delta;
@@ -968,6 +984,7 @@ impl SyncResult {
                     folder.refetch_done.extend(refetch_done);
                     folder.refetch_too_large.extend(refetch_too_large);
                     folder.refetch_refused.extend(refetch_refused);
+                    folder.failed.extend(failed);
                     folder.gmail.extend(gmail);
                     folder.gmail_labels.extend(gmail_labels);
                     folder.complete |= complete;

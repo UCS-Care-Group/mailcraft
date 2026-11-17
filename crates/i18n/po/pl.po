@@ -3747,6 +3747,12 @@ msgstr "Nie udało się odczytać kategorii Gmail dla „{name}”"
 msgid "Couldn't read the list of folders"
 msgstr "Nie udało się odczytać listy folderów"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Nie udało się ponownie połączyć, aby kontynuować z „{name}”"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
@@ -7708,6 +7714,12 @@ msgstr "Pozostaw niezweryfikowany"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Pomiń to konto w tym Wyślij/Odbierz"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "Pominięto {count} wiadomości z „{name}”, których nie udało się pobrać w {tries} przebiegach; Ponów pominięte wiadomości próbuje ich ponownie"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12589,6 +12601,12 @@ msgstr "Uruchomienie ponownie w celu aktualizacji należy do właściciela."
 #, fuzzy
 msgid "Retry"
 msgstr "Ponów próbę"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Ponów pominięte wiadomości"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -21778,6 +21796,12 @@ msgstr "folder, do którego importowano plik .pst, został przeniesiony do Eleme
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "folderu, w którym jest ta wiadomość, nie ma już na tym komputerze"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "folder został ponumerowany od nowa podczas odczytu"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

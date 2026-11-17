@@ -3740,6 +3740,12 @@ msgstr "Nem tudtam elolvasni Gmail \"{name}\" kategóriáit."
 msgid "Couldn't read the list of folders"
 msgstr "Nem sikerült elolvasni a mappákat"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Nem sikerült újracsatlakozni, hogy folytassa a(z) „{name}” mappával"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
@@ -7672,6 +7678,12 @@ msgstr "Ne ellenőrizd!"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "A fiók kihagyása a mostani küldésből és fogadásból"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "A(z) „{name}” mappa {count} üzenete kimarad, mert {tries} futásban nem sikerült letölteni; az Átugrott üzenetek újrapróbálása újra megpróbálja őket"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12541,6 +12553,12 @@ msgstr "A frissítés újrakezdése a tulajdonos kattintása."
 #, fuzzy
 msgid "Retry"
 msgstr "Újra"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Átugrott üzenetek újrapróbálása"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -21700,6 +21718,12 @@ msgstr "a .pst fájlt behozták a törölt tárgyakba: az import leállt"
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "A mappa, amiben ez az üzenet van, már nincs ezen a számítógépen."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "a mappa számozása megváltozott olvasás közben"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

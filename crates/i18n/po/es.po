@@ -3740,6 +3740,12 @@ msgstr "No se pudieron leer las categorías de Gmail de «{name}»"
 msgid "Couldn't read the list of folders"
 msgstr "No se pudo leer la lista de carpetas"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "No se pudo volver a conectar para seguir con «{name}»"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
@@ -7678,6 +7684,12 @@ msgstr "Dejarla sin verificar"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Excluir esta cuenta de este envío y recepción"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "Se omiten {count} mensajes de «{name}» que no se pudieron descargar en {tries} ejecuciones; Reintentar mensajes omitidos los vuelve a intentar"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12554,6 +12566,12 @@ msgstr "Solo el propietario puede hacer clic en Reiniciar para actualizar."
 #, fuzzy
 msgid "Retry"
 msgstr "Reintentar"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Reintentar mensajes omitidos"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -21708,6 +21726,12 @@ msgstr "la carpeta en la que se importaba el archivo .pst se movió a Elementos 
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "la carpeta en la que está este mensaje ya no está en este equipo"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "la carpeta se numeró de nuevo mientras se leía"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
