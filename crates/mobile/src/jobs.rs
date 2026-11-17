@@ -123,8 +123,12 @@ impl SyncHost {
         if answer.stopped_early {
             errors.insert(0, words("The calendar couldn't be brought up to date: the job stopped unexpectedly").to_string());
         }
-        if let Some(tokens) = answer.result.tokens.take() {
-            self.keep_refresh(inner, session, account, &tokens, &mut errors);
+        if let Some(tokens) = answer.result.tokens.take()
+            && !self.keep_refresh(inner, session, account, &tokens, &mut errors)
+        {
+            // Somebody else's sign-in: nothing of what it brought is this account's calendar (the
+            // engine takes it as a job that failed, and waits before the next).
+            answer.result = GraphResult { account, ..Default::default() };
         }
         if answer.result.sign_in_refused {
             log::info!("calendar: the sign-in was refused; the next Send/Receive finds out");
@@ -146,7 +150,7 @@ impl SyncHost {
             errors.insert(0, words("The to-dos couldn't be kept in step: the job stopped unexpectedly").to_string());
         }
         if let Some(tokens) = &answer.tokens {
-            self.keep_refresh(inner, session, answer.account, tokens, &mut errors);
+            let _ = self.keep_refresh(inner, session, answer.account, tokens, &mut errors);
         }
         for line in errors {
             self.job_error(inner, session, line);
@@ -154,13 +158,15 @@ impl SyncHost {
     }
 
     /// The refresh token a job got is the account's newest: Send/Receive keeps it (somebody else's
-    /// is not kept, and said).
-    fn keep_refresh(&self, inner: &mut Inner, session: &Session, account: Id, tokens: &Tokens, errors: &mut Vec<String>) {
+    /// is not kept, and said). Whether the sign-in was the account's own.
+    fn keep_refresh(&self, inner: &mut Inner, session: &Session, account: Id, tokens: &Tokens, errors: &mut Vec<String>) -> bool {
         let secrets = self.host.platform().secrets();
         let ctx = self.context(session, secrets.as_deref());
         if inner.sr.adopt_refresh(session, &ctx, account, tokens) == Adopted::WrongPerson {
             errors.push(words("That sign-in is for somebody else's mailbox, not this account's. Nothing was kept.").to_string());
+            return false;
         }
+        true
     }
 
     /// A line for the owner: in the round's summary while a round is under way, else in what the

@@ -727,7 +727,7 @@ impl SyncHost {
         // that went, or that the phone can now run, is no longer told of.
         inner.unsupported = server_accounts(session)
             .into_iter()
-            .filter(|id| !inner.sr.eligible(session, *id))
+            .filter(|id| !inner.sr.held(*id) && !inner.sr.eligible(session, *id))
             .filter_map(|id| session.mailbox.account(id).map(|a| (id, a.kind)))
             .collect();
         if !inner.sr.busy() && inner.run_mark.is_none() {

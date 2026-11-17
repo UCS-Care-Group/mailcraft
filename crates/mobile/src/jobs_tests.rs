@@ -258,3 +258,23 @@ fn an_account_held_back_for_want_of_room_is_left_out_of_a_background_run_until_t
     assert!(block_on(core.background_sync(10_000)).unwrap().ran);
     assert!(!mail.lock().unwrap().is_empty());
 }
+
+#[test]
+fn a_calendar_that_came_with_somebody_elses_sign_in_is_not_taken_in() {
+    let (core, _, _, seen) = core(false);
+    let inner = runners(seen, false);
+    let calendar = inner.calendar.clone();
+    core.sync.set_job_runners(Runners {
+        calendar: Arc::new(move |req| {
+            let mut result = calendar(req);
+            result.tokens =
+                Some(mailcraft_model::sync::Tokens { refresh: "bobs-refresh".into(), email: "bob@elsewhere.example".into(), ..Default::default() });
+            result
+        }),
+        tasks: inner.tasks,
+    });
+    let summary = block_on(core.background_sync(10_000)).unwrap();
+    assert!(summary.errors.iter().any(|e| e.contains("somebody else")), "{summary:?}");
+    let (events, _) = titles(&core);
+    assert!(!events.contains(&"Standup".to_string()), "{events:?}");
+}
