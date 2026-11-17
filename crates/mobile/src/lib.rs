@@ -38,11 +38,13 @@ mod limits;
 mod links;
 mod list;
 mod message;
+mod people_tasks;
 mod pictures;
 mod platform;
 mod queries;
 mod queue;
 mod records;
+mod reminders;
 pub mod settings;
 mod sync;
 mod sync_api;
@@ -77,11 +79,15 @@ mod links_tests;
 #[cfg(test)]
 mod list_tests;
 #[cfg(test)]
+mod people_tasks_tests;
+#[cfg(test)]
 mod pictures_tests;
 #[cfg(test)]
 mod preview_tests;
 #[cfg(test)]
 mod queue_tests;
+#[cfg(test)]
+mod reminders_tests;
 #[cfg(test)]
 mod review_tests;
 #[cfg(test)]
@@ -108,5 +114,6 @@ pub use fetch::{FetchFailure, OpenState, ServerSearchAnswer};
 pub use limits::{DeviceStorage, DownloadSettings, KeepWindow};
 pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;
+pub use reminders::{MAX_SCHEDULED, MAX_SKIPPED, ReminderKind, ReminderSchedule, ScheduledReminder};
 pub use settings::{AccountSignature, DeviceSettings, KeepOfflineChange, OfflineFreed, ThinResult};
 pub use sync::{SyncAnswer, SyncStatus, SyncSummary, UnsupportedAccount};
