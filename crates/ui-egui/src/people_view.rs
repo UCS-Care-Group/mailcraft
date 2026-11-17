@@ -659,7 +659,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         p.rect_filled(rect, 0.0, t.hover_subtle);
     }
     p.line_segment([pos2(rect.min.x + 54.0, rect.max.y), pos2(rect.max.x, rect.max.y)], Stroke::new(1.0, t.border.linear_multiply(0.7)));
-    widgets::avatar(ui, pos2(rect.min.x + 28.0, rect.center().y), 16.0, &avatar_address(&c));
+    crate::sender_images::contact_avatar(app, ui, pos2(rect.min.x + 28.0, rect.center().y), 16.0, &avatar_address(&c));
     let left = rect.min.x + 54.0;
     let mut right = rect.max.x - 12.0;
     if c.favorite {
@@ -797,11 +797,11 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
 }
 
 /// The avatar, the name, what they do and where, and the categories.
-fn card_header(app: &MailApp, ui: &mut Ui, c: &Contact) {
+fn card_header(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
     let t = Tokens::get(ui.ctx());
     ui.horizontal(|ui| {
         let (r, _) = ui.allocate_exact_size(vec2(80.0, 80.0), Sense::hover());
-        widgets::avatar(ui, r.center(), 40.0, &avatar_address(c));
+        crate::sender_images::contact_avatar(app, ui, r.center(), 40.0, &avatar_address(c));
         ui.add_space(12.0);
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 3.0);

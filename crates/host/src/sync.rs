@@ -94,6 +94,9 @@ pub struct SendReceive {
     /// Only accounts kept in step through Graph, not shared, are started (a front end that can't
     /// run the others). Off by default: every account with a server is a candidate.
     graph_only: bool,
+    /// Accounts the owner said "not now" to (a new account's first download, with no room for
+    /// it yet on a phone): nothing starts for them by itself until [`hold`](Self::hold) lets go.
+    held: HashSet<Id>,
 }
 
 impl Default for SendReceive {
@@ -107,6 +110,7 @@ impl Default for SendReceive {
             runner: real_runner(),
             written: Vec::new(),
             graph_only: false,
+            held: HashSet::new(),
         }
     }
 }
@@ -157,6 +161,8 @@ pub enum Left {
     Refused,
     /// The messages about to go could not be marked on disk first: nothing was sent.
     NotSaved,
+    /// The owner held the account back ([`SendReceive::hold`]) after its round was queued.
+    Held,
 }
 
 /// What [`SendReceive::what_to_run`] did.
@@ -214,9 +220,30 @@ impl SendReceive {
         self
     }
 
-    /// Whether a round may include `account` (always, unless [`graph_only`](Self::graph_only)).
+    /// Hold `account` back from every round and job (`true`), or let it go again.
+    pub fn hold(&mut self, account: Id, held: bool) {
+        if held {
+            self.held.insert(account);
+        } else {
+            self.held.remove(&account);
+        }
+    }
+
+    /// Let go of every account held back (the owner asked for a Send/Receive).
+    pub fn release_all(&mut self) {
+        self.held.clear();
+    }
+
+    /// Whether `account` is held back ([`hold`](Self::hold)).
+    pub fn held(&self, account: Id) -> bool {
+        self.held.contains(&account)
+    }
+
+    /// Whether a round may include `account` (always, unless [`graph_only`](Self::graph_only) or
+    /// it is [held](Self::hold)).
     pub fn eligible(&self, session: &Session, account: Id) -> bool {
-        !self.graph_only || session.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
+        !self.held.contains(&account)
+            && (!self.graph_only || session.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared()))
     }
 
     /// The accounts with a server that a round may include.
@@ -305,6 +332,35 @@ impl SendReceive {
             self.mail_covered.insert(account);
         } else {
             self.mail_covered.remove(&account);
+        }
+        Adopted::Kept
+    }
+
+    /// Take in the refresh token a job of another kind got (the calendar's, the to-dos', which
+    /// renew the sign-in for themselves): it is the account's newest, kept for the session and in
+    /// the credential store when the owner lets it be, while the access token Send/Receive holds
+    /// (and whether it covers the mail) stays as it is. Refused as
+    /// [`adopt_tokens`](Self::adopt_tokens) refuses.
+    pub fn adopt_refresh(&mut self, session: &Session, ctx: &Context, account: Id, tokens: &Tokens) -> Adopted {
+        self.follow_opening(session);
+        let Some(a) = session.mailbox.account(account) else { return Adopted::Refused };
+        if ctx.held() {
+            return Adopted::Refused;
+        }
+        if mailcraft_engine::sync_driver::signed_in_as_other(a, tokens) {
+            return Adopted::WrongPerson;
+        }
+        if tokens.refresh.is_empty() {
+            return Adopted::Kept;
+        }
+        self.remember(session, ctx, account, &tokens.refresh);
+        match self.tokens.get_mut(&account) {
+            Some(kept) => kept.refresh.clone_from(&tokens.refresh),
+            // (No access token of the session: the next mail job renews one with this.)
+            None => {
+                self.tokens.insert(account, Tokens { refresh: tokens.refresh.clone(), ..Default::default() });
+                self.mail_covered.remove(&account);
+            }
         }
         Adopted::Kept
     }
@@ -427,6 +483,11 @@ impl SendReceive {
     }
 
     fn start(&mut self, host: &Host, session: &mut Session, ctx: &Context, account: Id, quiet: bool) -> Step {
+        // Held back after its round was queued: left out of it.
+        if self.held.contains(&account) {
+            session.sync_progress.leave_out(account);
+            return Step::LeftOut { account, why: Left::Held };
+        }
         let Some(a) = session.mailbox.account(account) else {
             session.sync_progress.leave_out(account);
             return Step::LeftOut { account, why: Left::Gone };
