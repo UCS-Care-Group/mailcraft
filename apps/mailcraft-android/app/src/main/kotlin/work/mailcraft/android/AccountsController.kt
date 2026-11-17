@@ -152,10 +152,12 @@ internal class AccountsController(
             }
             // (Called off, or left for a newer one, while it waited: it never opens its page.)
             if (operation != signInOperation) return@launch
+            // (The accounts before the sign-in: the list may be read again before it returns.)
+            val before = accounts().map { it.id }.toSet()
             val result = api.signIn(email, keep)
             val link = if (result is SignInResult.NeedsApproval) api.approvalLink(email) else null
             // (Whether the account was there before: a new one has its first sync go through the room gate.)
-            val added = result is SignInResult.SignedIn && accounts().none { it.id == result.account }
+            val added = result is SignInResult.SignedIn && result.account !in before
             if (result is SignInResult.SignedIn) {
                 // The sign-in is new: where this account's permissions stand is asked again, now (the
                 // Accounts page may stay on screen with the same list, which asks nothing by itself).

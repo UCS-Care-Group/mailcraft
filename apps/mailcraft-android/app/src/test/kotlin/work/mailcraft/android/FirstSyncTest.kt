@@ -19,8 +19,12 @@ private class SigningIn(
 ) : AccountsApi {
     val kept = mutableListOf<KeepChoice>()
 
+    /** What happens while the sign-in runs (the window reading the list again). */
+    var meanwhile: () -> Unit = {}
+
     override suspend fun signIn(email: String, keep: KeepChoice): SignInResult {
         kept.add(keep)
+        meanwhile()
         return result
     }
 
@@ -106,6 +110,42 @@ class FirstSyncTest {
         hub.showing(listOf(AccountItem(7u, "Ada Example", "ada@example.org", emptyList())))
         addAccount()
         assertTrue(asked.isEmpty())
+        assertEquals(1, syncs)
+    }
+
+    @Test
+    fun aNewAccountTheListShowsBeforeTheSignInReturnsIsStillNew() {
+        // The core announced the account and the window read the list again before the call returned.
+        val ada = AccountItem(7u, "Ada Example", "ada@example.org", emptyList())
+        api.meanwhile = { hub.showing(listOf(ada)) }
+        addAccount()
+        assertEquals(listOf(7uL to KeepChoice.DEFAULT_STORAGE_MB), asked)
+        assertEquals(1, syncs)
+    }
+
+    @Test
+    fun aRoundThatCouldNotStartLeavesNoFirstSyncWaiting() {
+        val answers = ArrayDeque(
+            listOf(SyncAnswer(started = false, message = "No network"), SyncAnswer(started = true, message = "")),
+        )
+        val hub = AccountsHub(
+            api = api,
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            sync = {
+                syncs++
+                answers.removeFirst()
+            },
+        )
+        val actions = hub.controller.actions()
+        actions.onEmail("ada@example.org")
+        actions.onSignIn()
+        // The first ask was refused; nothing is left asked for to start later by itself.
+        assertEquals(1, syncs)
+        assertFalse(hub.syncing.value)
+        hub.handle(Event.SyncFinished(0u, true))
         assertEquals(1, syncs)
     }
 
