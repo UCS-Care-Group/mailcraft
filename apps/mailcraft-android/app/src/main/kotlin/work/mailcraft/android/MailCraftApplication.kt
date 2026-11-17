@@ -197,8 +197,9 @@ class MailCraftApplication : Application() {
             events.register { event -> if (event is Event.ReminderScheduleChanged) refreshRemindersSoon(opened.core) }
             events.launchIn(scope) { nextEvent(opened.core) }
             // The core keeps the holds in memory only: the ones the owner left say so again at every start.
-            // (One that fails here is said again before the background's round, which waits for it.)
-            scope.launch { opened.holds.reapply() }
+            // (Tried again while one fails, as the core starts downloads by itself; the background's
+            // round waits for them too.)
+            scope.launch { opened.holds.restate() }
             refreshRemindersSoon(opened.core)
             // Send/Receive while the app is closed: one periodic run, kept if it is there already.
             // (WorkManager not starting is no reason to refuse the core: the window still works.)

@@ -4,6 +4,7 @@ package work.mailcraft.android
 
 import android.annotation.SuppressLint
 import android.content.Context
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import uniffi.mailcraft_mobile.CoreException
@@ -47,6 +48,9 @@ internal class MemoryHolds(private var held: Set<ULong> = emptySet()) : HoldStor
         this.held = held
     }
 }
+
+/** The waits between tries of [FirstSyncHolds.restate]: about ten minutes in all. */
+private val RESTATE_AFTER_MS = listOf(1_000L, 5_000L, 15_000L, 30_000L, 60_000L, 120_000L, 180_000L, 240_000L)
 
 /** The most accounts kept held: more than a phone has accounts, so a damaged preference stays small. */
 private const val MAX_HELD = 64
@@ -101,6 +105,22 @@ internal class FirstSyncHolds(
             if (failed == null) failed = failure
         }
         failed
+    }
+
+    /**
+     * [reapply] at a core's start, tried again after each of [after] while one fails in a way that
+     * may pass: the core also starts downloads by itself (the background's batches, the calendar's
+     * and the to-dos' jobs), which nothing here can wait on, so the holds are said until they are.
+     * Bounded: when every try failed, the background worker's round still waits for them ([afterHolds]).
+     * True when every hold was said (or none is kept any more: a pull to refresh let them go).
+     */
+    suspend fun restate(after: List<Long> = RESTATE_AFTER_MS, pause: suspend (Long) -> Unit = { delay(it) }): Boolean {
+        if (reapply() == null) return true
+        for (wait in after) {
+            pause(wait)
+            if (reapply() == null) return true
+        }
+        return false
     }
 
     /**
