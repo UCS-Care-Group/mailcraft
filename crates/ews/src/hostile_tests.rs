@@ -55,6 +55,9 @@ fn read_mail(reply: &Reply) {
     let _ = SyncFolderHierarchy::new("").answer(reply);
     let _ = SyncFolderItems::new("AAMk", "", 200, Shape::Full).answer(reply);
     let _ = GetItemMime::new("AAMk").answer(reply);
+    if let Some(lookup) = ResolveNames::new("ada") {
+        let _ = lookup.answer(reply);
+    }
     let _ = reply.busy();
 }
 
@@ -122,6 +125,9 @@ proptest! {
         let _ = SyncFolderItems::new(&text, &text, 0, Shape::Lean).element().write();
         let _ = SyncFolderHierarchy::new(&text).element().write();
         let _ = GetItemMime::new(&text).element().write();
+        if let Some(lookup) = ResolveNames::new(&text) {
+            let _ = lookup.element().write();
+        }
     }
 
     #[test]

@@ -68,7 +68,7 @@ internal interface SettingsApi {
  * [SettingsApi].
  *
  * [waitForRoom] is the one gate for work that fetches a lot: a widened window goes through it, and
- * so does the sync driver before a big first sync. It answers at once when there is room, and
+ * so does a new account's first sync ([roomForFirstSync]). It answers at once when there is room, and
  * otherwise puts the question to the owner and waits for the yes or the no.
  */
 @Suppress("TooManyFunctions")
@@ -281,6 +281,16 @@ internal class SettingsController(
                 ui.update { it.copy(space = null) }
             }
         }
+    }
+
+    /**
+     * Whether a new account's first sync may start: what its window brings (the core's rough size
+     * for the window, as the core can't yet say how much mail the server holds), held to the
+     * [storageMb] the owner chose for its mail, through [waitForRoom].
+     */
+    suspend fun roomForFirstSync(account: ULong, storageMb: Long): Boolean {
+        val code = api.keepOffline(account) ?: DEFAULT_OFFLINE
+        return waitForRoom(account, firstSyncBytes(api.estimate(code), storageMb))
     }
 
     private fun answered(yes: Boolean) {

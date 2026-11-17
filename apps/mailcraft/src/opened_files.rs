@@ -155,10 +155,7 @@ impl Opened {
         // Holding Ctrl+C or copying file after file must not fill the disk: the oldest copies go.
         // (Looked for only when what is kept may be past the cap: this is the window's thread.)
         let added = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-        let kept = self
-            .kept
-            .fetch_add(added, Ordering::Relaxed)
-            .saturating_add(added);
+        let kept = self.kept.fetch_add(added, Ordering::Relaxed).saturating_add(added);
         if kept > self.max_copied {
             self.trim_copies(Some(&path));
         }

@@ -64,6 +64,15 @@ internal fun spaceCheck(needed: Long, free: Long, reserve: Long = FREE_RESERVE):
     return if (free < need + reserve) SpaceWarning(need, free) else null
 }
 
+/**
+ * About how many bytes a new account's first sync brings: what its window brings ([windowBytes]),
+ * but never more than the [storageMb] the owner gave its mail, which the core keeps it within.
+ */
+internal fun firstSyncBytes(windowBytes: Long, storageMb: Long): Long {
+    val cap = storageMb.coerceIn(0L, Long.MAX_VALUE / MIB) * MIB
+    return windowBytes.coerceIn(0L, cap)
+}
+
 /** A size in words that fit a line: 1.5 GB, 40 MB, 0 B. Units are the same in every language. */
 internal fun sizeText(bytes: Long): String {
     val b = bytes.coerceAtLeast(0)

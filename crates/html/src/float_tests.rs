@@ -134,6 +134,40 @@ fn tables_laid_out_as_boxes_by_their_style_stand_in_one_line() {
     assert!(found[1].0.beside && found[1].1.spaced, "{blocks:?}");
 }
 
+/// `display: table` on a `<table>` is its own display and says nothing: one written so floats to
+/// its side as the one beside it does, instead of being a box on a line that packs at the right
+/// in source order (the right-first zig-zag).
+#[test]
+fn a_floated_table_written_display_table_floats_still() {
+    let blocks = parse(
+        "<table width='100%'><tr><td>\
+         <table align='left' width='280'><tr><td>L</td></tr></table>\
+         <table align='right' width='280' style='display:table'><tr><td>R</td></tr></table>\
+         </td></tr></table>",
+    );
+    let found = boxes(&blocks);
+    assert_eq!(found.len(), 2, "{blocks:?}");
+    let ((left, l), (right, r)) = (found[0], found[1]);
+    assert_eq!((text_of(l), text_of(r)), ("L".to_string(), "R".to_string()));
+    assert!(l.float && r.float, "{blocks:?}");
+    assert_eq!((left.align, right.align), (Align::Left, Align::Right));
+    assert!(right.beside, "{blocks:?}");
+    // Both written so: the same.
+    let blocks = parse(
+        "<div><table align='left' style='display:table'><tr><td>L</td></tr></table>\
+         <table align='right' style='display:table'><tr><td>R</td></tr></table></div>",
+    );
+    let found = boxes(&blocks);
+    assert_eq!(found.len(), 2, "{blocks:?}");
+    assert!(found.iter().all(|(_, t)| t.float), "{blocks:?}");
+    assert_eq!((found[0].0.align, found[1].0.align), (Align::Left, Align::Right));
+    // Not floated, a table written `display: table` is a table as any other (one cell of text is
+    // its text), not a box on a line.
+    let blocks = parse("<div><table style='display:table'><tr><td>A</td></tr></table></div>");
+    assert!(boxes(&blocks).is_empty(), "{blocks:?}");
+    assert_eq!(crate::blocks_to_text(&blocks).trim(), "A");
+}
+
 #[test]
 fn floated_tables_are_capped_as_boxes_are() {
     let many = format!("<div>{}</div>", "<table align=left><tr><td>b</td></tr></table>".repeat(MAX_INLINE_BOXES * 3));

@@ -53,6 +53,8 @@ mod folder_empty_tests;
 #[cfg(test)]
 mod folder_kind_tests;
 #[cfg(test)]
+mod folder_new_tests;
+#[cfg(test)]
 mod folder_properties_tests;
 pub mod followup;
 #[cfg(test)]
@@ -132,6 +134,8 @@ mod range_select_tests;
 mod read_receipt_tests;
 #[cfg(test)]
 mod refused_delete_tests;
+#[cfg(test)]
+mod relay_without_sign_in_tests;
 pub mod remote;
 #[cfg(test)]
 mod reply_to_first_tests;
@@ -170,6 +174,8 @@ mod thread_ids;
 pub mod unsubscribe;
 #[cfg(test)]
 mod unsubscribe_tests;
+#[cfg(test)]
+mod upcoming_reminders_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;

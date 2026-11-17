@@ -116,7 +116,7 @@ pub(crate) fn stand_in() -> (Arc<Runner>, Arc<Mutex<Vec<String>>>) {
 }
 
 /// What is waiting in the event stream now, without waiting for more.
-fn drain(core: &Core) -> Vec<Event> {
+pub(crate) fn drain(core: &Core) -> Vec<Event> {
     let mut out = Vec::new();
     let mut cx = Context::from_waker(Waker::noop());
     loop {
