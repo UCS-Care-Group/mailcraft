@@ -76,10 +76,22 @@ msgid "\"{name}\" is kept by the server of {who}. Changes made here are not sent
 msgstr "„{name}“ ინახება ანგარიშის {who} სერვერზე. აქ შეტანილი ცვლილებები ჯერ უკან არ იგზავნება, ამიტომ აქ მისი შერწყმა შეუძლებელია."
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "\"{name}\" is no longer on the recipient lines"
+msgstr "„{name}“ მიმღებების ველებში აღარ არის"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"
 msgstr "„{name}“ სერიის ნაწილია. მხოლოდ ამ დღეს ({day}) გულისხმობთ თუ მთელ სერიას?"
+
+#. what a command says
+#: crates/engine/src/cmd/category.rs
+#, fuzzy
+msgid "\"{name}\" isn't a category kept on this computer only"
+msgstr "„{name}“ არ არის მხოლოდ ამ კომპიუტერზე შენახული კატეგორია"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -987,6 +999,12 @@ msgstr "ფაილიდან დამატება…"
 msgid "Add somebody to send this to."
 msgstr "დაამატეთ მიმღები."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Add this category to Outlook's list, in the nearest of Outlook's colours"
+msgstr "ამ კატეგორიის დამატება Outlook-ის სიაში, Outlook-ის ფერებიდან ყველაზე მსგავსი ფერით"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -997,8 +1015,8 @@ msgstr ""
 "რჩეულებში\n"
 "დამატება"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Add to Contacts"
 msgstr "კონტაქტებში დამატება"
@@ -1008,6 +1026,12 @@ msgstr "კონტაქტებში დამატება"
 #, fuzzy
 msgid "Add to Favorites"
 msgstr "რჩეულებში დამატება"
+
+#. command label, interface
+#: crates/engine/src/cmd/category.rs crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Add to Outlook"
+msgstr "Outlook-ში დამატება"
 
 #. command label
 #: crates/engine/src/cmd/junk.rs
@@ -1033,11 +1057,45 @@ msgstr "კალენდარში დამატება"
 msgid "Added by a newer version of MailCraft: send and receive with it there"
 msgstr "დაემატა MailCraft-ის უფრო ახალი ვერსიით: გაგზავნა და მიღება იქ შეასრულეთ"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Added to Contacts"
+msgstr "დაემატა კონტაქტებში"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "მისამართი"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Address\n"
+"Book"
+msgstr ""
+"მისამართების\n"
+"წიგნი"
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "Address Book"
+msgstr "მისამართების წიგნი"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Address list"
+msgstr "მისამართების სია"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Address list · {account}"
+msgstr "მისამართების სია · {account}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1124,7 +1182,7 @@ msgid "All Mailboxes"
 msgstr "ყველა საფოსტო ყუთი"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/widgets.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "All accounts"
 msgstr "ყველა ანგარიში"
@@ -1148,6 +1206,12 @@ msgid "All mail and every account kept on this phone are removed, with every sig
 msgstr "ამ ტელეფონზე შენახული მთელი ფოსტა და ყველა ანგარიში წაიშლება, ყველა შესვლასთან ერთად. თქვენი ფოსტის პროვაიდერის სერვერებიდან არაფერი წაიშლება. ამის გაუქმება შეუძლებელია."
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "All names are checked"
+msgstr "ყველა სახელი შემოწმებულია"
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "All of them"
@@ -1160,13 +1224,13 @@ msgid "All the conditions must hold"
 msgstr "ყველა პირობა უნდა სრულდებოდეს"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/agent_gate.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Allow"
 msgstr "დაშვება"
 
-#. command label, interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs
+#. command label
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Allow Changing Automatic Replies"
 msgstr "ავტომატური პასუხების შეცვლის ნებართვა"
@@ -1184,22 +1248,10 @@ msgid "Allow Keeping Tasks in Step with Microsoft To Do"
 msgstr "დავალებების Microsoft To Do-სთან სინქრონიზაციის ნებართვა"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
-msgstr "მიეცით MailCraft-ს თქვენი ავტომატური პასუხების შეცვლის ნებართვა ბრაუზერში გახსნილ გვერდზე…"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Allow MailCraft to keep your rules on the server on the page that opened in your browser…"
-msgstr "მიეცით MailCraft-ს თქვენი წესების სერვერზე შენახვის ნებართვა ბრაუზერში გახსნილ გვერდზე…"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Allow MailCraft to keep your tasks in step with Microsoft To Do on the page that opened in your browser…"
-msgstr "მიეცით MailCraft-ს თქვენი დავალებების Microsoft To Do-სთან სინქრონიზაციის ნებართვა ბრაუზერში გახსნილ გვერდზე…"
+msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page that opened in your browser…"
+msgstr "მიეცით MailCraft-ს ამ საფოსტო ყუთის Outlook-თან სინქრონიზაციის ნებართვა ბრაუზერში გახსნილ გვერდზე…"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -1624,6 +1676,12 @@ msgid "Apply Sent Calendar Changes"
 msgstr "კალენდრის გაგზავნილი ცვლილებების გამოყენება"
 
 #. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Apply Sent Category Changes"
+msgstr "კატეგორიების გაგზავნილი ცვლილებების გამოყენება"
+
+#. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
 msgid "Apply Sent Rule Changes"
@@ -1796,19 +1854,31 @@ msgid "Ask first again"
 msgstr "კვლავ ჯერ კითხვა"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
-msgstr "მოითხოვეთ სერვერზე წესების შეცვლის ნებართვა: ბრაუზერში Microsoft-ის გვერდი გაიხსნება. მის გარეშე ახალი წესები ამ კომპიუტერზე რჩება და არაფერი იგზავნება."
+msgid "Ask for permission to keep your automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, your automatic replies aren't changed."
+msgstr "მოითხოვეთ თქვენი ავტომატური პასუხების Outlook-თან სინქრონიზაციის ნებართვა: ბრაუზერში Microsoft-ის გვერდი გაიხსნება. მის გარეშე თქვენი ავტომატური პასუხები არ შეიცვლება."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
-msgstr "მოითხოვეთ თქვენი ავტომატური პასუხების შეცვლის ნებართვა: ბრაუზერში Microsoft-ის გვერდი გაიხსნება. მათ წასაკითხად ნებართვა არ სჭირდება."
+msgid "Ask for permission to keep your rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, rules stay on this computer and the categories can't be changed here."
+msgstr "მოითხოვეთ თქვენი წესების, ავტომატური პასუხებისა და კატეგორიების Outlook-თან სინქრონიზაციის ნებართვა: ბრაუზერში Microsoft-ის გვერდი გაიხსნება. მის გარეშე წესები ამ კომპიუტერზე რჩება, კატეგორიების შეცვლა კი აქ შეუძლებელია."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to keep your tasks and automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+msgstr "მოითხოვეთ თქვენი დავალებებისა და ავტომატური პასუხების Outlook-თან სინქრონიზაციის ნებართვა: ბრაუზერში Microsoft-ის გვერდი გაიხსნება. მის გარეშე დავალებები ამ კომპიუტერზე რჩება."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
+msgstr "მოითხოვეთ თქვენი დავალებების, წესების, ავტომატური პასუხებისა და კატეგორიების Outlook-თან სინქრონიზაციის ნებართვა: ბრაუზერში Microsoft-ის გვერდი გაიხსნება. მის გარეშე დავალებები და წესები ამ კომპიუტერზე რჩება, კატეგორიების შეცვლა კი აქ შეუძლებელია."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
 msgstr "მოითხოვეთ თქვენი To Do სიებისა და დავალებების წაკითხვისა და შეცვლის ნებართვა: ბრაუზერში Microsoft-ის გვერდი გაიხსნება. მის გარეშე დავალებები ამ კომპიუტერზე რჩება."
@@ -2106,6 +2176,12 @@ msgstr "ავტომატური პასუხები ჩართუ�
 #, fuzzy
 msgid "Automatic replies are set for the time range you chose"
 msgstr "ავტომატური პასუხები დაყენებულია თქვენ მიერ არჩეული დროის შუალედისთვის"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Automatic replies: MailCraft may change them"
+msgstr "ავტომატური პასუხები: MailCraft-ს შეუძლია მათი შეცვლა"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -2621,11 +2697,89 @@ msgstr "გაუქმებულია"
 msgid "Categories"
 msgstr "კატეგორიები"
 
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Asking for your permission to change them…"
+msgstr "კატეგორიები ანგარიშის {address} სერვერიდან. თქვენი ნებართვის მოთხოვნა მათ შესაცვლელად…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Checking whether MailCraft may change them…"
+msgstr "კატეგორიები ანგარიშის {address} სერვერიდან. მოწმდება, შეუძლია თუ არა MailCraft-ს მათი შეცვლა…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Microsoft no longer takes the sign-in, so they can't be changed"
+msgstr "კატეგორიები ანგარიშის {address} სერვერიდან. Microsoft შესვლას აღარ იღებს, ამიტომ მათი შეცვლა შეუძლებელია"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. No permission to change them"
+msgstr "კატეგორიები ანგარიშის {address} სერვერიდან. მათი შეცვლის ნებართვა არ არის"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. No permission to change them ({why})"
+msgstr "კატეგორიები ანგარიშის {address} სერვერიდან. მათი შეცვლის ნებართვა არ არის ({why})"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Read-only here until MailCraft can check whether it may change them"
+msgstr "კატეგორიები ანგარიშის {address} სერვერიდან. აქ მხოლოდ წასაკითხია, სანამ MailCraft არ შეამოწმებს, შეუძლია თუ არა მათი შეცვლა"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
 msgid "Categories:"
 msgstr "კატეგორიები:"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: Microsoft no longer takes the sign-in"
+msgstr "კატეგორიები: Microsoft შესვლას აღარ იღებს"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: asking for your permission…"
+msgstr "კატეგორიები: თქვენი ნებართვის მოთხოვნა…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: checking…"
+msgstr "კატეგორიები: მოწმდება…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: kept in step with Outlook"
+msgstr "კატეგორიები: სინქრონიზებულია Outlook-თან"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here (MailCraft may not change them)"
+msgstr "კატეგორიები: აქ მხოლოდ წასაკითხია (MailCraft-ს მათი შეცვლის უფლება არ აქვს)"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here ({why})"
+msgstr "კატეგორიები: აქ მხოლოდ წასაკითხია ({why})"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here until MailCraft can check whether it may change them"
+msgstr "კატეგორიები: აქ მხოლოდ წასაკითხია, სანამ MailCraft არ შეამოწმებს, შეუძლია თუ არა მათი შეცვლა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
@@ -2638,6 +2792,18 @@ msgstr "კატეგორიები…"
 #, fuzzy
 msgid "Categorize"
 msgstr "კატეგორიზება"
+
+#. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Category Changes Allowed"
+msgstr "კატეგორიების ცვლილებების ნებართვა"
+
+#. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Category Changes to Send"
+msgstr "გასაგზავნი კატეგორიების ცვლილებები"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
@@ -2846,7 +3012,7 @@ msgid "Check Calendar Connection"
 msgstr "კალენდრის კავშირის შემოწმება"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Check Names"
 msgstr "სახელების შემოწმება"
@@ -3326,7 +3492,7 @@ msgid "Connecting to the mail server"
 msgstr "საფოსტო სერვერთან დაკავშირება"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Contact"
 msgstr "კონტაქტი"
@@ -3354,13 +3520,19 @@ msgid "Contact Card"
 msgstr "საკონტაქტო ბარათი"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Contacts"
+msgstr "კონტაქტები"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Contacts don't go to Deleted Items."
 msgstr "კონტაქტები წაშლილებში არ გადადის."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Continue"
 msgstr "გაგრძელება"
@@ -4322,6 +4494,12 @@ msgid "Display name"
 msgstr "საჩვენებელი სახელი"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Distribution list"
+msgstr "გაგზავნის სია"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Do"
@@ -4800,7 +4978,7 @@ msgid "Either button writes to {name}: your answer, and the time you propose."
 msgstr "ორივე ღილაკი {name}-ს სწერს: თქვენს პასუხს და თქვენ მიერ შემოთავაზებულ დროს."
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Email"
 msgstr "ელფოსტა"
@@ -5626,6 +5804,30 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr "ანგარიშისთვის, რომელიც Microsoft-ით შედის: საქაღალდეები, რომლებიც Outlook-ში რჩეულებში გაქვთ, იმავე თანმიმდევრობით. ისინი სერვერიდან იკითხება და იქ არასოდეს იცვლება. ამის გარეშე ჩანს რჩეულები, რომლებსაც MailCraft-ში მონიშნავთ."
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "ჯერჯერობით წესები ამ კომპიუტერზე რჩება, თქვენი ავტომატური პასუხები არ იცვლება და კატეგორიების შეცვლა აქ შეუძლებელია: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "ჯერჯერობით დავალებები და წესები ამ კომპიუტერზე რჩება, თქვენი ავტომატური პასუხები არ იცვლება და კატეგორიების შეცვლა აქ შეუძლებელია: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks stay on this computer and your automatic replies aren't changed: {error}"
+msgstr "ჯერჯერობით დავალებები ამ კომპიუტერზე რჩება და თქვენი ავტომატური პასუხები არ იცვლება: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, your automatic replies aren't changed: {error}"
+msgstr "ჯერჯერობით თქვენი ავტომატური პასუხები არ იცვლება: {error}"
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
 msgid "Forget"
@@ -5812,6 +6014,12 @@ msgstr "„ვისგან“ შეიცავს"
 #, fuzzy
 msgid "From outside your organisation."
 msgstr "თქვენი ორგანიზაციის გარედან."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
+msgstr "ანგარიშის {account} ორგანიზაციის მისამართების სიიდან. ჩანს, სანამ ათვალიერებთ, და არ ინახება: „კონტაქტებში დამატება“ ასლს ამ კომპიუტერზე ინახავს."
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -6202,6 +6410,12 @@ msgstr "გრაფიტი"
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
 msgstr "Gravatar-ს ეკითხება გამგზავნის სურათს და ეუწყება მისი მისამართის ჰეში; თუ არა, favicon.im-ს, შემდეგ კი Google-ს ეკითხება მისი ვებსაიტის ხატულას და ეუწყება გამგზავნის დომენი. ეს იმ სერვისებს ატყობინებს, ვისი სურათების ნახვაც გსურთ. მხოლოდ თქვენთვის ნაცნობ ადამიანებზე (თქვენი კონტაქტები და ისინი, ვისაც მიგიწერიათ) და იმ ფოსტაზე, რომლის სურათებსაც ჩამოტვირთავთ, არასოდეს არასასურველ ფოსტაზე; გამგზავნის სურათი კი მხოლოდ მაშინ, როცა თქვენი საფოსტო სერვერი ადასტურებს, რომ წერილი მართლაც მისგანაა."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Group"
+msgstr "ჯგუფი"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -7372,18 +7586,6 @@ msgid "Keep Rule on Server"
 msgstr "წესის სერვერზე შენახვა"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Keep Rules on the Server"
-msgstr "წესების სერვერზე შენახვა"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Keep Tasks in Step with Microsoft To Do"
-msgstr "დავალებების სინქრონიზაცია Microsoft To Do-სთან"
-
-#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Keep Waiting"
@@ -7406,6 +7608,12 @@ msgstr "ანგარიშის დატოვება"
 #, fuzzy
 msgid "Keep data"
 msgstr "მონაცემების დატოვება"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Keep in Step with Outlook"
+msgstr "Outlook-თან სინქრონიზაცია"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -7508,6 +7716,12 @@ msgstr "ინახება ამ ბრაუზერის საცავ
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
 msgstr "ინახება აქ: {path}, მუშაობისას ავტომატურად."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Kept on this computer only"
+msgstr "ინახება მხოლოდ ამ კომპიუტერზე"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7796,6 +8010,18 @@ msgstr "ამ შეხვედრის ძებნა თქვენს �
 #, fuzzy
 msgid "Looking for your Exchange server…"
 msgstr "თქვენი Exchange სერვერის ძებნა…"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Looking the names up in the organisation's address list…"
+msgstr "სახელების ძიება ორგანიზაციის მისამართების სიაში…"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Looking the names up stopped unexpectedly"
+msgstr "სახელების ძიება მოულოდნელად შეწყდა"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -8200,6 +8426,12 @@ msgid "MailCraft was started with {n} thing that isn't a mail link or a file it 
 msgid_plural "MailCraft was started with {n} things that aren't mail links or files it opens: they were left alone"
 msgstr[0] "MailCraft გაეშვა {n} ელემენტით, რომელიც არც საფოსტო ბმულია და არც მის მიერ გასახსნელი ფაილი: ის ხელუხლებლად დარჩა"
 msgstr[1] "MailCraft გაეშვა {n} ელემენტით, რომლებიც არც საფოსტო ბმულებია და არც მის მიერ გასახსნელი ფაილები: ისინი ხელუხლებლად დარჩა"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "MailCraft wasn't allowed to keep this mailbox in step with Outlook: {error}"
+msgstr "MailCraft-ს ამ საფოსტო ყუთის Outlook-თან სინქრონიზაციის ნებართვა არ მიეცა: {error}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8742,6 +8974,12 @@ msgid "Microsoft's page came back without the approval: it was declined there, o
 msgstr "Microsoft-ის გვერდი დამტკიცების გარეშე დაბრუნდა: იქ უარყვეს ან დატოვეს მის მიცემამდე."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Microsoft's page opens in your browser to ask for your permission, once."
+msgstr "თქვენი ნებართვის მოსათხოვად ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი."
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Microsoft's page said so."
@@ -8766,7 +9004,7 @@ msgid "Minimize"
 msgstr "ჩაკეცვა"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Mobile"
 msgstr "მობილური"
@@ -8848,6 +9086,12 @@ msgstr "სერვერზე მეტი შედეგი არ არ�
 #, fuzzy
 msgid "More results on the server can't be asked for now"
 msgstr "სერვერზე მეტი შედეგის მოთხოვნა ახლა შეუძლებელია"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "More than one person matches \"{name}\". Choose one:"
+msgstr "სახელს „{name}“ ერთზე მეტი ადამიანი შეესაბამება. აირჩიეთ ერთი:"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -9892,6 +10136,12 @@ msgid "Nobody has proposed another time."
 msgstr "სხვა დრო არავის შემოუთავაზებია."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Nobody in the address list matches"
+msgstr "მისამართების სიაში შესაბამისი არავინ არის"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Nobody is invited to this appointment."
@@ -9908,6 +10158,12 @@ msgstr "არავინ შედის"
 #, fuzzy
 msgid "Nobody matches the search"
 msgstr "ძიების შესაბამისი არავინ არის"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Nobody matches: {names}"
+msgstr "შესაბამისი არავინ არის: {names}"
 
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
@@ -10047,6 +10303,12 @@ msgstr "Outlook-ის სიაში არ არის: იქ ფერი 
 msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr "ჯერ არსად ინახება: გამოიყენეთ „გახსნა და ექსპორტირება › საფოსტო ყუთის შენახვა როგორც“."
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Not looked up in the address list: {names}"
+msgstr "მისამართების სიაში არ შემოწმებულა: {names}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
@@ -10054,7 +10316,7 @@ msgid "Not much room on this phone"
 msgstr "ტელეფონზე ადგილი ცოტაა"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Not now"
 msgstr "ახლა არა"
@@ -10064,6 +10326,12 @@ msgstr "ახლა არა"
 #, fuzzy
 msgid "Not now: it is installed when you quit MailCraft."
 msgstr "ახლა არა: ის MailCraft-იდან გასვლისას დაინსტალირდება."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour"
+msgstr "Outlook-ის სიაში არ არის: ფოსტას, ღონისძიებებსა და დავალებებს, რომლებსაც მას მიანიჭებთ, მისი სახელი მაინც მიაქვს ანგარიშის სერვერზე, სადაც მას ფერი არ აქვს"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10294,7 +10562,7 @@ msgid "Numbering"
 msgstr "დანომვრა"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -10580,6 +10848,12 @@ msgstr "გაგზავნა მხოლოდ ამ დროის შ�
 #, fuzzy
 msgid "Only the beginning of this message is here. The rest downloads with the next Send/Receive."
 msgstr "აქ ამ წერილის მხოლოდ დასაწყისია. დანარჩენი შემდეგი გაგზავნა/მიღებისას ჩამოიტვირთება."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Only the first {n} are shown: type more of the name to find somebody else."
+msgstr "ნაჩვენებია მხოლოდ პირველი {n}: სხვის მოსაძებნად სახელი უფრო სრულად აკრიფეთ."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -11076,6 +11350,12 @@ msgstr "ჩემი ორგანიზაციის გარეთ (გ�
 #, fuzzy
 msgid "Outside My Organization (On)"
 msgstr "ჩემი ორგანიზაციის გარეთ (ჩართულია)"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Outside the organisation"
+msgstr "ორგანიზაციის გარეთ"
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
@@ -11618,6 +11898,12 @@ msgstr "შემოთავაზებული დრო"
 #, fuzzy
 msgid "Public Keys"
 msgstr "საჯარო გასაღებები"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Public folder"
+msgstr "საჯარო საქაღალდე"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -12574,18 +12860,6 @@ msgstr "წესები ანგარიშისთვის"
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
-msgid "Rules stay on this computer for now: {error}"
-msgstr "წესები ჯერჯერობით ამ კომპიუტერზე რჩება: {error}"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Rules weren't allowed on the server: {error}"
-msgstr "წესები სერვერზე არ დაიშვა: {error}"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
 msgid "Rules: Microsoft no longer takes the sign-in"
 msgstr "წესები: Microsoft შესვლას აღარ იღებს"
 
@@ -13124,16 +13398,34 @@ msgid "Search people"
 msgstr "ადამიანების ძიება"
 
 #. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Search the address list"
+msgstr "მისამართების სიაში ძიება"
+
+#. interface
 #: crates/ui-egui/src/zones.rs
 #, fuzzy
 msgid "Search time zones"
 msgstr "სასაათო სარტყლების ძიება"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Searching the address list stopped unexpectedly"
+msgstr "მისამართების სიაში ძიება მოულოდნელად შეწყდა"
+
+#. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "Searching the server…"
 msgstr "სერვერზე ძიება…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Searching…"
+msgstr "ძიება…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13244,6 +13536,12 @@ msgid "Select some text first"
 msgstr "ჯერ მონიშნეთ ტექსტი"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Select somebody to see the details"
+msgstr "დეტალების სანახავად მონიშნეთ ვინმე"
+
+#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "Select the message before previewing its attachment."
@@ -13262,7 +13560,7 @@ msgid "Send & Receive"
 msgstr "გაგზავნა და მიღება"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "გაგზავნა / მიღება"
@@ -14963,6 +15261,30 @@ msgstr "სიმბოლოები"
 msgid "Sync anyway"
 msgstr "მაინც სინქრონიზაცია"
 
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: asking for your permission…"
+msgstr "Outlook-თან სინქრონიზაცია: თქვენი ნებართვის მოთხოვნა…"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: off"
+msgstr "Outlook-თან სინქრონიზაცია: გამორთულია"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: on"
+msgstr "Outlook-თან სინქრონიზაცია: ჩართულია"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: partly on"
+msgstr "Outlook-თან სინქრონიზაცია: ნაწილობრივ ჩართულია"
+
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
@@ -15054,16 +15376,10 @@ msgid "Tasks due"
 msgstr "შესასრულებელი დავალებები"
 
 #. interface
-#: crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Tasks stay on this computer for now: {error}"
 msgstr "დავალებები ჯერჯერობით ამ კომპიუტერზე რჩება: {error}"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Tasks weren't allowed to be kept in step: {error}"
-msgstr "დავალებების სინქრონიზაცია არ დაიშვა: {error}"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -15486,6 +15802,12 @@ msgid "The account {address} is opened through is gone."
 msgstr "ანგარიში, რომლითაც {address} იხსნება, აღარ არსებობს."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "The account's password is needed first: press Send/Receive and type it"
+msgstr "ჯერ ანგარიშის პაროლია საჭირო: დააჭირეთ „გაგზავნა/მიღებას“ და შეიყვანეთ ის"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The account's server forwards it, and tells the meeting's organizer that you did."
@@ -15526,6 +15848,12 @@ msgstr "ანგარიშის სერვერს ამ შეხვე
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "ანგარიშის სერვერი მას შეხვედრის გაგზავნისას ქმნის; შესაერთებელი ბმული მასთან ერთად ბრუნდება."
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
+msgstr "მისამართების სიაში ამ სახელით იმაზე მეტი ადამიანია, ვიდრე ჩანს: ჩამოუთვლელის მოსაძებნად სახელი უფრო სრულად აკრიფეთ."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -15719,11 +16047,29 @@ msgstr "კალენდარი {name} და ამ კომპიუტ�
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "საერთო საფოსტო ყუთის კალენდრები ელოდება: {error}"
 
-#. what a command says
-#: crates/engine/src/sync_driver/calendar_plan.rs
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "The categories couldn't be kept in step: the job stopped unexpectedly"
+msgstr "კატეგორიების სინქრონიზაცია ვერ მოხერხდა: პროცესი მოულოდნელად შეწყდა"
+
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "კატეგორიების ჩაწერა ვერ მოხერხდა: {error}"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "The categories sent couldn't be noted: {error}"
+msgstr "გაგზავნილი კატეგორიები ვერ აღირიცხა: {error}"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "The category '{name}' couldn't be put back: the list of categories is full."
+msgstr "კატეგორია „{name}“ ვერ აღდგა: კატეგორიების სია სავსეა."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -15766,12 +16112,6 @@ msgstr "სერტიფიკატი, რომელსაც სერვ
 #, fuzzy
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
 msgstr "სერტიფიკატი ისეთმა სერტიფიცირების ორგანომ არ გასცა, რომელსაც ეს კომპიუტერი ენდობა."
-
-#. what a command says
-#: crates/engine/src/cmd/category.rs
-#, fuzzy
-msgid "The colour is set in Outlook"
-msgstr "ფერი Outlook-ში არის დაყენებული"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17071,12 +17411,6 @@ msgstr "ეს კვირა"
 msgid "This account does not use Google sign-in."
 msgstr "ეს ანგარიში Google-ით შესვლას არ იყენებს."
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "This account doesn't keep its rules on its server"
-msgstr "ეს ანგარიში თავის წესებს სერვერზე არ ინახავს"
-
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
@@ -17096,7 +17430,7 @@ msgid "This account has no mail server to send the answer through."
 msgstr "ამ ანგარიშს არ აქვს ფოსტის სერვერი, რომლითაც პასუხი გაიგზავნება."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "ამ ანგარიშს Microsoft-ით შესვლა არ აქვს"
@@ -17106,6 +17440,12 @@ msgstr "ამ ანგარიშს Microsoft-ით შესვლა ა�
 #, fuzzy
 msgid "This account is no longer in the mailbox."
 msgstr "ეს ანგარიში საფოსტო ყუთში აღარ არის."
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "This account may not change its categories through Microsoft Graph"
+msgstr "ამ ანგარიშს Microsoft Graph-ით თავისი კატეგორიების შეცვლის უფლება არ აქვს"
 
 #. what a command says
 #: crates/engine/src/sync_driver/rules.rs
@@ -17304,6 +17644,12 @@ msgstr "ეს კალენდარი ინტერნეტში არ
 #, fuzzy
 msgid "This calendar isn't connected to your account yet. What changes elsewhere doesn't show here, and what you change here stays on this computer."
 msgstr "ეს კალენდარი თქვენს ანგარიშს ჯერ არ არის დაკავშირებული. სხვაგან შეტანილი ცვლილებები აქ არ ჩანს, ხოლო აქ შეტანილი ამ კომპიუტერზე რჩება."
+
+#. what a command says
+#: crates/engine/src/cmd/category.rs
+#, fuzzy
+msgid "This category is on more events of calendars kept on a server than can wait to be sent at once: nothing was changed."
+msgstr "ეს კატეგორია სერვერზე შენახული კალენდრების იმაზე მეტ ღონისძიებაზეა, ვიდრე შეიძლება ერთდროულად ელოდეს გაგზავნას: არაფერი შეცვლილა."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -17937,6 +18283,12 @@ msgstr "ამ სისტემაში MailCraft-მა არ იცის 
 msgid "This task could not be read."
 msgstr "ამ დავალების წაკითხვა ვერ მოხერხდა."
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "This version of MailCraft can't search an address list"
+msgstr "MailCraft-ის ამ ვერსიას მისამართების სიაში ძიება არ შეუძლია"
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
@@ -18102,31 +18454,43 @@ msgstr ""
 "პასუხი გაიგზავნება როგორც {address} თუ მისი სახელით, ამას თქვენი ორგანიზაცია წყვეტს. სანამ ამას დაუშვებთ, პასუხი ამ კომპიუტერზე ელოდება და თქვენი საკუთარი მისამართიდან არაფერი იგზავნება."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
+"Until you allow it, your automatic replies aren't changed."
 msgstr ""
-"ანგარიშის {address} ავტომატური პასუხების შესაცვლელად MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"ანგარიშის {address} ავტომატური პასუხების Outlook-თან სინქრონიზაციისთვის MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
 "\n"
-"ამით MailCraft ცვლის მხოლოდ თქვენს ავტომატურ პასუხებს და შემოსულების წესებს, არასოდეს თქვენს კატეგორიებს ან სამუშაო საათებს. ავტომატური პასუხების წაკითხვას ეს არ სჭირდება."
+"სანამ ამას დაუშვებთ, თქვენი ავტომატური პასუხები არ შეიცვლება."
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
+"To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
+"Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
-"ანგარიშის {address} წესების მის სერვერზე შესანახად, სადაც ისინი MailCraft-ის დახურვისასაც სრულდება და ჩანს Outlook-ის ვებვერსიაში და თქვენს ტელეფონზე, MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად, სადაც Microsoft წესებს ინახავს. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"ანგარიშის {address} წესების, ავტომატური პასუხებისა და კატეგორიების Outlook-თან სინქრონიზაციისთვის MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
 "\n"
-"სანამ ამას დაუშვებთ, თქვენი წესები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს."
+"სანამ ამას დაუშვებთ, წესები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს, თქვენი ავტომატური პასუხები არ შეიცვლება, ამ საფოსტო ყუთის კატეგორიების შეცვლა კი აქ შეუძლებელია."
 
 #. interface
-#: crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid ""
+"To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
+msgstr ""
+"ანგარიშის {address} დავალებებისა და ავტომატური პასუხების Outlook-თან სინქრონიზაციისთვის MailCraft-ს სჭირდება თქვენი ნებართვა To Do-ს სიებისა და საფოსტო ყუთის პარამეტრების შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"\n"
+"სანამ ამას დაუშვებთ, დავალებები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს, თქვენი ავტომატური პასუხები კი არ შეიცვლება."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
 "To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n"
@@ -18136,6 +18500,18 @@ msgstr ""
 "ანგარიშის {address} დავალებების Microsoft To Do-სთან სინქრონიზაციისთვის MailCraft-ს სჭირდება თქვენი ნებართვა To Do-ს სიებისა და დავალებების წასაკითხად და შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
 "\n"
 "სანამ ამას დაუშვებთ, დავალებები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid ""
+"To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
+msgstr ""
+"ანგარიშის {address} დავალებების, წესების, ავტომატური პასუხებისა და კატეგორიების Outlook-თან სინქრონიზაციისთვის MailCraft-ს სჭირდება თქვენი ნებართვა To Do-ს სიებისა და საფოსტო ყუთის პარამეტრების შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"\n"
+"სანამ ამას დაუშვებთ, დავალებები და წესები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს, თქვენი ავტომატური პასუხები არ შეიცვლება, ამ საფოსტო ყუთის კატეგორიების შეცვლა კი აქ შეუძლებელია."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
@@ -18382,6 +18758,12 @@ msgstr "ამ ანგარიშებიდან ორს ან მე�
 #, fuzzy
 msgid "Type"
 msgstr "ტიპი"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Type a name in the search box to search the organisation's address list"
+msgstr "ორგანიზაციის მისამართების სიაში მოსაძებნად საძიებო ველში აკრიფეთ სახელი"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19158,7 +19540,7 @@ msgid "Words, from:, to:, category:, on:…"
 msgstr "სიტყვები, from:, to:, category:, on:…"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Work"
 msgstr "სამსახური"
@@ -19237,6 +19619,12 @@ msgstr "სამუშაო საათები"
 msgid "Working offline: mail you send waits in the Outbox"
 msgstr "ოფლაინ მუშაობა: გაგზავნილი ფოსტა „გასაგზავნებში“ ელოდება"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Workplace"
+msgstr "სამუშაო ადგილი"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
 #, fuzzy
@@ -19250,7 +19638,7 @@ msgid "Write to the organizer without answering"
 msgstr "ორგანიზატორისთვის მიწერა პასუხის გარეშე"
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Write to {address}"
 msgstr "წერილის მიწერა: {address}"
@@ -19556,18 +19944,6 @@ msgid "Your organisation doesn't allow Exchange Web Services for this account. A
 msgstr "თქვენი ორგანიზაცია ამ ანგარიშისთვის Exchange Web Services-ს არ უშვებს. მიმართეთ ადმინისტრატორს."
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to keep rules on the server"
-msgstr "თქვენი ორგანიზაცია MailCraft-ს არ აძლევს წესების სერვერზე შენახვის ნებას"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to keep tasks in step with Microsoft To Do"
-msgstr "თქვენი ორგანიზაცია MailCraft-ს არ აძლევს დავალებების Microsoft To Do-სთან სინქრონიზაციის ნებას"
-
-#. interface
 #: crates/ui-egui/src/shared_calendars.rs
 #, fuzzy
 msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
@@ -19576,14 +19952,14 @@ msgstr "თქვენი ორგანიზაცია MailCraft-ს ა�
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
-msgid "Your organisation doesn't let MailCraft change automatic replies"
-msgstr "თქვენი ორგანიზაცია MailCraft-ს არ აძლევს ავტომატური პასუხების შეცვლის ნებას"
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
 msgstr "თქვენი ორგანიზაცია MailCraft-ს არ აძლევს თქვენი ავტომატური პასუხების შეცვლის ნებას. მიმართეთ ადმინისტრატორს."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
+msgstr "თქვენი ორგანიზაცია MailCraft-ს არ აძლევს ამ საფოსტო ყუთის Outlook-თან სინქრონიზაციის ნებას"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -19646,22 +20022,10 @@ msgid "Your organisation then lets only an administrator approve a new program. 
 msgstr "მაშინ თქვენს ორგანიზაციაში ახალ პროგრამას მხოლოდ ადმინისტრატორი ამტკიცებს. თქვენს ანგარიშსა და პაროლს არაფერი სჭირს."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Your organisation's administrator has to approve MailCraft changing automatic replies once: File › Info"
-msgstr "თქვენი ორგანიზაციის ადმინისტრატორმა ერთხელ უნდა დაამტკიცოს, რომ MailCraft ავტომატურ პასუხებს ცვლიდეს: ფაილი › ინფორმაცია"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve keeping rules on the server once: File › Info"
-msgstr "თქვენი ორგანიზაციის ადმინისტრატორმა ერთხელ უნდა დაამტკიცოს წესების სერვერზე შენახვა: ფაილი › ინფორმაცია"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve keeping tasks in step with Microsoft To Do once: File › Info"
-msgstr "თქვენი ორგანიზაციის ადმინისტრატორმა ერთხელ უნდა დაამტკიცოს დავალებების Microsoft To Do-სთან სინქრონიზაცია: ფაილი › ინფორმაცია"
+msgid "Your organisation's administrator has to approve MailCraft keeping this mailbox in step with Outlook once: File › Info"
+msgstr "თქვენი ორგანიზაციის ადმინისტრატორმა ერთხელ უნდა დაამტკიცოს, რომ MailCraft ამ საფოსტო ყუთს Outlook-თან სინქრონიზებდეს: ფაილი › ინფორმაცია"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -20047,6 +20411,12 @@ msgstr "ხელმოწერის სურათები არის PNG
 msgid "a task needs a title"
 msgstr "დავალებას სათაური სჭირდება"
 
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "add an Exchange server account first: its organisation's address list is searched"
+msgstr "ჯერ დაამატეთ Exchange სერვერის ანგარიში: ძიება მისი ორგანიზაციის მისამართების სიაში ხდება"
+
 #. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -20054,7 +20424,7 @@ msgid "add an account first"
 msgstr "ჯერ დაამატეთ ანგარიში"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "add an account first (File › Add Account)"
 msgstr "ჯერ დაამატეთ ანგარიში (ფაილი › ანგარიშის დამატება)"
@@ -20776,7 +21146,7 @@ msgid "no message being written has the id {id}"
 msgstr "დასაწერ წერილებში id {id} არცერთს არ აქვს"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "არცერთი წერილი არ იწერება"
@@ -22348,6 +22718,18 @@ msgid "this account sends no mail, so a message can't wait for a time: send it n
 msgstr "ეს ანგარიში ფოსტას არ აგზავნის, ამიტომ წერილი დროს ვერ დაელოდება: ახლავე გაგზავნეთ ან მონახაზად შეინახეთ"
 
 #. what a command says
+#: crates/engine/src/cmd/category.rs
+#, fuzzy
+msgid "this account's categories aren't kept in step with a server"
+msgstr "ამ ანგარიშის კატეგორიები სერვერთან არ სინქრონიზდება"
+
+#. what a command says
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "this account's categories aren't kept in step with its server"
+msgstr "ამ ანგარიშის კატეგორიები თავის სერვერთან არ სინქრონიზდება"
+
+#. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "this contact has no e-mail address"
@@ -23353,6 +23735,14 @@ msgid_plural "{n} calendar items"
 msgstr[0] "კალენდრის ელემენტი: {n}"
 msgstr[1] "კალენდრის ელემენტი: {n}"
 
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} category couldn't be put back: the list of categories is full."
+msgid_plural "{n} categories couldn't be put back: the list of categories is full."
+msgstr[0] "{n} კატეგორია ვერ აღდგა: კატეგორიების სია სავსეა."
+msgstr[1] "{n} კატეგორია ვერ აღდგა: კატეგორიების სია სავსეა."
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -23503,6 +23893,14 @@ msgid_plural "{n} events in view"
 msgstr[0] "ხედში ღონისძიება: {n}"
 msgstr[1] "ხედში ღონისძიება: {n}"
 
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "{n} event keeps its categories as they were on its server: too many changes are waiting to be sent."
+msgid_plural "{n} events keep their categories as they were on their servers: too many changes are waiting to be sent."
+msgstr[0] "{n} ღონისძიების კატეგორიები რჩება ისე, როგორც სერვერზე იყო: გასაგზავნად ზედმეტად ბევრი ცვლილება ელოდება."
+msgstr[1] "{n} ღონისძიების კატეგორიები რჩება ისე, როგორც სერვერზე იყო: გასაგზავნად ზედმეტად ბევრი ცვლილება ელოდება."
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -23526,6 +23924,14 @@ msgid "{n} folder"
 msgid_plural "{n} folders"
 msgstr[0] "საქაღალდე: {n}"
 msgstr[1] "საქაღალდე: {n}"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "{n} found in the address list"
+msgid_plural "{n} found in the address list"
+msgstr[0] "მისამართების სიაში ნაპოვნია: {n}"
+msgstr[1] "მისამართების სიაში ნაპოვნია: {n}"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -24420,6 +24826,98 @@ msgstr "„{subject}“ ჩამოსატვირთად ზედმე�
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ სერვერზე ვერ მოიძებნა, ამიტომ დანართად გადაგზავნა შეუძლებელია"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
+#~ msgstr "მიეცით MailCraft-ს თქვენი ავტომატური პასუხების შეცვლის ნებართვა ბრაუზერში გახსნილ გვერდზე…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to keep your rules on the server on the page that opened in your browser…"
+#~ msgstr "მიეცით MailCraft-ს თქვენი წესების სერვერზე შენახვის ნებართვა ბრაუზერში გახსნილ გვერდზე…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to keep your tasks in step with Microsoft To Do on the page that opened in your browser…"
+#~ msgstr "მიეცით MailCraft-ს თქვენი დავალებების Microsoft To Do-სთან სინქრონიზაციის ნებართვა ბრაუზერში გახსნილ გვერდზე…"
+
+#, fuzzy
+#~ msgid "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
+#~ msgstr "მოითხოვეთ სერვერზე წესების შეცვლის ნებართვა: ბრაუზერში Microsoft-ის გვერდი გაიხსნება. მის გარეშე ახალი წესები ამ კომპიუტერზე რჩება და არაფერი იგზავნება."
+
+#, fuzzy
+#~ msgid "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
+#~ msgstr "მოითხოვეთ თქვენი ავტომატური პასუხების შეცვლის ნებართვა: ბრაუზერში Microsoft-ის გვერდი გაიხსნება. მათ წასაკითხად ნებართვა არ სჭირდება."
+
+#, fuzzy
+#~ msgid "Keep Rules on the Server"
+#~ msgstr "წესების სერვერზე შენახვა"
+
+#, fuzzy
+#~ msgid "Keep Tasks in Step with Microsoft To Do"
+#~ msgstr "დავალებების სინქრონიზაცია Microsoft To Do-სთან"
+
+#, fuzzy
+#~ msgid "Rules stay on this computer for now: {error}"
+#~ msgstr "წესები ჯერჯერობით ამ კომპიუტერზე რჩება: {error}"
+
+#, fuzzy
+#~ msgid "Rules weren't allowed on the server: {error}"
+#~ msgstr "წესები სერვერზე არ დაიშვა: {error}"
+
+#, fuzzy
+#~ msgid "Tasks weren't allowed to be kept in step: {error}"
+#~ msgstr "დავალებების სინქრონიზაცია არ დაიშვა: {error}"
+
+#, fuzzy
+#~ msgid "The colour is set in Outlook"
+#~ msgstr "ფერი Outlook-ში არის დაყენებული"
+
+#, fuzzy
+#~ msgid "This account doesn't keep its rules on its server"
+#~ msgstr "ეს ანგარიში თავის წესებს სერვერზე არ ინახავს"
+
+#, fuzzy
+#~ msgid ""
+#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
+#~ msgstr ""
+#~ "ანგარიშის {address} ავტომატური პასუხების შესაცვლელად MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+#~ "\n"
+#~ "ამით MailCraft ცვლის მხოლოდ თქვენს ავტომატურ პასუხებს და შემოსულების წესებს, არასოდეს თქვენს კატეგორიებს ან სამუშაო საათებს. ავტომატური პასუხების წაკითხვას ეს არ სჭირდება."
+
+#, fuzzy
+#~ msgid ""
+#~ "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
+#~ msgstr ""
+#~ "ანგარიშის {address} წესების მის სერვერზე შესანახად, სადაც ისინი MailCraft-ის დახურვისასაც სრულდება და ჩანს Outlook-ის ვებვერსიაში და თქვენს ტელეფონზე, MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად, სადაც Microsoft წესებს ინახავს. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+#~ "\n"
+#~ "სანამ ამას დაუშვებთ, თქვენი წესები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს."
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"
+#~ msgstr "თქვენი ორგანიზაცია MailCraft-ს არ აძლევს წესების სერვერზე შენახვის ნებას"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to keep tasks in step with Microsoft To Do"
+#~ msgstr "თქვენი ორგანიზაცია MailCraft-ს არ აძლევს დავალებების Microsoft To Do-სთან სინქრონიზაციის ნებას"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't let MailCraft change automatic replies"
+#~ msgstr "თქვენი ორგანიზაცია MailCraft-ს არ აძლევს ავტომატური პასუხების შეცვლის ნებას"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve MailCraft changing automatic replies once: File › Info"
+#~ msgstr "თქვენი ორგანიზაციის ადმინისტრატორმა ერთხელ უნდა დაამტკიცოს, რომ MailCraft ავტომატურ პასუხებს ცვლიდეს: ფაილი › ინფორმაცია"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve keeping rules on the server once: File › Info"
+#~ msgstr "თქვენი ორგანიზაციის ადმინისტრატორმა ერთხელ უნდა დაამტკიცოს წესების სერვერზე შენახვა: ფაილი › ინფორმაცია"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve keeping tasks in step with Microsoft To Do once: File › Info"
+#~ msgstr "თქვენი ორგანიზაციის ადმინისტრატორმა ერთხელ უნდა დაამტკიცოს დავალებების Microsoft To Do-სთან სინქრონიზაცია: ფაილი › ინფორმაცია"
 
 #, fuzzy
 #~ msgid "A sign-in is already open."
