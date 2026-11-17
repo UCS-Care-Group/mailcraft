@@ -1,11 +1,13 @@
-# The fuzz targets (fuzz/): a minute each on every hostile-input reader, when a pull request
-# changes one of them, and every week. A crash leaves the input that made it as an artifact;
+# The fuzz targets (fuzz/): a minute each on every hostile-input reader every week, and on a pull
+# request only the targets whose reader it changes (`pick`: a target's own crates, its file in
+# fuzz/fuzz_targets; fuzz/'s manifests or this file run them all, and so does a target `pick`
+# doesn't know). A crash leaves the input that made it as an artifact;
 # reproduce with `cargo +nightly fuzz run <target> <file>`. (`--target`: the cargo-fuzz CI installs is built for musl, which sanitizers refuse.)
 name: Fuzz
 
 on:
   pull_request:
-    paths: [fuzz/**, crates/assuan/**, crates/ber/**, crates/dav/**, crates/charset/**, crates/engine/**, crates/ews/**, crates/html/**, crates/i18n/**, crates/ical/**, crates/jmap/**, crates/link/**, crates/mime/**, crates/mime-model/**, crates/model/**, crates/proto/**, crates/openpgp/**, crates/pst/**, crates/smime/**, crates/vcard/**]
+    paths: [fuzz/**, crates/assuan/**, crates/ber/**, crates/dav/**, crates/charset/**, crates/engine/**, crates/ews/**, crates/html/**, crates/i18n/src/**, .github/workflows/fuzz.yml, crates/ical/**, crates/jmap/**, crates/link/**, crates/mime/**, crates/mime-model/**, crates/model/**, crates/proto/**, crates/openpgp/**, crates/pst/**, crates/smime/**, crates/vcard/**]
   schedule:
     - cron: '17 4 * * 1'
   workflow_dispatch:
@@ -15,20 +17,79 @@ permissions:
 
 concurrency:
   group: fuzz-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Which targets this run fuzzes: all of them, except on a pull request.
+  pick:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      targets: ${{ steps.pick.outputs.targets }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          all="assuan dav_xml dav_answers dav_discovery dav_document mime html sheet ical vcard charset link imap smtp po jmap_address jmap_discovery jmap_response jmap_session ews ews_autodiscover ews_ntlm pst rtf mailbox_file header_block openpgp smime pkcs12"
+          paths_of() {
+            case "$1" in
+              assuan) echo crates/assuan/ ;;
+              charset) echo crates/charset/ ;;
+              dav_discovery) echo crates/dav/ crates/model/ ;;
+              dav_*) echo crates/dav/ ;;
+              ews*) echo crates/ews/ ;;
+              header_block) echo crates/model/ ;;
+              html) echo crates/html/ crates/mime-model/ ;;
+              sheet) echo crates/html/ ;;
+              ical) echo crates/ical/ ;;
+              vcard) echo crates/vcard/ ;;
+              link) echo crates/link/ ;;
+              imap|smtp) echo crates/proto/ ;;
+              po) echo crates/i18n/src/ ;;
+              jmap_*) echo crates/jmap/ ;;
+              pst|rtf) echo crates/pst/ ;;
+              mailbox_file) echo crates/engine/ crates/model/ ;;
+              mime) echo crates/mime/ crates/mime-model/ ;;
+              openpgp) echo crates/openpgp/ crates/ber/ ;;
+              smime) echo crates/smime/ crates/model/ crates/ber/ ;;
+              pkcs12) echo crates/smime/ crates/ber/ ;;
+              *) echo / ;; # ponytail: a target not listed here runs on any change; add its crates
+            esac
+          }
+          if [ "$EVENT" != pull_request ]; then picked="$all"; else
+            files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
+            picked=""
+            for t in $all; do
+              hit=""
+              if printf '%s\n' "$files" | grep -qxE "fuzz/Cargo\.(toml|lock)|\.github/workflows/fuzz\.yml|fuzz/fuzz_targets/$t\.rs"; then hit=1; fi
+              for p in $(paths_of "$t"); do
+                if [ "$p" = / ] || printf '%s\n' "$files" | grep -q "^$p"; then hit=1; fi
+              done
+              [ -n "$hit" ] && picked="$picked $t"
+            done
+          fi
+          echo "targets=$(printf '%s\n' $picked | jq -Rnc '[inputs | select(length > 0)]')" >> "$GITHUB_OUTPUT"
+          echo "Fuzzing:${picked:- nothing}"
+
   fuzz:
+    needs: pick
+    if: needs.pick.outputs.targets != '[]'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        target: [assuan, dav_xml, dav_document, mime, html, sheet, ical, vcard, charset, link, imap, smtp, po, jmap_address, jmap_discovery, jmap_session, jmap_response, ews, ews_autodiscover, ews_ntlm, pst, rtf, mailbox_file, header_block, openpgp, smime, pkcs12]
+        target: ${{ fromJSON(needs.pick.outputs.targets) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: nightly
       - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1

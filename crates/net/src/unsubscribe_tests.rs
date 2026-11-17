@@ -7,7 +7,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use super::{Limits, Reach, unsubscribe, unsubscribe_with};
+use super::{Cancel, Limits, Reach, unsubscribe, unsubscribe_with};
 use crate::fake::FakeHttp;
 
 fn at(server: &FakeHttp) -> SocketAddr {
@@ -26,7 +26,7 @@ fn reply(status: &str, headers: &str) -> Vec<u8> {
 fn the_post_says_one_click_and_nothing_of_its_sender() {
     let server = FakeHttp::answering(reply("200 OK", "Set-Cookie: who=you\r\n"));
     let allowed = [at(&server)];
-    let reach = Reach { lookup: &|_: &str, _: u16, _: Duration| Vec::new(), stand_ins: &allowed, dial: None };
+    let reach = Reach { lookup: &|_: &str, _: u16, _: Duration, _: &Cancel| Vec::new(), stand_ins: &allowed, dial: None };
     assert_eq!(unsubscribe_with(&server.url("/u/7f3a?l=news"), &reach, &quick()), Ok(()));
     let sent = server.request(0);
     assert!(sent.starts_with("POST /u/7f3a?l=news HTTP/1.1\r\n"), "{sent}");
@@ -40,13 +40,13 @@ fn the_post_says_one_click_and_nothing_of_its_sender() {
 fn a_redirect_is_not_followed_and_a_refusal_is_said() {
     let server = FakeHttp::answering(reply("302 Found", "Location: https://elsewhere.example/\r\n"));
     let allowed = [at(&server)];
-    let reach = Reach { lookup: &|_: &str, _: u16, _: Duration| Vec::new(), stand_ins: &allowed, dial: None };
+    let reach = Reach { lookup: &|_: &str, _: u16, _: Duration, _: &Cancel| Vec::new(), stand_ins: &allowed, dial: None };
     assert!(unsubscribe_with(&server.url("/u"), &reach, &quick()).is_err_and(|e| e.contains("302")));
     assert_eq!(server.asked(), 1, "one request, nothing followed");
 
     let server = FakeHttp::answering(reply("404 Not Found", ""));
     let allowed = [at(&server)];
-    let reach = Reach { lookup: &|_: &str, _: u16, _: Duration| Vec::new(), stand_ins: &allowed, dial: None };
+    let reach = Reach { lookup: &|_: &str, _: u16, _: Duration, _: &Cancel| Vec::new(), stand_ins: &allowed, dial: None };
     assert!(unsubscribe_with(&server.url("/u"), &reach, &quick()).is_err_and(|e| e.contains("404")));
 }
 
@@ -58,7 +58,7 @@ fn only_a_public_https_address_is_posted_to() {
     }
     // This computer, without the tests' stand-ins: never reached.
     let server = FakeHttp::answering(reply("200 OK", ""));
-    let reach = Reach { lookup: &|_: &str, _: u16, _: Duration| Vec::new(), stand_ins: &[], dial: None };
+    let reach = Reach { lookup: &|_: &str, _: u16, _: Duration, _: &Cancel| Vec::new(), stand_ins: &[], dial: None };
     assert!(unsubscribe_with(&server.url("/u"), &reach, &quick()).is_err());
     assert_eq!(server.asked(), 0);
 }

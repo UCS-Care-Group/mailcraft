@@ -35,6 +35,9 @@ fn window() -> (MailApp, Id, Id, Jobs, Held) {
     let (jobs, held): (Jobs, Held) = Default::default();
     let (log, keep) = (jobs.clone(), held.clone());
     app.services.graph = Some(Box::new(move |req: GraphRequest| {
+        // Every run, the owner's and the shared mailbox's, mail's and the calendar's: checked
+        // against the owner's sign-in before anything goes.
+        assert_eq!(req.signer.as_ref().map(|a| a.email.as_str()), Some(OWNER));
         log.lock().unwrap().push((req.account.id, req.mail.is_some(), req.directory));
         let (tx, rx) = mpsc::channel();
         if req.mail.is_some() {

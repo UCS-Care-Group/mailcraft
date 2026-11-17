@@ -36,6 +36,17 @@ internal fun formatWhen(
         .withZone(zone)
         .format(Instant.ofEpochSecond(seconds.coerceIn(MIN_SECONDS, MAX_SECONDS)))
 
+/** A message's time as a date and time in the device's language and time zone (or the ones given). */
+internal fun formatDateTime(
+    seconds: Long,
+    zone: ZoneId = ZoneId.systemDefault(),
+    locale: Locale = Locale.getDefault(),
+): String =
+    DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+        .withLocale(locale)
+        .withZone(zone)
+        .format(Instant.ofEpochSecond(seconds.coerceIn(MIN_SECONDS, MAX_SECONDS)))
+
 /** A line of text in the middle of the space it is given. */
 @Composable
 internal fun Centered(text: String, modifier: Modifier = Modifier) {
