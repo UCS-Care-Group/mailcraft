@@ -124,7 +124,8 @@ impl Session {
             return look;
         }
         // One at a time; and a Send/Receive that is about to ask Graph, or is asking, goes first.
-        if facts.busy.blocks(Start::Calendar) {
+        // A sign-in holds only its own account's calendar (below).
+        if facts.busy.blocks_every(Start::Calendar) {
             return look;
         }
         // What waits and can't be sent any more is given up before anything is sent: with a
@@ -136,6 +137,13 @@ impl Session {
         look.may_ask = true;
         let window = self.calendar_window();
         for account in self.calendar_accounts() {
+            // The account (or the owner a shared mailbox is read through) is signing in: it waits,
+            // and the wish to ask at once is kept for when it has (the others go on, #1557).
+            let signer = self.mailbox.owner_of(account).map_or(account, |owner| owner.id);
+            if facts.busy.blocks(Start::Calendar, signer) {
+                look.may_ask = false;
+                continue;
+            }
             // What is ready to go, and for how long it has been: a change gets a quiet moment.
             let ready = remote::events_waiting(self, account).due;
             // (What exactly would go: nothing, when a change was changed back; and not the very

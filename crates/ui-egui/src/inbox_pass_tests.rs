@@ -82,8 +82,10 @@ fn window(links: (bool, bool)) -> (MailApp, Id, Id, Shared) {
     let host: Shared = Default::default();
     let note = host.clone();
     app.services.graph = Some(Box::new(move |req: GraphRequest| {
-        // The owner's pass and the shared mailbox's: checked against the owner's sign-in.
-        assert_eq!(req.signer.as_ref().map(|a| a.email.as_str()), Some(OWNER));
+        // The owner's pass and the shared mailbox's: checked against the owner's sign-in (an
+        // account a test adds beside them, against its own).
+        let own = if req.account.is_shared() { OWNER } else { req.account.email.as_str() };
+        assert_eq!(req.signer.as_ref().map(|a| a.email.as_str()), Some(own));
         let mut host = note.lock().unwrap();
         let mail = req.mail.clone().unwrap_or_default();
         let (account, email) = (req.account.id, req.account.email.clone());
@@ -317,6 +319,31 @@ fn the_inbox_is_checked_by_itself_every_minute_quietly() {
     assert!(app.session.sync_progress == progress && !app.session.sync_progress.running());
     assert_eq!(app.session.sync_status, "Up to date — 9:30");
     assert!(app.dialog.is_none() && app.signing_in.is_none() && app.sync_panel.is_none());
+}
+
+#[test]
+fn a_sign_in_left_open_on_one_account_holds_only_its_own_check() {
+    let (mut app, owner, shared, _) = checked_window();
+    const OTHER: &str = "lior@example.org";
+    let other = app.execute("account.add", json!({"email": OTHER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    app.tokens.insert(other, tokens());
+    seed_inbox(&mut app, other, OTHER, true);
+    let sign_in = |app: &mut MailApp, account: Id, email: &str| {
+        let oauth = app.session.mailbox.account(account).and_then(|a| a.oauth.clone()).unwrap();
+        app.begin_sign_in(account, oauth, email, String::new(), false, true).unwrap();
+        assert!(app.signing_in());
+    };
+    // The other account's page is open in the browser, and stays open: the owner's Inbox and the
+    // shared mailbox's are checked as ever (#1557).
+    sign_in(&mut app, other, OTHER);
+    assert_eq!(tick(&mut app, T0 + 60), [owner, shared]);
+    // The owner's page instead: the owner and the shared mailbox read with its sign-in wait.
+    app.execute("ui.cancelSignIn", json!({})).unwrap();
+    sign_in(&mut app, owner, OWNER);
+    assert_eq!(tick(&mut app, T0 + 125), [other]);
+    // Over: every Inbox is checked again.
+    app.execute("ui.cancelSignIn", json!({})).unwrap();
+    assert_eq!(tick(&mut app, T0 + 190), [owner, shared, other]);
 }
 
 #[test]
