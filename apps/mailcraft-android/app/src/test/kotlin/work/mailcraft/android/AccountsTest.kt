@@ -21,6 +21,7 @@ private class FakeApi : AccountsApi {
     var removable = true
     var link: String? = "https://login.example.org/organizations/v2.0/adminconsent?client_id=x"
     val signIns = mutableListOf<String>()
+    val keeps = mutableListOf<KeepChoice>()
     val grants = mutableListOf<Pair<ULong, PermissionKind>>()
     val removed = mutableListOf<ULong>()
     var cancelled = 0
@@ -29,8 +30,9 @@ private class FakeApi : AccountsApi {
     val signInResults = ArrayDeque<SignInResult>()
     var statusGate: CompletableDeferred<Unit>? = null
 
-    override suspend fun signIn(email: String): SignInResult {
+    override suspend fun signIn(email: String, keep: KeepChoice): SignInResult {
         signIns.add(email)
+        keeps.add(keep)
         val own = signInGates.removeFirstOrNull()
         val queued = signInResults.removeFirstOrNull()
         (own ?: gate)?.await()
@@ -559,5 +561,39 @@ class AccountsTest {
         api.states[PermissionKind.Tasks] = PermissionStatus.Allowed
         rig.actions.onShown(listOf(ada))
         assertEquals(PermissionStatus.Allowed, rig.ui.statuses[StatusKey(7u, PermissionKind.Tasks)])
+    }
+
+    @Test
+    fun addAccountOffersThePhonesDefaultsAndAnUntouchedFormSignsInWithThem() {
+        val rig = Rig()
+        assertEquals(KeepChoice(KeepSpan.Month1, 500L), (rig.ui.add as AddAccountState.Form).keep)
+        rig.actions.onSignIn()
+        assertEquals(listOf(KeepChoice()), rig.api.keeps)
+    }
+
+    @Test
+    fun whatTheOwnerChoseOnTheFormGoesWithTheSignInAndOutlivesATryThatFailed() {
+        val api = FakeApi().apply { signedIn = SignInResult.Declined }
+        val rig = Rig(api)
+        rig.actions.onKeepSpan(KeepSpan.Months3)
+        rig.actions.onStorage(2048L)
+        rig.actions.onSignIn()
+        val chosen = KeepChoice(KeepSpan.Months3, 2048L)
+        assertEquals(listOf(chosen), api.keeps)
+        assertEquals(chosen, (rig.ui.add as AddAccountState.Form).keep)
+        // Waiting, nothing on the form changes it.
+        api.gate = CompletableDeferred()
+        rig.actions.onSignIn()
+        rig.actions.onKeepSpan(KeepSpan.Week1)
+        assertEquals(AddAccountState.Waiting("", chosen), rig.ui.add)
+    }
+
+    @Test
+    fun theChoicesMapToTheCoresAndSayTheirSizeInWords() {
+        assertEquals(uniffi.mailcraft_mobile.KeepWindow.MONTH1, KeepSpan.Month1.toCore())
+        assertEquals(500uL, KeepChoice().toCore().storageMb)
+        assertEquals("500 MB", KeepChoice.storageLabel(EnglishTexts, 500L))
+        assertEquals("2 GB", KeepChoice.storageLabel(EnglishTexts, 2048L))
+        assertEquals(KeepSpan.entries.size, KeepSpan.entries.map { it.toCore() }.toSet().size)
     }
 }

@@ -31,7 +31,7 @@ fn session() -> Session {
     s
 }
 
-type Runner = dyn Fn(GraphRequest) -> GraphResult + Send + Sync;
+pub(crate) type Runner = dyn Fn(GraphRequest) -> GraphResult + Send + Sync;
 
 fn core_with(platform: Arc<FakePlatform>, make: impl FnOnce() -> Session + Send + 'static, runner: Arc<Runner>) -> Arc<Core> {
     Core::start_with(platform, make, SendReceive::with_runner(move |req| runner(req))).unwrap()
@@ -46,7 +46,7 @@ fn account_of(core: &Core) -> (u64, String) {
 }
 
 /// A platform that has a refresh token kept for the account, as an earlier sign-in left it.
-fn signed_in(runner: Arc<Runner>) -> (Arc<Core>, Arc<FakePlatform>, u64) {
+pub(crate) fn signed_in(runner: Arc<Runner>) -> (Arc<Core>, Arc<FakePlatform>, u64) {
     let platform = FakePlatform::new();
     let core = core_with(platform.clone(), session, runner);
     let (id, key) = account_of(&core);
@@ -97,7 +97,7 @@ fn second_run(req: &GraphRequest) -> GraphMailResult {
 
 /// A runner that brings the first download and then one new message, counting its calls and what
 /// refresh token each was given.
-fn stand_in() -> (Arc<Runner>, Arc<Mutex<Vec<String>>>) {
+pub(crate) fn stand_in() -> (Arc<Runner>, Arc<Mutex<Vec<String>>>) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let log = seen.clone();
     let runner: Arc<Runner> = Arc::new(move |req: GraphRequest| {
@@ -135,6 +135,11 @@ fn until_finished(core: &Core) -> Vec<Event> {
     loop {
         all.extend(drain(core));
         if all.iter().any(|e| matches!(e, Event::SyncFinished { .. })) {
+            // The round's end is pushed from inside the job that finished it, and the session
+            // thread pushes that job's `RevChanged` only after the job returns. A call is a job
+            // behind it, so once it has answered that push has been made.
+            let _ = block_on(core.call(|_| Ok(())));
+            all.extend(drain(core));
             return all;
         }
         assert!(Instant::now() < deadline, "the round never ended: {all:?}");
@@ -192,6 +197,55 @@ fn new_mail_notifications_can_be_switched_off_and_many_are_counted() {
     let events = until_finished(&core);
     assert!(!events.iter().any(|e| matches!(e, Event::Notification { .. })), "{events:?}");
     assert!(events.iter().any(|e| matches!(e, Event::SyncFinished { new_mail: 1, .. })));
+}
+
+#[test]
+fn the_privacy_switch_makes_a_notification_say_new_mail_and_nothing_else() {
+    let (runner, _) = stand_in();
+    let (core, _, _) = signed_in(runner);
+    core.set_notify_new_mail_only(true);
+    block_on(core.sync_now()).unwrap();
+    until_finished(&core);
+    block_on(core.sync_now()).unwrap();
+    let events = until_finished(&core);
+    let told: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Notification { notification } => Some(notification.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(told.len(), 1, "{events:?}");
+    assert_eq!((told[0].topic, told[0].title.as_str(), told[0].body.as_str()), (NotificationTopic::Mail, "New mail", ""));
+    // Nothing of the message is anywhere in what the app is told.
+    let all = format!("{told:?}");
+    assert!(!all.contains("Ada") && !all.contains("Budget"), "{all}");
+}
+
+#[test]
+fn the_primary_switch_drops_the_arrivals_gmail_put_in_other_categories() {
+    let (runner, _) = stand_in();
+    let (core, _, _) = signed_in(runner);
+    block_on(core.sync_now()).unwrap();
+    until_finished(&core);
+    let kept = block_on(core.call(|s| {
+        let ids: Vec<_> = s.mailbox.messages.keys().copied().collect();
+        let found: Vec<_> = ids
+            .iter()
+            .map(|id| mailcraft_engine::arrivals::Arrival { message: *id, account: 0, folder: 0, sender: String::new(), subject: String::new() })
+            .collect();
+        assert_eq!(crate::sync::primary_only(&s.mailbox, &found).len(), found.len(), "no category: kept");
+        for m in s.mailbox.messages.values_mut() {
+            std::sync::Arc::make_mut(m).gmail_category = Some(mailcraft_model::GmailCategory::Promotions);
+        }
+        let other = crate::sync::primary_only(&s.mailbox, &found).len();
+        for m in s.mailbox.messages.values_mut() {
+            std::sync::Arc::make_mut(m).gmail_category = Some(mailcraft_model::GmailCategory::Primary);
+        }
+        Ok((other, crate::sync::primary_only(&s.mailbox, &found).len(), found.len()))
+    }))
+    .unwrap();
+    assert_eq!((kept.0, kept.1), (0, kept.2));
 }
 
 #[test]

@@ -474,6 +474,10 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         if picked > 1 {
                             st(ui, &tln!(picked, "{n} selected", "{n} selected"), t.text_dim);
                         }
+                        // Delayed mail waiting in an Outbox (#950): when the next goes, or that it went late.
+                        if let Some(note) = crate::send_later::status_text(app, ui.ctx()) {
+                            st(ui, &note, t.text_dim);
+                        }
                     }
                     Module::Calendar => {
                         let (from, to) = mailcraft_engine::cmd::view::calendar_range(&app.session);

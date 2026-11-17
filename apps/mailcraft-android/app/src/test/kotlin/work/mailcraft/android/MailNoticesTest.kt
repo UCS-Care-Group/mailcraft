@@ -7,6 +7,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.mailcraft_mobile.NotificationTopic
 
 /** When the right to notify is asked for, and how the core's keys become the system's numbers. */
 class MailNoticesTest {
@@ -28,6 +29,14 @@ class MailNoticesTest {
     fun nothingIsAskedWhenItIsGivenOrBeforeAndroid13() {
         assertFalse(shouldAskForNotifications(android13, hasAccount = true, askedBefore = false, granted = true))
         assertFalse(shouldAskForNotifications(android12, hasAccount = true, askedBefore = false, granted = false))
+    }
+
+    @Test
+    fun aReminderIsPostedOnlyWhileTheRemindersSwitchIsOnAndMailIsPostedEitherWay() {
+        assertTrue(postsNotification(NotificationTopic.REMINDER, remindersOn = true))
+        assertFalse(postsNotification(NotificationTopic.REMINDER, remindersOn = false))
+        assertTrue(postsNotification(NotificationTopic.MAIL, remindersOn = true))
+        assertTrue(postsNotification(NotificationTopic.MAIL, remindersOn = false))
     }
 
     @Test

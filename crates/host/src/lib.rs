@@ -8,11 +8,15 @@
 
 pub mod calendar;
 pub mod fetch;
+#[cfg(test)]
+mod fetch_tests;
 pub mod graph;
 pub mod init;
 #[cfg(test)]
 mod init_tests;
 pub mod jobs;
+#[cfg(test)]
+mod mail_scope_tests;
 pub mod platform;
 pub mod secrets;
 #[cfg(test)]
@@ -31,4 +35,6 @@ mod tasks_tests;
 
 pub use init::{Host, InitError, init, memory_budget};
 pub use platform::{NetworkState, Notification, NotificationKind, Platform, PlatformError, Redirect, Stream};
-pub use secrets::{SecretError, SecretStore, StoreTrouble, legacy_secret_key, microsoft_secret_key, secret_key};
+pub use secrets::{
+    DAV_PASSWORD, SecretError, SecretStore, StoreTrouble, dav_secret_key, dav_secret_keys, legacy_secret_key, microsoft_secret_key, secret_key,
+};
