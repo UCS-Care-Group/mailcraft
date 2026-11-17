@@ -93,7 +93,19 @@ icon brings the window back too. On Linux and FreeBSD, enabling the option takes
 a restart on Wayland: MailCraft chooses X11/XWayland only with the option on and a reachable X11
 server, because winit 0.30 cannot hide a native Wayland window. Otherwise the usual backend
 selection is kept; on native Wayland the close button exits normally.
-Unread-count badges are still absent. Desktop alerts for
+A small red circle at the top left of the tray icon indicates unread mail in the Inboxes of
+the owner’s own server accounts, following the account and folder scope of new-mail alerts.
+It clears when the last unread Inbox message is read or removed; reopening the window alone
+does not clear it. The badge works even with desktop alerts off, and is restored from the
+mailbox when the tray is enabled or the app starts. Shared mailboxes, local and imported mail,
+Archive, custom folders, Drafts, Outbox, Sent, Junk and Deleted Items do not count. Windows,
+macOS and Linux/BSD use the same artwork. Numbered unread-count badges are still absent.
+
+The generated tray icons at enlarged and 24 px sizes (artwork preview):
+
+![Plain and unread MailCraft tray icons on light and dark backgrounds](images/tray-unread-badge.png)
+
+Desktop alerts for
 reminders and for new mail go through the system's own notifications while MailCraft runs (R7.1):
 the desktop's notification service on Linux and the BSDs, toasts on Windows (for the copy the
 `.msi` installed, whose Start menu shortcut names it), the notification centre for the macOS app.
