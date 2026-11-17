@@ -28,7 +28,7 @@ fn send_mail_files_a_copy_in_sent_items_and_send_takes_drafts_only() {
     let server = StandIn::start().unwrap();
     let json = json!({"message": {"subject": "By JSON", "toRecipients": [{"emailAddress": {"address": "kit@example.org"}}]}});
     assert_eq!(send(&server, "/v1.0/me/sendMail", "application/json", &json.to_string()), 202);
-    let mime = "To: kit@example.org\r\nSubject: By MIME\r\nIn-Reply-To: <a@example.org>\r\n\r\nWords.\r\n";
+    let mime = "To: Kit <kit@example.org>\r\nSubject: By MIME\r\nIn-Reply-To: <a@example.org>\r\n\r\nWords.\r\n";
     assert_eq!(send(&server, "/v1.0/me/sendMail", "text/plain", &STANDARD.encode(mime)), 202);
     let nobody = json!({"message": {"subject": "Nobody"}});
     assert_eq!(send(&server, "/v1.0/me/sendMail", "application/json", &nobody.to_string()), 400);
@@ -36,6 +36,8 @@ fn send_mail_files_a_copy_in_sent_items_and_send_takes_drafts_only() {
     assert_eq!(server.state().mailbox.counts(&sent_items).0, 2);
     let sent: Vec<(String, String)> = server.state().sent.iter().map(|s| (s.subject.clone(), s.in_reply_to.clone())).collect();
     assert_eq!(sent, [("By JSON".to_string(), String::new()), ("By MIME".to_string(), "<a@example.org>".to_string())]);
+    // A named recipient is filed by the address alone.
+    assert_eq!(server.state().sent.get(1).map(|s| s.to.clone()), Some(vec!["kit@example.org".to_string()]));
 
     // A message that isn't a draft isn't sent; a draft is, and leaves Drafts.
     let inbox = server.state().well_known("inbox");

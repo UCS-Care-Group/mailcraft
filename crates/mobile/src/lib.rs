@@ -29,15 +29,19 @@ pub mod blocks;
 mod calendar_queries;
 mod compose;
 mod core;
+#[cfg(feature = "e2e")]
+mod e2e;
 mod error;
 mod events;
 mod fetch;
 mod fetch_api;
+mod jobs;
 mod keep;
 mod limits;
 mod links;
 mod list;
 mod message;
+mod people_tasks;
 mod pictures;
 mod platform;
 mod queries;
@@ -68,6 +72,8 @@ mod fetch_tests;
 #[cfg(test)]
 mod host_failure_tests;
 #[cfg(test)]
+mod jobs_tests;
+#[cfg(test)]
 mod junk_tests;
 #[cfg(test)]
 mod keep_tests;
@@ -77,6 +83,8 @@ mod limits_tests;
 mod links_tests;
 #[cfg(test)]
 mod list_tests;
+#[cfg(test)]
+mod people_tasks_tests;
 #[cfg(test)]
 mod pictures_tests;
 #[cfg(test)]
@@ -114,3 +122,19 @@ pub use records::*;
 pub use reminders::{MAX_SCHEDULED, MAX_SKIPPED, ReminderKind, ReminderSchedule, ScheduledReminder};
 pub use settings::{AccountSignature, DeviceSettings, KeepOfflineChange, OfflineFreed, ThinResult};
 pub use sync::{SyncAnswer, SyncStatus, SyncSummary, UnsupportedAccount};
+
+/// For the end-to-end test (MB3.15): the recipients of the messages in the Graph stand-in's Sent
+/// Items whose subject holds `subject`, as the stand-in filed them, so the test sees what the
+/// server got and parses nothing itself. Empty while there is none. Outside the `e2e` build
+/// (every build that ships) it asks nothing and says so; it is exported there only so that the
+/// instrumented test compiles in every build.
+#[uniffi::export]
+pub fn stand_in_sent_to(subject: String) -> Result<Vec<String>, CoreError> {
+    #[cfg(feature = "e2e")]
+    return e2e::sent_to(&subject);
+    #[cfg(not(feature = "e2e"))]
+    {
+        let _ = subject;
+        Err(CoreError::Failed { reason: "not an end-to-end build".into() })
+    }
+}
