@@ -41,7 +41,11 @@ const KEYED: &[(&str, &str)] = &[
 /// on by digest (`.github/workflows/android.yml`, docs/releasing.md). These commands, exactly, and
 /// nothing else built: cargo, a toolchain and every other program stay refused there too.
 const PLAY_SECRET: &str = "PLAY_SERVICE_ACCOUNT_JSON";
-const UPLOADER_RUNS: &[&str] = &["chmod +x uploader/xtask", "uploader/xtask play-upload"];
+/// The uploader's commands, word for word: the program at exactly this path (or `./` and this
+/// path) and exactly this subcommand. A word is what stands between spaces, so `/tmp/uploader/xtask`
+/// or `play-upload-other` is another word and stays refused.
+const UPLOADER_RUNS: &[&[&str]] = &[&["chmod", "+x", UPLOADER], &[UPLOADER, "play-upload"]];
+const UPLOADER: &str = "uploader/xtask";
 
 /// Commands that compile or set up a compiler.
 const BUILD_WORDS: &[&str] = &["cargo", "rustup", "rustc", "trunk", "cross"];
@@ -143,9 +147,7 @@ pub fn check(file: &str, text: &str) -> Vec<String> {
         let mut found = Vec::new();
         for (number, mut command) in commands(job) {
             if play_only {
-                for allowed in UPLOADER_RUNS {
-                    command = command.replace(allowed, "");
-                }
+                command = without_uploader_runs(&command);
             }
             if let Some(what) = builds_or_runs(&command) {
                 found.push((number, what));
@@ -346,6 +348,28 @@ fn commands(lines: &[Line]) -> Vec<(usize, String)> {
         open = continues;
     }
     out
+}
+
+/// The command with each whole-word run of the uploader ([`UPLOADER_RUNS`]) taken out, for the
+/// other checks to read what is left. Words are split at white space and compared whole, so
+/// nothing that merely contains the uploader's path or subcommand is taken out.
+fn without_uploader_runs(command: &str) -> String {
+    let words: Vec<&str> = command.split_whitespace().collect();
+    let same = |word: &str, want: &str| word == want || (want == UPLOADER && word.strip_prefix("./") == Some(UPLOADER));
+    let mut kept = Vec::with_capacity(words.len());
+    let mut at = 0;
+    while let Some(word) = words.get(at) {
+        let run =
+            UPLOADER_RUNS.iter().find(|run| words.get(at..at + run.len()).is_some_and(|got| got.iter().zip(run.iter()).all(|(g, w)| same(g, w))));
+        match run {
+            Some(run) => at += run.len(),
+            None => {
+                kept.push(*word);
+                at += 1;
+            }
+        }
+    }
+    kept.join(" ")
 }
 
 /// What in this command compiles or runs a built program, if anything.

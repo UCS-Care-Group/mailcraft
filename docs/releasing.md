@@ -267,8 +267,12 @@ The same version tag builds the Android app (`.github/workflows/android.yml`, ca
 `release.yml` beside `package.yml`). It has the desktop's shape:
 
 1. **Build, no secrets.** cargo-ndk builds the Rust library, Gradle makes the unsigned release APK
-   and AAB (`versionName` is the tag's version; `versionCode` is `major*10000 + minor*100 + patch`,
-   so it only rises while minor and patch stay under 100), and the files are handed on by digest.
+   and AAB (`versionName` is the tag's version; `versionCode` comes from `cargo xtask version-code`:
+   `major*1000000 + minor*10000 + patch*100 + N`, N being a release candidate's number, 1 to 98,
+   and 99 for the release, so `1.2.3-rc.1` < `1.2.3-rc.2` < `1.2.3` each have their own code and
+   Play takes them in turn; minor and patch stay under 100, major under 2100, and a version
+   without a code, another kind of prerelease among them, stops the build), and the files are
+   handed on by digest.
 2. **Sign, in the `release` environment, for a pushed version tag only.** The job checks the
    digest, decodes the upload keystore into the runner's temp folder, signs the APK (`zipalign`
    with 16 KB alignment, `apksigner`) and the AAB (`jarsigner`) with the Android SDK's own tools,

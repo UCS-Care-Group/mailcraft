@@ -285,9 +285,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The desktop and web files by name, never release-android: an Android run that failed after
+      # its sign job uploaded that artifact must not put the APK (or its list, with no digest to
+      # check it against) into the release.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: release-*
+          pattern: release-{windows-*,macos,linux-*,flatpak-*,freebsd-*,web}
+          path: artifacts
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.android.result == 'success' && needs.android.outputs.digest != ''
+        with:
+          name: release-android
           path: artifacts
           merge-multiple: true
       - name: The files are the ones their jobs made

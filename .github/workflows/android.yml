@@ -65,23 +65,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - id: v
-        name: Version and version code
-        run: |
-          . packaging/env.sh
-          # 1.2.3 (or 1.2.3-rc.1) -> 10203: Play wants a code that only ever rises.
-          core="${VERSION%%-*}"
-          IFS=. read -r major minor patch <<<"$core"
-          code=$((major * 10000 + minor * 100 + patch))
-          if [ "$minor" -gt 99 ] || [ "$patch" -gt 99 ]; then
-            echo "::error::version $VERSION doesn't fit the version code (minor and patch under 100)"
-            exit 1
-          fi
-          { echo "version=$VERSION"; echo "code=$code"; } >>"$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
           targets: aarch64-linux-android,x86_64-linux-android
+      - id: v
+        name: Version and version code
+        run: |
+          set -euo pipefail
+          . packaging/env.sh
+          # Each version its own code, rising in release order (1.2.3-rc.1 < 1.2.3-rc.2 < 1.2.3):
+          # worked out and tested in one place, xtask/src/version_code.rs. A version without one
+          # (another kind of prerelease, a number too big) stops the build here.
+          code="$(cargo xtask version-code "$VERSION")"
+          { echo "version=$VERSION"; echo "code=$code"; } >>"$GITHUB_OUTPUT"
       - name: Android SDK pieces the app is built with
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null

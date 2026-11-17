@@ -22,6 +22,7 @@ mod spdx;
 mod stats;
 mod test_files;
 mod version;
+mod version_code;
 mod wasm_clock;
 mod workflows;
 
@@ -56,6 +57,8 @@ commands:
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
   icon            render the app icon (assets/app-icon/source/mailcraft.svg) in every size into assets/app-icon
   version [...]   show or set the workspace version
+  version-code [X.Y.Z[-rc.N]]
+                  the Android version code of that version (default: the workspace's)
   release-notes [--write]
                   print the release notes with the fragments in packaging/release-notes.d/ joined in;
                   --write (before tagging) joins them into packaging/release-notes.md and removes them
@@ -92,6 +95,7 @@ fn main() -> ExitCode {
         Some("ico") => ico::run(&rest),
         Some("icon") => icon::run(&root()),
         Some("version") => version::run(&root(), &rest),
+        Some("version-code") => version_code::run(&root(), &rest),
         Some("release-notes") => release_notes::run(&root(), rest.contains(&"--write")),
         Some("docs-log") => docs_log::run(&root(), &rest),
         Some("release-key") => release_key::run(&rest),
