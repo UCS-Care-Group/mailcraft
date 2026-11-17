@@ -31,7 +31,7 @@ fn a_call_that_waits_for_a_message_when_the_core_shuts_down_ends_and_does_not_wa
     let (tx, rx) = std::sync::mpsc::channel();
     let asking = core.clone();
     std::thread::spawn(move || {
-        let _ = tx.send(block_on(asking.fetch_attachment(m1, 0)));
+        let _ = tx.send(block_on(asking.attachment(m1, 0)));
     });
     let answer = rx.recv_timeout(Duration::from_secs(5)).expect("the call waits for ever");
     assert!(matches!(answer, Err(CoreError::Cancelled)), "{answer:?}");
@@ -150,10 +150,15 @@ fn an_attachment_is_never_read_from_another_mailbox_than_the_one_it_was_asked_in
     let opening = s.openings();
     let m1 = s.mailbox.messages.values().find(|m| m.server.as_ref().is_some_and(|sv| sv.id == "m1")).map(|m| m.id).unwrap();
     // The same mailbox: the message is looked at (and has no such attachment).
-    assert!(matches!(crate::fetch_api::attachment_in(&s, m1, 0, opening), Err(e) if !matches!(e, CoreError::Cancelled)));
+    assert!(
+        matches!(crate::fetch_api::in_opening(&s, opening, |s| crate::attachments::read_in(s, m1, 0, usize::MAX, None)), Err(e) if !matches!(e, CoreError::Cancelled))
+    );
     // Another mailbox is opened (File › Open) while the call waited.
     s.replace_mailbox(Mailbox::with_local_account("", ""));
-    assert!(matches!(crate::fetch_api::attachment_in(&s, m1, 0, opening), Err(CoreError::Cancelled)));
+    assert!(matches!(
+        crate::fetch_api::in_opening(&s, opening, |s| crate::attachments::read_in(s, m1, 0, usize::MAX, None)),
+        Err(CoreError::Cancelled)
+    ));
 }
 
 #[test]

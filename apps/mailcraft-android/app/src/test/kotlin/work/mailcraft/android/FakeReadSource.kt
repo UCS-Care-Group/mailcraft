@@ -1,11 +1,27 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
+@file:Suppress("MaxLineLength")
+
 package work.mailcraft.android
 
-/** A read source over invented messages that records what it is asked, for the tests. */
+/** A read source over invented messages that records what it is asked, for the tests. No network, ever. */
 internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
     val opened = mutableListOf<Triple<ULong, Int, Boolean>>()
+    val downloads = mutableListOf<String>()
+    val senderDownloads = mutableListOf<String>()
     val marked = mutableListOf<ULong>()
+    val parts = mutableMapOf<String, ByteArray>()
+    var dataSaver = false
+    var factsAnswer: MessageFacts? = MessageFacts("ada@example.org", junk = false, vouched = true, known = true)
+
+    /** The facts of particular messages, where they differ from [factsAnswer]. */
+    val factsById = mutableMapOf<ULong, MessageFacts?>()
+    var onDownload: suspend () -> Unit = {}
+    var onSenderDownload: suspend () -> Unit = {}
+
+    /** What a download of an address gives; a missing address is refused. */
+    val web = mutableMapOf<String, ByteArray>()
+    val senderWeb = mutableMapOf<String, ByteArray>()
     var marks = true
 
     override suspend fun open(id: ULong, widthDp: Int, dark: Boolean): OpenedMessage? {
@@ -13,8 +29,39 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
         return message
     }
 
+    override suspend fun part(id: ULong, reference: String): ByteArray? = parts[reference]
+
+    /** The signal each download was given. */
+    val stops = mutableListOf<Stop>()
+
+    override suspend fun download(url: String, stop: Stop): Fetched {
+        stops += stop
+        onDownload()
+        downloads += url
+        return web[url]?.let { Fetched.Got(it) } ?: Fetched.Refused("it is no longer there (404)")
+    }
+
+    override suspend fun facts(id: ULong): MessageFacts? = if (id in factsById) factsById[id] else factsAnswer
+
+    override fun senderPlaces(address: String): List<String> =
+        listOf("https://gravatar.example/avatar/${address.hashCode()}", "https://favicon.example/${address.substringAfter('@')}")
+
+    override suspend fun downloadSender(url: String): Fetched {
+        senderDownloads += url
+        onSenderDownload()
+        return senderWeb[url]?.let { Fetched.Got(it) } ?: Fetched.Refused("404")
+    }
+
     override suspend fun markRead(id: ULong): Boolean {
         marked += id
         return marks
+    }
+
+    /** Runs while a data-saving query is on its way (the real one suspends on another thread). */
+    var onDataSaving: suspend () -> Unit = {}
+
+    override suspend fun dataSaving(): Boolean {
+        onDataSaving()
+        return dataSaver
     }
 }

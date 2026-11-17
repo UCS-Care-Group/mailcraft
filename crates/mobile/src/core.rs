@@ -20,6 +20,7 @@ use crate::keep::Keep;
 use crate::platform::{Native, NetworkKind, Platform};
 use crate::queue::Queue;
 use crate::records::{LinkKind, LinkTarget};
+use crate::reminders::ScheduleWatch;
 use crate::sync::{FIRST_WAIT, SyncHost, follow_time_zone};
 use crate::{CoreError, DataRemoved, HostError, android};
 
@@ -122,7 +123,7 @@ pub struct Core {
     waiting: Arc<Waiting>,
     /// This core's entry in [`BUDGETS`], when its device gave a budget.
     budget_id: Option<u64>,
-    events: Arc<Queue<Event>>,
+    pub(crate) events: Arc<Queue<Event>>,
     pub(crate) platform: Arc<dyn Platform>,
     /// The same platform as the host sees it: what the sign-in code of `mailcraft-host` is given.
     pub(crate) native: Arc<Native>,
@@ -384,6 +385,8 @@ fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink:
     };
     let _ = ready.send(true);
     let mut last = session.rev();
+    let mut reminders = ScheduleWatch::default();
+    let _ = catch_unwind(AssertUnwindSafe(|| reminders.changed(&session)));
     let mut wait: Option<std::time::Duration> = None;
     loop {
         let job = match wait {
@@ -397,6 +400,9 @@ fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink:
                 Err(_) => break,
             },
         };
+        if job.is_some() {
+            let _ = catch_unwind(AssertUnwindSafe(|| reminders.before_job(&session)));
+        }
         // (A job catches its own panic; this is for what it does outside it.)
         if let Some(job) = job
             && catch_unwind(AssertUnwindSafe(|| job(&mut session))).is_err()
@@ -407,6 +413,9 @@ fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink:
         if now != last {
             last = now;
             sink.push(Event::RevChanged { rev: now });
+            if catch_unwind(AssertUnwindSafe(|| reminders.changed(&session))).unwrap_or(false) {
+                sink.push(Event::ReminderScheduleChanged);
+            }
         }
         wait = keep.and_then(|k| catch_unwind(AssertUnwindSafe(|| k.after_job(&session))).unwrap_or(None));
     }
@@ -597,7 +606,7 @@ impl Core {
 
 /// What the owner is told when the list of the sign-ins kept was damaged and set aside.
 pub(crate) fn may_remain(lang: Lang) -> String {
-    lang.t("The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them.").to_string()
+    lang.t("The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. The phone's own settings for MailCraft let you clear what it keeps.").to_string()
 }
 
 impl Drop for Core {

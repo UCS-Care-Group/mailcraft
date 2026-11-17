@@ -40,3 +40,41 @@ proptest! {
         let _ = by_autodiscover(&hosts);
     }
 }
+
+#[test]
+fn icloud_and_fastmail_have_dav_hosts_and_nobody_else_does() {
+    let icloud = dav_by_domain("ICloud.com").unwrap();
+    assert_eq!((icloud.caldav, icloud.carddav), ("https://caldav.icloud.com/", "https://contacts.icloud.com/"));
+    assert_eq!(dav_by_domain("me.com"), Some(icloud));
+    assert_eq!(dav_by_imap_host("imap.mail.me.com"), Some(icloud));
+    let fastmail = dav_by_domain("fastmail.com").unwrap();
+    assert_eq!((fastmail.caldav, fastmail.carddav), ("https://caldav.fastmail.com/", "https://carddav.fastmail.com/"));
+    assert_eq!(dav_by_imap_host("imap.fastmail.com."), Some(fastmail));
+    for other in ["gmail.com", "example.org", "evilicloud.com", "", "icloud.com.example.org"] {
+        assert_eq!(dav_by_domain(other), None, "{other}");
+    }
+    assert_eq!(dav_by_imap_host("imap.example.org"), None);
+}
+
+#[test]
+fn a_provider_s_password_goes_to_its_own_dav_hosts_only() {
+    let icloud = dav_by_domain("icloud.com").unwrap();
+    for host in ["caldav.icloud.com", "contacts.icloud.com", "p07-caldav.icloud.com", "P123-contacts.icloud.com", "p7-caldav.icloud.com."] {
+        assert!(icloud.trusts(host), "{host}");
+    }
+    for host in [
+        "icloud.com",
+        "www.icloud.com",
+        "p-caldav.icloud.com",
+        "pxx-caldav.icloud.com",
+        "p07-caldav.icloud.com.evil.example",
+        "caldav.fastmail.com",
+        "p07-carddav.icloud.com",
+        "evil-p07-caldav.icloud.com",
+    ] {
+        assert!(!icloud.trusts(host), "{host}");
+    }
+    let fastmail = dav_by_domain("fastmail.com").unwrap();
+    assert!(fastmail.trusts("caldav.fastmail.com") && fastmail.trusts("carddav.fastmail.com"));
+    assert!(!fastmail.trusts("p07-caldav.fastmail.com") && !fastmail.trusts("caldav.icloud.com") && !fastmail.trusts("imap.fastmail.com"));
+}

@@ -35,4 +35,6 @@ mod tasks_tests;
 
 pub use init::{Host, InitError, init, memory_budget};
 pub use platform::{NetworkState, Notification, NotificationKind, Platform, PlatformError, Redirect, Stream};
-pub use secrets::{SecretError, SecretStore, StoreTrouble, legacy_secret_key, microsoft_secret_key, secret_key};
+pub use secrets::{
+    DAV_PASSWORD, SecretError, SecretStore, StoreTrouble, dav_secret_key, dav_secret_keys, legacy_secret_key, microsoft_secret_key, secret_key,
+};

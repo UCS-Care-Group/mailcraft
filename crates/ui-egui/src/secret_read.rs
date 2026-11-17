@@ -27,13 +27,13 @@ use super::{Id, MailApp, SecretStore, StoreTrouble};
 pub(crate) struct SecretRead {
     /// Each key asked for, with what was found under it (nothing when it isn't there or the
     /// store refused).
-    answers: Vec<(String, Option<String>)>,
+    pub(crate) answers: Vec<(String, Option<String>)>,
     /// The new names of secrets moved from their old names.
-    moved: Vec<String>,
+    pub(crate) moved: Vec<String>,
     /// Whether the move from the old names was part of it.
-    migrated: bool,
+    pub(crate) migrated: bool,
     /// Why the store couldn't be used, when it said.
-    trouble: Option<StoreTrouble>,
+    pub(crate) trouble: Option<StoreTrouble>,
 }
 
 /// One key to read, and the old name to move a secret from first.
@@ -116,6 +116,7 @@ impl MailApp {
     /// Once a frame: take in what the read brought, and start the read for a mailbox that has
     /// not had one (and again when remembering is switched on).
     pub(crate) fn secrets_tick(&mut self) {
+        self.poll_dav_forgetting();
         self.poll_secret_read();
         if self.secret_read.is_some() || self.data_removed || self.unconfirmed || self.services.secrets.is_none() {
             return;
@@ -143,8 +144,13 @@ impl MailApp {
         if opening == self.session.openings()
             && let Some(brought) = brought
         {
+            // (A calendar and contacts server's password is read where it is used. One that a read
+            // brings anyway, started before its settings changed, is let go if no account's
+            // settings give that name any more.)
+            let dav_now: std::collections::HashSet<String> = self.session.mailbox.accounts.iter().flat_map(Self::dav_secret_keys).collect();
             for (key, secret) in brought.answers {
-                if let Some(secret) = secret {
+                let stale = key.starts_with(mailcraft_host::secrets::DAV_PASSWORD) && !dav_now.contains(&key);
+                if let Some(secret) = secret.filter(|_| !stale) {
                     // Noted, as one written here is, so that Remove all data finds it whichever
                     // mailbox is open then (AU3-18).
                     self.index_secret_key(key.clone());

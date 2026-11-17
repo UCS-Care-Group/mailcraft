@@ -87,7 +87,7 @@ fn failure(error: PictureError) -> Failure {
         PictureError::TooLarge => Failure::TooLarge,
         PictureError::TimedOut => Failure::TimedOut,
         PictureError::Packed => Failure::Packed,
-        PictureError::Net(_) => Failure::Network,
+        PictureError::Net(_) | PictureError::Cancelled => Failure::Network,
     }
 }
 
@@ -120,7 +120,7 @@ pub(crate) fn fetch_with(address: &str, etag: &str, last_modified: &str, reach: 
         // told what it said about its file.
         let asking_back = !marks.is_empty() && at.host.eq_ignore_ascii_case(&first.host) && at.port == first.port;
         let sent = Sent { accept: ACCEPT, extra: if asking_back { &marks } else { "" } };
-        let answer = pictures::ask_with(&at, reach, limits, left, deadline, None, &sent).map_err(failure)?;
+        let answer = pictures::ask_with(&at, reach, limits, left, deadline, None, &sent, &pictures::Cancel::new()).map_err(failure)?;
         match answer.status {
             200 => {
                 let body = match &answer.said.coding {

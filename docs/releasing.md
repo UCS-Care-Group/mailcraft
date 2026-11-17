@@ -79,7 +79,9 @@ commit, or on a commit that CI never passed, stops before any signing secret is 
 merge commit of a pull request that was up to date with `main` (as the release's own pull request
 is) can be tagged as soon as it is merged: it holds the very tree the pull request's `ci-ok`
 passed on, and that check stands for it, so the release doesn't wait for CI to run again on
-`main`. Any other commit is tagged once CI on `main` is green (a documentation-only commit runs
+`main`. That holds for the release's pull request, which always runs the whole suite (it changes
+the workspace's `Cargo.toml`); a pull request that ran only the tests of the packages it changed
+(CONTRIBUTING.md › Continuous integration) is better tagged once CI on `main` has passed. Any other commit is tagged once CI on `main` is green (a documentation-only commit runs
 no `ci-ok` and can't be tagged). Building and signing are separate jobs. The Windows and macOS
 programs are compiled in jobs that hold no signing secret and name no environment
 (`package.ps1 -BuildOnly`, `package.sh --build-only`); each hands its binaries on as an artifact
