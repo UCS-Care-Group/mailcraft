@@ -6,7 +6,7 @@ use mailcraft_model::{Address, Attendee, Calendar, Event, Freq, Id, Recurrence, 
 use mailcraft_time::{Date, DateTime, Weekday};
 use serde_json::{Value, json};
 
-use super::{bad, done, fail, needs_message, remote};
+use super::{bad, fail, needs_message, remote};
 use crate::{CmdError, CmdResult, CommandSpec, Module, Session, p};
 
 #[cfg(test)]
@@ -16,14 +16,17 @@ mod invitation;
 mod invitation_tests;
 pub(crate) use invitation::{same_organizer, tidy_imported};
 mod meeting;
+mod selection;
 pub mod share;
 #[cfg(test)]
 mod share_tests;
 
 pub use meeting::teams_refusal;
+pub use selection::{delete_items, selected_items};
 
 pub fn specs() -> Vec<CommandSpec> {
     let mut specs = own_specs();
+    specs.extend(selection::specs());
     specs.extend(invitation::specs());
     specs.extend(meeting::specs());
     specs.extend(share::specs());
@@ -44,9 +47,9 @@ fn own_specs() -> Vec<CommandSpec> {
             .params(r#"{"start": "YYYY-MM-DDTHH:MM", "end"?: same (default: keep the length), "id"?: number, "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" — as for calendar.edit: with "occurrence", `start` is where the series would start, and that one occurrence moves by as much, "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent the update)}"#)
             .selection(needs_event),
         CommandSpec::new("calendar.delete", "Delete", "Appointment › Actions", delete)
-            .params(r#"{"id"?: number, "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" (only that day of a series), "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent a cancellation), "comment"?: string (a note for them), "decline"?: true (somebody else's meeting: decline it rather than only delete the owner's copy; the organizer is told when "send" is true)}"#)
+            .params(r#"{"id"?: number, "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" (only that day of a series), "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent a cancellation), "comment"?: string (a note for them), "decline"?: true (somebody else's meeting: decline it rather than only delete the owner's copy; the organizer is told when "send" is true)} — "items" deletes that set in one step (1 to 200; a day of a series needs its "day", and "scope": "series" deletes all of a series named without one); without it, Delete takes the selected set when more than one is selected, and `id` alone is always the one event it names. Answers {"deleted": n, "items": [...]}"#)
             .selection(needs_event),
-        CommandSpec::new("calendar.select", "Select Event", "Calendar", select).pure().params(r#"{"id": number | null, "day"?: "YYYY-MM-DD"} (null selects nothing; anything else that isn't an id is refused)"#),
+        CommandSpec::new("calendar.select", "Select Event", "Calendar", selection::select).pure().params(r#"{"id"?: number | null, "day"?: "YYYY-MM-DD", "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "extend"?: bool} — "items" is the typed selection: whole events, and occurrences of a series by the day the series names them by; "extend" toggles each named item in or out. `id`: null selects nothing; `id`/`day` is the older single-event selection, and replaces the typed set"#),
         CommandSpec::new("calendar.get", "Get Event", "Calendar", get).pure().params(r#"{"id"?: number}"#),
         CommandSpec::new("calendar.list", "List Events", "Calendar", list)
             .pure()
@@ -90,6 +93,14 @@ fn needs_event(s: &Session) -> Option<&'static str> {
     if s.sel.event.is_none() { Some("select an appointment first") } else { None }
 }
 
+/// Point the selection at one event, as a single-event command does: the focus is what it was
+/// before the typed selection, so any typed set goes with it (a batch sets both at its end).
+pub(super) fn focus(s: &mut Session, id: Id) {
+    s.sel.events.clear();
+    s.sel.event = Some(id);
+    s.sel.event_day = s.mailbox.event(id).map(|e| e.start.date);
+}
+
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     let id = p::id_strict(v, "id")?.or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
     s.mailbox.event(id).map(|e| e.id).ok_or_else(|| failed!("no event with id {id}", id))
@@ -101,11 +112,19 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
 fn changing(s: &Session, v: &Value) -> Result<Event, CmdError> {
     let id = target(s, v)?;
     let e = s.mailbox.event(id).cloned().ok_or_else(|| fail("the event is gone"))?;
+    may_alter(s, &e)?;
+    Ok(e)
+}
+
+/// Whether the event `e` may be changed or deleted here: refused for one in a calendar the account
+/// may only read, and for one in a copy of a calendar on the web (#209). What [`changing`] asks of
+/// one event and a batch asks of each of its items (`selection`), so that the two can't differ.
+fn may_alter(s: &Session, e: &Event) -> Result<(), CmdError> {
     // (A copy of a calendar on the web is read here, as one the account may only read is.)
-    if kept_by(s, &e).is_some() || s.mailbox.calendar(e.calendar).is_some_and(|c| c.is_subscribed()) {
+    if kept_by(s, e).is_some() || s.mailbox.calendar(e.calendar).is_some_and(|c| c.is_subscribed()) {
         writable(s, e.calendar)?;
     }
-    Ok(e)
+    Ok(())
 }
 
 /// The change to an event that was `before` is made: its server is told, when it has one.
@@ -132,17 +151,29 @@ fn own_calendar(s: &Session) -> Id {
 
 /// Which part of an event that repeats a command is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Part {
+pub(crate) enum Part {
     /// All of it (and an event that doesn't repeat is all there is of it).
     Series,
     /// The occurrence of this day.
     One(Date),
 }
 
-/// What of an event a command is about: `"scope": "occurrence"` is one occurrence, the one on
-/// the day `"occurrence"` names or else on the day that is selected; `"scope": "series"`, or
-/// neither, is all of it.
-fn part(s: &Session, e: &Event, v: &Value) -> Result<Part, CmdError> {
+/// What of an event a command is about, and the day the occurrence it names is shown on here:
+/// resolved once, by the same rules the command runs by, so that what the owner approved and
+/// what the command reaches can never be two different days.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Target {
+    pub(crate) part: Part,
+    /// The date the occurrence `Part::One` holds starts on here — the day the owner is shown
+    /// for it. `None` when the command is about the whole series.
+    pub(crate) shown: Option<Date>,
+}
+
+/// What of `e` the command `v` is about, and the day it is shown on here: `"scope":
+/// "occurrence"` is one occurrence, the one on the day `"occurrence"` names or else on the day
+/// that is selected; `"scope": "series"`, or neither, is all of it. This is the one resolution
+/// the command runs by, so a question that borrows it approves exactly what the command reaches.
+pub(crate) fn resolve_target(s: &Session, e: &Event, v: &Value) -> Result<Target, CmdError> {
     let day = p::date(v, "occurrence")?;
     let one = match p::str(v, "scope") {
         None => day.is_some(),
@@ -151,19 +182,43 @@ fn part(s: &Session, e: &Event, v: &Value) -> Result<Part, CmdError> {
         Some(_) => return Err(bad("`scope` is \"occurrence\" or \"series\"")),
     };
     if !one || e.recurrence.is_none() {
-        return Ok(Part::Series);
+        // A whole-series answer is about no occurrence of its own.
+        return Ok(Target { part: Part::Series, shown: None });
     }
     let day = day.or(s.sel.event_day.filter(|_| s.sel.event == Some(e.id)));
     let day = day.ok_or_else(|| bad("`occurrence` (a day, YYYY-MM-DD) says which occurrence is meant"))?;
+    // The same offset provider for the day's existence, the intrinsic day it resolves to and
+    // the date that occurrence is shown on: one `offset_of` call, whose closure may still read
+    // the host's changing rules.
+    let here = remote::offset_of(s);
     // The day is the one the occurrence starts on here. That is the day the series names it
     // by, but for a series that repeats in another zone on a night when the clocks change.
-    Ok(Part::One(e.series_day_on(day, &remote::offset_of(s)).unwrap_or(day)))
+    let day = e.series_day_on(day, &here).unwrap_or(day);
+    Ok(Target { part: Part::One(day), shown: day_shown_on(e, day, &here) })
 }
 
-/// Whether a series has an occurrence of its day `day` (and doesn't skip it), in the calendar
-/// of `s`.
+/// What of an event a command is about, as the command reads it.
+fn part(s: &Session, e: &Event, v: &Value) -> Result<Part, CmdError> {
+    resolve_target(s, e, v).map(|resolved| resolved.part)
+}
+
+/// The date the occurrence of the series' day `day` starts on here: what the owner is shown for
+/// it. `None` for a day the series has no occurrence on (the command refuses that itself).
+fn day_shown_on(e: &Event, day: Date, here: mailcraft_model::zoned::OffsetAt) -> Option<Date> {
+    if e.recurrence.is_none() || !happens_with_offset(e, day, here) {
+        return None;
+    }
+    Some(e.occurrence_times(day, here).0.date)
+}
+
+/// Whether a series has an occurrence of its day `day` in the calendar of `s`.
 fn happens_on(s: &Session, e: &Event, day: Date) -> bool {
-    e.occurrences_in(day.add_days(-1), day.add_days(1), &remote::offset_of(s)).iter().any(|o| o.day == day)
+    happens_with_offset(e, day, &remote::offset_of(s))
+}
+
+/// Whether a series has an occurrence of its day `day` (and doesn't skip it), by `here`.
+fn happens_with_offset(e: &Event, day: Date, here: mailcraft_model::zoned::OffsetAt) -> bool {
+    e.occurrences_in(day.add_days(-1), day.add_days(1), here).iter().any(|o| o.day == day)
 }
 
 /// How many people an account's server would write to when the event is made, changed or
@@ -472,8 +527,7 @@ fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
         let account = s.mailbox.event(id).map_or(0, |e| e.origin.account);
         remote::approve_mail(&mut s.mailbox, account, id, "", "");
     }
-    s.sel.event = Some(id);
-    s.sel.event_day = s.mailbox.event(id).map(|e| e.start.date);
+    focus(s, id);
     Ok(if kept_here { json!({"id": id, "keptHere": true}) } else { json!({"id": id}) })
 }
 
@@ -580,8 +634,7 @@ fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, changed: Ev
     if kept {
         remote::note_occurrence_changed(s, series, day, id, Event { id, ..was }, send)?;
     }
-    s.sel.event = Some(id);
-    s.sel.event_day = s.mailbox.event(id).map(|e| e.start.date);
+    focus(s, id);
     Ok(json!({"id": id, "series": series.id, "occurrence": day.iso()}))
 }
 
@@ -616,6 +669,21 @@ pub enum Mail {
 /// (`"send": true`); `None` when it would write to nobody (or would fail anyway). For whoever
 /// asks the owner first: the command itself refuses to send unasked.
 pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
+    if id == "calendar.paste" {
+        return selection::paste_mail_of(s, v);
+    }
+    // (A Delete of a typed set is asked about as the set, not as the one in focus. The route is
+    // the command's own dispatch: `items` without `id`, or no `id` at all over a non-empty typed
+    // selection. A payload the command refuses before it acts — an `ids` list, `items` beside
+    // `id` — asks about nothing; an explicit or null `id` stays the legacy one-event read.)
+    if id == "calendar.delete" {
+        if v.get("ids").is_some() || (v.get("items").is_some() && v.get("id").is_some()) {
+            return None;
+        }
+        if v.get("items").is_some() || (v.get("id").is_none() && !s.sel.events.is_empty()) {
+            return selection::items_mail_of(s, id, v);
+        }
+    }
     if matches!(id, "calendar.new" | "calendar.newMeeting") {
         let mut e = Event::default();
         apply(s, &mut e, v).ok()?;
@@ -776,11 +844,25 @@ fn move_event(s: &mut Session, v: &Value) -> CmdResult {
     if send {
         remote::approve_mail(&mut s.mailbox, before.origin.account, id, &before.origin.id, "");
     }
-    s.sel.event_day = Some(start.date);
+    focus(s, id);
     Ok(json!({"id": id}))
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
+    // A named set, even one occurrence, is one batch: an explicit `id` is always the
+    // one event it names.
+    if v.get("ids").is_some() {
+        return Err(bad("calendar items are named by `items` (a list) or by `id` (one), not by `ids`"));
+    }
+    if v.get("items").is_some() {
+        if v.get("id").is_some() {
+            return Err(bad("name the events by `items` or by `id`, not both"));
+        }
+        return selection::delete_selected(s, v);
+    }
+    if v.get("id").is_none() && !s.sel.events.is_empty() {
+        return selection::delete_selected(s, v);
+    }
     let before = changing(s, v)?;
     let id = before.id;
     if p::date(v, "occurrence")?.is_some() && before.recurrence.is_none() {
@@ -833,23 +915,6 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
         s.sel.event_day = None;
     }
     Ok(json!({"deleted": id}))
-}
-
-fn select(s: &mut Session, v: &Value) -> CmdResult {
-    // `null` selects nothing, as leaving `id` out does; an id named wrongly is refused (#553).
-    let named = if v.get("id").is_some_and(Value::is_null) { None } else { p::id_strict(v, "id")? };
-    match named {
-        Some(id) => {
-            let e = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
-            s.sel.event_day = p::date(v, "day")?.or(Some(e.start.date));
-            s.sel.event = Some(id);
-        }
-        None => {
-            s.sel.event = None;
-            s.sel.event_day = None;
-        }
-    }
-    done()
 }
 
 fn event_json(s: &Session, e: &Event) -> Value {
@@ -1092,8 +1157,7 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
         ..Default::default()
     };
     let id = s.mailbox.add_event(e)?;
-    s.sel.event = Some(id);
-    s.sel.event_day = Some(start.date);
+    focus(s, id);
     s.view.module = Module::Calendar;
     s.view.date = start.date;
     Ok(json!({"id": id}))

@@ -98,6 +98,11 @@ msgstr "A(z) „{name}” nem csak ezen a számítógépen tárolt kategória"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "\"{name}\" on {day}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "\"{name}\" will be permanently deleted."
 msgstr "A \"{name}\" véglegesen törlésre kerül."
@@ -119,6 +124,11 @@ msgstr "A \"{set}\" nem egy üzenetsorozat."
 #, fuzzy
 msgid "\"{shown}\" isn't an e-mail address"
 msgstr "A(z) „{shown}” érvénytelen e-mail-cím."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "\"{title}\" is cancelled, and can't be selected"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
@@ -379,6 +389,16 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "A naptárváltást még nem lehetett elküldeni, és újra meg kell próbálni: {error}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs
+msgid "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "A calendar that only shows when people are busy has nothing that can be deleted."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
@@ -522,6 +542,16 @@ msgstr "A {n}-embereknek legfeljebb azonnal küldünk egy találkozót."
 msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
 msgstr "Egy találkozón a naptáradban ez az azonosító van, de egy másik szervező, így ez a meghívás nem változtathat rajta."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them: the cancellation that is sent is of the meeting you organize."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -629,6 +659,11 @@ msgstr "A postafiók mentése még mindig folyamatban van: próbálja újra egy 
 #, fuzzy
 msgid "A secure connection to the server couldn't be set up. Type the server's address in Server settings."
 msgstr "A kiszolgálóhoz nem sikerült biztonságos kapcsolatot létrehozni. Írja be a szerver címét a kiszolgáló beállításaiban."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "A series and one of its days are both named; nothing was changed."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -1447,6 +1482,11 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr "Egy privát névvel jelölt találkozó csak azt mutatja, hogy elfoglalt vagy, és senki sem hív meg senkit, akit meghívnak."
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "An appointment this would move is being changed in its own window and isn't saved: nothing was moved"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
@@ -1469,6 +1509,11 @@ msgstr "Az import folyamatban van"
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
 msgstr "Egy olyan elem, amely ismétli nem lehet más naptárba így. Tartsa Ctrl másolni ezt az eseményt ott, vagy használja a Move to Calendar menüben az egész sorozat."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "An item would land where it already is; nothing was moved."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -2531,7 +2576,7 @@ msgid "By Subject"
 msgstr "Tárgy szerint"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Naptár"
@@ -3393,6 +3438,21 @@ msgid "Close to system tray"
 msgstr "Bezáráskor elrejtés a tálca értesítési területére"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Close what is open first, then copy"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Close what is open first, then cut"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Close what is open first, then paste"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Closed the page? This opens the provider's sign-in page afresh."
@@ -3634,8 +3694,8 @@ msgstr "Kimásolva. Illessze be e-mailbe vagy csevegésbe a rendszergazdájának
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "Kimásol egy rövid üzenetet annak a Microsoft-oldalnak a címével, ahol a rendszergazda az egész szervezet számára jóváhagyhatja a MailCraft használatát. A másolás nem küld üzenetet. A szöveget e-mailbe vagy csevegésbe illesztheti."
 
-#. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Másolás"
@@ -3721,6 +3781,11 @@ msgstr "Üzenet másolása a rendszergazdának"
 #, fuzzy
 msgid "Copy problems"
 msgstr "Másolási problémák"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Copy takes no parameters: it copies what is selected"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -4022,11 +4087,16 @@ msgstr "Aktuális postafiók"
 msgid "Current View"
 msgstr "Jelenlegi nézet"
 
-#. command label, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
+#. command label, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Cut"
 msgstr "Vágás"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Cut takes no parameters: it cuts what is selected"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -4143,6 +4213,11 @@ msgstr "A javaslat megszüntetése"
 #, fuzzy
 msgid "Decline and Tell the Organizer"
 msgstr "Törölje és mondja el a szervezőnek"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Decline the Others and Tell Their Organizers"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4287,6 +4362,11 @@ msgid "Delete Text"
 msgstr "A szöveg törlése"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Delete These Appointments?"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Delete This Occurrence"
@@ -4294,9 +4374,19 @@ msgstr "Az előfordulás törlése"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "Delete Your Copy of These Meetings?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Delete Your Copy of This Meeting?"
 msgstr "Törölje a találkozóról készült másolatát?"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Delete and Send Cancellations"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -9225,6 +9315,11 @@ msgid "More actions for {name}"
 msgstr "További műveletek: {name}"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "More calendar items remain in this view"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "More commands"
@@ -9323,10 +9418,20 @@ msgid "Move Rule"
 msgstr "Mozgás szabály"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Move These Appointments?"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Move Up"
 msgstr "Felfelé"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Move and Send Updates"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10713,10 +10818,20 @@ msgid "Nothing to do here."
 msgstr "Nincs itt semmi tennivaló."
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Nothing was copied or cut: copy or cut an appointment first"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "Nothing was done: what the agent asked about changed after you were asked."
 msgstr "Semmi sem történt: amit az ügynök kérdezett, megváltozott, miután téged megkérdeztek."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Nothing was done: what you were asked about has changed since. Ask again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -10933,6 +11048,11 @@ msgstr "Ha már működött, a rendszer hiteles boltja legközelebb megtartja."
 #, fuzzy
 msgid "One occurrence of a series can't be in another calendar than the rest of the series."
 msgstr "Egy sorozat egyetlen eseménye nem lehet egy másik naptárban, mint a többi sorozat."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "One occurrence of a series can't be moved to another calendar than the rest of the series. Cut the whole series, or copy this day instead."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11285,6 +11405,21 @@ msgstr "Nyitott forrás az MIT licenc vagy az Apache License 2.0 alatt, az Ön o
 #, fuzzy
 msgid "Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code."
 msgstr "Nyitott forráskód az MIT licenc vagy az Apache License 2.0 alatt, az Ön opcióján. Az interfész betűtípusok Inter, Source Sans 3 és JetBrains Mono (SIL Open Font License). Minden ikon kódolva van."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Open the Calendar first, then copy"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Open the Calendar first, then cut"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Open the Calendar first, then paste"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -11695,7 +11830,7 @@ msgid "Password:"
 msgstr "Jelszó:"
 
 #. command label, name, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paste"
 msgstr "Beillesztés"
@@ -11711,6 +11846,11 @@ msgstr "Kép beillesztése"
 #, fuzzy
 msgid "Paste or write the signature's HTML"
 msgstr "Illessze be vagy írja be az aláírás HTML-kódját"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Paste takes no parameters: it puts what was copied or cut where a time is picked"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -13782,7 +13922,7 @@ msgid "Seeing when other people are busy needs your permission: File › Info �
 msgstr "Látva, hogy más emberek elfoglalt szüksége van az engedélyedre: Fájl › Info › Csatlakoztassa naptár és kapcsolatok"
 
 #. command label, name
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Select All"
 msgstr "Az összes kiválasztása"
@@ -15243,6 +15383,11 @@ msgstr "Néhány fájl nem lett csatolva: az üzenet nem tud többet hordozni."
 msgid "Some of the search was checked on this computer"
 msgstr "A keresés egy részét ezen a számítógépen ellenőrizték."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "Some of these invite the people to a new meeting and some tell them of a change: cut them one at a time, so that each is asked about on its own. Nothing was changed."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -15993,6 +16138,11 @@ msgstr "Ez nem végezhető el."
 msgid "That could not be saved."
 msgstr "Ezt nem sikerült menteni."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "That day of the series can't be put exactly where it was asked to go; nothing was moved."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 #, fuzzy
@@ -16088,6 +16238,11 @@ msgstr "Ez nem a fájl jelszója."
 #, fuzzy
 msgid "That key is on the card already"
 msgstr "Az a kulcs már a kártyán van."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "That paste was just made, so nothing was pasted again"
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -16370,6 +16525,11 @@ msgstr "A naptárt már frissítik."
 #, fuzzy
 msgid "The calendar is being updated: try again in a moment."
 msgstr "A naptár frissítésre kerül: egy pillanat múlva újra próbálkozunk."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The calendar items this question is about can't be read, so nothing was asked or done."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -17057,6 +17217,26 @@ msgstr "A tulajdonos nem engedélyezte a frissítéseket."
 msgid "The page was closed, or five minutes went by before the sign-in was finished."
 msgstr "Az oldalt bezárták, vagy a bejelentkezés befejezése előtt öt perc telt el."
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "The paste asks for more, and this route never asks: nothing was moved"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "The paste ran, but it answered that it moved nothing"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "The paste ran, but its answer can't be counted"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "The paste ran, but its answer doesn't say how many items it moved"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
@@ -17320,6 +17500,27 @@ msgstr "A szerverben {total} mappa vannak: az egyik fut az első {max}-t olvassa
 #, fuzzy
 msgid "The server is busy. Try again in a few minutes."
 msgstr "A szerver elfoglalt. Próbálja újra néhány perc múlva."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The server of {account} sends the {n} person invited the invitation by mail."
+msgid_plural "The server of {account} sends the {n} people invited the invitation by mail."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The server of {account} tells the {n} person invited of the new time."
+msgid_plural "The server of {account} tells the {n} people invited of the new time."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The server of {account} tells the {n} person invited, so that they know it is cancelled."
+msgid_plural "The server of {account} tells the {n} people invited, so that they know it is cancelled."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17670,7 +17871,7 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "A felhasználónév túl hosszú, vagy van benne egy olyan karakter, ami nem lehet a név"
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "Az ablak még nincs felhúzva."
@@ -17760,10 +17961,20 @@ msgid "Thesaurus"
 msgstr "Szinonimaszótár"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "These are meetings somebody else organizes; you are invited to them. Deleting them takes them out of your calendar only, and the organizer is not told that you won't come. Declining them tells the organizer, if you choose."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "These are the answers this computer has been told of."
 msgstr "Ezek azok a válaszok, amelyekről a számítógépnek szóltak."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "These calendar items can't be shown to you as one batch, so nothing was asked or done."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -18140,6 +18351,13 @@ msgid "This deletes the {n} message of this conversation that is listed here. It
 msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
 msgstr[0] "A beszélgetés itt felsorolt {n} üzenete a Törölt elemek mappába kerül."
 msgstr[1] "A beszélgetés itt felsorolt {n} üzenete a Törölt elemek mappába kerül."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This deletes {n} appointment from your calendar:"
+msgid_plural "This deletes {n} appointments from your calendar:"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18607,6 +18825,18 @@ msgstr "Ezt az üzenetet véglegesen törölni kell."
 msgid "This message's Digital signature can't be checked."
 msgstr "Ez az üzenet digitális aláírása nem ellenőrizhető."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This moves {n} appointment to {when}, in {to}:"
+msgid_plural "This moves {n} appointments to {when}, in {to}:"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "This paste needs an answer from the owner first, and this command never asks: nothing was pasted"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
@@ -18720,6 +18950,11 @@ msgstr "Ezt a feladatot nem sikerült beolvasni."
 #, fuzzy
 msgid "This version of MailCraft can't search an address list"
 msgstr "A MailCraft ezen verziója nem tud címlistában keresni"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "This was copied from another mailbox than the one open now"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -18998,7 +19233,7 @@ msgid "Tomorrow"
 msgstr "Holnap"
 
 #. what a command says
-#: crates/engine/src/cmd/remote.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "Túl sok naptár változás vár, hogy küldje el a szerverre. Hagyja, hogy a Küldés / Fogadás őket át először."
@@ -19728,6 +19963,11 @@ msgid "What is bundled in this app, and under which licence"
 msgstr "Mi van ebben az alkalmazásban, és milyen licenc alatt"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "What is on the system's clipboard isn't this appointment"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "What it is made of"
@@ -19756,6 +19996,21 @@ msgstr "Teendők, ha a szervezetnek jóvá kell hagynia a MailCraft használatá
 #, fuzzy
 msgid "What to do next"
 msgstr "Mi a következő lépés?"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "What was copied has changed since; copy it again to paste it"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "What was copied or cut has no time to be pasted at"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "What was cut has changed since; copy it again to paste it"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -20638,6 +20893,11 @@ msgid "a contact's card keeps at most 32 keys"
 msgstr "a kapcsolati kártya legfeljebb 32 kulcsot tartalmaz"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "a day of the series is needed to move one of its occurrences"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox_followup.rs
 #, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
@@ -21480,7 +21740,7 @@ msgid "no calendar was opened by address"
 msgstr "cím szerint nem nyitottak meg naptárt"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "nincs ilyen azonosítójú naptár: {id}"
@@ -21492,7 +21752,7 @@ msgid "no contact with id {id}"
 msgstr "nincs ilyen azonosítójú névjegy: {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
 msgid "no event with id {id}"
 msgstr "nincs esemény id {id}"
@@ -21903,8 +22163,8 @@ msgstr "először válasszon ki egy üzenetet"
 msgid "select a task first"
 msgstr "először válasszon egy feladatot"
 
-#. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs
+#. interface, what a command says, why a command can't run
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "select an appointment first"
 msgstr "először kijelöl egy időpontot"
@@ -22048,6 +22308,11 @@ msgid "that message isn't waiting in the Outbox"
 msgstr "ez az üzenet nem vár a Postázandó üzenetek között"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "that series has no day to select"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/edit.rs
 #, fuzzy
 msgid "that step changes a message that is open for writing: close it first"
@@ -22179,6 +22444,16 @@ msgstr "a böngésző nem tudja megtartani a postafiók egy példányát: kapcso
 msgid "the browser can't read folders by path"
 msgstr "a böngésző nem tud a mappákat útirányban olvasni"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "the calendar \"{calendar}\" of {account}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "the calendar \"{calendar}\" on this computer"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
@@ -22208,6 +22483,16 @@ msgstr "a tanúsítvány a tanúsító hatóságé, nem pedig a személy nyilvá
 #, fuzzy
 msgid "the certificate isn't for mail: its key usage or extended key usage is for something else"
 msgstr "a tanúsítvány nem postai küldeményekhez készült: kulcshasználata vagy kiterjesztett kulcshasználata valami máshoz van"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the changed occurrence has no id"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the changed occurrence is gone"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -22274,6 +22559,11 @@ msgstr "a vég a kezdet előtt van"
 #, fuzzy
 msgid "the end of the time range must be after its start"
 msgstr "a határidő vége a kezdő időpont után kell legyen"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "the entire series \"{name}\""
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs
@@ -22480,10 +22770,20 @@ msgid "the network couldn't get there"
 msgstr "A csatorna nem tudott odaérni."
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the occurrence was not changed; nothing was moved"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "the parent folder belongs to another account"
 msgstr "a szülőmappa másik fiókhoz tartozik"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the pasted items would land outside the years a calendar can hold"
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/message.rs
@@ -22540,6 +22840,11 @@ msgid "the result {why}"
 msgstr "az eredmény {why}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the same calendar item is named twice; nothing was changed"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "the search can't look for this sender's address as a whole address"
@@ -22570,7 +22875,12 @@ msgid "the sender has no usable e-mail address"
 msgstr "a feladónak nincs használható e-mail-címe"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the series \"{title}\" doesn't happen on {date}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
 msgstr "a sorozatnak nincs előfordulása ezen a napon: {date}"
@@ -22964,6 +23274,11 @@ msgstr "a felhasználónév vagy jelszó olyan karakterrel rendelkezik, amelyet 
 msgid "the user name or password is too long"
 msgstr "a felhasználónév vagy jelszó túl hosszú"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "their calendar"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
@@ -23241,13 +23556,13 @@ msgid "this message isn't downloaded: open it once you're online, then send it a
 msgstr "Ez az üzenet nincs letöltve: nyissa meg, ha már online van, majd küldje el újra"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "this series has too many cancelled days"
 msgstr "Ez a sorozat túl sok törölt nap"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "Ez a sorozat túl sok változás nap"
@@ -23613,6 +23928,11 @@ msgstr "A {count} üzenetet nem kutatták át teljesen: csak a kezdetük van itt
 #, fuzzy
 msgid "{days} (all day)"
 msgstr "{days} (egész nap)"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{day} at {time}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs crates/ui-egui/src/sync_panel.rs
@@ -24122,6 +24442,13 @@ msgid_plural "{n} accounts have one"
 msgstr[0] "{n} fióknak van"
 msgstr[1] "{n} fióknak van"
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "{n} appointment"
+msgid_plural "{n} appointments"
+msgstr[0] ""
+msgstr[1] ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -24161,6 +24488,13 @@ msgid "{n} calendar item"
 msgid_plural "{n} calendar items"
 msgstr[0] "{n} naptárelem"
 msgstr[1] "{n} naptárelem"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} calendar item selected"
+msgid_plural "{n} calendar items selected"
+msgstr[0] ""
+msgstr[1] ""
 
 #. what a command says
 #: crates/engine/src/undo.rs

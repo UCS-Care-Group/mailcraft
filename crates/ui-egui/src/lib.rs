@@ -70,6 +70,8 @@ pub mod auto_replies;
 #[cfg(test)]
 mod auto_replies_tests;
 pub mod backstage;
+#[cfg(test)]
+mod calendar_clipboard_wiring_tests;
 mod calendar_sync;
 pub mod calendar_view;
 pub mod category_sync;
@@ -99,6 +101,8 @@ mod dav_secrets_tests;
 mod dialog_report_tests;
 #[cfg(test)]
 mod dialog_scrim_tests;
+#[cfg(test)]
+mod dialog_size_tests;
 pub mod dialogs;
 #[cfg(test)]
 mod draft_continue_tests;
@@ -1538,6 +1542,24 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"group": string (its heading in the list of calendars), "value"?: bool (true: folded away; default: the other way than it is)}"#,
     ),
     (
+        "ui.calendarCopy",
+        "Copy",
+        "Calendar",
+        r#"{} — Copy: the whole of what is selected in the Calendar onto the calendar's clipboard, for Paste at a picked time, leaving the items where they are. Answers {"items": n, "cut": false} and nothing else. Refused with any parameter, with no Calendar in front of the window, behind a question, File's pages or an open menu, and with nothing selected"#,
+    ),
+    (
+        "ui.calendarCut",
+        "Cut",
+        "Calendar",
+        r#"{} — Cut: the selected Calendar items onto its clipboard, left in place until Paste moves them. Answers {"items": n, "cut": true}. Refused with parameters, without the Calendar in front, behind a question, File page or menu, or with nothing selected"#,
+    ),
+    (
+        "ui.calendarPaste",
+        "Paste",
+        "Calendar",
+        r#"{} — Paste: what Copy or Cut put on the calendar's clipboard, at the time picked in the grid, moving it when it was a cut. Answers {"items": n, "cut": bool} and nothing else. Refused with any parameter, without the Calendar in front, behind a question, File page or menu, with nothing on the calendar's clipboard, with no time picked, and — since it never asks — with a paste that would ask the owner first (who is written to, or an appointment window's unsaved changes). Never for an agent"#,
+    ),
+    (
         "ui.joinMeeting",
         "Join Online Meeting",
         "Meeting › Teams Meeting",
@@ -2213,6 +2235,15 @@ impl MailApp {
             }
             None if id == "ui.copySelection" => self.text_selection.any(),
             None if id == "ui.showAttachmentMessage" => attachment_preview::can_show_message(self),
+            // The Calendar's Copy: the Calendar in front, nothing of the window's own over it, and
+            // a set to take. A hint only — `execute` runs the command without asking, so
+            // `ui.calendarCopy` itself meets every guard again, and says why it can't.
+            None if id == "ui.calendarCopy" => calendar_view::copy_ready(self),
+            // Cut stages the same selected set; it does not move or remove anything yet.
+            None if id == "ui.calendarCut" => calendar_view::copy_ready(self),
+            // Paste needs the same calendar in front, a clipboard of this mailbox whose events are
+            // still the ones it took, and a time picked to put them at. A hint only, as above.
+            None if id == "ui.calendarPaste" => calendar_view::paste_ready(self),
             None if id == "ui.openDataFolder" => self.services.data_folder.is_some() && !self.data_removed,
             None => UI_COMMANDS.iter().any(|c| c.0 == id),
         }
@@ -2301,7 +2332,7 @@ impl MailApp {
             if let Some(map) = params.as_object_mut() {
                 map.insert(send_warnings::ASKED_ABOUT.into(), asked);
             }
-            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
+            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask: Box::new(ask) });
             return Ok(json!({"pending": "confirm"}));
         }
         // What can't be taken back is asked about first, once.
@@ -2313,7 +2344,12 @@ impl MailApp {
             // What the question named is what goes ahead, though the selection changes while it
             // is open (#620).
             let params = dialogs::pin_targets(self, id, params);
-            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
+            let mut ask = ask;
+            if let Err(why) = dialogs::bind_calendar(self, id, &params, &mut ask) {
+                self.status(why.clone());
+                return Err(why);
+            }
+            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask: Box::new(ask) });
             return Ok(json!({"pending": "confirm"}));
         }
         // Check Names pressed by the owner looks names up in the address list too ([`check_names`]).
@@ -2336,6 +2372,10 @@ impl MailApp {
             },
             // Another mailbox file is read in the background, and opens once it is.
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
+            // The Calendar's Paste pressed by the owner: the window's own Paste, asking whatever a
+            // paste asks and keeping the cut with the question. The way in by `execute` is the
+            // other one, and never asks.
+            "ui.calendarPaste" => calendar_view::paste_owner(self, &params),
             _ => {
                 self.windows.place = place;
                 let r = self.execute(id, params);
@@ -5842,6 +5882,14 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                 && v.get("wait").and_then(Value::as_bool) != Some(true) =>
         {
             Some(tl!("In the Outbox: it waits for its time").to_string())
+        }
+        "calendar.selectAll" => {
+            let selected = tln!(n("selected")?, "{n} calendar item selected", "{n} calendar items selected");
+            Some(if v.get("capped").and_then(Value::as_bool) == Some(true) {
+                format!("{selected}. {}", tl!("More calendar items remain in this view"))
+            } else {
+                selected
+            })
         }
         "compose.send" if v.get("queued").and_then(Value::as_bool) == Some(true) => Some(tl!("In the Outbox: it is on its way").to_string()),
         // Mail put into a Microsoft account from elsewhere: Microsoft's server makes it without

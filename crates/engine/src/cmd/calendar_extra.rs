@@ -58,6 +58,11 @@ pub fn days_shown(s: &Session) -> i64 {
 fn copy(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::id_strict(v, "id")?.or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
     let source = s.mailbox.event(id).cloned().ok_or_else(|| failed!("no event with id {id}", id))?;
+    // A calendar that only says when its owner is busy holds blocks, not appointments: there is
+    // nothing in one to copy.
+    if s.mailbox.calendar(source.calendar).is_some_and(|c| c.rights == mailcraft_model::Rights::FreeBusy) {
+        return Err(fail("A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."));
+    }
     let start = p::datetime(v, "start")?.ok_or_else(|| bad("`start` is required"))?;
     let end = p::datetime(v, "end")?;
     let all_day = p::bool(v, "allDay").unwrap_or(source.all_day);
@@ -103,8 +108,8 @@ fn copy(s: &mut Session, v: &Value) -> CmdResult {
     };
     let made = s.mailbox.add_event(copy)?;
     remote::note_created(s, made)?;
-    s.sel.event = Some(made);
-    s.sel.event_day = Some(start.date);
+    // A copy is the selection, and it replaces whatever typed set stood before.
+    super::calendar::focus(s, made);
     Ok(json!({"id": made, "copyOf": id}))
 }
 

@@ -397,6 +397,21 @@ impl Drawn {
     }
 }
 
+/// Most distinct calendar occurrences kept in a selection or accepted by one batch command.
+pub const MAX_SELECTED_EVENTS: usize = 200;
+
+/// A calendar item: a whole nonrepeating event, or one occurrence of a series.
+///
+/// `day` is the intrinsic [`mailcraft_model::Occurrence::day`] key, not the displayed start
+/// date. The legacy [`Selection::event_day`] remains the displayed date of the focused item.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectedEvent {
+    pub id: Id,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub day: Option<Date>,
+}
+
 /// What is selected in each module.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -407,6 +422,9 @@ pub struct Selection {
     pub event: Option<Id>,
     /// The day of the selected occurrence, for an event that repeats.
     pub event_day: Option<Date>,
+    /// Distinct calendar items in selection order; the last remaining item has the focus.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub events: Vec<SelectedEvent>,
     pub task: Option<Id>,
     /// Which of the focused message's rows has the focus, for a message the list shows more than
     /// once (arranged by categories, under each of its categories): the message and the row's
@@ -1539,7 +1557,10 @@ impl Session {
             return false;
         }
         log::info!("calendar: the times of {moved} events are now by the clock of {} (they were by {stamped})", self.mailbox.zone);
-        // The day an occurrence was picked by is another day's name now.
+        // Typed keys and a recurring focus need a fresh selection in the new coordinates;
+        // an ordinary event keeps its stable identity and its rebased displayed start.
+        self.sel.events.clear();
+        self.sel.event = self.sel.event.filter(|id| self.mailbox.event(*id).is_some_and(|event| event.recurrence.is_none()));
         self.sel.event_day = self.sel.event.and_then(|id| self.mailbox.event(id)).map(|event| event.start.date);
         self.rev += 1;
         self.dirty = true;
@@ -3166,6 +3187,52 @@ impl Session {
         }
         // And its times are by the clock of the zone the calendar is shown in.
         self.settle_zone();
+        self.normalize_calendar_selection();
+    }
+
+    /// Keep instance selection and legacy focus coherent after a command or a server sweep.
+    fn normalize_calendar_selection(&mut self) {
+        if self.sel.events.is_empty() {
+            return;
+        }
+        let here = crate::cmd::remote::offset_of(self);
+        let mailbox = &self.mailbox;
+        let selection = &mut self.sel;
+        // A legacy producer focused something else: its single target replaces the old set.
+        let replaced = selection.events.last().and_then(|item| {
+            let event = mailbox.event(item.id)?;
+            let date = item.day.filter(|_| event.recurrence.is_some()).map_or(event.start.date, |day| event.occurrence_times(day, &here).0.date);
+            Some(selection.event.is_some() && (selection.event != Some(item.id) || selection.event_day.is_some_and(|day| day != date)))
+        });
+        if replaced == Some(true) {
+            selection.events.clear();
+            return;
+        }
+        selection.events.truncate(MAX_SELECTED_EVENTS);
+        let mut seen = Vec::with_capacity(selection.events.len());
+        selection.events.retain_mut(|item| {
+            let Some(event) = mailbox.event(item.id) else { return false };
+            if event.recurrence.is_none() {
+                item.day = None;
+            } else {
+                let Some(day) = item.day else { return false };
+                if !event.occurrences_in(day.add_days(-1), day.add_days(1), &here).iter().any(|occurrence| occurrence.day == day) {
+                    return false;
+                }
+            }
+            if seen.contains(item) {
+                return false;
+            }
+            seen.push(*item);
+            true
+        });
+        let focus = selection.events.last().and_then(|item| {
+            let event = mailbox.event(item.id)?;
+            let date = item.day.map_or(event.start.date, |day| event.occurrence_times(day, &here).0.date);
+            Some((item.id, date))
+        });
+        selection.event = focus.map(|(id, _)| id);
+        selection.event_day = focus.map(|(_, date)| date);
     }
 
     /// A command changed the mailbox and goes on to ask of the list (a message it brought in, to
@@ -3945,7 +4012,7 @@ impl Session {
         if let Some(reason) = (spec.enabled)(self) {
             // A command that only lacks a selection still runs on what the caller names, and on
             // what it names wrongly, which the command refuses for what it is (#553).
-            let named = spec.selection && ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some());
+            let named = spec.selection && ["id", "ids", "items", "message"].iter().any(|k| params.get(*k).is_some());
             if !named {
                 return Err(CmdError::Disabled(reason.to_string()));
             }
@@ -4195,7 +4262,18 @@ impl Session {
 /// Whether the event, contact or task `item` that `before` has is gone from `after`.
 fn gone_in(before: &Mailbox, after: &Mailbox, item: Id) -> bool {
     let there = |m: &Mailbox| m.event(item).is_some() || m.contact(item).is_some() || m.task(item).is_some();
-    there(before) && !there(after)
+    if there(before) && !there(after) {
+        return true;
+    }
+    // Cancelling or moving a day leaves its series present, but still takes away the item
+    // being edited. Protect the whole series conservatively while any of it is unsaved.
+    match (before.event(item), after.event(item)) {
+        (Some(was), Some(now)) => {
+            let skipped: HashSet<Date> = was.exceptions.iter().copied().collect();
+            now.exceptions.iter().any(|day| !skipped.contains(day)) || was.start != now.start || was.end != now.end || was.calendar != now.calendar
+        }
+        _ => false,
+    }
 }
 
 /// Whether the message being written is `before` but for where the cursor is (#494): moving it,

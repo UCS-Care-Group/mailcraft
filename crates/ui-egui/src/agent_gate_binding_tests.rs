@@ -47,6 +47,7 @@ struct Ids {
     task2: Id,
     event: Id,
     event2: Id,
+    paste_event: Id,
     rule: Id,
     calendar: Id,
 }
@@ -75,6 +76,7 @@ fn ids(a: &MailApp) -> Ids {
         task2: tasks[1],
         event: events[0],
         event2: events[1],
+        paste_event: mb.events.values().find(|e| e.recurrence.is_none()).expect("the sample has an ordinary appointment for paste").id,
         rule: mb.rules[0].id,
         calendar: mb.calendars.first().map(|c| c.id).unwrap_or(0),
     }
@@ -94,6 +96,7 @@ fn params(text: &str, i: &Ids) -> Value {
         ("$contact", i.contact),
         ("$task", i.task),
         ("$event", i.event),
+        ("$pasteEvent", i.paste_event),
         ("$rule", i.rule),
         ("$calendar", i.calendar),
     ] {
@@ -198,6 +201,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("calendar.propose", "{}", Setup::None),
     ("calendar.delete", "{}", Setup::None),
     ("calendar.deleteAnsweredRequests", "{}", Setup::None),
+    // Unlike the older calendar commands, paste never borrows its source or time from focus.
+    ("calendar.paste", r#"{"items": [{"id": $pasteEvent}], "start": "2026-12-02T09:00", "send": true}"#, Setup::None),
     ("people.meeting", r#"{"send": true}"#, Setup::None),
     // The mailbox file.
     ("file.new", "{}", Setup::None),
@@ -408,6 +413,11 @@ fn a_yes_reaches_nothing_but_what_the_question_showed_for_every_command() {
             continue;
         }
         meanwhile(&mut a, &i);
+        if id == "calendar.paste" {
+            // An explicitly pinned paste intentionally survives unrelated selection changes.
+            // Change its actual named source instead; retain the same all-or-nothing assertion.
+            a.execute("calendar.edit", json!({"id": i.paste_event, "title": "Changed while awaiting consent"})).unwrap();
+        }
         let before = a.session.mailbox.clone();
         // The question the agent asked first is the one on screen.
         answer(&mut a, true);

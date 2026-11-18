@@ -1,0 +1,901 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! The selected set of calendar items: typed selection, Select All, pasting it (a copy, or a
+//! move), and deleting it as one step.
+//!
+//! A typed item names one whole event, or one occurrence of a series by the day the series
+//! itself names it by ([`mailcraft_model::Occurrence::day`]) — never by the date it happens to be
+//! shown on here. The distinction matters for a series that repeats in another zone: across the
+//! weeks the two zones' clocks disagree, an occurrence's own day and its displayed date differ by
+//! a day, and taking the displayed date would address its neighbour.
+//!
+//! Nothing here reads a target from the current selection when the caller named one: a payload
+//! that is malformed is refused, never quietly turned into "what is selected". A batch that can't
+//! be done whole is refused whole, before anything of it is changed.
+
+use std::collections::{BinaryHeap, HashSet};
+
+use mailcraft_model::zoned::instant_at;
+use mailcraft_model::{Event, Id, Response, Rights};
+use mailcraft_time::{Date, DateTime, Timestamp};
+use serde_json::{Value, json};
+
+use crate::cmd::{bad, fail, remote};
+use crate::{CmdError, CmdResult, CommandSpec, MAX_SELECTED_EVENTS, SelectedEvent, Session, p};
+
+pub fn specs() -> Vec<CommandSpec> {
+    vec![
+        CommandSpec::new("calendar.selectAll", "Select All", "Calendar", select_all).reads().key("Mod+A").params(
+            r#"{} — every distinct appointment shown in the range in view and in the calendars shown, up to 200; answers {"selected": n, "capped": bool} (capped says the range holds more than 200)"#,
+        ),
+        CommandSpec::new("calendar.paste", "Paste", "Calendar", paste).params(
+            r#"{"items": [{"id": number, "day"?: "YYYY-MM-DD"}, …], "start": "YYYY-MM-DDTHH:MM", "cut"?: bool, "calendar"?: number, "send"?: bool} — pastes the named items at `start`: the earliest timed one there, the others by their own day and time-of-day offsets from it, whole-day ones as whole days. "cut": true moves them (a series' occurrence as that occurrence changed, never a cancellation); "calendar" is where they go (default: each one's own; a series' occurrence stays in its series' calendar). Answers {"ids": [...], "cut": bool}, the ids in the order of the items. Items are required, 1 to 200, and the same item twice is refused. "send": true is required when cutting makes the account's server write to the people invited"#,
+        ),
+    ]
+}
+
+/// How strictly a list of items is read: [`Allow::Occurrences`] needs a day for anything that
+/// repeats; [`Allow::Series`] takes a recurring item without one to mean all of it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Allow {
+    Occurrences,
+    Series,
+}
+
+/// One named item as it actually is: the event, and the occurrence it names when it repeats.
+struct Resolved {
+    /// The item as it is stored in a selection: a whole event, or a day of a series.
+    item: SelectedEvent,
+    event: Event,
+    /// When that occurrence starts and ends here; the event's own times for one that doesn't
+    /// repeat.
+    start: DateTime,
+    end: DateTime,
+}
+
+/// How a payload names what it acts on: the typed `items` list, the older single `id` (with the
+/// day it is shown on here), nothing at all — the selection stands — or, as `calendar.select`
+/// alone takes it, a null `id`, which selects nothing.
+enum Named {
+    Items(Vec<SelectedEvent>),
+    Legacy {
+        id: Id,
+        day: Option<Date>,
+    },
+    /// `"id": null`: a target form that names nothing.
+    Null,
+    /// No target form: whatever is selected.
+    Unnamed,
+}
+
+/// The target a payload names, read strictly: one form only, never `ids`, and never an id or a
+/// day beside a typed list. Nothing here falls back to the selection when a form is malformed —
+/// a payload that names something the command can't read is refused for what it is.
+fn named(v: &Value) -> Result<Named, CmdError> {
+    if !v.is_object() && !v.is_null() {
+        return Err(bad("the parameters are an object"));
+    }
+    if v.get("ids").is_some() {
+        return Err(bad("calendar items are named by `items` (a list) or by `id` (one), not by `ids`"));
+    }
+    let has_items = v.get("items").is_some();
+    let id = v.get("id");
+    // (`day`, and its older name `occurrence`, are the day of one event: beside a typed list they
+    // say nothing, and are refused rather than quietly dropped.)
+    let day = v.get("day").is_some() || v.get("occurrence").is_some();
+    if has_items && (id.is_some() || day) {
+        return Err(bad("name the calendar items by `items`, or by `id` and `day`, not both"));
+    }
+    if has_items {
+        return Ok(Named::Items(parse_items(v)?));
+    }
+    match id {
+        None if day => Err(bad("`day` is the day of the event `id` names, and no `id` was given")),
+        None => Ok(Named::Unnamed),
+        Some(Value::Null) if day => Err(bad("`id` is null, which names nothing, so `day` is no day of anything")),
+        Some(Value::Null) => Ok(Named::Null),
+        Some(_) => {
+            // (An id that isn't a whole number above 0 — `null`, a fraction, text — is refused
+            // here, never read as the selection.)
+            let id = p::id_strict(v, "id")?.ok_or_else(|| bad("`id` is null, which names nothing"))?;
+            let day = p::date(v, "day")?.or(p::date(v, "occurrence")?);
+            Ok(Named::Legacy { id, day })
+        }
+    }
+}
+
+/// The selection a batch command works on: `items` when they are given (strictly, and never
+/// falling back to the selection), else the legacy `id`/`day`, else what is selected. The typed
+/// set is read item by item; a member that no longer exists or no longer happens is refused, not
+/// dropped.
+pub fn selected_items(s: &Session, params: &Value) -> Result<Vec<SelectedEvent>, CmdError> {
+    match named(params)? {
+        Named::Items(items) => read(s, &items, Allow::Occurrences),
+        Named::Legacy { id, day } => Ok(vec![legacy_item(s, id, day)?]),
+        // `null` names nothing, and is never the selection (#553).
+        Named::Null => Err(bad("`id` is null, which names nothing")),
+        Named::Unnamed => {
+            if !s.sel.events.is_empty() {
+                return read(s, &s.sel.events, Allow::Occurrences);
+            }
+            let id = s.sel.event.ok_or_else(|| fail("select an appointment first"))?;
+            Ok(vec![legacy_item(s, id, s.sel.event_day)?])
+        }
+    }
+}
+
+/// The typed items as they are stored, in order, each resolved so that a stale member is refused.
+fn read(s: &Session, items: &[SelectedEvent], allow: Allow) -> Result<Vec<SelectedEvent>, CmdError> {
+    Ok(resolve(s, items, allow)?.into_iter().map(|r| r.item).collect())
+}
+
+/// The legacy single target as the item it names: one whole event (a series without a day is all
+/// of it, as it is for `calendar.delete` without a scope), or one occurrence when a day is given.
+fn legacy_item(s: &Session, id: Id, day: Option<Date>) -> Result<SelectedEvent, CmdError> {
+    let event = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
+    match (event.recurrence.is_some(), day) {
+        (false, _) | (true, None) => Ok(SelectedEvent { id, day: None }),
+        (true, Some(day)) => {
+            let here = remote::offset_of(s);
+            let day = event
+                .series_day_on(day, &here)
+                .ok_or_else(|| failed!("the series \"{title}\" doesn't happen on {date}", title = event.title, date = day.iso()))?;
+            occurrence_times(event, day, &here).ok_or_else(|| failed!("the series doesn't happen on {date}", date = day.iso()))?;
+            Ok(SelectedEvent { id, day: Some(day) })
+        }
+    }
+}
+
+/// A legacy focus (an event, and the date it is shown on here) as the typed item it stands for.
+fn focus_item(s: &Session, id: Id, day: Option<Date>) -> Result<SelectedEvent, CmdError> {
+    let event = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
+    if event.recurrence.is_none() {
+        return Ok(SelectedEvent { id, day: None });
+    }
+    let here = remote::offset_of(s);
+    // (`day` is the date it is shown on here; the typed day is the series' own — the one mapping
+    // that may go through the displayed date is this legacy one.)
+    let day = match day {
+        Some(day) => event
+            .series_day_on(day, &here)
+            .ok_or_else(|| failed!("the series \"{title}\" doesn't happen on {date}", title = event.title, date = day.iso()))?,
+        None => event
+            .series_days(event.start.date, event.start.date.add_days(366), &here)
+            .into_iter()
+            .find(|day| occurrence_times(event, *day, &here).is_some())
+            .ok_or_else(|| fail("that series has no day to select"))?,
+    };
+    occurrence_times(event, day, &here).ok_or_else(|| failed!("the series doesn't happen on {date}", date = day.iso()))?;
+    Ok(SelectedEvent { id, day: Some(day) })
+}
+
+/// `items` read strictly: 1 to [`MAX_SELECTED_EVENTS`] objects of `id` and an optional strict ISO
+/// `day`; nothing else, never `null` under either, and the same item never twice.
+fn parse_items(v: &Value) -> Result<Vec<SelectedEvent>, CmdError> {
+    let wrong = || bad(format!("`items` is a list of 1 to {MAX_SELECTED_EVENTS} calendar items, each {{\"id\": number, \"day\"?: \"YYYY-MM-DD\"}}"));
+    let list = v.get("items").and_then(Value::as_array).ok_or_else(wrong)?;
+    if list.is_empty() || list.len() > MAX_SELECTED_EVENTS {
+        return Err(wrong());
+    }
+    let mut out: Vec<SelectedEvent> = Vec::with_capacity(list.len());
+    for raw in list {
+        let fields = raw.as_object().ok_or_else(wrong)?;
+        if fields.keys().any(|k| k.as_str() != "id" && k.as_str() != "day") {
+            return Err(bad("a calendar item is {\"id\": number, \"day\"?: \"YYYY-MM-DD\"}, and nothing else"));
+        }
+        let id = p::id(raw, "id").ok_or_else(|| bad("`items[*].id` is an id: a whole number above 0"))?;
+        let day = match raw.get("day") {
+            None => None,
+            Some(Value::String(text)) if text.trim().is_empty() => return Err(bad("`items[*].day` is a date like 2026-10-11")),
+            Some(Value::String(_)) => p::date(raw, "day")?,
+            Some(_) => return Err(bad("`items[*].day` is a date like 2026-10-11")),
+        };
+        if out.iter().any(|item| item.id == id && item.day == day) {
+            return Err(fail("the same calendar item is named twice; nothing was changed"));
+        }
+        out.push(SelectedEvent { id, day });
+    }
+    Ok(out)
+}
+
+/// The items as they are: each held event, and for one that repeats the occurrence its own day
+/// names. An item the mailbox doesn't have, one that no longer happens, and the same one twice are
+/// refused.
+fn resolve(s: &Session, items: &[SelectedEvent], allow: Allow) -> Result<Vec<Resolved>, CmdError> {
+    if items.len() > MAX_SELECTED_EVENTS {
+        return Err(fail(format!("no more than {MAX_SELECTED_EVENTS} calendar items can be named at once")));
+    }
+    let here = remote::offset_of(s);
+    let mut out: Vec<Resolved> = Vec::with_capacity(items.len());
+    for item in items {
+        let event = s.mailbox.event(item.id).cloned().ok_or_else(|| failed!("no event with id {id}", id = item.id))?;
+        if event.cancelled {
+            return Err(failed!("\"{title}\" is cancelled, and can't be selected", title = event.title));
+        }
+        let (item, start, end) = match (event.recurrence.is_some(), item.day) {
+            (false, _) => (SelectedEvent { id: event.id, day: None }, event.start, event.end),
+            (true, Some(day)) => {
+                let (start, end) = occurrence_times(&event, day, &here)
+                    .ok_or_else(|| failed!("the series \"{title}\" doesn't happen on {date}", title = event.title, date = day.iso()))?;
+                (SelectedEvent { id: event.id, day: Some(day) }, start, end)
+            }
+            (true, None) if allow == Allow::Series => (SelectedEvent { id: event.id, day: None }, event.start, event.end),
+            (true, None) => {
+                return Err(bad("a day of the series is named for an event that repeats: `items[*].day`, as YYYY-MM-DD"));
+            }
+        };
+        if out.iter().any(|other| other.item == item) {
+            return Err(fail("the same calendar item is named twice; nothing was changed"));
+        }
+        out.push(Resolved { item, event, start, end });
+    }
+    Ok(out)
+}
+
+/// When a series' own day `day` happens, and how long it lasts here: `None` when the rule skips it
+/// or the series has ended. The day is the series' key, exactly as an occurrence carries it — it
+/// is never mapped through the date the occurrence is shown on, which can be its neighbour's.
+fn occurrence_times(event: &Event, day: Date, here: &dyn Fn(Timestamp) -> i32) -> Option<(DateTime, DateTime)> {
+    if event.exceptions.contains(&day) {
+        return None;
+    }
+    if !event.series_days(day, day, here).contains(&day) {
+        return None;
+    }
+    Some(event.occurrence_times(day, here))
+}
+
+/// Point the selection at the typed items, the last of them having the focus: its own day, and the
+/// date it is shown on here for the legacy focus. Nothing selected clears both.
+fn set_selection(s: &mut Session, items: &[SelectedEvent]) {
+    let here = remote::offset_of(s);
+    let focus = items.last().and_then(|item| {
+        let event = s.mailbox.event(item.id)?;
+        let date = item.day.map_or(event.start.date, |day| event.occurrence_times(day, &here).0.date);
+        Some((item.id, date))
+    });
+    s.sel.events = items.to_vec();
+    match focus {
+        Some((id, date)) => {
+            s.sel.event = Some(id);
+            s.sel.event_day = Some(date);
+        }
+        None => {
+            s.sel.event = None;
+            s.sel.event_day = None;
+        }
+    }
+}
+
+// ---- select ----
+
+/// `calendar.select`: typed `items` (replacing the set, or toggling with `extend`), or the legacy
+/// `id`/`day` (`id: null` selects nothing). A legacy selection replaces the typed set.
+pub(super) fn select(s: &mut Session, v: &Value) -> CmdResult {
+    let extend = p::opt_bool(v, "extend")?.unwrap_or(false);
+    match named(v)? {
+        Named::Items(items) => {
+            let resolved = resolve(s, &items, Allow::Occurrences)?;
+            let mut chosen: Vec<SelectedEvent> = if extend { current_set(s)? } else { Vec::new() };
+            for item in resolved {
+                if let Some(at) = chosen.iter().position(|other| *other == item.item) {
+                    chosen.remove(at);
+                } else {
+                    if chosen.len() >= MAX_SELECTED_EVENTS {
+                        return Err(fail(format!("no more than {MAX_SELECTED_EVENTS} calendar items can be selected at once")));
+                    }
+                    chosen.push(item.item);
+                }
+            }
+            set_selection(s, &chosen);
+        }
+        Named::Legacy { id, day } => {
+            let e = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
+            s.sel.event_day = day.or(Some(e.start.date));
+            s.sel.event = Some(id);
+            // An older single-event selection may not leave an unrelated set standing.
+            s.sel.events.clear();
+        }
+        // (`id: null`, or no target at all: nothing is selected.)
+        Named::Null | Named::Unnamed => {
+            s.sel.event = None;
+            s.sel.event_day = None;
+            s.sel.events.clear();
+        }
+    }
+    Ok(json!({}))
+}
+
+/// What `extend` starts from: the typed set, or the legacy focus as the one item it stands for.
+fn current_set(s: &Session) -> Result<Vec<SelectedEvent>, CmdError> {
+    if !s.sel.events.is_empty() {
+        return read(s, &s.sel.events, Allow::Occurrences);
+    }
+    match s.sel.event {
+        Some(id) => Ok(vec![focus_item(s, id, s.sel.event_day)?]),
+        None => Ok(Vec::new()),
+    }
+}
+
+// ---- select all ----
+
+/// `calendar.selectAll`: every distinct item the calendar shows in the range in view, in the
+/// calendars that are shown. A calendar that only says when somebody is busy is left out (a
+/// block in it is not an appointment), so is a cancelled appointment the calendar never shows,
+/// and so is nothing beyond the cap, which the answer says.
+///
+/// The range can hold far more occurrences than a selection may, and a calendar far more events
+/// than the range shows, so nothing is listed whole here: each event is read by itself and only
+/// the earliest [`MAX_SELECTED_EVENTS`] distinct items are kept as the scan goes.
+fn select_all(s: &mut Session, _: &Value) -> CmdResult {
+    let (from, to) = crate::cmd::view::calendar_range(s);
+    let here = remote::offset_of(s);
+    let shown: HashSet<Id> = s.mailbox.calendars.iter().filter(|c| c.visible && c.rights != Rights::FreeBusy).map(|c| c.id).collect();
+    // The earliest items, by the order the calendar lists them in: the heap's largest is the
+    // last one kept, so one more than a selection may take is the most it ever holds.
+    let mut earliest: BinaryHeap<(DateTime, DateTime, Id, Option<Date>)> = BinaryHeap::with_capacity(MAX_SELECTED_EVENTS.saturating_add(1));
+    let mut total = 0usize;
+    for event in s.mailbox.events.values() {
+        if event.cancelled || !shown.contains(&event.calendar) {
+            continue;
+        }
+        // (A series' occurrence is its own day; an event that doesn't repeat is one item.)
+        let repeats = event.recurrence.is_some();
+        for occurrence in event.occurrences_in(from, to, &here) {
+            total = total.saturating_add(1);
+            let item = (occurrence.start, occurrence.end, occurrence.event, repeats.then_some(occurrence.day));
+            // (Later than the last of the earliest kept, once a full set is held: it isn't one of
+            // them, and nothing of it is kept.)
+            if let Some(last) = earliest.peek()
+                && earliest.len() >= MAX_SELECTED_EVENTS
+                && item >= *last
+            {
+                continue;
+            }
+            earliest.push(item);
+            if earliest.len() > MAX_SELECTED_EVENTS {
+                earliest.pop();
+            }
+        }
+    }
+    let mut items: Vec<SelectedEvent> = earliest.into_sorted_vec().into_iter().map(|(_, _, id, day)| SelectedEvent { id, day }).collect();
+    items.dedup();
+    set_selection(s, &items);
+    Ok(json!({"selected": items.len(), "capped": total > items.len()}))
+}
+
+// ---- paste ----
+
+/// The people a paste as a move would make the account's servers write to, split by what they are
+/// told. One kind for a batch, so that one question is accurate.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct MailSummary {
+    invitations: usize,
+    updates: usize,
+}
+
+impl MailSummary {
+    fn people(self) -> usize {
+        self.invitations.saturating_add(self.updates)
+    }
+
+    /// The one kind of mail the batch makes, when it makes only one.
+    fn kind(self) -> Option<super::Mail> {
+        // (A batch that would both invite and update is refused, and isn't described as one.)
+        if self.invitations > 0 && self.updates > 0 {
+            None
+        } else if self.invitations > 0 {
+            Some(super::Mail::Invitation(self.invitations))
+        } else if self.updates > 0 {
+            Some(super::Mail::Update(self.updates))
+        } else {
+            None
+        }
+    }
+}
+
+/// What cutting each of these into `target` (when named) would make a server write.
+fn mail_summary(s: &Session, resolved: &[Resolved], target: Option<Id>) -> MailSummary {
+    let mut out = MailSummary::default();
+    for r in resolved {
+        let destination = target.unwrap_or(r.event.calendar);
+        if r.event.recurrence.is_some() {
+            // One occurrence of a series moves where it is: those invited hear of the new time.
+            out.updates = out.updates.saturating_add(super::invited(s, &r.event));
+        } else if super::kept_by(s, &r.event).is_some() {
+            // Another calendar of the same account takes an appointment only, which writes to
+            // nobody; moved in its own calendar, a meeting is an update like any other change.
+            if destination == r.event.calendar {
+                out.updates = out.updates.saturating_add(super::invited(s, &r.event));
+            }
+        } else if destination != r.event.calendar && super::served(s, destination) {
+            // An appointment of this computer's into a server's calendar: an invitation.
+            out.invitations = out.invitations.saturating_add(r.event.attendees.len());
+        }
+    }
+    out
+}
+
+/// `calendar.paste`: copies `items` to `start`, or with `cut` moves them there. A copy is a new
+/// appointment of its own (no rule, no people, no UID); a move keeps each item, and an occurrence
+/// of a series is changed on its own day, never cancelled and made again.
+fn paste(s: &mut Session, v: &Value) -> CmdResult {
+    let Named::Items(items) = named(v)? else {
+        return Err(bad(format!(
+            "paste takes `items`: the calendar items to paste, 1 to {MAX_SELECTED_EVENTS}, each {{\"id\": number, \"day\"?: \"YYYY-MM-DD\"}}"
+        )));
+    };
+    let cut = p::opt_bool(v, "cut")?.unwrap_or(false);
+    let agreed = p::opt_bool(v, "send")?.unwrap_or(false);
+    let start = p::datetime(v, "start")?.ok_or_else(|| bad("`start` is required"))?;
+    // (`calendar`, when named, is honoured or refused: a malformed one never falls back to each
+    // item's own calendar, which would report a move into the wrong one as done.)
+    let target = match p::id_strict(v, "calendar")? {
+        Some(c) => Some(s.mailbox.calendar(c).map(|calendar| calendar.id).ok_or_else(|| failed!("no calendar with id {id}", id = c))?),
+        None => None,
+    };
+    let resolved = resolve(s, &items, Allow::Occurrences)?;
+    let destinations: Vec<Id> = resolved.iter().map(|r| target.unwrap_or(r.event.calendar)).collect();
+    let placements = placements(&resolved, start)?;
+    // Everything a batch could be refused for is checked before any of it is changed.
+    for (r, (destination, (from, to))) in resolved.iter().zip(destinations.iter().zip(placements.iter().copied())) {
+        if free_busy(s, r.event.calendar) {
+            return Err(fail(
+                "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read.",
+            ));
+        }
+        if cut {
+            super::writable(s, r.event.calendar)?;
+            if r.event.recurrence.is_some() && *destination != r.event.calendar {
+                return Err(fail(
+                    "One occurrence of a series can't be moved to another calendar than the rest of the series. Cut the whole series, or copy this day instead.",
+                ));
+            }
+            if r.event.recurrence.is_some() {
+                // Every day of this series that the batch takes needs a place in its cancelled
+                // days, against the series as it stands — the limit is one per series, not one
+                // per item, so two cuts of a series with one place left are refused whole.
+                let taking = resolved.iter().filter(|other| other.event.id == r.event.id && other.item.day.is_some()).count();
+                if r.event.exceptions.len().saturating_add(taking) > 5000 {
+                    return Err(fail("this series has too many changed days"));
+                }
+            }
+            if (from, to) == (r.start, r.end) {
+                return Err(fail("An item would land where it already is; nothing was moved."));
+            }
+        }
+        super::writable(s, *destination)?;
+    }
+    let mail = if cut { mail_summary(s, &resolved, target) } else { MailSummary::default() };
+    if mail.invitations > 0 && mail.updates > 0 {
+        return Err(fail(
+            "Some of these invite the people to a new meeting and some tell them of a change: cut them one at a time, so that each is asked about on its own. Nothing was changed.",
+        ));
+    }
+    if mail.people() > 0 && !agreed {
+        let tells = if mail.invitations > 0 { super::TELLS_INVITE } else { super::TELLS_UPDATE };
+        return Err(super::unsent(mail.people(), tells));
+    }
+    let send = agreed && mail.people() > 0;
+    room_for_batch(s, changes_needed(s, &resolved, &destinations, cut))?;
+
+    let mut ids: Vec<Id> = Vec::with_capacity(resolved.len());
+    for ((r, destination), (from, to)) in resolved.iter().zip(destinations.iter()).zip(placements.iter().copied()) {
+        if cut {
+            ids.push(cut_one(s, r, *destination, from, to, send)?);
+        } else {
+            let copy = Event {
+                calendar: *destination,
+                title: r.event.title.clone(),
+                location: r.event.location.clone(),
+                description: r.event.description.clone(),
+                start: from,
+                end: to,
+                all_day: r.event.all_day,
+                reminder_minutes: r.event.reminder_minutes,
+                show_as: r.event.show_as,
+                categories: r.event.categories.clone(),
+                private: r.event.private,
+                importance: r.event.importance,
+                ..Default::default()
+            };
+            let made = s.mailbox.add_event(copy)?;
+            remote::note_created(s, made)?;
+            ids.push(made);
+        }
+    }
+    // The pasted items are what is selected now, once, in the order they were pasted.
+    let chosen: Vec<SelectedEvent> = ids.iter().map(|id| SelectedEvent { id: *id, day: None }).collect();
+    set_selection(s, &chosen);
+    Ok(json!({"ids": ids, "cut": cut}))
+}
+
+/// Where each item lands: the earliest one that isn't a whole day takes the requested time, and
+/// every other item keeps the wall-clock minutes (or, for a whole day, the days) between its own
+/// start and that anchor's. An all-day batch lands on the requested date.
+fn placements(resolved: &[Resolved], start: DateTime) -> Result<Vec<(DateTime, DateTime)>, CmdError> {
+    let timed = resolved.iter().filter(|r| !r.event.all_day).min_by_key(|r| (r.start, r.end, r.event.id));
+    let anchor = match timed {
+        Some(anchor) => anchor,
+        None => resolved.iter().min_by_key(|r| (r.start.date, r.event.id)).ok_or_else(|| bad("`items` names no item"))?,
+    };
+    let mut out = Vec::with_capacity(resolved.len());
+    for r in resolved {
+        let (from, to) = if r.event.all_day {
+            let offset = anchor.start.date.days_until(r.start.date);
+            let first = on_day(start.date, offset)?;
+            let days = r.start.date.days_until(r.end.date).max(1);
+            let last = on_day(first, days)?;
+            (DateTime::at_midnight(first), DateTime::at_midnight(last))
+        } else {
+            let offset = anchor.start.minutes_until(r.start);
+            let at = moved(start, offset)?;
+            let length = r.start.minutes_until(r.end).max(0);
+            (at, moved(at, length)?)
+        };
+        out.push((from, to));
+    }
+    Ok(out)
+}
+
+/// A time `minutes` after `at` on the same wall clock, refused beyond the years a calendar has.
+fn moved(at: DateTime, minutes: i64) -> Result<DateTime, CmdError> {
+    let outside = || fail("the pasted items would land outside the years a calendar can hold");
+    let civil = at.civil_seconds().checked_add(minutes.saturating_mul(60)).ok_or_else(outside)?;
+    let moved = DateTime::from_civil_seconds(civil);
+    if moved.civil_seconds() != civil {
+        return Err(outside());
+    }
+    Ok(moved)
+}
+
+/// The day `offset` days from `base`, refused beyond the years a calendar has.
+fn on_day(base: Date, offset: i64) -> Result<Date, CmdError> {
+    let day = base.add_days(offset);
+    if base.days_until(day) != offset {
+        return Err(fail("the pasted items would land outside the years a calendar can hold"));
+    }
+    Ok(day)
+}
+
+/// One item of the batch moved: an appointment keeps its identity and everything of it but where
+/// it is; an occurrence of a series is changed on its own day, with the series' existing update
+/// path. `send` is the owner's one yes for the whole batch.
+fn cut_one(s: &mut Session, source: &Resolved, calendar: Id, start: DateTime, end: DateTime, send: bool) -> Result<Id, CmdError> {
+    let before = &source.event;
+    if before.recurrence.is_some() {
+        let day = source.item.day.ok_or_else(|| fail("a day of the series is needed to move one of its occurrences"))?;
+        let changed = shifted_series(before, day, start, end, &remote::offset_of(s))?;
+        let params = if send { json!({"send": true}) } else { json!({}) };
+        let made = super::change_one(s, &params, before, day, changed)?;
+        let id = made.get("id").and_then(Value::as_u64).ok_or_else(|| fail("the changed occurrence has no id"))?;
+        if id == before.id {
+            return Err(fail("the occurrence was not changed; nothing was moved"));
+        }
+        // The day is where it was asked to go, or nothing is: a wall-clock time this calendar
+        // can't place exactly (an hour its clocks skip, a repeated one) is refused whole by the
+        // command's own rollback rather than reported as moved to a time it isn't at.
+        let placed = s.mailbox.event(id).ok_or_else(|| fail("the changed occurrence is gone"))?;
+        if (placed.start, placed.end) != (start, end) {
+            return Err(fail("That day of the series can't be put exactly where it was asked to go; nothing was moved."));
+        }
+        return Ok(id);
+    }
+    let mut after = Event { calendar, start, end, ..before.clone() };
+    (after.start_repeated, after.end_repeated) = (false, false);
+    super::meeting::online_fits(s, &after, Some(before))?;
+    let moved = calendar != before.calendar;
+    match super::kept_by(s, before) {
+        Some(who) => {
+            if moved {
+                super::meeting::movable(s, before, &after, &who)?;
+                *s.mailbox.event_mut(before.id)? = after;
+                remote::note_moved(s, before.id, before)?;
+            } else {
+                *s.mailbox.event_mut(before.id)? = after;
+                super::changed(s, before)?;
+                if send && !before.origin.id.is_empty() {
+                    remote::approve_mail(&mut s.mailbox, before.origin.account, before.id, &before.origin.id, "");
+                }
+            }
+        }
+        None if moved && super::served(s, calendar) => {
+            super::fits_server(s, &after)?;
+            if !after.attendees.is_empty() {
+                // The account whose calendar it goes into organizes it from now on.
+                let owner = s.mailbox.calendar(calendar).and_then(|c| remote::keeper(&s.mailbox, &c.origin)).map(|a| a.address());
+                after.organizer = owner.or_else(|| after.organizer.take());
+            }
+            let account = s.mailbox.calendar(calendar).and_then(|c| remote::keeper(&s.mailbox, &c.origin)).map(|a| a.id);
+            *s.mailbox.event_mut(before.id)? = after;
+            remote::note_created(s, before.id)?;
+            if send && let Some(account) = account {
+                remote::approve_mail(&mut s.mailbox, account, before.id, "", "");
+            }
+        }
+        None => *s.mailbox.event_mut(before.id)? = after,
+    }
+    Ok(before.id)
+}
+
+/// The series as the fields of a move leave it: moved by as much as the occurrence it changes,
+/// which is where [`super::change_one`] moves that one occurrence from.
+///
+/// A series that repeats by a clock of its own is moved by *instants*: `change_one` reads the
+/// changed master as the difference between the instant it names and the series' own start, and
+/// puts the occurrence at that difference from where the occurrence really is. A count of
+/// wall-clock minutes of the master is not that difference across a change of clocks, and lands
+/// the moved day an hour from where it was asked to go. A series without a clock of its own, and
+/// a whole-day one, are days on a wall clock: there the master moves by the wall clock, which is
+/// exactly what `change_one` reads back.
+fn shifted_series(series: &Event, day: Date, start: DateTime, end: DateTime, here: &dyn Fn(Timestamp) -> i32) -> Result<Event, CmdError> {
+    let mut moved = series.clone();
+    if series.zone().is_some() && !series.all_day {
+        let (begins, ends) = series.instants(here);
+        let occurrence = series.occurrence_instant(day, here);
+        let occurrence_end = occurrence.saturating_add(ends.saturating_sub(begins));
+        let (from, to) = (instant_at(start, here), instant_at(end, here));
+        let (moved_from, moved_to) = (begins.saturating_add(from.saturating_sub(occurrence)), ends.saturating_add(to.saturating_sub(occurrence_end)));
+        moved.set_instants(moved_from, moved_to, here);
+        // `change_one` reads the master's times back as instants: where this calendar shows a
+        // wall-clock time twice, or skips one, the master it would read isn't the one that was
+        // put there, and the day would land an hour from where it was asked to go.
+        if (instant_at(moved.start, here), instant_at(moved.end, here)) != (moved_from, moved_to) {
+            return Err(fail("That day of the series can't be put exactly where it was asked to go; nothing was moved."));
+        }
+    } else {
+        // (Days are days, and a wall clock is a wall clock: the occurrence's own times plus as
+        // long as this move takes it.)
+        let (begins, ends) = series.occurrence_times(day, here);
+        moved.start = series.start.add_minutes(begins.minutes_until(start));
+        moved.end = series.end.add_minutes(ends.minutes_until(end));
+    }
+    Ok(moved)
+}
+
+/// How many server changes a paste notes, so that a mailbox with no room for them refuses it
+/// before it is made.
+fn changes_needed(s: &Session, resolved: &[Resolved], destinations: &[Id], cut: bool) -> usize {
+    let mut adds = 0usize;
+    for (r, destination) in resolved.iter().zip(destinations) {
+        if cut {
+            if r.event.recurrence.is_some() {
+                if super::kept_by(s, &r.event).is_some() {
+                    adds = adds.saturating_add(1);
+                }
+            } else if super::kept_by(s, &r.event).is_some() {
+                // A move queues its create now; the old copy is deleted after that succeeds.
+                adds = adds.saturating_add(1);
+            } else if *destination != r.event.calendar && super::served(s, *destination) {
+                adds = adds.saturating_add(1);
+            }
+        } else if super::served(s, *destination) {
+            adds = adds.saturating_add(1);
+        }
+    }
+    adds
+}
+
+fn room_for_batch(s: &Session, adds: usize) -> Result<(), CmdError> {
+    if s.mailbox.event_changes.len().saturating_add(adds) > mailcraft_model::remote::MAX_EVENT_CHANGES {
+        return Err(fail("Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."));
+    }
+    Ok(())
+}
+
+/// A calendar that only says when its owner is busy: a block in it is not an appointment.
+fn free_busy(s: &Session, calendar: Id) -> bool {
+    s.mailbox.calendar(calendar).is_some_and(|c| c.rights == Rights::FreeBusy)
+}
+
+// ---- delete ----
+
+/// How a batch `calendar.delete` reads a recurring item that names no day: `"scope": "series"`
+/// takes the whole of it; nothing else does, and a batch never takes a series whole by default.
+fn delete_allow(v: &Value) -> Result<Allow, CmdError> {
+    match p::str(v, "scope") {
+        None | Some("occurrence") => Ok(Allow::Occurrences),
+        Some("series") => Ok(Allow::Series),
+        Some(_) => Err(bad("`scope` is \"occurrence\" or \"series\"")),
+    }
+}
+
+/// The items a batch `calendar.delete` names, read as the command reads them: the typed `items`
+/// when they are given (strictly, with each item's own day), else the owner's typed selection.
+/// A batch names its days per item, so one `day` or `occurrence` for the whole list is refused;
+/// the legacy single `id` and its focus are the command's own one-event path, never a batch.
+///
+/// This is the one reader of a deletion batch's targets: [`delete_selected`] executes it,
+/// [`items_mail_of`] counts its mail, and the agent gate asks about and pins the same set, so
+/// that none of them can act on what another can't see.
+fn batch_targets(s: &Session, v: &Value) -> Result<(Vec<SelectedEvent>, Allow), CmdError> {
+    // (A payload that isn't an object names nothing: it is refused, never read as the selection.)
+    if !v.is_object() && !v.is_null() {
+        return Err(bad("the parameters are an object"));
+    }
+    // (`occurrence`, and the `day` of an item among several, are refused here: each item of a
+    // batch names its own day, and one day for the whole of it would retarget what was typed.)
+    if v.get("occurrence").is_some() || v.get("day").is_some() {
+        return Err(bad("`occurrence` names one day: with several items, name each day in its item"));
+    }
+    if v.get("ids").is_some() {
+        return Err(bad("calendar items are named by `items` (a list) or by `id` (one), not by `ids`"));
+    }
+    if v.get("items").is_some() && v.get("id").is_some() {
+        return Err(bad("name the events by `items` or by `id`, not both"));
+    }
+    let allow = delete_allow(v)?;
+    let items = match v.get("items") {
+        Some(_) => parse_items(v)?,
+        None => {
+            if s.sel.events.is_empty() {
+                return Err(fail("select an appointment first"));
+            }
+            s.sel.events.clone()
+        }
+    };
+    Ok((items, allow))
+}
+
+/// The set a batch `calendar.delete` works on, each item resolved as the command resolves it.
+///
+/// `pub` so that the agent gate — the question's words and the binding of the owner's yes — reads
+/// exactly the set the command would delete: the typed `items` form with `"scope": "series"` for
+/// a whole series named without a day included. [`selected_items`] stays the strict concrete
+/// reader for paste and for reading a selection, where a recurring item must name its own day.
+pub fn delete_items(s: &Session, v: &Value) -> Result<Vec<SelectedEvent>, CmdError> {
+    let (items, allow) = batch_targets(s, v)?;
+    read(s, &items, allow)
+}
+
+/// `calendar.delete` over the selected set: each item is one whole event or one day of a series,
+/// the whole is refused when any of it can't be done, and the mail to everyone affected is asked
+/// about once. The answer says how many were deleted and which.
+pub(super) fn delete_selected(s: &mut Session, v: &Value) -> CmdResult {
+    let (items, allow) = batch_targets(s, v)?;
+    let strict_send = p::opt_bool(v, "send")?;
+    // Somebody else's meeting is declined rather than only taken out of the calendar, as one is.
+    let decline = p::opt_bool(v, "decline")?.unwrap_or(false);
+    let resolved = resolve(s, &items, allow)?;
+    let here = remote::offset_of(s);
+    // A series and one of its days are two operations on one thing: never both in one batch.
+    let whole: Vec<Id> = resolved.iter().filter(|r| r.item.day.is_none() && r.event.recurrence.is_some()).map(|r| r.event.id).collect();
+    if resolved.iter().any(|r| r.item.day.is_some() && whole.contains(&r.event.id)) {
+        return Err(fail("A series and one of its days are both named; nothing was changed."));
+    }
+    for r in &resolved {
+        if free_busy(s, r.event.calendar) {
+            return Err(fail("A calendar that only shows when people are busy has nothing that can be deleted."));
+        }
+        // (As a single delete asks it: a calendar the account may only read, or a copy of one on
+        // the web, #209.)
+        super::may_alter(s, &r.event)?;
+        if let Some(day) = r.item.day {
+            // Every day of this series that the batch takes, not just this one, has to fit.
+            let more = resolved.iter().filter(|other| other.event.id == r.event.id && other.item.day.is_some()).count();
+            if r.event.exceptions.len().saturating_add(more) > 5000 {
+                return Err(fail("this series has too many cancelled days"));
+            }
+            if r.event.exceptions.contains(&day) || occurrence_times(&r.event, day, &here).is_none() {
+                return Err(failed!("the series doesn't happen on {date}", date = day.iso()));
+            }
+        }
+    }
+    // One question for everybody the batch writes to, and no mail without the yes.
+    let mut people = 0usize;
+    for r in &resolved {
+        if r.event.origin.id.is_empty() {
+            continue;
+        }
+        people = people.saturating_add(super::invited(s, &r.event));
+    }
+    let send = match (people, strict_send) {
+        (0, send) => send.unwrap_or(false),
+        (_, Some(true)) => true,
+        (people, _) => return Err(super::unsent(people, super::TELLS_CANCEL)),
+    };
+    let note = super::comment(v);
+    let mut deleted = 0usize;
+    let mut said: Vec<Value> = Vec::with_capacity(resolved.len());
+    let mut approvals: Vec<(Id, Id, String)> = Vec::new();
+    for r in &resolved {
+        let before = &r.event;
+        let answering = decline && super::kept_by(s, before).is_some() && before.origin.guest && !before.origin.id.is_empty();
+        match r.item.day {
+            Some(day) => {
+                s.mailbox.event_mut(before.id)?.exceptions.push(day);
+                // Its server is to have that day gone too; a series not there yet arrives without it.
+                if super::kept_by(s, before).is_some() && !before.origin.id.is_empty() {
+                    let response = if answering { Response::Declined } else { Response::None };
+                    remote::note_occurrence_gone(s, before, day, response, send, &note)?;
+                }
+                if answering {
+                    said.push(json!({"id": before.id, "occurrence": day.iso(), "response": Response::Declined}));
+                } else {
+                    said.push(json!({"id": before.id, "occurrence": day.iso()}));
+                }
+            }
+            None => {
+                let account = before.origin.account;
+                let remote_id = before.origin.id.clone();
+                s.mailbox.remove_event(before.id)?;
+                if answering {
+                    // (A declined meeting is taken out of the calendar, and its organizer hears
+                    // of the no only when the owner said it was meant.)
+                    remote::note_responded(&mut s.mailbox, before, Response::Declined, send, &note)?;
+                    said.push(json!({"id": before.id, "response": Response::Declined}));
+                } else {
+                    remote::note_deleted(&mut s.mailbox, before)?;
+                    if send && !remote_id.is_empty() && super::invited(s, before) > 0 {
+                        approvals.push((account, before.id, remote_id));
+                    }
+                    said.push(json!({"id": before.id}));
+                }
+            }
+        }
+        deleted += 1;
+    }
+    for (account, id, remote_id) in approvals {
+        remote::approve_mail(&mut s.mailbox, account, id, &remote_id, &note);
+    }
+    // What is left of the set is what is selected, once, with the last survivor in focus.
+    let left = survivors(s, &resolved);
+    set_selection(s, &left);
+    Ok(json!({"deleted": deleted, "items": said}))
+}
+
+/// The items of a batch that are still there after it: the event, and the day of a series that
+/// wasn't cancelled.
+fn survivors(s: &Session, resolved: &[Resolved]) -> Vec<SelectedEvent> {
+    resolved
+        .iter()
+        .filter(|r| match s.mailbox.event(r.event.id) {
+            None => false,
+            Some(event) => match r.item.day {
+                None => event.recurrence.is_none(),
+                Some(day) => !event.exceptions.contains(&day),
+            },
+        })
+        .map(|r| r.item)
+        .collect()
+}
+
+// ---- what a batch asks about ----
+
+/// The mail `calendar.paste` would make a server send, for `calendar::mail_of`: what cutting each
+/// named item into `calendar` (when named) writes to, counted once for all of them. `None` when the
+/// payload is malformed (it is then refused, never described from the selection) or writes to
+/// nobody.
+pub(super) fn paste_mail_of(s: &Session, v: &Value) -> Option<super::Mail> {
+    let cut = p::opt_bool(v, "cut").ok()??;
+    if !cut {
+        return None;
+    }
+    // (A payload with no readable list, or a destination that isn't one, asks about nothing:
+    // the command refuses it whole rather than acting on what happens to be selected.)
+    let Named::Items(items) = named(v).ok()? else { return None };
+    let target = p::id_strict(v, "calendar").ok()?;
+    let resolved = resolve(s, &items, Allow::Occurrences).ok()?;
+    mail_summary(s, &resolved, target).kind()
+}
+
+/// The mail `calendar.delete` over a batch would make a server send, counted once for all of them.
+///
+/// The implicit form is the typed selection, however small: the command takes any non-empty
+/// typed set as a batch (`cmd/calendar.rs::delete`), one item included. Only an empty selection
+/// names no batch, and the legacy `id`/focus never reaches here.
+pub(super) fn items_mail_of(s: &Session, id: &str, v: &Value) -> Option<super::Mail> {
+    if id != "calendar.delete" || v.get("occurrence").is_some() {
+        return None;
+    }
+    // (The set selected when the question is asked is pinned as it is now; a named list is read
+    // strictly by the same reader the command and the gate use, and a malformed one is no
+    // question at all. A singleton is a set like any other: the command deletes it as one.)
+    if v.get("items").is_none() && s.sel.events.is_empty() {
+        return None;
+    }
+    let (items, allow) = batch_targets(s, v).ok()?;
+    let resolved = resolve(s, &items, allow).ok()?;
+    let people: usize = resolved.iter().filter(|r| !r.event.origin.id.is_empty()).fold(0usize, |n, r| n.saturating_add(super::invited(s, &r.event)));
+    (people > 0).then_some(super::Mail::Cancellation(people))
+}

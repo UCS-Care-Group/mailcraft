@@ -627,7 +627,7 @@ pub(crate) fn ask_next(app: &mut MailApp) {
     }
     let Some(path) = app.opened_waiting.pop_front() else { return };
     let ask = import_question(app, &path);
-    app.dialog = Some(crate::dialogs::Dialog::Confirm { command: "file.import".to_string(), params: json!({"path": path}), ask });
+    app.dialog = Some(crate::dialogs::Dialog::Confirm { command: "file.import".to_string(), params: json!({"path": path}), ask: Box::new(ask) });
 }
 
 /// The name of the folder mail imported now goes to (#1401): the folder in view, or, for a

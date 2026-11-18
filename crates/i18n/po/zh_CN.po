@@ -95,6 +95,11 @@ msgstr "“{name}”不是仅保存在此计算机上的类别"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "\"{name}\" on {day}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "\"{name}\" will be permanently deleted."
 msgstr "“{name}”将被永久删除。"
@@ -116,6 +121,11 @@ msgstr "“{set}”不是一组消息"
 #, fuzzy
 msgid "\"{shown}\" isn't an e-mail address"
 msgstr "“{shown}”不是电子邮件地址"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "\"{title}\" is cancelled, and can't be selected"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
@@ -376,6 +386,16 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "日历更改尚无法发送，将重试：{error}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs
+msgid "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "A calendar that only shows when people are busy has nothing that can be deleted."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
@@ -519,6 +539,16 @@ msgstr "一次最多将会议转发给 {n} 人。"
 msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
 msgstr "您的日历中有同一 ID 但组织者不同的会议，因此此邀请无法更改该会议。"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them: the cancellation that is sent is of the meeting you organize."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -626,6 +656,11 @@ msgstr "邮箱保存仍在运行：请稍后再试"
 #, fuzzy
 msgid "A secure connection to the server couldn't be set up. Type the server's address in Server settings."
 msgstr "无法建立与服务器的安全连接。在服务器设置中键入服务器的地址。"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "A series and one of its days are both named; nothing was changed."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -1444,6 +1479,11 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr "标记为私人的约会只显示您正忙，不会显示受邀者的姓名。"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "An appointment this would move is being changed in its own window and isn't saved: nothing was moved"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
@@ -1466,6 +1506,11 @@ msgstr "正在导入"
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
 msgstr "无法通过此方式将重复项目移动到其他日历。按住 Ctrl 可将此次日程复制到目标日历；要移动整个系列，请使用菜单中的“移动到日历”。"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "An item would land where it already is; nothing was moved."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -2528,7 +2573,7 @@ msgid "By Subject"
 msgstr "按主题"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "日历"
@@ -3392,6 +3437,21 @@ msgid "Close to system tray"
 msgstr "关闭到系统托盘"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Close what is open first, then copy"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Close what is open first, then cut"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Close what is open first, then paste"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Closed the page? This opens the provider's sign-in page afresh."
@@ -3635,8 +3695,8 @@ msgstr "已复制。请将其粘贴到邮件或聊天中发给您的管理员。
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "复制一条短消息，其中包含 Microsoft 授权页面的地址。贵组织管理员可在该页面为整个组织批准 MailCraft。程序不会发送消息，请自行粘贴到邮件或聊天中。"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "复制"
@@ -3722,6 +3782,11 @@ msgstr "复制给管理员的消息"
 #, fuzzy
 msgid "Copy problems"
 msgstr "复制问题"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Copy takes no parameters: it copies what is selected"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -4023,11 +4088,16 @@ msgstr "当前邮箱"
 msgid "Current View"
 msgstr "当前视图"
 
-#. command label, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
+#. command label, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Cut"
 msgstr "剪切"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Cut takes no parameters: it cuts what is selected"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -4146,6 +4216,11 @@ msgstr "拒绝并提议新时间"
 #, fuzzy
 msgid "Decline and Tell the Organizer"
 msgstr "拒绝并通知组织者"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Decline the Others and Tell Their Organizers"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4292,6 +4367,11 @@ msgid "Delete Text"
 msgstr "删除文本"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Delete These Appointments?"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Delete This Occurrence"
@@ -4299,9 +4379,19 @@ msgstr "删除此日程"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "Delete Your Copy of These Meetings?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Delete Your Copy of This Meeting?"
 msgstr "删除本次会议的副本吗？"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Delete and Send Cancellations"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -9222,6 +9312,11 @@ msgid "More actions for {name}"
 msgstr "{name} 的更多操作"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "More calendar items remain in this view"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "More commands"
@@ -9322,10 +9417,20 @@ msgid "Move Rule"
 msgstr "移动规则"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Move These Appointments?"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Move Up"
 msgstr "上移"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Move and Send Updates"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10712,10 +10817,20 @@ msgid "Nothing to do here."
 msgstr "此处没有需要执行的操作。"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Nothing was copied or cut: copy or cut an appointment first"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "Nothing was done: what the agent asked about changed after you were asked."
 msgstr "未执行任何操作：在征求您的确认后，智能体询问的内容发生了变化。"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Nothing was done: what you were asked about has changed since. Ask again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -10932,6 +11047,11 @@ msgstr "成功后，系统凭据存储会保存它以供下次使用；它不会
 #, fuzzy
 msgid "One occurrence of a series can't be in another calendar than the rest of the series."
 msgstr "同一系列中的单个事件不能与该系列的其他事件放在不同的日历中。"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "One occurrence of a series can't be moved to another calendar than the rest of the series. Cut the whole series, or copy this day instead."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11284,6 +11404,21 @@ msgstr "本软件可按您的选择使用 MIT 许可证或 Apache 许可证 2.0�
 #, fuzzy
 msgid "Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code."
 msgstr "根据您的选择，在 MIT 许可证或 Apache 许可证 2.0 下开源。界面字体为 Inter、Source Sans 3 和 JetBrains Mono（SIL 开放字体许可证）。每个图标都是用代码绘制的。"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Open the Calendar first, then copy"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Open the Calendar first, then cut"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Open the Calendar first, then paste"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -11694,7 +11829,7 @@ msgid "Password:"
 msgstr "密码："
 
 #. command label, name, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paste"
 msgstr "粘贴"
@@ -11710,6 +11845,11 @@ msgstr "粘贴图片"
 #, fuzzy
 msgid "Paste or write the signature's HTML"
 msgstr "粘贴或编写签名的 HTML"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Paste takes no parameters: it puts what was copied or cut where a time is picked"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -13783,7 +13923,7 @@ msgid "Seeing when other people are busy needs your permission: File › Info �
 msgstr "查看他人的忙闲状态需要您的许可：文件 › 信息 › 连接日历和联系人"
 
 #. command label, name
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Select All"
 msgstr "全选"
@@ -15242,6 +15382,11 @@ msgstr "部分文件未添加：邮件无法再容纳更多文件。"
 msgid "Some of the search was checked on this computer"
 msgstr "部分搜索结果已在本机检查"
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "Some of these invite the people to a new meeting and some tell them of a change: cut them one at a time, so that each is asked about on its own. Nothing was changed."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -15992,6 +16137,11 @@ msgstr "无法完成该操作。"
 msgid "That could not be saved."
 msgstr "无法保存。"
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "That day of the series can't be put exactly where it was asked to go; nothing was moved."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 #, fuzzy
@@ -16087,6 +16237,11 @@ msgstr "这不是该文件的密码。"
 #, fuzzy
 msgid "That key is on the card already"
 msgstr "该密钥已在卡上"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "That paste was just made, so nothing was pasted again"
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -16369,6 +16524,11 @@ msgstr "日历已经在更新中。"
 #, fuzzy
 msgid "The calendar is being updated: try again in a moment."
 msgstr "日历正在更新：请稍后重试。"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The calendar items this question is about can't be read, so nothing was asked or done."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -17055,6 +17215,26 @@ msgstr "用户未允许检查更新。"
 msgid "The page was closed, or five minutes went by before the sign-in was finished."
 msgstr "页面已关闭,或在登录完成前已过去五分钟。"
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "The paste asks for more, and this route never asks: nothing was moved"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "The paste ran, but it answered that it moved nothing"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "The paste ran, but its answer can't be counted"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "The paste ran, but its answer doesn't say how many items it moved"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
@@ -17318,6 +17498,24 @@ msgstr "服务器有 {total} 个文件夹：一次同步读取前 {max} 个，�
 #, fuzzy
 msgid "The server is busy. Try again in a few minutes."
 msgstr "服务器繁忙。请几分钟后重试。"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The server of {account} sends the {n} person invited the invitation by mail."
+msgid_plural "The server of {account} sends the {n} people invited the invitation by mail."
+msgstr[0] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The server of {account} tells the {n} person invited of the new time."
+msgid_plural "The server of {account} tells the {n} people invited of the new time."
+msgstr[0] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The server of {account} tells the {n} person invited, so that they know it is cancelled."
+msgid_plural "The server of {account} tells the {n} people invited, so that they know it is cancelled."
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17668,7 +17866,7 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "用户名太长或包含名称中不能包含的字符"
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "窗口尚未打开。"
@@ -17758,10 +17956,20 @@ msgid "Thesaurus"
 msgstr "同义词库"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "These are meetings somebody else organizes; you are invited to them. Deleting them takes them out of your calendar only, and the organizer is not told that you won't come. Declining them tells the organizer, if you choose."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "These are the answers this computer has been told of."
 msgstr "这些是此计算机已收到的回复。"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "These calendar items can't be shown to you as one batch, so nothing was asked or done."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -18136,6 +18344,12 @@ msgstr[0] "这将从 {folder} 中删除此对话：该文件夹中的 {n} 封邮
 msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
 msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
 msgstr[0] "这将删除此处列出的此对话中的 {n} 封邮件。它们将移至“已删除邮件”。"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This deletes {n} appointment from your calendar:"
+msgid_plural "This deletes {n} appointments from your calendar:"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18598,6 +18812,17 @@ msgstr "此邮件将被永久删除。"
 msgid "This message's Digital signature can't be checked."
 msgstr "无法验证此邮件的数字签名。"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This moves {n} appointment to {when}, in {to}:"
+msgid_plural "This moves {n} appointments to {when}, in {to}:"
+msgstr[0] ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "This paste needs an answer from the owner first, and this command never asks: nothing was pasted"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
@@ -18711,6 +18936,11 @@ msgstr "无法读取此任务。"
 #, fuzzy
 msgid "This version of MailCraft can't search an address list"
 msgstr "此版本的 MailCraft 无法搜索地址列表"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "This was copied from another mailbox than the one open now"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -18991,7 +19221,7 @@ msgid "Tomorrow"
 msgstr "明天"
 
 #. what a command says
-#: crates/engine/src/cmd/remote.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "等待发送到服务器的日历更改过多。请先使用“发送/接收”完成同步。"
@@ -19718,6 +19948,11 @@ msgid "What is bundled in this app, and under which licence"
 msgstr "此应用包含哪些内容，以及采用何种许可证"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "What is on the system's clipboard isn't this appointment"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "What it is made of"
@@ -19746,6 +19981,21 @@ msgstr "当组织需要批准 MailCraft 时该怎么做"
 #, fuzzy
 msgid "What to do next"
 msgstr "接下来做什么"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "What was copied has changed since; copy it again to paste it"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "What was copied or cut has no time to be pasted at"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "What was cut has changed since; copy it again to paste it"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -20634,6 +20884,11 @@ msgid "a contact's card keeps at most 32 keys"
 msgstr "联系人名片最多保留 32 个密钥"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "a day of the series is needed to move one of its occurrences"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox_followup.rs
 #, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
@@ -21473,7 +21728,7 @@ msgid "no calendar was opened by address"
 msgstr "没有通过地址打开的日历"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "没有 ID 为 {id} 的日历"
@@ -21485,7 +21740,7 @@ msgid "no contact with id {id}"
 msgstr "没有 ID 为 {id} 的联系人"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
 msgid "no event with id {id}"
 msgstr "没有 ID 为 {id} 的事件"
@@ -21896,8 +22151,8 @@ msgstr "请先选择一封邮件"
 msgid "select a task first"
 msgstr "首先选择一个任务"
 
-#. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs
+#. interface, what a command says, why a command can't run
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "select an appointment first"
 msgstr "请先选择一项约会"
@@ -22041,6 +22296,11 @@ msgid "that message isn't waiting in the Outbox"
 msgstr "该邮件未在发件箱中等待"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "that series has no day to select"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/edit.rs
 #, fuzzy
 msgid "that step changes a message that is open for writing: close it first"
@@ -22172,6 +22432,16 @@ msgstr "浏览器无法在邮箱文件旁保留副本：请在桌面应用中切
 msgid "the browser can't read folders by path"
 msgstr "浏览器无法按路径读取文件夹"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "the calendar \"{calendar}\" of {account}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "the calendar \"{calendar}\" on this computer"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
@@ -22201,6 +22471,16 @@ msgstr "该证书是证书颁发机构的，而不是个人的公钥"
 #, fuzzy
 msgid "the certificate isn't for mail: its key usage or extended key usage is for something else"
 msgstr "此证书不适用于邮件：其密钥用途或扩展密钥用途指定了其他用途"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the changed occurrence has no id"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the changed occurrence is gone"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -22267,6 +22547,11 @@ msgstr "结束时间早于开始时间"
 #, fuzzy
 msgid "the end of the time range must be after its start"
 msgstr "结束时间必须晚于开始时间"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "the entire series \"{name}\""
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs
@@ -22473,10 +22758,20 @@ msgid "the network couldn't get there"
 msgstr "无法通过网络连接"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the occurrence was not changed; nothing was moved"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "the parent folder belongs to another account"
 msgstr "上级文件夹属于另一个账户"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the pasted items would land outside the years a calendar can hold"
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/message.rs
@@ -22533,6 +22828,11 @@ msgid "the result {why}"
 msgstr "结果 {why}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the same calendar item is named twice; nothing was changed"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "the search can't look for this sender's address as a whole address"
@@ -22563,7 +22863,12 @@ msgid "the sender has no usable e-mail address"
 msgstr "发件人没有可用的电子邮件地址"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
+#: crates/engine/src/cmd/calendar/selection.rs
+msgid "the series \"{title}\" doesn't happen on {date}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
 msgstr "该重复日程在 {date} 没有安排"
@@ -22957,6 +23262,11 @@ msgstr "用户名或密码含有无法发送的字符"
 msgid "the user name or password is too long"
 msgstr "用户名或密码太长"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "their calendar"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
@@ -23234,13 +23544,13 @@ msgid "this message isn't downloaded: open it once you're online, then send it a
 msgstr "此邮件尚未下载：请联网后打开，再重新发送"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "this series has too many cancelled days"
 msgstr "此重复日程中取消的日期过多"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "此重复日程中更改的日期过多"
@@ -23604,6 +23914,11 @@ msgstr "未完整搜索 {count} 封邮件：下载完成前，此处只有邮件
 #, fuzzy
 msgid "{days} (all day)"
 msgstr "{days}（全天）"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{day} at {time}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs crates/ui-egui/src/sync_panel.rs
@@ -24108,6 +24423,12 @@ msgid "{n} account has one"
 msgid_plural "{n} accounts have one"
 msgstr[0] "{n} 个账户已设置"
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "{n} appointment"
+msgid_plural "{n} appointments"
+msgstr[0] ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -24142,6 +24463,12 @@ msgstr[0] "{n} 字节"
 msgid "{n} calendar item"
 msgid_plural "{n} calendar items"
 msgstr[0] "{n} 个日历项目"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} calendar item selected"
+msgid_plural "{n} calendar items selected"
+msgstr[0] ""
 
 #. what a command says
 #: crates/engine/src/undo.rs
