@@ -102,6 +102,8 @@ impl MailApp {
         if self.inbox_check.under_way() {
             return None;
         }
+        // (Read once for the whole tick: right only while the loop below starts at most one pass,
+        // since a pass it started would make this `busy` stale.)
         let busy = self.job_busy();
         let round = busy.blocks_every(Start::InboxCheck);
         // (A clock put back starts the minute again.)
