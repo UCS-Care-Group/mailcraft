@@ -1376,6 +1376,7 @@ dependencies = [
  "mailcraft-proto",
  "mailcraft-pst",
  "mailcraft-smime",
+ "mailcraft-tnef",
  "mailcraft-vcard",
 ]
 
@@ -1436,6 +1437,7 @@ dependencies = [
  "mailcraft-charset",
  "mailcraft-html",
  "mailcraft-time",
+ "mailcraft-tnef",
  "thiserror",
 ]
 
@@ -1529,6 +1531,14 @@ dependencies = [
  "jiff",
  "js-sys",
  "serde",
+]
+
+[[package]]
+name = "mailcraft-tnef"
+version = "0.13.0"
+dependencies = [
+ "mailcraft-charset",
+ "mailcraft-pst",
 ]
 
 [[package]]

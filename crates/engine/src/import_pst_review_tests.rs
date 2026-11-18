@@ -357,23 +357,28 @@ fn a_disk_that_refuses_leaves_the_attachments_in_memory_and_under_the_budget() {
 }
 
 #[test]
-fn a_self_contained_copy_past_the_cap_is_refused_before_anything_is_read_or_written() {
+fn a_self_contained_copy_past_the_old_memory_cap_streams_without_loading_the_session() {
     let dir = Temp::new("saveas-cap");
     let mut s = kept_session(&dir);
-    // Six files of 300 KB kept in the content folder: 1.8 MB against a cap of 1 MB.
+    // Six files of 300 KB kept in the content folder: past the old 1 MB test-only
+    // in-memory cap, but within the serialized file limit.
     let pst = dir.pst(&distinct(6, 300 << 10));
     import(&mut s, &pst).unwrap();
     assert_eq!(in_memory(&s), 0);
     let before: Vec<_> = s.mailbox.messages.iter().map(|(id, m)| (*id, m.attachments[0].kept)).collect();
     let copy = dir.0.join("copy.mailcraft");
-    let err = s.run("file.saveAs", &json!({"path": copy.display().to_string()})).unwrap_err().to_string();
-    assert!(err.contains("too large") && err.contains("another folder"), "{err}");
-    assert!(!copy.exists(), "nothing was written");
+    let result = s.run("file.saveAs", &json!({"path": copy.display().to_string()})).unwrap();
+    assert_eq!(result["copy"], true);
+    let loaded = crate::io::open_path(&copy).unwrap();
+    assert_eq!(loaded.messages.len(), s.mailbox.messages.len());
+    for id in s.mailbox.messages.keys() {
+        assert_eq!(loaded.messages.get(id).unwrap().attachments, s.loaded_message(*id).unwrap().attachments);
+    }
     assert_eq!(s.path.as_deref(), Some(dir.mailbox().as_path()));
     let after: Vec<_> = s.mailbox.messages.iter().map(|(id, m)| (*id, m.attachments[0].kept)).collect();
     assert_eq!(before, after, "the mailbox is as it was");
     assert_eq!(in_memory(&s), 0);
-    // Saving to another folder (content linked) is the way, and works.
+    // Saving to another folder (content linked) still works too.
     let other = dir.0.join("elsewhere.mailcraft");
     s.run("file.save", &json!({"path": other.display().to_string()})).unwrap();
     assert!(other.exists());

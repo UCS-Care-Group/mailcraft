@@ -124,6 +124,10 @@ pub struct Folder {
     /// and when what was read wasn't the whole of it.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub imap_status: Option<ImapStatus>,
+    /// IMAP messages that failed to download, by UID, and in how many runs (#1581); see
+    /// [`crate::sync::FolderState::failing`].
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub failing: std::collections::BTreeMap<u32, u8>,
     /// An IMAP folder's first download has ended with all of it here, or it was empty when first
     /// read (#504): what arrives in it from then on is new mail, which the Safe and Blocked
     /// Senders lists sort. `false` again when the server numbers it anew. A file from before
@@ -839,6 +843,22 @@ pub enum OAuthProvider {
     Microsoft,
     /// Gmail and Google Workspace over IMAP/SMTP XOAUTH2.
     Google,
+}
+
+impl OAuth {
+    /// Whether the Microsoft account at `email` signing in with these settings is a personal one
+    /// (Outlook.com): its directory says so, or the directory its sign-in names does, or, when
+    /// nothing says, its address is Outlook.com's own. Microsoft has no shared mailboxes, nor
+    /// other people's calendars, for those.
+    pub fn is_personal(&self, email: &str) -> bool {
+        match (self.directory, Directory::of_tenant(&self.tenant)) {
+            (Directory::Personal, _) | (_, Directory::Personal) => true,
+            (Directory::Organisation, _) | (_, Directory::Organisation) => false,
+            // Nothing else says: the address does.
+            _ => crate::provider::by_domain(email.rsplit_once('@').map_or("", |(_, domain)| domain))
+                .is_some_and(|preset| preset.service == "Outlook.com"),
+        }
+    }
 }
 
 impl OAuthProvider {
@@ -1743,7 +1763,7 @@ impl Mailbox {
         if o.kind == AccountKind::Exchange && o.ews.as_ref().is_none_or(|server| server.problem().is_some()) {
             return Err(invalid("an Exchange server account needs a server address that can be used to open a shared mailbox"));
         }
-        if o.oauth.as_ref().is_some_and(|oauth| oauth.directory == Directory::Personal) {
+        if o.oauth.as_ref().is_some_and(|oauth| oauth.is_personal(&o.email)) {
             return Err(invalid("a personal Microsoft account (Outlook.com) has no shared mailboxes: they are Microsoft 365's"));
         }
         if o.email.trim().eq_ignore_ascii_case(&address) {
@@ -1866,6 +1886,13 @@ impl Mailbox {
 
     pub fn folder_mut(&mut self, id: Id) -> Result<&mut Folder, ModelError> {
         self.folders.iter_mut().find(|f| f.id == id).ok_or(not_found("folder", id))
+    }
+
+    /// How many messages of the account the mailbox leaves out for failing to download in
+    /// [`MAX_TRIES`](crate::sync::MAX_TRIES) runs, until the owner asks for them again (#1581).
+    pub fn left_out(&self, account: Id) -> usize {
+        let given_up = |tries: &&u8| **tries >= crate::sync::MAX_TRIES;
+        self.folders.iter().filter(|f| f.account == account).map(|f| f.failing.values().filter(given_up).count()).sum()
     }
 
     /// An account's standard folder of `kind`.
@@ -4299,6 +4326,13 @@ impl Mailbox {
         }
         if self.migrate_junk_lists() {
             fixed.push("Safe and Blocked Senders moved to each account".to_string());
+        }
+        // A mailbox file can say anything of the messages that failed to download (#1581).
+        for folder in &mut self.folders {
+            if folder.failing.len() > crate::sync::MAX_FAILING {
+                folder.failing = std::mem::take(&mut folder.failing).into_iter().take(crate::sync::MAX_FAILING).collect();
+                fixed.push("the messages a folder failed to download cut".to_string());
+            }
         }
         let mut tidied = self.junk.repair();
         let known: HashSet<Id> = self.accounts.iter().filter(|a| a.shared_of.is_none()).map(|a| a.id).collect();

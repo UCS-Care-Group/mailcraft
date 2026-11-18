@@ -1,0 +1,1 @@
+- Clarified the Hungarian wording for automatic replies, sender-image privacy and tentative meeting responses. ([#1442](https://github.com/UCS-Care-Group/mailcraft/pull/1442), @ferivoq)
