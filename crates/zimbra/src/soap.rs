@@ -50,7 +50,7 @@ pub fn request(base: &str, name: &str, ns: &str, body: Value, token: Option<&Sec
 /// [`Error::Unreadable`]; a busy server's answer (429, 503) is [`Error::Busy`].
 pub fn answer(name: &str, response: &HttpResponse) -> Result<Value, Error> {
     if matches!(response.status(), 429 | 503) {
-        return Err(Error::Busy(response.retry_after().unwrap_or(30).clamp(1, 3600)));
+        return Err(Error::Busy(response.retry_after_seconds().unwrap_or(30).clamp(1, 3600)));
     }
     let parsed: Value = match serde_json::from_slice(response.body()) {
         Ok(parsed) => parsed,
