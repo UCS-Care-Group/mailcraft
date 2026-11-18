@@ -542,8 +542,9 @@ pub(crate) fn question(app: &mut MailApp, ui: &mut Ui) {
 }
 
 /// Keep notice text at the reading edge without changing the English button order.
-fn notice_row_layout(lang: crate::i18n::Lang) -> egui::Layout {
-    if lang == crate::i18n::Lang::Hebrew {
+fn notice_row_layout(code: &str) -> egui::Layout {
+    // Mainline does not yet expose Hebrew in Lang; accept its future language tag.
+    if code == "he" || code.starts_with("he-") || code.starts_with("he_") {
         egui::Layout::right_to_left(egui::Align::Center)
     } else {
         egui::Layout::left_to_right(egui::Align::Center)
@@ -556,8 +557,9 @@ mod notice_layout_tests {
 
     #[test]
     fn hebrew_notice_starts_at_right_while_english_stays_left() {
-        assert_eq!(notice_row_layout(crate::i18n::Lang::Hebrew).main_dir, egui::Direction::RightToLeft);
-        assert_eq!(notice_row_layout(crate::i18n::Lang::English).main_dir, egui::Direction::LeftToRight);
+        assert_eq!(notice_row_layout("he").main_dir, egui::Direction::RightToLeft);
+        assert_eq!(notice_row_layout("he-IL").main_dir, egui::Direction::RightToLeft);
+        assert_eq!(notice_row_layout("en").main_dir, egui::Direction::LeftToRight);
     }
 }
 
@@ -583,7 +585,7 @@ pub(crate) fn bar(
             bottom: 0,
         }))
         .show(ui, |ui| {
-            ui.with_layout(notice_row_layout(crate::i18n::current()), |ui| {
+            ui.with_layout(notice_row_layout(crate::i18n::current().code()), |ui| {
                 ui.spacing_mut().item_spacing = vec2(10.0, 0.0);
                 // Reserve the icon's own slot: cursor.min is the LEFT edge in RTL as well,
                 // so painting at it would put the icon on the wrong side of the notice.
