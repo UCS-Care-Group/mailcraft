@@ -160,6 +160,19 @@ fn a_page_already_given_is_not_opened_again_by_itself() {
     assert!(!app.shared_page_given.contains(&owner));
 }
 
+/// An Ask again that does not start a sign-in keeps the marker.
+#[test]
+fn a_failed_ask_again_keeps_the_page_given_marker() {
+    let (mut app, owner, _) = window(Directory::Organisation);
+    app.sync_signed_in(owner, Ok(mailcraft_model::sync::Tokens { access: "a".into(), refresh: "r".into(), ..Default::default() }), None);
+    assert!(app.shared_page_given.contains(&owner));
+    if let Some(a) = app.session.mailbox.accounts.iter_mut().find(|a| a.id == owner) {
+        a.oauth = None;
+    }
+    assert!(app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).is_err());
+    assert!(app.shared_page_given.contains(&owner));
+}
+
 /// A meeting's answer that waits to go from a shared mailbox when the page is refused: kept with
 /// the reason, and not asked for again by itself.
 #[test]

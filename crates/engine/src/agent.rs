@@ -2352,7 +2352,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 "the tasks and automatic replies"
             };
             format!(
-                "open Microsoft's page in the browser to ask for permission to keep {what} of {} in step with Outlook: MailCraft may then change its To Do lists and its mailbox settings, and read and send mail from the shared mailboxes and read the calendars shared with it",
+                "open Microsoft's page in the browser to ask for permission to keep {what} of {} in step with Outlook: MailCraft may then change its To Do lists and its mailbox settings, read and send mail from the shared mailboxes and read the calendars shared with it, and change shared mail and calendars where the owner has write access",
                 clip(account.email.trim(), 80)
             )
         }

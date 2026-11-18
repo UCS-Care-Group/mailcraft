@@ -2856,8 +2856,11 @@ impl MailApp {
                 }
                 let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
                 let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
-                self.shared_page_given.remove(&account);
-                self.begin_sync_sign_in(account)
+                let begun = self.begin_sync_sign_in(account);
+                if begun.is_ok() {
+                    self.shared_page_given.remove(&account);
+                }
+                begun
             }
             "ui.moreResultsOnServer" => {
                 if !self.enabled("ui.moreResultsOnServer") {
