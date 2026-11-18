@@ -1483,20 +1483,66 @@ fn times_and_whole_days_are_written_as_graph_takes_them() {
         body_of(&server.request(before))
     };
     let stamp = |text: &str, zone: &str| json!({"dateTime": text, "timeZone": zone});
-    // Instants go as UTC, whatever the zone: nine in the morning in New York is 13:00 UTC the
-    // week before the clocks go back and 14:00 UTC the week after, and each is said as it is.
-    for zone in ["", "Eastern Standard Time"] {
-        let before = sent(EventTime { start: at(2026, 10, 26, 13, 0), end: at(2026, 10, 26, 14, 0), all_day: false }, zone);
-        assert_eq!((before["start"].clone(), before["end"].clone()), (stamp("2026-10-26T13:00:00", "UTC"), stamp("2026-10-26T14:00:00", "UTC")));
-        let after = sent(EventTime { start: at(2026, 11, 2, 14, 0), end: at(2026, 11, 2, 15, 0), all_day: false }, zone);
-        assert_eq!(
-            (after["start"].clone(), after["end"].clone(), after["isAllDay"].clone()),
-            (stamp("2026-11-02T14:00:00", "UTC"), stamp("2026-11-02T15:00:00", "UTC"), json!(false))
-        );
+    // By the clock in the owner's zone, which is the zone Outlook shows the event in (#1130):
+    // nine in the morning in New York is 13:00 UTC the week before the clocks go back and 14:00
+    // UTC the week after, and it is nine both times. Without a zone, the instants in UTC.
+    let (before, after) = (
+        EventTime { start: at(2026, 10, 26, 13, 0), end: at(2026, 10, 26, 14, 0), all_day: false },
+        EventTime { start: at(2026, 11, 2, 14, 0), end: at(2026, 11, 2, 15, 0), all_day: false },
+    );
+    for (zone, nine, ten) in [
+        ("Eastern Standard Time", ["2026-10-26T09:00:00", "2026-11-02T09:00:00"], ["2026-10-26T10:00:00", "2026-11-02T10:00:00"]),
+        ("", ["2026-10-26T13:00:00", "2026-11-02T14:00:00"], ["2026-10-26T14:00:00", "2026-11-02T15:00:00"]),
+    ] {
+        let named = if zone.is_empty() { "UTC" } else { zone };
+        for (n, time) in [before, after].into_iter().enumerate() {
+            let body = sent(time, zone);
+            assert_eq!(
+                (body["start"].clone(), body["end"].clone(), body["isAllDay"].clone()),
+                (stamp(nine[n], named), stamp(ten[n], named), json!(false)),
+                "{zone:?} {n}"
+            );
+        }
     }
-    // One that runs over the change is three and a half hours long, as it is on the clock.
-    let night = sent(EventTime { start: at(2026, 11, 1, 4, 30), end: at(2026, 11, 1, 8, 0), all_day: false }, "");
-    assert_eq!((night["start"]["dateTime"].as_str(), night["end"]["dateTime"].as_str()), (Some("2026-11-01T04:30:00"), Some("2026-11-01T08:00:00")));
+    // An IANA name goes under the name Windows has for it, which Graph is sure to know.
+    assert_eq!(sent(before, "America/New_York")["start"], stamp("2026-10-26T09:00:00", "Eastern Standard Time"));
+    // One that runs over the change: by the clock from half past midnight to three, which is
+    // three and a half hours; in UTC without a zone.
+    let night = EventTime { start: at(2026, 11, 1, 4, 30), end: at(2026, 11, 1, 8, 0), all_day: false };
+    let body = sent(night, "Eastern Standard Time");
+    assert_eq!(
+        (body["start"].clone(), body["end"].clone()),
+        (stamp("2026-11-01T00:30:00", "Eastern Standard Time"), stamp("2026-11-01T03:00:00", "Eastern Standard Time"))
+    );
+    assert_eq!((when(body.get("start")), when(body.get("end"))), (Some(night.start), Some(night.end)));
+    let body = sent(night, "");
+    assert_eq!((body["start"]["dateTime"].as_str(), body["end"]["dateTime"].as_str()), (Some("2026-11-01T04:30:00"), Some("2026-11-01T08:00:00")));
+    // Half past one comes twice that night (05:30 and 06:30 UTC): a clock time alone can't say
+    // which, so either goes as its instant in UTC, the start and the end alike.
+    for (start, end) in [(at(2026, 11, 1, 5, 30), at(2026, 11, 1, 7, 0)), (at(2026, 11, 1, 4, 0), at(2026, 11, 1, 6, 30))] {
+        let body = sent(EventTime { start, end, all_day: false }, "Eastern Standard Time");
+        assert_eq!((body["start"]["timeZone"].as_str(), body["end"]["timeZone"].as_str()), (Some("UTC"), Some("UTC")));
+        assert_eq!((when(body.get("start")), when(body.get("end"))), (Some(start), Some(end)));
+    }
+    // A zone Graph has no name for (an offset, a name that is none): the instants in UTC.
+    for zone in ["UTC+05:30", "Nowhere/At_All"] {
+        assert_eq!(sent(before, zone)["start"], stamp("2026-10-26T13:00:00", "UTC"), "{zone}");
+    }
+    // Graph won't have the zone: the same instants once more, in UTC. Refused for anything else,
+    // it is not asked again (it was sent in UTC once, and nothing about the zone was wrong).
+    let options = EventOptions { zone: "Eastern Standard Time".into(), ..Default::default() };
+    let lunch = || create(EventFields { title: Some("Lunch".into()), time: Some(before), ..Default::default() });
+    let picky = FakeHttp::start(|n, _| match n {
+        0 => answer("400 Bad Request", "", &graph_error("TimeZoneNotSupportedException", "A valid TimeZone value must be specified.")),
+        _ => json_answer("201 Created", r#"{"id":"e-new","changeKey":"ck"}"#),
+    });
+    let uploaded = push_events_at(&picky.url(""), TOKEN, &upload(vec![lunch()]), &options);
+    assert_eq!((uploaded.outcomes[0].result, uploaded.outcomes[0].zone.as_str(), picky.asked()), (EventResult::Done, "UTC", 2));
+    assert_eq!(body_of(&picky.request(0))["start"], stamp("2026-10-26T09:00:00", "Eastern Standard Time"));
+    assert_eq!(body_of(&picky.request(1))["start"], stamp("2026-10-26T13:00:00", "UTC"));
+    let never = FakeHttp::answering(answer("400 Bad Request", "", &graph_error("ErrorInvalidRequest", "No.")));
+    let uploaded = push_events_at(&never.url(""), TOKEN, &upload(vec![lunch()]), &options);
+    assert_eq!((uploaded.outcomes[0].result, uploaded.outcomes[0].zone.as_str(), never.asked()), (EventResult::Refused, "Eastern Standard Time", 1));
     // An end before the start is no length, not a negative one.
     let backwards = sent(EventTime { start: at(2026, 10, 26, 13, 0), end: at(2026, 10, 26, 12, 0), all_day: false }, "");
     assert_eq!(backwards["end"], stamp("2026-10-26T13:00:00", "UTC"));
@@ -2443,11 +2489,13 @@ fn an_event_with_zones_of_its_own_is_written_by_their_clocks() {
         let (_, body) = sent(EventFields { time, zones: zones(zone, ""), ..Default::default() }, "");
         assert_eq!(body.unwrap()["start"], stamp(start, name), "{zone}");
     }
-    // An event without zones of its own goes as instants, as it always did; whole days are
-    // days in the zone the calendar is shown in, which the upload names (and only when it
-    // doesn't, in the one the host knows the computer to be in).
+    // An event without zones of its own goes by the clock of the zone the calendar is shown in,
+    // which the upload names (#1130), and only when it doesn't, by the one the host knows the
+    // computer to be in; whole days are days in that zone.
     let (_, body) = sent(EventFields { time, ..Default::default() }, "America/Chicago");
-    assert_eq!(body.unwrap()["start"], stamp("2026-10-12T20:00:00", "UTC"));
+    assert_eq!(body.unwrap()["start"], stamp("2026-10-12T15:00:00", "Central Standard Time"));
+    let (_, body) = sent(EventFields { time, ..Default::default() }, "");
+    assert_eq!(body.unwrap()["start"], stamp("2026-10-12T10:00:00", "Hawaiian Standard Time"));
     let days = Some(EventTime { start: at(2026, 10, 31, 0, 0), end: at(2026, 11, 1, 0, 0), all_day: true });
     let (_, body) = sent(EventFields { time: days, zones: zones("Asia/Tokyo", ""), ..Default::default() }, "America/Chicago");
     assert_eq!(body.unwrap()["start"], stamp("2026-10-31T00:00:00", "Central Standard Time"));
@@ -2489,9 +2537,10 @@ fn an_event_with_zones_of_its_own_is_written_by_their_clocks() {
         let (result, body) = sent(EventFields { zones: zones(unnamed, ""), ..series.clone() }, "America/Chicago");
         assert_eq!((result, body), (EventResult::Refused, None), "{unnamed}");
     }
-    // An event that happens once in such a zone is the same moment in UTC.
+    // An event that happens once in such a zone is the same moment by the clock of the
+    // calendar's zone.
     let (result, body) = sent(EventFields { time, zones: zones("UTC+05:30", ""), ..Default::default() }, "America/Chicago");
-    assert_eq!((result, body.unwrap()["start"].clone()), (EventResult::Done, stamp("2026-10-12T20:00:00", "UTC")));
+    assert_eq!((result, body.unwrap()["start"].clone()), (EventResult::Done, stamp("2026-10-12T15:00:00", "Central Standard Time")));
 
     // Graph won't have a zone (400): an event that happens once is sent again as instants; a
     // series is not sent by another clock, and says so.
@@ -2534,6 +2583,15 @@ proptest! {
         // And as instants, when Graph wouldn't have the zone.
         let plain: Value = serde_json::from_str(&event_body(&fields, "", "", false).unwrap()).unwrap();
         prop_assert_eq!((when(plain.get("start")), when(plain.get("end")), plain["start"]["timeZone"].as_str()), (Some(start), Some(end), Some("UTC")));
+        // Without zones of its own, by the clock of the calendar's zone (#1130): the same.
+        if let Some((_, shown)) = graph_zone(&zone.id()) {
+            let once = EventFields { zones: None, ..fields };
+            let body: Value = serde_json::from_str(&event_body(&once, "", &shown, true).unwrap()).unwrap();
+            // (In UTC when a time is in an hour the clocks show twice.)
+            let said = body["start"]["timeZone"].as_str().unwrap_or_default();
+            prop_assert!(said == shown || said == "UTC", "{said}");
+            prop_assert_eq!((when(body.get("start")), when(body.get("end"))), (Some(start), Some(end)));
+        }
     }
 }
 
