@@ -432,3 +432,48 @@ fn only_the_complex_routing_reason_of_exchange_itself_takes_a_failure_away() {
     headers = through_a_gateway(&ROUTED.replace("compauth=none reason=905", "compauth=none reason=905 header.from=other.example"));
     assert_eq!(failed_check(Some(&account), &message("alerts@example.org", headers)), Some(Failed::Dmarc));
 }
+
+/// The same verdict for a sender at the account's own domain. Exchange gives `reason=905` from how
+/// the tenant's mail is routed, so it says it too of a message sent straight to Microsoft 365 past
+/// the gateway, where anybody can write a colleague's address on it.
+fn spoof_of(from: &str, domain: &str, results: &str) -> Message {
+    message(from, through_a_gateway(&results.replace("example.org", domain)))
+}
+
+#[test]
+fn a_spoof_of_the_owners_own_domain_keeps_its_warning_past_the_route() {
+    let spf = "mx.microsoft.com 1; spf=fail (sender IP is 203.0.113.9) smtp.mailfrom=example.org; compauth=none reason=905";
+    for account in [microsoft(), microsoft_imap()] {
+        assert_eq!(failed_check(Some(&account), &spoof_of("ceo@lumen.example", "lumen.example", ROUTED)), Some(Failed::Dmarc));
+        assert_eq!(failed_check(Some(&account), &spoof_of("ceo@lumen.example", "lumen.example", spf)), Some(Failed::Spf));
+        // Written in other capitals, with a dot at the end, or at a name under the account's own.
+        assert_eq!(failed_check(Some(&account), &spoof_of("CEO@Lumen.EXAMPLE.", "LUMEN.example", ROUTED)), Some(Failed::Dmarc));
+        assert_eq!(failed_check(Some(&account), &spoof_of("it@hr.lumen.example", "hr.lumen.example", ROUTED)), Some(Failed::Dmarc));
+        // A domain that only starts or ends like the account's is somebody else's: no warning.
+        for outside in ["lumen.example.org", "notlumen.example"] {
+            assert_eq!(failed_check(Some(&account), &spoof_of(&format!("ceo@{outside}"), outside, ROUTED)), None, "{outside}");
+        }
+    }
+    // The account's address at a name under the organisation's, the sender at the organisation's.
+    let uk = Account { email: "ada@uk.lumen.example".into(), ..microsoft() };
+    assert_eq!(failed_check(Some(&uk), &spoof_of("ceo@lumen.example", "lumen.example", ROUTED)), Some(Failed::Dmarc));
+    // A domain written in other letters is the same domain however either address writes it.
+    let idn = Account { email: "ada@xn--lmen-0ra.example".into(), ..microsoft() };
+    assert_eq!(failed_check(Some(&idn), &spoof_of("ceo@l\u{fc}men.example", "xn--lmen-0ra.example", ROUTED)), Some(Failed::Dmarc));
+    let idn = Account { email: "ada@l\u{fc}men.example".into(), ..microsoft() };
+    assert_eq!(failed_check(Some(&idn), &spoof_of("ceo@xn--lmen-0ra.example", "xn--lmen-0ra.example", ROUTED)), Some(Failed::Dmarc));
+}
+
+#[test]
+fn mail_exchange_calls_internal_is_not_vouched_for_past_a_failure_it_did_not_enforce() {
+    // A connector may make Exchange call mail of the owner's own domain internal; with the
+    // failure standing, it is not vouched for, as before #1568.
+    let mut m = spoof_of("bo@lumen.example", "lumen.example", ROUTED);
+    for (name, value) in &mut m.headers {
+        if name == AUTH_AS {
+            *value = "Internal".into();
+        }
+    }
+    assert_eq!(failed_check(Some(&microsoft()), &m), Some(Failed::Dmarc));
+    assert!(!vouched(Some(&microsoft()), &m));
+}
