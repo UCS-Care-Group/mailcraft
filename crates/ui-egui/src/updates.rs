@@ -541,6 +541,26 @@ pub(crate) fn question(app: &mut MailApp, ui: &mut Ui) {
     }
 }
 
+/// Keep notice text at the reading edge without changing the English button order.
+fn notice_row_layout(lang: crate::i18n::Lang) -> egui::Layout {
+    if lang == crate::i18n::Lang::Hebrew {
+        egui::Layout::right_to_left(egui::Align::Center)
+    } else {
+        egui::Layout::left_to_right(egui::Align::Center)
+    }
+}
+
+#[cfg(test)]
+mod notice_layout_tests {
+    use super::notice_row_layout;
+
+    #[test]
+    fn hebrew_notice_starts_at_right_while_english_stays_left() {
+        assert_eq!(notice_row_layout(crate::i18n::Lang::Hebrew).main_dir, egui::Direction::RightToLeft);
+        assert_eq!(notice_row_layout(crate::i18n::Lang::English).main_dir, egui::Direction::LeftToRight);
+    }
+}
+
 /// A line across the window above the status bar: `said`, then its buttons (hit name, label,
 /// whether it is the primary one); `pressed` gets the hit name of the one pressed.
 pub(crate) fn bar(
@@ -563,16 +583,18 @@ pub(crate) fn bar(
             bottom: 0,
         }))
         .show(ui, |ui| {
-            ui.horizontal_centered(|ui| {
+            ui.with_layout(notice_row_layout(crate::i18n::current()), |ui| {
                 ui.spacing_mut().item_spacing = vec2(10.0, 0.0);
+                // Reserve the icon's own slot: cursor.min is the LEFT edge in RTL as well,
+                // so painting at it would put the icon on the wrong side of the notice.
+                let (icon_slot, _) = ui.allocate_exact_size(vec2(24.0, 26.0), egui::Sense::hover());
                 crate::icons::paint(
                     ui.painter(),
-                    egui::Rect::from_min_size(ui.cursor().min + vec2(0.0, 11.0), vec2(18.0, 18.0)),
+                    egui::Rect::from_center_size(icon_slot.center(), vec2(18.0, 18.0)),
                     "info",
                     t.icon,
                     t.accent,
                 );
-                ui.add_space(24.0);
                 // A line too long for the window (or longer in another language) is cut short
                 // and whole on hover, so the buttons stay on screen.
                 let room = (ui.available_width() - buttons.len() as f32 * 84.0).max(80.0);
