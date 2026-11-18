@@ -435,6 +435,13 @@ pub fn search(job: mailcraft_ui_egui::server_search::GraphSearchJob) -> mailcraf
     }
 }
 
+fn outgoing_problem(request: &SyncRequest, error: Text) -> SyncResult {
+    // Incoming work still follows; only the transport's final piece may close the UI receiver.
+    let mut result = SyncResult { account: request.account.id, email: request.account.email.clone(), partial: true, ..Default::default() };
+    result.problem(error);
+    result
+}
+
 pub fn sync(request: &SyncRequest, cancel: &AtomicBool, emit: &mut dyn FnMut(SyncResult)) {
     let result = zbus::blocking::connection::Builder::session()
         .ok()
@@ -445,9 +452,7 @@ pub fn sync(request: &SyncRequest, cancel: &AtomicBool, emit: &mut dyn FnMut(Syn
     match result {
         Ok((resolved, outgoing_error)) => {
             if let Some(error) = outgoing_error {
-                let mut result = SyncResult { account: request.account.id, email: request.account.email.clone(), ..Default::default() };
-                result.problem(error);
-                emit(result);
+                emit(outgoing_problem(request, error));
             }
             mailcraft_net::sync_with(&resolved, cancel, emit);
         }

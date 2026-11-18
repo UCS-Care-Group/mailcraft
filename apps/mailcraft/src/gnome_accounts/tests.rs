@@ -390,6 +390,89 @@ fn serve_metadata(
 }
 
 static PRIVATE_BUS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[test]
+fn outgoing_credential_warning_keeps_the_ui_receiver_open_for_incoming_mail() {
+    use mailcraft_model::sync::FolderDelta;
+    use mailcraft_model::{Address, FolderKind, Message};
+    use mailcraft_ui_egui::{MailApp, Services};
+    use serde_json::json;
+
+    let account = parse(linked_fixture("imap_smtp", false)).unwrap().remove(0).linked.unwrap();
+    let mut session = mailcraft_engine::Session::empty();
+    let id = session
+        .run(
+            "account.add",
+            &json!({
+                "email": account.email, "kind": account.kind, "incoming": account.incoming,
+                "outgoing": account.outgoing, "username": account.username, "goa": account.goa,
+            }),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let inbox = session.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
+    let outbox = session.mailbox.folder_of_kind(id, FolderKind::Outbox).unwrap();
+    let queued = session
+        .mailbox
+        .add_message(Message {
+            account: id,
+            folder: outbox,
+            subject: "Queued synthetic mail".into(),
+            from: Address::new("Example Owner", "owner@example.org"),
+            to: vec![Address::new("Recipient", "recipient@example.org")],
+            ..Default::default()
+        })
+        .unwrap();
+    session.driver.set_auto_sync(false);
+    let mut app = MailApp::new(
+        session,
+        Services {
+            gnome_accounts: Some(Box::new(|| std::sync::mpsc::channel().1)),
+            sync: Some(Box::new(move |request| {
+                assert!(request.account.goa.is_some());
+                assert_eq!(request.outbox.len(), 1);
+                let (tx, rx) = std::sync::mpsc::channel();
+                // The production producer's warning, followed by ordinary incoming/terminal
+                // transport pieces. No real bus, mail server, password or provider is used.
+                tx.send(outgoing_problem(&request, said!("Repair this account's outgoing sign-in in GNOME Online Accounts."))).unwrap();
+                tx.send(SyncResult {
+                    account: id,
+                    email: request.account.email.clone(),
+                    partial: true,
+                    folders: vec![FolderDelta {
+                        id: Some(inbox),
+                        remote: "INBOX".into(),
+                        kind: FolderKind::Inbox,
+                        uid_validity: 1,
+                        uid_seen: 1,
+                        new: vec![Message {
+                            uid: 1,
+                            subject: "Incoming after SMTP warning".into(),
+                            from: Address::new("Sender", "sender@example.org"),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                })
+                .unwrap();
+                tx.send(SyncResult { account: id, email: request.account.email, ..Default::default() }).unwrap();
+                rx
+            })),
+            ..Default::default()
+        },
+    );
+    app.autosave = false;
+    app.execute("ui.sync", json!({"account": id})).unwrap();
+    for _ in 0..8 {
+        app.poll_sync();
+    }
+    assert!(app.session.mailbox.messages.values().any(|m| m.account == id && m.subject == "Incoming after SMTP warning"));
+    assert!(app.session.mailbox.message(queued).is_some(), "the SMTP failure keeps the outgoing message queued");
+    assert!(!app.syncing());
+}
+
 #[test]
 #[ignore = "requires an isolated D-Bus session (see docs/gnome-accounts.md)"]
 fn private_bus_linked_credentials_refresh_without_local_login_or_storage() {
@@ -462,6 +545,10 @@ fn private_bus_linked_credentials_refresh_without_local_login_or_storage() {
         assert!(!error.to_string().contains("synthetic-private-error"));
         assert!(error.to_string().contains("GNOME Online Accounts"));
         assert_eq!(calls.lock().unwrap().len(), count + 1, "a refused EnsureCredentials never requests tokens or passwords");
+        let mut pieces = Vec::new();
+        sync(&request, &cancelled, &mut |piece| pieces.push(piece));
+        assert_eq!(pieces.len(), 1);
+        assert!(!pieces[0].partial && !pieces[0].errors.is_empty(), "incoming credential failures remain terminal");
         drop(server);
     }
 }
