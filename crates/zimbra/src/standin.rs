@@ -227,9 +227,14 @@ impl StandIn {
             return soap("SyncResponse", json!({"token": s.change.to_string(), "md": 1, "folder": [{"id": "1"}]}));
         };
         let Ok(since) = since.parse::<u64>() else { return fault("service.INVALID_REQUEST") };
-        // Things that happen while this delta is being put together.
+        // Things that happen while this delta is being put together — one a delta, so that two
+        // of them land on different pages of a long one.
         let mut s = s;
-        for act in self.during.borrow_mut().drain(..) {
+        let next = {
+            let mut during = self.during.borrow_mut();
+            if during.is_empty() { None } else { Some(during.remove(0)) }
+        };
+        if let Some(act) = next {
             act(&mut s);
         }
         if since < s.oldest {
@@ -277,14 +282,18 @@ impl StandIn {
             return fault("service.INVALID_REQUEST");
         };
         found.sort_by_key(|(_, item)| std::cmp::Reverse(item.date));
-        // A cursor continues after the item it names; a stuck server gives the first page again.
+        // A cursor continues after the item it names; when that item is gone Zimbra goes on from
+        // its sort value instead (the list is dateDesc). A stuck server gives the first page again.
         let offset = match body.get("cursor") {
             Some(_) if self.stuck.get() => offset,
             Some(cursor) => {
                 let at = cursor.get("id").and_then(Value::as_str).and_then(|id| id.parse::<u32>().ok());
                 match at.and_then(|at| found.iter().position(|(id, _)| **id == at)) {
                     Some(at) => at.saturating_add(1),
-                    None => return fault("service.INVALID_REQUEST"),
+                    None => match cursor.get("sortValue").and_then(Value::as_str).and_then(|s| s.parse::<u64>().ok()) {
+                        Some(sort) => found.iter().position(|(_, i)| i.date < sort).unwrap_or(found.len()),
+                        None => return fault("service.INVALID_REQUEST"),
+                    },
                 }
             }
             None => offset,

@@ -29,9 +29,17 @@ use crate::error::Error;
 use crate::http::{HttpExchange, HttpRequest, HttpResponse, Secret, TransportError};
 use crate::{auth, delta, fetch, folders, items};
 
-/// Most pages of one folder read in a run (at [`items::PAGE`] each), and most rounds of a delta.
+/// Most pages of one folder read in a run (at [`items::PAGE`] each), most rounds of a delta, and
+/// most times the folder listing is asked for again when a change names a folder it doesn't know.
+#[cfg(not(test))]
 const MAX_FOLDER_PAGES: usize = 800;
+#[cfg(test)]
+const MAX_FOLDER_PAGES: usize = 4;
+#[cfg(not(test))]
 const MAX_ROUNDS: usize = 400;
+#[cfg(test)]
+const MAX_ROUNDS: usize = 3;
+const MAX_RELISTS: usize = 4;
 /// Most messages fetched whole in one fetch.
 const MAX_FETCH: usize = 100;
 /// Most bytes of MIME one fetch holds in memory at once: at [`crate::http::RESPONSE_LIMIT`] a
@@ -182,7 +190,7 @@ async fn changes<E: HttpExchange>(
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) -> Result<String, Stop> {
     let mut listing = listing.clone();
-    let mut relisted = false;
+    let mut relisted = 0;
     let mut since = request.token.clone();
     for _ in 0..MAX_ROUNDS {
         let answered = run.ask(delta::request(&run.base, &run.token, &since)).await?;
@@ -195,12 +203,20 @@ async fn changes<E: HttpExchange>(
             messages.extend(items::answer(&found).map_err(Stop::Failed)?.messages);
         }
         // A message that lies in a folder no listing knows may have gone to one made while the run
-        // has been going on: the listing is asked for once more, then the folder is known for
+        // has been going on: the listing is asked for again, then the folder is known for
         // certain — a message in one it still doesn't name (the chat history, a calendar) has
-        // left the mail.
+        // left the mail. Asked for again as often as new folders turn up, up to a cap: a listing
+        // that can't settle can't be trusted, and the run stops without its token.
         let mut mail: std::collections::HashSet<&str> = listing.folders.iter().map(|f| f.id.as_str()).collect();
-        if !relisted && messages.iter().any(|m| !mail.contains(m.server.folder.as_str())) {
-            relisted = true;
+        while messages.iter().any(|m| !mail.contains(m.server.folder.as_str())) {
+            // A folder that is no folder of mail (the chat history, a calendar) is never in the
+            // listing: asking again for it for ever would end the run, so a listing that brings
+            // no new folder is the last word — what still isn't known has left the mail.
+            let known = mail.len();
+            relisted += 1;
+            if relisted > MAX_RELISTS {
+                return Err(Stop::Failed(Error::Unreadable));
+            }
             let listed = run.ask(folders::request(&run.base, &run.token)).await?;
             let again = folders::answer(&listed).map_err(Stop::Failed)?;
             if !again.complete {
@@ -213,16 +229,22 @@ async fn changes<E: HttpExchange>(
             emit(piece);
             listing = again;
             mail = listing.folders.iter().map(|f| f.id.as_str()).collect();
+            if mail.len() == known {
+                break;
+            }
         }
-        // An id the delta named that no message came back for was either deleted between the two
-        // answers, or is no message at all: either way nothing of it stays, and it is dropped by
-        // name rather than by silence.
+        // An id the delta named that no message came back for can't be taken for gone: the
+        // message may still be there while the search leaves it out (an index behind, a scope
+        // the server reads differently). Stopping without the token loses nothing — the next
+        // run asks for the same delta, and a message that really was deleted turns up in its
+        // `deleted` list. Counting it as removed would delete it here while it lives on.
         let returned: std::collections::HashSet<&str> = messages.iter().map(|m| m.server.id.as_str()).collect();
-        let missing: Vec<String> = named.into_iter().filter(|id| !returned.contains(id.as_str())).collect();
+        if named.iter().any(|id| !returned.contains(id.as_str())) {
+            return Err(Stop::Failed(Error::Unreadable));
+        }
         let (messages, gone): (Vec<GraphMessage>, Vec<GraphMessage>) = messages.into_iter().partition(|m| mail.contains(m.server.folder.as_str()));
         let mut removed = page.deleted.clone();
         removed.extend(gone.into_iter().map(|m| m.server.id));
-        removed.extend(missing);
         let mut piece = blank(request);
         piece.pages.push(ZimbraMessagePage { messages, removed, last: !page.more, ..ZimbraMessagePage::default() });
         piece.partial = true;
