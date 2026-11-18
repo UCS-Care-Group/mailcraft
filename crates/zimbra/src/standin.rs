@@ -64,7 +64,6 @@ pub struct State {
 }
 
 /// The stand-in server.
-#[derive(Default)]
 pub struct StandIn {
     pub state: RefCell<State>,
     /// Things that happen while the next delta is being answered, as another program would do
@@ -73,6 +72,14 @@ pub struct StandIn {
     /// A broken server that answers every folder page with `more` and ignores the cursor it was
     /// given: the same page comes back each time, for ever.
     pub stuck: std::cell::Cell<bool>,
+}
+
+impl Default for StandIn {
+    /// A default mailbox is a standard one — [`StandIn::new`], not the empty map a derived
+    /// `Default` would give (a folder id `1` there would be no Inbox).
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl std::fmt::Debug for StandIn {
@@ -385,7 +392,8 @@ impl StandIn {
             return HttpResponse::new(401, Vec::new());
         }
         let id = query.split('&').find_map(|pair| pair.strip_prefix("id=")).and_then(|id| id.parse::<u32>().ok());
-        match id.and_then(|id| self.state.borrow().items.get(&id).map(|i| i.mime.clone())) {
+        let s = self.state.borrow();
+        match id.and_then(|id| s.items.get(&id).filter(|_| !s.vanished.contains(&id)).map(|i| i.mime.clone())) {
             Some(mime) => HttpResponse::new(200, mime.into_bytes()),
             None => HttpResponse::new(404, Vec::new()),
         }

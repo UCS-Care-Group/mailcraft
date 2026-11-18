@@ -323,6 +323,11 @@ impl ZimbraMailResult {
         if !crate::ZimbraServer::token_ok(&self.from) || !crate::ZimbraServer::token_ok(&self.token) {
             return Err("has a change token that can't be one");
         }
+        // The token and the folders' resume list travel in one piece: a token without it would
+        // move the run on while half-read folders lose where they stopped.
+        if !self.token.is_empty() && self.resume.is_none() {
+            return Err("has a token but no resume");
+        }
         if self.errors.iter().any(|e| e.chars().take(MAX_ZIMBRA_ERROR + 1).count() > MAX_ZIMBRA_ERROR) {
             return Err("has a problem told at too great a length");
         }
