@@ -138,9 +138,13 @@ impl Session {
         let window = self.calendar_window();
         for account in self.calendar_accounts() {
             // The account (or the owner a shared mailbox is read through) is signing in: it waits,
-            // and the wish to ask at once is kept for when it has (the others go on, #1557).
+            // and the wish to ask at once is kept for it, for when it has signed in: the others go
+            // on, and the first of them to start has the wish of its own (#1557).
             let signer = self.mailbox.owner_of(account).map_or(account, |owner| owner.id);
             if facts.busy.blocks(Start::Calendar, signer) {
+                if self.driver.calendar.due {
+                    self.driver.calendar.due_for.insert(account);
+                }
                 look.may_ask = false;
                 continue;
             }
@@ -183,6 +187,7 @@ impl Session {
     pub fn calendar_none_started(&mut self, look: &CalendarLook) {
         if look.may_ask {
             self.driver.calendar.due = false;
+            self.driver.calendar.due_for.clear();
         }
     }
 

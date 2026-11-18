@@ -156,3 +156,29 @@ fn a_sign_in_left_open_on_one_account_holds_its_jobs_and_none_of_the_others() {
     assert_eq!(look.plans.iter().map(|p| p.account).collect::<Vec<_>>(), vec![a, b]);
     assert_eq!(s.tasks_due(&TasksFacts { reachable: true, running: false, busy: free }, refresh, 1e6), vec![a, b]);
 }
+
+#[test]
+fn the_wish_to_ask_the_calendar_at_once_is_kept_for_the_account_signing_in_though_another_starts_meanwhile() {
+    let (mut s, a, b) = two_accounts();
+    s.view.module = crate::Module::Calendar;
+    let facts = |busy| CalendarFacts { focused: true, backstage: false, reachable: true, busy };
+    let due = |s: &mut Session, busy, now| s.calendar_due(&facts(busy), now).plans;
+    // Both calendars were just asked for, the wide stretch too: neither is due by the clock.
+    for plan in due(&mut s, Busy::default(), 1e6) {
+        s.calendar_started(&plan, 1e6);
+        s.driver.calendar.checked.insert(plan.account, 1e6);
+    }
+    assert!(due(&mut s, Busy::default(), 1e6 + 1_000.0).is_empty());
+    // The owner brings the calendar to the front while A signs in: B's job starts, and has the
+    // wish to ask at once.
+    s.driver.calendar.due = true;
+    let plans = due(&mut s, Busy { signing_in: Some(a), ..Default::default() }, 1e6 + 2_000.0);
+    assert_eq!(plans.iter().map(|p| p.account).collect::<Vec<_>>(), vec![b]);
+    s.calendar_started(&plans[0], 1e6 + 2_000.0);
+    assert!(!s.driver.calendar.due);
+    // The sign-in is over: A is asked at once too, not at the end of its interval, and once.
+    let plans = due(&mut s, Busy::default(), 1e6 + 3_000.0);
+    assert_eq!(plans.iter().map(|p| p.account).collect::<Vec<_>>(), vec![a]);
+    s.calendar_started(&plans[0], 1e6 + 3_000.0);
+    assert!(due(&mut s, Busy::default(), 1e6 + 4_000.0).is_empty());
+}

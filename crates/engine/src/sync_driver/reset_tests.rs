@@ -31,6 +31,7 @@ fn global(driver: &mut Driver) {
 /// What the driver remembers of `account`, in every part of it.
 fn busy_for(driver: &mut Driver, account: Id) {
     driver.calendar.by_hand.insert(account);
+    driver.calendar.due_for.insert(account);
     driver.calendar.extras_missing.insert(account);
     driver.calendar.send_waits.insert(account);
     driver.calendar.settings_asked.insert(account, 5.0);
