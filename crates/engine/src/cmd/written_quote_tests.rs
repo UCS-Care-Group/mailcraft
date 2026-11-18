@@ -84,11 +84,9 @@ fn reply_reply_all_and_forward_carry_the_pictures_written_into_the_original() {
         assert!(pic.name.ends_with(".png") && !pic.name.is_empty());
         assert!(q.html.contains(&format!("<img src=\"cid:{}\" alt=\"Chart\" width=\"64\">", pic.content_id)), "{command}: {}", q.html);
         assert!(!q.html.contains("data:") && q.html.contains("<p>Regards, Rowan</p>"), "{command}: {}", q.html);
-        // The attached logo is carried as before: with the quote for an answer, as an
-        // attachment of the forward.
-        let logo_with_quote = q.pictures.iter().any(|a| a.content_id == "logo@rowan.example");
-        let logo_attached = c.attachments.iter().any(|a| a.content_id == "logo@rowan.example");
-        assert_eq!((logo_with_quote, logo_attached), (command != "mail.forward", command == "mail.forward"), "{command}");
+        // A logo that the quote shows travels with the quote in each kind of response.
+        assert!(q.pictures.iter().any(|a| a.content_id == "logo@rowan.example"), "{command}");
+        assert!(!c.attachments.iter().any(|a| a.content_id == "logo@rowan.example"), "{command}");
 
         if command == "mail.forward" {
             run(&mut s, "compose.set", json!({"to": "maya@lumen.example"}));

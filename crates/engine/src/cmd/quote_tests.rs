@@ -172,16 +172,35 @@ fn the_quoted_original_reads_through_the_html_reader() {
 }
 
 #[test]
-fn a_forward_carries_every_attachment_and_the_original() {
+fn a_forward_keeps_the_logo_in_the_quote_and_carries_ordinary_files() {
     let mut s = session();
     let id = newsletter(&mut s);
-    run(&mut s, "mail.forward", json!({"id": id}));
-    let c = compose(&s).clone();
-    assert!(c.quote.as_ref().is_some_and(|q| q.pictures.is_empty() && q.html.contains(BODY)));
-    assert_eq!(c.attachments.len(), 2);
+    let source = s.mailbox.message_mut(id).unwrap();
+    source.attachments[0].inline = false;
+    source.attachments.push(Attachment::new("photo.png", "image/png", b"\x89PNG\r\n\x1a\n".to_vec()));
+
+    let forward = run(&mut s, "mail.forward", json!({"id": id}))["compose"].as_u64().unwrap();
+    let c = compose(&s);
+    let quote = c.quote.as_ref().unwrap();
+    assert!(quote.html.contains(BODY));
+    assert_eq!(quote.pictures.iter().map(|a| a.content_id.as_str()).collect::<Vec<_>>(), ["logo@news.example"]);
+    assert_eq!(c.attachments.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), ["menu.pdf", "photo.png"]);
+
+    let draft = run(&mut s, "compose.saveDraft", json!({"compose": forward}))["draft"].as_u64().unwrap();
+    run(&mut s, "compose.close", json!({"compose": forward}));
+    run(&mut s, "mail.editDraft", json!({"id": draft}));
+    let c = compose(&s);
+    assert_eq!(c.quote.as_ref().unwrap().pictures.len(), 1);
+    assert_eq!(c.attachments.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), ["menu.pdf", "photo.png"]);
+
     run(&mut s, "compose.set", json!({"to": "maya@lumen.example"}));
     let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
-    assert_eq!(s.mailbox.message(sent).unwrap().attachments.len(), 2);
+    let sent = s.mailbox.message(sent).unwrap();
+    let wire = mailcraft_mime_model::write(sent, &mailcraft_mime_model::WriteOptions::default());
+    let parsed = mailcraft_mime_model::parse(&wire);
+    assert!(parsed.body.html.as_deref().unwrap().contains("cid:logo@news.example"));
+    assert_eq!(parsed.attachments.iter().filter(|a| a.inline && a.content_id == "logo@news.example").count(), 1);
+    assert_eq!(parsed.listed_attachments().map(|(_, a)| a.name.as_str()).collect::<Vec<_>>(), ["menu.pdf", "photo.png"]);
 }
 
 #[test]

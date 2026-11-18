@@ -258,7 +258,7 @@ fn each_message_being_written_has_its_own_quoted_original() {
     }
     assert_eq!(app.session.all_composing().count(), 2);
     // The second forward's picture is another of the same name and count.
-    app.session.compose.as_mut().unwrap().attachments = vec![picture("chart.png", 30)];
+    app.session.compose.as_mut().unwrap().quote.as_mut().unwrap().pictures = vec![picture("chart.png", 30)];
     let ctx = egui::Context::default();
     let switch = |app: &mut MailApp| std::mem::swap(app.session.compose.as_mut().unwrap(), &mut app.session.composing[0]);
     let carried = |app: &MailApp| crate::reading::quote_message(app, &ctx).unwrap();
@@ -273,7 +273,7 @@ fn each_message_being_written_has_its_own_quoted_original() {
     switch(&mut app);
     assert!(std::sync::Arc::ptr_eq(&carried(&app), &second));
     // Its picture changed for one of the same count: the original is made again.
-    app.session.compose.as_mut().unwrap().attachments = vec![picture("chart.png", 40)];
+    app.session.compose.as_mut().unwrap().quote.as_mut().unwrap().pictures = vec![picture("chart.png", 40)];
     assert_eq!(bytes(&carried(&app)), vec![std::sync::Arc::new(png(40, 40))]);
 }
 
