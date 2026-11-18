@@ -3236,3 +3236,30 @@ fn the_question_about_a_deletion_says_outlook_only_when_it_goes_from_there() {
     assert!(!says("Old local"));
     assert!(!says("Not on the list"));
 }
+
+/// A rule that categorises mail and copies it into another account's folder (#566) puts the
+/// category on that account's list too, as a move there does, and so in its Outlook: the agent's
+/// questions about making the rule and running it name it (#661).
+#[test]
+fn a_rule_that_copies_mail_into_another_account_names_the_category_its_outlook_gets() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Zed", RED)], true);
+    let b = s.run("account.add", &json!({"email": "b@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    read_as(&mut s, b, "b@example.org", vec![tag("Red category", RED)]);
+    s.run("sync.categoryWrites", &json!({"account": b, "allowed": true})).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    let params = json!({"name": "Copy", "account": a, "conditions": [{"type": "subjectContains", "value": "x"}],
+        "actions": [{"type": "categorize", "value": "Zed"}, {"type": "copyTo", "value": theirs}], "server": false});
+    let asked = |s: &Session, id: &str, params: &serde_json::Value| match check(s, id, params, &[]) {
+        Verdict::Ask(_, text) => text,
+        other => format!("{other:?}"),
+    };
+    let made = asked(&s, "rules.add", &params);
+    assert!(made.contains("made in Outlook too"), "{made}");
+    s.run("rules.add", &params).unwrap();
+    let running = asked(&s, "rules.run", &json!({"folder": inbox}));
+    assert!(running.contains("made in Outlook too"), "{running}");
+    s.mailbox.add_message(Message { folder: inbox, subject: "x".into(), ..Default::default() }).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert!(s.mailbox.category_of(b, "Zed").is_some(), "the copy's list takes the category");
+}

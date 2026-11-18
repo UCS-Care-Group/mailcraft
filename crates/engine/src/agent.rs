@@ -1150,7 +1150,8 @@ enum Counted {
 /// have been moved to another account by then, by this rule or by one that runs before it
 /// ([`Mailbox::run_rules`] runs the rules of the account the mail came to, in their order,
 /// wherever an earlier one moved it), or a move may have been refused (a message not downloaded
-/// whole, say): every list it may be on is named. What each rule matches, where it stands and
+/// whole, say), and a copy made into another account's folder carries them there (#566): every
+/// list it may be on is named. What each rule matches, where it stands and
 /// whether one before it stops the rest are not worked out: whatever they give may be given.
 fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<Id>, counted: Counted, out: &mut Vec<(String, Id)>) {
     let mut accounts: Vec<Id> = match from {
@@ -1166,7 +1167,9 @@ fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<I
         .chain(std::iter::once(r))
         .flat_map(|x| x.actions.iter())
         .filter_map(|action| match action {
-            mailcraft_model::Action::MoveTo(folder) => mb.folder(*folder).filter(|f| !mb.is_send_queue(f.id)).map(|f| f.account),
+            mailcraft_model::Action::MoveTo(folder) | mailcraft_model::Action::CopyTo(folder) => {
+                mb.folder(*folder).filter(|f| !mb.is_send_queue(f.id)).map(|f| f.account)
+            }
             _ => None,
         })
         .collect();
@@ -1839,8 +1842,9 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 /// deleted on its server or one there that deletes mail, whichever it is asked about (#661), and
 /// the Settings it is besides, whatever it is asked as; so does an undo or redo that puts back
 /// rules, signatures or Safe and Blocked Senders. A change of an account's address asked as a
-/// send for a rule beside it needs the Accounts too (#566). Asked about as one question, so that
-/// the owner's yes lets it run.
+/// send for a rule beside it needs the Accounts too (#566), and a change of the Safe or Blocked
+/// Senders so asked the Settings. Asked about as one question, so that the owner's yes lets it
+/// run.
 pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
         // A change of an account's address asked as a send for a rule beside it that reads the
@@ -1894,6 +1898,10 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
             }
             more
         }
+        // A change asked as a send for a rule beside it that puts mail onto another server is
+        // still what it is besides: one of the Safe or Blocked Senders a change of settings
+        // (#566).
+        _ if class == Class::Send && id.starts_with("junk.") && rules_onto_another_server(s, id, params) => vec![Class::Settings],
         _ => Vec::new(),
     }
 }
