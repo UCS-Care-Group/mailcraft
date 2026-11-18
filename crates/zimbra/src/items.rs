@@ -82,7 +82,9 @@ pub fn probe_answer(response: &HttpResponse) -> Result<Option<GraphMessage>, Err
     if json::bad_list(answer.get("m")) {
         return Err(Error::Unreadable);
     }
-    Ok(json::list(answer.get("m")).first().and_then(message))
+    // A GetMsg success names the item — an empty or unreadable `m` is no word that it's gone
+    // (`mail.NO_SUCH_MSG` is), it's the server's answer refusing to be read.
+    json::list(answer.get("m")).first().and_then(message).map(Some).ok_or(Error::Unreadable)
 }
 
 /// The messages of a `SearchResponse`, whether there are more after them, and the last item's
@@ -103,9 +105,12 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
             // An item that names no folder at all can't be told moved or removed: an empty
             // folder would have the run count it deleted while the token moves past the change.
             None => return Err(Error::Unreadable),
+            Some(l) if json::own_id(Some(l)).is_some() => {}
             // A folder of another mailbox: the item is passed over like a foreign id.
-            Some(l) if json::own_id(Some(l)).is_none() => continue,
-            _ => {}
+            Some(l) if json::foreign_id(Some(l)) => continue,
+            // An `l` that is neither — null, empty, no id of any mailbox's shape — can't be
+            // placed; passing it over would lose a message the server did send.
+            Some(_) => return Err(Error::Unreadable),
         }
         if json::bad_list(m.get("e")) {
             return Err(Error::Unreadable);

@@ -51,6 +51,7 @@ fn result() -> ZimbraMailResult {
         ],
         from: "4711".into(),
         token: "4712".into(),
+        resume: Some(vec![]),
         errors: vec!["one".into()],
         partial: true,
         ..Default::default()
@@ -76,6 +77,7 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
         account: 3,
         pages: vec![ZimbraMessagePage { messages: vec![message("262", "2")], last: true, ..Default::default() }],
         token: "4713".into(),
+        resume: Some(vec![]),
         errors: vec!["two".into()],
         whole: true,
         ..Default::default()
