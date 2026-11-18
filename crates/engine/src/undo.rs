@@ -1262,10 +1262,8 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
     if t.account != c.account {
         m.folder = t.folder;
     }
-    // A draft written back to what it was goes up again as that; but not one the server changed
-    // since, still to be fetched: what is here of it is what the listing said, not a draft, and
-    // written up it would take the server's text and files away. The server's comes down (#566).
-    let differs = m.draft && !m.unfetched && DraftState::of(&m) != DraftState::of(c);
+    // A draft written back to what it was goes up again as that.
+    let differs = m.draft && DraftState::of(&m) != DraftState::of(c);
     if let Some(sd) = m.server_draft.as_mut().filter(|_| differs) {
         sd.pending = true;
         sd.saves = sd.saves.saturating_add(1);

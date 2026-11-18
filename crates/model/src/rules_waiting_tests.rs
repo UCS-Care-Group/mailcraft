@@ -255,3 +255,15 @@ fn a_rename_meanwhile_keeps_a_waiting_copy_into_another_account() {
         assert_eq!(mb.messages_in(theirs).count(), usize::from(!flag), "renamed meanwhile: {rename}, flagged: {flag}");
     }
 }
+
+/// A message downloaded before whose server has another version of it says so in the file until
+/// that version is here ([`Message::stale`]); a file from before has none.
+#[test]
+fn a_message_whose_server_has_another_version_of_it_says_so_in_the_file() {
+    let m = Message { id: 3, stale: true, ..Default::default() };
+    let json = serde_json::to_string(&m).unwrap();
+    assert!(json.contains(r#""stale":true"#), "{json}");
+    assert!(serde_json::from_str::<Message>(&json).unwrap().stale);
+    assert!(!serde_json::from_str::<Message>(r#"{"id": 3}"#).unwrap().stale);
+    assert!(!serde_json::to_string(&Message::default()).unwrap().contains("stale"));
+}
