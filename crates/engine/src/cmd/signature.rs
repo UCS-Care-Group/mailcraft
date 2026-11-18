@@ -8,6 +8,9 @@
 //! (`compose.type`, `format.*`, `edit.*`, `compose.undo`) work on, and `signature.save` puts it
 //! back. While it is open, the picture and layout commands for it change the open one.
 
+use std::collections::{HashMap, HashSet};
+
+use mailcraft_mime_model::signature_import::{PictureSource, picture_source};
 use mailcraft_model::RichBody;
 use mailcraft_model::rich::{Paragraph, RichText, Run, Style};
 use mailcraft_model::signature::{Layout, Signature};
@@ -19,6 +22,11 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, SignatureEdit, p};
 
 /// Most signatures one mailbox keeps.
 const MAX_SIGNATURES: usize = 100;
+
+/// A signature made from the owner's own HTML and the picture files the document names
+/// (`signature.import`): its own document and its own door, beside this file's commands.
+#[path = "signature_import.rs"]
+mod signature_import;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -42,8 +50,11 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("signature.details", "Create from Details", "File › Signatures", details).params(
             r#"{"name": string, "details": {"name"?, "title"?, "organisation"?, "phone"?, "mobile"?, "email"?, "website"?, "address"?: string}, "restart"?: bool (lay it out again after it was edited by hand)} — lays the signature out from the details (the logo is its first picture); after a hand edit only keeps them, unless restart"#,
         ),
+        CommandSpec::new("signature.import", "Import HTML Signature", "File › Signatures", signature_import::run).params(
+            r#"{"name": string, "html": string (the owner's own HTML, at most 64 KB; its inline styling and its tables are kept as written), "assets": [{"name": string (the file's name, as the document writes it), "data": base64}] (the pictures the document names: at most ten, each at most 256 KB, at most 512 KB together; empty when it names none)} — makes a new signature of it, each picture bound where the document puts it, opens no editor and starts no message; answers its name"#,
+        ),
         CommandSpec::new("signature.html", "HTML Signature", "File › Signatures", html).params(
-            r#"{"name"?: string (default: the open one), "html": string (the signature's own HTML, at most 64 KB; sent as written once cleaned of what runs or tracks; pictures only from their web address) | null (rich text again, of what the HTML made)} — makes it an HTML signature, or a rich one again"#,
+            r#"{"name"?: string (default: the open one), "html": string (the signature's own HTML, at most 64 KB; sent as written once cleaned of what runs or tracks; an HTML signature's own pictures stay bound by the cid: addresses it gives them, and one no longer named is let go when saved; every picture is a web address (http: or https:) or one of its own by its cid:, as signature.import makes them, and any other (a file's name or path, file:, a cid: it doesn't own) is refused where the HTML is kept: at signature.save, or at once when the signature is not open (one that owns pictures refuses a cid: it doesn't own at once too); converting a rich signature that has pictures is refused) | null (rich text again, of what the HTML made)} — makes it an HTML signature, or a rich one again"#,
         ),
         CommandSpec::new("signature.open", "Edit Signature", "File › Signatures", open)
             .pure()
@@ -131,6 +142,84 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     done()
 }
 
+/// That `html` may be kept in the mailbox: the email-compatibility checker read it and found no
+/// error in it (its warnings and notes never stop a save). Refused, with a text the window matches
+/// on, while an error is left to fix or when the HTML could not be checked at all.
+/// `signature.import` keeps such a document anyway, so that it can be fixed in the editor.
+fn email_compatible(html: &str) -> Result<(), CmdError> {
+    let findings = mailcraft_html::compat::check(html).map_err(|_| fail("this signature's HTML could not be checked for email compatibility"))?;
+    let n = findings.iter().filter(|f| f.severity == mailcraft_html::compat::Severity::Error).count();
+    if n > 0 {
+        return Err(failed!("this signature has {n} email compatibility error(s) to fix before it can be saved", n));
+    }
+    Ok(())
+}
+
+/// That every picture `html` names is one `sig` can be sent with, each address judged as
+/// `signature.import` judges a picture's ([`picture_source`]): a web address stays as it is, and a
+/// `data:` one is the email-compatibility checker's (`OL-IMG-004`); a `cid:` must name one of the
+/// signature's own pictures; anything else (a file's name or path, a `file:` address, another
+/// scheme) is refused, since no file is kept beside a signature and the picture would be sent
+/// broken. Checked where HTML is kept, as [`email_compatible`] is: at the save, and when HTML is
+/// written straight to a signature that is not open. The window asks it of the open signature
+/// (`SignatureEdit::signature`, whose pictures are those the save keeps and maybe more) before
+/// Save and when its page is left, so that it says why the save would be refused. Reads nothing
+/// and fetches nothing.
+pub fn sendable_pictures(sig: &Signature, html: &str) -> Result<(), CmdError> {
+    if pictures_named(&own_addresses(sig), html)?.local {
+        return Err(fail(
+            "this HTML names a picture that is neither on the web nor one of this signature's own: give it a web address (https://…), or name the picture's file relative to the HTML file and bring both in with Import HTML…",
+        ));
+    }
+    Ok(())
+}
+
+/// The internal addresses of `sig`'s own pictures (without `cid:`), with the picture each names.
+fn own_addresses(sig: &Signature) -> HashMap<String, u32> {
+    sig.pictures().iter().map(|p| (mailcraft_mime_model::rich::internal_cid(p), p.id)).collect()
+}
+
+/// What the pictures of some HTML name ([`pictures_named`]).
+struct Named {
+    /// The signature's own pictures it names by their `cid:` addresses.
+    own: HashSet<u32>,
+    /// Whether it names a picture neither on the web, nor written into it, nor by `cid:`.
+    local: bool,
+}
+
+/// The pictures `html` names, each address judged by [`picture_source`]. Refused when it can't be
+/// read for its pictures, or names by `cid:` a picture `own` doesn't hold.
+fn pictures_named(own: &HashMap<String, u32>, html: &str) -> Result<Named, CmdError> {
+    let sources = mailcraft_html::image_sources(html).map_err(unlisted)?;
+    let mut named = Named { own: HashSet::new(), local: false };
+    for source in &sources {
+        match picture_source(&source.src) {
+            PictureSource::Web | PictureSource::Data => {}
+            PictureSource::Cid(cid) => {
+                let id = own.get(cid).ok_or_else(|| fail("this HTML names a picture this signature doesn't have"))?;
+                named.own.insert(*id);
+            }
+            PictureSource::Local => named.local = true,
+        }
+    }
+    Ok(named)
+}
+
+/// Why HTML whose pictures [`mailcraft_html::image_sources`] could not list is refused, saying
+/// what to change where that is one thing.
+fn unlisted(e: mailcraft_html::ImageSourceError) -> CmdError {
+    match e {
+        mailcraft_html::ImageSourceError::UnsupportedBase => {
+            fail("this signature's HTML could not be read for its pictures: remove its <base> element")
+        }
+        mailcraft_html::ImageSourceError::TooManySources => {
+            let n = mailcraft_html::MAX_IMAGE_SOURCES;
+            failed!("this signature's HTML could not be read for its pictures: it may name at most {n} pictures", n)
+        }
+        _ => fail("this signature's HTML could not be read for its pictures"),
+    }
+}
+
 /// The open signature with the text it has now (pictures it no longer holds let go).
 fn edited(e: &SignatureEdit) -> Result<Signature, CmdError> {
     let mut sig = e.signature.clone();
@@ -141,6 +230,10 @@ fn edited(e: &SignatureEdit) -> Result<Signature, CmdError> {
 fn save(s: &mut Session, _: &Value) -> CmdResult {
     let e = s.signature_edit.as_ref().ok_or_else(|| fail("no signature is open"))?;
     let sig = edited(e)?;
+    if let Some(html) = sig.html() {
+        email_compatible(html)?;
+        sendable_pictures(&sig, html)?;
+    }
     let name = sig.name.clone();
     // (Removing or renaming the open signature closes or follows it, so it is there.)
     let kept =
@@ -370,7 +463,38 @@ fn html(s: &mut Session, v: &Value) -> CmdResult {
     let open = names_open(s, v);
     // Changed whole or not at all.
     let sig = named(s, v)?;
+    // A signature that is not open is written straight to the mailbox: kept only as a save would be.
+    if !open && let Some(h) = html.as_deref() {
+        email_compatible(h)?;
+        sendable_pictures(sig, h)?;
+    }
     let mut changed = sig.clone();
+    // An HTML signature that owns pictures (an imported one) is edited with them bound.
+    if let Some(h) = html.as_deref()
+        && changed.html().is_some()
+        && !changed.pictures().is_empty()
+    {
+        let text = bound_stand_in(&changed, h)?;
+        // Open in the editor, a picture the HTML no longer names is kept until the save, so that
+        // an undo of the edit brings it back; written straight to the mailbox, it goes now.
+        if open {
+            changed.set_body_keeping_pictures(text.clone()).map_err(|e| fail(e.to_string()))?;
+        } else {
+            changed.set_body(text.clone()).map_err(|e| fail(e.to_string()))?;
+        }
+        changed.set_html(html).map_err(|e| fail(e.to_string()))?;
+        *sig = changed;
+        if let Some(e) = s.signature_edit.as_mut().filter(|_| open) {
+            e.body.replace(text).map_err(|err| fail(err.to_string()))?;
+        }
+        return done();
+    }
+    // This legacy conversion builds a stand-in without picture bindings. Refuse rather than
+    // silently lose the bytes; accepting HTML with pictures in the model does not make this
+    // conversion lossless.
+    if html.is_some() && !changed.pictures().is_empty() {
+        return Err(fail("this HTML conversion would lose the signature's embedded pictures"));
+    }
     changed.set_html(html.clone()).map_err(|e| fail(e.to_string()))?;
     // What a message being written shows of it: its words and look as rich text, or for HTML
     // with no words (a logo alone) its pictures' descriptions.
@@ -388,6 +512,24 @@ fn html(s: &mut Session, v: &Value) -> CmdResult {
         e.body.replace(text).map_err(|err| fail(err.to_string()))?;
     }
     done()
+}
+
+/// The text an HTML signature that owns pictures stands in with for `html`, made as
+/// `signature.import` makes it: each picture `html` names by the internal address the signature
+/// gives it (`cid:`, [`internal_cid`](mailcraft_mime_model::rich::internal_cid)) stands where it
+/// is, as that picture. Refused when `html` names by `cid:` a picture the signature doesn't own,
+/// or names one of its own where its text can't hold it (hidden, say): sent, either would be a
+/// picture without its bytes. Its addresses are judged as [`sendable_pictures`] judges them; one
+/// that names a file is taken here, so that the HTML can be typed, and refused by the save.
+fn bound_stand_in(sig: &Signature, html: &str) -> Result<RichText, CmdError> {
+    let own = own_addresses(sig);
+    let named = pictures_named(&own, html)?.own;
+    let text = mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img: &mailcraft_mime_model::rich::ImgRef| own.get(&img.cid).copied());
+    let held: std::collections::HashSet<u32> = text.pictures().into_iter().collect();
+    if !named.is_subset(&held) {
+        return Err(fail("this HTML hides a picture of the signature where its text can't show it"));
+    }
+    Ok(text)
 }
 
 fn layout(s: &mut Session, v: &Value) -> CmdResult {

@@ -10,7 +10,9 @@
 //! pictures on the web stay: the recipient's program decides whether to fetch those. A picture
 //! written into the message (`data:`) is left out by [`quotable`]; [`quotable_with_pictures`]
 //! hands each one the reading pane would show (#533's checks and caps) to its caller, to go as a
-//! part of its own, and refers to it by the Content-ID the caller gives it (#602).
+//! part of its own, and refers to it by the Content-ID the caller gives it (#602);
+//! [`quotable_with_rebound_cids`] writes the pictures the message holds (`cid:`) under the
+//! Content-IDs of the parts they go out as.
 
 use crate::blocks::{css_of, left_out, picture_url};
 use crate::data::{self, Budget, MAX_DATA_TEXT, Picture};
@@ -24,6 +26,11 @@ use crate::{MAX_INPUT, is_embedded, is_safe_url, truncate};
 /// `image/jpeg`, `image/gif` or `image/webp`) and its bytes: the Content-ID it goes out under, or
 /// `None` to leave it out.
 pub type WrittenPicture<'w> = dyn FnMut(&str, &Picture) -> Option<String> + 'w;
+
+/// What a picture the message holds (`cid:`) is written as, when it goes out under a Content-ID of
+/// its own: the Content-ID an `<img>` names (without its `cid:`), and the one to write in its place,
+/// or `None` to leave the address as it was.
+pub type ReboundCid<'r> = dyn FnMut(&str) -> Option<String> + 'r;
 
 /// Deepest elements may nest in what is written; tags opened deeper are left out, their text kept.
 const MAX_DEPTH: usize = 128;
@@ -210,7 +217,7 @@ const RISKY_STYLE: [&str; 9] = ["url(", "image(", "image-set(", "expression(", "
 /// than a limit keeps its text and loses its tags. Takes any string, never panics, reads at most
 /// [`MAX_INPUT`] bytes and is linear in them.
 pub fn quotable(html: &str) -> String {
-    quote(html, None)
+    quote(html, None, None)
 }
 
 /// [`quotable`], with the pictures written into the message (`data:`) carried as parts of their
@@ -224,13 +231,25 @@ pub fn quotable(html: &str) -> String {
 /// later, which counts against the caps all the same, as in the reading pane): the caller keeps
 /// only those the result refers to.
 pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>) -> String {
-    quote(html, Some(written))
+    quote(html, Some(written), None)
 }
 
-fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>) -> String {
+/// [`quotable`], with the pictures the message holds (`cid:`) written under other Content-IDs.
+///
+/// Each `<img>` whose address is an attached picture has that address, without its `cid:` (the scheme
+/// read in any letter case), given to `rebound`: the Content-ID it answers is written in its place,
+/// and `None` leaves the address as it was. An answer that is no Content-ID (empty, a non-ASCII or
+/// non-graphic character, a `<`, a `>` or a `"`, or longer than an address may be) leaves the picture out, as
+/// one [`quotable`] would leave out. Nothing else is touched: text, a link's address and a
+/// description keep whatever they hold, and a comment never leaves the tokenizer at all.
+pub fn quotable_with_rebound_cids(html: &str, rebound: &mut ReboundCid<'_>) -> String {
+    quote(html, None, Some(rebound))
+}
+
+fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, rebind: Option<&mut ReboundCid<'_>>) -> String {
     let carrying = written.is_some();
     let html = truncate(html, if carrying { MAX_INPUT.saturating_add(MAX_DATA_TEXT) } else { MAX_INPUT });
-    let mut q = Quoter { written, ..Quoter::default() };
+    let mut q = Quoter { written, rebind, ..Quoter::default() };
     // The message's style sheets are read to see what the sender hid with them; they are not
     // carried.
     let mut sheet = Sheet::read(html);
@@ -265,9 +284,11 @@ fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>) -> String {
 }
 
 #[derive(Default)]
-struct Quoter<'a, 'w> {
+pub(crate) struct Quoter<'a, 'w, 'b, 'm> {
     /// Where the pictures written into the message go, when they are carried.
     written: Option<&'a mut WrittenPicture<'w>>,
+    /// What the pictures the message holds are written as, when they go under other Content-IDs.
+    pub(crate) rebind: Option<&'b mut ReboundCid<'m>>,
     /// What those pictures have taken so far.
     budget: Budget,
     out: String,
@@ -287,16 +308,16 @@ struct Skip {
     nested: usize,
 }
 
-impl Quoter<'_, '_> {
-    fn token(&mut self, token: Token<'_>) {
+impl Quoter<'_, '_, '_, '_> {
+    pub(crate) fn token(&mut self, token: Token<'_>) {
         if let Token::Open(tag) = &token
             && tag.name == "body"
         {
             // What is before the body is the head, or out of place: only the body is carried.
             if !self.body {
                 // (Where the pictures go, and what they took, stay.)
-                let (written, budget) = (self.written.take(), std::mem::take(&mut self.budget));
-                *self = Quoter { body: true, written, budget, ..Quoter::default() };
+                let (written, rebind, budget) = (self.written.take(), self.rebind.take(), std::mem::take(&mut self.budget));
+                *self = Quoter { body: true, written, rebind, budget, ..Quoter::default() };
             }
             return;
         }
@@ -410,7 +431,7 @@ impl Quoter<'_, '_> {
     /// goes out under, when there is somewhere for it to go. One too small to see is left out
     /// before it is read, as in the reading pane, and takes nothing of the caps.
     fn picture(&mut self, tag: &Tag<'_>) -> Option<String> {
-        let Some(src) = tag.attr("src").filter(|src| data::is_data(src)) else { return picture_kept(tag) };
+        let Some(src) = tag.attr("src").filter(|src| data::is_data(src)) else { return self.attached(tag) };
         let written = self.written.as_mut()?;
         if left_out(tag, &css_of(tag)) {
             return None;
@@ -420,6 +441,20 @@ impl Quoter<'_, '_> {
         let mime = kept.strip_prefix("data:").unwrap_or_default();
         let cid = written(mime, &bytes)?;
         Some(format!("cid:{cid}"))
+    }
+
+    /// A picture that is not written into the message: the address [`picture_kept`] gives it,
+    /// rebound when it names a picture of the message and the rebinding takes it.
+    fn attached(&mut self, tag: &Tag<'_>) -> Option<String> {
+        let src = picture_kept(tag)?;
+        if let Some(rebind) = self.rebind.as_mut()
+            && let Some(cid) = attached_cid(&src)
+            && let Some(new) = (**rebind)(cid)
+        {
+            // An answer that is no Content-ID is no address to write: the picture is left out.
+            return plain_cid(&new).then(|| format!("cid:{new}"));
+        }
+        Some(src)
     }
 
     fn close_tag(&mut self, name: &str) {
@@ -478,7 +513,7 @@ impl Quoter<'_, '_> {
         }
     }
 
-    fn finish(mut self) -> String {
+    pub(crate) fn finish(mut self) -> String {
         self.close_to(0);
         self.out
     }
@@ -509,6 +544,18 @@ fn hidden(tag: &Tag<'_>) -> bool {
     tag.has("hidden") || css_of(tag).hidden
 }
 
+/// An attached picture's Content-ID, without its scheme (in any letter case, as it is read).
+fn attached_cid(src: &str) -> Option<&str> {
+    let src = src.trim_start();
+    src.get(..4).filter(|scheme| scheme.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..))
+}
+
+/// Whether `cid` may be written as a Content-ID: the characters one may hold, and no longer than
+/// an address may be.
+fn plain_cid(cid: &str) -> bool {
+    !cid.is_empty() && cid.len() <= mailcraft_link::MAX_LINK && cid.chars().all(|c| c.is_ascii_graphic() && !matches!(c, '<' | '>' | '"'))
+}
+
 /// A picture's address as it is carried, when it may be: one in the message, or one on the web
 /// (read the way the reading pane reads it: without line breaks, `https:` before a bare `//host`).
 fn picture_src(raw: Option<String>) -> Option<String> {
@@ -532,7 +579,7 @@ fn picture_kept(tag: &Tag<'_>) -> Option<String> {
     (!(tiny(px("width")) || tiny(px("height")) || tiny(css.width) || tiny(css.height))).then_some(src)
 }
 
-fn attribute_kept(element: &str, attr: &str, value: &str) -> bool {
+pub(crate) fn attribute_kept(element: &str, attr: &str, value: &str) -> bool {
     match attr {
         "href" => element == "a" && is_safe_url(value),
         "style" => !risky_style(value),
@@ -542,7 +589,7 @@ fn attribute_kept(element: &str, attr: &str, value: &str) -> bool {
 
 /// Whether a `style` attribute could fetch or run something, read the way a CSS reader would:
 /// with its escapes (`\75 rl(`) decoded and its comments and white space gone.
-fn risky_style(style: &str) -> bool {
+pub(crate) fn risky_style(style: &str) -> bool {
     let mut plain = String::with_capacity(style.len());
     let mut chars = style.chars().peekable();
     while let Some(c) = chars.next() {

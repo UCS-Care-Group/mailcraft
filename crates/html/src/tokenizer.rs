@@ -31,6 +31,8 @@ pub(crate) struct Tag<'a> {
     pub name: String,
     /// Names and values as written.
     attrs: Vec<(&'a str, &'a str)>,
+    /// Whether attributes past [`MAX_ATTRS`] were read and dropped.
+    overflowed: bool,
     /// What the message's style sheets say about the element, set by the one who reads them
     /// (`sheet.rs`).
     pub sheet: Option<std::rc::Rc<crate::sheet::Applied>>,
@@ -57,6 +59,12 @@ impl Tag<'_> {
     pub fn has(&self, name: &str) -> bool {
         self.attrs.iter().any(|(n, _)| n.eq_ignore_ascii_case(name))
     }
+
+    /// Whether attributes past [`MAX_ATTRS`] were read and dropped: the element may say
+    /// something this reader did not keep.
+    pub fn attrs_overflowed(&self) -> bool {
+        self.overflowed
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -73,6 +81,10 @@ pub(crate) struct Tokenizer<'a> {
     pos: usize,
     /// Set after the start tag of a raw-text element: its content comes next.
     raw: Option<&'static str>,
+    /// Whether the start tag read last ended with its own `>` (not at the end of the input).
+    tag_closed: bool,
+    /// Where the start tag read last begins: its `<`.
+    tag_start: usize,
     /// The text of the `<style>` elements skipped over since the last token was given, each with its
     /// `media` attribute (at most [`MAX_STYLES`]): the one who reads style sheets takes them.
     pub styles: Vec<(String, &'a str)>,
@@ -80,12 +92,24 @@ pub(crate) struct Tokenizer<'a> {
 
 impl<'a> Tokenizer<'a> {
     pub fn new(src: &'a str) -> Tokenizer<'a> {
-        Tokenizer { src, pos: 0, raw: None, styles: Vec::new() }
+        Tokenizer { src, pos: 0, raw: None, tag_closed: false, tag_start: 0, styles: Vec::new() }
     }
 
     /// How far into the input the tokens given so far go, in bytes.
     pub fn pos(&self) -> usize {
         self.pos
+    }
+
+    /// Whether the start tag given last was ended by its own `>` rather than by the end of the
+    /// input: a tag the input cut off ends without one, even when its last byte is a `>` inside
+    /// an unclosed quoted value (`<a href="x>`).
+    pub fn tag_closed(&self) -> bool {
+        self.tag_closed
+    }
+
+    /// Where the start tag given last begins, in bytes: its `<`.
+    pub fn tag_start(&self) -> usize {
+        self.tag_start
     }
 
     fn bytes(&self) -> &'a [u8] {
@@ -158,6 +182,7 @@ impl<'a> Tokenizer<'a> {
     /// Read the start tag at `self.pos` (`<name attr=value ...>`).
     fn open_tag(&mut self) -> Tag<'a> {
         let b = self.bytes();
+        self.tag_start = self.pos;
         let start = self.pos + 1;
         let mut i = start;
         while let Some(c) = b.get(i) {
@@ -168,6 +193,8 @@ impl<'a> Tokenizer<'a> {
         }
         let name = tag_name(self.slice(start, i));
         let mut attrs = Vec::new();
+        let mut overflowed = false;
+        self.tag_closed = false;
         loop {
             while matches!(b.get(i), Some(c) if c.is_ascii_whitespace() || *c == b'/') {
                 i += 1;
@@ -175,6 +202,7 @@ impl<'a> Tokenizer<'a> {
             match b.get(i) {
                 None => break,
                 Some(b'>') => {
+                    self.tag_closed = true;
                     i += 1;
                     break;
                 }
@@ -223,10 +251,12 @@ impl<'a> Tokenizer<'a> {
             }
             if attrs.len() < MAX_ATTRS {
                 attrs.push((attr, value));
+            } else {
+                overflowed = true;
             }
         }
         self.pos = i.min(b.len());
-        Tag { name, attrs, sheet: None }
+        Tag { name, attrs, overflowed, sheet: None }
     }
 }
 

@@ -1236,7 +1236,7 @@ fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) 
             Ok(Some(whole)) => {
                 spent = spent.saturating_add(m.size());
                 let (to, create) = destination(mb, folder);
-                out.push(ImapPlace { message: whole.as_ref().clone(), to, to_folder: folder.id, create, marker: marker.clone() });
+                out.push(ImapPlace { message: whole.as_ref().clone().for_server(), to, to_folder: folder.id, create, marker: marker.clone() });
             }
             Err(e) => log::warn!("message {} waits to go to the server: {e}", m.id),
         }

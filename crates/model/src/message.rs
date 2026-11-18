@@ -287,6 +287,19 @@ pub struct Message {
     pub answered: bool,
     pub forwarded: bool,
     pub draft: bool,
+    /// The HTML signature this draft was last saved with, or this message waiting in the Outbox
+    /// was sent with ([`crate::draft_signature`]): the signature as it was inserted, the fragment
+    /// embedded in the body and its pictures' Content-IDs, kept locally so that a reopened draft,
+    /// and a message taken back out of the Outbox with Undo Send, Cancel Send or Open Draft
+    /// (#950), can know its signature again. Data, never authority: it is to be believed only
+    /// while the message is a draft that still holds that fragment and those parts. Like
+    /// `follow_up`, it is not a mail header, a part of the message's MIME or a server draft
+    /// property, and it is never handed to a host for a server ([`Message::for_server`]); a
+    /// message that leaves the Outbox other than as a draft lets it go. `None` for every other
+    /// message, for a file from before, and when what a file holds in its place isn't a valid
+    /// snapshot.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub draft_signature: Option<crate::draft_signature::DraftSignature>,
     pub pinned: bool,
     /// Its snooze (#949): when it comes back and where it came from; once it has come back, the
     /// mark it wears until opened. `None` for a message never snoozed.
@@ -588,6 +601,15 @@ impl Message {
     /// delayed goes early, whatever the account; a clock set back only makes it wait longer.
     pub fn waits_until(&self, now: i64) -> bool {
         self.send_at.is_some_and(|at| at > now)
+    }
+
+    /// The message as it is handed to a host to go to a server (sent, or put in one of its
+    /// folders): without what this computer alone keeps of it, the HTML signature it was written
+    /// with ([`Message::draft_signature`]). The MIME writer never writes that either; this keeps it
+    /// out of the requests themselves, and so out of what `sync.request` and its kind answer.
+    pub fn for_server(mut self) -> Message {
+        self.draft_signature = None;
+        self
     }
 
     /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server

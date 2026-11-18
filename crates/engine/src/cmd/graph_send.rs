@@ -70,13 +70,13 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
             // the copy in Sent Items (not every server files one when a saved draft is sent); the
             // draft it was saved as is named so that the run takes it away once the send is clear
             // (E8).
-            Some(draft) if exchange => SendUp { message: m.id, draft: Some(draft), mime: Some(Box::new(m.as_ref().clone())) },
+            Some(draft) if exchange => SendUp { message: m.id, draft: Some(draft), mime: Some(Box::new(m.as_ref().clone().for_server())) },
             // Sent as it is here, every field and attachment written over what the server has:
             // whatever was changed on the server meanwhile is the owner's to lose (AU2-14).
             Some(draft) if !jmap => {
                 SendUp { message: m.id, draft: Some(mailcraft_model::sync::DraftUp { change_key: String::new(), ..draft }), mime: None }
             }
-            _ => SendUp { message: m.id, draft: None, mime: Some(Box::new(m.as_ref().clone())) },
+            _ => SendUp { message: m.id, draft: None, mime: Some(Box::new(m.as_ref().clone().for_server())) },
         })
         .collect()
 }
@@ -187,6 +187,8 @@ pub fn send_done_at(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcr
             {
                 (m.folder, m.draft, m.server_draft, m.held, m.sending) = (sent_items, false, None, String::new(), false);
                 m.sent_here = true;
+                // Gone: what it kept to be written again (an HTML signature's snapshot) has no use.
+                m.draft_signature = None;
                 return true;
             }
             // The server's copy comes down as a message of its own: it takes the reminder.

@@ -145,9 +145,13 @@ pub fn cancel_send(s: &mut Session, id: Id) -> Result<(), CmdError> {
     let drafts = s.mailbox.folder_of_kind(m.account, FolderKind::Drafts).ok_or_else(|| fail("this account has no Drafts folder"))?;
     s.mailbox.move_message(id, drafts)?;
     let now = s.now();
+    let snapshot = m.draft_signature;
     let m = s.mailbox.message_mut(id)?;
-    // No time stays on the draft (it can be given one again), and it is dated now.
+    // No time stays on the draft (it can be given one again), and it is dated now. It keeps its
+    // HTML signature's snapshot (which the move out of the Outbox lets go of), so that it opens
+    // with that signature as it was sent.
     m.draft = true;
+    m.draft_signature = snapshot;
     m.held.clear();
     (m.send_at, m.date, m.received) = (None, now, now);
     if s.undo_send == Some(id) {

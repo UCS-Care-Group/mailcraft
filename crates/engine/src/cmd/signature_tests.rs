@@ -363,9 +363,18 @@ fn an_html_signature_goes_out_as_written_cleaned_of_what_runs_or_tracks() {
     let html = m.body.html.clone().unwrap();
     assert!(html.contains("<table") && html.contains("https://logo.example/lumen.png") && html.contains("padding-right:12px"), "{html}");
     assert!(html.contains("Hello") && html.contains("https://lumen.example"), "{html}");
-    for gone in ["<script", "alert", "<style", "onerror", "javascript:", "track.example"] {
+    for gone in ["<script", "alert", "onerror", "javascript:", "track.example"] {
         assert!(!html.contains(gone), "{gone} in {html}");
     }
+    // The signature's own style rules go out scoped to its wrapper, in the document's head, and
+    // nowhere in its body.
+    let (head, body) = html.split_once("<body").unwrap();
+    let (_, wrapped) = body.split_once("<div class=\"mc-sig-").unwrap();
+    let (digest, inside) = wrapped.split_once("\">").unwrap();
+    assert!(!digest.is_empty() && digest.chars().all(|c| c.is_ascii_hexdigit()), "{html}");
+    assert!(head.contains(&format!(".mc-sig-{digest} td {{color:red}}")), "{html}");
+    assert!(!body.contains("<style"), "{html}");
+    assert!(inside.trim_start().starts_with("<table") && inside.contains("</table></div>"), "{html}");
     assert!(m.attachments.is_empty());
     assert!(m.body.text.starts_with("Hello\n\n") && m.body.text.contains("Avery Quinn"), "{:?}", m.body.text);
 }

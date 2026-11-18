@@ -9,6 +9,8 @@
 //! address is escaped, and a link is written only when its address is one the model accepts
 //! (`rich::safe_link`: any scheme but `javascript`, `vbscript`, `data`, `file` and `cid`). [`signature_html`] lays a signature out, its first picture
 //! beside or above the text when it asks for that, in a two-cell table, as Outlook writes it.
+//! An HTML signature is its owner's own HTML instead: cleaned as a message's is, its pictures bound
+//! to the parts this message sends them as.
 //!
 //! HTML is read by
 //! `mailcraft_html` (which never runs or fetches anything) and what it gives is reduced to the
@@ -18,7 +20,7 @@
 //! colours, and merged cells. [`from_html`] and tables outside those bounds give their cells'
 //! paragraphs in reading order.
 
-use mailcraft_html::{Block, BlockKind, Marker, Span};
+use mailcraft_html::{AuthoredError, AuthoredFragment, AuthoredScope, Block, BlockKind, Marker, Span};
 use mailcraft_model::rich::{
     CellAlignment, CellText, Font, ListKind, MAX_LEVEL, MAX_PASTED_CELLS, MAX_PASTED_COLUMNS, MAX_PASTED_ROWS, MAX_PASTED_SPANS, MAX_SIZE, MIN_SIZE,
     OBJECT, Paragraph, PastedTable, RichText, Run, Style, TableCell, safe_color, safe_link,
@@ -177,10 +179,14 @@ fn img(out: &mut String, img: &Img) {
     out.push_str("\" style=\"border:0\">");
 }
 
-/// A signature as HTML, its pictures written as `content_id` names them. Laid out with its first
-/// picture on the left of the text or above it when it asks for that: a two-cell table, or the
-/// picture in a paragraph of its own.
+/// A signature as HTML, its pictures written as `content_id` names them. An HTML signature is its
+/// own HTML: cleaned as a message's HTML is, and each picture it names bound to the part this
+/// message sends it as. A rich one is laid out with its first picture on the left of the text or
+/// above it when it asks for that: a two-cell table, or the picture in a paragraph of its own.
 pub fn signature_html(sig: &Signature, content_id: &dyn Fn(&Picture) -> String) -> String {
+    if let Some(own) = sig.html() {
+        return bound_signature_html(sig, own, content_id);
+    }
     let pictures = |id: u32| sig.picture(id).map(|p| Img::of(p, content_id(p)));
     let first = sig.body().pictures().first().copied().filter(|_| sig.layout != Layout::Inline);
     let Some((first, lead)) = first.and_then(|id| pictures(id).map(|i| (id, i))) else {
@@ -211,6 +217,52 @@ pub fn signature_html(sig: &Signature, content_id: &dyn Fn(&Picture) -> String) 
     out
 }
 
+/// The address a signature's own HTML gives one of its pictures, which a message replaces with the
+/// Content-ID of the part it sends: `sig-<id>@signature.invalid`, without `cid:`.
+pub fn internal_cid(picture: &Picture) -> String {
+    format!("sig-{}@signature.invalid", picture.id)
+}
+
+/// The owner's own HTML, made fit to send: [`mailcraft_html::quotable_with_rebound_cids`] keeps its
+/// tables, its inline styling and its words, drops what runs, embeds or fetches, and writes each
+/// picture it names by its address inside this signature as the part this message gives it
+/// ([`internal_cid`]). A picture this signature does not hold keeps the address it has: it cannot
+/// be sent, and leaving it there shows that rather than hiding it.
+///
+/// Only what `mailcraft_html` keeps is kept: a `<style>` block and the presentation of a `class` or
+/// an `id` are not carried. Web picture addresses and inline font-family names stay as references;
+/// nothing is fetched. Pictures written into the HTML as `data:` are left out by this path.
+///
+/// The HTML may come from an inserted signature's snapshot rather than `sig.html()`: compose
+/// and preview use the same checked picture holder and binding rules as a stored signature.
+/// A message itself carries the signature as [`authored_signature_html`] writes it.
+pub fn bound_signature_html(sig: &Signature, own: &str, content_id: &dyn Fn(&Picture) -> String) -> String {
+    let mut bind = |cid: &str| -> Option<String> {
+        let picture = sig.pictures().iter().find(|p| internal_cid(p) == cid)?;
+        Some(content_id(picture))
+    };
+    mailcraft_html::quotable_with_rebound_cids(own, &mut bind)
+}
+
+/// The owner's own HTML as a message carries it, with its style sheets
+/// ([`mailcraft_html::authored_fragment_with_rebound_cids`]): the `<style>` blocks for the
+/// document's head, every rule scoped to `scope`, and the signature for the body in
+/// `<div class="SCOPE">`, cleaned as [`bound_signature_html`] cleans it and its pictures bound
+/// the same way. A sheet that can't be scoped, or could fetch or run something, is an error and
+/// nothing is written: the signature never goes out silently without its styles.
+pub fn authored_signature_html(
+    sig: &Signature,
+    own: &str,
+    scope: &AuthoredScope,
+    content_id: &dyn Fn(&Picture) -> String,
+) -> Result<AuthoredFragment, AuthoredError> {
+    let mut bind = |cid: &str| -> Option<String> {
+        let picture = sig.pictures().iter().find(|p| internal_cid(p) == cid)?;
+        Some(content_id(picture))
+    };
+    mailcraft_html::authored_fragment_with_rebound_cids(own, scope, &mut bind)
+}
+
 /// A whole HTML document holding the text, and under it `below` as it is (a quoted original).
 pub fn to_html_document(text: &RichText, below: Option<&str>) -> String {
     document(&to_html(text), below)
@@ -219,7 +271,16 @@ pub fn to_html_document(text: &RichText, below: Option<&str>) -> String {
 /// A whole HTML document holding `fragment` (HTML this module wrote), and under it `below` as it
 /// is.
 pub fn document(fragment: &str, below: Option<&str>) -> String {
-    let mut out = String::from("<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"></head><body>\r\n");
+    document_with_head("", fragment, below)
+}
+
+/// [`document`] with `head` (whole elements this module or `mailcraft_html` wrote, such as an
+/// authored signature's `<style>` blocks, [`authored_signature_html`]) in its head, as it is,
+/// after the character set. With no head it is [`document`]'s, byte for byte.
+pub fn document_with_head(head: &str, fragment: &str, below: Option<&str>) -> String {
+    let mut out = String::from("<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">");
+    out.push_str(head);
+    out.push_str("</head><body>\r\n");
     out.push_str(fragment);
     if let Some(below) = below {
         out.push_str(below);
@@ -664,5 +725,7 @@ fn cut(text: &str, max: usize) -> &str {
     text.get(..end).unwrap_or("")
 }
 
+#[cfg(test)]
+mod html_signature_tests;
 #[cfg(test)]
 mod tests;

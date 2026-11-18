@@ -235,6 +235,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("signature.layout", "{}", Setup::None),
     ("signature.details", "{}", Setup::None),
     ("signature.html", "{}", Setup::None),
+    ("signature.import", r#"{"name": "x", "html": "<p>y</p>", "assets": []}"#, Setup::None),
     ("signature.open", "{}", Setup::None),
     ("signature.save", "{}", Setup::None),
     ("signature.close", "{}", Setup::None),

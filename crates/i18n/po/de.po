@@ -389,10 +389,15 @@ msgid "A file"
 msgstr "Eine Datei"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/files.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "A file dialog is already open."
 msgstr "Ein Dateidialog ist bereits geöffnet."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "A file is still being chosen for the import."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -483,6 +488,11 @@ msgstr "Eine Besprechungsserie mit ausgelassenen Tagen kann von hier aus nicht i
 #, fuzzy
 msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
 msgstr "Eine Nachricht mit der Bitte um Abmeldung geht von {from} an {to}, über Ihren Postausgang."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "A message being written couldn't be saved to Drafts: {why}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -2193,6 +2203,11 @@ msgid "Back to account settings"
 msgstr "Zurück zu den Kontoeinstellungen"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Background picture"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Bar on the Left"
@@ -2384,6 +2399,11 @@ msgstr "Nach Größe"
 msgid "By Subject"
 msgstr "Nach Betreff"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "CSS variable"
+msgstr ""
+
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2514,7 +2534,7 @@ msgid "Can't sign"
 msgstr "Kann nicht signieren"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Abbrechen"
@@ -3033,6 +3053,16 @@ msgid "Choose default signatures"
 msgstr "Standardsignaturen wählen"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "Choose image…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "Choose the file for each picture the HTML names:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Choose the kind of account"
@@ -3055,10 +3085,115 @@ msgid "Choose who this is sent from"
 msgstr "Absender auswählen"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "Chosen: {file}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "City"
 msgstr "Ort"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows can't play video or audio in a message, so recipients see nothing here: link to the recording instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows can't show SVG pictures, so this one will be missing there: use a PNG instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows can't show WebP, AVIF or HEIC pictures, so this one will be missing there: use a PNG or a JPEG instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows doesn't draw gradients: give the element a plain background colour as well, for it to show there."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows doesn't draw shadows, so this one won't appear there."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows doesn't read a colour whose numbers are separated by spaces, and some mail services drop the whole style because of it: separate them with commas."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows doesn't show a picture whose data is written into the HTML, so this one will be missing there: attach the picture to the signature instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows doesn't show background pictures, so only the background colour appears there: make sure the text can be read on it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows doesn't show text or symbols that a style rule adds before or after an element, so they will be missing: write them into the HTML itself."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows doesn't understand CSS variables, so a style that uses one is lost there: write the value itself instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows doesn't understand sizes in rem, so this size is ignored there: use pixels instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows doesn't understand sizes relative to the window (vw, vh, vmin, vmax), so this size is ignored there: use pixels or a percentage instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows draws square corners, so these corners won't be rounded there."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows ignores a minimum or maximum width here, so this part may be as wide as the whole message there: give a table a fixed width instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows ignores a picture's size when only its style sets it, and shows the picture at the file's own size."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows ignores flexible box layout, so these items will be stacked or run together there: a table can put them side by side."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows ignores floating, so this element won't sit beside the others there: use table cells, or an align attribute on a picture or a table."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows ignores grid layout, so these items will be stacked there: a table with rows and cells lays them out instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows ignores positioning, so this element will be shown in the ordinary flow there: put it in a table cell instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Classic Outlook for Windows, like other mail programs, doesn't show frames or embedded objects, so this part will be missing: link to it instead."
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/ribbon.rs
@@ -3235,6 +3370,16 @@ msgstr "Menüband reduzieren"
 #, fuzzy
 msgid "Colour"
 msgstr "Farbe"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Colour gradient"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Colour written with spaces"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -4245,6 +4390,11 @@ msgstr "Direkte Antworten an"
 msgid "Discard"
 msgstr "Verwerfen"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Discard changes"
+msgstr ""
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -4790,6 +4940,11 @@ msgstr "E-Mail-Adresse (optional)"
 msgid "Email the people of this meeting"
 msgstr "E-Mail an die Teilnehmer dieser Besprechung"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Embedded frame or object"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Emoji"
@@ -5206,7 +5361,7 @@ msgid "File"
 msgstr "Datei"
 
 #. interface
-#: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/signature_import.rs
 msgid "File dialogs aren't available here"
 msgstr "Dateidialoge sind hier nicht verfügbar"
 
@@ -5337,6 +5492,33 @@ msgstr "Vorname"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "Speichern Sie zuerst die standardmäßigen IMAP- und SMTP-Einstellungen von Google sowie einen passenden E-Mail-Benutzernamen, bevor Sie die Anmeldemethode wechseln."
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Fix {n} email compatibility error to save this signature."
+msgid_plural "Fix {n} email compatibility errors to save this signature."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Fix: add the size as width and height attributes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Fix: put the variable's value in its place"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Fix: remove this element"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Fix: separate the colour's numbers with commas"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
@@ -5366,6 +5548,16 @@ msgstr "Nachricht markieren und erinnern:"
 #, fuzzy
 msgid "Flagged"
 msgstr "Gekennzeichnet"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Flexible box layout"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Floating element"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -5503,6 +5695,11 @@ msgid "Font Size"
 msgstr "Schriftgrad"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Font list without a general family"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
 msgstr "Für IMAP-Konten. Bei Microsoft- und Exchange-Server-Konten legen Sie unter Datei › Informationen mit „E-Mails für Offlineverwendung“ fest, welche E-Mails offline verfügbar bleiben."
@@ -5576,6 +5773,11 @@ msgstr "Vertrauenswürdiges Zertifikat vergessen"
 msgid "Forget the pictures that are kept; they are downloaded again when you ask."
 msgstr "Aufbewahrte Bilder vergessen; sie werden auf Anforderung erneut heruntergeladen."
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Form or form field"
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -5604,6 +5806,11 @@ msgstr "Als HTML formatieren"
 #, fuzzy
 msgid "Format as Plain Text"
 msgstr "Als Nur-Text formatieren"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Forms, fields and buttons don't work in an email, and Classic Outlook for Windows drops them or shows them as plain text: use a link instead."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -6110,6 +6317,11 @@ msgid "Grey"
 msgstr "Grau"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Grid layout"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Group"
@@ -6451,7 +6663,7 @@ msgid "Illustrations"
 msgstr "Illustrationen"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signature_import.rs
 msgid "Import"
 msgstr "Importieren"
 
@@ -6464,6 +6676,16 @@ msgstr "Kalenderdatei importieren"
 #: crates/ui-egui/src/files.rs
 msgid "Import Contacts"
 msgstr "Kontakte importieren"
+
+#. command label
+#: crates/engine/src/cmd/signature.rs
+msgid "Import HTML Signature"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "Import HTML…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -6577,6 +6799,11 @@ msgstr "Importiert aus {file}"
 #: crates/ui-egui/src/security.rs
 msgid "Imported here"
 msgstr "Hier importiert"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "Imported the signature {name}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7212,6 +7439,11 @@ msgstr "Konto beibehalten"
 #, fuzzy
 msgid "Keep data"
 msgstr "Daten behalten"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Keep editing"
+msgstr ""
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs
@@ -8576,6 +8808,11 @@ msgid "Minimize"
 msgstr "Im Dock ablegen"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Minimum or maximum width"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Mobile"
@@ -8873,7 +9110,7 @@ msgid "My outgoing server needs no sign-in"
 msgstr "Mein Postausgangsserver erfordert keine Anmeldung"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "Name"
 msgstr "Name"
@@ -9181,6 +9418,11 @@ msgstr "Neue Nachrichten"
 msgid "New rule"
 msgstr "Neue Regel"
 
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "New signature from an HTML file"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
 #, fuzzy
@@ -9480,6 +9722,11 @@ msgid "No events"
 msgstr "Keine Termine"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "No file chosen yet"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "No file manager could be started to show the folder."
 msgstr "Es konnte kein Dateimanager gestartet werden, um den Ordner anzuzeigen."
@@ -9525,6 +9772,11 @@ msgstr "Keine passenden Nachrichten."
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 msgid "No messages."
 msgstr "Keine Nachrichten."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "No more files can be chosen in this window."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -11052,6 +11304,21 @@ msgstr "Bild über dem Text"
 msgid "Picture beside text"
 msgstr "Bild neben dem Text"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Picture format that may not show"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Picture sized only by its style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Picture written into the HTML"
+msgstr ""
+
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 msgid "Pictures"
@@ -11169,6 +11436,11 @@ msgstr ""
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs
 msgid "Pop Out"
 msgstr "In neuem Fenster öffnen"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Positioned element"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11593,6 +11865,11 @@ msgstr "Aktuelle E-Mails werden auf diesem Telefon gehalten, ältere bleiben auf
 #, fuzzy
 msgid "Recipient's address contains"
 msgstr "Adresse des Empfängers enthält"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Recipients who don't have these fonts get another one, often a serif font in Classic Outlook for Windows: end the list with serif, sans-serif or monospace."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12296,6 +12573,11 @@ msgstr "Rich-Text"
 msgid "Right before or after: {items}"
 msgstr "Direkt davor oder danach: {items}"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Rounded corners"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
@@ -12418,6 +12700,11 @@ msgstr "Diese Regel auf eingehende E-Mails anwenden"
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "SHA-256 fingerprint"
 msgstr "SHA-256-Fingerabdruck"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "SVG picture"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -13505,6 +13792,11 @@ msgstr "Einstellungen"
 msgid "Settings…"
 msgstr "Einstellungen…"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Shadow"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Shapes"
@@ -14211,6 +14503,16 @@ msgstr "Eine Zeile"
 msgid "Size"
 msgstr "Größe"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Size in rem"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Size relative to the window"
+msgstr ""
+
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -14535,6 +14837,11 @@ msgstr "Straße"
 #: crates/ui-egui/src/backstage.rs
 msgid "Stronger text and edges, in the light or the dark theme."
 msgstr "Kräftigere Schrift und deutlichere Konturen – sowohl im hellen als auch im dunklen Design."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Style rule that can't be sent"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14928,6 +15235,11 @@ msgid "Text Highlight Color"
 msgstr "Texthervorhebungsfarbe"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Text added by a style rule"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Text to look for"
@@ -14943,6 +15255,21 @@ msgstr "Vielen Dank. Das MailCraft-Team hat den Bericht unter dieser Referenz er
 #, fuzzy
 msgid "Thanks, Thursday at ten works for me. I'll bring the drawings."
 msgstr "Danke, Donnerstag um zehn passt mir. Ich bringe die Zeichnungen mit."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "That HTML can't be made a signature: {why}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "That HTML file is larger than a signature's HTML may be (64 KB)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "That HTML file isn't UTF-8 text."
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -15042,6 +15369,11 @@ msgid "That file is larger than a key file can be."
 msgstr "Diese Datei ist größer, als eine Schlüsseldatei sein darf."
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "That file is larger than a signature may take."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "That file isn't a key file: it is empty, or larger than one is."
 msgstr "Diese Datei ist keine Schlüsseldatei: Sie ist leer oder größer, als eine Schlüsseldatei sein darf."
@@ -15088,6 +15420,16 @@ msgstr "Das ist nicht das Passwort für diese Datei."
 #: crates/ui-egui/src/forms.rs
 msgid "That key is on the card already"
 msgstr "Dieser Schlüssel befindet sich bereits auf der Karte"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "That picture is larger than a signature's picture may be (256 KB)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "That picture is no longer part of the import."
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -15589,7 +15931,12 @@ msgid "The file could not be shared."
 msgstr "Die Datei konnte nicht geteilt werden."
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/signature_import.rs
+msgid "The file couldn't be read"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/files.rs crates/ui-egui/src/signature_import.rs
 msgid "The file couldn't be read ({why})"
 msgstr "Die Datei konnte nicht gelesen werden ({why})"
 
@@ -15798,6 +16145,11 @@ msgid "The mailbox could not be read."
 msgstr "Das Postfach konnte nicht gelesen werden."
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "The mailbox or the signature being edited changed, so the HTML import was given up."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The meeting these proposals are for isn't on your calendar."
@@ -16000,6 +16352,11 @@ msgstr "Die Kontakte konnten nicht gelesen werden."
 #: crates/ui-egui/src/signatures.rs
 msgid "The picture was too big, so it was made smaller ({w} px wide)."
 msgstr "Das Bild war zu groß und wurde verkleinert ({w} px breit)."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "The pictures would be larger than a signature's pictures may be together (512 KB)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16686,6 +17043,11 @@ msgstr "Sie werden in einer Datei Ihrer Wahl gespeichert, die Sie dem Issue auf 
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "They share {what}."
 msgstr "Sie haben Folgendes gemeinsam: {what}."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "This HTML names no picture files."
+msgstr ""
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -17516,11 +17878,36 @@ msgstr "Das Konto dieses freigegebenen Postfachs ist nicht mehr vorhanden"
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "Das Konto dieses freigegebenen Postfachs ist nicht mehr vorhanden: Entfernen Sie das freigegebene Postfach und fügen Sie es erneut hinzu"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "This signature can't be saved until its email compatibility errors are fixed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "This signature can't be saved: {why}"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "This signature has a picture or its own layout. Change it on the computer."
 msgstr "Diese Signatur enthält ein Bild oder ein eigenes Layout. Ändern Sie sie am Computer."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "This signature's HTML could not be checked for email compatibility, so it can't be saved yet."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "This signature's HTML could not be checked for email compatibility."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "This style rule uses something MailCraft can't send safely (such as an import, a web address or an unsupported selector). Remove or simplify the rule."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -18073,6 +18460,11 @@ msgstr "Nicht gespeicherte Änderungen"
 msgid "Unsaved Message"
 msgstr "Nicht gespeicherte Nachricht"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Unsaved Signature"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -18362,6 +18754,11 @@ msgstr "Version {version} behebt ein Sicherheitsproblem und ist bereit:"
 msgid "Version {version} is ready:"
 msgstr "Version {version} ist bereit:"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Video or audio player"
+msgstr ""
+
 #. name, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -18419,10 +18816,20 @@ msgid "Waiting for MailCraft's Google registration"
 msgstr "Warten auf die Google-Registrierung von MailCraft"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "Waiting for the HTML file…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "Das Warten auf die Genehmigung wurde unerwartet abgebrochen"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "Waiting for the previous file to finish being read."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -19549,16 +19956,6 @@ msgid "an Exchange server account's server, address and user name can't be chang
 msgstr "Server, Adresse und Benutzername eines Exchange-Server-Kontos können nicht mehr geändert werden, sobald dessen E-Mails hier gespeichert sind: Entfernen Sie das Konto und fügen Sie es mit den anderen Angaben erneut hinzu"
 
 #. what a command says
-#: crates/model/src/signature.rs
-msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
-msgstr "Eine HTML-Signatur zeigt Bilder ausschließlich über ihre Webadressen an: Entfernen Sie zuerst die Bilder aus dieser Signatur"
-
-#. what a command says
-#: crates/model/src/signature.rs
-msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
-msgstr "Eine HTML-Signatur zeigt Bilder über ihre Webadressen an: Stellen Sie diese auf Rich-Text um, um ein Bild hinzuzufügen"
-
-#. what a command says
 #: crates/engine/src/digital_signature.rs
 msgid "an S/MIME certificate is trusted through its certification authority and isn't marked Verified"
 msgstr "ein S/MIME-Zertifikat gilt aufgrund seiner Zertifizierungsstelle als vertrauenswürdig und wird nicht als verifiziert gekennzeichnet"
@@ -20592,6 +20989,11 @@ msgid "someone@example.org or @example.org"
 msgstr "someone@example.org oder @example.org"
 
 #. what a command says
+#: crates/model/src/signature.rs
+msgid "switch the HTML signature to rich text before inserting a picture into its text"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -21109,6 +21511,11 @@ msgstr "die Plattform hat den Vorgang abgelehnt oder ist fehlgeschlagen"
 msgid "the proposed end is not after the proposed start"
 msgstr "das vorgeschlagene Ende liegt nicht nach dem vorgeschlagenen Beginn"
 
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+msgid "the reader stopped unexpectedly"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
 #, fuzzy
@@ -21582,13 +21989,13 @@ msgid "there are too many rules"
 msgstr "es gibt zu viele Regeln"
 
 #. what a command says
-#: crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signature_import.rs
 #, fuzzy
 msgid "there are too many signatures"
 msgstr "es gibt zu viele Signaturen"
 
 #. what a command says
-#: crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signature_import.rs
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "es gibt bereits eine Signatur namens „{to}“"
@@ -21663,6 +22070,26 @@ msgstr "Diese .pst-Datei ist zu groß, um sie ohne eine Postfachdatei mit ausrei
 #: crates/engine/src/cmd/account.rs
 msgid "this Exchange server account has no server settings"
 msgstr "für dieses Exchange-Server-Konto sind keine Servereinstellungen vorhanden"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+msgid "this HTML conversion would lose the signature's embedded pictures"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+msgid "this HTML hides a picture of the signature where its text can't show it"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+msgid "this HTML names a picture that is neither on the web nor one of this signature's own: give it a web address (https://…), or name the picture's file relative to the HTML file and bring both in with Import HTML…"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+msgid "this HTML names a picture this signature doesn't have"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
@@ -21815,6 +22242,36 @@ msgstr "diese Serie hat zu viele abgesagte Tage"
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "diese Serie hat zu viele geänderte Tage"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+msgid "this signature has {n} email compatibility error(s) to fix before it can be saved"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+msgid "this signature's HTML could not be checked for email compatibility"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+msgid "this signature's HTML could not be read for its pictures"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+msgid "this signature's HTML could not be read for its pictures: it may name at most {n} pictures"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+msgid "this signature's HTML could not be read for its pictures: remove its <base> element"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "this signature's styles can't be sent safely: fix them in File › Signatures"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -22788,6 +23245,13 @@ msgid_plural "{n} downloaded pictures are kept on this phone ({size})."
 msgstr[0] "{n} heruntergeladenes Bild ist auf diesem Telefon gespeichert ({size})."
 msgstr[1] "{n} heruntergeladene Bilder sind auf diesem Telefon gespeichert ({size})."
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "{n} email compatibility error"
+msgid_plural "{n} email compatibility errors"
+msgstr[0] ""
+msgstr[1] ""
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -23474,6 +23938,13 @@ msgstr[0] "{n} ungelesen auf dem Server"
 msgstr[1] "{n} ungelesen auf dem Server"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+msgid "{n} warning"
+msgid_plural "{n} warnings"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "{n} was here already"
 msgid_plural "{n} were here already"
@@ -23741,6 +24212,12 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Zeilen"
+
+#~ msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
+#~ msgstr "Eine HTML-Signatur zeigt Bilder ausschließlich über ihre Webadressen an: Entfernen Sie zuerst die Bilder aus dieser Signatur"
+
+#~ msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
+#~ msgstr "Eine HTML-Signatur zeigt Bilder über ihre Webadressen an: Stellen Sie diese auf Rich-Text um, um ein Bild hinzuzufügen"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"

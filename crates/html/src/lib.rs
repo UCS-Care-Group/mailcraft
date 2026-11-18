@@ -10,7 +10,8 @@
 //! [`text_preview`] give the first words of a message on one line, for a message list.
 //! [`quotable`] writes a message's HTML out again for the original under a reply or forward: its
 //! look, without anything that runs, embeds or tracks; [`quotable_with_pictures`] with the
-//! pictures written into it, each to go as a part of its own.
+//! pictures written into it, each to go as a part of its own, and [`quotable_with_rebound_cids`]
+//! with the pictures the message holds written under the Content-IDs they go out as.
 //!
 //! There is no CSS engine here. A short whitelist of presentational facts is read from inline
 //! `style` attributes and old-style attributes (`style.rs`): text and background colour, bold,
@@ -25,13 +26,17 @@
 //! [`MAX_TABLE_DEPTH`], [`MAX_CELLS`]), and the work is linear in the input.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod authored;
+mod authored_css;
 mod bg;
 mod bidi;
 mod blocks;
+pub mod compat;
 #[doc(hidden)]
 pub mod corpus;
 mod data;
 mod entities;
+mod image_sources;
 mod look;
 mod media;
 mod preview;
@@ -44,10 +49,12 @@ mod tokenizer;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+pub use authored::{AuthoredError, AuthoredFragment, AuthoredScope, authored_fragment_with_rebound_cids};
 pub use bg::{BgOffset, BgPicture, BgRepeat, BgSize, MAX_BG_OFFSET_PX, MAX_BG_SIZE_PX};
 pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own, parse_text_with_tables};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
+pub use image_sources::{ImageSource, ImageSourceError, MAX_IMAGE_SOURCES, image_sources};
 pub use media::{Env, MAX_ENVS as MAX_MEDIA_ENVS, envs as media_envs, verdicts as media_verdicts};
 
 /// The media lists of a message's style sheets and `<style media>` attributes, each once, in the
@@ -57,7 +64,7 @@ pub fn media_lists(html: &str) -> Vec<String> {
     sheet::media_lists(html)
 }
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
-pub use quote::{WrittenPicture, quotable, quotable_with_pictures};
+pub use quote::{ReboundCid, WrittenPicture, quotable, quotable_with_pictures, quotable_with_rebound_cids};
 pub use style::{MAX_FAMILIES, MAX_FONT_PX};
 pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
 
@@ -648,6 +655,8 @@ mod float_tests;
 mod inline_tests;
 #[cfg(test)]
 mod nested_align_tests;
+#[cfg(test)]
+mod quote_cid_tests;
 #[cfg(test)]
 mod rtl_tests;
 #[cfg(test)]

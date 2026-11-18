@@ -91,6 +91,11 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
 /// A user-run command that writes a file and has no `path` yet: ask where (desktop) or download
 /// what it produces (browser). `None` for every other command.
 pub(crate) fn intercept(app: &mut MailApp, id: &str, params: &Value) -> Option<Result<Value, String>> {
+    // File › Signatures' Import HTML…, pressed by the owner: nothing given, so the document is
+    // picked first. Whatever a caller gives is the command's own to read, and to refuse.
+    if id == "signature.import" && (params.is_null() || params.as_object().is_some_and(serde_json::Map::is_empty)) {
+        return Some(crate::signature_import::begin(app));
+    }
     // Open, Import and Attach without a file: pick one.
     if id == "file.importFolderTree" && params.get("path").is_none() && params.get("entries").is_none() && params.get("staged").is_none() {
         // A host that can't ask for a folder lets the command say what it needs.
@@ -172,6 +177,12 @@ fn download_all(app: &mut MailApp, params: Value) -> Result<Value, String> {
 /// Pick a file to open (`mailbox`), bring in (`import`) or attach (`attach`).
 pub(crate) fn open(app: &mut MailApp, purpose: &str) {
     let asking = if matches!(purpose, "attach" | "bodyPicture") { app.session.compose_id() } else { None };
+    open_for(app, purpose, asking);
+}
+
+/// Pick a file for `purpose`, on behalf of `asking` (the message being written, or the request
+/// token of a signature import's pick), as [`open`] does.
+pub(crate) fn open_for(app: &mut MailApp, purpose: &str, asking: Option<u64>) {
     if let Some(f) = &app.services.open_async {
         // (What comes of it says itself what it was picked for: [`crate::Delivered`].)
         f(purpose, asking);
@@ -236,6 +247,12 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
         // A message's server copy fetched for this save isn't held any longer (#1561).
         if matches!(&d.after, AfterPick::Export { command, .. } if command == "file.exportMessage") {
             app.session.forget_for_save();
+        }
+        // Import HTML…'s request is let go of (the answer is the same as any other's).
+        if let AfterPick::Open(purpose, asking) = &d.after
+            && crate::signature_import::is_purpose(purpose)
+        {
+            crate::signature_import::cancelled(app, purpose, *asking);
         }
         return Some(Ok(json!({"cancelled": true})));
     };
@@ -397,6 +414,8 @@ impl Batch {
             }
             crate::Unread::PastMost => self.past_most += 1,
             crate::Unread::PastTotal => self.past_total += 1,
+            // Nothing was picked: nothing to say.
+            crate::Unread::Cancelled => {}
         }
     }
 }
@@ -464,6 +483,12 @@ fn on_message(mut params: Value, asking: Option<u64>) -> Value {
 }
 
 fn opened_path(app: &mut MailApp, purpose: &str, path: &str, asking: Option<u64>) -> Result<Value, String> {
+    // Import HTML…'s document or picture: handed to the host's reader for the request `asking`
+    // names (never filed as mail, never read here).
+    if crate::signature_import::is_purpose(purpose) {
+        crate::signature_import::picked_path(app, purpose, path, asking);
+        return Ok(json!({"picked": purpose}));
+    }
     // A key file (#30): read here, at most a key file's size, and handed on as bytes, never as a
     // path a command opens.
     if crate::security::is_purpose(purpose) {
@@ -485,6 +510,80 @@ fn opened_path(app: &mut MailApp, purpose: &str, path: &str, asking: Option<u64>
         app.ui.backstage = false;
     }
     r
+}
+
+/// The most bytes a file picked for File › Signatures' Import HTML… may have, by what it was
+/// picked for (`signatureHtml`: the document; `signatureAsset`: one of its pictures): the
+/// model's own caps. `None` for every other purpose. The browser's host reads no more than this
+/// of such a file, and the desktop's reader neither ([`SignatureRead`]).
+pub fn signature_cap(purpose: &str) -> Option<u64> {
+    use mailcraft_model::signature::{MAX_HTML, MAX_PICTURE_BYTES};
+    let cap = match purpose {
+        crate::signature_import::HTML => MAX_HTML,
+        crate::signature_import::ASSET => MAX_PICTURE_BYTES,
+        _ => return None,
+    };
+    u64::try_from(cap).ok()
+}
+
+/// One file the owner picked in a desktop dialog for File › Signatures' Import HTML…, to be read
+/// by the host off the window's thread ([`crate::Services::read_signature_file`]). What it was
+/// picked for decides how much of it may be read; nobody else names that.
+pub struct SignatureRead {
+    // (Read only by the desktop's reader: the browser reads no file by its path.)
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    path: std::path::PathBuf,
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    cap: u64,
+}
+
+impl SignatureRead {
+    /// The HTML document, of at most a signature's HTML.
+    pub(crate) fn document(path: &str) -> Self {
+        Self::of(crate::signature_import::HTML, path)
+    }
+
+    /// One picture the document names, of at most a signature's picture.
+    pub(crate) fn picture(path: &str) -> Self {
+        Self::of(crate::signature_import::ASSET, path)
+    }
+
+    fn of(purpose: &str, path: &str) -> Self {
+        SignatureRead { path: path.into(), cap: signature_cap(purpose).unwrap_or(0) }
+    }
+
+    /// The file's bytes, read once opened as a regular file (on Unix without waiting, so a FIFO
+    /// named instead is refused rather than waited on; a Windows named pipe is not covered:
+    /// `mailcraft_engine::io::regular_file`), and only if it holds at most the cap: its size is
+    /// looked at before anything is read, and no more than one byte past the cap is ever read.
+    /// Why it wasn't read says nothing of its path or its contents.
+    pub fn read(&self) -> Result<Vec<u8>, crate::Unread> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use mailcraft_engine::io::ReadError;
+            use std::io::Read as _;
+            let failed = |e: std::io::Error| crate::Unread::Failed(e.kind().to_string());
+            let file = mailcraft_engine::io::regular_file(&self.path).map_err(|e| match e {
+                ReadError::NotAFile => crate::Unread::Failed("not a file".to_string()),
+                ReadError::TooLarge => crate::Unread::TooLarge,
+                ReadError::Io(e) => failed(e),
+            })?;
+            if file.metadata().map_err(failed)?.len() > self.cap {
+                return Err(crate::Unread::TooLarge);
+            }
+            let mut bytes = Vec::new();
+            file.take(self.cap.saturating_add(1)).read_to_end(&mut bytes).map_err(failed)?;
+            if !u64::try_from(bytes.len()).is_ok_and(|n| n <= self.cap) {
+                return Err(crate::Unread::TooLarge);
+            }
+            Ok(bytes)
+        }
+        // The browser reads no file by its path, and nothing waits for one.
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(crate::Unread::Failed("no file can be read by its path here".to_string()))
+        }
+    }
 }
 
 /// The key file at `path`, of at most [`crate::own_keys::MAX_FILE`] bytes.
@@ -733,7 +832,8 @@ pub fn local_path(text: &str) -> String {
 /// Files that arrived asynchronously: from the web picker, each for what it was opened for and
 /// for the message that asked ([`crate::Delivered::asked`]); dropped in the browser, each for
 /// what its kind says, to the message with the keyboard. A picker that was cancelled delivers
-/// nothing, so what it was opened for is never what a dropped file is taken for. Files picked
+/// nothing (Import HTML…'s says so, and only to that page), so what it was opened for is never
+/// what a dropped file is taken for. Files picked
 /// to attach arrive together, and the files of one pick for one message are a batch, as on the
 /// desktop: each in turn, and said once ([`attached_said`]); two picks for the same message
 /// ([`crate::Delivered::pick`]) are said each by itself.
@@ -776,6 +876,15 @@ pub(crate) fn drain_inbox(app: &mut MailApp) {
 /// One file that arrived: opened, brought in, attached or put in the body, as it was picked for.
 fn delivered_one(app: &mut MailApp, d: crate::Delivered) {
     let (purpose, asking) = d.asked.unwrap_or_else(|| (purpose_of(app, &d.name).to_string(), crate::windows::compose_window::target(app)));
+    // Import HTML…'s document or one of its pictures: the page takes it, or leaves it.
+    if crate::signature_import::is_purpose(&purpose) {
+        crate::signature_import::delivered(app, &purpose, asking, d.name, d.bytes);
+        return;
+    }
+    // Only a signature's pick says it was cancelled; anything else's says nothing either.
+    if d.bytes == Err(crate::Unread::Cancelled) {
+        return;
+    }
     if crate::security::is_purpose(&purpose) {
         let bytes = d.bytes.map_err(|_| crate::i18n::fmt(tl!("{name} couldn't be read"), &[("name", &d.name)]));
         crate::security::picked(app, &purpose, &d.name, bytes);

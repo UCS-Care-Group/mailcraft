@@ -2971,16 +2971,16 @@ impl Session {
 
     /// The messages of the Outbox `outbox` holds, whole, for a synchronisation to send: a
     /// message whose content can't be read is left out of this run, with a line in the log,
-    /// rather than sent without its files.
+    /// rather than sent without its files. As a server is to have them ([`Message::for_server`]).
     pub fn loaded_outbox(&self, outbox: Vec<Message>) -> Vec<Message> {
         outbox
             .into_iter()
             .filter_map(|m| {
                 if m.is_loaded() && m.header_block.is_loaded() {
-                    return Some(m);
+                    return Some(m.for_server());
                 }
                 match self.loaded_message(m.id) {
-                    Ok(loaded) => Some(Message::clone(&loaded)),
+                    Ok(loaded) => Some(Message::clone(&loaded).for_server()),
                     Err(e) => {
                         log::warn!("message {} stays in the Outbox this time: {e}", m.id);
                         None

@@ -119,12 +119,17 @@ fn new_words_let_an_html_signature_go_and_the_same_words_keep_it() {
 }
 
 #[test]
-fn an_html_signature_has_no_pictures_of_its_own_and_stays_in_its_cap() {
+fn an_html_signature_keeps_its_pictures_and_stays_in_its_cap() {
     let mut sig = Signature::plain_text("Work", "Avery Quinn");
-    sig.add_picture("logo.png", png(10), None, None).unwrap();
-    // Its pictures would be lost: refused, and nothing changes.
-    assert!(sig.set_html(Some("<b>Avery</b>".into())).is_err());
-    assert!(sig.html().is_none() && sig.pictures().len() == 1);
+    let id = sig.add_picture("logo.png", png(10), None, None).unwrap();
+    let html = format!("<img src=\"cid:sig-{id}@signature.invalid\"><b>Avery</b>");
+    sig.set_html(Some(html.clone())).unwrap();
+    assert_eq!(sig.html(), Some(html.as_str()));
+    assert_eq!(sig.pictures().len(), 1);
+    // Refusing oversized HTML leaves the existing HTML and its picture unchanged.
+    assert!(sig.set_html(Some("x".repeat(MAX_HTML + 1))).is_err());
+    assert_eq!(sig.html(), Some(html.as_str()));
+    assert_eq!(sig.picture(id).unwrap().data.as_slice(), png(10).as_slice());
     let mut sig = Signature::plain_text("Work", "Avery Quinn");
     assert!(sig.set_html(Some("x".repeat(MAX_HTML + 1))).is_err());
     sig.set_html(Some("<b>Avery</b>".into())).unwrap();

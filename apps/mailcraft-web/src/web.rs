@@ -243,9 +243,14 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
             let picked_for = purpose.to_string();
             let pick = picks.get().wrapping_add(1);
             picks.set(pick);
+            // A file for File › Signatures' Import HTML… is read only up to what a signature takes
+            // of it, its size looked at before anything is read.
+            let cap = mailcraft_ui_egui::files::signature_cap(purpose);
             let dialog = match purpose {
                 "mailbox" => rfd::AsyncFileDialog::new().add_filter("MailCraft mailbox", MAILBOX_EXTS),
                 "import" => rfd::AsyncFileDialog::new().add_filter("Mail, calendar and contact files", IMPORT_EXTS),
+                "signatureHtml" => rfd::AsyncFileDialog::new().add_filter("HTML files", &["html", "htm"]),
+                "signatureAsset" => rfd::AsyncFileDialog::new().add_filter("Pictures", &["png", "jpg", "jpeg", "gif"]),
                 // Anything can be attached.
                 _ => rfd::AsyncFileDialog::new(),
             };
@@ -254,6 +259,12 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
             wasm_bindgen_futures::spawn_local(async move {
                 let picked = if many { dialog.pick_files().await } else { dialog.pick_file().await.map(|f| vec![f]) };
                 let Some(files) = picked else {
+                    // A signature's pick says it was cancelled, so that the page waiting for it can
+                    // let it go; every other picker's cancellation delivers nothing, as before.
+                    if cap.is_some() {
+                        inbox.lock().unwrap_or_else(|e| e.into_inner()).push(Delivered::cancelled(&picked_for, asking, pick));
+                        ctx.request_repaint();
+                    }
                     return;
                 };
                 // Each file as it was picked for: a picker's answer is never taken for another's.
@@ -267,6 +278,8 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
                 let plan = if many {
                     let sizes: Vec<u64> = files.iter().map(|f| f.inner().size() as u64).collect();
                     mailcraft_ui_egui::files::reads_of_pick(&sizes)
+                } else if let Some(cap) = cap {
+                    files.iter().map(|f| (f.inner().size() as u64 > cap).then_some(Unread::TooLarge)).collect()
                 } else {
                     vec![None; files.len()]
                 };
@@ -277,7 +290,16 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
                         read.push(Delivered::unread(name, why, &picked_for, asking, pick));
                         continue;
                     }
-                    read.push(match read_file(file.inner()).await {
+                    let bytes = match cap {
+                        Some(cap) => read_prefix(file.inner(), cap).await,
+                        None => read_file(file.inner()).await,
+                    };
+                    read.push(match bytes {
+                        // (The file grew after its size was looked at: still no more than the cap
+                        // and one byte was read, and it is refused.)
+                        Ok(bytes) if cap.is_some_and(|cap| bytes.len() as u64 > cap) => {
+                            Delivered::unread(name, Unread::TooLarge, &picked_for, asking, pick)
+                        }
                         Ok(bytes) => Delivered::picked(name, bytes, &picked_for, asking, pick),
                         Err(e) => {
                             log::error!("couldn't read picked file {name}: {e}");
@@ -386,6 +408,15 @@ async fn fetch_face(file: &str) -> Result<Vec<u8>, String> {
 /// since it was picked) is an error, never a stop of the page.
 async fn read_file(file: &web_sys::File) -> Result<Vec<u8>, String> {
     let buffer = wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await.map_err(|e| format!("{e:?}"))?;
+    Ok(js_sys::Uint8Array::new(&buffer).to_vec())
+}
+
+/// At most `cap` bytes and one more of a picked file, as the browser gives them: only that much of
+/// it is ever read (a slice of the file), so a file larger than it says, or one that grew, is no
+/// more than one byte past the cap here.
+async fn read_prefix(file: &web_sys::File, cap: u64) -> Result<Vec<u8>, String> {
+    let part = file.slice_with_f64_and_f64(0.0, cap.saturating_add(1) as f64).map_err(|e| format!("{e:?}"))?;
+    let buffer = wasm_bindgen_futures::JsFuture::from(part.array_buffer()).await.map_err(|e| format!("{e:?}"))?;
     Ok(js_sys::Uint8Array::new(&buffer).to_vec())
 }
 
