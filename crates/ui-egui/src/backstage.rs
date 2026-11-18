@@ -228,12 +228,18 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         }
         // The buttons sit on the card: placed without moving the page's layout on (`ui.put` would
-        // take it back up into the card, and what follows was drawn over it).
-        let on_card = |ui: &mut Ui, right: f32, button: egui::Button<'_>| {
-            let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(74.0, 26.0));
+        // take it back up into the card, and what follows was drawn over it). Their width is the
+        // words' own, at least 74 — a translation longer than English must not wrap or clip.
+        let button_w = |ui: &Ui, text: &str| {
+            (ui.painter().layout_no_wrap(text.to_string(), egui::FontId::default(), egui::Color32::WHITE).size().x + 24.0).max(74.0)
+        };
+        let on_card = |ui: &mut Ui, right: f32, width: f32, button: egui::Button<'_>| {
+            let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(width, 26.0));
             ui.new_child(egui::UiBuilder::new().max_rect(br)).add_sized(br.size(), button)
         };
-        let settings_at = if removable { 168.0 } else { 86.0 };
+        let settings_w = button_w(ui, &tl!("Settings"));
+        let remove_w = button_w(ui, &tl!("Remove"));
+        let settings_at = if removable { 94.0 + remove_w } else { 12.0 + settings_w };
         // (An account kept in step through Graph has no servers to change, #312.)
         let settings_tip = if a.is_shared() {
             // (Its sign-in is its owner's, #70: only its name and colour are its own, #1385.)
@@ -243,18 +249,20 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         } else {
             tl!("Change this account's name, servers and sign-in")
         };
-        if !a.email.is_empty() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked() {
+        if !a.email.is_empty() && on_card(ui, settings_at, settings_w, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked() {
             let _ = app.run("ui.dialog", json!({"name": "account", "id": a.id}));
         }
         if a.is_shared() {
-            if on_card(ui, 86.0, egui::Button::new(tl!("Remove")))
+            if on_card(ui, 12.0 + remove_w, remove_w, egui::Button::new(tl!("Remove")))
                 .on_hover_text(tl!("Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."))
                 .clicked()
             {
                 let _ = app.run("account.removeSharedMailbox", json!({"id": a.id}));
             }
         } else if removable
-            && on_card(ui, 86.0, egui::Button::new(tl!("Remove"))).on_hover_text(tl!("Remove this account and the mail kept for it here")).clicked()
+            && on_card(ui, 12.0 + remove_w, remove_w, egui::Button::new(tl!("Remove")))
+                .on_hover_text(tl!("Remove this account and the mail kept for it here"))
+                .clicked()
         {
             let _ = app.run("account.remove", json!({"id": a.id}));
         }

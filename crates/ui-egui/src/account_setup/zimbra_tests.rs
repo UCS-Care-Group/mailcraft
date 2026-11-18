@@ -56,6 +56,21 @@ fn the_zimbra_page_adds_an_account_without_mail_servers() {
 }
 
 #[test]
+fn a_zimbra_server_found_beside_settings_it_knows_is_offered_there() {
+    // IMAP was found for the address (the page is no guess), and the domain's probe answered: the
+    // Zimbra tile sits beside what was found, and taking it leads to the Zimbra page with the host.
+    let mut a = app(true);
+    let mut w = AccountSetup::open(&a, &json!({})).unwrap();
+    w.email = ME.into();
+    w.go(Page::Password);
+    w.guessed = false;
+    w.zimbra_found = vec!["zimbra.example.org".into()];
+    w.act(&mut a, Action::Pick(Kind::Zimbra));
+    assert_eq!(w.page, Page::Zimbra);
+    assert_eq!(w.zimbra.url, "https://zimbra.example.org");
+}
+
+#[test]
 fn account_settings_of_a_zimbra_account_change_its_server_and_nothing_of_imap() {
     let mut a = app(true);
     let id = a.execute("account.add", json!({"email": ME, "kind": "zimbra", "zimbra": {"url": "https://mail.example.org"}})).unwrap()["id"]
