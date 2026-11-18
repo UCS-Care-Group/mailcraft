@@ -23,6 +23,9 @@ pub mod calendar_extra;
 pub mod calendar_opened;
 pub mod calendar_settings;
 pub mod calendar_subscribed;
+pub mod categories_remote;
+#[cfg(test)]
+mod categories_remote_tests;
 pub mod category;
 #[cfg(test)]
 mod category_tests;
@@ -229,6 +232,7 @@ pub fn registry() -> Registry {
     v.extend(unsubscribe::specs());
     v.extend(keys::specs());
     v.extend(category::specs());
+    v.extend(categories_remote::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());
     v.extend(offline::specs());

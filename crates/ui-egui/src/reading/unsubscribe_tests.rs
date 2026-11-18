@@ -150,13 +150,13 @@ fn the_question_says_what_each_way_does() {
     let q = question(&app, &json!({"message": id})).unwrap();
     assert!(q.text.contains("leave@news.example") && q.text.contains("avery@lumen-works.example"), "{}", q.text);
     // What goes is shown: "Unsubscribe" when the address gives nothing, else its own words, on
-    // one line and cut short.
+    // one line and whole: what is sent is what was seen.
     assert!(q.text.contains("“Unsubscribe”"), "{}", q.text);
     let long = "x".repeat(500);
     let list = format!("<mailto:leave@news.example?subject=Stop%20please&body=Remove%0Ame%20{long}>");
     let (app, id) = list_app(&[("Authentication-Results", PASSED), ("List-Unsubscribe", list.as_str())]);
     let q = question(&app, &json!({"message": id})).unwrap();
-    assert!(q.text.contains("“Stop please”") && q.text.contains("“Remove me x") && q.text.contains("…”") && !q.text.contains(&long), "{}", q.text);
+    assert!(q.text.contains("“Stop please”") && q.text.contains(&format!("“Remove me {long}”")), "{}", q.text);
     // A message that says nothing asks nothing.
     let (app, id) = list_app(&[("Authentication-Results", PASSED)]);
     assert!(question(&app, &json!({"message": id})).is_none());
@@ -350,6 +350,73 @@ fn the_owner_is_asked_what_goes_and_refused_before_when_it_cant() {
     app.dialog = None;
     let many: Vec<u64> = (1..=501).collect();
     assert!(app.run("ui.unsubscribeMany", json!({"ids": many})).is_err());
+    // Said, as any refusal is: the menu that ran it drops the error.
+    assert!(app.status_msg.as_ref().is_some_and(|(said, _)| said.contains("500")), "{:?}", app.status_msg);
     assert!(app.run("ui.unsubscribeMany", json!({"ids": [unvouched]})).is_err());
     assert!(app.dialog.is_none());
+}
+
+/// The Outbox's messages: to whom each goes.
+fn outbox(app: &MailApp) -> Vec<String> {
+    let id = app.session.mailbox.folders.iter().find(|f| f.kind == mailcraft_model::FolderKind::Outbox).map(|f| f.id).unwrap();
+    app.session.mailbox.messages_in(id).map(|m| m.to.first().map(|a| a.email.clone()).unwrap_or_default()).collect()
+}
+
+#[test]
+fn twenty_requests_by_mail_are_listed_and_only_they_are_sent() {
+    let (mut app, _) = list_app(&[]);
+    // Twenty-one lists, no two alike (lists named alike would look like each other's once one is
+    // written to, and get a sender warning).
+    const LISTS: [&str; 21] = [
+        "acorn", "birch", "cobalt", "dune", "ember", "fjord", "garnet", "harbor", "indigo", "juniper", "kestrel", "lagoon", "meadow", "nectar",
+        "orchid", "pebble", "quartz", "raven", "saffron", "tundra", "umber",
+    ];
+    let ids: Vec<u64> = LISTS
+        .iter()
+        .zip(0..)
+        .map(|(name, n)| {
+            add_at(&mut app, &format!("news@{name}.example"), 60 + n, &[("List-Unsubscribe", &format!("<mailto:leave@{name}.example>"))])
+        })
+        .collect();
+    let (q, params) = super::question_many(&mut app, &json!({"ids": ids})).unwrap();
+    assert_eq!(q.text.matches("• to ").count(), 20, "{}", q.text);
+    assert!(q.text.contains("1 more by mail isn't sent now"), "{}", q.text);
+    let listed: Vec<u64> = params["mail"].as_array().unwrap().iter().filter_map(serde_json::Value::as_u64).collect();
+    assert_eq!(listed.len(), 20);
+    // The newest twenty: the oldest, `umber`, is the one left for later.
+    assert!(!listed.contains(&ids[20]) && q.text.contains("leave@acorn.example") && !q.text.contains("leave@umber.example"), "{}", q.text);
+    let mut params = params;
+    params["confirmed"] = json!(true);
+    let said = app.execute("ui.unsubscribeMany", params).unwrap();
+    assert_eq!(said["mail"].as_u64(), Some(20));
+    let mut sent = outbox(&app);
+    sent.sort();
+    let mut expected: Vec<String> = LISTS.iter().take(20).map(|name| format!("leave@{name}.example")).collect();
+    expected.sort();
+    assert_eq!(sent, expected);
+}
+
+#[test]
+fn mail_named_null_or_wrongly_sends_nothing_and_never_takes_the_selection() {
+    let (mut app, _) = list_app(&[]);
+    let shop = add_at(&mut app, "deals@shop.example", 60, &[("List-Unsubscribe", "<mailto:leave@shop.example>")]);
+    app.session.sel.messages = vec![shop];
+    let said = app.execute("ui.unsubscribeMany", json!({"ids": [shop], "mail": null})).unwrap();
+    assert_eq!(said["mail"].as_u64(), Some(0));
+    for wrong in [json!("all"), json!([shop, "x"]), json!({"id": shop})] {
+        assert!(app.execute("ui.unsubscribeMany", json!({"ids": [shop], "mail": wrong})).is_err(), "{wrong}");
+    }
+    assert!(outbox(&app).is_empty());
+}
+
+#[test]
+fn a_long_address_and_subject_are_shown_whole() {
+    let (mut app, _) = list_app(&[]);
+    let local = "a".repeat(60);
+    let to = format!("{local}@unsubscribe.far-away-domain.example");
+    let subject = "Please remove me from every list you keep about me, now and for good, thank you".repeat(2);
+    let list = format!("<mailto:{to}?subject={}>", subject.replace(' ', "%20"));
+    let shop = add_at(&mut app, "deals@shop.example", 60, &[("List-Unsubscribe", list.as_str())]);
+    let (q, _) = super::question_many(&mut app, &json!({"ids": [shop]})).unwrap();
+    assert!(q.text.contains(&to) && q.text.contains(&subject), "{}", q.text);
 }
