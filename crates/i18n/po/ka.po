@@ -2332,7 +2332,7 @@ msgid "Available formats:"
 msgstr "ხელმისაწვდომი ფორმატები:"
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Back"
 msgstr "უკან"
@@ -2396,6 +2396,11 @@ msgstr "ამ წერილთან ფრთხილად იყავი
 #, fuzzy
 msgid "Before anything changes, a copy of your whole mailbox is saved next to it, with today's date in its name."
 msgstr "სანამ რამე შეიცვლება, თქვენი მთელი საფოსტო ყუთის ასლი მის გვერდით ინახება, სახელში დღევანდელი თარიღით."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Beside its name and on its mail"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -3530,7 +3535,7 @@ msgid "Confirm servers"
 msgstr "სერვერების დადასტურება"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Connect"
 msgstr "დაკავშირება"
@@ -6901,6 +6906,11 @@ msgstr "თუ თქვენი საკუთარი ადმინის
 msgid "If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts."
 msgstr "თუ გაქვთ, აქ ჩასვით მისი აპლიკაციის (კლიენტის) ID. ის Microsoft Entra-ს აპლიკაციის რეგისტრაციიდან მოდის: საჯარო კლიენტი გადამისამართების URI-ით http://localhost, ნებისმიერი დირექტორიის ანგარიშებისა და პირადი ანგარიშებისთვის."
 
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "If your account signs in with a second step, MailCraft asks for the code of your authenticator app when it first connects."
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8421,6 +8431,11 @@ msgstr "MailCraft ამ სერვერზე ამ გზით შეს�
 #, fuzzy
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
 msgstr "MailCraft შეიცავს ქვემოთ ჩამოთვლილ პროგრამებს. მისი ბირთვის Rust ბიბლიოთეკები ვერსიებით ჩამოთვლილია წყაროს რეპოზიტორიაში."
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "MailCraft connects to Zimbra through its own web service over HTTPS: the SOAP API (in JSON) and REST, not IMAP or SMTP. It needs Zimbra Collaboration 8.8 or later."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -16212,7 +16227,7 @@ msgid "The account could not be removed. It and its sign-in are still here. Try 
 msgstr "ანგარიშის წაშლა ვერ მოხერხდა. ის და მისი შესვლა ისევ აქაა. კიდევ სცადეთ."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "The account couldn't be added"
 msgstr "ანგარიში ვერ დაემატა"
@@ -16306,6 +16321,11 @@ msgstr "მისამართების სიაში ამ სახე
 #, fuzzy
 msgid "The address of the calendar"
 msgstr "კალენდრის მისამართი"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The address your browser opens Zimbra's web client at. It must begin with https://."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -17427,6 +17447,11 @@ msgid "The server's address or the user name can't be used. Check them in Server
 msgstr "სერვერის მისამართის ან მომხმარებლის სახელის გამოყენება შეუძლებელია. შეამოწმეთ ისინი სერვერის პარამეტრებში."
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The server's address {why}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's answer for automatic setup couldn't be read. Type the server's address in Server settings."
@@ -17729,6 +17754,11 @@ msgstr "გაგზავნილი To Do-ს დავალებები 
 #, fuzzy
 msgid "The user name is too long or has a character in it that a name can't have"
 msgstr "მომხმარებლის სახელი ზედმეტად გრძელია ან შეიცავს სიმბოლოს, რომელიც სახელში არ შეიძლება იყოს"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The user name {why}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
@@ -19224,6 +19254,11 @@ msgid "Type a name in the search box to search the organisation's address list"
 msgstr "ორგანიზაციის მისამართების სიაში მოსაძებნად საძიებო ველში აკრიფეთ სახელი"
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Type the address of your Zimbra server, as your browser opens its web client"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Type the name of the incoming mail server"
@@ -19557,7 +19592,7 @@ msgid "Use {address}"
 msgstr "გამოყენება: {address}"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "User name"
 msgstr "მომხმარებლის სახელი"
@@ -19579,6 +19614,11 @@ msgstr "მომხმარებლის სახელი"
 #, fuzzy
 msgid "Usually the whole address"
 msgstr "როგორც წესი, მთლიანი მისამართი"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Usually the whole address; empty for your address"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -20551,6 +20591,21 @@ msgstr "თქვენი სახელი."
 msgid "Z on top"
 msgstr "ჯერ Z"
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra Collaboration 8.8 or later, through its web service"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra account"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
@@ -20560,6 +20615,11 @@ msgstr "Zimbra-ის ანგარიშები მოწმდება: �
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
 msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra server address (web client, HTTPS)"
 msgstr ""
 
 #. interface
@@ -20579,6 +20639,11 @@ msgstr "Zimbra {host} · არ სინქრონიზდება: Zimbra-
 #, fuzzy
 msgid "Zimbra · no usable server address"
 msgstr "Zimbra · გამოყენებადი სერვერის მისამართი არ არის"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra · signs in with a user name and password, and a code when the account asks for one"
+msgstr ""
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs

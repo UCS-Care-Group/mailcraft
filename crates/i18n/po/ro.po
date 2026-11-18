@@ -2340,7 +2340,7 @@ msgid "Available formats:"
 msgstr "Formate disponibile:"
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Back"
 msgstr "Înapoi"
@@ -2404,6 +2404,11 @@ msgstr "Fiți atent cu acest mesaj."
 #, fuzzy
 msgid "Before anything changes, a copy of your whole mailbox is saved next to it, with today's date in its name."
 msgstr "Înainte de orice modificare, se salvează lângă ea o copie a întregii cutii poștale, cu data de azi în nume."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Beside its name and on its mail"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -3545,7 +3550,7 @@ msgid "Confirm servers"
 msgstr "Confirmați serverele"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Connect"
 msgstr "Conectare"
@@ -6937,6 +6942,11 @@ msgstr "Dacă aveți propriul cont de administrator, prima opțiune vă permite 
 msgid "If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts."
 msgstr "Dacă aveți unul, lipiți aici ID-ul aplicației (client). Provine dintr-o înregistrare de aplicație Microsoft Entra: un client public cu URI-ul de redirecționare http://localhost, pentru conturi din orice director și conturi personale."
 
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "If your account signs in with a second step, MailCraft asks for the code of your authenticator app when it first connects."
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8472,6 +8482,11 @@ msgstr "MailCraft nu se poate conecta încă la acest server în acest fel (cere
 #, fuzzy
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
 msgstr "MailCraft include software-ul de mai jos. Bibliotecile Rust ale nucleului său sunt listate, cu versiunile lor, în depozitul codului sursă."
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "MailCraft connects to Zimbra through its own web service over HTTPS: the SOAP API (in JSON) and REST, not IMAP or SMTP. It needs Zimbra Collaboration 8.8 or later."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -16326,7 +16341,7 @@ msgid "The account could not be removed. It and its sign-in are still here. Try 
 msgstr "Contul nu a putut fi eliminat. Acesta și autentificarea sa sunt încă aici. Încercați din nou."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "The account couldn't be added"
 msgstr "Contul nu a putut fi adăugat"
@@ -16420,6 +16435,11 @@ msgstr "Lista de adrese conține mai multe persoane cu acest nume decât afișea
 #, fuzzy
 msgid "The address of the calendar"
 msgstr "Adresa calendarului"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The address your browser opens Zimbra's web client at. It must begin with https://."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -17547,6 +17567,11 @@ msgid "The server's address or the user name can't be used. Check them in Server
 msgstr "Adresa serverului sau numele de utilizator nu pot fi folosite. Verificați-le în Setări server."
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The server's address {why}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's answer for automatic setup couldn't be read. Type the server's address in Server settings."
@@ -17851,6 +17876,11 @@ msgstr "Sarcinile trimise nu au putut fi înregistrate: {error}"
 #, fuzzy
 msgid "The user name is too long or has a character in it that a name can't have"
 msgstr "Numele de utilizator este prea lung sau conține un caracter pe care un nume nu îl poate avea"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The user name {why}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
@@ -19358,6 +19388,11 @@ msgid "Type a name in the search box to search the organisation's address list"
 msgstr "Tastați un nume în caseta de căutare pentru a căuta în lista de adrese a organizației"
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Type the address of your Zimbra server, as your browser opens its web client"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Type the name of the incoming mail server"
@@ -19695,7 +19730,7 @@ msgid "Use {address}"
 msgstr "Folosiți {address}"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "User name"
 msgstr "Nume de utilizator"
@@ -19717,6 +19752,11 @@ msgstr "Nume de utilizator"
 #, fuzzy
 msgid "Usually the whole address"
 msgstr "De obicei întreaga adresă"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Usually the whole address; empty for your address"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -20692,6 +20732,21 @@ msgstr "Numele dvs."
 msgid "Z on top"
 msgstr "Z deasupra"
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra Collaboration 8.8 or later, through its web service"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra account"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
@@ -20701,6 +20756,11 @@ msgstr "Conturile Zimbra sunt în curs de testare: pornește MailCraft cu MAILCR
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
 msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra server address (web client, HTTPS)"
 msgstr ""
 
 #. interface
@@ -20720,6 +20780,11 @@ msgstr "Zimbra {host} · nesincronizat: conturile Zimbra sunt dezactivate (porne
 #, fuzzy
 msgid "Zimbra · no usable server address"
 msgstr "Zimbra · nicio adresă de server utilizabilă"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra · signs in with a user name and password, and a code when the account asks for one"
+msgstr ""
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
