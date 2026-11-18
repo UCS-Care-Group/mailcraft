@@ -489,7 +489,7 @@ fn a_draft_here_whole_is_kept_and_what_the_server_has_is_left_to_it() {
 fn mail_moved_in_from_a_microsoft_account_keeps_its_move_out() {
     let (mut s, account, ..) = setup();
     let copy = with_listed_outbox(&mut s, account);
-    let moving = mailcraft_model::sync::MovingOut { account: account + 100, id: "G1".into(), folder: "GF".into(), left: false };
+    let moving = mailcraft_model::sync::MovingOut { account: account + 100, id: "G1".into(), folder: "GF".into(), left: false, listing: false };
     let id = s
         .mailbox
         .add_message(Message { account, folder: copy, subject: "From Microsoft".into(), moving_out: Some(moving.clone()), ..Default::default() })
