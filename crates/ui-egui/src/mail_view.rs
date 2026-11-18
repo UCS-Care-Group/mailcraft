@@ -1014,6 +1014,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     }
     // What is in the row is laid out from its top as in a row of the full height, moved up with
     // its lines (the background and the line under it are the row's own, above).
+    // (Where the row really ends stays where it is: the preview may come down to it.)
+    let row_bottom = rect.max.y;
     let rect = if one { rect } else { rect.translate(vec2(0.0, -lift)) };
     if let Some(arrow) = &arrow {
         let at = Rect::from_center_size(arrow_rect.center(), vec2(12.0, 12.0));
@@ -1235,8 +1237,10 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         job.wrap =
             egui::text::TextWrapping { max_width: preview_end - left, max_rows: usize::from(lines), break_anywhere: false, overflow_character: None };
         let galley = p.layout_job(job);
-        // A word too long for the column runs on: it stops at the column's edge.
-        let clip = Rect::from_min_max(pos2(left, rect.min.y), pos2(preview_end, rect.max.y - 1.0)).intersect(p.clip_rect());
+        // A word too long for the column runs on: it stops at the column's edge. It stops above
+        // the line under the row, not above where that line would be in a row moved up with its
+        // lines: in a row short enough the preview would lose its lower part.
+        let clip = Rect::from_min_max(pos2(left, rect.min.y), pos2(preview_end, row_bottom - 1.0)).intersect(p.clip_rect());
         p.with_clip_rect(clip).galley(pos2(left, rect.min.y + PREVIEW_TOP), galley, t.text_dim);
     }
 

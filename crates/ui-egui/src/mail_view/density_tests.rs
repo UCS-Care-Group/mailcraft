@@ -126,3 +126,42 @@ fn the_flag_stays_on_the_senders_line_in_a_classic_light_row() {
         assert!(flag.min.y >= rect.min.y && flag.max.y <= rect.max.y, "inside its row: {flag:?} {rect:?}");
     }
 }
+
+/// The previews drawn, each with the bottom of its lines and how far down it may be drawn.
+fn previews(harness: &Window) -> Vec<(egui::Pos2, f32, f32)> {
+    fn find(shape: &egui::Shape, clip: Rect, out: &mut Vec<(egui::Pos2, f32, f32)>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| find(s, clip, out)),
+            // (A preview is the one text laid out with the preview's line pitch.)
+            egui::Shape::Text(t) if t.galley.job.sections.first().is_some_and(|s| s.format.line_height == Some(PREVIEW_PITCH)) => {
+                out.push((t.pos, t.pos.y + t.galley.rect.max.y, clip.max.y));
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    harness.output().shapes.iter().for_each(|c| find(&c.shape, c.clip_rect, &mut out));
+    out
+}
+
+/// A row short enough (Classic Light and Tighter Spacing both, #1203) still shows the whole of
+/// its preview's line: it is cut off at the line under the row, not above it.
+#[test]
+fn the_preview_is_whole_in_the_shortest_rows() {
+    for theme in ["light", "classicLight"] {
+        for tight in [false, true] {
+            let mut harness = window_in(theme, tight, false);
+            let rows = drawn(&mut harness);
+            let previews = previews(&harness);
+            let mut seen = 0;
+            for (_, rect) in rows.iter().take(4) {
+                for (at, bottom, clip) in previews.iter().filter(|(at, _, _)| rect.contains(*at)) {
+                    assert!(*bottom <= *clip, "{theme}, tight {tight}: the preview at {at:?} ends at {bottom}, cut at {clip} ({rect:?})");
+                    assert!(*bottom <= rect.max.y - 1.0, "{theme}, tight {tight}: and inside its row ({rect:?})");
+                    seen += 1;
+                }
+            }
+            assert!(seen >= 4, "{theme}, tight {tight}: previews drawn: {seen} of {}", previews.len());
+        }
+    }
+}
