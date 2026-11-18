@@ -55,6 +55,9 @@ pub struct State {
     pub hidden: std::collections::BTreeSet<u32>,
     /// Items a delta still names that no search returns — deleted between the two.
     pub vanished: std::collections::BTreeSet<u32>,
+    /// Items a search silently leaves out but still has — an index a change is behind on. Asked
+    /// for by name, one comes back whole.
+    pub behind: std::collections::BTreeSet<u32>,
     /// Every request that came, as its path and SOAP operation (no secret is kept).
     pub log: Vec<String>,
     next: u32,
@@ -153,6 +156,12 @@ impl StandIn {
     /// two answers.
     pub fn hide(&self, id: u32) {
         self.state.borrow_mut().hidden.insert(id);
+    }
+
+    /// The delta names the message and a search for it says nothing — no fault, just no hit, as
+    /// an index behind leaves it out. Asked for by name it answers whole.
+    pub fn behind(&self, id: u32) {
+        self.state.borrow_mut().behind.insert(id);
     }
 
     /// A folder that appears only when the next delta is answered, as if made while a run was
@@ -304,7 +313,9 @@ impl StandIn {
                 if ids.iter().any(|id| !s.items.contains_key(id) || s.hidden.contains(id) || s.vanished.contains(id)) {
                     return fault("mail.NO_SUCH_MSG");
                 }
-                s.items.iter().filter(|(id, _)| ids.contains(id)).collect()
+                // One the index is behind on is no fault and no hit — the answer just leaves it
+                // out, the way a real server's quiet drop comes back.
+                s.items.iter().filter(|(id, _)| ids.contains(id) && !s.behind.contains(id)).collect()
             } else {
                 // No scope: Trash and Junk are out, and an id that isn't found is simply no
                 // answer — the empty page is never the word that the item is gone.

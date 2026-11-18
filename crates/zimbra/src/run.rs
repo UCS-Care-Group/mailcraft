@@ -282,19 +282,23 @@ async fn changes<E: HttpExchange>(
 /// never is.
 async fn messages_by_id<E: HttpExchange>(run: &Run<'_, E>, ids: &[String]) -> Result<(Vec<GraphMessage>, Vec<String>), Stop> {
     let found = run.ask(items::by_id(&run.base, &run.token, ids)).await?;
-    match items::answer(&found) {
-        Err(Error::NoSuchItem) => {}
-        done => return Ok((done.map_err(Stop::Failed)?.messages, Vec::new())),
-    }
-    // The chunk is faulted for an id it no longer has — or for `is:anywhere` walking a folder the
-    // server already dropped, which faults any id. Asked one at a time by `GetMsgRequest`, an id
-    // that is still there comes back — the request names the item itself wherever it lies, Trash
-    // and Junk included. Its `mail.NO_SUCH_MSG` is told to the caller as gone: the server's own
-    // word, which an empty search page never is (a scope can leave a folder out). Any other fault
-    // ends the run as it does for a name the search leaves out.
-    let mut messages = Vec::new();
+    let mut messages = match items::answer(&found) {
+        Ok(page) => page.messages,
+        // The chunk is faulted for an id it no longer has — or for `is:anywhere` walking a folder
+        // the server already dropped, which faults any id.
+        Err(Error::NoSuchItem) => Vec::new(),
+        Err(e) => return Err(Stop::Failed(e)),
+    };
+    // Every id the batch didn't return is asked one at a time by `GetMsgRequest`, whether the
+    // batch faulted for it or quietly left it out — an index that's behind can do either, and a
+    // quiet drop without a probe would end the run here for ever. The request names the item
+    // itself wherever it lies, Trash and Junk included. Its `mail.NO_SUCH_MSG` is told to the
+    // caller as gone: the server's own word, which an empty search page never is (a scope can
+    // leave a folder out). Any other fault ends the run as it does for a name the search leaves
+    // out.
+    let have: std::collections::HashSet<String> = messages.iter().map(|m| m.server.id.clone()).collect();
     let mut gone = Vec::new();
-    for id in ids {
+    for id in ids.iter().filter(|id| !have.contains(id.as_str())) {
         let one = run.ask(items::probe(&run.base, &run.token, id)).await?;
         match items::probe_answer(&one) {
             Ok(Some(message)) => messages.push(message),

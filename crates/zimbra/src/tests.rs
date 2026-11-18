@@ -209,6 +209,23 @@ fn a_message_moved_to_trash_is_not_the_deleted_one() {
 }
 
 #[test]
+fn an_id_the_search_quietly_leaves_out_is_asked_for_by_name() {
+    let server = StandIn::new();
+    let lagging = server.deliver(2, "Not indexed yet", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    // Changed so the delta names it, while the search index is a change behind: the batch answers
+    // without faulting but leaves the id out. The `GetMsgRequest` probe finds it whole — it stays,
+    // nothing is removed, and the run moves its token on rather than stopping on this page for ever.
+    server.change(lagging, |m| m.flags = "u".into());
+    server.behind(lagging);
+    let all = whole(&run(&server, &request(&token), PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    assert!(all.whole && !all.token.is_empty());
+    assert!(!all.pages.iter().any(|p| p.removed.contains(&lagging.to_string())));
+    assert!(all.pages.iter().any(|p| p.messages.iter().any(|m| m.server.id == lagging.to_string())));
+}
+
+#[test]
 fn folders_made_between_delta_pages_are_each_listed_and_kept() {
     let server = StandIn::new();
     let token = whole(&run(&server, &request(""), PASSWORD)).token;
