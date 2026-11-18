@@ -11723,6 +11723,16 @@ msgstr "Anlage entfernen"
 msgid "Remove Everything"
 msgstr "Alles entfernen"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Importierte\n"
+"Duplikate entfernen"
+
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
 msgid "Remove Imported Duplicates"
