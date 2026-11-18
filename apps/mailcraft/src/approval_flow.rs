@@ -97,9 +97,6 @@ fn sign_in_request(cancel: &Arc<AtomicBool>) -> SignInRequest {
         mail_only: false,
         favorites: false,
         mail_write: false,
-        shared: false,
-        shared_send: false,
-        shared_calendars: false,
         sync: false,
     }
 }
@@ -311,12 +308,16 @@ fn an_account_refused_for_approval_is_told_what_to_do_and_signs_in_once_an_admin
     assert_eq!(app.status_msg.as_ref().map(|(text, _)| text.as_str()), Some(NEEDS_APPROVAL));
     assert_eq!(app.dialog.as_ref().map(|dialog| dialog.name()), Some("account"));
     {
-        // The page with keeping the to-dos and the settings in step on it, then once more without
-        // them (#661): an organisation may let its people allow the rest by themselves.
+        // The one page with everything on it, then (no asking for a bit less in between: an
+        // administrator's approval is not had that way) what mail alone needs, so that signing
+        // in never waits on the rest.
         let microsoft = microsoft.lock().unwrap();
         let opened = microsoft.opened.lock().unwrap();
         assert_eq!(opened.len(), 2);
         let (wide, narrow) = (asked(&opened[0])["scope"].clone(), asked(&opened[1])["scope"].clone());
+        for shared in ["Mail.ReadWrite.Shared", "Mail.Send.Shared", "Calendars.ReadWrite.Shared"] {
+            assert!(wide.contains(shared) && !narrow.contains(shared), "{shared}");
+        }
         assert!(wide.contains("Tasks.ReadWrite") && wide.contains("MailboxSettings.ReadWrite"), "{wide}");
         assert!(!narrow.contains("Tasks.ReadWrite") && !narrow.contains("MailboxSettings.ReadWrite"), "{narrow}");
         assert!(narrow.contains("IMAP.AccessAsUser.All"), "{narrow}");

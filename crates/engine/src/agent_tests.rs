@@ -311,12 +311,27 @@ fn an_agents_ask_to_keep_in_step_with_outlook_names_the_account_and_what_it_cove
     let graph = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let imap = json!({"email": "sam@example.org", "auth": "oauth2", "provider": "microsoft", "kind": "imap"});
     let imap = s.run("account.add", &imap).unwrap()["id"].as_u64().unwrap();
-    for id in ["ui.allowSync", "ui.allowTasks", "ui.allowRules", "ui.allowAutomaticReplies"] {
+    for id in ["ui.allowSync", "ui.allowTasks", "ui.allowRules", "ui.allowAutomaticReplies", "ui.allowSharedSend", "ui.allowSharedCalendars"] {
         let d = describe(&s, id, &json!({"account": graph, "confirmed": true}));
         assert!(d.contains("noor@example.org") && d.contains("tasks, rules, automatic replies and categories"), "{id}: {d}");
+        // The page asks for the shared mailboxes' and calendars' permissions too: the owner is told.
+        assert!(d.contains("shared mailboxes") && d.contains("calendars shared"), "{id}: {d}");
         let d = describe(&s, id, &json!({"account": imap, "confirmed": true}));
         assert!(d.contains("sam@example.org") && d.contains("the tasks and automatic replies of"), "{id}: {d}");
         let d = describe(&s, id, &json!({"account": format!("{graph}.0").parse::<f64>().unwrap(), "confirmed": true}));
         assert!(d.contains("isn't there") && !d.contains("noor@example.org"), "{id}: {d}");
+    }
+}
+
+/// The ask for a shared mailbox's permission names the account the page is for, the owner's own.
+#[test]
+fn an_agents_ask_for_a_shared_mailboxs_permission_names_the_owners_account() {
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), 1_791_993_600, 0);
+    let owner = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let opened = mailcraft_model::Account { shared_of: Some(owner), email: "team@example.org".into(), ..mailcraft_model::Account::default() };
+    let shared = s.mailbox.add_account(opened);
+    for id in ["ui.allowSharedSend", "ui.allowSharedCalendars"] {
+        let d = describe(&s, id, &json!({"account": shared, "confirmed": true}));
+        assert!(d.contains("noor@example.org") && !d.contains("team@example.org"), "{id}: {d}");
     }
 }

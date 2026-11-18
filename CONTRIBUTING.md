@@ -97,7 +97,8 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
 - **The whole suite** runs on every system when the pull request changes what every package is
   built from (`Cargo.lock`, the root `Cargo.toml`, the toolchain, `.cargo/`, `.config/`, `xtask/`,
   `.github/workflows/`, `.github/scripts/`) or a file outside every package, on every push to
-  `main`, in the merge queue, and on a run by hand.
+  `main`, and on a run by hand. The merge queue runs the whole suite on Linux alone: macOS's
+  runners are scarce, and the push to `main` after the merge runs every system.
 - **Label a pull request `full-ci`** to run the whole suite on it: adding the label starts the run.
 - **On a schedule:** coverage (nightly and on `main`, no longer on pull requests), FreeBSD and
   Windows on Arm (nightly), fuzzing of every reader (weekly, and on a pull request that changes

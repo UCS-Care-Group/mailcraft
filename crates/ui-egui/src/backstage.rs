@@ -240,20 +240,14 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         {
             let _ = app.run("account.remove", json!({"id": a.id}));
         }
-        // Whether the owner's permission for a shared mailbox's calendars was given, with a way to
-        // ask again (#70).
+        // Whether the owner's permission for a shared mailbox's calendars was given (#70); Ask
+        // again is on the line of the account it is opened through.
         if a.is_shared()
-            && let Some((line, again)) = app.shared_calendar_line(a.id)
+            && let Some(line) = app.shared_calendar_line(a.id)
         {
             ui.horizontal(|ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
-                let tip = tl!(
-                    "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-                );
-                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
-                    app.ask_shared_calendars_again(a.id);
-                }
             });
             ui.add_space(4.0);
         }

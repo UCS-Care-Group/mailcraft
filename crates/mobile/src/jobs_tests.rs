@@ -15,7 +15,11 @@ use mailcraft_model::remote::{EventsDownload, RemoteEvent};
 use mailcraft_model::remote_tasks::{RemoteTask, RemoteTaskList, TasksDownload};
 use serde_json::json;
 
-use crate::fake_tests::block_on;
+use mailcraft_engine::Session;
+use mailcraft_host::secrets::secret_key;
+use mailcraft_host::sync::SendReceive;
+
+use crate::fake_tests::{FakePlatform, block_on};
 use crate::jobs::Runners;
 use crate::sync_tests::{drain, signed_in, stand_in};
 use crate::{Core, Event, NetworkKind, Permission};
@@ -277,6 +281,61 @@ fn a_calendar_that_came_with_somebody_elses_sign_in_is_not_taken_in() {
     assert!(summary.errors.iter().any(|e| e.contains("somebody else")), "{summary:?}");
     let (events, _) = titles(&core);
     assert!(!events.contains(&"Standup".to_string()), "{events:?}");
+}
+
+#[test]
+fn an_account_held_when_the_core_opens_is_left_out_from_the_first_wake() {
+    let mut session = Session::empty();
+    let account = session.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    session.prefs.sync_minutes = 0;
+    let key = secret_key("refresh", session.mailbox.account(account).unwrap());
+    let (runner, mail) = stand_in();
+    let platform = FakePlatform::new();
+    platform.secrets.kept.lock().unwrap().push((key, "stored-refresh".to_string()));
+    // The app's saved "Not now" (and an account that has gone since) given as the core opens.
+    let core =
+        Core::start_stored(platform, move |_| session, SendReceive::with_runner(move |req| runner(req)), None, &[account, account + 99]).unwrap();
+    // Held before the driver's first wake: nothing the app says later can be too late.
+    assert!(core.sync.lock().sr.held(account));
+    let seen = Arc::new(Seen::default());
+    core.sync.set_job_runners(runners(seen.clone(), false));
+    for _ in 0..20 {
+        let sync = core.sync.clone();
+        block_on(core.call(move |s| {
+            sync.tick(s);
+            Ok(())
+        }))
+        .unwrap();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(seen.calendar.lock().unwrap().is_empty() && seen.tasks.lock().unwrap().is_empty(), "no job for the held account");
+    assert!(mail.lock().unwrap().is_empty(), "no mail asked for");
+    // The account that went is let go when the app says its hold again (and is told it is gone).
+    assert!(block_on(core.hold_background_sync(account + 99, true)).is_err());
+    assert!(!core.sync.lock().sr.held(account + 99));
+    assert!(core.sync.lock().sr.held(account));
+}
+
+#[test]
+fn a_round_the_app_starts_by_itself_keeps_the_accounts_held_back() {
+    let (runner, mail) = stand_in();
+    let (core, _, account) = signed_in(runner);
+    core.sync.set_job_runners(runners(Arc::new(Seen::default()), false));
+    block_on(core.hold_background_sync(account, true)).unwrap();
+    // A new account's first round (another account's): the held one is not let go.
+    let answer = block_on(core.sync_keeping_holds()).unwrap();
+    assert!(!answer.started, "only a held account: nothing to run");
+    assert!(core.sync.lock().sr.held(account));
+    std::thread::sleep(Duration::from_millis(100));
+    assert!(mail.lock().unwrap().is_empty(), "no mail asked for");
+    // Once the owner's yes lets it go, the same round runs it.
+    block_on(core.hold_background_sync(account, false)).unwrap();
+    assert!(block_on(core.sync_keeping_holds()).unwrap().started);
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while mail.lock().unwrap().is_empty() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(!mail.lock().unwrap().is_empty());
 }
 
 #[test]

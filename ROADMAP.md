@@ -199,7 +199,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
    addressing (gap 17).
 11. Focused Inbox kept in step with Outlook; Automatic Replies on servers other than Microsoft's (Sieve; Microsoft accounts have them); the rest of rules kept on the server: forwarding by a rule (#566 part 3), Outlook's other conditions and actions, changing a rule there, a shared mailbox's rules, Sieve (gap 17; a Microsoft account's rules are kept there since #566).
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
-13. Answering read receipts, unsubscribing from a selection or many senders at once (one message has Unsubscribe, #1207), attachments inside `winmail.dat` (gap 17).
+13. Answering read receipts, unsubscribing from a selection or many senders at once (one message has Unsubscribe, #1207) (gap 17); the attached messages and rich text inside `winmail.dat` (its files are read).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
 15. Spell checking while writing (gap 7); further review of the French, German, Spanish, Italian, Dutch,
     Romanian, Hungarian, Polish, Czech and Simplified Chinese previews, more languages, right-to-left layout (gap 14). Partly done: the ten ship as previews.

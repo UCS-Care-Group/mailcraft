@@ -442,7 +442,10 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     }
     if changed_there || sent || drafted {
         // Changed elsewhere only: the server's version, fetched afresh.
+        // (Its recipients and subject are the listing's now, and so is whether it left some out:
+        // what the download before said of them is no word on these, #566.)
         (m.subject, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.to.clone(), there.cc.clone(), true);
+        m.headers_cut = there.cut;
         m.attachments_on_server = there.has_attachments;
         if let Some(sd) = m.server_draft.as_mut() {
             sd.synced = None;

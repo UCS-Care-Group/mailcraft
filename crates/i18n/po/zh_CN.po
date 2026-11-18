@@ -610,6 +610,12 @@ msgid "A port is a number from 1 to 65535"
 msgstr "端口是 1 到 65535 之间的数字"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "A preview may omit some content from the original file."
+msgstr "预览可能无法显示原始文件中的全部内容。"
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "A report is written beside your mailbox."
@@ -1306,28 +1312,10 @@ msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page tha
 msgstr "在浏览器打开的页面上，允许 MailCraft 将此邮箱与 Outlook 同步…"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr "在浏览器打开的页面上，允许 MailCraft 读取他人的日历…"
-
-#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Allow MailCraft to read shared mailboxes on the page that opened in your browser…"
 msgstr "在浏览器打开的页面上，允许 MailCraft 读取共享邮箱…"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr "在浏览器打开的页面上，允许 MailCraft 读取共享邮箱的日历…"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
-msgstr "在浏览器打开的页面上，允许 MailCraft 从共享邮箱发送邮件…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1904,6 +1892,12 @@ msgstr "再次从该域的发件人下载图片之前先询问"
 msgid "Ask before downloading this sender's pictures again"
 msgstr "再次下载该发件人的图片之前先询问"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Ask before previewing this type of file"
+msgstr "预览此类文件前先询问"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -1941,10 +1935,10 @@ msgid "Ask for permission to read and change your To Do lists and tasks: Microso
 msgstr "请求读取和更改 To Do 列表及任务的权限：Microsoft 页面将在浏览器中打开。未获授权时，任务保留在此计算机上。"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-msgstr "请求读取共享邮箱日历的权限：Microsoft 页面将在浏览器中打开。未获授权时，不会读取此邮箱的任何日历。"
+msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
+msgstr "请求读取共享邮箱并从中发送邮件、读取与您共享的日历的权限：Microsoft 的页面将在浏览器中打开。没有该权限，不会读取或发送其中任何内容。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3376,8 +3370,8 @@ msgstr "清除标记"
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "单击可预览 {name}；双击可打开"
+msgid "Click to select {name}; double-click to open it"
+msgstr "单击选择 {name}，双击打开。"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -3636,7 +3630,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr "联系人不会转到“已删除邮件”。"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "继续"
@@ -4728,12 +4722,6 @@ msgstr "完成：已是最新状态"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "完成：{n} 项新增"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "双击打开 {name}；右键单击可保存"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -5944,6 +5932,12 @@ msgstr "适用于无需密码即可接收邮件的中继服务器：绝不会向
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
 msgstr "对于使用 Microsoft 登录的账户：按 Outlook 中的顺序显示“收藏夹”下的文件夹。它们从服务器读取，不会更改服务器上的内容。未开启时，显示在 MailCraft 中标记的收藏夹。"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, nothing of shared mailboxes is read or sent: {error}"
+msgstr "目前不会读取或发送共享邮箱的任何内容：{error}"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -8382,12 +8376,6 @@ msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive 
 msgstr "不能将其他邮箱的邮件放入发件箱：下次发送/接收时会将其发送"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Mail from the shared mailbox waits: {error}"
-msgstr "共享邮箱中的邮件等待发送：{error}"
-
-#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
@@ -8580,7 +8568,7 @@ msgid "MailCraft is up to date ({version})."
 msgstr "MailCraft 已是最新版本（{version}）。"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr "MailCraft 尚未获得读取其他人日历的权限。"
@@ -9001,8 +8989,8 @@ msgstr[0] "合并 {n} 个联系人…"
 msgid "Merged PRs"
 msgstr "已合并的 PR"
 
-#. android, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "邮件"
@@ -10327,6 +10315,12 @@ msgstr "未找到联系人。"
 msgid "No preview helper is available for this attachment."
 msgstr "没有可用于预览此附件的辅助程序。"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "No preview is available for this attachment."
+msgstr "无法预览此附件。"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
 #, fuzzy
@@ -11334,7 +11328,7 @@ msgid "Open Result from the Server"
 msgstr "从服务器打开结果"
 
 #. command label, interface
-#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Open Shared Calendar"
 msgstr "打开共享日历"
@@ -11614,12 +11608,6 @@ msgstr "其他账户和“在此计算机上”"
 #, fuzzy
 msgid "Other people's calendars can be opened under a Microsoft work or school account"
 msgstr "可以在 Microsoft 工作或学校账户下打开其他人的日历"
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Other people's calendars weren't allowed: {error}"
-msgstr "未获准访问其他人的日历：{error}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -12104,6 +12092,12 @@ msgstr "预览附件"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
+msgid "Preview File"
+msgstr "预览文件"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview attachments with local PdfCraft"
 msgstr "使用本地 PdfCraft 预览附件"
 
@@ -12118,6 +12112,12 @@ msgstr "使用本地 PdfCraft 和 PhotoCraft 预览附件"
 #, fuzzy
 msgid "Preview attachments with local PhotoCraft"
 msgstr "使用本地 PhotoCraft 预览附件"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview files only when you trust the sender."
+msgstr "仅预览来自可信发件人的文件。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12671,6 +12671,16 @@ msgstr "提醒窗口"
 msgid "Remove"
 msgstr "移除"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+"移除\n"
+"附件"
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -12688,6 +12698,16 @@ msgstr "移除附件"
 #, fuzzy
 msgid "Remove Everything"
 msgstr "移除所有内容"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"删除导入\n"
+"的重复项"
 
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
@@ -13147,6 +13167,12 @@ msgstr "重新启动以更新"
 msgid "Restart to update is the owner's click."
 msgstr "“重新启动以更新”必须由用户亲自点击。"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Restore attachment preview warnings"
+msgstr "恢复附件预览警告"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -13437,6 +13463,16 @@ msgstr ""
 msgid "Save & Close"
 msgstr "保存并关闭"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+"保存所有\n"
+"附件"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -13449,8 +13485,8 @@ msgstr "保存所有附件"
 msgid "Save All Attachments…"
 msgstr "保存所有附件…"
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Save As"
 msgstr "另存为"
@@ -13556,6 +13592,12 @@ msgstr "请先保存或放弃对此账户的更改，再切换到 Google 登录�
 #, fuzzy
 msgid "Save out"
 msgstr "保存到文件"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Save to Computer"
+msgstr "保存到电脑"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -14098,12 +14140,6 @@ msgstr "自动发送和接收"
 msgid "Send automatic replies"
 msgstr "发送自动回复"
 
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Send from a Shared Mailbox"
-msgstr "从共享邮箱发送"
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -14555,6 +14591,12 @@ msgid "Shared Calendars"
 msgstr "共享日历"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Shared Mailboxes and Calendars"
+msgstr "共享邮箱和日历"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Shared mailbox · No access: Microsoft won't open it for you. Send/Receive tries again"
@@ -14579,22 +14621,44 @@ msgid "Shared mailboxes"
 msgstr "共享邮箱"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Shared mailboxes weren't allowed: {error}"
-msgstr "未获准访问共享邮箱：{error}"
+msgid "Shared mailboxes and calendars weren't allowed: {error}"
+msgstr "未允许共享邮箱和日历：{error}"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
+#: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
-msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr "未获准访问共享邮箱的日历：{error}"
+msgid "Shared mailboxes and calendars: asking for your permission…"
+msgstr "共享邮箱和日历：正在请求您的许可…"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: not allowed ({why})"
+msgstr "共享邮箱和日历：未允许（{why}）"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: waiting for your permission"
+msgstr "共享邮箱和日历：等待您的许可"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
 #, fuzzy
 msgid "Show"
 msgstr "显示"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Show\n"
+"Message"
+msgstr ""
+"显示\n"
+"邮件"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14650,6 +14714,12 @@ msgstr "在收件箱下显示 Gmail 的类别"
 msgid "Show MailCraft"
 msgstr "显示 MailCraft"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Message"
+msgstr "显示邮件"
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -14697,12 +14767,6 @@ msgstr "显示以下账户的任务"
 #, fuzzy
 msgid "Show Training"
 msgstr "显示培训内容"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Show a Shared Mailbox's Calendars"
-msgstr "显示共享邮箱的日历"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -16175,12 +16239,6 @@ msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at m
 msgstr "这不是有效的 GitHub 用户名：只能使用字母、数字和不连续的连字符，最多 39 个字符。如果没有用户名，请留空。"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "That isn't a shared mailbox"
-msgstr "这不是共享邮箱"
-
-#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "That isn't the password of this file."
@@ -16533,12 +16591,6 @@ msgstr ""
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
 msgstr "日历 {name} 及其保存在此计算机上的事件将被删除，为它保存的地址也一并删除。不会向任何地方发送任何内容；您可以用该地址重新订阅。"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "The calendars of the shared mailbox wait: {error}"
-msgstr "共享邮箱的日历正在等待：{error}"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -17280,6 +17332,12 @@ msgid "The rules sent couldn't be noted: {error}"
 msgstr "无法记录已发送的规则：{error}"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
+msgstr "同一页面还会请求读取您有权访问的共享邮箱并从中发送邮件，以及读取与您共享的日历，这样 MailCraft 就不必再次询问。"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The search for your Exchange server asks to start again with an address in another domain, {host}."
@@ -17964,7 +18022,7 @@ msgid "This account has no mail server to send the answer through."
 msgstr "此账户没有可用于发送回复的邮件服务器。"
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "此账户未使用 Microsoft 登录"
@@ -18781,7 +18839,7 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "此系列尚在发送到该账户服务器的途中。请稍候，待它到达后再更改其中某一天。"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
 msgstr "此共享邮箱所属的账户已不存在"
@@ -18975,18 +19033,6 @@ msgid "To add another Google address, go back and start a new account setup."
 msgstr "要添加另一个 Google 地址，请返回并开始设置新账户。"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
-msgstr ""
-"要从 {address} 回复或发送会议邀请，MailCraft 需要您授权从共享邮箱发送。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
-"\n"
-"回复以 {address} 的身份发送，还是代表该地址发送，由您的组织决定。在您授权之前，回复会留在此计算机上等待，不会从您自己的地址发送。"
-
-#. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
@@ -19053,40 +19099,16 @@ msgid "To me"
 msgstr "发给我"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+"To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"
 "\n"
-"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+"Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr ""
-"要打开其他人的日历，MailCraft 需要您授权读取他人与您共享的日历。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+"要读取你通过 {address} 打开的共享邮箱并从中发送邮件，以及显示与你共享的日历，MailCraft 需要你的许可。Microsoft 的页面将在浏览器中打开，一次性询问 MailCraft 使用但你尚未允许的所有权限。\n"
 "\n"
-"打开的日历只保存在此计算机上，不会出现在 Outlook 或您的其他设备上。"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr ""
-"要从 {address} 发送邮件，MailCraft 需要您授权从共享邮箱发送。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
-"\n"
-"邮件以 {address} 的身份发送，还是代表该地址发送，由您的组织决定。在您授权之前，邮件会在共享邮箱的发件箱中等待，不会从您自己的地址发送。"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid ""
-"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-msgstr ""
-"要显示 {address} 的日历，MailCraft 需要您授权读取共享邮箱的日历。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
-"\n"
-"您可以查看哪些日历内容由其所有者和您的组织决定，此授权不会改变这些权限。在您授权之前，不会读取 {address} 的任何日历。"
+"在你允许之前，不会读取这些邮箱和日历的任何内容，来自共享邮箱的邮件和会议答复会在这台电脑上等待，也不会改用你自己的地址发送任何内容。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -20498,12 +20520,6 @@ msgid "Your organisation doesn't allow Exchange Web Services for this account. A
 msgstr "您的组织不允许此账户使用 Exchange Web 服务。请联系管理员。"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr "您的组织不允许 MailCraft 读取共享邮箱的日历"
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
@@ -20514,6 +20530,12 @@ msgstr "您的组织不允许 MailCraft 更改您的自动回复。请联系管�
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
 msgstr "您的组织不允许 MailCraft 将此邮箱与 Outlook 同步"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
+msgstr "您的组织不允许 MailCraft 读取共享邮箱和与您共享的日历"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -20582,22 +20604,10 @@ msgid "Your organisation's administrator has to approve MailCraft keeping this m
 msgstr "组织管理员需要批准一次 MailCraft 将此邮箱与 Outlook 同步的权限：文件 › 信息"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr "组织管理员需要批准一次读取他人日历的权限：文件 › 信息"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-msgstr "组织管理员需要批准一次读取共享邮箱的权限：文件 › 信息"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr "组织管理员需要批准一次读取共享邮箱日历的权限：文件 › 信息"
+msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
+msgstr "您的组织管理员需要批准一次 MailCraft 读取共享邮箱和日历：文件 › 信息"
 
 #. interface
 #: crates/ui-egui/src
@@ -25442,6 +25452,109 @@ msgstr "−行"
 #~ msgstr[0] "匹配到 {n} 封邮件"
 
 #, fuzzy
+#~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
+#~ msgstr "在浏览器打开的页面上，允许 MailCraft 读取他人的日历…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
+#~ msgstr "在浏览器打开的页面上，允许 MailCraft 读取共享邮箱的日历…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
+#~ msgstr "在浏览器打开的页面上，允许 MailCraft 从共享邮箱发送邮件…"
+
+#, fuzzy
+#~ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
+#~ msgstr "请求读取共享邮箱日历的权限：Microsoft 页面将在浏览器中打开。未获授权时，不会读取此邮箱的任何日历。"
+
+#, fuzzy
+#~ msgid "Mail from the shared mailbox waits: {error}"
+#~ msgstr "共享邮箱中的邮件等待发送：{error}"
+
+#, fuzzy
+#~ msgid "Other people's calendars weren't allowed: {error}"
+#~ msgstr "未获准访问其他人的日历：{error}"
+
+#, fuzzy
+#~ msgid "Send from a Shared Mailbox"
+#~ msgstr "从共享邮箱发送"
+
+#, fuzzy
+#~ msgid "Shared mailboxes weren't allowed: {error}"
+#~ msgstr "未获准访问共享邮箱：{error}"
+
+#, fuzzy
+#~ msgid "Shared mailboxes' calendars weren't allowed: {error}"
+#~ msgstr "未获准访问共享邮箱的日历：{error}"
+
+#, fuzzy
+#~ msgid "Show a Shared Mailbox's Calendars"
+#~ msgstr "显示共享邮箱的日历"
+
+#, fuzzy
+#~ msgid "That isn't a shared mailbox"
+#~ msgstr "这不是共享邮箱"
+
+#, fuzzy
+#~ msgid "The calendars of the shared mailbox wait: {error}"
+#~ msgstr "共享邮箱的日历正在等待：{error}"
+
+#, fuzzy
+#~ msgid ""
+#~ "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "要从 {address} 回复或发送会议邀请，MailCraft 需要您授权从共享邮箱发送。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+#~ "\n"
+#~ "回复以 {address} 的身份发送，还是代表该地址发送，由您的组织决定。在您授权之前，回复会留在此计算机上等待，不会从您自己的地址发送。"
+
+#, fuzzy
+#~ msgid ""
+#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+#~ msgstr ""
+#~ "要打开其他人的日历，MailCraft 需要您授权读取他人与您共享的日历。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+#~ "\n"
+#~ "打开的日历只保存在此计算机上，不会出现在 Outlook 或您的其他设备上。"
+
+#, fuzzy
+#~ msgid ""
+#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "要从 {address} 发送邮件，MailCraft 需要您授权从共享邮箱发送。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+#~ "\n"
+#~ "邮件以 {address} 的身份发送，还是代表该地址发送，由您的组织决定。在您授权之前，邮件会在共享邮箱的发件箱中等待，不会从您自己的地址发送。"
+
+#, fuzzy
+#~ msgid ""
+#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
+#~ msgstr ""
+#~ "要显示 {address} 的日历，MailCraft 需要您授权读取共享邮箱的日历。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+#~ "\n"
+#~ "您可以查看哪些日历内容由其所有者和您的组织决定，此授权不会改变这些权限。在您授权之前，不会读取 {address} 的任何日历。"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+#~ msgstr "您的组织不允许 MailCraft 读取共享邮箱的日历"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
+#~ msgstr "组织管理员需要批准一次读取他人日历的权限：文件 › 信息"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
+#~ msgstr "组织管理员需要批准一次读取共享邮箱的权限：文件 › 信息"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
+#~ msgstr "组织管理员需要批准一次读取共享邮箱日历的权限：文件 › 信息"
+
 #~ msgid "The colour is set in Outlook"
 #~ msgstr "颜色是在 Outlook 中设置的"
 
@@ -25592,4 +25705,12 @@ msgstr "−行"
 #, fuzzy
 #~ msgid "The draft stays in Drafts. {why}"
 #~ msgstr "草稿保留在“草稿”中。{why}"
+
+#, fuzzy
+#~ msgid "Click to preview {name}; double-click to open it"
+#~ msgstr "单击可预览 {name}；双击可打开"
+
+#, fuzzy
+#~ msgid "Double-click to open {name}; right-click to save it"
+#~ msgstr "双击打开 {name}；右键单击可保存"
 
