@@ -489,9 +489,9 @@ fn automatic_capitalization_leaves_abbreviations_addresses_and_pasted_text_alone
     run(&mut s, "mail.new", json!({}));
     key_type(&mut s, "gentile dott. rossi. https://example.org/ciao\ninfo@example.org\n");
     assert_eq!(mine(&s), "Gentile dott. rossi. https://example.org/ciao\ninfo@example.org\n");
-    run(&mut s, "edit.paste", json!({"text": "testo incollato"}));
+    run(&mut s, "edit.paste", json!({"text": "testo"}));
     key_type(&mut s, " ");
-    assert!(mine(&s).ends_with("\ntesto incollato "));
+    assert!(mine(&s).ends_with("\ntesto "));
 
     let mut s = session();
     run(&mut s, "mail.new", json!({}));

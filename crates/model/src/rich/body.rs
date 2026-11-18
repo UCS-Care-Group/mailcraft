@@ -486,7 +486,8 @@ impl RichBody {
             if start < end {
                 text.replace_places(&[(start, end)], &changed)?;
             } else if !changed.is_empty() {
-                text.insert(start, &changed, &text.style_at(start))?;
+                let style = text.style_at(start + usize::from(prefix == 0));
+                text.insert(start, &changed, &style)?;
             }
             *selection = Selection::caret(from + with_chars);
             Ok(())

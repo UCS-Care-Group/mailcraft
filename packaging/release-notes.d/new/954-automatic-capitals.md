@@ -1,1 +1,1 @@
-- Automatic capitals: MailCraft capitalizes the first word of a sentence when you finish typing it. Undo restores the original case. Turn the feature off in File › Options › Mail.
+- Automatic capitals: MailCraft capitalizes the first word of a sentence when you finish typing it. Undo restores the original case. Turn the feature off in File › Options › Mail ([#954](https://github.com/GITHUB_REPOSITORY/issues/954)).
