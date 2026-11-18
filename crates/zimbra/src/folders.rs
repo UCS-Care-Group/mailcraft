@@ -59,6 +59,9 @@ pub fn kind_of(id: &str) -> FolderKind {
 pub fn answer(response: &HttpResponse) -> Result<Listing, Error> {
     let answer = soap::answer("GetFolderRequest", response)?;
     let mut out = Listing { complete: true, ..Listing::default() };
+    if json::bad_list(answer.get("folder")) {
+        return Err(Error::Unreadable);
+    }
     let tops = json::list(answer.get("folder"));
     if tops.is_empty() {
         return Err(Error::Unreadable);
@@ -120,6 +123,12 @@ fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
         });
         id
     };
+    // Children that came in no shape a folder comes in mean part of the tree can't be read: the
+    // listing is not a complete one — a folder unseen would have its messages taken for deleted.
+    if json::bad_list(folder.get("folder")) {
+        out.complete = false;
+        return;
+    }
     for inner in json::list(folder.get("folder")) {
         walk(inner, &here, depth + 1, out);
     }

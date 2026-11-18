@@ -290,7 +290,7 @@ impl StandIn {
                 let at = cursor.get("id").and_then(Value::as_str).and_then(|id| id.parse::<u32>().ok());
                 match at.and_then(|at| found.iter().position(|(id, _)| **id == at)) {
                     Some(at) => at.saturating_add(1),
-                    None => match cursor.get("sortValue").and_then(Value::as_str).and_then(|s| s.parse::<u64>().ok()) {
+                    None => match cursor.get("sortVal").and_then(Value::as_str).and_then(|s| s.parse::<u64>().ok()) {
                         Some(sort) => found.iter().position(|(_, i)| i.date < sort).unwrap_or(found.len()),
                         None => return fault("service.INVALID_REQUEST"),
                     },
@@ -304,7 +304,7 @@ impl StandIn {
             .skip(offset)
             .take(limit)
             .map(|(id, i)| {
-                json!({"id": id.to_string(), "l": i.folder.to_string(), "f": i.flags, "tn": i.tags.join(","), "d": i.date, "s": i.mime.len(),
+                json!({"id": id.to_string(), "l": i.folder.to_string(), "f": i.flags, "tn": i.tags.join(","), "d": i.date, "sf": i.date.to_string(), "s": i.mime.len(),
                     "su": i.subject, "fr": format!("Hello from {id}."), "mid": format!("<{id}@example.org>"),
                     "e": [{"t": "f", "a": i.from, "p": "Bob"}, {"t": "t", "a": USER}]})
             })

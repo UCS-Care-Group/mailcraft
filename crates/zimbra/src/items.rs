@@ -45,7 +45,7 @@ pub struct Page {
 pub fn folder_page(base: &str, token: &Secret, folder: &str, cursor: Option<(&str, u64)>) -> Result<HttpRequest, Error> {
     let mut body = json!({"query": format!("inid:\"{folder}\""), "types": "message", "sortBy": "dateDesc", "limit": PAGE, "recip": "2"});
     if let (Some((id, sort)), Value::Object(map)) = (cursor, &mut body) {
-        map.insert("cursor".into(), json!({"id": id, "sortValue": sort.to_string()}));
+        map.insert("cursor".into(), json!({"id": id, "sortVal": sort.to_string()}));
     }
     soap::request(base, "SearchRequest", soap::MAIL, body, Some(token))
 }
@@ -64,6 +64,9 @@ pub fn by_id(base: &str, token: &Secret, ids: &[String]) -> Result<HttpRequest, 
 /// carry one).
 pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
     let answer = soap::answer("SearchRequest", response)?;
+    if json::bad_list(answer.get("m")) {
+        return Err(Error::Unreadable);
+    }
     let listed = json::list(answer.get("m"));
     let mut messages = Vec::new();
     for m in listed.iter().take(PAGE) {
@@ -78,15 +81,20 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
             Some(l) if json::own_id(Some(l)).is_none() => continue,
             _ => {}
         }
+        if json::bad_list(m.get("e")) {
+            return Err(Error::Unreadable);
+        }
         if let Some(message) = message(m) {
             messages.push(message);
         }
     }
     let cursor = listed.iter().take(PAGE).next_back().and_then(|m| {
         let id = json::line(m.get("id"));
-        // A last item with no `d` is no cursor to go on from: a sort value made up as 0 could end
-        // the folder early or read it again from its start.
-        let sort = json::number(m.get("d"))?;
+        // The cursor's sort value is the hit's `sf` (what the server sorted the page by, what a
+        // `sortVal` continues from), its `d` when it has none: a last item with neither is no
+        // cursor to go on from — a sort value made up as 0 could end the folder early or read it
+        // again from its start.
+        let sort = json::number(m.get("sf")).or_else(|| json::number(m.get("d")))?;
         (!id.is_empty() && id.len() <= 128 && !id.chars().any(char::is_control)).then_some((id, sort))
     });
     Ok(Page { messages, more: json::on(answer.get("more")), cursor })

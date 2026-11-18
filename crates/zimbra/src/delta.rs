@@ -53,6 +53,9 @@ pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
         return Ok(delta);
     }
     delta.more = json::on(answer.get("more"));
+    if json::bad_list(answer.get("m")) || json::bad_list(answer.get("deleted")) {
+        return Err(Error::Unreadable);
+    }
     let changed = json::list(answer.get("m"));
     if changed.len() > CHANGES {
         // More than asked for is not a page but an answer that can't be trusted: the token it
@@ -62,6 +65,9 @@ pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
     delta.changed = changed.iter().filter_map(|m| json::own_id(m.get("id"))).collect();
     let mut deleted_ids = 0usize;
     for deleted in json::list(answer.get("deleted")) {
+        if json::bad_list(deleted.get("m")) {
+            return Err(Error::Unreadable);
+        }
         for m in json::list(deleted.get("m")) {
             let room = DELETES.saturating_sub(delta.deleted.len());
             let Some(ids) = json::ids(m.get("ids"), room + 1) else { return Err(Error::Unreadable) };
