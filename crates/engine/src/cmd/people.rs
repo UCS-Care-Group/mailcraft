@@ -116,11 +116,17 @@ pub fn shown_account(s: &Session) -> AccountChoice {
     }
 }
 
-/// A contact just made or picked is in view: where the list doesn't show it, the list moves to it,
-/// and a search that would leave it out is cleared, so its row is there beside its card. (A contact
-/// made from the address list leaves the list in view, whose card then says they are in the
-/// contacts, with Open Contact; a contact chosen leaves it, `select`.)
+/// A contact just made or picked is in view: People shows the contacts (it leaves the address
+/// list), and where the list doesn't show it, the list moves to it, and a search that would leave
+/// it out is cleared, so its row is there beside its card.
 pub(crate) fn reveal(s: &mut Session, id: Id) {
+    s.view.people_book = None;
+    reveal_beside_list(s, id);
+}
+
+/// As [`reveal`], but an address list in view stays: a contact made from it (`people.new`), whose
+/// card there then says they are in the contacts, with Open Contact.
+fn reveal_beside_list(s: &mut Session, id: Id) {
     let shown = shown_account(s);
     let Some(c) = s.mailbox.contact(id) else { return };
     let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shown.shows(&c.origin), !c.matches(&s.view.people_search));
@@ -270,7 +276,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     }
     let id = s.mailbox.add_contact(c);
     s.sel.contact = Some(id);
-    reveal(s, id);
+    reveal_beside_list(s, id);
     Ok(json!({"id": id}))
 }
 
@@ -335,7 +341,6 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     };
     if let Some(id) = s.sel.contact {
         // A contact chosen is shown among the contacts, so People leaves the address list.
-        s.view.people_book = None;
         reveal(s, id);
     }
     done()
@@ -424,8 +429,6 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     if !from.is_valid() {
         return Err(fail("the sender has no usable e-mail address"));
     }
-    // The contact is shown among the contacts, so People leaves the address list, as `select` does.
-    s.view.people_book = None;
     if let Some(existing) = s.mailbox.contact_by_email(&from.email).map(|c| c.id) {
         s.sel.contact = Some(existing);
         reveal(s, existing);

@@ -90,3 +90,16 @@ fn contacts_imported_leave_the_address_list() {
     assert_eq!(shown_book(&s), None);
     assert!(s.sel.contact.is_some());
 }
+
+/// A contact Undo brings back selected is shown among the contacts, even with the address list
+/// open meanwhile.
+#[test]
+fn a_contact_undo_brings_back_leaves_the_address_list() {
+    let mut s = Session::empty();
+    exchange(&mut s, "me@example.org");
+    let id = s.run("people.new", &json!({"displayName": "Ada Lovelace", "email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    s.run("people.delete", &json!({"id": id})).unwrap();
+    s.run("people.addressBook", &json!({})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!((s.sel.contact, shown_book(&s)), (Some(id), None));
+}
