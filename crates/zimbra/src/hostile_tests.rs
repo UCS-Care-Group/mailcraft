@@ -111,7 +111,7 @@ fn ids_of_other_mailboxes_and_odd_ids_are_passed_over() {
     let found = answer(
         200,
         &json!({"Body": {"SearchResponse": {"m": [
-            {"id": "a1b2:12", "l": "2"}, {"id": "0"}, {"id": "-4"}, {"id": "12345678901"}, {"id": "257", "l": "x:2", "su": "ok\u{0}\r\nyes"}
+            {"id": "a1b2:12", "l": "2"}, {"id": "0"}, {"id": "-4"}, {"id": "12345678901"}, {"id": "257", "l": "x:2", "su": "another mailbox's"}, {"id": "300", "l": "2", "su": "ok\u{0}\r\nyes"}
         ]}}}),
     );
     let page = items::answer(&found).unwrap();
@@ -119,7 +119,7 @@ fn ids_of_other_mailboxes_and_odd_ids_are_passed_over() {
     assert_eq!(page.messages.len(), 1);
     assert_eq!(
         (page.messages[0].server.id.as_str(), page.messages[0].server.folder.as_str(), page.messages[0].subject.as_str()),
-        ("257", "", "ok  yes")
+        ("300", "2", "ok  yes")
     );
     let deleted = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "deleted": [{"m": {"ids": "1,x,2,a:3,,4"}}]}}}));
     assert_eq!(delta::answer(&deleted, false).unwrap().deleted, ["1", "2", "4"]);
@@ -149,4 +149,31 @@ fn a_folder_tree_that_goes_on_for_ever_is_cut_off_and_said_incomplete() {
         Ok(listed) => assert!(!listed.complete && listed.folders.len() <= 66),
         Err(e) => assert_eq!(e, Error::Unreadable),
     }
+}
+
+#[test]
+fn an_item_with_no_folder_is_unreadable_not_removed() {
+    // A summary that names the item but not the folder that holds it can't tell the run moved
+    // or removed: answered as an empty folder, the run would count it deleted and move its
+    // token on past the change, so the whole answer is refused.
+    let found = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "257", "su": "where am I"}]}}}));
+    assert_eq!(items::answer(&found), Err(Error::Unreadable));
+    // A folder the item says is another mailbox's passes it over, like a foreign id does.
+    let foreign = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "257", "l": "998:2", "su": "not ours"}]}}}));
+    assert_eq!(items::answer(&foreign).unwrap().messages.len(), 0);
+}
+
+#[test]
+fn a_text_of_many_byte_characters_is_held_to_the_byte_limit() {
+    // The parser's cap and the model validator's are both bytes: five thousand four-byte
+    // characters are 20,000 bytes, over the 16 KiB either side allows, so the text is cut at
+    // 4,096 whole characters rather than passed on to fail the piece's check.
+    let found = answer(
+        200,
+        &json!({"Body": {"SearchResponse": {"m": [{"id": "257", "l": "2", "d": 1, "su": "\u{1F600}".repeat(5_000), "fr": "ü".repeat(9_000)}]}}}),
+    );
+    let page = items::answer(&found).unwrap();
+    let message = &page.messages[0];
+    assert_eq!((message.subject.len(), message.subject.chars().count()), (16 * 1024, 4 * 1024));
+    assert_eq!((message.preview.len(), message.preview.chars().count()), (16 * 1024, 8 * 1024));
 }

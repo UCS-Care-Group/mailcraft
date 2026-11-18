@@ -65,7 +65,23 @@ pub fn by_id(base: &str, token: &Secret, ids: &[String]) -> Result<HttpRequest, 
 pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
     let answer = soap::answer("SearchRequest", response)?;
     let listed = json::list(answer.get("m"));
-    let messages = listed.iter().take(PAGE).filter_map(message).collect();
+    let mut messages = Vec::new();
+    for m in listed.iter().take(PAGE) {
+        if json::own_id(m.get("id")).is_none() {
+            continue;
+        }
+        match m.get("l") {
+            // An item that names no folder at all can't be told moved or removed: an empty
+            // folder would have the run count it deleted while the token moves past the change.
+            None => return Err(Error::Unreadable),
+            // A folder of another mailbox: the item is passed over like a foreign id.
+            Some(l) if json::own_id(Some(l)).is_none() => continue,
+            _ => {}
+        }
+        if let Some(message) = message(m) {
+            messages.push(message);
+        }
+    }
     let cursor = listed.iter().take(PAGE).next_back().and_then(|m| {
         let id = json::line(m.get("id"));
         // A last item with no `d` is no cursor to go on from: a sort value made up as 0 could end

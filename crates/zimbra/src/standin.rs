@@ -64,6 +64,9 @@ pub struct StandIn {
     /// Things that happen while the next delta is being answered, as another program would do
     /// them: for a folder made while a run is already under way.
     pub during: RefCell<Vec<Box<dyn FnOnce(&mut State)>>>,
+    /// A broken server that answers every folder page with `more` and ignores the cursor it was
+    /// given: the same page comes back each time, for ever.
+    pub stuck: std::cell::Cell<bool>,
 }
 
 impl std::fmt::Debug for StandIn {
@@ -89,7 +92,7 @@ impl StandIn {
         ] {
             state.folders.insert(id, (1, name.into(), view.into()));
         }
-        StandIn { state: RefCell::new(state), during: RefCell::new(Vec::new()) }
+        StandIn { state: RefCell::new(state), during: RefCell::new(Vec::new()), stuck: std::cell::Cell::new(false) }
     }
 
     /// Make a folder; answers its id.
@@ -274,8 +277,9 @@ impl StandIn {
             return fault("service.INVALID_REQUEST");
         };
         found.sort_by_key(|(_, item)| std::cmp::Reverse(item.date));
-        // A cursor continues after the item it names.
+        // A cursor continues after the item it names; a stuck server gives the first page again.
         let offset = match body.get("cursor") {
+            Some(_) if self.stuck.get() => offset,
             Some(cursor) => {
                 let at = cursor.get("id").and_then(Value::as_str).and_then(|id| id.parse::<u32>().ok());
                 match at.and_then(|at| found.iter().position(|(id, _)| **id == at)) {
@@ -285,7 +289,7 @@ impl StandIn {
             }
             None => offset,
         };
-        let more = found.len() > offset.saturating_add(limit);
+        let more = self.stuck.get() || found.len() > offset.saturating_add(limit);
         let m: Vec<Value> = found
             .into_iter()
             .skip(offset)
@@ -328,7 +332,10 @@ fn fault(code: &str) -> HttpResponse {
 
 impl HttpExchange for StandIn {
     fn exchange(&self, request: &HttpRequest) -> impl Future<Output = Result<HttpResponse, TransportError>> {
-        ready(Ok(self.answer(request)))
+        let response = self.answer(request);
+        // What a real transport does with an answer longer than the request allows: the crate
+        // counts on it, so a test stand-in can't look more generous.
+        ready(if response.body().len() > request.max_response_bytes() { Err(TransportError::BodyTooLarge) } else { Ok(response) })
     }
 }
 

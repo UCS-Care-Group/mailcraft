@@ -168,21 +168,21 @@ fn an_id_the_delta_names_that_is_gone_is_dropped_by_name() {
 }
 
 #[test]
-fn a_folder_left_half_read_goes_on_from_where_it_stopped() {
+fn a_folder_left_half_read_starts_over_without_a_token() {
     let server = StandIn::new();
     let older = server.deliver(2, "Older", "");
     let newer = server.deliver(2, "Newer", "");
     let sort = server.state.borrow().items.get(&newer).unwrap().date;
-    // As the last run left it: folder 2 was read as far as `newer`.
+    // A cursor made under a token the request can't name answers for nothing: what changed
+    // before it is no longer covered by a delta, so the folder is read from its start again.
     let mut req = request("");
     req.resume = vec![mailcraft_model::sync::ZimbraResume { folder: "2".into(), cursor: newer.to_string(), sort }];
     let all = whole(&run(&server, &req, PASSWORD));
     assert_eq!(all.errors, Vec::<String>::new());
     let folder = all.pages.iter().filter(|p| p.folder == "2").collect::<Vec<_>>();
     assert_eq!(folder.len(), 1);
-    assert!(!folder[0].afresh && folder[0].last);
-    assert_eq!(folder[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), [older.to_string().as_str()]);
-    // Nothing is left over: the piece that keeps the token carries an empty list.
+    assert!(folder[0].afresh && folder[0].last);
+    assert_eq!(folder[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), [newer.to_string().as_str(), older.to_string().as_str()]);
     assert_eq!(all.resume, Some(Vec::new()));
 }
 
@@ -209,16 +209,16 @@ fn a_run_on_a_token_finishes_a_folder_left_half_read() {
 fn a_fetch_stops_taking_bodies_once_the_total_is_full() {
     let server = StandIn::new();
     let mut ids = Vec::new();
-    for subject in ["One", "Two", "Three"] {
+    for subject in ["One", "Two", "Three", "Four", "Five"] {
         let id = server.deliver(2, subject, "");
-        server.change(id, |m| m.mime = "x".repeat(35 * 1024 * 1024));
+        server.change(id, |m| m.mime = "x".repeat(16 * 1024 * 1024));
         ids.push(id.to_string());
     }
     let fetch = ZimbraFetchRequest { account: 3, email: USER.into(), url: URL.into(), ids, ..Default::default() };
     let got = block_on(fetch_messages(&server, &fetch, &Secret::new(PASSWORD), &AtomicBool::new(false))).unwrap();
     assert_eq!(got.errors, Vec::<String>::new());
-    // 35 MB at a time: the third would take the run past 64 MB and is left for the next fetch.
-    assert_eq!(got.fetched.len(), 2);
+    // 16 MiB at a time: the fifth would take the run past 64 MiB and is left for the next fetch.
+    assert_eq!(got.fetched.len(), 4);
 }
 
 #[test]
@@ -293,4 +293,15 @@ fn the_token_goes_in_the_header_or_a_cookie_and_never_in_an_address() {
     assert!(!String::from_utf8_lossy(auth.body()).contains('\r'));
     assert!(crate::auth::request("http://zimbra.example.org", "ada", &Secret::new(PASSWORD)).is_err());
     assert!(crate::fetch::request(URL, &token, "1&zauthtoken=x").is_err());
+}
+
+#[test]
+fn a_server_that_answers_the_same_page_for_ever_is_cut_off() {
+    // `more` every time but the cursor it was asked from back again: no page goes on from there,
+    // so the run fails the read rather than asking the same page for ever.
+    let server = StandIn::new();
+    server.deliver(2, "One", "");
+    server.stuck.set(true);
+    let all = whole(&run(&server, &request(""), PASSWORD));
+    assert!(!all.whole && !all.errors.is_empty() && all.token.is_empty());
 }
