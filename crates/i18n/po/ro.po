@@ -362,6 +362,11 @@ msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "Mesajele unui cont JMAP nu pot fi amânate încă."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A Zimbra server answered at {host}: your account may be on it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "A brand's name on another address."
@@ -660,6 +665,11 @@ msgstr "O cutie poștală partajată, citită cu autentificarea contului {accoun
 #, fuzzy
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
 msgstr "O scurtă notă cu linkul către acea pagină, de lipit într-un e-mail sau într-un chat. MailCraft nu trimite nimic singur."
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "A sign-in token of this session is kept: the password isn't asked for until it ends."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1323,16 +1333,6 @@ msgstr "Este deja în contactele dvs."
 #, fuzzy
 msgid "Also Hotmail, Live and MSN"
 msgstr "Și Hotmail, Live și MSN"
-
-#. interface
-#: crates/ui-egui/src/account_setup/zimbra.rs
-msgid "Also keep this account's calendar, over CalDAV at this server"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup/zimbra.rs
-msgid "Also keep this account's contacts, over CardDAV at this server"
-msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -5942,7 +5942,7 @@ msgid "For now, your automatic replies aren't changed: {error}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/ews_setup.rs
+#: crates/ui-egui/src/ews_setup.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Forget"
 msgstr "Uitare"
@@ -5958,6 +5958,11 @@ msgstr "Uitare calendar și contacte descărcate"
 #, fuzzy
 msgid "Forget Trusted Certificate"
 msgstr "Uitare certificat de încredere"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Forget Trusted Device"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
@@ -15560,6 +15565,11 @@ msgstr "Opriți această Trimitere/primire; ce a sosit rămâne"
 msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
 msgstr "Nu mai aveți încredere în acest certificat pentru acest cont. Dacă serverul îl arată din nou și acest computer nu are încredere în el, veți fi întrebat."
 
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "Stop trusting this computer for this account: the next Send/Receive signs in afresh and asks for the code again (when the account has a second step). What the server has trusted can be withdrawn there too, under its own settings."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -18022,6 +18032,11 @@ msgid "This account is no longer in the mailbox."
 msgstr "Acest cont nu mai este în cutia poștală."
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This account isn't a Zimbra account"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/category_sync.rs
 msgid "This account may not change its categories through Microsoft Graph"
 msgstr ""
@@ -18246,6 +18261,11 @@ msgstr "Cheia acestui certificat este de un tip pe care MailCraft nu îl folose�
 #, fuzzy
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
 msgstr "Acest computer nu are încredere în certificatul arătat de serverul de la {host}. Dacă este serverul organizației dvs., puteți avea încredere în acest certificat pentru acest cont."
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "This computer is trusted: the code of the authenticator app isn't asked for."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -19646,6 +19666,16 @@ msgid "Use system setting follows Animation effects in Windows' settings. Where 
 msgstr "„Folosiți setarea sistemului” urmează efectele de animație din setările Windows. Acolo unde MailCraft nu poate citi încă setarea sistemului, animațiile se redau până când alegeți „Nu redați niciodată”."
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's calendar (CalDAV)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's contacts (CardDAV)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Use {address}"
@@ -20684,9 +20714,8 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Zimbra {host} · not kept in step yet: this part is not built"
-msgstr "Zimbra {host} · încă nesincronizat: această parte nu este încă făcută"
+msgid "Zimbra {host}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -20758,6 +20787,11 @@ msgstr "`answer.outcome` este read, missing, notPermitted, refused, approval sau
 #, fuzzy
 msgid "`format` is \"smime\" or \"openpgp\""
 msgstr "`format` este „smime” sau „openpgp”"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`id` is required"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/keep_offline.rs
@@ -25703,11 +25737,6 @@ msgstr "{why}, deci conectările nu sunt memorate: MailCraft întreabă din nou 
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modificări făcute în el aici așteaptă pe acest computer."
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-msgid "{why}: send this message from another account, or save it as a draft"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -25759,6 +25788,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Linii"
+
+#, fuzzy
+#~ msgid "Zimbra {host} · not kept in step yet: this part is not built"
+#~ msgstr "Zimbra {host} · încă nesincronizat: această parte nu este încă făcută"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"

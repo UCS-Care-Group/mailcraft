@@ -1558,6 +1558,7 @@ version = "0.13.0"
 dependencies = [
  "log",
  "mailcraft-ews",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "serde_json",
 ]

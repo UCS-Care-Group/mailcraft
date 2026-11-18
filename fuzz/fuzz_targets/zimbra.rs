@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Fuzzes every reader of a Zimbra SOAP-JSON or REST answer: the envelope and fault, the sign-in
 //! (`AuthRequest`), the folder tree (`GetFolderRequest`), the delta (`SyncRequest`), a page of
-//! messages (`SearchRequest`), and a message's MIME.
+//! messages (`SearchRequest`), the tags (`GetTagRequest`), and a message's MIME.
 //!
 //! Invariant: nothing panics, and an accepted answer can be inspected.
 
@@ -20,6 +20,7 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
             let _ = mailcraft_zimbra::delta::answer(&response, first);
         }
         let _ = mailcraft_zimbra::items::answer(&response);
+        let _ = mailcraft_zimbra::tags::answer(&response);
         let _ = mailcraft_zimbra::fetch::answer(&response);
     }
 });
