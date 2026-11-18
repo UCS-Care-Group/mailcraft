@@ -63,7 +63,7 @@ pub(crate) fn take(mb: &mut Mailbox, account: Id, found: &EwsSignature) -> bool 
     let body = if html.is_empty() {
         RichText::from_plain(text)
     } else {
-        let rich = mailcraft_mime::rich::from_html(html);
+        let rich = mailcraft_mime_model::rich::from_html(html);
         if rich.to_plain().trim().is_empty() {
             RichText::from_plain(if text.is_empty() { mailcraft_html::to_text(html) } else { text.to_owned() }.trim())
         } else {

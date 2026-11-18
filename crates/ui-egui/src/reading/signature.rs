@@ -11,7 +11,7 @@
 
 use egui::{Color32, Sense, Ui, vec2};
 use mailcraft_model::Message;
-use mailcraft_model::digital_signature::{Coverage, DigitalSignature, Verdict, Why};
+use mailcraft_model::digital_signature::{Coverage, DigitalSignature, SignatureFormat, Verdict, Why};
 use mailcraft_time::{DateTime, Timestamp};
 use serde_json::json;
 
@@ -61,7 +61,11 @@ fn why_said(why: Why) -> &'static str {
         Why::Altered => tl!("What you see isn't what was signed: treat it with care."),
         Why::WeakAlgorithm => tl!("It uses an algorithm that's no longer safe."),
         Why::UnknownAlgorithm => tl!("It uses an algorithm MailCraft doesn't know."),
-        Why::NoPublicKey => tl!("The signer's certificate isn't in the message."),
+        Why::NoPublicKey => tl!("The signer's Public key (certificate) isn't in the message or kept on this computer."),
+        Why::KeyRevoked => tl!("The signer's key was revoked by its owner."),
+        Why::KeyExpired => tl!("The signer's key had expired when the message was signed."),
+        Why::NotASigningKey => tl!("The key that made it isn't one that may sign."),
+        Why::SignatureExpired => tl!("The Digital signature has expired."),
         Why::Unreadable => tl!("The Digital signature can't be read."),
         Why::NoOriginal => tl!("The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."),
         Why::TooMuch => tl!("There's more in this Digital signature than MailCraft checks for one message."),
@@ -99,7 +103,11 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: 
     let open = ui.data(|data| data.get_temp::<bool>(open_key(m.id))).unwrap_or(false);
     let mut toggle = false;
     let mut check_again = false;
+    let mut verify = false;
     let can_check_again = d.why == Some(Why::NoOriginal) && app.session.enabled("mail.checkAgain");
+    // An OpenPGP key not marked Verified, kept for the sender: its fingerprint can be compared
+    // and marked, in the window only (#30 R6).
+    let to_verify = verifiable(app, &d, m);
     let shown = notice(hue, t).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
@@ -117,6 +125,15 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: 
                 if can_check_again {
                     let resp = ui.add(egui::Button::new(egui::RichText::new(tl!("Check Again")).font(regular(11.0)).color(t.text)).small());
                     check_again = resp.on_hover_text(tl!("Download the bytes this message came as again, to check its Digital signature")).clicked();
+                }
+                if to_verify.is_some() {
+                    let resp = ui.add(egui::Button::new(egui::RichText::new(tl!("Verify…")).font(regular(11.0)).color(t.text)).small());
+                    if place == Place::Pane {
+                        app.hit.add("verifySigner", m.id, resp.rect);
+                    }
+                    // (Not for a click the control channel injected: the dialog is the owner's.)
+                    verify = resp.on_hover_text(tl!("Compare the signer's key's fingerprint with theirs, and mark it as verified")).clicked()
+                        && !app.driven;
                 }
             });
         });
@@ -140,6 +157,22 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: 
     if check_again {
         let _ = app.run("mail.checkAgain", json!({"id": m.id}));
     }
+    if let (true, Some((address, fingerprint))) = (verify, to_verify) {
+        let _ = app.run("ui.verifyKey", json!({"address": address, "fingerprint": fingerprint}));
+    }
+}
+
+/// The From address and the signer's fingerprint, when `d` is an OpenPGP Digital signature whose
+/// key isn't Verified and is kept for that address: what Verify… opens the dialog for.
+fn verifiable(app: &MailApp, d: &DigitalSignature, m: &Message) -> Option<(String, String)> {
+    if d.format != SignatureFormat::OpenPgp || d.why != Some(Why::KeyNotVerified) {
+        return None;
+    }
+    let fingerprint = d.signer.as_ref().map(|s| s.fingerprint.clone()).filter(|f| !f.is_empty())?;
+    let address = m.from.email.trim().to_lowercase();
+    let digits = |f: &str| f.chars().filter(char::is_ascii_hexdigit).map(|c| c.to_ascii_uppercase()).collect::<String>();
+    let kept = app.session.mailbox.public_keys.of(&address).iter().any(|k| digits(&k.fingerprint) == digits(&fingerprint));
+    kept.then_some((address, fingerprint))
 }
 
 fn indented(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
@@ -176,12 +209,19 @@ fn details(app: &mut MailApp, ui: &mut Ui, d: &DigitalSignature, m: &Message, t:
         if !s.issuer.is_empty() {
             line(ui, tl!("Issued by:"), &short(&s.issuer));
         }
-        if s.not_before != 0 || s.not_after != 0 {
+        let openpgp = d.format == SignatureFormat::OpenPgp;
+        if openpgp && s.not_after == 0 {
+            // (What is known of an OpenPGP key is when it was made, not a range of validity.)
+            if s.not_before != 0 {
+                line(ui, tl!("Key made:"), &day(app, s.not_before));
+            }
+        } else if s.not_before != 0 || s.not_after != 0 {
             let valid = crate::i18n::fmt(tl!("{from} to {until}"), &[("from", &day(app, s.not_before)), ("until", &day(app, s.not_after))]);
             line(ui, tl!("Valid:"), &valid);
         }
-        // (A fingerprint is long and has no spaces: it wraps where the pane needs it to.)
-        line(ui, tl!("Fingerprint (SHA-256):"), &s.fingerprint);
+        // (A fingerprint is long and has no spaces: it wraps where the pane needs it to. An
+        // OpenPGP key's isn't a SHA-256.)
+        line(ui, if openpgp { tl!("Fingerprint:") } else { tl!("Fingerprint (SHA-256):") }, &s.fingerprint);
     }
     if let Some(at) = d.signed_at {
         let when = crate::dates::header_label(at, app.session.offset_at(at), app.session.prefs.twelve_hour);

@@ -67,7 +67,7 @@ impl Url {
     /// [`Url::parse`] for an address of up to `max` bytes: one a server sent to be followed (the
     /// next page of a list) carries more than one written here.
     pub(crate) fn parse_within(text: &str, max: usize) -> Result<Url, NetError> {
-        let bad = |why: &str| NetError::Config(format!("the server's address {why}"));
+        let bad = |why: &str| NetError::Config(format!("the server's address {why}").into());
         let text = text.trim();
         if text.is_empty() || text.len() > max || !text.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(bad("isn't one"));
@@ -165,6 +165,11 @@ pub(crate) struct Reply {
     pub(crate) challenges: Vec<String>,
     /// Its `X-EWS-Policy-Reason` header (why an organisation shuts Exchange Web Services).
     pub(crate) policy_reason: Option<String>,
+    /// The compliance classes its `DAV` headers name (RFC 4918 §10.1): one entry for each, however
+    /// the server wrote them (one header with a long list, or several).
+    pub(crate) dav: Vec<String>,
+    /// Its `ETag` header, as written.
+    pub(crate) etag: Option<String>,
 }
 
 /// Most `WWW-Authenticate` headers kept of one answer, and the longest. An NTLM challenge (#252)
@@ -172,8 +177,34 @@ pub(crate) struct Reply {
 /// or tidied; the whole head is bounded by [`MAX_HEAD`] in any case.
 const MAX_CHALLENGES: usize = 16;
 const MAX_CHALLENGE: usize = 24 * 1024;
+/// The classes of a `DAV` header's value, cut at the commas outside `<…>` (a coded URL may hold one).
+fn dav_classes(value: &str) -> Vec<&str> {
+    let mut classes = Vec::new();
+    let (mut inside, mut start) = (false, 0);
+    for (at, c) in value.char_indices() {
+        match c {
+            '<' => inside = true,
+            '>' => inside = false,
+            ',' if !inside => {
+                classes.push(value.get(start..at).unwrap_or("").trim());
+                start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    classes.push(value.get(start..).unwrap_or("").trim());
+    classes
+}
+
 /// The longest `X-EWS-Policy-Reason` kept.
 const MAX_REASON: usize = 1_024;
+/// Most compliance classes kept of one answer's `DAV` headers, and the longest one (a class is a
+/// token or a `<URL>`; a longer one is dropped, never cut); and the longest `ETag`. The cap is on
+/// the classes, not on the header: Nextcloud sends one header of some forty classes.
+// Must match `mailcraft_dav::status::MAX_DAV_CLASSES` (64); D4 adds the cross-crate test.
+const MAX_DAV: usize = 64;
+const MAX_DAV_VALUE: usize = 96;
+const MAX_ETAG: usize = 1_024;
 
 /// `text` as one piece of a URL or a form: everything but letters, digits and `-._~` as `%XX`.
 pub(crate) fn encode(text: &str) -> String {
@@ -251,7 +282,7 @@ pub(crate) fn closed() -> NetError {
 
 /// Whether an error of [`exchange`] says that the server hung up (or never took the request).
 pub(crate) fn is_closed(error: &NetError) -> bool {
-    matches!(error, NetError::Proto(ProtoError::Io(why)) if why == CLOSED)
+    matches!(error, NetError::Proto(ProtoError::Io(why)) if why.to_string() == CLOSED)
 }
 
 /// What an answer that didn't come in its time is called.
@@ -265,12 +296,12 @@ fn too_slow() -> NetError {
 
 /// Whether an error of [`read_reply`] says that the answer didn't come in the time it had.
 pub(crate) fn is_too_slow(error: &NetError) -> bool {
-    matches!(error, NetError::Proto(ProtoError::Io(why)) if why == TOO_SLOW)
+    matches!(error, NetError::Proto(ProtoError::Io(why)) if why.to_string() == TOO_SLOW)
 }
 
 /// Whether an error of [`read_reply`] says that the answer is longer than was asked for.
 pub(crate) fn is_too_long(error: &NetError) -> bool {
-    matches!(error, NetError::Proto(ProtoError::Protocol(why)) if why.starts_with(TOO_LONG))
+    matches!(error, NetError::Proto(ProtoError::Protocol(why)) if why.to_string().starts_with(TOO_LONG))
 }
 
 fn io_problem(e: &std::io::Error) -> NetError {
@@ -608,7 +639,7 @@ impl<R: Read> Reader<'_, R> {
             let pending = self.pending();
             let piece = pending.get(..left.min(pending.len())).unwrap_or(&[]);
             let taken = piece.len();
-            sink.write_all(piece).map_err(|e| NetError::Config(format!("the download couldn't be written: {}", tidy(&e.to_string()))))?;
+            sink.write_all(piece).map_err(|e| NetError::Config(format!("the download couldn't be written: {}", tidy(&e.to_string())).into()))?;
             self.start = self.start.saturating_add(taken);
             written = written.saturating_add(u64::try_from(taken).unwrap_or(u64::MAX));
         }
@@ -641,6 +672,8 @@ struct Head {
     location: Option<String>,
     challenges: Vec<String>,
     policy_reason: Option<String>,
+    dav: Vec<String>,
+    etag: Option<String>,
     content_range: Option<String>,
     /// The server closes the connection after this answer: it said so, it speaks HTTP/1.0, or
     /// the way the body ends is not one that leaves the connection fit for more (a coding
@@ -698,6 +731,8 @@ pub(crate) fn read_reply_kept<R: Read>(stream: &mut R, started: Instant, patienc
         location: head.location,
         challenges: head.challenges,
         policy_reason: head.policy_reason,
+        dav: head.dav,
+        etag: head.etag,
     };
     Ok((reply, reusable))
 }
@@ -746,6 +781,17 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
             }
         } else if name.eq_ignore_ascii_case("x-ews-policy-reason") {
             head.policy_reason = Some(tidy(value).chars().take(MAX_REASON).collect());
+        } else if name.eq_ignore_ascii_case("dav") {
+            for class in dav_classes(value).into_iter().filter(|class| !class.is_empty() && class.len() <= MAX_DAV_VALUE) {
+                if head.dav.len() < MAX_DAV && !class.chars().any(char::is_control) {
+                    head.dav.push(class.to_owned());
+                }
+            }
+        } else if name.eq_ignore_ascii_case("etag") {
+            // (Kept whole or not at all: a cut ETag is another ETag.)
+            // (The line was read lossily: a replacement character marks bytes that were no UTF-8, and
+            // an ETag that is not text is dropped, not repaired into another one.)
+            head.etag = Some(value.to_string()).filter(|etag| etag.len() <= MAX_ETAG && !etag.chars().any(|c| c.is_control() || c == '\u{fffd}'));
         } else if name.eq_ignore_ascii_case("content-range") {
             head.content_range = Some(value.to_string());
         }
@@ -817,7 +863,7 @@ mod tests {
 
     fn protocol(result: Result<Answer, NetError>) -> String {
         match result {
-            Err(NetError::Proto(ProtoError::Protocol(why))) => why,
+            Err(NetError::Proto(ProtoError::Protocol(why))) => why.to_string(),
             other => panic!("expected an answer that makes no sense, got {other:?}"),
         }
     }
@@ -1047,7 +1093,7 @@ mod tests {
         let body = "x".repeat(MAX_BODY + 1);
         let reply = |answer: &str, max: usize| read_reply(&mut answer.as_bytes(), Instant::now(), SOON, max);
         let too_long = |result: Result<Reply, NetError>| match result {
-            Err(NetError::Proto(ProtoError::Protocol(why))) => why,
+            Err(NetError::Proto(ProtoError::Protocol(why))) => why.to_string(),
             other => panic!("expected an answer that is too long, got {:?}", other.map(|reply| reply.body.len())),
         };
         // By its length, in chunks, and up to the end of the stream.
@@ -1077,8 +1123,8 @@ mod tests {
         assert_eq!(ask(size).unwrap().body.len(), size);
         assert_eq!(ask(usize::MAX).unwrap().body.len(), size, "within the ceiling");
         // Everyone else still has their own limit.
-        assert!(matches!(ask(16 * 1024 * 1024), Err(NetError::Proto(ProtoError::Protocol(why))) if why.contains("longer than 16384 KB")));
-        assert!(matches!(ask(MAX_BODY), Err(NetError::Proto(ProtoError::Protocol(why))) if why.contains("longer than 64 KB")));
+        assert!(matches!(ask(16 * 1024 * 1024), Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().contains("longer than 16384 KB")));
+        assert!(matches!(ask(MAX_BODY), Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().contains("longer than 64 KB")));
     }
 
     #[test]
@@ -1122,7 +1168,9 @@ mod tests {
         assert!(!sent.contains("Bad Name") && !sent.contains("\r\n: y"), "{sent}");
 
         // No more comes back than was asked for, or than anyone may ask for.
-        assert!(matches!(ask("GET", None, MAX_BODY), Err(NetError::Proto(ProtoError::Protocol(why))) if why.contains("longer than 64 KB")));
+        assert!(
+            matches!(ask("GET", None, MAX_BODY), Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().contains("longer than 64 KB"))
+        );
         assert_eq!(ask("PATCH", Some(""), usize::MAX).unwrap().body.len(), 3 * MAX_BODY);
         // A body of nothing still says its length; no body says nothing of one.
         assert!(server.request(2).starts_with("PATCH ") && server.request(2).contains("Content-Length: 0\r\n"));

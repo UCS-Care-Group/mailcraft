@@ -257,7 +257,18 @@ fn a_special_folder_cannot_be_deleted() {
     let standin = StandIn::new();
     let inbox = standin.state().folder_id("inbox").unwrap();
     let result = run(&standin, &EwsMailRequest { changes: vec![FolderChange::Delete { id: inbox, shown: Default::default() }], ..base() });
-    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { .. }));
+    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::OwnFolder { .. }));
+}
+
+#[test]
+fn a_special_folder_the_server_wont_move_is_said_to_be_its_own() {
+    // #1069: the server's word (`ErrorMoveDistinguishedFolder`) has the folder put back and
+    // marked, not left where it was moved to here.
+    let standin = StandIn::new();
+    let junk = standin.state().folder_id("junkemail").unwrap();
+    let deleted = standin.state().folder_id("deleteditems").unwrap();
+    let result = run(&standin, &EwsMailRequest { changes: vec![FolderChange::Move { folder: 9, id: junk, parent: deleted }], ..base() });
+    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::OwnFolder { why } if why.contains("moved")), "{:?}", result.changes);
 }
 
 fn draft(marker: &str, subject: &str) -> DraftUp {

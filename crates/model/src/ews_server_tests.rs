@@ -59,6 +59,7 @@ fn debug_output_shows_no_address_name_or_fingerprint() {
         username: "CORP\\ada".into(),
         trusted: "ab".repeat(32),
         hierarchy: "HIER-STATE".into(),
+        parents: true,
         ..Default::default()
     };
     let text = format!("{server:?}");
@@ -69,7 +70,7 @@ fn debug_output_shows_no_address_name_or_fingerprint() {
 fn an_exchange_account_has_a_server_server_ids_and_sends_mail() {
     use crate::AccountKind::{self, *};
     assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::has_server), [false, true, true, true, true, false]);
-    assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::sends_mail), [false, true, true, false, true, false]);
+    assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::sends_mail), [false, true, true, true, true, false]);
     assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::server_ids), [false, false, true, true, true, false]);
 }
 
@@ -81,6 +82,7 @@ fn an_exchange_account_keeps_its_setting_and_a_damaged_one_costs_only_itself() {
         username: "CORP\\ada".into(),
         trusted: "ab".repeat(32),
         hierarchy: "HIER-STATE".into(),
+        parents: true,
         ..Default::default()
     };
     let account = Account { id: 4, email: "ada@example.org".into(), kind: AccountKind::Exchange, ews: Some(server), ..Default::default() };
@@ -133,4 +135,14 @@ fn the_fingerprint_of_the_signature_taken_in_is_kept_with_the_server_and_opens_a
     assert_eq!(serde_json::from_str::<EwsServer>(&json).unwrap(), server);
     assert_eq!(serde_json::from_str::<EwsServer>(r#"{"url":"https://mail.example.org/EWS/Exchange.asmx"}"#).unwrap().signature_seen, 0);
     assert!(!format!("{server:?}").contains("4276993775"), "a fingerprint of somebody's text is not shown");
+}
+
+#[test]
+fn google_hosts_are_google_s_and_nothing_that_looks_like_them() {
+    for host in ["gmail.com", "apidata.googleusercontent.com", "www.googleapis.com", "calendar.google.com.", "Mail.Google.COM", "googlemail.com"] {
+        assert!(is_google_host(host), "{host}");
+    }
+    for host in ["evilgoogle.com", "google.com.evil.example", "notgmail.com", "dav.example.org", "", "googleusercontent.com.example.org"] {
+        assert!(!is_google_host(host), "{host}");
+    }
 }

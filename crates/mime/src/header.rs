@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Header fields: reading them (unfolding, parameters) and writing them (folding).
 
-use mailcraft_model::auth_results::{AUTH_AS, DIRECTIONALITY, MAX_AUTH_AS};
+use crate::{AUTH_AS, DIRECTIONALITY, MAX_AUTH_AS};
 
 use crate::charset;
 use crate::words::decode_words;

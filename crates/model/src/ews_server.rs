@@ -34,6 +34,12 @@ pub struct EwsServer {
     /// of the settings leaves it as it is, and it is never checked as one.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub hierarchy: String,
+    /// The folder list has been read whole since the folder above each folder is asked for: until
+    /// it has, `hierarchy` isn't gone on from, and the next run reads the list afresh. (A version
+    /// before asked for no parents, and Exchange gave none: every folder was at the top, and a
+    /// list that goes on from where it was would never bring them.) Not a setting.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub parents: bool,
     /// A fingerprint ([`crate::sync::fingerprint`]) of the signature the server last gave and
     /// MailCraft took in (#484), 0 for none yet: the server's signature is taken in again only
     /// when it is not this one, so that what the owner changed here stays until the server's changes.
@@ -54,6 +60,7 @@ impl std::fmt::Debug for EwsServer {
             .field("username", &!self.username.is_empty())
             .field("trusted", &!self.trusted.is_empty())
             .field("hierarchy", &!self.hierarchy.is_empty())
+            .field("parents", &self.parents)
             .field("signature_seen", &(self.signature_seen != 0))
             .finish()
     }
@@ -161,6 +168,19 @@ fn is_microsoft_consumer_domain(domain: &str) -> bool {
 /// consumer domains. Nothing is sent to it.
 pub fn is_microsoft_domain(domain: &str) -> bool {
     is_exchange_online(domain) || is_microsoft_consumer_domain(domain)
+}
+
+/// Hosts that are Google's: the mail, calendar and contacts services and the hosts they answer
+/// from (Google's CalDAV is at `apidata.googleusercontent.com`, its CardDAV at
+/// `www.googleapis.com`): a name and every name under it. Fixed, as [`EXCHANGE_ONLINE`] is.
+const GOOGLE: [&str; 7] = ["google.com", "googleapis.com", "googleusercontent.com", "googlemail.com", "gmail.com", "gstatic.com", "googlegroups.com"];
+
+/// Whether `host` (or a domain: an address's, say) is, or is under, one of Google's names
+/// ([`GOOGLE`]). A password is never sent there by a program that is not Google's: a Google
+/// account signs in on Google's page, with a token (spec C3.7).
+pub fn is_google_host(host: &str) -> bool {
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    GOOGLE.iter().any(|google| is_within(&host, google))
 }
 
 /// Whether `host` is `domain` or a name under it (`mail.example.org` is within `example.org`;

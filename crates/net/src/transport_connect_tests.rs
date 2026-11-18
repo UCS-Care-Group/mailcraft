@@ -114,7 +114,7 @@ fn an_exhausted_deadline_does_not_open_another_socket() {
         },
         || Duration::ZERO,
     );
-    assert_eq!(result, Err("the server didn't answer"));
+    assert_eq!(result, Err(said!("the server didn't answer")));
     assert_eq!(attempts, 0);
 }
 
@@ -122,7 +122,7 @@ fn an_exhausted_deadline_does_not_open_another_socket() {
 fn no_addresses_produces_a_lookup_result_not_a_socket_attempt() {
     let result =
         connect_resolved::<()>(&[], Duration::from_secs(20), |_, _| panic!("must not attempt a socket without an address"), || Duration::ZERO);
-    assert_eq!(result, Err("no address was found for the name"));
+    assert_eq!(result, Err(said!("no address was found for the name")));
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn all_timed_out_addresses_exhaust_only_the_total_budget() {
         },
         || spent.get(),
     );
-    assert_eq!(result, Err("the server didn't answer"));
+    assert_eq!(result, Err(said!("the server didn't answer")));
     assert_eq!(attempts, 3);
     assert_eq!(spent.get(), budget);
 }
@@ -157,7 +157,7 @@ fn the_address_count_is_bounded_even_with_instant_failures() {
         },
         || Duration::ZERO,
     );
-    assert_eq!(result, Err("the server refused the connection"));
+    assert_eq!(result, Err(said!("the server refused the connection")));
     assert_eq!(attempts, MAX_ADDRESSES);
 }
 
@@ -177,7 +177,7 @@ fn extremely_small_budgets_never_pass_zero_to_connect_timeout() {
         },
         || spent.get(),
     );
-    assert_eq!(result, Err("the server didn't answer"));
+    assert_eq!(result, Err(said!("the server didn't answer")));
     assert_eq!(attempts, 3);
     assert_eq!(spent.get(), Duration::from_nanos(3));
 }
@@ -196,7 +196,7 @@ fn scheduling_overrun_still_stops_at_the_global_deadline() {
         },
         || spent.get(),
     );
-    assert_eq!(result, Err("the server didn't answer"));
+    assert_eq!(result, Err(said!("the server didn't answer")));
     assert_eq!(attempts, 1);
 }
 

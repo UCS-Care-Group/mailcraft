@@ -4,7 +4,7 @@
 //! stream, with its CRC put right so the decoder runs past the check, and as RTF directly.
 #![no_main]
 
-use mailcraft_pst::{crc32, decompress_rtf, rtf_text};
+use mailcraft_pst::{crc32, decompress_rtf, rtf_html, rtf_text};
 
 libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let _ = decompress_rtf(data, 1 << 20);
@@ -24,4 +24,7 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let mut with_start = b"{\\rtf1 ".to_vec();
     with_start.extend_from_slice(data);
     let _ = rtf_text(&with_start, 1 << 16);
+    let mut encapsulated = b"{\\rtf1\\fromhtml1 ".to_vec();
+    encapsulated.extend_from_slice(data);
+    let _ = rtf_html(&encapsulated, 1 << 16);
 });

@@ -53,6 +53,46 @@ const SHA512_RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.13");
 const SHA224_RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.14");
 const MGF1: ObjectIdentifier = oid("1.2.840.113549.1.1.8");
 
+/// The bits of an RSA modulus written big-endian.
+fn modulus_bits(modulus: &[u8]) -> usize {
+    let mut significant = modulus.iter().skip_while(|b| **b == 0);
+    let top = significant.next().copied().unwrap_or(0);
+    significant.count().saturating_mul(8).saturating_add(8usize.saturating_sub(top.leading_zeros() as usize))
+}
+
+/// What kind of key `key` is: RSA of so many bits, ECDSA on P-256 or P-384, or another.
+pub(crate) fn key_kind(key: &SubjectPublicKeyInfoOwned) -> crate::pkcs12::KeyKind {
+    use crate::pkcs12::KeyKind;
+    if key.algorithm.oid == RSA {
+        return key
+            .subject_public_key
+            .as_bytes()
+            .and_then(|b| rsa::pkcs1::RsaPublicKey::<der::asn1::UintRef<'_>>::from_der(b).ok())
+            .map_or(KeyKind::Other, |k| KeyKind::Rsa { bits: modulus_bits(k.modulus.as_bytes()) });
+    }
+    if key.algorithm.oid == EC_KEY {
+        return match key.algorithm.parameters.as_ref().and_then(|p| p.decode_as::<ObjectIdentifier>().ok()) {
+            Some(P256) => KeyKind::P256,
+            Some(P384) => KeyKind::P384,
+            _ => KeyKind::Other,
+        };
+    }
+    KeyKind::Other
+}
+
+/// What kind of private key a PKCS #8 `PrivateKeyInfo` holds, from its own algorithm identifier
+/// (`algorithm`; for EC, its named `curve`, from the identifier's parameters or the key's own)
+/// and, for RSA, its `modulus` (big-endian): never from a certificate that came with it.
+pub(crate) fn private_key_kind(algorithm: ObjectIdentifier, curve: Option<ObjectIdentifier>, modulus: Option<&[u8]>) -> crate::pkcs12::KeyKind {
+    use crate::pkcs12::KeyKind;
+    match (algorithm, curve, modulus) {
+        (RSA, _, Some(modulus)) => KeyKind::Rsa { bits: modulus_bits(modulus) },
+        (EC_KEY, Some(P256), _) => KeyKind::P256,
+        (EC_KEY, Some(P384), _) => KeyKind::P384,
+        _ => KeyKind::Other,
+    }
+}
+
 // ECDSA.
 const EC_KEY: ObjectIdentifier = oid("1.2.840.10045.2.1");
 const SHA1_ECDSA: ObjectIdentifier = oid("1.2.840.10045.4.1");
@@ -223,10 +263,7 @@ pub fn verify_hashed(
 fn rsa_key(key: &SubjectPublicKeyInfoOwned) -> Result<rsa::PublicKey, Fault> {
     let bits = key.subject_public_key.as_bytes().ok_or(Fault::Unknown)?;
     let pkcs1 = rsa::pkcs1::RsaPublicKey::<der::asn1::UintRef<'_>>::from_der(bits).map_err(|_| Fault::Unknown)?;
-    let modulus = pkcs1.modulus.as_bytes();
-    let mut significant = modulus.iter().skip_while(|b| **b == 0);
-    let top = significant.next().copied().unwrap_or(0);
-    let bits = significant.count().saturating_mul(8).saturating_add(8usize.saturating_sub(top.leading_zeros() as usize));
+    let bits = modulus_bits(pkcs1.modulus.as_bytes());
     if bits < MIN_RSA_BITS {
         return Err(Fault::Weak);
     }

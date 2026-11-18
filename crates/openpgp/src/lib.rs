@@ -28,6 +28,7 @@ mod autocrypt;
 mod check;
 mod keys;
 mod mime;
+pub mod secret;
 
 #[cfg(test)]
 mod armour_tests;
@@ -44,6 +45,8 @@ mod keys_tests;
 mod mime_tests;
 #[cfg(test)]
 mod prop_tests;
+#[cfg(test)]
+mod secret_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -70,6 +73,15 @@ pub enum Error {
     /// Larger than any real key or header.
     #[error("larger than a Public key can be")]
     TooLarge,
+    /// More than one key where only one is taken (a secret key to import, #30 R13).
+    #[error("more than one key")]
+    SeveralKeys,
+}
+
+/// The address of a From field's value, lower case: as [`verify`] takes it. Empty when the
+/// field names no one address (none, or several).
+pub fn from_address(value: &str) -> String {
+    mime::address(value).trim().to_lowercase()
 }
 
 /// Runs `f`, giving `None` instead of letting a panic out of it: rPGP is a large library

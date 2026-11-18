@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! One HTTPS exchange with an Exchange server (#252): Autodiscover and Exchange Web Services.
+//! One HTTPS exchange with an Exchange server (#252: Autodiscover and Exchange Web Services) or a
+//! calendar and contacts server (#209: CalDAV and CardDAV, which use the methods `PROPFIND`,
+//! `REPORT`, `PUT` and `DELETE`; the `DAV` and `ETag` headers of the answer are kept).
 //!
 //! The rules are those of every connection of this crate (TLS, or plain only to this machine;
 //! no redirect followed, no cookie, nothing logged of the request, answers read within limits),
@@ -38,7 +40,7 @@ const PATIENCE: Duration = Duration::from_secs(30);
 /// A request to an Exchange server.
 #[derive(Clone, Copy)]
 pub struct Request<'a> {
-    /// `GET` or `POST`.
+    /// `GET` or `POST`; for a calendar server also `OPTIONS`, `PROPFIND`, `REPORT`, `PUT` or `DELETE`.
     pub method: &'a str,
     /// An `https://` address (`http://` only to this machine, for tests). No user name in it.
     pub url: &'a str,
@@ -75,6 +77,12 @@ pub struct Response {
     pub retry_after: Option<String>,
     /// `X-EWS-Policy-Reason`.
     pub policy_reason: Option<String>,
+    /// The compliance classes of every `DAV` header, in order (at most 64, each a token or a short
+    /// `<URL>`): what a calendar or contacts server says it is (RFC 4918 §10.1). A host that
+    /// builds a header from them joins them with `, `.
+    pub dav: Vec<String>,
+    /// `ETag`, as written; none when it was longer than a token should be.
+    pub etag: Option<String>,
 }
 
 impl std::fmt::Debug for Response {
@@ -97,7 +105,7 @@ pub fn send(request: &Request<'_>) -> Result<Response, NetError> {
     if !url.secure {
         return http::request(&url, &http_request).map(response);
     }
-    let (config, verifier) = crate::tls::pinned_config(pin).map_err(|reason| NetError::Tls { host: url.host.clone(), reason })?;
+    let (config, verifier) = crate::tls::pinned_config(pin).map_err(|reason| NetError::Tls { host: url.host.clone(), reason: reason.into() })?;
     match http::request_with(&url, &http_request, Some(config)) {
         Ok(reply) => Ok(response(reply)),
         // A handshake that stopped at the certificate says which, and why; any other failure is the usual one.
@@ -155,7 +163,7 @@ impl Connection {
         if !url.secure {
             return Ok(Connection { stream: http::connect(&url, PATIENCE)?, url, open: true });
         }
-        let (config, verifier) = crate::tls::pinned_config(pin).map_err(|reason| NetError::Tls { host: url.host.clone(), reason })?;
+        let (config, verifier) = crate::tls::pinned_config(pin).map_err(|reason| NetError::Tls { host: url.host.clone(), reason: reason.into() })?;
         match http::connect_with(&url, PATIENCE, Some(config)) {
             Ok(stream) => Ok(Connection { stream, url, open: true }),
             Err(error @ NetError::Tls { .. }) => Err(verifier.take_problem().map_or(error, |problem| NetError::Certificate(Box::new(problem)))),
@@ -225,6 +233,8 @@ fn response(reply: http::Reply) -> Response {
         challenges: reply.challenges,
         retry_after: reply.retry_after,
         policy_reason: reply.policy_reason,
+        dav: reply.dav,
+        etag: reply.etag,
     }
 }
 

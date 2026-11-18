@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! [`Message`] to RFC 5322 + MIME bytes.
 
-use mailcraft_model::{Address, Attachment, FlagStatus, Importance, Message};
+use crate::{Address, Attachment, FlagStatus, Importance, Message};
 
 use crate::header::{clean, is_token, write_field};
 use crate::words::{WORD_BYTES, encode_b, has_words, is_plain};
@@ -395,12 +395,19 @@ fn quoted(s: &str) -> String {
 /// The `filename` parameters of `Content-Disposition`: a quoted name when it is plain ASCII, else
 /// the RFC 2231 form (`filename*=utf-8''…`, in numbered pieces when long) after an ASCII stand-in
 /// for readers that don't know it.
-fn file_name_params(name: &str) -> String {
+pub(crate) fn file_name_params(name: &str) -> String {
     if is_plain(name) && name.len() <= 200 {
         return format!("; filename={}", quoted(name));
     }
-    let stand_in: String =
-        name.chars().map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') { c } else { '_' }).take(NAME_PIECE).collect();
+    let ascii = |s: &str| -> String { s.chars().map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') { c } else { '_' }).collect() };
+    // The extension (at most 16 characters) is kept whole, so a reader that only knows `filename=`
+    // still opens the file with the right program; the stem is cut (at a character) to fit.
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((stem, ext)) if ext.chars().count() <= 16 => (stem, format!(".{}", ascii(ext))),
+        _ => (name, String::new()),
+    };
+    let room = NAME_PIECE.saturating_sub(ext.len());
+    let stand_in = format!("{}{ext}", ascii(stem).chars().take(room).collect::<String>());
     let mut out = format!("; filename=\"{stand_in}\"");
     let mut pieces: Vec<String> = vec![String::new()];
     for b in name.bytes() {
@@ -503,7 +510,7 @@ mod tests {
             bcc: vec![a("", "secret@example.org")],
             subject: "Lunch on Friday?".into(),
             date: 1_057_049_557,
-            body: mailcraft_model::Body { text: "Hello Bob,\n\nLunch?\n".into(), html: None },
+            body: crate::Body { text: "Hello Bob,\n\nLunch?\n".into(), html: None },
             ..Message::default()
         }
     }
@@ -669,7 +676,6 @@ mod tests {
                 content_id: "logo@example.org".into(),
                 inline: true,
                 data: std::sync::Arc::new(vec![0x89, b'P', b'N', b'G']),
-                kept: None,
             },
         ];
         let out = text(&m);
@@ -694,7 +700,7 @@ mod tests {
 
     #[test]
     fn html_without_text_is_html_only() {
-        let m = Message { body: mailcraft_model::Body { text: " \n".into(), html: Some("<p>x</p>".into()) }, ..Message::default() };
+        let m = Message { body: crate::Body { text: " \n".into(), html: Some("<p>x</p>".into()) }, ..Message::default() };
         let out = text(&m);
         assert!(out.contains("\r\nContent-Type: text/html; charset=utf-8\r\n"));
         assert!(!out.contains("multipart"));
@@ -872,7 +878,7 @@ mod tests {
             subject: "Grüße 🙋".into(),
             categories: vec!["Été".into()],
             headers: vec![("X-Note".into(), "ñ".into())],
-            body: mailcraft_model::Body { text: "Grüße\n".into(), html: Some("<p>Grüße</p>".into()) },
+            body: crate::Body { text: "Grüße\n".into(), html: Some("<p>Grüße</p>".into()) },
             attachments: vec![
                 Attachment {
                     name: "ü.eml".into(),

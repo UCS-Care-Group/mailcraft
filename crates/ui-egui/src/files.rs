@@ -232,7 +232,13 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
     }
     // A dialog for one file answers with one; anything more is not taken.
     picked.truncate(1);
-    let Some(mut path) = picked.pop() else { return Some(Ok(json!({"cancelled": true}))) };
+    let Some(mut path) = picked.pop() else {
+        // A message's server copy fetched for this save isn't held any longer (#1561).
+        if matches!(&d.after, AfterPick::Export { command, .. } if command == "file.exportMessage") {
+            app.session.forget_for_save();
+        }
+        return Some(Ok(json!({"cancelled": true})));
+    };
     if let Some(ext) = &d.ext {
         path = with_extension(path, ext);
     }
@@ -247,16 +253,23 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
             let r = app.execute(&command, params);
             // (Report a Problem says itself where its file went and what to do with it.)
             if r.is_ok() && command == "ui.reportProblem" {
-                // The file is saved and GitHub's page open: now the window it came from closes.
-                if matches!(app.dialog, Some(crate::dialogs::Dialog::ReportProblem(_))) {
-                    app.dialog = None;
+                // The file is saved and GitHub's page open: now the window it came from closes,
+                // unless what went into the page was cut and the rest is still to be copied.
+                match &mut app.dialog {
+                    Some(crate::dialogs::Dialog::ReportProblem(d)) if d.keep_open => {
+                        d.waiting = false;
+                        d.cut = true;
+                    }
+                    Some(crate::dialogs::Dialog::ReportProblem(_)) => app.dialog = None,
+                    _ => {}
                 }
             } else if let (Ok(v), "mail.saveAllAttachments") = (&r, command.as_str()) {
                 let n = v.get("saved").and_then(Value::as_u64).unwrap_or(0) as usize;
                 app.status(tln!(n, "Saved {n} attachment", "Saved {n} attachments"));
-            } else if r.is_ok() {
-                let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-                app.status(crate::i18n::fmt(tl!("Saved {name}"), &[("name", &name)]));
+            } else if let Ok(v) = &r {
+                // The file's name, never the whole path (#1401).
+                let name = file_name(&path);
+                app.status(saved_said(&command, v, &name));
             }
             r
         }
@@ -265,6 +278,29 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
         app.status(e.clone());
     }
     Some(r)
+}
+
+/// The last part of a path: what the window says of a file it wrote or read, never where it is.
+pub(crate) fn file_name(path: &str) -> String {
+    std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.to_string())
+}
+
+/// What the status bar says once an export has written its file `name` (#1401): how much went
+/// into it, in plain words.
+pub(crate) fn saved_said(command: &str, v: &Value, name: &str) -> String {
+    match command {
+        "file.exportFolder" => {
+            let n = v.get("messages").and_then(Value::as_u64).unwrap_or(0);
+            crate::i18n::fmt(&tln!(n, "Saved {n} message to {name}", "Saved {n} messages to {name}"), &[("name", name)])
+        }
+        // Written from what this computer keeps rather than as it was received (#1561): said.
+        "file.exportMessage" if v.get("asReceived").and_then(Value::as_bool) == Some(false) => crate::i18n::fmt(
+            tl!("Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"),
+            &[("name", name)],
+        ),
+        "file.exportMessage" => crate::i18n::fmt(tl!("Saved the message to {name}"), &[("name", name)]),
+        _ => crate::i18n::fmt(tl!("Saved {name}"), &[("name", name)]),
+    }
 }
 
 /// The most files attached from one pick: a person picks a handful, a stuck key a great many.
@@ -309,7 +345,7 @@ pub fn reads_of_pick(sizes: &[u64]) -> Vec<Option<crate::Unread>> {
 /// Attach each of `paths`, in the order the dialog lists them, to the message being written
 /// `asking` (#286), reading only what [`reads_of_pick`] allows by their sizes. Said once: how
 /// many went in, and why one didn't ([`attached_said`]).
-fn attach_all(app: &mut MailApp, paths: &[String], asking: Option<u64>) -> Result<Value, String> {
+pub(crate) fn attach_all(app: &mut MailApp, paths: &[String], asking: Option<u64>) -> Result<Value, String> {
     // A file whose size can't be read (gone since it was picked, or not the owner's to read)
     // is never read either: said with what went wrong, and the plan is of the files whose sizes
     // are known, each kept beside its own path.
@@ -428,6 +464,12 @@ fn on_message(mut params: Value, asking: Option<u64>) -> Value {
 }
 
 fn opened_path(app: &mut MailApp, purpose: &str, path: &str, asking: Option<u64>) -> Result<Value, String> {
+    // A key file (#30): read here, at most a key file's size, and handed on as bytes, never as a
+    // path a command opens.
+    if crate::security::is_purpose(purpose) {
+        crate::security::picked(app, purpose, path, read_key_file(path));
+        return Ok(json!({"picked": purpose}));
+    }
     let r = match purpose {
         "mailbox" => app.run("file.open", json!({"path": path})),
         "attach" => app.run("compose.attach", on_message(json!({"path": path}), asking)),
@@ -443,6 +485,32 @@ fn opened_path(app: &mut MailApp, purpose: &str, path: &str, asking: Option<u64>
         app.ui.backstage = false;
     }
     r
+}
+
+/// The key file at `path`, of at most [`crate::own_keys::MAX_FILE`] bytes.
+fn read_key_file(path: &str) -> Result<Vec<u8>, String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use std::io::Read as _;
+        let too_large = || tl!("That file is larger than a key file can be.").to_string();
+        let file =
+            std::fs::File::open(path).map_err(|e| crate::i18n::fmt(tl!("The file couldn't be read ({why})"), &[("why", &e.kind().to_string())]))?;
+        let max = crate::own_keys::MAX_FILE as u64;
+        if file.metadata().map(|m| !m.is_file() || m.len() > max).unwrap_or(true) {
+            return Err(too_large());
+        }
+        let mut bytes = Vec::new();
+        file.take(max.saturating_add(1)).read_to_end(&mut bytes).map_err(|e| e.kind().to_string())?;
+        if bytes.len() as u64 > max {
+            return Err(too_large());
+        }
+        Ok(bytes)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = path;
+        Err(tl!("The browser can't read files by path").to_string())
+    }
 }
 
 /// The mailbox file at `path` was opened: first in File's Recent, and File closes.
@@ -476,7 +544,30 @@ pub(crate) fn dropped_path(app: &mut MailApp, path: &str) {
     }
     let path = local_path(path);
     let purpose = purpose_of(app, &path);
+    // Mail from a file dropped on the window or handed over by the system (an exported folder
+    // double-clicked, #1401) is asked about first: how many messages, and where they go.
+    if purpose == "import" && is_mail_file(&path) {
+        wait_to_ask(app, path);
+        return;
+    }
     let _ = opened_path(app, purpose, &path, crate::windows::compose_window::target(app));
+}
+
+/// Whether `path` names a file of mail (.eml or .mbox), by its extension.
+fn is_mail_file(path: &str) -> bool {
+    use mailcraft_engine::io::Format;
+    matches!(Format::from_extension(path), Some(Format::Eml | Format::Mbox))
+}
+
+/// `path` waits its turn to be asked about ([`ask_next`]): once, and no more than
+/// [`MOST_WAITING`] at a time.
+fn wait_to_ask(app: &mut MailApp, path: String) {
+    let asking = matches!(&app.dialog, Some(crate::dialogs::Dialog::Confirm { command, params, .. })
+        if command == "file.import" && params.get("path").and_then(Value::as_str) == Some(path.as_str()));
+    if !asking && app.opened_waiting.len() < MOST_WAITING && !app.opened_waiting.contains(&path) {
+        app.opened_waiting.push_back(path);
+    }
+    ask_next(app);
 }
 
 /// The most calendar and contact files waiting to be asked about; more are left alone.
@@ -499,14 +590,7 @@ pub(crate) fn from_system(app: &mut MailApp, what: &str) {
                 app.status(e);
             }
         }
-        Some(Format::Ics | Format::Vcf) => {
-            let asking = matches!(&app.dialog, Some(crate::dialogs::Dialog::Confirm { command, params, .. })
-                if command == "file.import" && params.get("path").and_then(Value::as_str) == Some(path.as_str()));
-            if !asking && app.opened_waiting.len() < MOST_WAITING && !app.opened_waiting.contains(&path) {
-                app.opened_waiting.push_back(path);
-            }
-            ask_next(app);
-        }
+        Some(Format::Ics | Format::Vcf) => wait_to_ask(app, path),
         _ => dropped_path(app, &path),
     }
 }
@@ -542,14 +626,67 @@ pub(crate) fn ask_next(app: &mut MailApp) {
         return;
     }
     let Some(path) = app.opened_waiting.pop_front() else { return };
-    app.dialog =
-        Some(crate::dialogs::Dialog::Confirm { command: "file.import".to_string(), params: json!({"path": path}), ask: import_question(&path) });
+    let ask = import_question(app, &path);
+    app.dialog = Some(crate::dialogs::Dialog::Confirm { command: "file.import".to_string(), params: json!({"path": path}), ask });
 }
 
-/// What the owner is asked before a calendar or contact file from outside is imported.
-pub(crate) fn import_question(path: &str) -> crate::dialogs::Question {
+/// The name of the folder mail imported now goes to (#1401): the folder in view, or, for a
+/// folder of an account a server keeps, this computer's Imported folder.
+fn import_target(app: &MailApp) -> String {
+    use mailcraft_engine::io::{Lands, lands_in, mail_aimed_at};
+    let mb = &app.session.mailbox;
+    // Where `file.import` with no folder named puts mail: the folder in view, never an Outbox
+    // (its account's Drafts or Inbox), and this computer's Drafts or Imported for a server's.
+    let landed = mail_aimed_at(mb, app.session.view.folder, None, true).ok().map(|aimed| lands_in(mb, aimed));
+    match landed {
+        Some(Lands::Folder(f)) => mb.folder(f).map_or_else(|| mailcraft_model::IMPORTED.to_string(), |f| crate::nav::folder_name(f).to_string()),
+        _ => mailcraft_model::IMPORTED.to_string(),
+    }
+}
+
+/// Largest mail file counted for the question before an import: a larger one is not read on the
+/// window's thread just to count it, and the question says no number.
+const MOST_COUNTED: u64 = 8 << 20;
+
+/// How many messages the mail file at `path` holds, read as the import would read it; `None`
+/// when it can't be read (the import then says why) or is larger than [`MOST_COUNTED`].
+#[cfg(not(target_arch = "wasm32"))]
+fn messages_in_file(path: &str) -> Option<usize> {
+    use std::io::Read as _;
+    let file = mailcraft_engine::io::regular_file(std::path::Path::new(path)).ok()?;
+    if file.metadata().ok()?.len() > MOST_COUNTED {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    file.take(MOST_COUNTED.saturating_add(1)).read_to_end(&mut bytes).ok()?;
+    if u64::try_from(bytes.len()).map_or(true, |n| n > MOST_COUNTED) {
+        return None;
+    }
+    mailcraft_engine::io::count_messages(path, &bytes)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn messages_in_file(_path: &str) -> Option<usize> {
+    None
+}
+
+/// What the owner is asked before a file from outside is imported: mail (#1401), a calendar or
+/// contacts.
+pub(crate) fn import_question(app: &MailApp, path: &str) -> crate::dialogs::Question {
     use mailcraft_engine::io::Format;
-    let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.to_string());
+    let name = file_name(path);
+    if is_mail_file(path) {
+        let folder = import_target(app);
+        let text = match messages_in_file(path) {
+            Some(n) => crate::i18n::fmt(
+                &tln!(n, "Import {n} message from {name} into {folder}?", "Import {n} messages from {name} into {folder}?"),
+                &[("name", &name), ("folder", &folder)],
+            ),
+            None => crate::i18n::fmt(tl!("Import the messages in {name} into {folder}?"), &[("name", &name), ("folder", &folder)]),
+        };
+        let text = format!("{text} {}", tl!("Messages already in that folder are left out."));
+        return crate::dialogs::Question::new(tl!("Import Mail"), text, tl!("Import"), Value::Null);
+    }
     let (title, text) = if Format::from_extension(path) == Some(Format::Vcf) {
         (tl!("Import Contacts"), crate::i18n::fmt(tl!("Import the contacts in {name} into Contacts?"), &[("name", &name)]))
     } else {
@@ -639,6 +776,11 @@ pub(crate) fn drain_inbox(app: &mut MailApp) {
 /// One file that arrived: opened, brought in, attached or put in the body, as it was picked for.
 fn delivered_one(app: &mut MailApp, d: crate::Delivered) {
     let (purpose, asking) = d.asked.unwrap_or_else(|| (purpose_of(app, &d.name).to_string(), crate::windows::compose_window::target(app)));
+    if crate::security::is_purpose(&purpose) {
+        let bytes = d.bytes.map_err(|_| crate::i18n::fmt(tl!("{name} couldn't be read"), &[("name", &d.name)]));
+        crate::security::picked(app, &purpose, &d.name, bytes);
+        return;
+    }
     let bytes = match d.bytes {
         Ok(bytes) => bytes,
         Err(why) => {
@@ -706,6 +848,9 @@ mod export_name_tests;
 
 #[cfg(test)]
 mod system_tests;
+
+#[cfg(test)]
+mod mail_drop_tests;
 
 #[cfg(test)]
 mod tests {

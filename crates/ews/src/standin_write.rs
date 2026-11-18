@@ -131,6 +131,13 @@ impl State {
                 }
                 continue;
             };
+            if self.exchange2010 && id.attribute("ChangeKey").is_none_or(str::is_empty) {
+                messages.push_str(&error_message("UpdateItem", "ErrorChangeKeyRequiredForWriteOperations"));
+                if first.is_empty() {
+                    first = "ErrorChangeKeyRequiredForWriteOperations".into();
+                }
+                continue;
+            }
             if resolution == "NeverOverwrite"
                 && let Some(key) = id.attribute("ChangeKey")
                 && self.items.get(at).is_some_and(|i| i.change_key != key)
@@ -180,6 +187,9 @@ impl State {
                         item.importance = v;
                     }
                     "item:Flag" => {
+                        if self.exchange2010 {
+                            return Err(invalid("the schema has no item:Flag"));
+                        }
                         if self.lacks_flag {
                             messages.push_str(&error_message("UpdateItem", "ErrorInvalidPropertyForOperation"));
                             if first.is_empty() {
@@ -393,6 +403,7 @@ impl State {
             files: Vec::new(),
             mime: Vec::new(),
             conversation: String::new(),
+            element: "Message".into(),
         };
         if let Some(mime) = message.child_in(TYPES, "MimeContent") {
             let bytes = crate::b64::decode(&mime.text, 64 << 20).ok_or_else(|| invalid("MimeContent is Base64"))?;

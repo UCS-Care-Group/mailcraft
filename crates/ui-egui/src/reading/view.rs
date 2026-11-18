@@ -26,7 +26,7 @@ use mailcraft_model::Message;
 use super::Place;
 use super::colors::Paper;
 use super::images::{self, Picture, Pictures, Remote};
-use super::layout::{Glue, ItemKind, Laid, PIECE_CHARS, PlaceholderItem, TextItem, cut};
+use super::layout::{Glue, ItemKind, Laid, PIECE_CHARS, PlaceholderItem, TextItem, TextLink, cut};
 use super::remote::Access;
 use super::select::{self, Action};
 use crate::MailApp;
@@ -69,6 +69,8 @@ pub struct Doc {
     pub responsive: bool,
     /// The window is dark and the message brings its own design for dark windows.
     pub sender_dark: bool,
+    /// What is shown is the message's text part: it has no HTML, or its HTML came to nothing here.
+    pub from_text: bool,
 }
 
 impl Doc {
@@ -92,21 +94,21 @@ impl Doc {
         let lists: Arc<[String]> = message.body.html.as_deref().map(mailcraft_html::media_lists).unwrap_or_default().into();
         let responsive = !lists.is_empty();
         let parsed = message.body.html.as_deref().map(|html| mailcraft_html::parse_in(html, &env));
-        let (blocks, sender_dark) = match parsed {
+        let (blocks, sender_dark, from_text) = match parsed {
             // HTML that came to nothing (only scripts, only pictures that can't be shown) falls back to the text.
             Some(read) if mailcraft_html::has_text(&read.blocks) || shows_a_picture(&read.blocks, message) || message.body.text.trim().is_empty() => {
-                (read.blocks, read.dark_design)
+                (read.blocks, read.dark_design, false)
             }
             Some(read) if can_download => {
                 let doc = Doc { lists: lists.clone(), responsive, sender_dark: read.dark_design, ..Doc::from_blocks(read.blocks) };
                 if !doc.remote.is_empty() {
                     return doc;
                 }
-                (mailcraft_html::text_blocks(&message.body.text), false)
+                (mailcraft_html::text_blocks(&message.body.text), false, true)
             }
-            _ => (mailcraft_html::text_blocks(&message.body.text), false),
+            _ => (mailcraft_html::text_blocks(&message.body.text), false, true),
         };
-        Doc { lists, responsive, sender_dark, ..Doc::from_blocks(blocks) }
+        Doc { lists, responsive, sender_dark, from_text, ..Doc::from_blocks(blocks) }
     }
 
     /// The blocks as a body, with what is known of their pictures on the web.
@@ -175,11 +177,13 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
                 spans,
                 quote: block.quote,
                 align: block.align,
+                rtl: block.rtl,
                 space: if n == 0 { block.space } else { 0 },
                 beside: n == 0 && block.beside,
                 gap: if n == 0 { block.gap } else { 0 },
                 line_height: block.line_height,
                 inset: block.inset,
+                image_padding: block.image_padding,
                 line: block.line,
             });
             cuts.push((n > 0).then_some(glue));
@@ -225,6 +229,9 @@ struct Key {
     /// `dark` (the page's) stays as it was. In the light theme the page is the window's own, and
     /// turning the switch lays nothing out again.
     light: bool,
+    /// High contrast, which the colours of the text are worked out for and which leaves out the
+    /// pictures behind boxes ([`super::backdrop::tint`]): turning it on or off lays out again.
+    high_contrast: bool,
     /// The display scale and the height of a line of text, as bits: the fonts or the zoom changed.
     scale: u32,
     line: u32,
@@ -283,6 +290,12 @@ fn same_body(a: &Message, b: &Message) -> bool {
 impl Store {
     fn of(ctx: &egui::Context) -> Arc<Mutex<Store>> {
         ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::unique("mailcraft-reading-bodies")).clone())
+    }
+
+    /// Let go of every body laid out, and the messages they were laid out from (the window is out
+    /// of sight, [`crate::out_of_sight`]): each is laid out again when it is next shown.
+    pub fn let_go(ctx: &egui::Context) {
+        Store::of(ctx).lock().unwrap_or_else(|e| e.into_inner()).entries.clear();
     }
 
     /// The entry for `message` shown at `place`, parsing its body when it is not known yet
@@ -486,6 +499,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         zoom: zoom.to_bits(),
         dark: t.dark,
         light: light && Tokens::get(&ctx).dark,
+        high_contrast: t.high_contrast,
         scale: ctx.pixels_per_point().to_bits(),
         line: ctx.fonts_mut(|f| f.row_height(&regular(super::layout::BASE_SIZE))).to_bits(),
         remote: showing.then(|| entry.doc.remote.iter().filter(|url| matches!(pictures.remote_peek(url), Some(Remote::Ready(_)))).count()),
@@ -698,6 +712,8 @@ pub fn paint(
     let mut hover = None;
     let mut on_picture = false;
     let mut pictures = None;
+    // What is left of the copies of pictures behind boxes this frame may paint.
+    let mut copies_left = super::backdrop::MAX_FRAME_TILES;
     for item in &laid.items {
         let rect = item.rect.translate(origin);
         if !clip.intersects(rect) {
@@ -725,9 +741,9 @@ pub fn paint(
                     marks.text(&mut galley, part);
                 }
                 if !flagged.is_empty() {
-                    for (range, url) in &text.links {
-                        if super::warnings::is_mismatched(url, flagged) {
-                            for r in char_rects(&galley, range) {
+                    for link in &text.links {
+                        if super::warnings::is_mismatched(&link.url, flagged) {
+                            for r in char_rects(&galley, &link.range) {
                                 painter.rect_stroke(
                                     r.translate(at.to_vec2()).expand(1.5),
                                     2.0,
@@ -738,7 +754,8 @@ pub fn paint(
                         }
                     }
                 }
-                painter.galley(at, galley, t.text);
+                painter.galley(at, Arc::clone(&galley), t.text);
+                paint_link_underlines(&painter, at, &galley, &text.links);
             }
             ItemKind::Picture(picture) => {
                 let store = pictures.get_or_insert_with(|| Pictures::of(&ctx));
@@ -759,6 +776,18 @@ pub fn paint(
                 on_picture |= over.is_some();
                 if over.is_some() && (picture.link.is_some() || !picture.alt.is_empty()) {
                     hover = Some(Hover { link: picture.link.clone(), note: (!picture.alt.is_empty()).then(|| picture.alt.clone()) });
+                }
+            }
+            ItemKind::Backdrop(behind) => {
+                let store = pictures.get_or_insert_with(|| Pictures::of(&ctx));
+                let state = store.lock().unwrap_or_else(|e| e.into_inner()).texture(&ctx, &behind.data, behind.tile);
+                match state {
+                    Picture::Ready(texture) => {
+                        let painted = super::backdrop::paint(&painter, rect, clip, behind, texture.id(), copies_left.max(16));
+                        copies_left = copies_left.saturating_sub(painted);
+                    }
+                    Picture::Pending => ctx.request_repaint(),
+                    Picture::Failed => {}
                 }
             }
             ItemKind::Placeholder(placeholder) => {
@@ -912,10 +941,42 @@ fn char_rects(galley: &egui::Galley, range: &std::ops::Range<usize>) -> Vec<Rect
     out
 }
 
+/// Draw each link just below its glyphs' baseline. egui's underline follows the bottom of
+/// the line box, which includes the extra spacing of a message's line height.
+pub(super) fn paint_link_underlines(painter: &egui::Painter, at: egui::Pos2, galley: &egui::Galley, links: &[TextLink]) {
+    let mut links = links.iter().peekable();
+    let mut row_start = 0;
+    for row in &galley.rows {
+        if links.peek().is_none() {
+            break;
+        }
+        let row_end = row_start + row.glyphs.len();
+        let origin = at + row.pos.to_vec2();
+        let visible = painter.clip_rect().intersects(row.rect().translate(at.to_vec2()));
+        while let Some(link) = links.peek().filter(|link| link.range.start < row_end) {
+            let from = link.range.start.saturating_sub(row_start);
+            let to = link.range.end.min(row_end).saturating_sub(row_start);
+            if visible
+                && link.underlined
+                && let Some(glyphs) = row.glyphs.get(from..to)
+                && let (Some(first), Some(last)) = (glyphs.first(), glyphs.last())
+            {
+                let y = glyphs.iter().map(|g| g.pos.y + (g.font_face_height * 0.10).max(1.0)).fold(0.0, f32::max);
+                painter.line_segment([origin + vec2(first.pos.x, y), origin + vec2(last.max_x(), y)], Stroke::new(1.0, link.ink));
+            }
+            if link.range.end > row_end {
+                break;
+            }
+            links.next();
+        }
+        row_start = row_end + usize::from(row.ends_with_newline);
+    }
+}
+
 /// The link of a laid-out text that a point (from the text's origin) is on.
 pub fn link_under(text: &TextItem, galley: &egui::Galley, point: egui::Vec2) -> Option<Arc<str>> {
     let index = char_at(galley, point)?;
-    text.links.iter().find(|(range, _)| range.contains(&index)).map(|(_, url)| url.clone())
+    text.links.iter().find(|link| link.range.contains(&index)).map(|link| Arc::clone(&link.url))
 }
 
 /// A list bullet: a disc, a ring or a square by the depth of the list, as in a browser.
@@ -938,7 +999,7 @@ fn bullet(painter: &egui::Painter, rect: Rect, depth: u8, color: Color32) {
 /// picture's description, when it has one. For one that was asked for and could not be had
 /// (`failed`) the mark is struck through, in the colour of a warning.
 fn stand_in(painter: &egui::Painter, rect: Rect, label: &str, paper: Paper, t: &Tokens, failed: bool) {
-    let ink = Paper { fill: paper.shade(t), own: paper.own }.text(t, true);
+    let ink = Paper { fill: paper.shade(t), own: paper.own, asked: None, picture: false }.text(t, true);
     let line = paper.line(t);
     painter.rect(rect, 4.0, paper.shade(t), Stroke::new(1.0, line), egui::StrokeKind::Inside);
     // The mark: a frame, a hill and a sun, drawn here (no artwork is taken from anywhere).

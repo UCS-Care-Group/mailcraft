@@ -11,12 +11,16 @@ use serde::{Deserialize, Serialize};
 use crate::{Account, Address, FlagStatus, FolderCounts, FolderKind, Id, Importance, Message};
 use mailcraft_time::Timestamp;
 
+mod directory;
 mod drafts;
 mod ews;
 mod jmap;
 mod place;
+#[cfg(test)]
+mod problems_tests;
 mod progress;
 mod search;
+pub use directory::*;
 pub use drafts::*;
 pub use ews::*;
 pub use jmap::*;
@@ -46,6 +50,11 @@ pub struct FolderState {
     /// mail kept with U+FFFD). A few at a time; the run asks for them without setting `\Seen`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub again: Vec<u32>,
+    /// What the server's STATUS said of the folder when it was last read whole, and is still
+    /// good to pass it over by (#276); `None` when it isn't. The engine drops it once it is
+    /// too old, so that every folder is read in full now and then.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<crate::ImapStatus>,
 }
 
 /// A change made here for the server to take on. Server mailboxes are named by their path
@@ -189,6 +198,30 @@ impl std::fmt::Debug for SyncRequest {
             .field("gmail_moves", &self.gmail_moves.len())
             .finish()
     }
+}
+
+/// What the watch on an IMAP account's Inbox (IDLE, #276) tells the window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdleNote {
+    /// The server says the Inbox has more messages than it had: a Send/Receive of the account
+    /// brings them.
+    Arrived,
+    /// The watch is over, and why.
+    Ended(IdleEnd),
+}
+
+/// Why a watch on an Inbox ended ([`IdleNote::Ended`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdleEnd {
+    /// It was told to stop.
+    Stopped,
+    /// The server can't do IDLE (or won't, for this mailbox): the account keeps to its timer.
+    NoIdle,
+    /// The server wouldn't have the sign-in, or there was nothing to sign in with: asking again
+    /// with the same credentials changes nothing.
+    Refused,
+    /// The connection kept dropping: the watch gave up for now, not to make a server's life hard.
+    TooOften,
 }
 
 /// What an OAuth sign-in brought back. Kept in memory only: it has no way to be written out, and
@@ -443,6 +476,15 @@ pub struct GraphFetchRequest {
     /// Nobody is waiting: it gets the share of requests background work has.
     #[serde(skip_serializing_if = "is_false")]
     pub background: bool,
+    /// The most bytes one message may come as: one larger is passed over, named in
+    /// [`GraphFetchResult::too_large`]. 0 is the host's own cap (160 MB); a phone asks for less
+    /// (MB3.17).
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub most_bytes: u64,
+    /// The most bytes the batch brings together: once past it, the messages not asked for yet
+    /// wait for the next batch (they are neither fetched nor failed). 0: no cap of its own.
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub most_total: u64,
 }
 
 /// What fetching brought: each message's MIME as it came, and what the server no longer has.
@@ -467,6 +509,10 @@ pub struct GraphFetchResult {
     /// up the rest. Opening one still asks for it.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub failed: Vec<String>,
+    /// Of `failed`, those larger than the request's [`GraphFetchRequest::most_bytes`] (or the
+    /// host's own cap): they wait until the owner opens them on a device that takes them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub too_large: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<String>,
     /// The server could not be reached: whatever wasn't fetched waits until it can.
@@ -541,6 +587,10 @@ pub struct FolderDelta {
     /// the folder has been read whole once ([`crate::Folder::read_whole`]).
     #[serde(skip_serializing_if = "is_false")]
     pub complete: bool,
+    /// With the piece that ends a folder's reading whole: what the server's STATUS said of it
+    /// before it was read ([`crate::Folder::imap_status`], #276).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<crate::ImapStatus>,
     /// Messages of [`FolderState::again`] downloaded again (`uid` set): only their subject,
     /// names and text are taken from them (#650).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -562,6 +612,20 @@ pub struct FolderDelta {
     /// ends the folder's reading; empty from every other server and folder.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub gmail: Vec<GmailSorted>,
+    /// For a folder of a Gmail account: Gmail's labels of the messages the mailbox already had
+    /// (`X-GM-LABELS`, #1153), as the server listed them with their flags; a new message comes
+    /// with its own in [`Message::gmail_labels`]. Empty from every other server.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_labels: Vec<GmailLabels>,
+}
+
+/// Gmail's labels of one message the mailbox already had ([`FolderDelta::gmail_labels`], #1153).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GmailLabels {
+    pub uid: u32,
+    /// As the server wrote them; cleaned when they are taken in ([`crate::gmail::tidy_labels`]).
+    pub labels: Vec<String>,
 }
 
 /// What Gmail said of one message of a Gmail account's Inbox ([`FolderDelta::gmail`], #911).
@@ -734,8 +798,14 @@ pub struct SyncResult {
     #[serde(skip_serializing_if = "is_zero_usize")]
     pub gmail_unsent: usize,
     /// Problems worth telling the user (one per failed step); empty when all went well. In a
-    /// piece of an answer: the problems since the piece before.
+    /// piece of an answer: the problems since the piece before. In English: what the CLI, MCP
+    /// and the log read.
     pub errors: Vec<String>,
+    /// The same problems as texts the window says in its language, for those a host said that
+    /// way ([`SyncResult::problem`]); [`SyncResult::problems`] pairs them with `errors`. Never
+    /// sent anywhere: an answer that crosses as JSON has the English only.
+    #[serde(skip)]
+    pub said: Vec<mailcraft_i18n::Text>,
     /// This is a piece of an answer, and more follows. The last piece doesn't have it.
     #[serde(skip_serializing_if = "is_false")]
     pub partial: bool,
@@ -756,6 +826,27 @@ pub struct SyncResult {
 }
 
 impl SyncResult {
+    /// Tell a problem: its English among `errors`, and the text it is made of for the window.
+    pub fn problem(&mut self, said: mailcraft_i18n::Text) {
+        self.errors.push(said.to_string());
+        self.said.push(said);
+    }
+
+    /// Each of `errors` as a text to say in the interface's language: the one a host told it
+    /// with ([`SyncResult::problem`]) when its English is that line still, else the line as it
+    /// is. (A line changed after it was told, a password blanked out of it say, is said as it
+    /// now stands.)
+    pub fn problems(&self) -> Vec<mailcraft_i18n::Text> {
+        let mut unused: Vec<Option<&mailcraft_i18n::Text>> = self.said.iter().map(Some).collect();
+        self.errors
+            .iter()
+            .map(|line| {
+                let found = unused.iter_mut().find(|t| t.is_some_and(|t| t.to_string() == *line)).and_then(Option::take);
+                found.cloned().unwrap_or_else(|| mailcraft_i18n::Text::verbatim(line.clone()))
+            })
+            .collect()
+    }
+
     pub fn new_count(&self) -> usize {
         self.folders.iter().map(|f| f.new.len()).sum()
     }
@@ -789,6 +880,33 @@ impl SyncResult {
     /// the same as taking in the one and then the other. What a mailbox's pieces say about it
     /// comes together under its name, its new messages in the order they came.
     pub fn absorb(&mut self, later: SyncResult) {
+        // Every field is taken in below: a field added later fails to compile here until it is.
+        let SyncResult {
+            account: _,
+            email: _,
+            folders: _,
+            listed: _,
+            sent: _,
+            filed: _,
+            unfiled: _,
+            unsure: _,
+            flagged: _,
+            moved: _,
+            deleted: _,
+            created: _,
+            placed: _,
+            unplaced: _,
+            gmail_moved: _,
+            gmail_refused: _,
+            gmail_unsent: _,
+            errors: _,
+            said: _,
+            partial: _,
+            progress: _,
+            step: _,
+            stopped: _,
+            timings: _,
+        } = &later;
         (self.account, self.email) = (later.account, later.email);
         (self.partial, self.progress, self.step, self.stopped) = (later.partial, later.progress, later.step, later.stopped);
         self.timings.absorb(&later.timings);
@@ -811,20 +929,51 @@ impl SyncResult {
         self.gmail_refused.extend(later.gmail_refused);
         self.gmail_unsent = self.gmail_unsent.saturating_add(later.gmail_unsent);
         self.errors.extend(later.errors);
+        self.said.extend(later.said);
         for delta in later.folders {
             match self.folders.iter_mut().find(|f| f.remote == delta.remote && f.uid_validity == delta.uid_validity) {
                 Some(folder) => {
-                    folder.id = folder.id.or(delta.id);
+                    // Every field named, so that one added later can't be left out of this
+                    // (#991: what was read again came with the last piece, and was lost).
+                    let FolderDelta {
+                        id,
+                        // The same mailbox, as the earlier piece named it.
+                        remote: _,
+                        kind: _,
+                        uid_validity: _,
+                        uid_seen,
+                        uid_from,
+                        new,
+                        flags,
+                        removed,
+                        complete,
+                        status,
+                        refetched,
+                        refetch_done,
+                        refetch_too_large,
+                        refetch_refused,
+                        gmail,
+                        gmail_labels,
+                    } = delta;
+                    folder.id = folder.id.or(id);
                     // The mailbox is read as far as the piece that got furthest says.
-                    folder.uid_seen = folder.uid_seen.max(delta.uid_seen);
-                    if delta.uid_from != 0 {
-                        folder.uid_from = delta.uid_from;
+                    folder.uid_seen = folder.uid_seen.max(uid_seen);
+                    if uid_from != 0 {
+                        folder.uid_from = uid_from;
                     }
-                    folder.new.extend(delta.new);
-                    folder.flags.extend(delta.flags);
-                    folder.removed.extend(delta.removed);
-                    folder.gmail.extend(delta.gmail);
-                    folder.complete |= delta.complete;
+                    folder.new.extend(new);
+                    folder.flags.extend(flags);
+                    folder.removed.extend(removed);
+                    folder.refetched.extend(refetched);
+                    folder.refetch_done.extend(refetch_done);
+                    folder.refetch_too_large.extend(refetch_too_large);
+                    folder.refetch_refused.extend(refetch_refused);
+                    folder.gmail.extend(gmail);
+                    folder.gmail_labels.extend(gmail_labels);
+                    folder.complete |= complete;
+                    if status.is_some() {
+                        folder.status = status;
+                    }
                 }
                 None => self.folders.push(delta),
             }
@@ -1034,6 +1183,11 @@ pub struct GraphMailRequest {
     /// asked for those ids after the rest of the run, at most [`MAX_THREAD_ASKS`] (#795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<String>,
+    /// On a device with limits (a phone, MB3.16): a folder listed from its start lists only mail
+    /// received at or after this time ([`crate::Mailbox::listed_since`]); its delta link goes on
+    /// with the same filter. `None`, a computer's: everything.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub since: Option<Timestamp>,
 }
 
 /// Most changes of messages one Graph run is asked to make; more go over several runs.
@@ -1181,6 +1335,15 @@ pub struct GraphLink {
     /// be passed over (#276).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub counts: Option<FolderCounts>,
+    /// The folder is listed afresh from its start, whatever `link` says (S11): what the listing
+    /// doesn't bring is gone here at the end of a whole run. A phone whose window was made longer
+    /// lists its folders so (MB3.16), to bring the older mail the window now covers.
+    #[serde(skip_serializing_if = "is_false")]
+    pub afresh: bool,
+    /// Which request for a listing afresh this is ([`crate::ServerFolder::relist_gen`]), echoed by
+    /// the first page of the listing it began.
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub relist_gen: u32,
 }
 
 /// A message as a folder's delta gives it: what the message list needs (R3 spec S9).
@@ -1234,6 +1397,10 @@ pub struct MessagePage {
     /// (R3 spec S11).
     #[serde(skip_serializing_if = "is_false")]
     pub afresh: bool,
+    /// For a page that begins a listing afresh that a request for one asked for: the request's
+    /// number ([`GraphLink::relist_gen`]), so that only that request is met by it.
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub relist_gen: u32,
     /// For a page that ends a round begun after this run's listing: the folder's counts in that
     /// listing, kept with the link ([`crate::ServerFolder::counts`], #276). Otherwise `None`,
     /// and the counts kept for the folder are forgotten with its old link.
@@ -1314,7 +1481,20 @@ pub enum ChangeOutcome {
     /// folder or under it that weren't there when the owner deleted it (mail that arrived since,
     /// a folder made elsewhere). The folder comes back as with a refusal.
     NotShown { items: u32 },
+    /// The server won't because the folder is one of its own (#1069): a default folder it keeps,
+    /// such as RSS Feeds, that no well-known name it answers to tells apart beforehand (Graph's
+    /// list of well-known folder names, learn.microsoft.com/graph/api/resources/mailfolder, has
+    /// no `rssfeeds`). It is put back as with a refusal, and marked as the server's own
+    /// ([`crate::ServerFolder::well_known`]) so it isn't offered for renaming, moving or deleting
+    /// again; this says why, in plain words.
+    OwnFolder { why: String },
 }
+
+/// The codes a Microsoft server answers a move or deletion of one of its own folders with (EWS's
+/// `ResponseCode` list, learn.microsoft.com/exchange/client-developer/web-service-reference/responsecode:
+/// `ErrorDeleteDistinguishedFolder`, `ErrorMoveDistinguishedFolder`), read in an EWS answer and
+/// in Graph's `error.code` alike, Graph's codes being Exchange's (#1069).
+pub const OWN_FOLDER_CODES: [&str; 2] = ["ErrorDeleteDistinguishedFolder", "ErrorMoveDistinguishedFolder"];
 
 /// A change and what became of it. A change that isn't answered (the server was busy, the
 /// connection went) is not here: it is worked out again for the next run.
