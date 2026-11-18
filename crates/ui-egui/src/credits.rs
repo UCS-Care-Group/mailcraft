@@ -263,11 +263,22 @@ fn name_link(ui: &mut egui::Ui, c: &Contributor, names: NameMode) {
     }
 }
 
+/// Keep the About Contributors toolbar's reading order natural in Hebrew without
+/// changing the sorting, keyboard actions, or left-to-right languages.
+fn contributors_toolbar_layout(lang: crate::i18n::Lang) -> egui::Layout {
+    let layout = if lang == crate::i18n::Lang::Hebrew {
+        egui::Layout::right_to_left(egui::Align::Center)
+    } else {
+        egui::Layout::left_to_right(egui::Align::Center)
+    };
+    layout.with_main_wrap(true)
+}
+
 /// About ▸ Contributors: a name toggle, a sort, and the list as a grab bag or a table.
 pub fn contributors_ui(ui: &mut egui::Ui, t: &Tokens) {
     let id = egui::Id::unique("credits_view");
     let mut v = ui.data_mut(|d| d.get_temp::<View>(id)).unwrap_or_default();
-    ui.horizontal_wrapped(|ui| {
+    ui.with_layout(contributors_toolbar_layout(crate::i18n::current()), |ui| {
         if ui.button(tl!(v.names.label())).on_hover_text(tl!("Show usernames, display names or real names")).clicked() {
             v.names = v.names.next();
         }
@@ -432,6 +443,15 @@ mod tests {
 
     fn logins(v: &[&Contributor]) -> Vec<&'static str> {
         v.iter().map(|c| c.login).collect()
+    }
+
+    #[test]
+    fn contributors_toolbar_follows_hebrew_reading_order_and_keeps_wrapping() {
+        let he = contributors_toolbar_layout(crate::i18n::Lang::Hebrew);
+        let en = contributors_toolbar_layout(crate::i18n::Lang::English);
+        assert_eq!(he.main_dir, egui::Direction::RightToLeft);
+        assert_eq!(en.main_dir, egui::Direction::LeftToRight);
+        assert!(he.main_wrap && en.main_wrap);
     }
 
     #[test]
