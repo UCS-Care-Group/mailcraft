@@ -39,7 +39,10 @@ const MAX_FOLDER_PAGES: usize = 4;
 const MAX_ROUNDS: usize = 400;
 #[cfg(test)]
 const MAX_ROUNDS: usize = 3;
+#[cfg(not(test))]
 const MAX_RELISTS: usize = 4;
+#[cfg(test)]
+const MAX_RELISTS: usize = 2;
 /// Most messages fetched whole in one fetch.
 const MAX_FETCH: usize = 100;
 /// Most bytes of MIME one fetch holds in memory at once: at [`crate::http::RESPONSE_LIMIT`] a
@@ -191,6 +194,10 @@ async fn changes<E: HttpExchange>(
 ) -> Result<String, Stop> {
     let mut listing = listing.clone();
     let mut relisted = 0;
+    // A folder a listing was asked about again and still doesn't name is no folder of mail — the
+    // chat history, a calendar: messages in it have left the mail, and no page after this one asks
+    // about it again.
+    let mut not_mail: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut since = request.token.clone();
     for _ in 0..MAX_ROUNDS {
         let answered = run.ask(delta::request(&run.base, &run.token, &since)).await?;
@@ -205,17 +212,18 @@ async fn changes<E: HttpExchange>(
         // A message that lies in a folder no listing knows may have gone to one made while the run
         // has been going on: the listing is asked for again, then the folder is known for
         // certain — a message in one it still doesn't name (the chat history, a calendar) has
-        // left the mail. Asked for again as often as new folders turn up, up to a cap: a listing
-        // that can't settle can't be trusted, and the run stops without its token.
+        // left the mail. Asked for again as often as new folders turn up, up to a cap: past it the
+        // run keeps the token of the last whole page, so folders a mailbox gains faster than this
+        // follows are caught up with by the run after, instead of failing from the start for ever.
         let mut mail: std::collections::HashSet<&str> = listing.folders.iter().map(|f| f.id.as_str()).collect();
-        while messages.iter().any(|m| !mail.contains(m.server.folder.as_str())) {
-            // A folder that is no folder of mail (the chat history, a calendar) is never in the
-            // listing: asking again for it for ever would end the run, so a listing that brings
-            // no new folder is the last word — what still isn't known has left the mail.
+        while messages.iter().any(|m| !mail.contains(m.server.folder.as_str()) && !not_mail.contains(m.server.folder.as_str())) {
+            // A folder that is no folder of mail is never in the listing: asking again for it for
+            // ever would end the run, so a listing that brings no new folder is the last word —
+            // what still isn't known has left the mail, and is asked about no more.
             let known = mail.len();
             relisted += 1;
             if relisted > MAX_RELISTS {
-                return Err(Stop::Failed(Error::Unreadable));
+                return Ok(since);
             }
             let listed = run.ask(folders::request(&run.base, &run.token)).await?;
             let again = folders::answer(&listed).map_err(Stop::Failed)?;
@@ -230,6 +238,7 @@ async fn changes<E: HttpExchange>(
             listing = again;
             mail = listing.folders.iter().map(|f| f.id.as_str()).collect();
             if mail.len() == known {
+                not_mail.extend(messages.iter().map(|m| m.server.folder.clone()).filter(|f| !mail.contains(f.as_str())));
                 break;
             }
         }

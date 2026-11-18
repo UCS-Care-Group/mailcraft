@@ -2,7 +2,7 @@
 # An entry marked fuzzy is a draft no native speaker has reviewed yet.
 msgid ""
 msgstr "Werkweek"
-"Project-Id-Version: MailCraft\n"
+"WerkweekProject-Id-Version: MailCraft\n"
 "Language: nl\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -683,7 +683,7 @@ msgid ""
 "About\n"
 "MailCraft"
 msgstr "Werkweek"
-"Info\n"
+"WerkweekInfo\n"
 "MailCraft"
 
 #. interface, name
@@ -826,7 +826,7 @@ msgid ""
 "Add\n"
 "Account"
 msgstr "Werkweek"
-"Account\n"
+"WerkweekAccount\n"
 "toevoegen"
 
 #. command label, interface
@@ -1029,7 +1029,7 @@ msgid ""
 "Add to\n"
 "Favorites"
 msgstr "Werkweek"
-"Toevoegen aan\n"
+"WerkweekToevoegen aan\n"
 "favorieten"
 
 #. command label, interface, ribbon
@@ -1751,7 +1751,7 @@ msgid ""
 "Arrange\n"
 "By"
 msgstr "Werkweek"
-"Rangschikken\n"
+"WerkweekRangschikken\n"
 "op"
 
 #. command label, ribbon
@@ -1993,7 +1993,7 @@ msgid ""
 "Attach\n"
 "File"
 msgstr "Werkweek"
-"Bestand\n"
+"WerkweekBestand\n"
 "bijvoegen"
 
 #. command label
@@ -2617,7 +2617,7 @@ msgid ""
 "Cancel\n"
 "All"
 msgstr "Werkweek"
-"Alles\n"
+"WerkweekAlles\n"
 "annuleren"
 
 #. command label
@@ -2825,7 +2825,7 @@ msgid ""
 "Change\n"
 "View"
 msgstr "Werkweek"
-"Weergave\n"
+"WerkweekWeergave\n"
 "wijzigen"
 
 #. command label
@@ -2969,7 +2969,7 @@ msgid ""
 "Check\n"
 "Names"
 msgstr "Werkweek"
-"Namen\n"
+"WerkweekNamen\n"
 "controleren"
 
 #. ribbon
@@ -3553,7 +3553,7 @@ msgid ""
 "Copy\n"
 "Diagnostics"
 msgstr "Werkweek"
-"Diagnose\n"
+"WerkweekDiagnose\n"
 "kopiëren"
 
 #. command label, interface
@@ -3980,7 +3980,7 @@ msgid ""
 "Date &\n"
 "Time"
 msgstr "Werkweek"
-"Datum &\n"
+"WerkweekDatum &\n"
 "tijd"
 
 #. command label
@@ -4106,7 +4106,7 @@ msgid ""
 "Delete\n"
 "Folder"
 msgstr "Werkweek"
-"Map\n"
+"WerkweekMap\n"
 "verwijderen"
 
 #. command label
@@ -4812,7 +4812,7 @@ msgid ""
 "Edit\n"
 "Contact"
 msgstr "Werkweek"
-"Contactpersoon\n"
+"WerkweekContactpersoon\n"
 "bewerken"
 
 #. ribbon
@@ -4821,7 +4821,7 @@ msgid ""
 "Edit\n"
 "Task"
 msgstr "Werkweek"
-"Taak\n"
+"WerkweekTaak\n"
 "bewerken"
 
 #. command label
@@ -4900,7 +4900,7 @@ msgid ""
 "Email\n"
 "Calendar"
 msgstr "Werkweek"
-"Agenda\n"
+"WerkweekAgenda\n"
 "e-mailen"
 
 #. command label, interface, name
@@ -4948,7 +4948,7 @@ msgid ""
 "Empty\n"
 "Folder"
 msgstr "Werkweek"
-"Map\n"
+"WerkweekMap\n"
 "leegmaken"
 
 #. command label, interface
@@ -5264,7 +5264,7 @@ msgid ""
 "Export\n"
 "Contacts"
 msgstr "Werkweek"
-"Contactpersonen\n"
+"WerkweekContactpersonen\n"
 "exporteren"
 
 #. ribbon
@@ -5273,7 +5273,7 @@ msgid ""
 "Export\n"
 "Folder"
 msgstr "Werkweek"
-"Map\n"
+"WerkweekMap\n"
 "exporteren"
 
 #. command label, interface
@@ -5394,7 +5394,7 @@ msgid ""
 "Filter\n"
 "Email"
 msgstr "Werkweek"
-"E-mail\n"
+"WerkweekE-mail\n"
 "filteren"
 
 #. command label, ribbon
@@ -5786,7 +5786,7 @@ msgid ""
 "Forward\n"
 "Contact"
 msgstr "Werkweek"
-"Contactpersoon\n"
+"WerkweekContactpersoon\n"
 "doorsturen"
 
 #. command label
@@ -5944,7 +5944,7 @@ msgid ""
 "Get\n"
 "Support"
 msgstr "Werkweek"
-"Ondersteuning\n"
+"WerkweekOndersteuning\n"
 "krijgen"
 
 #. command label
@@ -6044,7 +6044,7 @@ msgid ""
 "Gmail\n"
 "Categories"
 msgstr "Werkweek"
-"Gmail\n"
+"WerkweekGmail\n"
 "Categorieën"
 
 #. command label, ribbon
@@ -6370,7 +6370,7 @@ msgid ""
 "\n"
 "Thank you"
 msgstr "Werkweek"
-"Hallo,\n"
+"WerkweekHallo,\n"
 "\n"
 "Ik wil MailCraft graag gebruiken met mijn werkaccount. MailCraft is een open-sourceprogramma voor e-mail en agenda dat op mijn eigen computer draait. Onze organisatie laat alleen een beheerder een nieuw programma goedkeuren, dus het heeft eenmalig uw goedkeuring nodig, voor de hele organisatie. De pagina van Microsoft daarvoor is hier:\n"
 "\n"
@@ -6394,7 +6394,7 @@ msgid ""
 "\n"
 "Thank you"
 msgstr "Werkweek"
-"Hallo,\n"
+"WerkweekHallo,\n"
 "\n"
 "Ik wil MailCraft gebruiken met mijn werkaccount. MailCraft is een opensourceprogramma voor e-mail en agenda dat op mijn eigen telefoon draait. Onze organisatie laat alleen een beheerder een nieuw programma goedkeuren, dus het heeft eenmalig uw goedkeuring nodig, voor de hele organisatie. De pagina van Microsoft daarvoor staat hier:\n"
 "\n"
@@ -8500,7 +8500,7 @@ msgid ""
 "Mark\n"
 "Complete"
 msgstr "Werkweek"
-"Voltooid\n"
+"WerkweekVoltooid\n"
 "markeren"
 
 #. ribbon
@@ -8509,7 +8509,7 @@ msgid ""
 "Mark All\n"
 "as Read"
 msgstr "Werkweek"
-"Alles als\n"
+"WerkweekAlles als\n"
 "gelezen markeren"
 
 #. command label, interface
@@ -8603,7 +8603,7 @@ msgid ""
 "Merge\n"
 "Duplicates"
 msgstr "Werkweek"
-"Duplicaten\n"
+"WerkweekDuplicaten\n"
 "samenvoegen"
 
 #. command label
@@ -9006,7 +9006,7 @@ msgid ""
 "Move\n"
 "Folder"
 msgstr "Werkweek"
-"Map\n"
+"WerkweekMap\n"
 "verplaatsen"
 
 #. command label
@@ -9261,7 +9261,7 @@ msgid ""
 "Navigation\n"
 "Bar"
 msgstr "Werkweek"
-"Navigatie-\n"
+"WerkweekNavigatie-\n"
 "balk"
 
 #. command label, ribbon
@@ -9337,7 +9337,7 @@ msgid ""
 "New\n"
 "Appointment"
 msgstr "Werkweek"
-"Nieuwe\n"
+"WerkweekNieuwe\n"
 "afspraak"
 
 #. ribbon
@@ -9346,7 +9346,7 @@ msgid ""
 "New\n"
 "Contact"
 msgstr "Werkweek"
-"Nieuwe\n"
+"WerkweekNieuwe\n"
 "contactpersoon"
 
 #. ribbon
@@ -9355,7 +9355,7 @@ msgid ""
 "New\n"
 "Email"
 msgstr "Werkweek"
-"Nieuwe\n"
+"WerkweekNieuwe\n"
 "e-mail"
 
 #. ribbon
@@ -9364,7 +9364,7 @@ msgid ""
 "New\n"
 "Folder"
 msgstr "Werkweek"
-"Nieuwe\n"
+"WerkweekNieuwe\n"
 "map"
 
 #. ribbon
@@ -9373,7 +9373,7 @@ msgid ""
 "New\n"
 "Items"
 msgstr "Werkweek"
-"Nieuwe\n"
+"WerkweekNieuwe\n"
 "items"
 
 #. ribbon
@@ -9382,7 +9382,7 @@ msgid ""
 "New\n"
 "Meeting"
 msgstr "Werkweek"
-"Nieuwe\n"
+"WerkweekNieuwe\n"
 "vergadering"
 
 #. ribbon
@@ -9391,7 +9391,7 @@ msgid ""
 "New\n"
 "Task"
 msgstr "Werkweek"
-"Nieuwe\n"
+"WerkweekNieuwe\n"
 "taak"
 
 #. interface
@@ -9535,7 +9535,7 @@ msgid ""
 "Next 7\n"
 "Days"
 msgstr "Werkweek"
-"Komende\n"
+"WerkweekKomende\n"
 "7 dagen"
 
 #. command label
@@ -10851,7 +10851,7 @@ msgid ""
 "Open\n"
 "Calendar"
 msgstr "Werkweek"
-"Agenda\n"
+"WerkweekAgenda\n"
 "openen"
 
 #. interface, ribbon location
@@ -11597,7 +11597,7 @@ msgid ""
 "Plain\n"
 "Text"
 msgstr "Werkweek"
-"Tekst\n"
+"WerkweekTekst\n"
 "zonder opmaak"
 
 #. command label, ribbon
@@ -11635,7 +11635,7 @@ msgid ""
 "Pop\n"
 "Out"
 msgstr "Werkweek"
-"Los\n"
+"WerkweekLos\n"
 "koppelen"
 
 #. command label, interface
@@ -12067,7 +12067,7 @@ msgid ""
 "Recent\n"
 "Searches"
 msgstr "Werkweek"
-"Recente\n"
+"WerkweekRecente\n"
 "zoekopdrachten"
 
 #. command label, ribbon
@@ -12231,7 +12231,7 @@ msgid ""
 "Remove\n"
 "Attachment"
 msgstr "Werkweek"
-"Bijlage\n"
+"WerkweekBijlage\n"
 "verwijderen"
 
 #. command label, interface
@@ -12257,7 +12257,7 @@ msgid ""
 "Remove Imported\n"
 "Duplicates"
 msgstr "Werkweek"
-"Geïmporteerde\n"
+"WerkweekGeïmporteerde\n"
 "duplicaten verwijderen"
 
 #. command label, interface
@@ -12369,7 +12369,7 @@ msgid ""
 "Remove from\n"
 "Favorites"
 msgstr "Werkweek"
-"Verwijderen uit\n"
+"WerkweekVerwijderen uit\n"
 "favorieten"
 
 #. command label, interface
@@ -12472,7 +12472,7 @@ msgid ""
 "Rename\n"
 "Folder"
 msgstr "Werkweek"
-"Map\n"
+"WerkweekMap\n"
 "hernoemen"
 
 #. command label
@@ -12566,7 +12566,7 @@ msgid ""
 "Reply\n"
 "All"
 msgstr "Werkweek"
-"Allen\n"
+"WerkweekAllen\n"
 "beantwoorden"
 
 #. command label, interface
@@ -12613,7 +12613,7 @@ msgid ""
 "Report a\n"
 "Problem"
 msgstr "Werkweek"
-"Probleem\n"
+"WerkweekProbleem\n"
 "melden"
 
 #. command label, interface
@@ -12655,7 +12655,7 @@ msgid ""
 "Reset\n"
 "View"
 msgstr "Werkweek"
-"Weergave\n"
+"WerkweekWeergave\n"
 "herstellen"
 
 #. command label
@@ -12744,7 +12744,7 @@ msgid ""
 "Reverse\n"
 "Sort"
 msgstr "Werkweek"
-"Sortering\n"
+"WerkweekSortering\n"
 "omkeren"
 
 #. command label, interface
@@ -12792,7 +12792,7 @@ msgid ""
 "Ribbon\n"
 "Layout"
 msgstr "Werkweek"
-"Lint\n"
+"WerkweekLint\n"
 "indeling"
 
 #. command label, interface, ribbon
@@ -12899,7 +12899,7 @@ msgid ""
 "Run Rules\n"
 "Now"
 msgstr "Werkweek"
-"Regels nu\n"
+"WerkweekRegels nu\n"
 "uitvoeren"
 
 #. command label, interface
@@ -12979,7 +12979,7 @@ msgid ""
 "Save\n"
 "Calendar"
 msgstr "Werkweek"
-"Agenda\n"
+"WerkweekAgenda\n"
 "opslaan"
 
 #. ribbon
@@ -12988,7 +12988,7 @@ msgid ""
 "Save\n"
 "Draft"
 msgstr "Werkweek"
-"Concept\n"
+"WerkweekConcept\n"
 "opslaan"
 
 #. interface
@@ -13004,7 +13004,7 @@ msgid ""
 "Save All\n"
 "Attachments"
 msgstr "Werkweek"
-"Alle bijlagen\n"
+"WerkweekAlle bijlagen\n"
 "opslaan"
 
 #. command label
@@ -13304,7 +13304,7 @@ msgid ""
 "Search\n"
 "Calendar"
 msgstr "Werkweek"
-"Agenda\n"
+"WerkweekAgenda\n"
 "zoeken"
 
 #. ribbon
@@ -13313,7 +13313,7 @@ msgid ""
 "Search\n"
 "Commands"
 msgstr "Werkweek"
-"Opdrachten\n"
+"WerkweekOpdrachten\n"
 "zoeken"
 
 #. command label, interface, name
@@ -13588,7 +13588,7 @@ msgid ""
 "Send Status\n"
 "Report"
 msgstr "Werkweek"
-"Statusrapport\n"
+"WerkweekStatusrapport\n"
 "verzenden"
 
 #. command label
@@ -13789,7 +13789,7 @@ msgid ""
 "Send/Receive\n"
 "All Folders"
 msgstr "Werkweek"
-"Verzenden/ontvangen\n"
+"WerkweekVerzenden/ontvangen\n"
 "alle mappen"
 
 #. command label, interface
@@ -14146,7 +14146,7 @@ msgid ""
 "Show\n"
 "Message"
 msgstr "Werkweek"
-"Bericht\n"
+"WerkweekBericht\n"
 "weergeven"
 
 #. ribbon
@@ -14156,7 +14156,7 @@ msgid ""
 "Show\n"
 "Progress"
 msgstr "Werkweek"
-"Voortgang\n"
+"WerkweekVoortgang\n"
 "weergeven"
 
 #. ribbon
@@ -14165,7 +14165,7 @@ msgid ""
 "Show\n"
 "Training"
 msgstr "Werkweek"
-"Training\n"
+"WerkweekTraining\n"
 "weergeven"
 
 #. command label, interface, ribbon
@@ -14283,7 +14283,7 @@ msgid ""
 "Show as\n"
 "Conversations"
 msgstr "Werkweek"
-"Weergeven als\n"
+"WerkweekWeergeven als\n"
 "gesprekken"
 
 #. command label, interface
@@ -14480,7 +14480,7 @@ msgid ""
 "Side-by-\n"
 "Side"
 msgstr "Werkweek"
-"Naast\n"
+"WerkweekNaast\n"
 "elkaar"
 
 #. command label
@@ -16016,7 +16016,7 @@ msgid ""
 "\n"
 "Hide the copy under Shared Calendars? The shared mailbox's own calendar stays, and lets you change events, answer meeting requests and send from the mailbox where you may. Nothing on the server changes: right-click the shared mailbox's calendar to show the copy again."
 msgstr "Werkweek"
-"De agenda van het gedeelde postvak {address} wordt twee keer getoond: onder Mijn agenda's bij het gedeelde postvak, en onder Gedeelde agenda's als „{name}”, omdat die ook met u is gedeeld en geaccepteerd.\n"
+"WerkweekDe agenda van het gedeelde postvak {address} wordt twee keer getoond: onder Mijn agenda's bij het gedeelde postvak, en onder Gedeelde agenda's als „{name}”, omdat die ook met u is gedeeld en geaccepteerd.\n"
 "\n"
 "De kopie onder Gedeelde agenda's verbergen? De eigen agenda van het gedeelde postvak blijft, en daarmee kunt u gebeurtenissen wijzigen, vergaderverzoeken beantwoorden en verzenden vanuit het postvak waar u dat mag. Op de server verandert niets: klik met de rechtermuisknop op de agenda van het gedeelde postvak om de kopie weer te tonen."
 
@@ -16052,7 +16052,7 @@ msgid ""
 "\n"
 "Remove the copy opened by address? The other one stays, and nothing on the server changes."
 msgstr "Werkweek"
-"De agenda van {name} staat nu in uw agendalijst, omdat die met u is gedeeld en geaccepteerd. U hebt die ook op adres geopend, dus die staat er twee keer.\n"
+"WerkweekDe agenda van {name} staat nu in uw agendalijst, omdat die met u is gedeeld en geaccepteerd. U hebt die ook op adres geopend, dus die staat er twee keer.\n"
 "\n"
 "De kopie die op adres is geopend verwijderen? De andere blijft, en op de server verandert niets."
 
@@ -18442,7 +18442,7 @@ msgid ""
 "Tighter\n"
 "Spacing"
 msgstr "Werkweek"
-"Kleinere\n"
+"WerkweekKleinere\n"
 "afstand"
 
 #. command label
@@ -18540,7 +18540,7 @@ msgid ""
 "\n"
 "Until you allow it, your automatic replies aren't changed."
 msgstr "Werkweek"
-"Om de automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+"WerkweekOm de automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
 "Tot u het toestaat, worden uw automatische antwoorden niet gewijzigd."
 
@@ -18552,7 +18552,7 @@ msgid ""
 "\n"
 "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr "Werkweek"
-"Om de regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+"WerkweekOm de regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
 "Tot u het toestaat, blijven regels op deze computer en wordt er niets van naar Microsoft verzonden, worden uw automatische antwoorden niet gewijzigd en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
 
@@ -18564,7 +18564,7 @@ msgid ""
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
 msgstr "Werkweek"
-"Om de taken en automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+"WerkweekOm de taken en automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
 "Tot u het toestaat, blijven taken op deze computer en wordt er niets van naar Microsoft verzonden, en worden uw automatische antwoorden niet gewijzigd."
 
@@ -18576,7 +18576,7 @@ msgid ""
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
 msgstr "Werkweek"
-"Om de taken van {address} bij te houden met Microsoft To Do, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en taken te lezen en te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+"WerkweekOm de taken van {address} bij te houden met Microsoft To Do, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en taken te lezen en te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
 "\n"
 "Totdat u het toestaat, blijven taken op deze computer en wordt er niets van naar Microsoft verzonden."
 
@@ -18588,7 +18588,7 @@ msgid ""
 "\n"
 "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr "Werkweek"
-"Om de taken, regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+"WerkweekOm de taken, regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
 "Tot u het toestaat, blijven taken en regels op deze computer en wordt er niets van naar Microsoft verzonden, worden uw automatische antwoorden niet gewijzigd en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
 
@@ -18606,7 +18606,7 @@ msgid ""
 "\n"
 "Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr "Werkweek"
-"Om de gedeelde postvakken die u met {address} opent te lezen en eruit te verzenden, en om de met u gedeelde agenda's te tonen, heeft MailCraft uw toestemming nodig. De pagina van Microsoft wordt in uw browser geopend om u één keer te vragen naar alles wat MailCraft gebruikt en wat u nog niet hebt toegestaan.\n"
+"WerkweekOm de gedeelde postvakken die u met {address} opent te lezen en eruit te verzenden, en om de met u gedeelde agenda's te tonen, heeft MailCraft uw toestemming nodig. De pagina van Microsoft wordt in uw browser geopend om u één keer te vragen naar alles wat MailCraft gebruikt en wat u nog niet hebt toegestaan.\n"
 "\n"
 "Totdat u het toestaat, wordt er niets van die postvakken en agenda's gelezen, wachten e-mail en antwoorden op vergaderingen uit een gedeeld postvak op deze computer, en wordt er in hun plaats niets vanaf uw eigen adres verzonden."
 
@@ -18898,7 +18898,7 @@ msgid ""
 "Unread/\n"
 "Read"
 msgstr "Werkweek"
-"Ongelezen/\n"
+"WerkweekOngelezen/\n"
 "Gelezen"
 
 #. command label
@@ -19444,7 +19444,7 @@ msgid ""
 "What's\n"
 "New"
 msgstr "Werkweek"
-"Wat is\n"
+"WerkweekWat is\n"
 "nieuw"
 
 #. command label
@@ -19552,7 +19552,7 @@ msgid ""
 "Word\n"
 "Count"
 msgstr "Werkweek"
-"Aantal\n"
+"WerkweekAantal\n"
 "woorden"
 
 #. command label, interface
@@ -19584,7 +19584,7 @@ msgid ""
 "Work\n"
 "Offline"
 msgstr "Werkweek"
-"Offline\n"
+"WerkweekOffline\n"
 "werken"
 
 #. ribbon
