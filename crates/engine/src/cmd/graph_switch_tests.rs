@@ -356,3 +356,15 @@ fn a_message_put_aside_whose_draft_went_with_the_switch_counts_as_not_saved_too(
     assert!(c.draft.is_none() && c.dirty, "{:?}", (c.draft, c.dirty));
     assert_eq!(c.subject, "Written elsewhere");
 }
+
+#[test]
+fn a_switched_account_has_no_calendar_and_contacts_server_of_its_own() {
+    let (mut s, ids) = mailbox();
+    s.mailbox.account_mut(ids.account).unwrap().dav =
+        Some(mailcraft_model::DavServer { calendar_homes: vec!["https://dav.example.org/cal/".into()], ..Default::default() });
+    let dir = scratch("dav");
+    s.path = Some(dir.join("mailbox.mailcraft"));
+    assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["switched"], json!(true));
+    assert!(s.mailbox.account(ids.account).unwrap().dav.is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}

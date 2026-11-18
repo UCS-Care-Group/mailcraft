@@ -169,7 +169,7 @@ jobs:
       # `cargo xtask release-key new`): the runner's OpenSSL, as a tag's run uses it, must make
       # the very signature `cargo xtask release-key sign` makes. This job holds no secret, so it
       # may build; the job that holds the real key never does.
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
       - name: OpenSSL signs as xtask does, with a throwaway key
@@ -194,6 +194,16 @@ jobs:
           name: dry-run-sums
           path: artifacts/SHA256SUMS.txt*
           if-no-files-found: error
+
+  # The Android app end to end on an emulator against the Graph stand-in (MB3.15), for every
+  # release tag and dry run. It holds no secret and gates nothing yet: the Android app is not in a
+  # release. A failure shows on the run.
+  android-e2e:
+    name: Android end to end
+    needs: [version]
+    uses: ./.github/workflows/android-e2e.yml # zizmor: ignore[self-repository]
+    permissions:
+      contents: read
 
   # A pushed version tag: signed, in the `release` environment (package.yml's signing jobs).
   package:

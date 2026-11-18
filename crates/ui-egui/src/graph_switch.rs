@@ -163,7 +163,7 @@ fn show_copying(app: &mut MailApp, ctx: &egui::Context, account: Id) -> bool {
     let whose = address(app, account);
     let open = window(ctx, tl!("Switch to Microsoft Graph"), 520.0, |ui| {
         ui.horizontal(|ui| {
-            ui.add(egui::Spinner::new().size(18.0));
+            crate::software::spinner(ui, 18.0, None);
             ui.add_space(6.0);
             ui.label(egui::RichText::new(tl!("Saving a copy of your mailbox before the switch…")).font(semibold(13.0)));
         });
@@ -177,7 +177,7 @@ fn show_copying(app: &mut MailApp, ctx: &egui::Context, account: Id) -> bool {
         );
     });
     // The spinner turns while the copy is written.
-    ctx.request_repaint_after(std::time::Duration::from_millis(100));
+    crate::software::repaint_after(ctx, std::time::Duration::from_millis(100));
     !open || !copying(app, account)
 }
 

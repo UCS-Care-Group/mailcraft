@@ -42,6 +42,9 @@ struct Misbehaviour {
     /// The first request of this operation is done, and its answer is never sent: the connection
     /// is dropped.
     drop_answer_of: Option<&'static str>,
+    /// An NTLM sign-in covers the one request it came with (IIS `Persistent-Auth: false`): the
+    /// answer says so, and the next request on the connection without credentials gets 401.
+    one_request_per_sign_in: bool,
 }
 
 pub(crate) struct Server {
@@ -112,9 +115,17 @@ fn read_request(stream: &mut TcpStream) -> std::io::Result<Option<(Vec<(String, 
 }
 
 fn write_answer(stream: &mut TcpStream, status: u16, challenges: &[String], body: &[u8], keep: bool) -> std::io::Result<()> {
+    write_answer_with(stream, status, challenges, body, keep, &[])
+}
+
+/// [`write_answer`] with more fields in the head (`Persistent-Auth: false`).
+fn write_answer_with(stream: &mut TcpStream, status: u16, challenges: &[String], body: &[u8], keep: bool, more: &[&str]) -> std::io::Result<()> {
     let mut out = format!("HTTP/1.1 {status} Answer\r\nContent-Length: {}\r\nContent-Type: text/xml\r\n", body.len());
     for challenge in challenges {
         out.push_str(&format!("WWW-Authenticate: {challenge}\r\n"));
+    }
+    for field in more {
+        out.push_str(&format!("{field}\r\n"));
     }
     out.push_str(if keep { "Connection: keep-alive\r\n\r\n" } else { "Connection: close\r\n\r\n" });
     stream.write_all(out.as_bytes())?;
@@ -201,7 +212,13 @@ fn connection(
         }
         let challenges = if response.status() == 401 { vec!["Basic realm=\"exchange\"".to_owned()] } else { Vec::new() };
         let keep = mode != Mode::Basic;
-        write_answer(&mut stream, response.status(), &challenges, response.body(), keep)?;
+        // A sign-in kept for this request alone: said in the answer, and gone after it.
+        let forget = mode == Mode::Ntlm && misbehaves.lock().unwrap().one_request_per_sign_in;
+        let more: &[&str] = if forget { &["Persistent-Auth: false"] } else { &[] };
+        write_answer_with(&mut stream, response.status(), &challenges, response.body(), keep, more)?;
+        if forget {
+            (signed_in, challenge, negotiate) = (false, Vec::new(), String::new());
+        }
         if !keep {
             return Ok(());
         }
@@ -211,7 +228,8 @@ fn connection(
 fn window(server: &Server) -> (MailApp, Id) {
     let session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let ctx = egui::Context::default();
     let (run_ctx, fetch_ctx) = (ctx.clone(), ctx);
     app.services.ews = Some(Box::new(move |job| crate::ews_runner::run_mail(job, &run_ctx)));
@@ -283,6 +301,53 @@ fn a_server_that_signs_in_with_kerberos_alone_is_told_in_words_and_asked_nothing
     assert!(app.dialog.is_none());
     // No credential of any kind was sent.
     assert!(server.schemes.lock().unwrap().iter().all(String::is_empty));
+}
+
+#[test]
+fn a_server_that_keeps_a_sign_in_for_one_request_is_signed_in_to_again_for_each_one() {
+    // #1085: IIS with `Persistent-Auth: false` turns down a request sent on the signed-in
+    // connection without credentials. Each such request is signed in again, once, on a new
+    // connection, and the run goes on: mail comes down and a message goes once.
+    let server = serve(Mode::Ntlm);
+    for subject in ["Kickoff", "Budget", "Agenda"] {
+        server.standin.state().deliver("inbox", subject, false);
+    }
+    server.misbehaves.lock().unwrap().one_request_per_sign_in = true;
+    let (mut app, account) = window(&server);
+    first_run(&mut app, account);
+    for subject in ["Kickoff", "Budget", "Agenda"] {
+        assert!(here(&app, account, subject).is_some(), "{subject}");
+    }
+    // One connection to learn the offer, then one fresh sign-in for every request served: none
+    // signed in twice, and no refused request tried more than once.
+    let served = server.standin.state().requests.len();
+    assert!(served > 3, "{served}");
+    assert_eq!(server.connections.load(Ordering::Relaxed), 1 + served);
+    assert!(server.schemes.lock().unwrap().iter().all(|s| s.is_empty() || s == "ntlm" || s == "anonymous-with-body"));
+
+    write_and_send(&mut app, account, "Quarterly");
+    send_receive(&mut app, json!({"account": account}));
+    assert!(app.session.sync_status.starts_with("Up to date"), "{}", app.session.sync_status);
+    let outbox = app.session.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
+    assert_eq!(app.session.mailbox.messages_in(outbox).count(), 0);
+    assert_eq!(server.standin.state().outgoing.len(), 1, "sent once");
+}
+
+#[test]
+fn a_wrong_password_on_a_server_that_keeps_a_sign_in_for_one_request_is_still_turned_down_once() {
+    let server = serve(Mode::Ntlm);
+    server.standin.state().deliver("inbox", "Kickoff", false);
+    server.misbehaves.lock().unwrap().one_request_per_sign_in = true;
+    let (mut app, account) = window(&server);
+    send_receive(&mut app, json!({"account": account, "password": "not the password"}));
+    let status = app.session.sync_status.clone();
+    assert!(status.starts_with("The server turned down the sign-in for"), "{status}");
+    // Nothing of the sign-in is in what the person is told.
+    assert!(!status.contains("NTLM") && !status.contains("not the password") && !status.contains(USER), "{status}");
+    assert!(here(&app, account, "Kickoff").is_none());
+    // The offer, then one sign-in that was refused: not tried again.
+    assert_eq!(server.connections.load(Ordering::Relaxed), 2);
+    assert_eq!(send_receive(&mut app, json!({"account": account}))["pending"], "password");
 }
 
 #[test]

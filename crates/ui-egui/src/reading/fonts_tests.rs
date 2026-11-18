@@ -215,3 +215,22 @@ fn the_reading_pane_lays_a_message_out_again_once_its_font_has_come() {
     .unwrap();
     assert_eq!(families, vec![family_of("inter", false)]);
 }
+
+#[test]
+fn bold_text_in_the_fixed_width_font_without_its_bold_face_keeps_the_regular_face() {
+    // #969: a bold line of text art keeps its columns, as it does while it is written.
+    let dir = installed("courier");
+    // Courier New's regular face alone, as the composer's fonts are found at start.
+    let faces = FontsDir::new("courier-faces");
+    faces.put("cour.ttf", MONO);
+    let system = crate::theme::SystemFont::none().with_document_faces(std::slice::from_ref(&faces.0));
+    let ctx = egui::Context::default();
+    ctx.set_fonts(crate::theme::font_definitions_with(&system));
+    ctx.run_ui(egui::RawInput::default(), |_| {}).drop_without_applying_deltas();
+    Store::use_index(&ctx, dir.index());
+    let courier = mailcraft_model::rich::Font::parse("Courier New").unwrap();
+    let html = "<p style=\"font-family:'Courier New', Courier, monospace\"><b>+--+</b> |  |</p>";
+    families(&ctx, html);
+    pass(&ctx, |_| {});
+    assert_eq!(families(&ctx, html), vec![crate::theme::document_family(courier, false)]);
+}

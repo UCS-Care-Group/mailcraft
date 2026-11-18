@@ -79,6 +79,30 @@ impl MailApp {
         self.session.mailbox.ews_owner_of(account).map_or(account, |owner| owner.id)
     }
 
+    /// The server of `account` turned its password down: the next Send/Receive asks for it again,
+    /// and no round by itself goes back until then. What the system remembered is no good either.
+    /// For a shared mailbox (#482) that is its owner's password, and neither goes back by itself.
+    pub(crate) fn ews_password_refused(&mut self, account: Id) {
+        let signer = self.ews_sign_in_of(account);
+        self.passwords.remove(&signer);
+        self.jmap_refused.insert(account);
+        self.jmap_refused.insert(signer);
+        if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(signer)) {
+            let key = Self::secret_key("password", a);
+            store.delete(&key);
+            self.secret_cache.remove(&key);
+        }
+    }
+
+    /// The server of `account` turned down `used`, the password a look-up went with: forgotten as
+    /// [`Self::ews_password_refused`] says, unless the owner has given another meanwhile, which is
+    /// kept.
+    pub(crate) fn ews_password_refused_with(&mut self, account: Id, used: &str) {
+        if self.ews_secret(account).as_deref() == Some(used) {
+            self.ews_password_refused(account);
+        }
+    }
+
     /// A Send/Receive of the Exchange server account `account`; `p` may carry the password the owner
     /// has just typed, and `inboxPass` asks for the Inbox alone. Asks for the password the first time.
     pub(crate) fn start_ews_mail(&mut self, account: Id, quiet: bool, p: &Value) -> Result<Value, String> {
@@ -154,7 +178,7 @@ impl MailApp {
             self.sync_refused |= piece.auth_refused;
             // New mail may be waiting to be fetched whole: the background looks again.
             if !piece.pages.is_empty() {
-                self.fetching.wake();
+                self.session.driver.fetch.wake();
             }
             let untrusted = !piece.untrusted.is_empty();
             // The server answered with its folders or its mail: it took the password (#802).
@@ -200,7 +224,7 @@ impl MailApp {
                 }
                 Err(e) => {
                     self.status(e.to_string());
-                    self.send_doubt = true;
+                    self.session.driver.sending.doubted();
                     // A piece that was refused is not skipped over: the run is called off, and the
                     // pages after it (read from the state it would have kept) are left out by the
                     // engine, whichever of them still come ([`apply_ews_mail`]).
@@ -213,25 +237,16 @@ impl MailApp {
                 continue;
             }
             // The run is over.
+            self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
-            self.run_answered(account);
+            self.session.send_run_answered(account);
             // Called off for something else (a shared mailbox's first read): it goes on after.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
-                self.sync_queue.push_front((whose, quiet));
+                self.session.driver.round.queue.push_front((whose, quiet));
             }
             if std::mem::take(&mut self.sync_refused) {
-                // Turned down: the next Send/Receive asks for it again, and no round by itself goes
-                // back until then. What the system remembered is no good either.
-                let signer = self.ews_sign_in_of(account);
-                self.passwords.remove(&signer);
-                self.jmap_refused.insert(account);
-                self.jmap_refused.insert(signer);
-                if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(signer)) {
-                    let key = Self::secret_key("password", a);
-                    store.delete(&key);
-                    self.secret_cache.remove(&key);
-                }
+                self.ews_password_refused(account);
             } else if untrusted {
                 // The certificate question comes first (File › Info): no round by itself tries again.
                 self.jmap_refused.insert(account);

@@ -59,7 +59,7 @@ impl MailApp {
     /// The owner asked for the calendar of `address` under `account` (the dialog's Open): the
     /// address is put on the list and read by the next calendar job, which starts at once.
     pub(crate) fn begin_open_shared(&mut self, account: Id, address: &str) -> Result<(), String> {
-        if self.graph_consent_needed.contains(&account) {
+        if self.session.driver.calendar.consent_needed.contains(&account) {
             return Err(tl!("The calendar needs your permission first: File › Info › Connect calendar and contacts").to_string());
         }
         let opened = self.execute("calendar.openShared", json!({"account": account, "address": address}))?;
@@ -73,10 +73,10 @@ impl MailApp {
     /// Have the account's calendar job read what was opened by address without waiting for the
     /// next quarter of an hour (the wide stretch is what lists the calendars).
     pub(crate) fn read_opened_now(&mut self, account: Id) {
-        self.graph_checked.remove(&account);
-        self.calendar.checked.remove(&account);
-        self.calendar.failures.remove(&account);
-        self.calendar.due = true;
+        self.session.driver.calendar.checked.remove(&account);
+        self.session.driver.calendar.book.forget_checked(account);
+        self.session.driver.calendar.book.forget_failures(account);
+        self.session.driver.calendar.due = true;
     }
 
     /// What taking in the account's list of calendars said of those opened by address

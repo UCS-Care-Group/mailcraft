@@ -47,7 +47,7 @@ pub fn lookup_mx_at(endpoints: &[&str], domain: &str) -> Result<Vec<String>, Net
     // Nothing goes out for a name that isn't a domain's.
     let Some(domain) = domain_name(domain) else {
         let shown: String = domain.chars().filter(|c| !c.is_control()).take(80).collect();
-        return Err(NetError::Config(format!("\"{shown}\" isn't a domain that mail could go to")));
+        return Err(NetError::Config(format!("\"{shown}\" isn't a domain that mail could go to").into()));
     };
     let mut failure = None;
     for endpoint in endpoints.iter().take(MAX_RESOLVERS) {
@@ -82,7 +82,7 @@ pub(crate) fn domain_name(text: &str) -> Option<String> {
 /// The mail exchangers in a name server's answer: `{"Status":0,"Answer":[{"type":15,"data":"10 mx.example.org."}]}`.
 /// Whatever else is in there, and whatever isn't a host name, is passed over.
 fn exchangers(answer: &Answer) -> Result<Vec<String>, NetError> {
-    let nonsense = |text: String| NetError::Proto(ProtoError::Protocol(text));
+    let nonsense = |text: String| NetError::Proto(ProtoError::Protocol(text.into()));
     if answer.status != 200 {
         return Err(nonsense(format!("the name server answered with status {}", answer.status)));
     }
@@ -92,7 +92,7 @@ fn exchangers(answer: &Answer) -> Result<Vec<String>, NetError> {
     match status {
         NO_ERROR => {}
         NO_SUCH_DOMAIN => return Ok(Vec::new()),
-        other => return Err(NetError::Proto(ProtoError::Rejected(format!("the name server couldn't look the domain up (code {other})")))),
+        other => return Err(NetError::Proto(ProtoError::Rejected(format!("the name server couldn't look the domain up (code {other})").into()))),
     }
     let records = json.get("Answer").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
     let mut found: Vec<(u16, String)> = Vec::new();
@@ -324,7 +324,7 @@ mod tests {
         let too_many = records(&data.iter().map(String::as_str).collect::<Vec<_>>());
         let server = FakeHttp::answering(ok(&too_many));
         let refused = lookup_mx_at(&[&server.url("/q")], "example.org");
-        assert!(matches!(&refused, Err(NetError::Proto(ProtoError::Protocol(why))) if why.contains("longer than 64 KB")), "{refused:?}");
+        assert!(matches!(&refused, Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().contains("longer than 64 KB")), "{refused:?}");
         let endless = format!("HTTP/1.1 200 OK\r\n\r\n{too_many}");
         let server = FakeHttp::answering(endless.into_bytes());
         assert!(matches!(lookup_mx_at(&[&server.url("/q")], "example.org"), Err(NetError::Proto(ProtoError::Protocol(_)))));
@@ -364,7 +364,7 @@ mod tests {
         ] {
             let refused = lookup_mx_at(&[&endpoint], bad);
             assert!(
-                matches!(&refused, Err(NetError::Config(why)) if !why.contains('\r') && !why.contains('\0') && why.len() < 200),
+                matches!(&refused, Err(NetError::Config(why)) if !why.to_string().contains('\r') && !why.to_string().contains('\0') && why.to_string().len() < 200),
                 "{bad:?}: {refused:?}"
             );
             // The real name servers are no more asked than the fake one.

@@ -3,10 +3,10 @@
 //! mbox files (RFC 4155, in the `mboxrd` flavour): messages one after another, each after a
 //! `From ` line.
 
-use mailcraft_model::Message;
+use crate::Message;
 use mailcraft_time::{DateTime, month_short};
 
-use crate::{WriteOptions, header, parse, write};
+use crate::{WriteOptions, header, parse_fetched, write};
 
 /// Read an mbox file.
 ///
@@ -14,7 +14,8 @@ use crate::{WriteOptions, header, parse, write};
 /// starts the file) or holds a time (`12:08:34`), as the separator lines of every mbox writer
 /// do. In the messages `>From ` lines lose one `>` (the `mboxrd` rule, which also reads `mboxo`
 /// files). Bytes before the first separator are read as a message too, so a lone `.eml` gives one
-/// message. Each message is read with [`parse()`], which never fails.
+/// message. Each message is read with [`crate::parse_fetched`], which never fails: a Digitally
+/// signed or Encrypted one keeps the bytes it came as.
 pub fn parse_mbox(bytes: &[u8]) -> Vec<Message> {
     mbox_messages(bytes).collect()
 }
@@ -74,6 +75,27 @@ impl Iterator for MboxMessages<'_> {
     }
 }
 
+/// How many messages an mbox file holds, by the separator lines [`mbox_messages`] cuts it at,
+/// without reading any of them (one that turns out empty is counted too): for a question asked
+/// before an import (#1401).
+pub fn count_mbox(bytes: &[u8]) -> usize {
+    let (mut pos, mut previous_blank, mut n, mut before) = (0usize, true, 0usize, false);
+    while pos < bytes.len() {
+        let (line, next) = header::line_at(bytes, pos);
+        if line.starts_with(b"From ") && (previous_blank || has_time(line)) {
+            n = n.saturating_add(1);
+        } else if n == 0 && !line.is_empty() {
+            before = true;
+        }
+        previous_blank = line.is_empty();
+        if next <= pos {
+            break;
+        }
+        pos = next;
+    }
+    n.saturating_add(usize::from(before))
+}
+
 /// Parse a message cut out of an mbox, without the empty line that ended it there.
 fn finish(message: Option<Vec<u8>>) -> Option<Message> {
     let mut bytes = message?;
@@ -82,7 +104,7 @@ fn finish(message: Option<Vec<u8>>) -> Option<Message> {
     } else if bytes.ends_with(b"\n\n") {
         bytes.truncate(bytes.len() - 1);
     }
-    if bytes.iter().all(u8::is_ascii_whitespace) { None } else { Some(parse(&bytes)) }
+    if bytes.iter().all(u8::is_ascii_whitespace) { None } else { Some(parse_fetched(&bytes)) }
 }
 
 /// Whether a line holds a clock time (`hh:mm`), as mbox separator lines do.
@@ -134,7 +156,7 @@ pub fn write_mbox(messages: &[&Message], opts: &WriteOptions) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use mailcraft_model::{Address, Body};
+    use crate::{Address, Body};
 
     use super::*;
 
@@ -143,7 +165,6 @@ mod tests {
             from: Address { name: "Ada".into(), email: "ada@example.org".into() },
             subject: subject.into(),
             date: 1_057_049_557,
-            received: 1_057_049_557,
             body: Body { text: text.into(), html: None },
             ..Message::default()
         }

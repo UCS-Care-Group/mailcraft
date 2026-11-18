@@ -235,7 +235,7 @@ fn on_graph(name: &str, answer: fn() -> crate::GraphResult) -> (MailApp, Id, Arc
     app.offer_graph_switch = false;
     app.dialog = None;
     // Only the runs the tests start (no round of Send/Receive by itself).
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     app.session.mailbox.account_mut(account).unwrap().kind = AccountKind::Microsoft;
     let refresh = Tokens { access: String::new(), refresh: "kept-refresh".into(), expires_at: 0, ..Default::default() };
     app.tokens.insert(account, refresh);

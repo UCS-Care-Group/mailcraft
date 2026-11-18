@@ -53,18 +53,37 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-/// An agent without Delete doesn't undo or redo a step that takes a message away (#473): refused
-/// before anything moves, so the stacks stay as they are.
+/// An agent without Delete doesn't undo or redo a step that takes a message away (#473), or that
+/// has a category deleted in Outlook (#661): refused before anything moves, so the stacks stay as
+/// they are.
 fn refuse_taking_mail(s: &Session, id: &str, redo: bool) -> Result<(), CmdError> {
     match &s.agent {
         Some(allow) if !allow.contains(&crate::agent::Class::Delete) && s.undo_takes_mail(redo) => {
             Err(CmdError::Failed(crate::agent::needs_owner(id, crate::agent::Class::Delete, false, "take away messages; nothing was changed")))
         }
+        Some(allow) if !allow.contains(&crate::agent::Class::Delete) && !s.undo_deletes_categories(redo).is_empty() => Err(CmdError::Failed(
+            crate::agent::needs_owner(id, crate::agent::Class::Delete, false, "delete categories in Outlook; nothing was changed"),
+        )),
         _ => Ok(()),
     }
 }
 
+/// The step is not taken while it would put a message being written back in an Outbox or take it
+/// away under its composer (#950): written there, it could be sent with its edits lost, twice,
+/// or deleted with its queued copy.
+fn refuse_under_composer(s: &Session, redo: bool) -> Result<(), CmdError> {
+    // An agent the owner allowed to delete has been asked already (#473), so taking the message
+    // away is let be for it (the composer keeps what it holds and saves it again); putting it back
+    // in an Outbox never is, whoever asks.
+    let held = s.all_composing().filter_map(|c| c.draft).filter(|d| s.undo_changes_message(redo, *d)).any(|d| {
+        let (takes, queues) = s.undo_takes_or_queues(redo, d);
+        queues || (takes && s.agent.is_none())
+    });
+    if held { Err(fail("that step changes a message that is open for writing: close it first")) } else { Ok(()) }
+}
+
 fn undo(s: &mut Session, _: &Value) -> CmdResult {
+    refuse_under_composer(s, false)?;
     refuse_taking_mail(s, "edit.undo", false)?;
     let label = s.undo_label();
     s.undo();
@@ -73,6 +92,7 @@ fn undo(s: &mut Session, _: &Value) -> CmdResult {
 }
 
 fn redo(s: &mut Session, _: &Value) -> CmdResult {
+    refuse_under_composer(s, true)?;
     refuse_taking_mail(s, "edit.redo", true)?;
     let label = s.redo_label();
     s.redo();

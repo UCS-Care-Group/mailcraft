@@ -264,7 +264,7 @@ pub(crate) fn capped_vec<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deseria
 
 /// `deserialize_with` for the messages of a mailbox ([`crate::Messages`]).
 pub(crate) fn capped_messages<'de, D: Deserializer<'de>>(deserializer: D) -> Result<crate::Messages, D::Error> {
-    capped_map::<D, std::sync::Arc<crate::Message>>(deserializer).map(crate::Messages::from)
+    capped_map::<D, std::sync::Arc<crate::Message>>(deserializer).map(crate::Messages::read)
 }
 
 /// `deserialize_with` for a list of ids a file may have got wrong (the owner's order of the
@@ -347,6 +347,36 @@ pub(crate) fn capped_lists<'de, D: Deserializer<'de>, T: DeserializeOwned>(deser
             kept.extend(from_value::<T>(&item).ok());
         }
         out.insert(id, kept);
+    }
+    Ok(out)
+}
+
+/// `deserialize_with` for names by name, by id (the renames of each account's list of categories
+/// that wait on its server, #661): each entry counts as it is read; at most
+/// [`crate::MAX_CATEGORIES`] are kept an account, each name a short one; and what isn't such a map
+/// or such a name is left out, which never costs the owner the whole file.
+pub(crate) fn capped_renames<'de, D: Deserializer<'de>>(deserializer: D) -> Result<BTreeMap<Id, BTreeMap<String, String>>, D::Error> {
+    // (A name's key, in lower case, may have a few more characters than the name.)
+    let short = |n: &str| n.chars().count() <= crate::MAX_NAME.saturating_mul(4);
+    let mut out = BTreeMap::new();
+    let Value::Object(lists) = Value::deserialize(deserializer)? else { return Ok(out) };
+    for (id, names) in lists {
+        charge()?;
+        let (Ok(id), Value::Object(names)) = (id.parse::<Id>(), names) else { continue };
+        let mut kept = BTreeMap::new();
+        for (new, old) in names {
+            charge()?;
+            if let Value::String(old) = old
+                && kept.len() < crate::MAX_CATEGORIES
+                && short(&new)
+                && short(&old)
+            {
+                kept.insert(new, old);
+            }
+        }
+        if !kept.is_empty() {
+            out.insert(id, kept);
+        }
     }
     Ok(out)
 }

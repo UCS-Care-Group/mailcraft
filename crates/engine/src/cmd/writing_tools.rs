@@ -6,7 +6,7 @@
 //!
 //! The date is the session's clock (or the instant `at` names: the dialog's, so that OK puts in
 //! what it showed) in the zone the calendar is shown in ([`Session::local`]), written in the
-//! interface language ([`Session::interface_language`], `mailcraft_i18n::date`): a
+//! interface language the way of the system's region ([`Session::dated`], `mailcraft_i18n::date`): a
 //! person reads it in the message. Both work on the signature open in File › Signatures instead,
 //! as the other editing commands do ([`Session::doc`]).
 
@@ -46,7 +46,7 @@ pub fn date_time_text(s: &Session, format: &str, at: Timestamp) -> Option<String
     let now = s.local(at);
     let d = now.date;
     let day = Day { year: d.year, month: d.month, day: d.day, weekday: d.weekday().index() };
-    let lang = &s.interface_language;
+    let lang = &s.dated();
     Some(match format {
         "long" => date::long(lang, day),
         "longDate" => date::long_without_weekday(lang, day),

@@ -5,8 +5,9 @@
 //! one.
 //!
 //! Reading them needs `MailboxSettings.Read`, which every sign-in has; changing them needs
-//! `MailboxSettings.ReadWrite`, which is asked for by itself: a sign-in that doesn't cover it is
-//! answered 403, which is [`RuleResult::Denied`]. Nothing of a rule (its name, the words it looks
+//! `MailboxSettings.ReadWrite`, which a new sign-in's page asks for as an extra and an older
+//! sign-in is given by the one question of keeping in step with Outlook (#661): a sign-in that
+//! doesn't cover it is answered 403, which is [`RuleResult::Denied`]. Nothing of a rule (its name, the words it looks
 //! for, its id) is written to a log.
 //!
 //! Folders are named by their immutable ids, as the account's mail has them: every request asks
@@ -422,7 +423,7 @@ pub(super) fn push_rules_at(base: &str, token: &str, upload: &RulesUpload) -> Ru
             status => {
                 done.result = RuleResult::Refused;
                 done.error = match super::refusal(Doing::Rules, &reply, &[token, sent], mailcraft_time::now()) {
-                    NetError::Proto(mailcraft_proto::ProtoError::Rejected(why)) => why,
+                    NetError::Proto(mailcraft_proto::ProtoError::Rejected(why)) => why.to_string(),
                     e => e.to_string(),
                 };
                 if done.error.is_empty() {

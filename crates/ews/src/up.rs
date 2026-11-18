@@ -57,6 +57,7 @@ fn why(code: &ResponseCode) -> String {
         "ErrorAccessDenied" => "the server doesn't allow it",
         "ErrorFolderExists" => "a folder of that name is there already",
         "ErrorCannotDeleteObject" | "ErrorDeleteDistinguishedFolder" => "the server doesn't let that folder be deleted",
+        "ErrorMoveDistinguishedFolder" => "the server doesn't let that folder be moved",
         _ => "the server won't do it",
     };
     text.to_owned()
@@ -205,6 +206,12 @@ impl<E: HttpExchange> Run<'_, E> {
                 // (A folder deleted here that the server keeps: a delta of the folder list wouldn't
                 // bring it back, so the list is read afresh.)
                 self.reread_folders |= matches!(change, FolderChange::Delete { .. });
+                // One of the server's own folders that no distinguished name asked for tells
+                // apart (RSS Feeds, say; #1069): put back, and never offered for it again.
+                let name = code.to_string();
+                if mailcraft_model::sync::OWN_FOLDER_CODES.iter().any(|own| own.eq_ignore_ascii_case(&name)) {
+                    return Ok(Some(ChangeOutcome::OwnFolder { why: why(&code) }));
+                }
                 Ok(Some(ChangeOutcome::Refused { why: why(&code) }))
             }
             Err(Asked::Bad | Asked::Unreadable) => {
@@ -273,15 +280,29 @@ impl<E: HttpExchange> Run<'_, E> {
         categories: Option<(&Vec<String>, &Vec<String>)>,
         importance: Option<Importance>,
     ) -> Result<Option<MessageOutcome>, Asked> {
-        // The categories as the server has them now, with what was added and taken away here applied.
+        // The categories as the server has them now, with what was added and taken away here applied;
+        // and the item's change key, for a server that wants it (#1349).
         let mut merged = None;
-        if let Some((synced, here)) = categories {
-            let op = GetItemNow::new(id);
+        let mut key = String::new();
+        if categories.is_some() || self.needs_change_key {
+            let op = if categories.is_some() { GetItemNow::new(id) } else { GetItemNow::key_only(id) };
             match self.ask(&op.element(), &|reply| op.answer(reply)).await {
-                Ok(now) => merged = Some(merge_categories(synced, here, &now.categories)),
+                Ok(now) => {
+                    if let Some((synced, here)) = categories {
+                        merged = Some(merge_categories(synced, here, &now.categories));
+                    }
+                    key = now.change_key;
+                }
                 Err(error) => return settle(error),
             }
         }
+        // (A server answering in a version older than Exchange 2013's has no follow-up flag, #1349.)
+        if flag.is_some() && !self.flag_lacking && !self.client.version().has_preview() {
+            self.flag_lacking = true;
+            log::info!("ews up: the server is older than Exchange 2013 and has no follow-up flag; flags stay here");
+        }
+        // (Once without the key, once with it: a server that still wants one has its refusal.)
+        let mut keyed = !key.is_empty();
         loop {
             let update = ItemUpdate {
                 read,
@@ -290,7 +311,7 @@ impl<E: HttpExchange> Run<'_, E> {
                 importance,
                 ..ItemUpdate::default()
             };
-            let op = UpdateItem::marks(id, update);
+            let op = UpdateItem::marks(id, update).keyed(&key);
             let outcome = MessageOutcome::Done { categories: merged.clone(), flag: flag.cloned(), folder: String::new(), id: String::new() };
             if op.is_empty() {
                 // (Only a flag the server doesn't have: it stays here.)
@@ -298,13 +319,37 @@ impl<E: HttpExchange> Run<'_, E> {
             }
             match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(_) => return Ok(Some(outcome)),
-                Err(Asked::Code(code)) if flag.is_some() && !self.flag_lacking && LACKS_PROPERTY.contains(&code.to_string().as_str()) => {
+                // (Exchange 2007 and 2010's schema has no `item:Flag`: a schema fault, #1349; read so only from
+                // a server answering in an older version, as a newer one's fault has another cause.)
+                Err(Asked::Code(code))
+                    if flag.is_some()
+                        && !self.flag_lacking
+                        && ((code == ResponseCode::SchemaValidation && !self.client.version().has_preview())
+                            || LACKS_PROPERTY.contains(&code.to_string().as_str())) =>
+                {
                     self.flag_lacking = true;
                     log::info!("ews up: the server has no follow-up flag; flags stay here");
+                }
+                Err(Asked::Code(ResponseCode::ChangeKeyRequired)) if !keyed => {
+                    keyed = true;
+                    if !self.needs_change_key {
+                        self.needs_change_key = true;
+                        log::info!("ews up: the server changes a message only with its change key; it is asked first");
+                    }
+                    match self.change_key_of(id).await {
+                        Ok(now) => key = now,
+                        Err(error) => return settle(error),
+                    }
                 }
                 Err(error) => return settle(error),
             }
         }
+    }
+
+    /// The change key item `id` has now (`GetItem`, the key alone).
+    async fn change_key_of(&mut self, id: &str) -> Result<String, Asked> {
+        let op = GetItemNow::key_only(id);
+        self.ask(&op.element(), &|reply| op.answer(reply)).await.map(|now| now.change_key)
     }
 
     // ---- drafts ----
@@ -349,9 +394,31 @@ impl<E: HttpExchange> Run<'_, E> {
             read_receipt: up.read_receipt,
             ..ItemUpdate::default()
         };
-        let op = UpdateItem::draft(&id, if adopted { "" } else { &key }, update);
+        // (An adopted draft is written over whatever is there, named with the key it was found
+        // with: a server that changes an item only when it is named with one, #1349, has it.)
+        let mut op = if adopted { UpdateItem::draft(&id, "", update.clone()).keyed(&key) } else { UpdateItem::draft(&id, &key, update.clone()) };
+        if !op.is_empty() && key.is_empty() && self.needs_change_key {
+            match self.change_key_of(&id).await {
+                Ok(now) => op = UpdateItem::draft(&id, "", update.clone()).keyed(&now),
+                Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+                Err(_) => {}
+            }
+        }
         if !op.is_empty() {
-            match self.ask(&op.element(), &|reply| op.answer(reply)).await {
+            let mut asked = self.ask(&op.element(), &|reply| op.answer(reply)).await;
+            if matches!(asked, Err(Asked::Code(ResponseCode::ChangeKeyRequired))) && key.is_empty() {
+                self.needs_change_key = true;
+                match self.change_key_of(&id).await {
+                    Ok(now) if !now.is_empty() => {
+                        let again = UpdateItem::draft(&id, "", update).keyed(&now);
+                        asked = self.ask(&again.element(), &|reply| again.answer(reply)).await;
+                    }
+                    Ok(_) => {}
+                    Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+                    Err(_) => {}
+                }
+            }
+            match asked {
                 Ok(saved) => key = saved.change_key,
                 Err(Asked::Code(code)) if is_code_name(&code, "ErrorIrresolvableConflict") => {
                     done.conflict = true;

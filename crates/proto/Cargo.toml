@@ -10,7 +10,7 @@ workspace = true
 
 [dependencies]
 mailcraft-charset = { workspace = true }
-thiserror = { workspace = true }
+mailcraft-i18n = { workspace = true }
 log = { workspace = true }
 
 [dev-dependencies]

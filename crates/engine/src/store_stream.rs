@@ -320,6 +320,20 @@ impl Build {
                 a.kept = Some(self.queue(bytes)?);
             }
         }
+        // The bytes a Digitally signed or Encrypted message came as (#30), as an attachment.
+        if let Some(o) = m.original.as_mut().filter(|o| o.data.len() > INLINE_MAX) {
+            let data = std::mem::take(&mut o.data);
+            gone = gone.saturating_add((data.len() as u64).div_ceil(3).saturating_mul(4));
+            let bytes = Arc::try_unwrap(data).unwrap_or_else(|shared| shared.to_vec());
+            o.kept = Some(self.queue(bytes)?);
+        }
+        // The header lines nothing reads by name (HS), as an attachment.
+        if m.header_block.data.len() > INLINE_MAX {
+            let data = std::mem::take(&mut m.header_block.data);
+            gone = gone.saturating_add(data.len() as u64);
+            let bytes = Arc::try_unwrap(data).unwrap_or_else(|shared| shared.to_vec());
+            m.header_block.kept = Some(self.queue(bytes)?);
+        }
         kept.text_hash = mailcraft_model::text_hash(&m.body.text);
         m.kept = (!kept.is_empty()).then(|| Box::new(kept));
         Ok((m, gone))
@@ -366,7 +380,8 @@ impl<'de> Visitor<'de> for Collection<'_> {
             let start = build.gate.taken.get();
             match kind {
                 Kind::Messages => {
-                    let m: Message = map.next_value_seed(load_limit::Counted::default())?;
+                    let mut m: Message = map.next_value_seed(load_limit::Counted::default())?;
+                    m.split_headers();
                     match build.move_out(m) {
                         Ok((m, gone)) => {
                             build.keep::<A::Error>(build.taken_since(start).saturating_sub(gone))?;

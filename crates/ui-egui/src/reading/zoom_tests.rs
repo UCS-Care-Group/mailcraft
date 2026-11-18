@@ -18,7 +18,7 @@ type Window = egui_kittest::Harness<'static, MailApp>;
 fn window() -> Window {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let mut harness = egui_kittest::Harness::builder()
         .with_accessibility_check(false)
         .allow_missing_glyphs()

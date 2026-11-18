@@ -149,21 +149,22 @@ const MICROSOFT_GRAPH_SHARED_SEND: &str = "https://graph.microsoft.com/Mail.Send
 const MICROSOFT_GRAPH_SHARED_CALENDARS: &str = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
 /// What keeping the owner's to-dos in step with Microsoft To Do takes (#248): reading and
 /// changing the lists and tasks of the signed-in owner. Put to the owner on the page of a new
-/// sign-in beside the rest ([`Endpoints::consent`]; a page that won't have it is asked again
-/// without), and on the administrator's list. It is **not** part of [`MICROSOFT_GRAPH`]: a sign-in
-/// from before it was asked for would get no token at all for calendar and contacts. A job for
-/// the to-dos asks for it by itself ([`refresh_graph_tasks`]); a sign-in that doesn't cover it
-/// gets [`NetError::ConsentNeeded`], and the window asks the owner ([`sign_in_for_tasks`]).
+/// sign-in beside the rest, as an extra a page that won't have it is asked again without
+/// ([`Endpoints::consent`], [`Endpoints::lesser`]), and on the administrator's list. It is **not**
+/// part of [`MICROSOFT_GRAPH`]: a sign-in from before it was asked for would get no token at all
+/// for calendar and contacts. A job for the to-dos asks for it by itself ([`refresh_graph_tasks`]);
+/// a sign-in that doesn't cover it gets [`NetError::ConsentNeeded`], and the window asks the owner
+/// once for it and for [`MICROSOFT_GRAPH_SETTINGS_WRITE`] together ([`sign_in_for_sync`]).
 const MICROSOFT_GRAPH_TASKS: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
 /// What changing the mailbox's settings takes: its automatic replies (File › Info › Automatic
-/// Replies) and the rules of its Inbox (`messageRules`, #566). Asked for by itself, the first
-/// time the owner changes either and after the window has asked him, never with a sign-in, so
-/// that a sign-in never waits on it, and on the administrator's list; a sign-in reads both with
-/// [`MICROSOFT_GRAPH_EXTRAS`] as ever. A job that changes them asks for it
-/// ([`refresh_graph_replies`], [`refresh_graph_rules`]); a sign-in that doesn't cover it gets
-/// [`NetError::ConsentNeeded`], and the window asks the owner ([`sign_in_for_replies`],
-/// [`sign_in_for_rules`]). The categories and the working hours are never written with it, nor
-/// anything else of the settings.
+/// Replies), the rules of its Inbox (`messageRules`, #566) and its list of categories
+/// (`masterCategories`, #661). Put to the owner on the page of a new sign-in beside the rest, as
+/// an extra a page that won't have it is asked again without, and on the administrator's list; a
+/// sign-in reads all three with [`MICROSOFT_GRAPH_EXTRAS`] as ever. A job that changes them asks
+/// for it ([`refresh_graph_replies`], [`refresh_graph_rules`], [`refresh_graph_categories`]); a
+/// sign-in that doesn't cover it gets [`NetError::ConsentNeeded`], and the window asks the owner
+/// once for it and for [`MICROSOFT_GRAPH_TASKS`] together ([`sign_in_for_sync`]). The working
+/// hours are never written with it, nor anything else of the settings.
 const MICROSOFT_GRAPH_SETTINGS_WRITE: &str = "https://graph.microsoft.com/MailboxSettings.ReadWrite";
 /// Whether the page of an ordinary sign-in also puts the Favorites' permissions to the owner,
 /// so that one page settles everything. **Off**: Microsoft's permissions reference lists
@@ -268,24 +269,41 @@ impl Endpoints {
     /// one is refused by [`sign_in`] and [`refresh`]; here it reads as `common` too, so that
     /// nothing unchecked ends up in an address.)
     pub fn for_resource(oauth: &OAuth, resource: Resource) -> Endpoints {
+        Endpoints::asking(oauth, resource, true)
+    }
+
+    /// [`Endpoints::for_resource`] for a host that keeps none of the to-dos, the rules, the
+    /// automatic replies and the categories in step (the phone apps, for now): its page doesn't
+    /// ask for what that takes (`Tasks.ReadWrite`, `MailboxSettings.ReadWrite`, #661).
+    pub fn for_resource_without_sync(oauth: &OAuth, resource: Resource) -> Endpoints {
+        Endpoints::asking(oauth, resource, false)
+    }
+
+    fn asking(oauth: &OAuth, resource: Resource, sync: bool) -> Endpoints {
         match oauth.provider {
             OAuthProvider::Microsoft => {
                 let tenant = tenant(oauth).unwrap_or("common");
                 // The optional extras are only ever put to the owner on the page, beside what the
                 // tokens are for: a provider that won't have them there is asked again without
                 // them ([`sign_in`]), so that asking for more never costs what was to be had.
-                let (scope, consent) = match resource {
+                let (scope, plain) = match resource {
                     Resource::Mail => (MICROSOFT_SCOPE.to_string(), format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS}")),
                     Resource::Graph => (format!("{MICROSOFT_GRAPH} {SIGN_IN_SCOPE}"), MICROSOFT_GRAPH_EXTRAS.to_string()),
                     Resource::GraphMail => (format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {SIGN_IN_SCOPE}"), MICROSOFT_GRAPH_EXTRAS.to_string()),
                 };
-                // (With the Favorites' permissions on the same page, were that wanted: what was
-                // asked for before them is then what a refused page falls back to.)
-                let (consent, lesser) =
-                    if FAVORITES_AT_SIGN_IN { (format!("{consent} {MICROSOFT_GRAPH_FAVORITES}"), consent) } else { (consent, String::new()) };
+                // Keeping the to-dos, the rules, the automatic replies and the categories in step
+                // with the server (#661), for a host that keeps them: a page that won't have them
+                // is asked again for what was asked before them, and then for the tokens alone.
+                let consent = if sync { format!("{plain} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE}") } else { plain.clone() };
+                // (With the Favorites' permissions on the same page, were that wanted.)
+                let consent = if FAVORITES_AT_SIGN_IN { format!("{consent} {MICROSOFT_GRAPH_FAVORITES}") } else { consent };
+                // What a refused page falls back to: what was asked before the extras, when there
+                // are any.
+                let lesser = if consent == plain { String::new() } else { plain };
+                let (page, login) = microsoft_login();
                 Endpoints {
-                    authorize: format!("{MICROSOFT_LOGIN}/{tenant}/oauth2/v2.0/authorize"),
-                    token: format!("{MICROSOFT_LOGIN}/{tenant}/oauth2/v2.0/token"),
+                    authorize: format!("{page}/{tenant}/oauth2/v2.0/authorize"),
+                    token: format!("{login}/{tenant}/oauth2/v2.0/token"),
                     scope,
                     consent,
                     lesser,
@@ -300,6 +318,17 @@ impl Endpoints {
             },
         }
     }
+}
+
+/// Where Microsoft's sign-in page and its token endpoint are: its own address, always. (Only the
+/// phone's end-to-end build, with the stand-in, may have a whole process sign in at a stand-in on
+/// the device instead: `graph::standin::route_this_process`.)
+fn microsoft_login() -> (String, String) {
+    #[cfg(any(test, feature = "stand-in"))]
+    if let Some(base) = crate::graph::standin::routed_everywhere() {
+        return (crate::graph::standin::STAND_IN_PAGE.to_string(), base);
+    }
+    (MICROSOFT_LOGIN.to_string(), MICROSOFT_LOGIN.to_string())
 }
 
 /// Sign the owner in on the provider's page and bring back the tokens for the mail servers.
@@ -414,23 +443,36 @@ fn sign_in_refused(
     cancel: &AtomicBool,
     patience: Duration,
 ) -> Result<Tokens, Refused> {
+    sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, patience, &RedirectStrategy::Loopback)
+}
+
+/// [`sign_in_refused`], coming back the way `via` says.
+fn sign_in_refused_via(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<Tokens, Refused> {
     let (mut consent, lesser) = (endpoints.consent.trim(), endpoints.lesser.trim());
-    let mut outcome = attempt(endpoints, consent, oauth, login_hint, open, cancel, patience);
+    let mut outcome = attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via);
     // The page won't have all it was asked for (the provider has no such permission for this
-    // kind of account, or it is not the owner's to give), and there is less that is known to be
-    // had: once more, for that.
-    let unwilling = |refused: &Refused| matches!(refused.about, About::Scope | About::Consent);
+    // kind of account, or it is not the owner's to give, or an administrator has to approve it),
+    // and there is less that is known to be had: once more, for that.
+    let unwilling = |refused: &Refused| matches!(refused.about, About::Scope | About::Consent) || refused.policy == Policy::Approval;
     if !lesser.is_empty() && lesser != consent && outcome.as_ref().is_err_and(unwilling) {
         log::debug!("the sign-in was refused for what it asked for; asking again for what it asked for before");
         consent = lesser;
-        outcome = attempt(endpoints, consent, oauth, login_hint, open, cancel, patience);
+        outcome = attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via);
     }
     match outcome {
         // The provider won't have what was asked for, and more was asked for than the tokens
         // need: once more, for the tokens alone.
         Err(refused) if refused.about == About::Scope && !consent.is_empty() => {
             log::debug!("the sign-in was refused for what it asked for; asking again without the extra permissions");
-            attempt(endpoints, "", oauth, login_hint, open, cancel, patience)
+            attempt_via(endpoints, "", oauth, login_hint, open, cancel, patience, via)
         }
         outcome => outcome,
     }
@@ -557,7 +599,7 @@ impl From<Refused> for AdminRefusal {
     fn from(refused: Refused) -> AdminRefusal {
         // What the provider said, without what this program puts before it.
         let words = |error: &NetError| match error {
-            NetError::Proto(ProtoError::Auth(text) | ProtoError::Rejected(text)) => text.clone(),
+            NetError::Proto(ProtoError::Auth(text) | ProtoError::Rejected(text)) => text.to_string(),
             other => other.to_string(),
         };
         match (refused.policy, &refused.error) {
@@ -588,13 +630,30 @@ pub fn admin_consent(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel: &
 
 /// [`admin_consent`], waiting no longer than `patience` for each page.
 fn admin_consent_within(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel: &AtomicBool, patience: Duration) -> Result<(), AdminRefusal> {
+    admin_consent_within_via(oauth, tenant, open, cancel, patience, &RedirectStrategy::Loopback)
+}
+
+/// [`admin_consent`], with the answer coming back the way `via` says (a program on a phone has
+/// no loopback port to be sent back to: [`RedirectStrategy::CustomScheme`]).
+pub fn admin_consent_via(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel: &AtomicBool, via: &RedirectStrategy) -> Result<(), AdminRefusal> {
+    admin_consent_within_via(oauth, tenant, open, cancel, SIGN_IN_TIMEOUT, via)
+}
+
+fn admin_consent_within_via(
+    oauth: &OAuth,
+    tenant: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<(), AdminRefusal> {
     let all = admin_scope();
-    match ask_administrator(oauth, tenant, &all, open, cancel, patience) {
+    match ask_administrator(oauth, tenant, &all, open, cancel, patience, via) {
         // The page won't have what it was asked for together: once more, a page for each service.
         Err(refused) if refused.about == About::Scope && apart(&all).len() > 1 => {
             log::debug!("the approval page was refused for what it asked for; asking service by service");
             for part in apart(&all) {
-                ask_administrator(oauth, tenant, &part, open, cancel, patience)?;
+                ask_administrator(oauth, tenant, &part, open, cancel, patience, via)?;
             }
             Ok(())
         }
@@ -603,22 +662,32 @@ fn admin_consent_within(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel
 }
 
 /// One go at an administrator's approval of `scope`: the page, and the wait for its answer.
-fn ask_administrator(oauth: &OAuth, tenant: &str, scope: &str, open: &dyn Fn(&str), cancel: &AtomicBool, patience: Duration) -> Result<(), Refused> {
+fn ask_administrator(
+    oauth: &OAuth,
+    tenant: &str,
+    scope: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<(), Refused> {
     let client_id = client_id(oauth)?;
     let page = admin_consent_page(oauth, tenant)?;
     if cancel.load(Ordering::Relaxed) {
         return Err(NetError::SignInCancelled.into());
     }
-    let redirect = Redirect::listen()?;
+    let redirect = Landing::open(via)?;
     // As for a sign-in: the registered address, on whichever port is free here.
-    let redirect_uri = format!("http://localhost:{}", redirect.port);
+    let redirect_uri = redirect.uri();
     // Only the page that was given the state can send it back: nobody else on this machine can
     // say yes or no in its place.
     let state = random(24)?;
-    log::debug!("waiting on port {} for the administrator's approval to come back", redirect.port);
+    if let Some(port) = redirect.port() {
+        log::debug!("waiting on port {port} for the administrator's approval to come back");
+    }
     let fields = [("client_id", client_id), ("scope", scope), ("redirect_uri", redirect_uri.as_str()), ("state", state.as_str())];
     open(&format!("{page}?{}", http::form(&fields)));
-    redirect.wait_for(&state, cancel, patience, judge_consent)
+    redirect.wait_consent(&state, cancel, patience)
 }
 
 /// Ask the owner, on the provider's page, to let this program read the Favorites of Outlook
@@ -813,21 +882,10 @@ fn tasks_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_TASKS} {SIGN_IN_SCOPE}")
 }
 
-/// Ask the owner, on the provider's page, to let this program read and change the to-dos of the
-/// signed-in owner (`Tasks.ReadWrite`). Only when a to-do job found the sign-in doesn't cover
-/// it, after the window has asked him, and never with an ordinary sign-in of an account that
-/// was made before it was asked for. A no says whose it is ([`FavoritesRefusal`]); nothing is
-/// tried a second time.
-pub fn sign_in_for_tasks(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::Graph);
-    let endpoints = Endpoints { scope: tasks_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
-}
-
 /// [`refresh_graph`] for a to-do job (#248): the tokens are asked for with `Tasks.ReadWrite`,
 /// and for nothing less. A sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: the
 /// to-dos are neither read nor sent, everything else goes on, and the window asks the owner
-/// ([`sign_in_for_tasks`]). Microsoft says no to a personal account that never agreed in the
+/// ([`sign_in_for_sync`]). Microsoft says no to a personal account that never agreed in the
 /// words of a sign-in that is over (#520), so a no is put to the account's mail with the same
 /// refresh token, as [`refresh_graph_at`] does: if it still takes it, it is the permission.
 /// `mail` is how the account's mail is had: [`Resource::Mail`] (IMAP and SMTP) or
@@ -885,21 +943,10 @@ fn rules_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
 }
 
-/// Ask the owner, on the provider's page, to let this program change the rules his server keeps
-/// (`MailboxSettings.ReadWrite`, the permission the automatic replies are changed with). Only
-/// when a rule is to go to the server and the sign-in doesn't cover it, after the window has
-/// asked him, and never with an ordinary sign-in. A no says whose it is ([`FavoritesRefusal`]);
-/// nothing is tried a second time.
-pub fn sign_in_for_rules(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
-    let endpoints = Endpoints { scope: rules_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
-}
-
 /// [`refresh_graph_mail`] for a rules job with changes to send (#566): the tokens are asked for
 /// with `MailboxSettings.ReadWrite`, and for nothing less. A sign-in that doesn't cover it gets
 /// [`NetError::ConsentNeeded`]: nothing of the rules is sent, everything else goes on, and the
-/// window asks the owner ([`sign_in_for_rules`]).
+/// window asks the owner ([`sign_in_for_sync`]).
 pub fn refresh_graph_rules(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints::for_resource(oauth, Resource::GraphMail);
     refresh_graph_rules_at(&endpoints, &endpoints, oauth, refresh_token)
@@ -916,16 +963,6 @@ pub fn refresh_graph_rules_at(endpoints: &Endpoints, mail: &Endpoints, oauth: &O
 /// asked for, and changing the mailbox's settings on top.
 fn replies_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
-}
-
-/// Ask the owner, on the provider's page, to let this program change the mailbox's settings
-/// (`MailboxSettings.ReadWrite`), for its automatic replies. Only when a job that changes them
-/// found the sign-in doesn't cover it, after the window has asked him; never with a sign-in.
-/// A no says whose it is ([`FavoritesRefusal`]); nothing is tried a second time.
-pub fn sign_in_for_replies(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::Graph);
-    let endpoints = Endpoints { scope: replies_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
 }
 
 /// Tokens for changing the automatic replies (and reading them back): asked for with
@@ -947,6 +984,55 @@ pub fn refresh_graph_replies_at(
     refresh_by_itself_at(&Endpoints { scope: replies_scope(), ..endpoints.clone() }, mail, oauth, refresh_token, "changing the automatic replies")
 }
 
+/// What the one question of the window for an account signed in before #661 asks for: what
+/// keeping the to-dos, the rules, the automatic replies and the categories in step with the
+/// server takes, together; with `mail_write`, for an account kept in step through Graph (R3),
+/// reading and changing its mail as well, and for no other.
+fn sync_scope(mail_write: bool) -> String {
+    let mail = if mail_write { format!(" {MICROSOFT_GRAPH_MAIL}") } else { String::new() };
+    format!("{MICROSOFT_GRAPH}{mail} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
+}
+
+/// Ask the owner, on the provider's page, once, for everything that keeping the account's
+/// to-dos, rules, automatic replies and categories in step with its server takes
+/// (`Tasks.ReadWrite`, `MailboxSettings.ReadWrite`): for an account that signed in before they
+/// were put on a sign-in's page, after the window has asked him; `mail_write` as for
+/// [`sync_scope`]. A no says whose it is ([`FavoritesRefusal`]); nothing is tried a second time.
+pub fn sign_in_for_sync(
+    oauth: &OAuth,
+    login_hint: &str,
+    mail_write: bool,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+) -> Result<Tokens, FavoritesRefusal> {
+    sign_in_for_favorites_within(&sync_endpoints(oauth, mail_write), oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// The page and the tokens [`sign_in_for_sync`] asks for: [`sync_scope`], in one request, with
+/// nothing less to fall back to.
+fn sync_endpoints(oauth: &OAuth, mail_write: bool) -> Endpoints {
+    let plain = Endpoints::for_resource(oauth, if mail_write { Resource::GraphMail } else { Resource::Graph });
+    Endpoints { scope: sync_scope(mail_write), consent: String::new(), lesser: String::new(), ..plain }
+}
+
+/// Tokens for changing the account's list of categories (#661), and for reading it back: asked
+/// for with `MailboxSettings.ReadWrite`, and for nothing less, as [`refresh_graph_replies`] is.
+/// A sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: the list is read-only here.
+pub fn refresh_graph_categories(oauth: &OAuth, refresh_token: &str, mail: Resource) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints::for_resource(oauth, Resource::Graph);
+    refresh_graph_categories_at(&endpoints, (&Endpoints::for_resource(oauth, mail), mail), oauth, refresh_token)
+}
+
+/// [`refresh_graph_categories`] at endpoints other than the provider's usual ones.
+pub fn refresh_graph_categories_at(
+    endpoints: &Endpoints,
+    mail: (&Endpoints, Resource),
+    oauth: &OAuth,
+    refresh_token: &str,
+) -> Result<GraphTokens, NetError> {
+    refresh_by_itself_at(&Endpoints { scope: replies_scope(), ..endpoints.clone() }, mail, oauth, refresh_token, "changing the categories")
+}
+
 /// One go at signing in: the page (asked for the tokens' scopes and for `consent`), the wait for
 /// the browser, and the code traded in for tokens (for the tokens' scopes only: a token request
 /// names one resource).
@@ -959,6 +1045,21 @@ fn attempt(
     cancel: &AtomicBool,
     patience: Duration,
 ) -> Result<Tokens, Refused> {
+    attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, &RedirectStrategy::Loopback)
+}
+
+/// [`attempt`], coming back the way `via` says.
+#[allow(clippy::too_many_arguments)]
+fn attempt_via(
+    endpoints: &Endpoints,
+    consent: &str,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<Tokens, Refused> {
     let client_id = client_id(oauth)?;
     tenant(oauth)?;
     // Both addresses are checked before the owner is sent anywhere.
@@ -967,16 +1068,18 @@ fn attempt(
     if cancel.load(Ordering::Relaxed) {
         return Err(NetError::SignInCancelled.into());
     }
-    let redirect = Redirect::listen()?;
-    // As it is registered with the provider (`http://localhost`), which ignores the port of a
-    // loopback address but compares the rest exactly: no path, no trailing slash.
-    let redirect_uri = format!("http://localhost:{}", redirect.port);
+    let redirect = Landing::open(via)?;
+    // Loopback: as it is registered with the provider (`http://localhost`), which ignores the
+    // port of a loopback address but compares the rest exactly: no path, no trailing slash.
+    let redirect_uri = redirect.uri();
     // PKCE: only who knows the verifier can trade the code in, and only its hash goes through the browser.
     let verifier = random(32)?;
     let state = random(24)?;
-    log::debug!("waiting on port {} for the sign-in to come back", redirect.port);
+    if let Some(port) = redirect.port() {
+        log::debug!("waiting on port {port} for the sign-in to come back");
+    }
     open(&authorize_url(endpoints, consent, client_id, &redirect_uri, &state, &challenge(&verifier), login_hint));
-    let code = redirect.wait(&state, cancel, patience)?;
+    let code = redirect.wait_code(&state, cancel, patience)?;
     drop(redirect);
     let fields = [
         ("grant_type", "authorization_code"),
@@ -1043,7 +1146,7 @@ pub fn refresh_for_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str,
         // provider's page is how either is put right, or shown for what it is.
         (Resource::Graph | Resource::GraphMail, About::Consent | About::Scope, NetError::Proto(ProtoError::Auth(why))) => {
             // Said in a code alone, this reads like a sign-in that is over, which it isn't.
-            NetError::ConsentNeeded(if why == STALE { "the sign-in doesn't cover Microsoft Graph".to_string() } else { why })
+            NetError::ConsentNeeded(if why.to_string() == STALE { "the sign-in doesn't cover Microsoft Graph".to_string() } else { why.to_string() })
         }
         (_, _, error) => error,
     })
@@ -1254,10 +1357,10 @@ fn shown(text: &str) -> String {
 fn client_id(oauth: &OAuth) -> Result<&str, NetError> {
     let id = oauth.client_id.trim();
     if id.is_empty() {
-        return Err(NetError::Config(format!("an application (client) id is needed to sign in with {}", oauth.provider.label())));
+        return Err(NetError::Config(format!("an application (client) id is needed to sign in with {}", oauth.provider.label()).into()));
     }
     if id.len() > 200 || !id.bytes().all(|b| b.is_ascii_graphic()) {
-        return Err(NetError::Config(format!("\"{}\" can't be an application (client) id", shown(id))));
+        return Err(NetError::Config(format!("\"{}\" can't be an application (client) id", shown(id)).into()));
     }
     Ok(id)
 }
@@ -1274,11 +1377,14 @@ fn tenant(oauth: &OAuth) -> Result<&str, NetError> {
     if plain && edges(tenant.bytes().next()) && edges(tenant.bytes().next_back()) && !tenant.contains("..") {
         Ok(tenant)
     } else {
-        Err(NetError::Config(format!(
-            "\"{}\" can't be a {} tenant: use common, consumers, organizations, or a directory's id or domain",
-            shown(tenant),
-            oauth.provider.label()
-        )))
+        Err(NetError::Config(
+            format!(
+                "\"{}\" can't be a {} tenant: use common, consumers, organizations, or a directory's id or domain",
+                shown(tenant),
+                oauth.provider.label()
+            )
+            .into(),
+        ))
     }
 }
 
@@ -1348,8 +1454,8 @@ fn refusal(error: &str, description: &str) -> NetError {
     };
     NetError::Proto(match code.as_str() {
         // Not a no: the server can't just now.
-        "server_error" | "temporarily_unavailable" => ProtoError::Rejected(text),
-        _ => ProtoError::Auth(text),
+        "server_error" | "temporarily_unavailable" => ProtoError::Rejected(text.into()),
+        _ => ProtoError::Auth(text.into()),
     })
 }
 
@@ -1566,16 +1672,39 @@ fn judge_consent(request: &[u8], state: &str) -> (&'static Page, Option<Result<(
         Ok(fields) => fields,
         Err(page) => return (page, None),
     };
-    if let Some(refused) = page_refusal(&fields) {
-        return (&NOT_APPROVED, Some(Err(refused)));
+    match consent_of(&fields) {
+        Ok(()) => (&APPROVED, Some(Ok(()))),
+        Err(refused) => (&NOT_APPROVED, Some(Err(refused))),
+    }
+}
+
+/// The answer in what the approval page sent back (`fields`, once `state` is known to be ours).
+fn consent_of(fields: &[(String, String)]) -> Result<(), Refused> {
+    if let Some(refused) = page_refusal(fields) {
+        return Err(refused);
     }
     let said = fields.iter().find(|(name, _)| name == "admin_consent").map_or("", |(_, value)| value.as_str());
     if said.trim().eq_ignore_ascii_case("true") {
-        (&APPROVED, Some(Ok(())))
+        Ok(())
     } else {
         let broken = ProtoError::Protocol("the approval page came back without an answer".into());
-        (&NOT_APPROVED, Some(Err(NetError::Proto(broken).into())))
+        Err(NetError::Proto(broken).into())
     }
+}
+
+/// The code in what the provider's page sent back (`fields`, once `state` is known to be ours),
+/// or why there is none.
+fn code_of(fields: &[(String, String)]) -> Result<String, Refused> {
+    let field = |name: &str| fields.iter().find(|(n, _)| n == name).map_or("", |(_, value)| value.as_str());
+    if let Some(refused) = page_refusal(fields) {
+        return Err(refused);
+    }
+    let code = field("code");
+    if code.is_empty() || !usable(code) {
+        let broken = ProtoError::Protocol("the sign-in page came back without a code".into());
+        return Err(NetError::Proto(broken).into());
+    }
+    Ok(code.to_string())
 }
 
 /// The page a request is answered with and, when it is the one waited for, how the sign-in
@@ -1585,16 +1714,10 @@ fn judge(request: &[u8], state: &str) -> (&'static Page, Option<Result<String, R
         Ok(fields) => fields,
         Err(page) => return (page, None),
     };
-    let field = |name: &str| fields.iter().find(|(n, _)| n == name).map_or("", |(_, value)| value.as_str());
-    if let Some(refused) = page_refusal(&fields) {
-        return (&FAILED, Some(Err(refused)));
+    match code_of(&fields) {
+        Ok(code) => (&DONE, Some(Ok(code))),
+        Err(refused) => (&FAILED, Some(Err(refused))),
     }
-    let code = field("code");
-    if code.is_empty() || !usable(code) {
-        let broken = ProtoError::Protocol("the sign-in page came back without a code".into());
-        return (&FAILED, Some(Err(NetError::Proto(broken).into())));
-    }
-    (&DONE, Some(Ok(code.to_string())))
 }
 
 /// A connection to the loopback port and what it has sent so far.
@@ -1683,6 +1806,19 @@ impl Visitor {
     }
 }
 
+/// The ports browsers refuse to connect to ("bad ports" of the Fetch standard,
+/// <https://fetch.spec.whatwg.org/#port-blocking>), and 0, which is no port.
+const BLOCKED_PORTS: &[u16] = &[
+    0, 1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119,
+    123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993,
+    995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6679, 6697, 10080,
+];
+
+/// Whether a browser would refuse to go to `port`.
+fn blocked_port(port: u16) -> bool {
+    BLOCKED_PORTS.contains(&port)
+}
+
 /// The loopback port the browser is sent back to.
 struct Redirect {
     listeners: Vec<TcpListener>,
@@ -1693,10 +1829,19 @@ impl Redirect {
     /// Listen on a free port of 127.0.0.1 and, where there is IPv6, on the same port of `::1`:
     /// a browser may take `localhost` to be either.
     fn listen() -> Result<Redirect, NetError> {
+        Redirect::listen_avoiding(blocked_port)
+    }
+
+    /// [`listen`](Self::listen) with the test for a port a browser refuses given, so a test can drive it.
+    fn listen_avoiding(blocked: impl Fn(u16) -> bool) -> Result<Redirect, NetError> {
         let failed = || NetError::Config("couldn't open a port on this computer for the sign-in to come back to".into());
         for attempt in 1..=MAX_PORT_TRIES {
             let v4 = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|_| failed())?;
             let port = v4.local_addr().map_err(|_| failed())?.port();
+            // A browser would show ERR_UNSAFE_PORT and the sign-in would never come back: another port.
+            if blocked(port) {
+                continue;
+            }
             let mut listeners = vec![v4];
             match TcpListener::bind((Ipv6Addr::LOCALHOST, port)) {
                 Ok(v6) => listeners.push(v6),
@@ -1790,10 +1935,59 @@ pub fn sign_in_google_explained_at(
     google::sign_in_google_refused(endpoints, oauth, client_secret, login_hint, open, cancel, SIGN_IN_TIMEOUT).map_err(SignInEnd::from)
 }
 
+mod permission;
+pub use permission::{Ending, Permission, permission_endpoints, sign_in_ending_via, sign_in_for_permission_at};
+mod scheme;
+use scheme::Landing;
+pub use scheme::{CustomScheme, DEFAULT_REDIRECT_HOST, DEFAULT_REDIRECT_PATH, Handback, RedirectStrategy};
+
+/// [`sign_in_at`], coming back the way `via` says: through a loopback port (what a desktop does)
+/// or through a custom scheme the platform hands back ([`RedirectStrategy::CustomScheme`]).
+/// Everything else (PKCE, the state, the consent, the trade of the code) is the same. Google's
+/// registration comes back through loopback only.
+pub fn sign_in_via(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    via: &RedirectStrategy,
+) -> Result<Tokens, NetError> {
+    if matches!(via, RedirectStrategy::Loopback) {
+        return sign_in_at(endpoints, oauth, login_hint, open, cancel);
+    }
+    if oauth.provider == OAuthProvider::Google {
+        return Err(NetError::Config("Google sign-in comes back through a loopback port only".into()));
+    }
+    sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, via).map_err(|refused| refused.error)
+}
+
+/// [`sign_in_via`], saying how a sign-in that brought no tokens ended ([`SignInEnd`]).
+pub fn sign_in_explained_via(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    via: &RedirectStrategy,
+) -> Result<Tokens, SignInEnd> {
+    if matches!(via, RedirectStrategy::Loopback) {
+        return sign_in_explained(endpoints, oauth, login_hint, open, cancel);
+    }
+    if oauth.provider == OAuthProvider::Google {
+        return Err(SignInEnd::Other(NetError::Config("Google sign-in comes back through a loopback port only".into())));
+    }
+    sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, via).map_err(SignInEnd::from)
+}
+
 mod google;
 pub use google::{refresh_google_at, sign_in_google_at};
 
 #[cfg(test)]
 mod google_tests;
+#[cfg(test)]
+mod permission_tests;
+#[cfg(test)]
+mod scheme_tests;
 #[cfg(test)]
 mod tests;

@@ -36,6 +36,8 @@ const REFUSED: &[&str] = &[
     "outlook.office365.com.attacker.example",
     "office365.com-mail.example",
     "imap.gmail.com.attacker.example",
+    // Gmail's API takes the Google token for one call of its own (#911), never as a mail server.
+    "gmail.googleapis.com",
     "127.0.0.1",
     "127.1.2.3",
     "localhost",

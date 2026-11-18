@@ -7,6 +7,12 @@
 //! `gmail`), so nothing can be renamed, deleted or filed in one, and the Inbox's mail stays in
 //! the Inbox. Primary, Social, Promotions, Updates and Forums are Gmail's decision, read from its
 //! server ([`mailcraft_model::GmailCategory`]).
+//!
+//! The owner may move mail from one to another (`mail.setGmailCategory`), for an account that
+//! signs in with Google ([`moves_offered`], [`why_not_movable`]): the move is made here at once,
+//! like a read mark, and goes to Gmail through its API at the next Send/Receive
+//! (`SyncRequest::gmail_moves`). That ships switched off until Google has reviewed MailCraft's
+//! use of the API ([`GMAIL_CATEGORY_MOVES`]).
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -14,6 +20,52 @@ use std::sync::Arc;
 use mailcraft_model::{FolderKind, GmailCategory, Id, Message, ThreadIndex, ThreadKey};
 
 use crate::Session;
+
+/// Whether mail can be moved between Gmail's categories in this build (#911): the model's switch,
+/// which `mailcraft-net` holds to as well. [`Session::gmail_category_moves`] starts as this.
+pub use mailcraft_model::gmail::GMAIL_CATEGORY_MOVES;
+
+/// Why moves between Gmail's categories aren't there while they are switched off. (The reasons
+/// are written out where they are given, so that they are translated; these are for comparing.)
+pub const MOVES_NOT_YET: &str = "comes once Google has reviewed MailCraft";
+/// Why an account signed in with an app password can't move mail between Gmail's categories.
+pub const NEEDS_GOOGLE_SIGN_IN: &str = "needs Google sign-in";
+
+/// Whether moving mail between Gmail's categories is offered (`mail.setGmailCategory`): `None`
+/// while moves are switched on, outside the browser, for a mailbox with a Gmail account that
+/// signs in with Google; else why not.
+pub fn moves_offered(s: &Session) -> Option<&'static str> {
+    if !s.gmail_category_moves {
+        return Some("comes once Google has reviewed MailCraft");
+    }
+    if cfg!(target_arch = "wasm32") {
+        return Some("can't be done in the browser");
+    }
+    let gmail = s.mailbox.accounts.iter().filter(|a| !a.is_shared() && a.is_gmail());
+    match gmail.clone().any(|a| a.moves_gmail_categories()) {
+        true => None,
+        false if gmail.count() > 0 => Some("needs Google sign-in"),
+        false => Some("needs a Gmail account"),
+    }
+}
+
+/// Why message `m` can't be moved between Gmail's categories, if it can't: it isn't in a Gmail
+/// Inbox Gmail sorted, its account signs in with an app password ([`NEEDS_GOOGLE_SIGN_IN`]), or
+/// Gmail hasn't said its id of it yet.
+pub fn why_not_movable(s: &Session, m: &Message) -> Option<&'static str> {
+    let mb = &s.mailbox;
+    let inbox = mb.folder(m.folder).is_some_and(|f| f.kind == FolderKind::Inbox && f.account == m.account);
+    let Some(account) = mb.account(m.account).filter(|a| inbox && !a.is_shared() && a.is_gmail() && m.gmail_category.is_some()) else {
+        return Some("only mail in a Gmail account's Inbox is in one of Gmail's categories");
+    };
+    if !account.moves_gmail_categories() {
+        return Some("needs Google sign-in");
+    }
+    if m.gmail_id == 0 {
+        return Some("Gmail hasn't said its id of this message yet: Send/Receive first");
+    }
+    None
+}
 
 /// Whether `folder` is the Inbox of a Gmail account whose owner didn't turn its categories off.
 pub fn has_categories(s: &Session, folder: Id) -> bool {

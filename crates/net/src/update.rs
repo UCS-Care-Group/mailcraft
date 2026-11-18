@@ -84,7 +84,7 @@ fn without_address(error: &NetError) -> NetError {
 }
 
 fn said(text: &str) -> NetError {
-    NetError::Config(text.to_string())
+    NetError::Config(text.into())
 }
 
 /// `{owner}` and `{repo}` of `https://github.com/{owner}/{repo}`: letters, digits, `-`, `_`, `.`.
@@ -218,7 +218,7 @@ mod tests {
 
     fn config(result: Result<Release, NetError>) -> String {
         match result {
-            Err(NetError::Config(why)) => why,
+            Err(NetError::Config(why)) => why.to_string(),
             other => panic!("expected an error that says why, got {other:?}"),
         }
     }
