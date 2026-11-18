@@ -1385,7 +1385,7 @@ fn mail_a_rule_copies_into_another_account_isnt_deleted_before_it_is_whole() {
 }
 
 /// A rule that copies mail onto another account's server and deletes it is asked as a send, and
-/// a yes to that makes it; the question about running the rules says which servers they move
+/// a yes to that, with the settings a rule call needs too (#661), makes it; the question about running the rules says which servers they move
 /// mail onto and which they copy mail onto, each account once.
 #[test]
 fn an_agent_is_asked_as_a_send_for_a_rule_that_copies_onto_another_server_and_deletes() {
@@ -1398,7 +1398,8 @@ fn an_agent_is_asked_as_a_send_for_a_rule_that_copies_onto_another_server_and_de
         "actions": [{"type": "copyTo", "value": there}, {"type": "delete"}],
     });
     assert!(matches!(check(&s, "rules.add", &params, &[]), Verdict::Ask(Class::Send, _)));
-    assert_eq!(check(&s, "rules.add", &params, &[Class::Send]), Verdict::Run);
+    assert!(matches!(check(&s, "rules.add", &params, &[Class::Send]), Verdict::Ask(Class::Settings, _)));
+    assert_eq!(check(&s, "rules.add", &params, &[Class::Send, Class::Settings]), Verdict::Run);
     let asked = crate::agent::describe(&s, "rules.add", &params);
     assert!(asked.contains("copy it onto the server of other@example.org"), "{asked}");
     // Run over the Inbox, the question says the rule copies.
