@@ -8,11 +8,24 @@ use super::*;
 
 #[test]
 fn streamed_export_keeps_every_mailbox_field_and_message() {
-    let mailbox = crate::sample::mailbox(1_700_000_000, 0);
+    let mut mailbox = crate::sample::mailbox(1_700_000_000, 0);
+    let id = *mailbox.messages.keys().next().unwrap();
+    let message = mailbox.message_mut(id).unwrap();
+    message.headers = vec![("List-Id".into(), "<synthetic.example.org>".into()), ("X-Synthetic".into(), "kept header".into())];
+    message.split_headers();
+    assert!(!message.header_block.data.is_empty());
+    // Removing a header while its block is outside can leave a tombstone, never exported.
+    message.headers.push((String::new(), "removed header".into()));
+    let next = *mailbox.messages.keys().nth(1).unwrap();
+    let message = mailbox.message_mut(next).unwrap();
+    message.header_block = Default::default();
+    message.headers.push((String::new(), "removed without a block".into()));
     let mut bytes = Vec::new();
     let written = write(&mut bytes, &mailbox, |id| Ok(mailbox.messages.get(&id).unwrap().clone()), u64::MAX).unwrap();
     assert_eq!(written, bytes.len() as u64);
     assert_eq!(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(), serde_json::to_value(&mailbox).unwrap());
+    assert!(!String::from_utf8(bytes).unwrap().contains("headerBlock"));
+    assert!(!mailbox.message(id).unwrap().header_block.data.is_empty(), "export must not change the session's headers");
 }
 
 #[test]

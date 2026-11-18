@@ -3,6 +3,7 @@
 //! One self-contained mailbox, written a message at a time. Loading every message first defeats
 //! the store's content budget; serializing the resulting mailbox into a Vec doubles that cost.
 
+use std::cell::Cell;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -19,13 +20,14 @@ pub(super) fn write(out: &mut impl Write, mailbox: &Mailbox, load: impl Fn(Id) -
         return Err("the mailbox metadata is not an object".into());
     };
     fields.remove("messages");
-    let mut out = Limited { out, bytes: 0, limit };
+    let message_left = Cell::new(None);
+    let mut out = Limited { out, bytes: 0, limit, message_left: &message_left };
     let mut serializer = serde_json::Serializer::new(&mut out);
     let mut map = serde::Serializer::serialize_map(&mut serializer, Some(fields.len().saturating_add(1))).map_err(|e| e.to_string())?;
     for (name, value) in &fields {
         map.serialize_entry(name, value).map_err(|e| e.to_string())?;
     }
-    map.serialize_entry("messages", &Messages { mailbox, load }).map_err(|e| e.to_string())?;
+    map.serialize_entry("messages", &Messages { mailbox, load, message_left: &message_left }).map_err(|e| e.to_string())?;
     map.end().map_err(|e| e.to_string())?;
     Ok(out.bytes)
 }
@@ -33,6 +35,7 @@ pub(super) fn write(out: &mut impl Write, mailbox: &Mailbox, load: impl Fn(Id) -
 struct Messages<'a, F> {
     mailbox: &'a Mailbox,
     load: F,
+    message_left: &'a Cell<Option<u64>>,
 }
 
 impl<F: Fn(Id) -> Result<Arc<Message>, String>> Serialize for Messages<'_, F> {
@@ -40,7 +43,13 @@ impl<F: Fn(Id) -> Result<Arc<Message>, String>> Serialize for Messages<'_, F> {
         let mut map = serializer.serialize_map(Some(self.mailbox.messages.len()))?;
         for id in self.mailbox.messages.keys() {
             let message = (self.load)(*id).map_err(S::Error::custom)?;
-            map.serialize_entry(id, &message)?;
+            map.serialize_key(id)?;
+            // The streaming reader starts its item gate after the key, before the colon.
+            // Share that boundary with the writer, without a second pass or a JSON buffer.
+            self.message_left.set(Some(super::stream::MAX_ITEM));
+            // Use the model's whole-mailbox path, including compatibility with older readers.
+            map.serialize_value(&mailcraft_model::messages::as_written(&message))?;
+            self.message_left.set(None);
         }
         map.end()
     }
@@ -52,6 +61,7 @@ struct Limited<'a, W> {
     out: &'a mut W,
     bytes: u64,
     limit: u64,
+    message_left: &'a Cell<Option<u64>>,
 }
 
 impl<W: Write> Write for Limited<'_, W> {
@@ -62,8 +72,17 @@ impl<W: Write> Write for Limited<'_, W> {
                 self.limit >> 20
             )));
         }
+        if self.message_left.get().is_some_and(|left| buf.len() as u64 > left) {
+            return Err(std::io::Error::other(format!(
+                "a message is more than the mailbox reader holds ({} MB); nothing was written. Save to another folder instead, which keeps content beside the mailbox file",
+                super::stream::MAX_ITEM >> 20
+            )));
+        }
         let written = self.out.write(buf)?;
         self.bytes = self.bytes.saturating_add(written as u64);
+        if let Some(left) = self.message_left.get() {
+            self.message_left.set(Some(left.saturating_sub(written as u64)));
+        }
         Ok(written)
     }
 

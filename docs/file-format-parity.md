@@ -5,12 +5,6 @@
 What MailCraft reads, writes and speaks, and how far each goes. Everything is implemented from the
 public specifications; every reader is fed arbitrary bytes by property tests and must never panic.
 
-On the desktop, Save Mailbox As writes a self-contained copy one message at a time, including
-content kept beside the source mailbox. It does not load the whole mailbox's content or build
-the whole JSON file in memory first. The serialized copy is limited to 4 GiB, including headers,
-originals and base64 expansion. A read, write or size-limit error leaves an existing destination
-unchanged; the copy replaces it only after the complete temporary file has been flushed.
-
 ## Files
 
 | Format | Read | Write | Notes |
@@ -30,6 +24,17 @@ an unlabelled part as UTF-8 when it is, else Windows-1252); a set it doesn't nam
 lossily (#178). vCard 2.1's `CHARSET=` is read by the same decoder, by the same rules (#180), whether the value is
 quoted-printable or raw 8-bit bytes: a contact file is read from its bytes, line by line (#185).
 Output is always UTF-8.
+
+### `.mailcraft` exports
+
+On the desktop, Save Mailbox As writes a self-contained copy one message at a time, including
+content kept beside the source mailbox. It does not load the whole mailbox's content or build
+the whole JSON file in memory first. The serialized copy is limited to 4 GiB, including headers,
+originals and base64 expansion. Each message also stays within the streaming reader's 768 MiB
+item limit, measured as serialized JSON including the preceding colon. Header blocks are joined
+back into the message's header list so older versions can read every header line.
+A read, write or size-limit error leaves an existing destination unchanged; the copy replaces it
+only after the complete temporary file has been flushed.
 
 ## Protocols
 

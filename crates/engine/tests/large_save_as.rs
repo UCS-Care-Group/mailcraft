@@ -2,12 +2,36 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Save As must not retain the content of every message before it starts writing.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 
 use mailcraft_engine::{Session, io::ContentSource};
 use mailcraft_model::{Attachment, ContentRef, Mailbox, Message};
 use serde_json::json;
+
+struct Temp(PathBuf);
+
+impl Temp {
+    fn new() -> Self {
+        // Use a fresh directory; never remove a previous run's files to make room.
+        for attempt in 0..100 {
+            let dir = std::env::temp_dir().join(format!("mailcraft-large-save-as-{}-{attempt}", std::process::id()));
+            match std::fs::create_dir(&dir) {
+                Ok(()) => return Self(dir),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => panic!("cannot create synthetic mailbox directory: {e}"),
+            }
+        }
+        panic!("cannot find an unused synthetic mailbox directory");
+    }
+}
+
+impl Drop for Temp {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(self.0.join("copy.mailcraft"));
+        let _ = std::fs::remove_dir(&self.0);
+    }
+}
 
 #[derive(Default)]
 struct Content {
@@ -28,10 +52,9 @@ impl ContentSource for Content {
 
 #[test]
 fn forty_thousand_messages_are_exported_without_retaining_their_content() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-large-save-as-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let target = dir.join("copy.mailcraft");
-    let source = dir.join("source.mailcraft");
+    let dir = Temp::new();
+    let target = dir.0.join("copy.mailcraft");
+    let source = dir.0.join("source.mailcraft");
     let mut mb = Mailbox::with_local_account("Synthetic", "synthetic@example.org");
     let folder = mb.inbox().unwrap();
     for i in 0..40_000 {
@@ -61,6 +84,4 @@ fn forty_thousand_messages_are_exported_without_retaining_their_content() {
         assert_eq!(m.subject, format!("Synthetic {i}"));
         assert_eq!(*m.attachments[0].data, vec![i as u8; 16]);
     }
-    std::fs::remove_file(&target).unwrap();
-    std::fs::remove_dir(&dir).unwrap();
 }

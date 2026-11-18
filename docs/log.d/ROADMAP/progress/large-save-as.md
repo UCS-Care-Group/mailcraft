@@ -1,1 +1,0 @@
-| 2026-11-16 | #1527: Save Mailbox As writes one message at a time instead of loading all content and buffering the whole file; regression coverage includes 40,000 synthetic messages and failed exports |
