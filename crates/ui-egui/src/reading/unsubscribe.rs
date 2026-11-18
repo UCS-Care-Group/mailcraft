@@ -24,10 +24,6 @@ use super::remote::notice;
 use crate::theme::{Tokens, regular, semibold};
 use crate::{MailApp, icons};
 
-/// The most characters of the subject and text a list gave its unsubscribe message shown in the
-/// question before it is sent.
-const SHOWN_TEXT: usize = 200;
-
 /// What came of unsubscribing from a message: each way says only what it knows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Outcome {
@@ -191,11 +187,11 @@ pub(crate) fn question(app: &MailApp, p: &Value) -> Option<crate::dialogs::Quest
         Way::Mail { to, subject, body } => {
             let from = app.session.mailbox.account(m.account).map_or_else(String::new, |a| a.email.clone());
             // What goes is what the list's address gave (else "Unsubscribe", as the engine
-            // writes it), shown cut short on one line: it is the list's text, not ours.
+            // writes it), shown whole on one line: what is sent is what was seen. (The address
+            // bounds it: 200 characters of subject, 1,000 of text, `mailcraft_model::unsubscribe`.)
             let said = |text: &str| {
                 let line: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
-                let line = if line.is_empty() { tl!("Unsubscribe").to_string() } else { line };
-                if line.chars().count() > SHOWN_TEXT { format!("{}…", line.chars().take(SHOWN_TEXT).collect::<String>()) } else { line }
+                if line.is_empty() { tl!("Unsubscribe").to_string() } else { line }
             };
             (
                 format!(
@@ -313,10 +309,8 @@ pub(crate) fn question_many(app: &mut MailApp, p: &Value) -> Result<(crate::dial
             "{n} by a message from your account through your Outbox:",
             "{n} by a message each from your account through your Outbox:"
         ));
-        let line = |text: &str| {
-            let text: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
-            if text.chars().count() > 80 { format!("{}…", text.chars().take(80).collect::<String>()) } else { text }
-        };
+        // Whole, on one line: what is sent is what was seen (the address bounds both).
+        let line = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
         for (_, to, subject) in &plan.mail {
             said.push(crate::i18n::fmt(tl!("• to {to}, subject “{subject}”"), &[("to", &line(to)), ("subject", &line(subject))]));
         }
@@ -361,7 +355,15 @@ fn many(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     if ids.is_empty() {
         return Err(tl!("Select a message first").to_string());
     }
-    let asked = chosen(app, &json!({"ids": p.get("mail").cloned().unwrap_or_else(|| json!([]))}))?;
+    // The requests by mail the question listed: an array of ids, and nothing else. Absent or
+    // `null`, none: never the selection.
+    let asked: Vec<u64> = match p.get("mail") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(ids)) => {
+            ids.iter().map(|id| id.as_u64().ok_or_else(|| "`mail` lists messages' ids".to_string())).collect::<Result<_, _>>()?
+        }
+        Some(_) => return Err("`mail` lists messages' ids".to_string()),
+    };
     let plan = plan(app, &ids)?;
     let (mut click, mut mail, pages, mut left_out) = (0usize, 0usize, plan.pages, plan.left_out);
     for (id, url) in plan.click {

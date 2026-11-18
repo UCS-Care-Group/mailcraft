@@ -1329,8 +1329,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 22,
-        "reading.rs, colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
+        checked, 24,
+        "reading.rs, backdrop (and its tests), colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
     );
 }
 
@@ -4147,12 +4147,14 @@ fn the_selection_commands_take_anything_and_never_panic() {
 
 // ---- meetings that arrive as mail ----
 
+mod bg_pictures;
 mod inline_blocks;
 mod invitation;
 mod primary;
 mod remote_bar_why;
 mod remote_server;
 mod responsive;
+mod rtl;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
