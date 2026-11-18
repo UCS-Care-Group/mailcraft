@@ -298,7 +298,12 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     // The server's tags are the categories its messages carry: taken in as the server's list has
     // them, a name and a colour each.
     if !result.categories.is_empty() {
-        let download = mailcraft_model::remote::CategoriesDownload { account, email: result.email.clone(), categories: result.categories.clone(), complete: true };
+        let download = mailcraft_model::remote::CategoriesDownload {
+            account,
+            email: result.email.clone(),
+            categories: result.categories.clone(),
+            complete: true,
+        };
         if let Err(e) = super::remote::apply_categories(s, &download) {
             errors.push(e.to_string());
         }

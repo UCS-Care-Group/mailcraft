@@ -392,7 +392,7 @@ fn a_change_made_here_goes_up_and_is_settled_by_its_answer() {
         outcome: mailcraft_model::sync::MessageOutcome::Done { categories: None, flag: None, folder: String::new(), id: String::new() },
         there: None,
     }];
-    (answered.token, answered.whole) = ("4712".into(), true);
+    (answered.token, answered.whole, answered.resume) = ("4712".into(), true, Some(Vec::new()));
     let said = apply(&mut s, answered);
     assert_eq!(said["pushed"], 1);
     assert_eq!(crate::cmd::account::unpushed(&s, account), 0);
