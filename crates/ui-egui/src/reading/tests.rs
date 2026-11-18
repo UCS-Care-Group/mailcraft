@@ -1871,6 +1871,8 @@ fn the_contacts_switch_asks_before_it_turns_on() {
     let asking = |harness: &Window| matches!(&harness.state().dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.downloadPicturesFromContacts");
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail from people in my contacts").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Download pictures in mail from people in my contacts").click();
     harness.run_steps(3);
     assert!(asking(&harness));
@@ -1878,12 +1880,16 @@ fn the_contacts_switch_asks_before_it_turns_on() {
     harness.get_by_label("Cancel").click();
     harness.run_steps(3);
     assert!(harness.state().dialog.is_none() && !harness.state().ui.download_pictures_from_contacts);
+    harness.get_by_label("Download pictures in mail from people in my contacts").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Download pictures in mail from people in my contacts").click();
     harness.run_steps(3);
     harness.get_by_label("Download from contacts").click();
     harness.run_steps(6);
     assert!(harness.state().dialog.is_none() && harness.state().ui.download_pictures_from_contacts);
     // Off asks nothing.
+    harness.get_by_label("Download pictures in mail from people in my contacts").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Download pictures in mail from people in my contacts").click();
     harness.run_steps(3);
     assert!(harness.state().dialog.is_none() && !harness.state().ui.download_pictures_from_contacts);
