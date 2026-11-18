@@ -421,18 +421,18 @@ fn server_delete_beside_a_rule_onto_another_server() -> (Session, Value) {
 
 #[test]
 fn a_server_rule_that_deletes_beside_a_rule_onto_another_server_names_both_grants_headless() {
-    // It needs Send and Delete: whichever is missing, the refusal names both, so that following
-    // it makes the rule.
+    // It needs Send and Delete, and the Settings a rule call asked as Send needs too (#661):
+    // whichever is missing, the refusal names all three, so that following it makes the rule.
     let pol = Policy::default();
-    for allow in [vec![], vec![Class::Send], vec![Class::Delete]] {
+    for allow in [vec![], vec![Class::Send], vec![Class::Delete], vec![Class::Send, Class::Delete]] {
         let (s, params) = server_delete_beside_a_rule_onto_another_server();
         let mut h = Headless::new(s, allow.clone());
         let e = err(&mut h, &pol, "execute", json!({"command": "rules.add", "params": params}));
-        assert!(e.as_deref().is_some_and(|e| e.contains("--allow send,delete")), "{allow:?}: {e:?}");
+        assert!(e.as_deref().is_some_and(|e| e.contains("--allow send,delete,settings")), "{allow:?}: {e:?}");
         assert_eq!(h.session.mailbox.rules.len(), 1, "{allow:?}: nothing was made");
     }
     let (s, params) = server_delete_beside_a_rule_onto_another_server();
-    let mut h = Headless::new(s, vec![Class::Send, Class::Delete]);
+    let mut h = Headless::new(s, vec![Class::Send, Class::Delete, Class::Settings]);
     assert_eq!(err(&mut h, &pol, "execute", json!({"command": "rules.add", "params": params})), None);
     assert_eq!(h.session.mailbox.rules.len(), 2);
 }
