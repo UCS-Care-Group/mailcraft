@@ -1250,3 +1250,61 @@ fn new_exchange_2010_mail_whose_recipients_werent_given_waits_for_the_download()
     assert!(!binned(&s, "N1"), "mail to me deleted once downloaded");
     assert!(binned(&s, "N2"), "mail to somebody else not deleted once downloaded");
 }
+
+/// A draft to Ben is here whole on an Exchange 2010 account. It is changed on a phone, or sent
+/// from it, and the server doesn't give the recipients of what it is now (its GetItem failed): it
+/// is listed `cut`, with no To. A rule deletes mail when my address isn't in To: Run Rules Now
+/// leaves it alone until it is downloaded, and doesn't take the recipients it had before as known.
+#[test]
+fn a_downloaded_draft_relisted_without_its_recipients_isnt_deleted_by_a_rule_about_them() {
+    for sent in [false, true] {
+        let mut s = Session::empty();
+        let url = "https://exchange.example.org/EWS/Exchange.asmx";
+        let account = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": url}})).unwrap()["id"].as_u64().unwrap();
+        let rule = json!({"name": "Not me", "account": account, "conditions": [{"type": "notToMe"}], "actions": [{"type": "delete"}]});
+        s.run("rules.add", &rule).unwrap();
+        let piece = || EwsMailResult { account, email: ME.into(), url: url.into(), partial: true, ..Default::default() };
+        let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
+        let folders = vec![
+            folder("F1", "Inbox", FolderKind::Inbox),
+            folder("F2", "Drafts", FolderKind::Drafts),
+            folder("F3", "Sent Items", FolderKind::Sent),
+            folder("F4", "Deleted Items", FolderKind::Deleted),
+        ];
+        let deltas = EwsFolderDeltas { changed: folders, afresh: true, ..Default::default() };
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "HIER-1".into(), ..piece() }).unwrap();
+        let draft = GraphMessage { to: vec![Address::new("Ben", "ben@example.org")], draft: Some(true), ..listed("D1", "F2", "Plan") };
+        let first = |folder: &str, messages: Vec<GraphMessage>| EwsMessagePage {
+            folder: folder.into(),
+            messages,
+            afresh: true,
+            last: true,
+            state: "S-1".into(),
+            ..Default::default()
+        };
+        let pages = vec![first("F1", Vec::new()), first("F2", vec![draft]), first("F3", Vec::new()), first("F4", Vec::new())];
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages, ..piece() }).unwrap();
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { whole: true, partial: false, ..piece() }).unwrap();
+        let to_ben = GraphFetched {
+            id: "D1".into(),
+            mime: "From: Ada <ada@example.org>\r\nTo: Ben <ben@example.org>\r\nSubject: Plan\r\nMessage-ID: <D1@example.org>\r\n\r\nHi Ben.\r\n"
+                .as_bytes()
+                .to_vec(),
+        };
+        ews_mail::apply_ews_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched: vec![to_ben], ..Default::default() }).unwrap();
+        assert!(!here(&s, account, "D1").unfetched && !here(&s, account, "D1").headers_cut);
+        // What it is now, as the server lists it without its recipients.
+        let (into, change_key) = if sent { ("F3", "CK1") } else { ("F2", "CK2") };
+        let mut now = GraphMessage { to: Vec::new(), cut: true, draft: Some(!sent), ..listed("D1", into, "Plan") };
+        now.server.change_key = change_key.into();
+        let delta =
+            EwsMessagePage { folder: into.into(), messages: vec![now], last: true, from: "S-1".into(), state: "S-2".into(), ..Default::default() };
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![delta], ..piece() }).unwrap();
+        let m = here(&s, account, "D1");
+        assert_eq!((m.unfetched, m.draft, m.to.len(), m.headers_cut), (true, !sent, 0, true), "sent {sent}: its recipients aren't said cut");
+        let (id, in_folder) = (m.id, m.folder);
+        s.run("rules.run", &json!({"folder": in_folder})).unwrap();
+        let binned = s.mailbox.message(id).and_then(|m| s.mailbox.folder(m.folder)).is_some_and(|f| f.kind == FolderKind::Deleted);
+        assert!(!binned, "sent {sent}: deleted on recipients the listing didn't give");
+    }
+}

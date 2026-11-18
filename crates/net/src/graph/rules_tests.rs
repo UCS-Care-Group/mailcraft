@@ -275,6 +275,16 @@ fn an_exchange_organisations_own_address_is_a_part_not_known_here() {
     }
 }
 
+/// An address longer than a rule made here may hold is a part not known here too, so such a rule
+/// is never written back with it.
+#[test]
+fn an_address_longer_than_a_rule_here_holds_is_a_part_not_known_here() {
+    let long = format!("{}@example.org", "a".repeat(mailcraft_model::MAX_ADDRESS));
+    let graph = json!({"id": "A7", "displayName": "Ann", "sequence": 1, "isEnabled": true,
+        "conditions": {"fromAddresses": [{"emailAddress": {"name": "Ann", "address": long}}]}, "actions": {"markAsRead": true}});
+    assert_eq!(rule_of(&graph).unwrap().unknown, ["fromAddresses"]);
+}
+
 /// The server's flag for an action (`messageActionFlag`: any, call, reply…) is one a sender puts
 /// on mail, not the owner's own flag: a rule with it, as a condition or an exception, has a part
 /// not known here and is never run here, and a rule that looks at the owner's flag never goes up
