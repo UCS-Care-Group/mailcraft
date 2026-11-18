@@ -150,6 +150,16 @@ fn spelling_correction_preserves_the_formatting_of_unchanged_text() {
 }
 
 #[test]
+fn an_address_split_between_plain_and_linked_text_is_not_marked() {
+    let mut suffix = Run::plain("@example.org");
+    suffix.style.link = Some("mailto:sopratutto@example.org".into());
+    let mut prefix = Run::plain("delivery@");
+    prefix.style.link = Some("mailto:delivery@sopratutto.example".into());
+    let paragraph = Paragraph::new(vec![Run::plain("sopratutto"), suffix, Run::plain(" "), prefix, Run::plain("sopratutto.example")], ListKind::None);
+    assert!(check(&Italian, "it-IT", &paragraph).issues.is_empty());
+}
+
+#[test]
 fn typo_beside_a_link_is_still_marked() {
     let mut link = Run::plain("https://example.org");
     link.style.link = Some("https://example.org".into());

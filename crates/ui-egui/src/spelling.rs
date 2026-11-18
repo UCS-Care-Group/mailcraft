@@ -115,8 +115,11 @@ pub(crate) fn check(host: &dyn HostChecker, locale: &str, paragraph: &Paragraph)
         if range.start < last || input.get(range.clone()) != Some(word) || word.contains(OBJECT) {
             continue;
         }
-        let left = input.get(..range.start).unwrap_or_default().rsplit(char::is_whitespace).next().unwrap_or_default();
-        let right = input.get(range.end..).unwrap_or_default().split(char::is_whitespace).next().unwrap_or_default();
+        // Links are hidden from the provider but still count when deciding whether the
+        // reported word is part of an address split across formatting runs.
+        let boundary = |ch: char| ch.is_whitespace() || matches!(ch, '—' | '–' | OBJECT);
+        let left = text.get(..range.start).unwrap_or_default().rsplit(boundary).next().unwrap_or_default();
+        let right = text.get(range.end..).unwrap_or_default().split(boundary).next().unwrap_or_default();
         let token = format!("{left}{word}{right}");
         if token.contains('@') || token.contains("://") || token.get(..4).is_some_and(|start| start.eq_ignore_ascii_case("www.")) {
             continue;
