@@ -85,7 +85,7 @@ fn person(id: &str, first: &str, email: &str) -> RemoteContact {
 }
 
 fn everybody(account: Id, contacts: Vec<RemoteContact>) -> ContactsDownload {
-    ContactsDownload { account, email: "ada@example.org".into(), complete: true, contacts }
+    ContactsDownload { account, email: "ada@example.org".into(), complete: true, books: Vec::new(), contacts }
 }
 
 /// The events that came from `account`'s server, by start.

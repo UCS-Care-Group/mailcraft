@@ -1553,6 +1553,11 @@ msgid "Apply Downloaded To-dos"
 msgstr "Heruntergeladene Aufgaben übernehmen"
 
 #. command label
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "Apply Read Exchange Calendar, Contacts and To-dos"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -1886,6 +1891,11 @@ msgstr "Zu einem Datum und einer Uhrzeit"
 #: crates/engine/src/cmd/people_merge.rs
 msgid "At most {max} contacts can be merged at once."
 msgstr "Es können höchstens {max} Kontakte gleichzeitig zusammengeführt werden."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "At most {n} address books can be opened by address: remove one first."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -5042,6 +5052,11 @@ msgstr "Alles, was auf diesem Telefon gespeichert war, wurde entfernt."
 #, fuzzy
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Alles, was die Oberfläche tut, ist ein Befehl: {commands} Befehle, die {percent} % des Funktionskatalogs abdecken. Die Befehlszeile, der Steuerkanal und der MCP-Server führen dieselben Befehle aus."
+
+#. command label
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "Exchange Calendar, Contacts and To-dos to Read"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -10469,6 +10484,18 @@ msgstr "Antworten und Weiterleitungen in einem neuen Fenster öffnen"
 msgid "Open Result from the Server"
 msgstr "Ergebnis vom Server öffnen"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Open Shared\n"
+"Address Book"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/contacts_opened.rs crates/ui-egui/src/dialogs.rs
+msgid "Open Shared Address Book"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Open Shared Calendar"
@@ -10592,6 +10619,11 @@ msgstr "Diesen Kalender öffnen"
 #, fuzzy
 msgid "Open {name}? {why}"
 msgstr "{name} öffnen? {why}"
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Opened the address book of {address}. It is read at the next Send/Receive, and kept on this computer only."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -10950,7 +10982,7 @@ msgid "Pending development"
 msgstr "Noch in Entwicklung"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/contacts_opened.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 msgid "People"
 msgstr "Kontakte"
 
@@ -11433,6 +11465,16 @@ msgstr "Favoriten jetzt erneut aus Outlook lesen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their address book with you. It is kept on this computer only, and read at the next Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only, and read at the next Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Mit der Anmeldung von {owner} lesen, solange Sie den Kalender geöffnet lassen: Die betreffende Person muss ihren Kalender für Sie freigegeben haben. Der Kalender wird nur auf diesem Computer gespeichert und erscheint weder in Outlook noch auf Ihren anderen Geräten. Microsoft fragt Sie einmalig, ob MailCraft Kalender anderer Personen lesen darf."
 
@@ -11787,6 +11829,11 @@ msgstr "Serie entfernen"
 #, fuzzy
 msgid "Remove Reminder"
 msgstr "Erinnerung entfernen"
+
+#. command label
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "Remove Shared Address Book"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -12990,7 +13037,7 @@ msgid "Send & Receive"
 msgstr "Senden und Empfangen"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Senden/Empfangen"
@@ -15023,6 +15070,11 @@ msgid "That is not a sender's address"
 msgstr "Das ist keine Absenderadresse"
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "That is this account's own address: its own address book is there already."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "That is this account's own address: its own calendar is there already."
 msgstr "Das ist die eigene Adresse dieses Kontos: Der zugehörige Kalender ist bereits vorhanden."
@@ -15185,6 +15237,11 @@ msgstr "Der Server des Kontos hat für diese Besprechung noch keinen Teilnahmeli
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "Der Server des Kontos erstellt sie, wenn die Besprechung gesendet wird; der Teilnahmelink kommt damit zurück."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "The address book of {address} is open already."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
@@ -15516,6 +15573,11 @@ msgstr "Die Domain {domain} nennt einen Server für die automatische Einrichtung
 #, fuzzy
 msgid "The download was called off."
 msgstr "Der Download wurde abgebrochen."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The e-mail address of the person whose address book you want to open"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19501,6 +19563,11 @@ msgstr "fügen Sie zuerst ein Konto hinzu (Datei › Konto hinzufügen)"
 msgid "add at least one recipient"
 msgstr "fügen Sie mindestens einen Empfänger hinzu"
 
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "address books open under an Exchange server account"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
@@ -20037,7 +20104,7 @@ msgid "no account here keeps its rules on its server"
 msgstr "kein Konto hier speichert seine Regeln auf seinem Server"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 msgid "no account is an Exchange server account"
 msgstr "kein Konto ist ein Exchange-Server-Konto"
 
@@ -20069,10 +20136,20 @@ msgid "no account with id {account}"
 msgstr "kein Konto mit der ID {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "kein Konto mit der ID {id}"
+
+#. why a command can't run
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "no address book was opened by address"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "no address book {address} is open"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -20550,6 +20627,11 @@ msgid "someone@example.org or @example.org"
 msgstr "someone@example.org oder @example.org"
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "that account can't open an address book by address"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -20707,7 +20789,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "das Konto hat keinen Benutzernamen und keine E-Mail-Adresse für die Anmeldung"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_opened.rs crates/engine/src/cmd/unsubscribe.rs
 msgid "the account is gone"
 msgstr "das Konto ist nicht mehr vorhanden"
 
@@ -21086,7 +21168,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "das Ergebnis würde dazu führen, dass dieses Konto mehr Synchronisierungsdaten speichert, als eingelesen werden"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 msgid "the result {why}"
 msgstr "das Ergebnis: {why}"
 
@@ -21692,6 +21774,11 @@ msgstr "die Kategorien dieses Kontos werden nicht mit seinem Server abgeglichen"
 #, fuzzy
 msgid "this contact has no e-mail address"
 msgstr "dieser Kontakt hat keine E-Mail-Adresse"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "this directory was for another account, not for {name}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -22333,7 +22420,12 @@ msgid "{name} has declined this meeting."
 msgstr "{name} hat diese Besprechung abgelehnt."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "{name} has no Exchange server account it is opened through"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 msgid "{name} has no Exchange server address that can be used"
 msgstr "{name} hat keine verwendbare Exchange-Server-Adresse"
 
@@ -22430,7 +22522,7 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} ist kein freigegebenes Postfach: Entfernen Sie es mit account.remove"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 msgid "{name} isn't an Exchange server account"
 msgstr "{name} ist kein Exchange-Server-Konto"
 
