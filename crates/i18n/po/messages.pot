@@ -1108,16 +1108,6 @@ msgstr ""
 msgid "Also Hotmail, Live and MSN"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/account_setup/zimbra.rs
-msgid "Also keep this account's calendar, over CalDAV at this server"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup/zimbra.rs
-msgid "Also keep this account's contacts, over CardDAV at this server"
-msgstr ""
-
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Always Download Pictures from Sender"
@@ -16318,6 +16308,16 @@ msgid "Use system setting follows Animation effects in Windows' settings. Where 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's calendar (CalDAV)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's contacts (CardDAV)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Use {address}"
 msgstr ""
@@ -17187,7 +17187,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
-msgid "Zimbra {host} · not kept in step yet: this part is not built"
+msgid "Zimbra {host}"
 msgstr ""
 
 #. interface

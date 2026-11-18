@@ -154,8 +154,8 @@ impl AccountSetup {
             // The same address serves calendars and contacts over DAV, while that way of keeping
             // them is being tested: asked for on the page they belong to, not in the mail's.
             if app.session.dav_enabled {
-                ui.checkbox(&mut self.zimbra.calendar, tl!("Also keep this account's calendar, over CalDAV at this server"));
-                ui.checkbox(&mut self.zimbra.contacts, tl!("Also keep this account's contacts, over CardDAV at this server"));
+                ui.checkbox(&mut self.zimbra.calendar, tl!("Use this server's calendar (CalDAV)"));
+                ui.checkbox(&mut self.zimbra.contacts, tl!("Use this server's contacts (CardDAV)"));
             }
         });
         problem(ui, &self.error);
