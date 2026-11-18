@@ -443,8 +443,7 @@ fn only_a_google_sign_in_moves_and_only_while_moves_are_on() {
     s.run(ID, &json!({"ids": [three], "category": "primary"})).unwrap();
     s.gmail_category_moves = false;
     assert!(moves(&s, account).is_empty());
-    const { assert!(crate::gmail::GMAIL_CATEGORY_MOVES, "on since Google's review covers it (#911)") };
-    assert!(Session::empty().gmail_category_moves);
+    assert_eq!(Session::empty().gmail_category_moves, crate::gmail::GMAIL_CATEGORY_MOVES);
 
     // An app password: categories to look at, none to move between.
     let (mut s, account, _) = sorted_inbox(false);
