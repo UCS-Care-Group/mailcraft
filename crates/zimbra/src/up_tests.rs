@@ -169,3 +169,37 @@ fn mail_is_sent_once_by_its_upload_and_a_bcc_is_held() {
     assert!(text.contains("Subject: Hello from MailCraft") && !text.contains("hidden@example.org"));
     assert!(s.items.values().any(|m| m.folder == 5 && m.subject == "Hello from MailCraft"));
 }
+
+#[test]
+fn messages_of_a_mounted_mailbox_are_marked_moved_and_deleted_by_their_qualified_ids() {
+    let server = StandIn::new();
+    let mount = server.mount(1, "Shared", "team@example.org");
+    let other = server.mount(1, "Archive", "team@example.org");
+    let marked = server.deliver_shared(&mount, "Marked", "u");
+    let moved = server.deliver_shared(&mount, "Moved", "");
+    let deleted = server.deliver_shared(&mount, "Deleted", "");
+    let mut asked = request();
+    asked.messages = vec![
+        MessageChange::Update {
+            message: 1,
+            id: marked.clone(),
+            read: Some(true),
+            flag: Some(FlagUp { status: FlagStatus::Flagged, ..Default::default() }),
+            categories: None,
+            importance: None,
+        },
+        MessageChange::Move { message: 2, id: moved.clone(), to: other.clone(), to_folder: None },
+        MessageChange::Delete { id: deleted.clone() },
+    ];
+    let all = run(&server, &asked);
+    assert_eq!(all.errors, Vec::<String>::new());
+    let outcomes: Vec<&MessageOutcome> = all.messages.iter().map(|d| &d.outcome).collect();
+    assert!(matches!(outcomes[0], MessageOutcome::Done { .. }));
+    assert!(matches!(outcomes[1], MessageOutcome::Done { folder, id, .. } if *folder == other && *id == moved));
+    assert!(matches!(outcomes[2], MessageOutcome::Gone));
+    let s = server.state.borrow();
+    let (_, m) = s.shared.get(&marked).unwrap();
+    assert!(!m.flags.contains('u') && m.flags.contains('f'));
+    assert_eq!(s.shared.get(&moved).map(|(f, _)| f.as_str()), Some(other.as_str()));
+    assert!(!s.shared.contains_key(&deleted));
+}
