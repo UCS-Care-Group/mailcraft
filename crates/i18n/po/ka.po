@@ -7475,6 +7475,11 @@ msgstr "დახრილი"
 msgid "Item"
 msgstr "ელემენტი"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+msgid "Item from Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -8652,6 +8657,11 @@ msgstr "საფოსტო ყუთი"
 msgid "Make a signature with New."
 msgstr "ხელმოწერა შექმენით ღილაკით „ახალი“."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Make an Item from a Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -9137,6 +9147,11 @@ msgstr "ჩაკეცვა"
 msgid "Mobile"
 msgstr "მობილური"
 
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+msgid "Module bar"
+msgstr ""
+
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
 #, fuzzy
@@ -9482,7 +9497,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "სახელები ან მისამართები, გამოყოფილი ;-ით"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Navigation"
 msgstr "ნავიგაცია"
@@ -10345,6 +10360,11 @@ msgstr "შესაბამისი არავინ ან თქვენ
 #, fuzzy
 msgid "None"
 msgstr "არცერთი"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "None of those messages is in this mailbox any more."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -21467,7 +21487,7 @@ msgid "no message is being written"
 msgstr "არცერთი წერილი არ იწერება"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "წერილი id-ით {id} არ არსებობს"
@@ -21807,7 +21827,7 @@ msgid "select a conversation in conversation view first"
 msgstr "ჯერ მონიშნეთ მიმოწერა მიმოწერების ხედში"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "ჯერ მონიშნეთ წერილი"
@@ -22477,7 +22497,7 @@ msgid "the sender has no address to put on the list"
 msgstr "გამგზავნს სიაში დასამატებელი მისამართი არ აქვს"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "გამგზავნს გამოსადეგი ელფოსტის მისამართი არ აქვს"
@@ -24536,6 +24556,13 @@ msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "{n} წერილი უკვე აქ იყო"
 msgstr[1] "{n} წერილი უკვე აქ იყო"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/left_out.rs
