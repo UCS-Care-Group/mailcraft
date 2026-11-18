@@ -14,7 +14,8 @@ use crate::compose::editor;
 
 const MAX_PARAGRAPH_BYTES: usize = 8192;
 const REVIEW_PARAGRAPHS_PER_FRAME: usize = 8;
-const MAX_ISSUES: usize = 256;
+/// Hosts may return one extra result to mark the paragraph's report as partial.
+pub const MAX_ISSUES: usize = 256;
 const MAX_SUGGESTIONS: usize = 6;
 const OFF: &str = "off";
 

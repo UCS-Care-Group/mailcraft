@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
-use mailcraft_ui_egui::spelling::HostChecker;
+use mailcraft_ui_egui::spelling::{HostChecker, MAX_ISSUES};
 use spellkit::Checker;
 
 const RETRY_OPEN: Duration = Duration::from_secs(5);
@@ -96,7 +96,7 @@ impl HostChecker for NativeChecker {
     }
 
     fn check(&self, locale: &str, text: &str) -> Option<Vec<Range<usize>>> {
-        self.with_checker(locale, |checker| checker.check(text).map(|error| error.range()).collect())
+        self.with_checker(locale, |checker| checker.check(text).take(MAX_ISSUES + 1).map(|error| error.range()).collect())
     }
 
     fn suggest(&self, locale: &str, word: &str) -> Vec<String> {
