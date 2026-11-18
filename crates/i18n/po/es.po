@@ -3439,6 +3439,11 @@ msgstr "¿Cerró la página? Esto abre de nuevo la página de inicio de sesión 
 msgid "Closes this window. Nothing is kept."
 msgstr "Cierra esta ventana. No se guarda nada."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Code from your authenticator app for {account}"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -14287,7 +14292,7 @@ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
 msgstr "Enviar y recibir inicia sesión en Microsoft; después se puede buscar en el servidor."
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Send/Receive stopped unexpectedly"
 msgstr "El envío y recepción se detuvo de forma inesperada"
@@ -14347,7 +14352,7 @@ msgid "Sending"
 msgstr "Enviando"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Sending and receiving…"
 msgstr "Enviando y recibiendo…"
@@ -16252,6 +16257,11 @@ msgstr "La firma digital ha caducado."
 msgid "The Entire Series"
 msgstr "Toda la serie"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The Zimbra server is asked to trust this computer, so that it doesn't ask for a code every time."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -18084,7 +18094,7 @@ msgid "This build can't connect to Microsoft"
 msgstr "Esta compilación no puede conectarse con Microsoft"
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "Esta compilación no puede conectarse con servidores de correo"

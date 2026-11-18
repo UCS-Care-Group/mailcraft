@@ -23,6 +23,13 @@ pub const PASSWORD: &str = "stand-in-password";
 pub const USER: &str = "ada@example.org";
 /// The token it hands out on a sign-in.
 pub const TOKEN: &str = "0_standin-token_abc";
+/// The code of the owner's authenticator app, for an account with a second step.
+pub const CODE: &str = "123456";
+/// The token for the second step alone, and the trusted-device token and id a sign-in with a code
+/// brings.
+pub const PENDING: &str = "0_standin-pending_xyz";
+pub const TRUSTED: &str = "standin-trusted-device";
+pub const DEVICE: &str = "standin-device-1";
 
 /// A message of the stand-in's mailbox.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -60,6 +67,8 @@ pub struct State {
     pub behind: std::collections::BTreeSet<u32>,
     /// Every request that came, as its path and SOAP operation (no secret is kept).
     pub log: Vec<String>,
+    /// The account signs in with a second step.
+    pub two_factor: bool,
     next: u32,
 }
 
@@ -210,23 +219,50 @@ impl StandIn {
             return fault("service.INVALID_REQUEST");
         }
         let ns = body.get("_jsns").and_then(Value::as_str).unwrap_or("");
+        // (The token for the second step alone opens nothing.)
         let signed_in = context.and_then(|c| c.pointer("/authToken/_content")).and_then(Value::as_str) == Some(TOKEN);
         match (name, ns) {
-            ("AuthRequest", "urn:zimbraAccount") => {
-                let user = body.pointer("/account/_content").and_then(Value::as_str);
-                let password = body.pointer("/password/_content").and_then(Value::as_str);
-                if user == Some(USER) && password == Some(PASSWORD) {
-                    soap("AuthResponse", json!({"authToken": [{"_content": TOKEN}], "lifetime": 172_800_000}))
-                } else {
-                    fault("account.AUTH_FAILED")
-                }
-            }
+            ("AuthRequest", "urn:zimbraAccount") => self.auth(body),
             (_, "urn:zimbraMail") if !signed_in => fault("service.AUTH_REQUIRED"),
             ("GetFolderRequest", "urn:zimbraMail") => soap("GetFolderResponse", json!({"folder": [self.tree(1)]})),
             ("SyncRequest", "urn:zimbraMail") => self.sync(body),
             ("SearchRequest", "urn:zimbraMail") => self.search(body),
             ("GetMsgRequest", "urn:zimbraMail") => self.get_msg(body),
             _ => fault("service.UNKNOWN_DOCUMENT"),
+        }
+    }
+
+    fn auth(&self, body: &Value) -> HttpResponse {
+        let text = |path: &str| body.pointer(path).and_then(Value::as_str);
+        let signed = |trusted: bool| {
+            let mut answer = json!({"authToken": [{"_content": TOKEN}], "lifetime": 172_800_000});
+            if trusted && let Value::Object(map) = &mut answer {
+                map.insert("trustedToken".into(), json!({"_content": TRUSTED}));
+                map.insert("deviceId".into(), json!({"_content": DEVICE}));
+            }
+            soap("AuthResponse", answer)
+        };
+        if text("/account/_content") != Some(USER) {
+            return fault("account.AUTH_FAILED");
+        }
+        let two_factor = self.state.borrow().two_factor;
+        let code = text("/twoFactorCode/_content");
+        // The second step: the token the password brought, with the code.
+        if text("/authToken/_content") == Some(PENDING) {
+            return if code == Some(CODE) { signed(body.get("deviceTrusted").is_some()) } else { fault("account.TWO_FACTOR_AUTH_FAILED") };
+        }
+        if text("/password/_content") != Some(PASSWORD) {
+            return fault("account.AUTH_FAILED");
+        }
+        if !two_factor || (text("/trustedToken/_content") == Some(TRUSTED) && text("/deviceId/_content") == Some(DEVICE)) {
+            return signed(false);
+        }
+        match code {
+            Some(CODE) => signed(body.get("deviceTrusted").is_some()),
+            Some(_) => fault("account.TWO_FACTOR_AUTH_FAILED"),
+            None => {
+                soap("AuthResponse", json!({"authToken": [{"_content": PENDING}], "twoFactorAuthRequired": {"_content": true}, "lifetime": 300_000}))
+            }
         }
     }
 

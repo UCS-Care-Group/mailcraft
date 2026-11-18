@@ -25,6 +25,7 @@ use mailcraft_model::sync::{
     ZimbraMessagePage, ZimbraResume,
 };
 
+use crate::auth::{Answer, Credentials, Trust};
 use crate::error::Error;
 use crate::http::{HttpExchange, HttpRequest, HttpResponse, Secret, TransportError};
 use crate::{auth, delta, fetch, folders, items};
@@ -81,6 +82,24 @@ impl<E: HttpExchange> Run<'_, E> {
     }
 }
 
+/// Sign in with `credentials`: the password (and a trusted-device token), and, when the server
+/// asks for a second step, the code typed for this sign-in. Answers the token and what trust the
+/// server gave.
+async fn sign_in<E: HttpExchange>(run: &Run<'_, E>, user: &str, credentials: &Credentials) -> Result<(Secret, Trust), Stop> {
+    let first = run.ask(auth::request(&run.base, user, credentials)).await?;
+    match auth::answer(&first).map_err(Stop::Failed)? {
+        Answer::Token(token, trust) => Ok((token, trust)),
+        Answer::Code(pending) => {
+            let Some(code) = credentials.code.as_ref() else { return Err(Stop::Failed(Error::TwoFactor)) };
+            let second = run.ask(auth::second(&run.base, user, &pending, code)).await?;
+            match auth::answer(&second).map_err(Stop::Failed)? {
+                Answer::Token(token, trust) => Ok((token, trust)),
+                Answer::Code(_) => Err(Stop::Failed(Error::TwoFactor)),
+            }
+        }
+    }
+}
+
 /// The piece every piece of the run starts from. `from` is the token the run goes on from, or
 /// empty when it reads afresh: an unusable token is never echoed (a piece's check would refuse it
 /// whole, and the account would stay at the cursor that fails forever).
@@ -112,23 +131,28 @@ fn turn(kind: FolderKind) -> u8 {
     }
 }
 
-/// Read mail down from the account `request` is for, signing in with `password`, and hand the run
-/// to `emit` in pieces (`partial` on all but the last, which always comes). Setting `cancel` calls
-/// the run off before its next request.
+/// Read mail down from the account `request` is for, signing in with `credentials`, and hand the
+/// run to `emit` in pieces (`partial` on all but the last, which always comes). Setting `cancel`
+/// calls the run off before its next request. The trust the sign-in brought goes to `keep` as soon as
+/// the sign-in is done, before any piece (a trusted-device token is a secret, and goes in no
+/// piece), and is answered too.
 pub async fn sync_mail<E: HttpExchange>(
     exchange: &E,
     request: &ZimbraMailRequest,
-    password: &Secret,
+    credentials: &Credentials,
     cancel: &AtomicBool,
+    keep: &mut dyn FnMut(&Trust),
     emit: &mut dyn FnMut(ZimbraMailResult),
-) {
+) -> Trust {
     let mut last = blank(request);
-    match run(exchange, request, password, cancel, emit).await {
+    let mut trust = Trust::default();
+    match run(exchange, request, credentials, cancel, emit, &mut trust, keep).await {
         Ok((token, resume)) => (last.token, last.resume, last.whole) = (token, Some(resume), true),
         Err(Stop::Cancelled) => last.stopped = true,
         Err(Stop::Failed(e)) => {
             match e {
-                Error::AuthRefused | Error::TwoFactor => last.auth_refused = true,
+                Error::AuthRefused => last.auth_refused = true,
+                Error::TwoFactor => last.code_needed = true,
                 Error::Busy(seconds) => last.busy_for = Some(seconds),
                 _ => {}
             }
@@ -136,6 +160,7 @@ pub async fn sync_mail<E: HttpExchange>(
         }
     }
     emit(last);
+    trust
 }
 
 /// The run itself, up to the token to go on from and where each folder's unfinished fresh read
@@ -143,15 +168,17 @@ pub async fn sync_mail<E: HttpExchange>(
 async fn run<E: HttpExchange>(
     exchange: &E,
     request: &ZimbraMailRequest,
-    password: &Secret,
+    credentials: &Credentials,
     cancel: &AtomicBool,
     emit: &mut dyn FnMut(ZimbraMailResult),
+    trust: &mut Trust,
+    keep: &mut dyn FnMut(&Trust),
 ) -> Result<(String, Vec<ZimbraResume>), Stop> {
     let base = request.url.trim().trim_end_matches('/').to_string();
     let mut run = Run { exchange, cancel, base, token: Secret::new("") };
     let user = login(&request.username, &request.email);
-    let signed_in = run.ask(auth::request(&run.base, &user, password)).await?;
-    run.token = auth::answer(&signed_in).map_err(Stop::Failed)?;
+    (run.token, *trust) = sign_in(&run, &user, credentials).await?;
+    keep(trust);
     let token_ok = !request.token.is_empty() && mailcraft_model::ZimbraServer::token_ok(&request.token);
     if token_ok {
         let listing = folder_listing(&run, request, emit).await?;
@@ -414,8 +441,14 @@ async fn afresh<E: HttpExchange>(
     Ok((token, left))
 }
 
-/// Fetch the messages `request` names whole, signing in with `password`.
-pub async fn fetch_messages<E: HttpExchange>(exchange: &E, request: &ZimbraFetchRequest, password: &Secret, cancel: &AtomicBool) -> GraphFetchResult {
+/// Fetch the messages `request` names whole, signing in with `credentials` (a code is never asked
+/// for here: a fetch that would need one says so in its errors).
+pub async fn fetch_messages<E: HttpExchange>(
+    exchange: &E,
+    request: &ZimbraFetchRequest,
+    credentials: &Credentials,
+    cancel: &AtomicBool,
+) -> GraphFetchResult {
     let mut out = GraphFetchResult { account: request.account, email: request.email.clone(), ..GraphFetchResult::default() };
     let base = request.url.trim().trim_end_matches('/').to_string();
     let mut run = Run { exchange, cancel, base, token: Secret::new("") };
@@ -428,17 +461,10 @@ pub async fn fetch_messages<E: HttpExchange>(exchange: &E, request: &ZimbraFetch
             out.errors.push(format!("Couldn't download messages from the Zimbra server: {e}"));
         }
     };
-    let signed_in = match run.ask(auth::request(&run.base, &login(&request.username, &request.email), password)).await {
-        Ok(signed_in) => signed_in,
+    match sign_in(&run, &login(&request.username, &request.email), credentials).await {
+        Ok((token, _)) => run.token = token,
         Err(e) => {
             stop(&mut out, e);
-            return out;
-        }
-    };
-    match auth::answer(&signed_in) {
-        Ok(token) => run.token = token,
-        Err(e) => {
-            stop(&mut out, Stop::Failed(e));
             return out;
         }
     }

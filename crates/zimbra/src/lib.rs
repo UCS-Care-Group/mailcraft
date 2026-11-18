@@ -47,6 +47,7 @@ mod hostile_tests;
 #[cfg(test)]
 mod tests;
 
+pub use auth::{Credentials, Trust};
 pub use error::{Error, Fault};
 pub use http::{EndpointError, HttpExchange, HttpRequest, HttpResponse, Method, Secret, TransportError};
 pub use run::{fetch_messages, sync_mail};

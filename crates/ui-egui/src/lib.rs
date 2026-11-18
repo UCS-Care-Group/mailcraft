@@ -309,6 +309,7 @@ pub mod windows;
 mod writing_tools_tests;
 #[cfg(test)]
 mod zimbra_info_tests;
+pub mod zimbra_mail;
 mod zones;
 
 use std::sync::mpsc::Receiver;
@@ -429,6 +430,13 @@ pub struct Services {
     /// thread, waking the UI with the answer. Absent where no host does (the browser): Check
     /// Names then matches the contacts alone ([`check_names`]).
     pub ews_resolve: Option<Box<dyn Fn(check_names::EwsResolveJob) -> Receiver<mailcraft_model::sync::EwsResolveResult>>>,
+    /// Desktop: read a Zimbra account as the job says, on a background thread: sign in to the
+    /// account's server with the job's password (and the code of a second step, or the trusted
+    /// device's token), read what the request asks for (`mailcraft_zimbra::sync_mail`) and hand the
+    /// run back through the channel in pieces, waking the UI for each. Absent where no host does.
+    pub zimbra: Option<Box<dyn Fn(zimbra_mail::ZimbraJob) -> Receiver<mailcraft_model::sync::ZimbraMailResult>>>,
+    /// The same host: fetch messages of a Zimbra account whole (`mailcraft_zimbra::fetch_messages`).
+    pub zimbra_fetch: Option<Box<dyn Fn(zimbra_mail::ZimbraFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
     /// Desktop: set an Exchange server account up on a background thread (#252, E7), once the owner
     /// has pressed Connect and not before: find the server unless its address is given, ask the
     /// owner (through the job's answers) before the sign-in goes to a host outside the domain, and
@@ -1640,6 +1648,8 @@ pub struct MailApp {
     /// The fingerprint of the certificate an Exchange server account's server showed that needs
     /// the owner's say (its last run stopped at it), for File › Info. Not saved.
     pub(crate) ews_certificate: std::collections::HashMap<Id, String>,
+    /// Where the Zimbra run under way puts what its sign-in brought to keep (a trusted device).
+    pub(crate) zimbra_trust: Option<(Id, zimbra_mail::TrustSlot)>,
     /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
     /// against the mailbox they belong to.
     secrets_opening: u64,
@@ -1939,6 +1949,8 @@ pub(crate) enum MailRun {
     Jmap { account: Id, opening: u64, pieces: Receiver<mailcraft_model::sync::JmapMailResult> },
     /// An Exchange server account's run ([`ews_mail`]).
     Ews { account: Id, opening: u64, pieces: Receiver<mailcraft_model::sync::EwsMailResult> },
+    /// A Zimbra account's run ([`zimbra_mail`]).
+    Zimbra { account: Id, opening: u64, pieces: Receiver<mailcraft_model::sync::ZimbraMailResult> },
 }
 
 impl MailApp {
@@ -1982,6 +1994,7 @@ impl MailApp {
             ews_unreadable: Default::default(),
             ews_signed_in: Default::default(),
             ews_certificate: Default::default(),
+            zimbra_trust: None,
             secrets_opening: 0,
             secret_cache: Default::default(),
             secret_read: None,
@@ -3275,7 +3288,7 @@ impl MailApp {
     /// account `account` of this mailbox, with the servers it has now: that account's own, never
     /// one found by its address (another may have it too, with other servers, AU3-03).
     fn remembered(&self, kind: &str, account: Id) -> Option<String> {
-        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || self.unconfirmed {
+        if !matches!(kind, "password" | "refresh" | "trust") || !self.ui.remember_sign_in || self.unconfirmed {
             return None;
         }
         let a = self.session.mailbox.account(account)?;
@@ -3287,7 +3300,12 @@ impl MailApp {
     /// Have the operating system remember a secret for the account `account`, when the owner
     /// wants that: under that account's own name.
     fn remember(&mut self, kind: &str, account: Id, secret: &str) {
-        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || secret.is_empty() || self.data_removed || self.unconfirmed {
+        if !matches!(kind, "password" | "refresh" | "trust")
+            || !self.ui.remember_sign_in
+            || secret.is_empty()
+            || self.data_removed
+            || self.unconfirmed
+        {
             return;
         }
         let Some(account) = self.session.mailbox.account(account) else { return };
@@ -3651,6 +3669,10 @@ impl MailApp {
         if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) {
             return self.start_ews_mail(account, quiet, p);
         }
+        // A Zimbra account is kept in step through its server's web service.
+        if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Zimbra) {
+            return self.start_zimbra_mail(account, quiet, p);
+        }
         // Nor has one kept in step over JMAP, where the host runs JMAP (M6).
         if self.services.jmap.is_some() && self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap) {
             return self.start_jmap_mail(account, quiet, p);
@@ -3855,6 +3877,7 @@ impl MailApp {
             mailcraft_model::AccountKind::Jmap => self.services.jmap.is_some(),
             // (Where the host runs it, #252.)
             mailcraft_model::AccountKind::Exchange => self.services.ews.is_some(),
+            mailcraft_model::AccountKind::Zimbra => self.session.zimbra && self.services.zimbra.is_some(),
             kind => kind.has_server() && (self.services.sync.is_some() || self.services.jmap.is_none()),
         };
         self.session.mailbox.accounts.iter().filter(runs).map(|a| a.id).collect()
@@ -3960,6 +3983,9 @@ impl MailApp {
         // down waits for the owner.)
         if a.kind == mailcraft_model::AccountKind::Exchange {
             return !self.jmap_refused.contains(&account) && self.ews_secret(account).is_some();
+        }
+        if a.kind == mailcraft_model::AccountKind::Zimbra {
+            return !self.jmap_refused.contains(&account) && self.zimbra_secret(account).is_some();
         }
         if a.oauth.is_some() {
             let kept = self.tokens.get(&account).is_some_and(|t| t.fresh(mailcraft_time::now()) || !t.refresh.is_empty());
@@ -4726,6 +4752,9 @@ impl MailApp {
             }
             if matches!(self.sync_rx, Some(MailRun::Ews { .. })) {
                 return self.poll_ews();
+            }
+            if matches!(self.sync_rx, Some(MailRun::Zimbra { .. })) {
+                return self.poll_zimbra();
             }
             let Some(MailRun::Imap { account: whose, opening, rx }) = &self.sync_rx else { return };
             // Another mailbox took the place of the one the run was for: its accounts are other

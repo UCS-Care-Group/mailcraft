@@ -194,10 +194,13 @@ fn ambiguous_values_and_incomplete_pages_are_refused() {
 
 #[test]
 fn a_two_factor_account_and_odd_tokens_give_no_token() {
-    let two = answer(200, &json!({"Body": {"AuthResponse": {"twoFactorAuthRequired": {"_content": true}}}}));
-    assert_eq!(auth::answer(&two).map(|_| ()), Err(Error::TwoFactor));
+    // A second step to take: the token for it alone, never one to run with.
+    let two = answer(200, &json!({"Body": {"AuthResponse": {"authToken": [{"_content": "pending"}], "twoFactorAuthRequired": {"_content": true}}}}));
+    assert!(matches!(auth::answer(&two), Ok(auth::Answer::Code(_))));
+    let without = answer(200, &json!({"Body": {"AuthResponse": {"twoFactorAuthRequired": {"_content": true}}}}));
+    assert_eq!(auth::answer(&without).map(|_| ()), Err(Error::Unreadable));
     // A flag that is no flag can't be read off either: the sign-in's answer is refused.
-    let odd = answer(200, &json!({"Body": {"AuthResponse": {"twoFactorAuthRequired": {"_content": "tr\u{0}ue"}}}}));
+    let odd = answer(200, &json!({"Body": {"AuthResponse": {"authToken": [{"_content": "pending"}], "twoFactorAuthRequired": {"_content": "tr\u{0}ue"}}}}));
     assert_eq!(auth::answer(&odd).map(|_| ()), Err(Error::Unreadable));
     for token in ["", "with space", "a\"b", &"x".repeat(5000)] {
         let odd = answer(200, &json!({"Body": {"AuthResponse": {"authToken": [{"_content": token}]}}}));

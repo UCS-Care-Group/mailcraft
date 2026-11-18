@@ -3445,6 +3445,11 @@ msgstr "Zamknięto stronę? To ponownie otworzy stronę logowania dostawcy."
 msgid "Closes this window. Nothing is kept."
 msgstr "Zamyka to okno. Nic nie jest zachowywane."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Code from your authenticator app for {account}"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -14329,7 +14334,7 @@ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
 msgstr "Wyślij/Odbierz loguje do Microsoft; wtedy można przeszukać serwer."
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Wysyłanie/odbieranie zatrzymało się nieoczekiwanie"
@@ -14389,7 +14394,7 @@ msgid "Sending"
 msgstr "Wysyłanie"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Sending and receiving…"
 msgstr "Wysyłanie i odbieranie…"
@@ -16301,6 +16306,11 @@ msgstr "Podpis cyfrowy wygasł."
 msgid "The Entire Series"
 msgstr "Cała seria"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The Zimbra server is asked to trust this computer, so that it doesn't ask for a code every time."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -18135,7 +18145,7 @@ msgid "This build can't connect to Microsoft"
 msgstr "Ta wersja programu nie może połączyć się z Microsoft"
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "Ta wersja programu nie może łączyć się z serwerami poczty"
