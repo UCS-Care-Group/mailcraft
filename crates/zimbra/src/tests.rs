@@ -84,6 +84,22 @@ fn a_first_read_lists_the_folders_of_mail_and_reads_each_from_its_start() {
 }
 
 #[test]
+fn the_folder_in_view_is_read_first() {
+    let server = StandIn::new();
+    let projects = server.add_folder(2, "Projects");
+    server.deliver(projects, "Filed", "");
+    server.deliver(2, "Inbox mail", "");
+    let mut request = request("");
+    request.first = projects.to_string();
+    let pieces = run(&server, &request, PASSWORD);
+    let pages: Vec<&str> = pieces.iter().flat_map(|p| p.pages.iter().map(|page| page.folder.as_str())).collect();
+    assert_eq!(pages.first().copied(), Some(projects.to_string().as_str()));
+    // And each page says where the run is: which folder of how many, how much of it read.
+    let progress: Vec<_> = pieces.iter().filter_map(|p| p.progress.as_ref()).collect();
+    assert!(!progress.is_empty() && progress.iter().all(|p| p.folders > 0 && p.number > 0));
+}
+
+#[test]
 fn a_delta_brings_what_changed_since_the_token_and_what_was_deleted() {
     let server = StandIn::new();
     let kept = server.deliver(2, "Kept", "u");

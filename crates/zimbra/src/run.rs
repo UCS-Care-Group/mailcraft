@@ -241,7 +241,17 @@ async fn folder_listing<E: HttpExchange>(
     piece.well_known = listing.well_known.clone();
     piece.partial = true;
     emit(piece);
-    if listing.complete { Ok(listing) } else { Err(Stop::Failed(Error::Unreadable)) }
+    if listing.complete {
+        Ok(listing)
+    } else {
+        // Said why in the run's problems (ids at most, never names), so that a listing it can't
+        // trust doesn't fail behind an unreadable answer alone.
+        let mut note = blank(request);
+        note.errors = listing.notes.iter().map(|n| format!("the folder listing couldn't be trusted: {n}")).collect();
+        note.partial = true;
+        emit(note);
+        Err(Stop::Failed(Error::Unreadable))
+    }
 }
 
 /// What was done here, taken up before anything is read: the folders' changes, the messages', and
@@ -498,10 +508,12 @@ async fn folder_tail<E: HttpExchange>(
     request: &ZimbraMailRequest,
     folder: &str,
     start: Option<(String, u64)>,
+    of: (u32, u32, u32),
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) -> Result<Option<ZimbraResume>, Stop> {
     let fresh = start.is_none();
     let mut cursor = start;
+    let mut read: u32 = 0;
     for page_number in 0..MAX_FOLDER_PAGES {
         let answered = run.ask(items::folder_page(&run.base, &run.token, folder, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort)))).await?;
         let page = items::answer(&answered).map_err(Stop::Failed)?;
@@ -517,6 +529,7 @@ async fn folder_tail<E: HttpExchange>(
         }
         let last = !page.more;
         cursor = page.cursor;
+        read = read.saturating_add(u32::try_from(page.messages.len()).unwrap_or(u32::MAX));
         let mut piece = blank(request);
         piece.pages.push(ZimbraMessagePage {
             folder: folder.to_string(),
@@ -525,6 +538,7 @@ async fn folder_tail<E: HttpExchange>(
             last,
             ..ZimbraMessagePage::default()
         });
+        piece.progress = Some(mailcraft_model::sync::GraphProgress { folder: folder.to_string(), read, total: of.2, number: of.0, folders: of.1 });
         piece.partial = true;
         emit(piece);
         if last {
@@ -584,10 +598,12 @@ async fn mounted_tail<E: HttpExchange>(
     run: &Run<'_, E>,
     request: &ZimbraMailRequest,
     mount: &folders::Mountpoint,
+    of: (u32, u32, u32),
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) -> Result<(), Stop> {
     for queried in [mount.id.as_str(), mount.local.as_str()].into_iter().filter(|q| !q.is_empty()) {
         let Some(pages) = read_mount(run, queried).await? else { continue };
+        let read = pages.iter().fold(0u32, |n, p| n.saturating_add(u32::try_from(p.messages.len()).unwrap_or(u32::MAX)));
         let mut piece = blank(request);
         piece.pages = pages
             .into_iter()
@@ -600,6 +616,7 @@ async fn mounted_tail<E: HttpExchange>(
                 ..ZimbraMessagePage::default()
             })
             .collect();
+        piece.progress = Some(mailcraft_model::sync::GraphProgress { folder: mount.id.clone(), read, total: of.2, number: of.0, folders: of.1 });
         piece.partial = true;
         emit(piece);
         return Ok(());
@@ -620,9 +637,11 @@ async fn refresh_mounted<E: HttpExchange>(
     listing: &folders::Listing,
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) -> Result<(), Stop> {
-    for folder in listing.folders.iter().take(MAX_LISTED_FOLDERS) {
+    let folders = u32::try_from(listing.folders.len()).unwrap_or(u32::MAX);
+    for (n, folder) in listing.folders.iter().take(MAX_LISTED_FOLDERS).enumerate() {
         if let Some(mount) = mountpoint(listing, &folder.id) {
-            mounted_tail(run, request, mount, emit).await?;
+            let of = (u32::try_from(n + 1).unwrap_or(u32::MAX), folders, if folder.counted { folder.total } else { 0 });
+            mounted_tail(run, request, mount, of, emit).await?;
         }
     }
     Ok(())
@@ -642,12 +661,24 @@ async fn resume_folders<E: HttpExchange>(
         if !listing.folders.iter().any(|f| f.id == entry.folder) {
             continue;
         }
+        let of = listing
+            .folders
+            .iter()
+            .position(|f| f.id == entry.folder)
+            .map(|n| {
+                (
+                    u32::try_from(n + 1).unwrap_or(u32::MAX),
+                    u32::try_from(listing.folders.len()).unwrap_or(u32::MAX),
+                    listing.folders.get(n).filter(|f| f.counted).map(|f| f.total).unwrap_or(0),
+                )
+            })
+            .unwrap_or((0, 0, 0));
         if let Some(mount) = mountpoint(listing, &entry.folder) {
-            mounted_tail(run, request, mount, emit).await?;
+            mounted_tail(run, request, mount, of, emit).await?;
             continue;
         }
         let start = if entry.cursor.is_empty() { None } else { Some((entry.cursor.clone(), entry.sort)) };
-        if let Some(again) = folder_tail(run, request, &entry.folder, start, emit).await? {
+        if let Some(again) = folder_tail(run, request, &entry.folder, start, of, emit).await? {
             left.push(again);
         }
     }
@@ -666,24 +697,27 @@ async fn afresh<E: HttpExchange>(
     let token = delta::answer(&started, true).map_err(Stop::Failed)?.token;
     let listing = folder_listing(run, request, emit).await?;
     let mut order: Vec<&mailcraft_model::sync::GraphFolder> = listing.folders.iter().collect();
-    order.sort_by_key(|f| turn(f.kind));
+    // The folder in view comes first, so what the owner is looking at shows before the rest does.
+    order.sort_by_key(|f| (f.id != request.first, turn(f.kind)));
     // Every folder read from its beginning: a fresh read is taken only when the token `request`
     // named can't be used, and the saved cursors were made under it, so going on from one would
     // leave what changed before it unread for good. `resume_folders` goes on from them on the
     // runs whose token still stands.
+    let folders = u32::try_from(order.len()).unwrap_or(u32::MAX);
     let mut left: Vec<ZimbraResume> = Vec::new();
     let mut capped = false;
-    for folder in order {
+    for (n, folder) in order.iter().enumerate() {
+        let of = (u32::try_from(n + 1).unwrap_or(u32::MAX), folders, if folder.counted { folder.total } else { 0 });
         if capped {
             // A folder this run never reached starts over on the next one.
             left.push(ZimbraResume { folder: folder.id.clone(), ..ZimbraResume::default() });
             continue;
         }
         if let Some(mount) = mountpoint(&listing, &folder.id) {
-            mounted_tail(run, request, mount, emit).await?;
+            mounted_tail(run, request, mount, of, emit).await?;
             continue;
         }
-        if let Some(again) = folder_tail(run, request, &folder.id, None, emit).await? {
+        if let Some(again) = folder_tail(run, request, &folder.id, None, of, emit).await? {
             left.push(again);
             capped = true;
         }
