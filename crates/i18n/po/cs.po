@@ -1897,6 +1897,12 @@ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's
 msgstr "Požádejte o oprávnění číst kalendáře sdílených poštovních schránek: v prohlížeči se otevře stránka Microsoftu. Bez něj se z kalendářů této poštovní schránky nic nenačte."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr "Požádat o tyto zprávy znovu při příštím odesílání a přijímání. Pošta na serveru zůstane nedotčena a nic se neztratí, pokud selžou znovu."
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask once more for the pictures that couldn't be downloaded."
@@ -3885,6 +3891,12 @@ msgstr "Kategorie Gmailu pro „{name}“ se nepodařilo načíst"
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "Seznam složek se nepodařilo načíst"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Nepodařilo se znovu připojit a pokračovat se složkou „{name}“"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -7928,6 +7940,18 @@ msgstr "Ponechat neověřený"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Vynechat tento účet z tohoto Odeslat/přijmout"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "Zpráva ve složce „{name}“, kterou se nepodařilo stáhnout při {tries} spuštěních, se vynechává; Zkusit znovu vynechané zprávy ji zkusí znovu"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "{count} zpráv ve složce „{name}“, které se nepodařilo stáhnout při {tries} spuštěních, se vynechává; Zkusit znovu vynechané zprávy je zkusí znovu"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12947,6 +12971,12 @@ msgstr "Restartovat a aktualizovat musí kliknout vlastník."
 #, fuzzy
 msgid "Retry"
 msgstr "Zkusit znovu"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Zkusit znovu vynechané zprávy"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -18957,7 +18987,7 @@ msgid "Try Signing In Again"
 msgstr "Zkusit se znovu přihlásit"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Zkusit znovu"
@@ -22140,6 +22170,12 @@ msgstr "stahování selhalo"
 msgid "the download stopped before it was done"
 msgstr "stahování se zastavilo dřív, než bylo hotovo"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "šifrované spojení bylo cestou poškozeno (obvykle za tím stojí antivirový program nebo firewall, který kontroluje poštovní spojení: vypněte pro MailCraft kontrolu pošty či SSL, nebo se zeptejte poskytovatele pošty)"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
@@ -22223,6 +22259,12 @@ msgstr "složka, do které se importoval soubor .pst, byla přesunuta do Odstran
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "složka, ve které tato zpráva je, už v tomto počítači není"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "složka byla během čtení přečíslována"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -24558,6 +24600,15 @@ msgid_plural "{n} messages were already here"
 msgstr[0] "{n} zpráva už tu byla"
 msgstr[1] "{n} zprávy už tu byly"
 msgstr[2] "{n} zpráv už tu bylo"
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "{n} zpráva byla vynechána, protože se ji nepodařilo stáhnout."
+msgstr[1] "{n} zprávy byly vynechány, protože se je nepodařilo stáhnout."
+msgstr[2] "{n} zpráv bylo vynecháno, protože se je nepodařilo stáhnout."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

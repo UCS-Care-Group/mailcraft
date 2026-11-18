@@ -1911,6 +1911,12 @@ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's
 msgstr "请求读取共享邮箱日历的权限：Microsoft 页面将在浏览器中打开。未获授权时，不会读取此邮箱的任何日历。"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr "在下次发送/接收时再次请求这些邮件。服务器上的邮件不受影响，即使再次失败也不会丢失任何内容。"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask once more for the pictures that couldn't be downloaded."
@@ -3914,6 +3920,12 @@ msgstr "无法读取 Gmail 的“{name}”类别"
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "无法读取文件夹列表"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "无法重新连接以继续处理“{name}”"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -7936,6 +7948,18 @@ msgstr "保留未验证状态"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "此次发送/接收时跳过此账户"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "“{name}”中有 1 封邮件在 {tries} 次运行中都下载失败，已被跳过；“重试跳过的邮件”会再次尝试"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "“{name}”中有 {count} 封邮件在 {tries} 次运行中都下载失败，已被跳过；“重试跳过的邮件”会再次尝试"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12960,6 +12984,12 @@ msgstr "“重新启动以更新”必须由用户亲自点击。"
 #, fuzzy
 msgid "Retry"
 msgstr "重试"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "重试跳过的邮件"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -18975,7 +19005,7 @@ msgid "Try Signing In Again"
 msgstr "尝试重新登录"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "重试"
@@ -22151,6 +22181,12 @@ msgstr "下载失败"
 msgid "the download stopped before it was done"
 msgstr "下载尚未完成就已停止"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "加密连接在传输途中被破坏（通常是扫描邮件连接的杀毒或防火墙软件所致：请为 MailCraft 关闭其邮件或 SSL 扫描，或咨询邮件服务商）"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
@@ -22234,6 +22270,12 @@ msgstr "正在导入 .pst 文件的目标文件夹已移至“已删除邮件”
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "此邮件所在的文件夹已不在此计算机上"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "文件夹在读取过程中被重新编号"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -24436,6 +24478,13 @@ msgstr[0] "有 {n} 封邮件在删除被拒绝后返回了空内容，正在重�
 msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "已有 {n} 封邮件在此"
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "有 {n} 封邮件因下载失败而被跳过。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

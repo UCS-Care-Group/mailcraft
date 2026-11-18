@@ -1843,6 +1843,12 @@ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's
 msgstr "Vraag toestemming om de agenda's van gedeelde postvakken te lezen: de pagina van Microsoft opent in uw browser. Zonder die toestemming wordt niets van de agenda's van dit postvak gelezen."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr "Vraag deze berichten opnieuw op bij het volgende Verzenden/ontvangen. De e-mail op de server blijft ongemoeid en er gaat niets verloren als ze opnieuw mislukken."
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask once more for the pictures that couldn't be downloaded."
@@ -3770,6 +3776,12 @@ msgstr "Kon de Gmail-categorieën van \"{name}\" niet lezen"
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "De lijst met mappen kon niet worden gelezen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Opnieuw verbinden om met \"{name}\" door te gaan is mislukt"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -7641,6 +7653,18 @@ msgstr "Niet geverifieerd laten"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Dit account overslaan bij deze Verzenden/ontvangen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "1 bericht van \"{name}\" dat in {tries} rondes niet te downloaden was, wordt overgeslagen; Overgeslagen berichten opnieuw proberen probeert het weer"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "{count} berichten van \"{name}\" die in {tries} rondes niet te downloaden waren, worden overgeslagen; Overgeslagen berichten opnieuw proberen probeert ze weer"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12494,6 +12518,12 @@ msgstr "Opnieuw starten om bij te werken is de klik van de eigenaar."
 #, fuzzy
 msgid "Retry"
 msgstr "Opnieuw proberen"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Overgeslagen berichten opnieuw proberen"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -18396,7 +18426,7 @@ msgid "Try Signing In Again"
 msgstr "Opnieuw aanmelden"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Opnieuw proberen"
@@ -21538,6 +21568,12 @@ msgstr "de download is mislukt"
 msgid "the download stopped before it was done"
 msgstr "de download is gestopt voordat die klaar was"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "de versleutelde verbinding is onderweg beschadigd (meestal komt dit door antivirus- of firewallsoftware die mailverbindingen scant: schakel de mail- of SSL-scan voor MailCraft uit of vraag het aan de mailprovider)"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
@@ -21621,6 +21657,12 @@ msgstr "de map waar het .pst-bestand in werd geïmporteerd, werd verplaatst naar
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "de map waarin dit bericht staat, is niet meer op deze computer"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "de map is tijdens het lezen opnieuw genummerd"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -23883,6 +23925,14 @@ msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "{n} bericht was er al"
 msgstr[1] "{n} berichten waren er al"
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "{n} bericht is overgeslagen omdat het downloaden mislukte."
+msgstr[1] "{n} berichten zijn overgeslagen omdat het downloaden mislukte."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

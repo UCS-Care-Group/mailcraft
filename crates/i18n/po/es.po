@@ -1913,6 +1913,12 @@ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's
 msgstr "Pida permiso para leer los calendarios de los buzones compartidos: la página de Microsoft se abre en su navegador. Sin él, no se lee nada de los calendarios de este buzón."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr "Volver a pedir estos mensajes en el próximo Enviar y recibir. El correo del servidor no se toca y no se pierde nada si vuelven a fallar."
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask once more for the pictures that couldn't be downloaded."
@@ -3913,6 +3919,12 @@ msgstr "No se pudieron leer las categorías de Gmail de «{name}»"
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "No se pudo leer la lista de carpetas"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "No se pudo volver a conectar para seguir con «{name}»"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -7942,6 +7954,18 @@ msgstr "Dejarla sin verificar"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Excluir esta cuenta de este envío y recepción"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "Se omite 1 mensaje de «{name}» que no se pudo descargar en {tries} ejecuciones; Reintentar mensajes omitidos lo vuelve a intentar"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "Se omiten {count} mensajes de «{name}» que no se pudieron descargar en {tries} ejecuciones; Reintentar mensajes omitidos los vuelve a intentar"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12968,6 +12992,12 @@ msgstr "Solo el propietario puede hacer clic en Reiniciar para actualizar."
 #, fuzzy
 msgid "Retry"
 msgstr "Reintentar"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Reintentar mensajes omitidos"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -18990,7 +19020,7 @@ msgid "Try Signing In Again"
 msgstr "Volver a intentar iniciar sesión"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Volver a intentarlo"
@@ -22163,6 +22193,12 @@ msgstr "la descarga no se pudo completar"
 msgid "the download stopped before it was done"
 msgstr "la descarga se detuvo antes de terminar"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "la conexión cifrada se dañó por el camino (suele deberse a un antivirus o cortafuegos que analiza las conexiones de correo: desactive su análisis de correo o SSL para MailCraft, o consulte al proveedor de correo)"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
@@ -22246,6 +22282,12 @@ msgstr "la carpeta en la que se importaba el archivo .pst se movió a Elementos 
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "la carpeta en la que está este mensaje ya no está en este equipo"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "la carpeta se numeró de nuevo mientras se leía"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -24516,6 +24558,14 @@ msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "{n} mensaje ya estaba aquí"
 msgstr[1] "{n} mensajes ya estaban aquí"
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "Se omitió {n} mensaje porque no se pudo descargar."
+msgstr[1] "Se omitieron {n} mensajes porque no se pudieron descargar."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

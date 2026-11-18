@@ -1913,6 +1913,12 @@ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's
 msgstr "Cereți permisiunea de a citi calendarele cutiilor poștale partajate: pagina Microsoft se deschide în browser. Fără ea, nu se citește nimic din calendarele acestei cutii poștale."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr "Cere din nou aceste mesaje la următoarea Trimitere / Primire. Poșta de pe server rămâne neatinsă și nu se pierde nimic dacă eșuează din nou."
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask once more for the pictures that couldn't be downloaded."
@@ -3918,6 +3924,12 @@ msgstr "Nu s-au putut citi categoriile Gmail ale „{name}”"
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "Lista de dosare nu a putut fi citită"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Nu s-a putut reconecta pentru a continua cu „{name}”"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -7969,6 +7981,18 @@ msgstr "Las-o neverificată"
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
 msgstr "Excludeți acest cont din această Trimitere/primire"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "1 mesaj din „{name}” care nu s-a putut descărca în {tries} rulări este omis; Reîncearcă mesajele omise îl încearcă din nou"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "{count} mesaje din „{name}” care nu s-au putut descărca în {tries} rulări sunt omise; Reîncearcă mesajele omise le încearcă din nou"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13001,6 +13025,12 @@ msgstr "Repornirea pentru actualizare e decizia proprietarului."
 #, fuzzy
 msgid "Retry"
 msgstr "Reîncercare"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Reîncearcă mesajele omise"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -19044,7 +19074,7 @@ msgid "Try Signing In Again"
 msgstr "Încercați din nou conectarea"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Încercați din nou"
@@ -22229,6 +22259,12 @@ msgstr "descărcarea a eșuat"
 msgid "the download stopped before it was done"
 msgstr "descărcarea s-a oprit înainte de final"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "conexiunea criptată a fost deteriorată pe drum (de obicei vinovat este un antivirus sau un firewall care scanează conexiunile de e-mail: dezactivați scanarea e-mailului sau SSL pentru MailCraft ori întrebați furnizorul de e-mail)"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
@@ -22312,6 +22348,12 @@ msgstr "dosarul în care se importa fișierul .pst a fost mutat în Elemente șt
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "dosarul în care este acest mesaj nu mai este pe acest computer"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "dosarul a fost renumerotat în timpul citirii"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -24652,6 +24694,15 @@ msgid_plural "{n} messages were already here"
 msgstr[0] "{n} mesaj era deja aici"
 msgstr[1] "{n} mesaje erau deja aici"
 msgstr[2] "{n} de mesaje erau deja aici"
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "{n} mesaj a fost omis deoarece descărcarea a eșuat."
+msgstr[1] "{n} mesaje au fost omise deoarece descărcarea a eșuat."
+msgstr[2] "{n} de mesaje au fost omise deoarece descărcarea a eșuat."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

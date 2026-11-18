@@ -1588,6 +1588,11 @@ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Ask once more for the pictures that couldn't be downloaded."
 msgstr ""
@@ -3249,6 +3254,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 msgid "Couldn't read the list of folders"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Couldn't reconnect to carry on with \"{name}\""
 msgstr ""
 
 #. what a command says
@@ -6587,6 +6597,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
 msgid "Leave this account out of this Send/Receive"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
 msgstr ""
 
 #. interface
@@ -10746,6 +10766,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "Retry"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+msgid "Retry Skipped Messages"
 msgstr ""
 
 #. command label
@@ -15736,7 +15761,7 @@ msgid "Try Signing In Again"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 msgid "Try again"
 msgstr ""
 
@@ -18385,6 +18410,11 @@ msgstr ""
 msgid "the download stopped before it was done"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
 msgid "the end is before the start"
@@ -18453,6 +18483,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
 msgid "the folder this message is in isn't on this computer any more"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the folder was numbered anew while it was being read"
 msgstr ""
 
 #. what a command says
@@ -20370,6 +20405,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/lib.rs
 msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
 msgstr[0] ""
 msgstr[1] ""
 
