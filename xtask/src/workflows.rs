@@ -10,7 +10,9 @@
 //!   inherit`, `azure/login`, a keychain import, or the `release` environment) also runs cargo,
 //!   rustup, rustc, trunk or cross, sets up a Rust toolchain, restores a cache, uses a local action
 //!   (this check can't see into one; a reusable workflow under `.github/workflows/` is checked
-//!   itself), runs a program built here (`target/…`, xtask, the MailCraft programs), calls a
+//!   itself), runs a program built here (`target/…`, xtask, the MailCraft programs; the one
+//!   exception is the Google Play uploader handed on by digest, run where the Play key is the only
+//!   secret: [`UPLOADER_RUNS`]), calls a
 //!   packaging script without the flags that keep it from building and from running what was
 //!   built, or runs a script from inside `packaging/` that isn't one of the signing scripts;
 //! - a workflow or job asks for `permissions: read-all` or `write-all`;
@@ -33,6 +35,17 @@ const KEYED: &[(&str, &str)] = &[
     ("create-keychain", "makes a keychain"),
     ("import-codesign-certs", "imports a signing certificate into a keychain"),
 ];
+
+/// The one secret a job may hold and still run a program built here: the Play service account's
+/// key, in the job that runs our Google Play uploader, which a job without secrets built and handed
+/// on by digest (`.github/workflows/android.yml`, docs/releasing.md). These commands, exactly, and
+/// nothing else built: cargo, a toolchain and every other program stay refused there too.
+const PLAY_SECRET: &str = "PLAY_SERVICE_ACCOUNT_JSON";
+/// The uploader's commands, word for word: the program at exactly this path (or `./` and this
+/// path) and exactly this subcommand. A word is what stands between spaces, so `/tmp/uploader/xtask`
+/// or `play-upload-other` is another word and stays refused.
+const UPLOADER_RUNS: &[&[&str]] = &[&["chmod", "+x", UPLOADER], &[UPLOADER, "play-upload"]];
+const UPLOADER: &str = "uploader/xtask";
 
 /// Commands that compile or set up a compiler.
 const BUILD_WORDS: &[&str] = &["cargo", "rustup", "rustc", "trunk", "cross"];
@@ -130,8 +143,12 @@ pub fn check(file: &str, text: &str) -> Vec<String> {
         let Some((at, why)) = why else {
             continue;
         };
+        let play_only = workflow_keyed.is_none() && holds_only_the_play_key(job);
         let mut found = Vec::new();
-        for (number, command) in commands(job) {
+        for (number, mut command) in commands(job) {
+            if play_only {
+                command = without_uploader_runs(&command);
+            }
             if let Some(what) = builds_or_runs(&command) {
                 found.push((number, what));
             }
@@ -268,8 +285,23 @@ fn keyed(lines: &[Line]) -> Option<(usize, String)> {
     None
 }
 
+/// Whether the job's only signing material is [`PLAY_SECRET`] (and the `release` environment that
+/// holds it): no other secret, nothing of [`KEYED`].
+fn holds_only_the_play_key(job: &[Line]) -> bool {
+    job.iter().all(|l| {
+        let code = l.code.trim();
+        !KEYED.iter().any(|(needle, _)| code.contains(needle)) && signing_secrets(code).iter().all(|s| s == PLAY_SECRET)
+    })
+}
+
 /// The first secret on the line that is signing material (any but [`NOT_SIGNING`]).
 fn signing_secret(code: &str) -> Option<String> {
+    signing_secrets(code).into_iter().next()
+}
+
+/// Every secret on the line that is signing material, in order.
+fn signing_secrets(code: &str) -> Vec<String> {
+    let mut found = Vec::new();
     let mut rest = code;
     while let Some(at) = rest.find("secrets") {
         let after = rest.get(at + "secrets".len()..).unwrap_or_default();
@@ -281,16 +313,16 @@ fn signing_secret(code: &str) -> Option<String> {
         if let Some(name) = after.strip_prefix('.') {
             let name: String = name.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
             if !name.is_empty() && !NOT_SIGNING.contains(&name.as_str()) {
-                return Some(name);
+                found.push(name);
             }
         } else if after.starts_with('[') {
-            return Some("secrets[…]".to_string());
+            found.push("secrets[…]".to_string());
         } else if after.trim_start().starts_with(')') || before == Some('(') {
             // `toJSON(secrets)` and the like: every secret at once.
-            return Some("context, all of them".to_string());
+            found.push("context, all of them".to_string());
         }
     }
-    None
+    found
 }
 
 /// The lines as commands: a line ending in `\` is joined to the next, with the first one's number.
@@ -316,6 +348,28 @@ fn commands(lines: &[Line]) -> Vec<(usize, String)> {
         open = continues;
     }
     out
+}
+
+/// The command with each whole-word run of the uploader ([`UPLOADER_RUNS`]) taken out, for the
+/// other checks to read what is left. Words are split at white space and compared whole, so
+/// nothing that merely contains the uploader's path or subcommand is taken out.
+fn without_uploader_runs(command: &str) -> String {
+    let words: Vec<&str> = command.split_whitespace().collect();
+    let same = |word: &str, want: &str| word == want || (want == UPLOADER && word.strip_prefix("./") == Some(UPLOADER));
+    let mut kept = Vec::with_capacity(words.len());
+    let mut at = 0;
+    while let Some(word) = words.get(at) {
+        let run =
+            UPLOADER_RUNS.iter().find(|run| words.get(at..at + run.len()).is_some_and(|got| got.iter().zip(run.iter()).all(|(g, w)| same(g, w))));
+        match run {
+            Some(run) => at += run.len(),
+            None => {
+                kept.push(*word);
+                at += 1;
+            }
+        }
+    }
+    kept.join(" ")
 }
 
 /// What in this command compiles or runs a built program, if anything.

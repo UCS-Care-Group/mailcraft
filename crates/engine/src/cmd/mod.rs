@@ -48,6 +48,8 @@ mod ews_down;
 pub mod ews_mail;
 mod ews_up;
 #[cfg(test)]
+mod failing_messages_tests;
+#[cfg(test)]
 mod favorites_tests;
 pub mod file;
 pub mod folder;
