@@ -1703,7 +1703,7 @@ msgstr "გაგზავნა/მიღების გამოყენე�
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
 msgid "Apply Send/Receive with Zimbra"
-msgstr ""
+msgstr "Zimbra-ით გაგზავნის/მიღების გამოყენება"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -4746,7 +4746,7 @@ msgstr "ფოსტაში სურათების ავტომატ�
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
 msgid "Download Zimbra Messages in Full"
-msgstr ""
+msgstr "Zimbra-ის შეტყობინებების სრულად ჩამოტვირთვა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14322,7 +14322,7 @@ msgstr "გაგზავნა/მიღება Microsoft Graph-ით"
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
 msgid "Send/Receive with Zimbra"
-msgstr ""
+msgstr "გაგზავნა/მიღება Zimbra-ით"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -20655,27 +20655,27 @@ msgstr "ჯერ Z"
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
 msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
-msgstr ""
+msgstr "Zimbra-ის ანგარიშები მოწმდება: გაუშვით MailCraft MAILCRAFT_ZIMBRA=1-ით, რომ სცადოთ"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
 msgid "Zimbra accounts can't be sent and received yet: that part is not built"
-msgstr ""
+msgstr "Zimbra-ის ანგარიშებით ჯერ ვერ იგზავნება და ვერ მიიღება: ეს ნაწილი ჯერ არ არის აგებული"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Zimbra {host} · not kept in step yet: this part is not built"
-msgstr ""
+msgstr "Zimbra {host} · ჯერ არ სინქრონიზდება: ეს ნაწილი ჯერ არ არის აგებული"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
-msgstr ""
+msgstr "Zimbra {host} · არ სინქრონიზდება: Zimbra-ის ანგარიშები გამორთულია (გაუშვით MailCraft MAILCRAFT_ZIMBRA=1-ით, რომ სცადოთ)"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Zimbra · no usable server address"
-msgstr ""
+msgstr "Zimbra · გამოყენებადი სერვერის მისამართი არ არის"
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -20806,7 +20806,7 @@ msgstr "Microsoft-ით შესვლა მხოლოდ Microsoft-ის 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
-msgstr ""
+msgstr "Zimbra-ის ანგარიშის სერვერის, მისამართისა და მომხმარებლის სახელის შეცვლა შეუძლებელია, როცა მისი ფოსტა უკვე აქ არის: წაშალეთ და დაამატეთ მეორე"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21113,7 +21113,7 @@ msgstr "ანგარიში JMAP ანგარიში ხდება �
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
-msgstr ""
+msgstr "ანგარიში Zimbra-ის ანგარიში ხდება ან წყვეტს ასეთი ყოფნა მხოლოდ წაშლითა და ხელახლა დამატებით"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21684,7 +21684,7 @@ msgstr "აქ არცერთი ანგარიში თავის �
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/zimbra_mail.rs
 msgid "no account is a Zimbra account"
-msgstr ""
+msgstr "არც ერთი ანგარიში არ არის Zimbra-ის ანგარიში"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
@@ -24187,7 +24187,7 @@ msgstr "{name}: JMAP სერვერის გამოსადეგი მ
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
 msgid "{name} has no Zimbra server address that can be used"
-msgstr ""
+msgstr "{name}-ს არ აქვს გამოყენებადი Zimbra-ის სერვერის მისამართი"
 
 #. what a command says
 #: crates/engine/src/io.rs
@@ -24264,7 +24264,7 @@ msgstr "{name} არ არის Microsoft ან Exchange სერვერ�
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
 msgid "{name} isn't a Zimbra account"
-msgstr ""
+msgstr "{name} არ არის Zimbra-ის ანგარიში"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
