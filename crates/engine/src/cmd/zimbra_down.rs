@@ -110,6 +110,7 @@ pub(crate) fn bounded(mut result: ZimbraMailResult) -> (ZimbraMailResult, bool) 
     if cut {
         result.pages.iter_mut().for_each(|page| (page.afresh, page.last) = (false, false));
         result.token.clear();
+        result.resume = None;
     }
     result.errors = lines(&result.errors);
     result.busy_for = result.busy_for.map(|seconds| seconds.min(MAX_BUSY));
@@ -117,6 +118,7 @@ pub(crate) fn bounded(mut result: ZimbraMailResult) -> (ZimbraMailResult, bool) 
     result.whole &= !cut && !trouble && !result.partial;
     if !result.whole {
         result.token.clear();
+        result.resume = None;
     }
     (result, cut)
 }
