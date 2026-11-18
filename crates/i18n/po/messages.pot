@@ -304,6 +304,11 @@ msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A Zimbra server answered at {host}: your account may be on it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "A brand's name on another address."
 msgstr ""
@@ -551,6 +556,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "A sign-in token of this session is kept: the password isn't asked for until it ends."
 msgstr ""
 
 #. interface
@@ -4944,7 +4954,7 @@ msgid "For now, your automatic replies aren't changed: {error}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/ews_setup.rs
+#: crates/ui-egui/src/ews_setup.rs crates/ui-egui/src/zimbra_mail.rs
 msgid "Forget"
 msgstr ""
 
@@ -4956,6 +4966,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/account.rs
 msgid "Forget Trusted Certificate"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Forget Trusted Device"
 msgstr ""
 
 #. android, interface
@@ -12900,6 +12915,11 @@ msgstr ""
 msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "Stop trusting this computer for this account: the next Send/Receive signs in afresh and asks for the code again (when the account has a second step). What the server has trusted can be withdrawn there too, under its own settings."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
 msgid "Stopped"
@@ -14959,6 +14979,11 @@ msgid "This account is no longer in the mailbox."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This account isn't a Zimbra account"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/category_sync.rs
 msgid "This account may not change its categories through Microsoft Graph"
 msgstr ""
@@ -15146,6 +15171,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "This computer is trusted: the code of the authenticator app isn't asked for."
 msgstr ""
 
 #. interface
@@ -17248,6 +17278,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "`format` is \"smime\" or \"openpgp\""
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`id` is required"
 msgstr ""
 
 #. interface
