@@ -14642,8 +14642,8 @@ msgstr "Aláírások"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Az aláírások ezen a számítógépen maradnak. Nem lehet lépést tartani az Outlook-kal: egy másik eszközön, amit ott helyeznek el, vagy az Outlook-ból az interneten (Beállítások › Aláírások)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
+msgstr "Az aláírások ezen a számítógépen maradnak. Nem lehet lépést tartani az Outlook-kal: egy másik eszközön, amit ott helyeznek el, vagy az Outlook-ból az interneten (Beállítások › Aláírások). Egy Exchange-kiszolgálói fiók átveszi az ott mentett aláírást „<cím> (Exchange)” néven, és csak olvassa."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -24810,6 +24810,10 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint egy melléklet"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Az aláírások ezen a számítógépen maradnak. Nem lehet lépést tartani az Outlook-kal: egy másik eszközön, amit ott helyeznek el, vagy az Outlook-ból az interneten (Beállítások › Aláírások)."
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"

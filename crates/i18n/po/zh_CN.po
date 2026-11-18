@@ -14641,8 +14641,8 @@ msgstr "签名"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "签名保存在本机，无法与 Outlook 同步。请在其他设备上分别设置，或从 Outlook 网页版（设置 › 签名）粘贴。"
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
+msgstr "签名保存在本机，无法与 Outlook 同步。请在其他设备上分别设置，或从 Outlook 网页版（设置 › 签名）粘贴。Exchange 服务器账户会导入在那里保存的签名，名为“<地址> (Exchange)”，并且只读取它。"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -24686,6 +24686,10 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "签名保存在本机，无法与 Outlook 同步。请在其他设备上分别设置，或从 Outlook 网页版（设置 › 签名）粘贴。"
 
 #, fuzzy
 #~ msgid "The colour is set in Outlook"

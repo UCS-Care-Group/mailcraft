@@ -14576,8 +14576,8 @@ msgstr "Signatures"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Les signatures sont conservées sur cet ordinateur. Elles ne peuvent pas être synchronisées avec Outlook : sur un autre appareil, configurez-les sur place, ou collez-en une depuis Outlook sur le web (Paramètres › Signatures)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
+msgstr "Les signatures sont conservées sur cet ordinateur. Elles ne peuvent pas être synchronisées avec Outlook : sur un autre appareil, configurez-les sur place, ou collez-en une depuis Outlook sur le web (Paramètres › Signatures). Un compte de serveur Exchange reprend celle qui y est enregistrée, sous le nom « <adresse> (Exchange) », et ne fait que la lire."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -24712,6 +24712,10 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Les signatures sont conservées sur cet ordinateur. Elles ne peuvent pas être synchronisées avec Outlook : sur un autre appareil, configurez-les sur place, ou collez-en une depuis Outlook sur le web (Paramètres › Signatures)."
 
 #, fuzzy
 #~ msgid "The colour is set in Outlook"

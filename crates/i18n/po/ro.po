@@ -14694,8 +14694,8 @@ msgstr "Semnături"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
+msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături). Un cont de server Exchange preia semnătura salvată acolo, ca „<adresă> (Exchange)”, și doar o citește."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -24998,6 +24998,10 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături)."
 
 #, fuzzy
 #~ msgid "The colour is set in Outlook"
