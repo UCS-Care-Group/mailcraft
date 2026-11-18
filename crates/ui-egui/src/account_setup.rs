@@ -180,7 +180,8 @@ impl Kind {
         match self {
             Kind::Microsoft365 => "work",
             Kind::OutlookCom | Kind::Google | Kind::Yahoo | Kind::ICloud => "mail",
-            Kind::Other | Kind::Exchange | Kind::Zimbra => "server",
+            Kind::Other | Kind::Exchange => "server",
+            Kind::Zimbra => "zimbra",
             Kind::Local => "device",
         }
     }
