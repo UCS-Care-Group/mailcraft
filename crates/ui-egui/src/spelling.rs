@@ -13,7 +13,7 @@ use crate::MailApp;
 use crate::compose::editor;
 
 const MAX_PARAGRAPH_BYTES: usize = 8192;
-const MAX_REVIEW_BYTES: usize = 65536;
+const REVIEW_PARAGRAPHS_PER_FRAME: usize = 8;
 const MAX_ISSUES: usize = 256;
 const MAX_SUGGESTIONS: usize = 6;
 const OFF: &str = "off";
@@ -29,7 +29,8 @@ pub type Host = Box<dyn HostChecker>;
 pub(crate) struct Checked {
     pub locale: String,
     pub issues: Vec<Issue>,
-    available: bool,
+    pub(crate) available: bool,
+    partial: bool,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -50,10 +51,10 @@ fn preference(app: &MailApp, ctx: &Context) -> String {
 
 pub(crate) fn locale(app: &MailApp, ctx: &Context) -> Option<String> {
     let host = app.services.spelling.as_deref()?;
-    let selected = preference(app, ctx);
-    if selected == OFF {
+    if ctx.data(|d| d.get_temp::<bool>(editor::id(app).with("spelling-off")).unwrap_or_default()) {
         return None;
     }
+    let selected = preference(app, ctx);
     if !selected.is_empty() {
         return Some(selected);
     }
@@ -72,14 +73,23 @@ pub(crate) fn locale(app: &MailApp, ctx: &Context) -> Option<String> {
     Some(languages.into_iter().find(|tag| same(tag)).unwrap_or_default())
 }
 
+pub(crate) fn writing_locale(app: &MailApp, ctx: &Context) -> Option<String> {
+    let selected = preference(app, ctx);
+    (!selected.is_empty()).then_some(selected)
+}
+
 fn locale_name(tag: &str) -> String {
     mailcraft_i18n::Lang::from_code(tag).map_or_else(|| tag.to_string(), |lang| format!("{} ({tag})", lang.native_name()))
 }
 
 pub(crate) fn check(host: &dyn HostChecker, locale: &str, paragraph: &Paragraph) -> Checked {
-    let mut report = Checked { locale: locale.to_string(), issues: Vec::new(), available: true };
+    let mut report = Checked { locale: locale.to_string(), issues: Vec::new(), available: true, partial: false };
     let bytes: usize = paragraph.runs.iter().map(|run| run.text.len()).sum();
-    if paragraph.signature || bytes == 0 || bytes > MAX_PARAGRAPH_BYTES {
+    if paragraph.signature || bytes == 0 {
+        return report;
+    }
+    if bytes > MAX_PARAGRAPH_BYTES {
+        report.partial = true;
         return report;
     }
     let text = paragraph.text();
@@ -95,6 +105,7 @@ pub(crate) fn check(host: &dyn HostChecker, locale: &str, paragraph: &Paragraph)
         report.available = false;
         return report;
     };
+    report.partial = ranges.len() > MAX_ISSUES;
     ranges.truncate(MAX_ISSUES);
     ranges.sort_unstable_by_key(|range| range.start);
     let mut last = 0;
@@ -163,6 +174,8 @@ pub(crate) fn review(ui: &mut Ui, app: &mut MailApp) {
         return;
     };
     let selected = preference(app, ui.ctx());
+    let off_id = editor::id(app).with("spelling-off");
+    let is_off = ui.ctx().data(|d| d.get_temp::<bool>(off_id).unwrap_or_default());
     let mut languages = host.locales();
     languages.sort_unstable();
     languages.dedup();
@@ -170,9 +183,14 @@ pub(crate) fn review(ui: &mut Ui, app: &mut MailApp) {
         egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
             let choices = [(String::new(), tl!("Automatic").to_string()), (OFF.to_string(), tl!("Off").to_string())];
             for (tag, name) in choices.into_iter().chain(languages.into_iter().map(|tag| (tag.clone(), locale_name(&tag)))) {
-                if ui.selectable_label(tag == selected, name).clicked() {
+                if ui.selectable_label(if is_off { tag == OFF } else { tag == selected }, name).clicked() {
                     let id = editor::id(app).with("spelling-language");
-                    ui.ctx().data_mut(|d| d.insert_temp(id, tag));
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(off_id, tag == OFF);
+                        if tag != OFF {
+                            d.insert_temp(id, tag);
+                        }
+                    });
                     ui.close();
                 }
             }
@@ -209,48 +227,88 @@ pub(crate) fn review(ui: &mut Ui, app: &mut MailApp) {
     }
 }
 
+#[derive(Clone)]
+struct ReviewScan {
+    body: std::sync::Arc<mailcraft_model::rich::RichText>,
+    locale: String,
+    selection: mailcraft_model::rich::Selection,
+    paragraphs: std::sync::Arc<Vec<usize>>,
+    first: usize,
+    visited: usize,
+    partial: bool,
+}
+
 fn review_next(app: &mut MailApp, ctx: &Context, locale: &str) {
-    let (Some(host), Some(compose)) = (app.services.spelling.as_deref(), app.session.compose.as_ref()) else { return };
+    let Some(compose) = app.session.compose.as_ref() else { return };
+    let body = compose.body.text();
     let selection = compose.body.selection();
     let mut start = 0;
-    let mut bytes = 0;
-    let mut first = None;
-    let mut next = None;
-    let mut limited = false;
-    for paragraph in compose.body.text().paragraphs() {
-        bytes += 1 + paragraph.runs.iter().map(|run| run.text.len()).sum::<usize>();
-        if bytes > MAX_REVIEW_BYTES {
-            limited = true;
-            break;
+    let paragraphs = body
+        .paragraphs()
+        .iter()
+        .map(|p| {
+            let at = start;
+            start += p.chars() + 1;
+            at
+        })
+        .collect::<Vec<_>>();
+    let first = paragraphs.partition_point(|p| *p <= selection.end()).saturating_sub(1);
+    let scan = ReviewScan {
+        body: std::sync::Arc::new(body.clone()),
+        locale: locale.to_owned(),
+        selection,
+        paragraphs: std::sync::Arc::new(paragraphs),
+        first,
+        visited: 0,
+        partial: false,
+    };
+    ctx.data_mut(|d| d.insert_temp(editor::id(app).with("spelling-scan"), scan));
+    ctx.request_repaint();
+}
+
+pub(crate) fn advance_review(app: &mut MailApp, ctx: &Context, locale: Option<&str>) {
+    let key = editor::id(app).with("spelling-scan");
+    let Some(mut scan) = ctx.data_mut(|d| {
+        let scan = d.get_temp::<ReviewScan>(key);
+        d.remove::<ReviewScan>(key);
+        scan
+    }) else {
+        return;
+    };
+    let (Some(host), Some(compose)) = (app.services.spelling.as_deref(), app.session.compose.as_ref()) else { return };
+    if locale != Some(&scan.locale) || compose.body.text() != scan.body.as_ref() || compose.body.selection() != scan.selection {
+        return;
+    }
+    let count = scan.paragraphs.len();
+    let total = count + 1; // The first paragraph is also visited on wrap, up to the selection.
+    for _ in 0..REVIEW_PARAGRAPHS_PER_FRAME {
+        if count == 0 || scan.visited >= total {
+            app.status(if scan.partial { tl!("No spelling errors in the part checked") } else { tl!("No spelling errors found") });
+            return;
         }
-        let report = check(host, locale, paragraph);
+        let index = (scan.first + scan.visited) % count;
+        let (Some(&start), Some(paragraph)) = (scan.paragraphs.get(index), scan.body.paragraphs().get(index)) else { return };
+        let report = check(host, &scan.locale, paragraph);
         if !report.available {
             app.status(tl!("The spelling dictionary is unavailable"));
             return;
         }
-        for issue in report.issues {
-            let span = start + issue.span.start..start + issue.span.end;
-            if span.start >= selection.end() {
-                next = Some(span);
-                break;
+        scan.partial |= report.partial;
+        let position = scan.visited;
+        scan.visited += 1;
+        if let Some(issue) = report.issues.into_iter().find(|issue| {
+            let from = start + issue.span.start;
+            (position != 0 || from >= scan.selection.end()) && (position != count || from < scan.selection.end())
+        }) {
+            if app.execute("compose.select", json!({"from": start + issue.span.start, "to": start + issue.span.end})).is_ok() {
+                app.want_body_focus();
+                editor::reveal_spelling(app, ctx);
             }
-            first.get_or_insert(span);
+            return;
         }
-        if next.is_some() {
-            break;
-        }
-        start += paragraph.chars() + 1;
     }
-    if let Some(span) = next.or(first) {
-        if app.execute("compose.select", json!({"from": span.start, "to": span.end})).is_ok() {
-            app.want_body_focus();
-            editor::reveal_spelling(app, ctx);
-        }
-    } else if limited {
-        app.status(tl!("No spelling errors in the part checked"));
-    } else {
-        app.status(tl!("No spelling errors found"));
-    }
+    ctx.data_mut(|d| d.insert_temp(key, scan));
+    ctx.request_repaint();
 }
 
 #[cfg(test)]

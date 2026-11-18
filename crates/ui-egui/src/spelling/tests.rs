@@ -98,3 +98,53 @@ fn composer_offers_an_italian_replacement_on_right_click() {
         assert_eq!(harness.state().session.compose.as_ref().unwrap().body.plain(), "soprattutto funziona.");
     }
 }
+
+#[test]
+fn spelling_review_starts_at_the_caret_and_marks_large_paragraphs_partial() {
+    let mut app = MailApp::new(
+        mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0),
+        crate::Services { spelling: Some(Box::new(Italian)), ..Default::default() },
+    );
+    let ctx = Context::default();
+    app.execute("mail.new", json!({})).unwrap();
+    let prefix = format!("{}\n", "a".repeat(4000)).repeat(17);
+    let start = prefix.chars().count();
+    app.execute("compose.set", json!({"body": format!("{prefix}sopratutto")})).unwrap();
+    app.execute("compose.select", json!({"from": start, "to": start})).unwrap();
+    review_next(&mut app, &ctx, "it-IT");
+    advance_review(&mut app, &ctx, Some("it-IT"));
+    let selection = app.session.compose.as_ref().unwrap().body.selection();
+    assert_eq!((selection.start(), selection.end()), (start, start + 10));
+    let oversized = Paragraph::new(vec![Run::plain("a".repeat(9000))], ListKind::None);
+    assert!(check(&Italian, "it-IT", &oversized).partial);
+}
+
+#[test]
+fn spelling_off_preserves_the_selected_writing_language() {
+    let app = MailApp::new(
+        mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0),
+        crate::Services { spelling: Some(Box::new(Italian)), ..Default::default() },
+    );
+    let ctx = Context::default();
+    let editor = editor::id(&app);
+    ctx.data_mut(|d| {
+        d.insert_temp(editor.with("spelling-language"), "tr-TR".to_owned());
+        d.insert_temp(editor.with("spelling-off"), true);
+    });
+    assert_eq!(locale(&app, &ctx), None);
+    assert_eq!(writing_locale(&app, &ctx).as_deref(), Some("tr-TR"));
+}
+
+#[test]
+fn spelling_correction_preserves_the_formatting_of_unchanged_text() {
+    use mailcraft_model::rich::{Format, RichBody, RichText};
+    let mut body = RichBody::new(RichText::from_plain("sopratutto"));
+    body.select(7, 10).unwrap();
+    body.format(Format::Bold(true)).unwrap();
+    body.replace_exact((0, 10), "sopratutto", "soprattutto").unwrap();
+    assert_eq!(body.plain(), "soprattutto");
+    assert!(body.text().all(8, 11, |style| style.bold).unwrap());
+    body.undo();
+    assert_eq!(body.plain(), "sopratutto");
+    assert!(body.text().all(7, 10, |style| style.bold).unwrap());
+}

@@ -443,7 +443,7 @@ impl RichBody {
     }
 
     /// Replace the expected text at an exact position, as one undo step. The text
-    /// that goes in looks as the first character did, and the caret goes just after it.
+    /// keeps the formatting of its unchanged edges, and the caret goes just after it.
     pub fn replace_exact(&mut self, place: Place, expected: &str, with: &str) -> Result<(), ModelError> {
         let (from, to) = place;
         let valid_line = |text: &str| text.len() <= 4 * MAX_FIND && text.chars().count() <= MAX_FIND && clean_line(text) == text;
@@ -453,9 +453,24 @@ impl RichBody {
         if to - from != expected.chars().count() || self.text.slice(from, to)?.text() != expected {
             return Err(ModelError::Invalid("the text has changed at the place to replace".into()));
         }
+        let prefix = expected.chars().zip(with.chars()).take_while(|(a, b)| a == b).count();
+        let suffix = expected
+            .chars()
+            .rev()
+            .zip(with.chars().rev())
+            .take((to - from - prefix).min(with.chars().count() - prefix))
+            .take_while(|(a, b)| a == b)
+            .count();
+        let with_chars = with.chars().count();
+        let changed: String = with.chars().skip(prefix).take(with_chars - prefix - suffix).collect();
+        let (start, end) = (from + prefix, to - suffix);
         self.edit(false, |text, selection| {
-            text.replace_places(&[place], with)?;
-            *selection = Selection::caret(from + with.chars().count());
+            if start < end {
+                text.replace_places(&[(start, end)], &changed)?;
+            } else if !changed.is_empty() {
+                text.insert(start, &changed, &text.style_at(start))?;
+            }
+            *selection = Selection::caret(from + with_chars);
             Ok(())
         })?;
         self.pending = None;

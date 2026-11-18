@@ -186,12 +186,18 @@ struct Para {
     top: f32,
     pictures: Vec<PictureBox>,
     spelling: Option<spelling::Checked>,
+    spelling_retry_at: f64,
 }
 
 impl Para {
-    fn spelling(&mut self, host: &dyn spelling::HostChecker, locale: &str) -> &[spelling::Issue] {
-        if self.spelling.as_ref().is_none_or(|checked| checked.locale != locale) {
+    fn needs_spelling(&self, locale: &str, now: f64) -> bool {
+        self.spelling.as_ref().is_none_or(|checked| checked.locale != locale || (!checked.available && now >= self.spelling_retry_at))
+    }
+
+    fn spelling(&mut self, host: &dyn spelling::HostChecker, locale: &str, now: f64) -> &[spelling::Issue] {
+        if self.needs_spelling(locale, now) {
             self.spelling = Some(spelling::check(host, locale, &self.source));
+            self.spelling_retry_at = now + 5.0;
         }
         self.spelling.as_ref().map_or(&[], |checked| checked.issues.as_slice())
     }
@@ -373,7 +379,7 @@ impl Layout {
                 rect.is_finite().then_some(PictureBox { local, id, rect })
             })
             .collect();
-        Para { chars: p.chars(), source: p.clone(), number, galley, start: 0, top: 0.0, pictures, spelling: None }
+        Para { chars: p.chars(), source: p.clone(), number, galley, start: 0, top: 0.0, pictures, spelling: None, spelling_retry_at: 0.0 }
     }
 
     /// Characters in the text.
@@ -720,7 +726,11 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     }
     let mut reveal = ctx.data_mut(|d| d.remove_temp::<bool>(id.with("reveal-spelling")).unwrap_or_default());
     let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
-    let capital_language = spelling_locale.clone().filter(|locale| !locale.is_empty());
+    if which == Which::Message {
+        spelling::advance_review(app, &ctx, spelling_locale.as_deref());
+    }
+    let spelling_time = ctx.input(|input| input.time);
+    let capital_language = spelling::writing_locale(app, &ctx).or_else(|| spelling_locale.clone()).filter(|locale| !locale.is_empty());
 
     // A selected picture of a signature is made wider or narrower by its corner.
     if which == Which::Signature
@@ -831,7 +841,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 let index = layout.paras.partition_point(|p| p.start <= at).checked_sub(1)?;
                 let p = layout.paras.get_mut(index)?;
                 let start = p.start;
-                let issue = p.spelling(host, locale).iter().find(|issue| issue.span.contains(&(at - start)))?.clone();
+                let issue = p.spelling(host, locale, spelling_time).iter().find(|issue| issue.span.contains(&(at - start)))?.clone();
                 Some(spelling::Suggestions::new(host, locale, issue, start))
             })();
         }
@@ -1006,19 +1016,23 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         }
         painter.galley(at, p.galley.clone(), t.text);
         if let (Some(locale), Some(host)) = (spelling_locale.as_deref(), app.services.spelling.as_deref()) {
-            if p.spelling.as_ref().is_none_or(|checked| checked.locale != locale) {
+            if p.needs_spelling(locale, spelling_time) {
                 if checks < 8 {
-                    p.spelling(host, locale);
+                    p.spelling(host, locale, spelling_time);
                     checks += 1;
                 } else {
                     ctx.request_repaint();
                 }
             }
             if let Some(checked) = p.spelling.as_ref().filter(|checked| checked.locale == locale) {
+                if !checked.available {
+                    ctx.request_repaint_after(std::time::Duration::from_secs_f64((p.spelling_retry_at - spelling_time).max(0.0)));
+                }
+                let mut row_cursor = (0, 0);
                 for issue in &checked.issues {
                     let is_typing = focused && sel.is_empty() && sel.head > p.start + issue.span.start && sel.head <= p.start + issue.span.end;
                     if !is_typing {
-                        paint_spelling(painter, p, at, issue.span.clone(), t.icon_red);
+                        paint_spelling(painter, p, at, issue.span.clone(), t.icon_red, &mut row_cursor);
                     }
                 }
             }
@@ -1186,10 +1200,16 @@ fn paint_selection(painter: &egui::Painter, p: &Para, at: egui::Pos2, sel: Selec
     }
 }
 
-fn paint_spelling(painter: &egui::Painter, p: &Para, at: egui::Pos2, span: std::ops::Range<usize>, ink: egui::Color32) {
-    let mut start = 0;
-    for row in &p.galley.rows {
+fn paint_spelling(painter: &egui::Painter, p: &Para, at: egui::Pos2, span: std::ops::Range<usize>, ink: egui::Color32, cursor: &mut (usize, usize)) {
+    let (mut row_index, mut start) = *cursor;
+    for row in p.galley.rows.iter().skip(row_index) {
         let end = start + row.char_count_including_newline().0;
+        if end <= span.start {
+            row_index += 1;
+            start = end;
+            *cursor = (row_index, start);
+            continue;
+        }
         let (lo, hi) = (span.start.max(start), span.end.min(end));
         if lo < hi {
             let x = at.x + row.pos.x;
