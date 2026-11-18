@@ -295,16 +295,23 @@ impl Condition {
 
     /// [`Condition::matches_in`], and not on a guess: a sensitivity that can't be read yet doesn't
     /// hold, though no header reads as Normal. A word found in what is here of the text holds, as
-    /// ever, and a size that can't be told never matches.
+    /// ever, and a size that can't be told never matches. Nothing holds of a version its server
+    /// has replaced ([`Message::stale`]).
     pub fn holds_in(&self, m: &Message, how: &Matching<'_>) -> bool {
         // (Nor one that holds for what isn't there, of recipients that were left out: "sent only to
         // me" of a Cc that was cut too.)
-        self.matches_in(m, how) && !(matches!(self, Condition::Sensitivity(_) | Condition::NotToMe | Condition::SentOnlyToMe) && self.unread_in(m))
+        !m.stale
+            && self.matches_in(m, how)
+            && !(matches!(self, Condition::Sensitivity(_) | Condition::NotToMe | Condition::SentOnlyToMe) && self.unread_in(m))
     }
 
     /// Whether it can't be told of `m` yet: it reads what isn't here, of a message only part of
-    /// which is ([`Message::partly_here`]).
+    /// which is ([`Message::partly_here`]), or of one whose server has another version of it
+    /// ([`Message::stale`]).
     pub fn unread_in(&self, m: &Message) -> bool {
+        if m.stale {
+            return true;
+        }
         match self {
             // A server's list says whether there are attachments; the headers of a message too
             // large to download don't.

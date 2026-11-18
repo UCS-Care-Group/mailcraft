@@ -461,6 +461,11 @@ pub struct Message {
     /// fetched, so a rule can't tell from it what they said (#566).
     #[serde(skip_serializing_if = "is_false")]
     pub categories_cut: bool,
+    /// Downloaded before, and listed by its server since as another version (changed or sent on
+    /// another device, a draft again): what is here of it, but for what the listing said, is the
+    /// version before, until the new one is fetched whole. No rule goes by it meanwhile (#566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub stale: bool,
     /// While it is not fetched: the rules that couldn't tell of it as it arrived, which have
     /// their say once it is ([`crate::RulesWaiting`], #566). `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]

@@ -441,15 +441,13 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
         m.draft = true;
     }
     if changed_there || sent || drafted {
-        // Changed elsewhere only: the server's version, fetched afresh. Until it comes, what is
-        // here of it is what the listing says, as of mail new to this mailbox: what the download
-        // before brought (its text, its files, the people and lines of its header, and whether
-        // the listing left some out) is no word on what it is now, for the list or the rules
-        // (#566). The bytes it came as stay, as when it is thinned.
-        thin_message(m, there.preview.clone());
-        (m.subject, m.from, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.from.clone(), there.to.clone(), there.cc.clone(), true);
-        (m.bcc, m.reply_to, m.headers, m.header_block) = (Vec::new(), Vec::new(), Vec::new(), Default::default());
+        // Changed elsewhere only: the server's version, fetched afresh.
+        // (Its recipients and subject are the listing's now, and so is whether it left some out.
+        // What else is here of it is the version downloaded before, kept until the new one comes,
+        // and no word on what it is now: no rule goes by it meanwhile, [`Message::stale`], #566.)
+        (m.subject, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.to.clone(), there.cc.clone(), true);
         m.headers_cut = there.cut;
+        m.stale = true;
         m.attachments_on_server = there.has_attachments;
         if let Some(sd) = m.server_draft.as_mut() {
             sd.synced = None;
@@ -715,6 +713,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
     m.unfetched = false;
+    m.stale = false;
     m.attachments_on_server = false;
     // Its size is that of the MIME brought (#300), which the fetch caps and which is measured
     // here: kept for when it is back to its preview, and taken anew at every fetch, so that a

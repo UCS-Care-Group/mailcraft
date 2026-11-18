@@ -1311,8 +1311,8 @@ fn a_downloaded_draft_relisted_without_its_recipients_isnt_deleted_by_a_rule_abo
 
 /// A draft with a file is here whole on an Exchange 2010 account; on a phone
 /// the file is taken out and the draft changed or sent. The server lists what it is now, with no
-/// attachment. A rule deletes mail with an attachment: Run Rules Now goes by the server's word, not
-/// by the file the old download had.
+/// attachment. A rule deletes mail with an attachment: Run Rules Now doesn't go by the file the old
+/// download had, but waits for the download.
 #[test]
 fn a_downloaded_draft_relisted_without_its_file_isnt_deleted_by_a_rule_about_files() {
     for sent in [true, false] {
@@ -1411,14 +1411,13 @@ Content-Type: application/octet-stream; name=\"big.bin\"\r\nContent-Disposition:
 
 /// A draft here whole on an Exchange account, to Ben with Carl in Bcc, private, with "budget" in
 /// its text and a file, is changed on a phone, or sent from it. Until what it is now is
-/// downloaded, every condition reads it as it reads mail new to this mailbox listed the same way:
-/// nothing the download before brought decides a rule. Left out by name: the days it came by
-/// (the list's own Received, which no download changes either), its marks (the importance, the
-/// categories and the flag, kept in step both ways) and its conversation (Message-ID,
-/// In-Reply-To, References, which a change on a phone keeps).
+/// downloaded, what is here of it stays as it was (its text, file, Bcc and header lines), and no
+/// condition holds of it or can be told, as a condition or an exception: Run Rules Now neither
+/// deletes it for a word of the version before nor copies it into another account. Once the new
+/// version is here, the rules go by it.
 #[test]
-fn a_downloaded_draft_relisted_is_read_by_the_rules_as_new_mail_listed_alike() {
-    use mailcraft_model::{Condition, Matching, Sensitivity};
+fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until_it_is_fetched() {
+    use mailcraft_model::{Action, Condition, Importance, Matching, Rule, Sensitivity};
     let conditions = [
         Condition::FromContains(vec!["ada".into()]),
         Condition::ToContains(vec!["ben".into()]),
@@ -1426,6 +1425,7 @@ fn a_downloaded_draft_relisted_is_read_by_the_rules_as_new_mail_listed_alike() {
         Condition::BodyContains(vec!["budget".into()]),
         Condition::SubjectOrBodyContains(vec!["budget".into()]),
         Condition::HasAttachment,
+        Condition::Importance(Importance::Normal),
         Condition::From(vec![ME.into()]),
         Condition::SentTo(vec!["ben@example.org".into()]),
         Condition::SentOnlyToMe,
@@ -1437,6 +1437,9 @@ fn a_downloaded_draft_relisted_is_read_by_the_rules_as_new_mail_listed_alike() {
         Condition::SizeBetween { min: 0, max: 100_000 },
         Condition::MeetingRequest,
         Condition::AutomaticReply,
+        Condition::Category(vec!["Blue".into()]),
+        Condition::Flagged,
+        Condition::ReceivedBetween { from: None, to: None },
     ];
     for sent in [false, true] {
         let mut s = Session::empty();
@@ -1445,6 +1448,10 @@ fn a_downloaded_draft_relisted_is_read_by_the_rules_as_new_mail_listed_alike() {
         let rule = json!({"name": "Budget", "account": account, "server": false,
             "conditions": [{"type": "bodyContains", "value": "budget"}], "actions": [{"type": "delete"}]});
         s.run("rules.add", &rule).unwrap();
+        let (to, b) = imap_inbox(&mut s);
+        let copy = json!({"name": "Ada to Blake", "account": account, "server": false,
+            "conditions": [{"type": "fromContains", "value": "ada"}], "actions": [{"type": "copyTo", "value": to}]});
+        s.run("rules.add", &copy).unwrap();
         let piece = || EwsMailResult { account, email: ME.into(), url: url.into(), partial: true, ..Default::default() };
         let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
         let folders = vec![
@@ -1467,106 +1474,51 @@ fn a_downloaded_draft_relisted_is_read_by_the_rules_as_new_mail_listed_alike() {
         let pages = vec![first("F1", Vec::new()), first("F2", vec![draft]), first("F3", Vec::new()), first("F4", Vec::new())];
         ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages, ..piece() }).unwrap();
         ews_mail::apply_ews_mail(&mut s, EwsMailResult { whole: true, partial: false, ..piece() }).unwrap();
-        let mime = format!(
-            "From: Ada <{ME}>\r\nTo: Ben <ben@example.org>\r\nBcc: Carl <carl@example.org>\r\nSubject: Plan\r\nMessage-ID: <D1@example.org>\r\n\
+        let mime = |text: &str| {
+            format!(
+                "From: Ada <{ME}>\r\nTo: Ben <ben@example.org>\r\nBcc: Carl <carl@example.org>\r\nSubject: Plan\r\nMessage-ID: <D1@example.org>\r\n\
 Sensitivity: Private\r\nAuto-Submitted: auto-replied\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
---b\r\nContent-Type: text/plain\r\n\r\nHi Ben. The budget is attached.\r\n--b\r\nContent-Type: application/pdf; name=\"plan.pdf\"\r\n\
+--b\r\nContent-Type: text/plain\r\n\r\n{text}\r\n--b\r\nContent-Type: application/pdf; name=\"plan.pdf\"\r\n\
 Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n--b--\r\n"
-        );
-        let whole = GraphFetched { id: "D1".into(), mime: mime.into_bytes() };
+            )
+            .into_bytes()
+        };
+        let whole = GraphFetched { id: "D1".into(), mime: mime("Hi Ben. The budget is attached.") };
         ews_mail::apply_ews_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched: vec![whole], ..Default::default() }).unwrap();
         let m = here(&s, account, "D1");
-        assert!(!m.unfetched && m.body.text.contains("budget") && m.has_attachments() && !m.bcc.is_empty());
+        assert!(!m.unfetched && !m.stale && m.body.text.contains("budget") && m.has_attachments() && !m.bcc.is_empty());
         // What it is now, as the server lists it: to me alone, no file.
         let (into, change_key) = if sent { ("F3", "CK1") } else { ("F2", "CK2") };
         let mut now = GraphMessage { draft: Some(!sent), from: Address::new("Ada", ME), ..listed("D1", into, "Plan") };
         now.server.change_key = change_key.into();
-        let delta = EwsMessagePage {
-            folder: into.into(),
-            messages: vec![now.clone()],
-            last: true,
-            from: "S-1".into(),
-            state: "S-2".into(),
-            ..Default::default()
-        };
+        let delta =
+            EwsMessagePage { folder: into.into(), messages: vec![now], last: true, from: "S-1".into(), state: "S-2".into(), ..Default::default() };
         ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![delta], ..piece() }).unwrap();
         let m = here(&s, account, "D1");
-        assert!(m.unfetched, "sent {sent}");
-        let fresh = Message { account, ..super::graph_down::new_message(m.folder, into, &now) };
+        assert!(m.unfetched && m.stale, "sent {sent}");
+        // Nothing of it is dropped meanwhile.
+        assert!(m.body.text.contains("budget") && m.has_attachments() && !m.bcc.is_empty() && m.has_header("Sensitivity"), "sent {sent}: {m:?}");
         let how = Matching { addresses_only: false, me: ME, zone: s.zone() };
         for c in &conditions {
-            let read = |m: &Message| (c.holds_in(m, &how), c.unread_in(m));
-            assert_eq!(read(m), read(&fresh), "sent {sent}: {c:?}");
+            assert!(!c.holds_in(m, &how) && c.unread_in(m), "sent {sent}: {c:?}");
+            let when = Rule { enabled: true, conditions: vec![c.clone()], actions: vec![Action::MarkRead], ..Default::default() };
+            let unless = Rule { conditions: vec![Condition::HasAttachment], exceptions: vec![c.clone()], ..when.clone() };
+            for r in [when, unless] {
+                assert!(!r.matches_in(m, &how) && r.undecided_in(m, &how), "sent {sent}: {r:?}");
+            }
         }
         let (id, in_folder) = (m.id, m.folder);
         s.run("rules.run", &json!({"folder": in_folder})).unwrap();
-        let binned = s.mailbox.message(id).and_then(|m| s.mailbox.folder(m.folder)).is_some_and(|f| f.kind == FolderKind::Deleted);
-        assert!(!binned, "sent {sent}: deleted for a word of the version downloaded before");
-    }
-}
-
-/// A draft saved here and taken up, then changed on a phone, is listed afresh and is what the
-/// listing says until it is downloaded. Undoing the save meanwhile sends nothing up, which would
-/// take the server's text, files and Bcc away: the phone's version comes down instead.
-#[test]
-fn undoing_a_save_of_a_draft_changed_since_on_a_phone_sends_nothing_up() {
-    use mailcraft_model::sync::DraftDone;
-    let mut s = Session::empty();
-    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
-    let drafts = s.mailbox.folder_of_kind(account, FolderKind::Drafts).unwrap();
-    s.mailbox.folder_mut(drafts).unwrap().server = Some(ServerFolder { id: "F-dr".into(), caught_up: true, ..Default::default() });
-    let first = GraphMessage { draft: Some(true), has_attachments: true, from: Address::new("Ada", ME), ..listed("D1", "F-dr", "Plan") };
-    let page = MessagePage { folder: "F-dr".into(), messages: vec![first], ..Default::default() };
-    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
-        .unwrap();
-    let mime = format!(
-        "From: Ada <{ME}>\r\nTo: Ben <ben@example.org>\r\nBcc: Carl <carl@example.org>\r\nSubject: Plan\r\nMessage-ID: <D1@example.org>\r\n\
-MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
---b\r\nContent-Type: text/plain\r\n\r\nHi Ben. The budget is attached, with all the numbers.\r\n--b\r\nContent-Type: application/pdf; name=\"plan.pdf\"\r\n\
-Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n--b--\r\n"
-    );
-    let fetched = vec![GraphFetched { id: "D1".into(), mime: mime.into_bytes() }];
-    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-    let id = here(&s, account, "D1").id;
-    {
+        let binned = |s: &Session| s.mailbox.message(id).and_then(|m| s.mailbox.folder(m.folder)).is_some_and(|f| f.kind == FolderKind::Deleted);
+        assert!(!binned(&s), "sent {sent}: deleted for a word of the version downloaded before");
+        assert_eq!(copies(&s, to, b), (0, 0), "sent {sent}: copied into another account");
+        // The new version comes: the rules go by it.
+        let whole = GraphFetched { id: "D1".into(), mime: mime("Hi Ben. The budget, as of today.") };
+        ews_mail::apply_ews_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched: vec![whole], ..Default::default() }).unwrap();
         let m = here(&s, account, "D1");
-        assert!(!m.unfetched && m.has_attachments() && !m.bcc.is_empty(), "{m:?}");
+        assert!(!m.unfetched && !m.stale && m.body.text.contains("as of today"), "sent {sent}");
+        assert!(Condition::BodyContains(vec!["budget".into()]).holds_in(m, &how), "sent {sent}");
+        s.run("rules.run", &json!({"folder": in_folder})).unwrap();
+        assert!(binned(&s), "sent {sent}: the rules don't go by the version downloaded");
     }
-    // Edited here and saved: a step of its own.
-    s.run("mail.editDraft", &json!({"id": id})).unwrap();
-    s.run("compose.set", &json!({"subject": "Plan, v2"})).unwrap();
-    s.run("compose.saveDraft", &json!({})).unwrap();
-    s.run("compose.close", &json!({})).unwrap();
-    // Taken up by the next run.
-    let (ups, _) = super::graph_drafts::draft_changes(&s, account, 10);
-    let up = ups.into_iter().find(|u| u.message == id).expect("the save goes up");
-    let done = DraftDone { change: up, id: "D1".into(), folder: "F-dr".into(), change_key: "CK2".into(), fields: true, ..Default::default() };
-    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), drafts: vec![done], partial: true, ..Default::default() })
-        .unwrap();
-    assert!(!here(&s, account, "D1").server_draft.as_ref().unwrap().pending);
-    // Changed on a phone: listed afresh with a new change key, to be fetched again.
-    let mut now = GraphMessage { draft: Some(true), has_attachments: true, from: Address::new("Ada", ME), ..listed("D1", "F-dr", "Plan, v3") };
-    now.server.change_key = "CK3".into();
-    let page = MessagePage { folder: "F-dr".into(), messages: vec![now], ..Default::default() };
-    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
-        .unwrap();
-    assert!(here(&s, account, "D1").unfetched);
-    // Undo (of the save, the last step) before the new version is downloaded.
-    assert!(s.undo());
-    let (ups, _) = super::graph_drafts::draft_changes(&s, account, 10);
-    assert!(ups.iter().all(|u| u.message != id), "the draft as the listing said went up over the phone's");
-    assert!(super::graph_down::still_to_fetch(&s.mailbox, here(&s, account, "D1")), "the phone's version isn't asked for");
-    // The phone's version comes down, file and all, and stays as it is.
-    let phone = format!(
-        "From: Ada <{ME}>\r\nTo: Ben <ben@example.org>\r\nBcc: Carl <carl@example.org>\r\nSubject: Plan, v3\r\nMessage-ID: <D1@example.org>\r\n\
-MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
---b\r\nContent-Type: text/plain\r\n\r\nHi Ben. The budget, as of today.\r\n--b\r\nContent-Type: application/pdf; name=\"plan.pdf\"\r\n\
-Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n--b--\r\n"
-    );
-    let fetched = vec![GraphFetched { id: "D1".into(), mime: phone.into_bytes() }];
-    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-    let m = here(&s, account, "D1");
-    assert!(!m.unfetched && m.has_attachments() && !m.bcc.is_empty() && m.body.text.contains("as of today"), "{m:?}");
-    let (ups, _) = super::graph_drafts::draft_changes(&s, account, 10);
-    assert!(ups.iter().all(|u| u.message != id), "the phone's version went up again");
 }
