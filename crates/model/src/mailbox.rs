@@ -838,10 +838,13 @@ impl OAuth {
     /// nothing says, its address is Outlook.com's own. Microsoft has no shared mailboxes, nor
     /// other people's calendars, for those.
     pub fn is_personal(&self, email: &str) -> bool {
-        self.directory == Directory::Personal
-            || Directory::of_tenant(&self.tenant) == Directory::Personal
-            || crate::provider::by_domain(email.rsplit_once('@').map_or("", |(_, domain)| domain))
-                .is_some_and(|preset| preset.service == "Outlook.com")
+        match (self.directory, Directory::of_tenant(&self.tenant)) {
+            (Directory::Personal, _) | (_, Directory::Personal) => true,
+            (Directory::Organisation, _) | (_, Directory::Organisation) => false,
+            // Nothing else says: the address does.
+            _ => crate::provider::by_domain(email.rsplit_once('@').map_or("", |(_, domain)| domain))
+                .is_some_and(|preset| preset.service == "Outlook.com"),
+        }
     }
 }
 

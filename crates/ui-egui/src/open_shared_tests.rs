@@ -333,3 +333,17 @@ fn a_page_that_signs_in_somebody_else_answers_a_calendar_opened_by_address() {
     assert!(app.session.mailbox.account(owner).unwrap().opened_calendars.is_empty(), "nothing was read, nothing is kept");
     assert!(!app.sync_asking.contains(&owner));
 }
+
+#[test]
+fn the_open_calendar_dialog_that_made_the_request_gives_way_to_the_one_question() {
+    let (mut app, owner, answers, _, sign_ins) = window(Ok(Tokens { email: OWNER.into(), ..tokens("cal-access", "ref-9") }));
+    answers.lock().unwrap().push_back(GraphResult { shared_calendars_consent_needed: true, ..Default::default() });
+    app.dialog = Some(crate::dialogs::Dialog::OpenCalendar { account: owner, address: CY.into(), error: String::new(), reading: None });
+    app.begin_open_shared(owner, CY).unwrap();
+    job(&mut app);
+    let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else {
+        panic!("the question, not the refusal: {:?}", app.open_shared.outcome)
+    };
+    assert_eq!(command, "ui.allowSync");
+    assert!(app.open_shared.outcome.is_none() && sign_ins.lock().unwrap().is_empty());
+}

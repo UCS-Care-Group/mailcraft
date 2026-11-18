@@ -2420,3 +2420,17 @@ fn a_change_of_the_categories_needs_the_settings_permission_and_nothing_less() {
     let error = refresh_graph_categories_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh").unwrap_err();
     assert!(error.is_consent_needed(), "{error}");
 }
+
+#[test]
+fn a_shared_run_whose_answer_names_a_lesser_scope_is_a_consent_needed() {
+    // RFC 6749 §5.1: a stated scope is believed; a missing one means what was asked for.
+    let body = |scope: &str| format!(r#"{{"token_type":"Bearer","expires_in":3600,"access_token":"a","refresh_token":"r","scope":"{scope}"}}"#);
+    let lesser = body("https://graph.microsoft.com/Mail.ReadWrite.Shared offline_access");
+    let server = FakeHttp::answering(ok(&lesser));
+    assert!(refresh_graph_shared_send_at(&endpoints_of(&server), &oauth(), "re").unwrap_err().is_consent_needed());
+    let server = FakeHttp::answering(ok(&body("offline_access Mail.Send.Shared")));
+    assert!(refresh_graph_shared_at(&endpoints_of(&server), &oauth(), "re").unwrap_err().is_consent_needed());
+    let full = body("https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared");
+    let server = FakeHttp::answering(ok(&full));
+    assert!(refresh_graph_shared_send_at(&endpoints_of(&server), &oauth(), "re").is_ok());
+}

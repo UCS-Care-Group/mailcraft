@@ -780,6 +780,17 @@ fn shared_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SHARED} {SIGN_IN_SCOPE}")
 }
 
+/// The tokens, when what the answer says it granted (RFC 6749 §5.1: left out when it is what was
+/// asked for) has `needed`; else [`NetError::ConsentNeeded`], and nothing is read or sent with them.
+fn granted(tokens: Tokens, needed: &str) -> Result<Tokens, NetError> {
+    let name = |scope: &str| scope.rsplit('/').next().unwrap_or(scope).to_ascii_lowercase();
+    let wanted = name(needed);
+    if tokens.granted_scope.is_empty() || tokens.granted_scope.split_whitespace().any(|scope| name(scope) == wanted) {
+        return Ok(tokens);
+    }
+    Err(NetError::ConsentNeeded(format!("the sign-in doesn't cover {}", needed.rsplit('/').next().unwrap_or(needed))))
+}
+
 /// [`refresh_graph_mail`] for a Graph run of a shared mailbox (#70): the tokens are asked for
 /// with `Mail.ReadWrite.Shared` too, and for nothing less: a sign-in that doesn't cover it gets
 /// [`NetError::ConsentNeeded`], and the owner is asked, once, for everything his sign-in lacks
@@ -793,6 +804,7 @@ pub fn refresh_graph_shared(oauth: &OAuth, refresh_token: &str) -> Result<GraphT
 pub fn refresh_graph_shared_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: shared_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    let tokens = granted(tokens, MICROSOFT_GRAPH_SHARED)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 
@@ -815,6 +827,7 @@ pub fn refresh_graph_shared_send(oauth: &OAuth, refresh_token: &str) -> Result<G
 pub fn refresh_graph_shared_send_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: shared_send_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    let tokens = granted(tokens, MICROSOFT_GRAPH_SHARED_SEND)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 
@@ -837,6 +850,7 @@ pub fn refresh_graph_shared_calendars(oauth: &OAuth, refresh_token: &str) -> Res
 pub fn refresh_graph_shared_calendars_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: shared_calendar_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    let tokens = granted(tokens, MICROSOFT_GRAPH_SHARED_CALENDARS)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 
@@ -862,6 +876,7 @@ pub fn refresh_graph_shared_calendars_send(oauth: &OAuth, refresh_token: &str) -
 pub fn refresh_graph_shared_calendars_send_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: shared_calendar_send_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    let tokens = granted(granted(tokens, MICROSOFT_GRAPH_SHARED_CALENDARS)?, MICROSOFT_GRAPH_SHARED_SEND)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 
@@ -885,6 +900,7 @@ pub fn refresh_graph_opened_calendars(oauth: &OAuth, refresh_token: &str) -> Res
 pub fn refresh_graph_opened_calendars_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: opened_calendars_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::Graph)?;
+    let tokens = granted(tokens, MICROSOFT_GRAPH_SHARED_CALENDARS)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 
@@ -1586,7 +1602,13 @@ fn tokens_from(answer: &Answer, earlier_refresh: &str, now: i64, secrets: &[&str
         _ => None,
     };
     let lifetime = lifetime.unwrap_or(DEFAULT_LIFETIME).clamp(0, MAX_LIFETIME);
-    Ok(Tokens { access: access.to_string(), refresh: refresh.to_string(), expires_at: now.saturating_add(lifetime), ..identity(text("id_token")) })
+    Ok(Tokens {
+        access: access.to_string(),
+        refresh: refresh.to_string(),
+        expires_at: now.saturating_add(lifetime),
+        granted_scope: text("scope").chars().take(4096).collect(),
+        ..identity(text("id_token"))
+    })
 }
 
 /// Who signed in, from the identity token that may come with the others (a JWT: three parts in

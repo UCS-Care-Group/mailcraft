@@ -1273,3 +1273,14 @@ fn the_default_calendar_and_the_one_orphans_go_to_are_never_a_subscribed_one() {
     let home = mb.event(orphan).unwrap().calendar;
     assert!(mb.calendar(home).is_some_and(|c| !c.is_subscribed()), "orphans are not put into a copy of a web calendar");
 }
+
+#[test]
+fn a_known_organisation_is_not_made_personal_by_an_outlook_com_looking_address() {
+    use crate::{Directory, OAuth};
+    let by = |directory, tenant: &str, email: &str| OAuth { directory, tenant: tenant.into(), ..OAuth::default() }.is_personal(email);
+    assert!(!by(Directory::Organisation, "", "ada@live.ab.cd"));
+    assert!(!by(Directory::Unknown, "contoso.onmicrosoft.com", "ada@outlook.com"));
+    assert!(by(Directory::Unknown, "", "ada@outlook.com"));
+    assert!(by(Directory::Personal, "", "ada@example.org"));
+    assert!(by(Directory::Unknown, "consumers", "ada@example.org"));
+}

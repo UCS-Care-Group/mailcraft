@@ -252,6 +252,9 @@ pub struct Tokens {
     /// the tokens are good for the rest, and nobody may take them for allowed to keep the tasks,
     /// rules, automatic replies and categories in step.
     pub sync_not_given: bool,
+    /// The `scope` the token endpoint's answer states (RFC 6749 §5.1), empty when it said none:
+    /// the answer then matches what was asked. Names of permissions, not secrets.
+    pub granted_scope: String,
 }
 
 /// How long before an access token runs out it is renewed rather than used (seconds).

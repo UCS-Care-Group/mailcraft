@@ -223,3 +223,19 @@ fn a_refused_page_holds_the_outbox_of_the_shared_mailbox_until_send_again() {
     app.execute("mail.sendAgain", json!({"id": id})).unwrap();
     assert_eq!(mailcraft_engine::cmd::graph_mail::graph_mail_request(&app.session, shared).unwrap().sends.len(), 1);
 }
+
+#[test]
+fn a_refused_page_keeps_saying_so_for_a_held_send_without_a_shared_calendar_entry() {
+    let (mut app, owner, shared) = window(Directory::Organisation);
+    app.session.view.folder = app.session.mailbox.folder_of_kind(shared, mailcraft_model::FolderKind::Inbox).unwrap();
+    app.execute("mail.new", json!({"to": "bob@example.org", "subject": "One"})).unwrap();
+    app.execute("compose.send", json!({})).unwrap();
+    app.session.shared_send_missing(shared);
+    app.sync_signed_in(owner, Err("access_denied".into()), None);
+    assert!(!app.session.shared_send_waits(shared) && !app.session.driver.calendar.shared_perm.contains_key(&shared));
+    let (line, again, _) = app.shared_sync_part(owner).unwrap();
+    assert!(line.contains("not allowed") && again, "{line}");
+    // Allowed later: the line goes.
+    app.shared_sync_allowed(owner, None);
+    assert!(app.shared_sync_part(owner).is_none());
+}

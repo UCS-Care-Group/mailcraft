@@ -1642,6 +1642,9 @@ pub struct MailApp {
     /// The accounts whose page was answered with the shared mailboxes' permissions in this session:
     /// a job that still finds them missing doesn't open it again by itself.
     pub(crate) shared_page_given: std::collections::HashSet<Id>,
+    /// Why mail waiting in one of an account's shared mailboxes was held when its page was
+    /// refused: File › Info keeps saying so, with Ask again, until the owner allows it.
+    pub(crate) shared_send_refused: std::collections::HashMap<Id, String>,
     pub(crate) tasks: task_sync::TaskSync,
     pub(crate) rules: rule_sync::RuleSync,
     /// The categories' jobs ([`category_sync`]).
@@ -1938,6 +1941,7 @@ impl MailApp {
             sync_asking: Default::default(),
             sync_declined: Default::default(),
             shared_page_given: Default::default(),
+            shared_send_refused: Default::default(),
             tasks: Default::default(),
             rules: Default::default(),
             category_sync: Default::default(),
@@ -3827,6 +3831,7 @@ impl MailApp {
             self.sync_asking.clear();
             self.sync_declined.clear();
             self.shared_page_given.clear();
+            self.shared_send_refused.clear();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
             self.shared_address_judged = Some(opening);

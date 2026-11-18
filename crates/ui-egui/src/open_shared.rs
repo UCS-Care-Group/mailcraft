@@ -173,8 +173,15 @@ impl MailApp {
             return;
         }
         let asked_for = self.open_shared.waiting.as_ref().is_some_and(|(owner, _)| *owner == account);
+        // (The Open Shared Calendar dialog that made the request stays up while the job runs: the
+        // question takes its place, and a no still answers the request, in the status bar.)
+        let own_dialog = matches!(self.dialog, Some(Dialog::OpenCalendar { account: owner, .. }) if owner == account);
+        let kept = if asked_for && own_dialog { self.dialog.take() } else { None };
         if asked_for && self.signing_in.is_none() && self.dialog.is_none() && self.ask_sync_again(account) {
             return;
+        }
+        if kept.is_some() {
+            self.dialog = kept;
         }
         let said = tl!("Calendars you opened by address need your permission to be read: open one again to be asked").to_string();
         // (A request the owner just made is answered, not left waiting: another dialog is up.)

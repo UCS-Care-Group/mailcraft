@@ -93,6 +93,8 @@ impl MailApp {
                 perm.insert(shared, Permission::Refused(why.to_string()));
             }
             if self.session.shared_send_waits(shared) {
+                // (Held below, nothing waits for permission any more: the reason is kept here.)
+                self.shared_send_refused.insert(owner, why.to_string());
                 let _ = self.execute("sync.holdSends", json!({"account": shared, "why": kind}));
                 // (Held, it waits for Send Again, not for permission.)
                 self.session.driver.sending.allowed(shared);
@@ -109,6 +111,7 @@ impl MailApp {
     /// couldn't start.
     pub(crate) fn shared_sync_allowed(&mut self, owner: Id, read: Option<Id>) -> Option<String> {
         let mut to_send = None;
+        self.shared_send_refused.remove(&owner);
         for shared in self.shared_of(owner) {
             if self.session.shared_send_waits(shared) && to_send.is_none() {
                 to_send = Some(shared);
@@ -173,8 +176,9 @@ impl MailApp {
         let perms: Vec<&Permission> = shared.iter().filter_map(|s| self.session.driver.calendar.shared_perm.get(s)).collect();
         let sends = shared.iter().any(|s| self.session.shared_send_waits(*s) || self.session.driver.calendar.send_waits.contains(s));
         let opened = self.opened_waits(owner);
-        let asking = perms.iter().any(|p| **p == Permission::Asking) || (self.sync_asking.contains(&owner) && (sends || opened));
-        let refused = perms.iter().find_map(|p| if let Permission::Refused(why) = p { Some(why.clone()) } else { None });
+        let held = self.shared_send_refused.get(&owner).cloned();
+        let asking = perms.iter().any(|p| **p == Permission::Asking) || (self.sync_asking.contains(&owner) && (sends || opened || held.is_some()));
+        let refused = perms.iter().find_map(|p| if let Permission::Refused(why) = p { Some(why.clone()) } else { None }).or(held);
         let waits = sends || opened || perms.iter().any(|p| matches!(p, Permission::Needed | Permission::Declined | Permission::Refused(_)));
         if asking {
             return Some((tl!("Shared mailboxes and calendars: asking for your permission…").to_string(), false, Perm::Asking));
