@@ -1,0 +1,1 @@
+- Run Rules Now no longer has a rule for mail with an attachment act on a draft changed or sent on another device whose file was taken out there, before its new version is downloaded: it went by the file of the version downloaded before ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

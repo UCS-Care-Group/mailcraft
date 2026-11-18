@@ -183,7 +183,15 @@ impl Condition {
             Condition::ToContains(w) => any(w, &|t| m.to.iter().chain(&m.cc).any(|a| person(a, t))),
             Condition::SubjectContains(w) => any(w, &|t| contains_ci(&m.subject, t)),
             Condition::BodyContains(w) => any_in(w, &[own_text(m), &m.hidden_text]),
-            Condition::HasAttachment => m.has_attachments(),
+            // (Of one still to be fetched, its server's word: the files here may be those of the
+            // version downloaded before, which the server's has no longer, #566.)
+            Condition::HasAttachment => {
+                if m.unfetched {
+                    m.attachments_on_server
+                } else {
+                    m.has_attachments()
+                }
+            }
             Condition::Importance(i) => m.importance == *i,
             Condition::From(people) => people.iter().any(|p| is(&m.from, p)),
             Condition::SentTo(people) => people.iter().any(|p| m.to.iter().chain(&m.cc).any(|a| is(a, p))),
