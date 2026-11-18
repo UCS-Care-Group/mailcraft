@@ -87,13 +87,29 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
 }
 
 fn heading(ui: &mut Ui, text: &str, t: &Tokens) {
-    ui.label(egui::RichText::new(text).font(semibold(22.0)).color(t.text));
+    let label = egui::RichText::new(text).font(semibold(22.0)).color(t.text);
+    if crate::i18n::current() == crate::i18n::Lang::Hebrew {
+        // Preserve the native label widget and screen-reader semantics while
+        // placing the heading at the right reading edge of the page.
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            ui.label(label);
+        });
+    } else {
+        ui.label(label);
+    }
     ui.add_space(4.0);
 }
 
 fn section(ui: &mut Ui, text: &str, t: &Tokens) {
     ui.add_space(10.0);
-    ui.label(egui::RichText::new(text).font(semibold(14.0)).color(t.accent_text));
+    let label = egui::RichText::new(text).font(semibold(14.0)).color(t.accent_text);
+    if crate::i18n::current() == crate::i18n::Lang::Hebrew {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            ui.label(label);
+        });
+    } else {
+        ui.label(label);
+    }
 }
 
 /// A wide button with an icon, a title and a line of explanation; `true` when clicked.
