@@ -1120,7 +1120,8 @@ fn zone_name(zone: &str) -> &str {
 /// `own` is set, which is how Graph keeps the zone an event was made in; without `own` (a second
 /// try, after Graph wouldn't have a zone) it goes as instants in UTC, which is the same moment,
 /// and a series that repeats by a zone's clock doesn't go at all: in UTC it would be another
-/// series.
+/// series. An event without zones of its own goes by the clock in `zone`, which is the zone
+/// Outlook then shows it in (#1130).
 fn event_body(fields: &EventFields, mark: &str, zone: &str, own: bool) -> Option<String> {
     let mut event = Map::new();
     if let Some(title) = &fields.title {
@@ -1161,10 +1162,18 @@ fn event_body(fields: &EventFields, mark: &str, zone: &str, own: bool) -> Option
                 event.insert("start".into(), json!({"dateTime": wall.start.iso(), "timeZone": zone}));
                 event.insert("end".into(), json!({"dateTime": wall.end.max(wall.start).iso(), "timeZone": zone}));
             }
-            _ => {
-                event.insert("start".into(), date_time(start, all_day, zone));
-                event.insert("end".into(), date_time(end, all_day, zone));
-            }
+            // An event that happens once: by the clock in the owner's zone too, else Outlook
+            // shows it in UTC (#1130). As instants in UTC when Graph has no name for that zone.
+            _ => match by_clock_in(zone, start, end).filter(|_| !all_day) {
+                Some((from, to, name)) => {
+                    event.insert("start".into(), json!({"dateTime": from.iso(), "timeZone": name}));
+                    event.insert("end".into(), json!({"dateTime": to.iso(), "timeZone": name}));
+                }
+                None => {
+                    event.insert("start".into(), date_time(start, all_day, zone));
+                    event.insert("end".into(), date_time(end, all_day, zone));
+                }
+            },
         }
         event.insert("isAllDay".into(), json!(all_day));
     }
@@ -1414,13 +1423,18 @@ impl Graph<'_> {
         };
         let url = self.url(&path);
         let whole_day = op.fields.time.is_some_and(|time| time.all_day);
+        // A timed event that happens once, which goes by the clock in the owner's zone when
+        // Graph has a name for it ([`by_clock_in`]).
+        let once = op.fields.time.filter(|time| !time.all_day && op.fields.wall.is_none());
+        let by_clock = move |zone: &str| once.and_then(|time| by_clock_in(zone, time.start, time.end.max(time.start))).map(|(_, _, name)| name);
         let zoned = whole_day || op.fields.wall.is_some() || op.fields.repeat.is_some() || op.fields.zones.is_some();
         let mut zone = zone;
         // (Its own zones go with the first try; the second is without any.)
         let mut own = true;
         // The zone the times are said in, for whoever keeps a log: the event's own when it goes
-        // by that, the owner's for the days of a whole-day event and the hours of a series, UTC
-        // for everything else.
+        // by that, else the owner's (for the days of a whole-day event, the hours of a series
+        // and those of an event that happens once), UTC when the owner's has no name Graph
+        // knows.
         let timed = matches!(op.kind, EventChangeKind::Create | EventChangeKind::Update) && op.fields.time.is_some();
         let by_the_clock = whole_day || op.fields.wall.is_some();
         let own_name = op.fields.zones.as_ref().filter(|_| !whole_day).and_then(|zones| {
@@ -1434,7 +1448,7 @@ impl Graph<'_> {
             (false, ..) => String::new(),
             (true, Some(name), _) => name.clone(),
             (true, None, true) => zone.to_string(),
-            (true, None, false) => "UTC".to_string(),
+            (true, None, false) => by_clock(zone).unwrap_or_else(|| "UTC".to_string()),
         };
         // The event is to be held online. Graph may not have that for this account (a personal
         // one, a mailbox without Teams): it is then asked for the event without, and the
@@ -1449,7 +1463,7 @@ impl Graph<'_> {
         let mut new_times = asks_new_times;
         // A few times at most: again without what Graph may not let an update say, again
         // without the online meeting, should it not have one, and again in UTC, should it not
-        // know the zone a whole day is in.
+        // know the zone a whole day or an hour is in.
         for _ in 0..5 {
             let body = match op.kind {
                 EventChangeKind::Delete if op.cancel => Some(json!({"comment": op.comment}).to_string()),
@@ -1553,8 +1567,13 @@ impl Graph<'_> {
                     continue;
                 }
                 // A day or an hour in a zone Graph doesn't know: the same in UTC (and, as it
-                // may have been the zone that was wrong, with the online meeting once more).
-                (EventChangeKind::Create | EventChangeKind::Update, 400) if zoned && (!zone.is_empty() || (own && op.fields.zones.is_some())) => {
+                // may have been the zone that was wrong, with the online meeting once more). An
+                // event that happens once went in UTC before it went by the owner's clock, and
+                // is asked again only when Graph's refusal is about the zone.
+                (EventChangeKind::Create | EventChangeKind::Update, 400)
+                    if (zoned && (!zone.is_empty() || (own && op.fields.zones.is_some())))
+                        || (by_clock(zone).is_some() && names_a_zone(&reply.body)) =>
+                {
                     (zone, own) = ("", false);
                     online = asks_online;
                     continue;
@@ -1670,6 +1689,29 @@ fn graph_zone(name: &str) -> Option<(mailcraft_time::Zone, String)> {
         None => return None,
     };
     Some((zone, known))
+}
+
+/// Whether a refusal of Graph's is about a time zone (`TimeZoneNotSupportedException`, "A valid
+/// TimeZone value must be specified").
+fn names_a_zone(body: &[u8]) -> bool {
+    let words: String = String::from_utf8_lossy(body).chars().filter(|c| !c.is_whitespace()).collect();
+    words.to_ascii_lowercase().contains("timezone")
+}
+
+/// The clock times in `zone` (a name Graph knows; empty: none) of an event that happens once
+/// from `start` to `end`, with the name Graph has for the zone. `None` when it has none, and when
+/// either time is in the hour the clocks show twice as they go back: its clock time alone could
+/// be either of the two, and Graph may take the other one.
+fn by_clock_in(zone: &str, start: Timestamp, end: Timestamp) -> Option<(DateTime, DateTime, String)> {
+    let (clock, name) = graph_zone(zone)?;
+    let offset_at = |instant: Timestamp| clock.offset_at(instant);
+    let read = |instant: Timestamp| {
+        let wall = clock.wall(instant);
+        let first = mailcraft_model::zoned::instant_of(wall, false, &offset_at);
+        let second = mailcraft_model::zoned::instant_of(wall, true, &offset_at);
+        (first == instant && second == instant).then_some(wall)
+    };
+    Some((read(start)?, read(end)?, name))
 }
 
 /// The person in `{"emailAddress": {"name": "…", "address": "…"}}`, or in the inner object itself.

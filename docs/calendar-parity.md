@@ -162,9 +162,13 @@ server; what has met the real Microsoft 365 service is only what the owner has u
 - A zone that an invitation names and nobody knows (and that the invitation doesn't define) is
   not guessed: the item is put at the offset the invitation gives, or else at its clock time
   here, and the request says so in a line of its own.
+- An item without a zone of its own is sent to Microsoft 365 by the clock of the calendar's
+  zone, so Outlook shows it in that zone (#1130). One that starts or ends in the hour the clocks
+  show twice as they go back is sent as its moments in UTC: a clock time there could be either.
 - A zone that Microsoft 365 has no name for (the service documents the names Windows has and
-  about a hundred more) costs an item its zone on the server, never its moment: it is sent in
-  UTC. A series by such a zone's clock is not sent by another clock; it is refused and said.
+  about a hundred more) costs an item its zone on the server, never its moment: it is sent by
+  the clock of the calendar's zone, or in UTC when the service has no name for that one either.
+  A series by such a zone's clock is not sent by another clock; it is refused and said.
 - The time bar names the calendar's zone over the hours once a zone is chosen for the calendar,
   a label is typed or a second zone is shown; Outlook shows a label only when one is typed.
 - Enter in a one-line field of the window saves or sends; in Outlook it does not.
