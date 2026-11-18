@@ -187,8 +187,8 @@ fn link_target(bytes: &[u8], ansi: Option<&'static Encoding>) -> Option<PathBuf>
         let bytes = info.get(offset(at)?..)?;
         if wide {
             let mut units = Vec::new();
-            for pair in bytes.chunks_exact(2).take(MOST_PATH_UNITS + 1) {
-                let unit = u16::from_le_bytes(pair.try_into().ok()?);
+            for pair in bytes.as_chunks::<2>().0.iter().take(MOST_PATH_UNITS + 1) {
+                let unit = u16::from_le_bytes(*pair);
                 if unit == 0 {
                     return String::from_utf16(&units).ok();
                 }

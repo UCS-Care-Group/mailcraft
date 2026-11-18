@@ -1795,7 +1795,7 @@ msgid "Aqua"
 msgstr "Aguamarina"
 
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Archive"
 msgstr "Archivar"
@@ -4257,7 +4257,7 @@ msgid "Delayed until {when}"
 msgstr "Retrasado hasta {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Delete"
 msgstr "Eliminar"
@@ -5750,8 +5750,8 @@ msgstr "Nombre"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "Primero guarde la configuración IMAP y SMTP estándar de Google y un nombre de usuario de correo coincidente antes de cambiar de método de inicio de sesión."
 
-#. android, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Flag"
 msgstr "Marca"
@@ -8902,7 +8902,7 @@ msgid "Mark as Unread"
 msgstr "Marcar como no leído"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Marcar como leído"
@@ -10504,8 +10504,8 @@ msgstr "No hay invitado nadie con dirección"
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "No coincide ninguno de sus contactos, o coincide más de uno: {names}"
 
-#. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "Ninguno"
@@ -15755,20 +15755,32 @@ msgstr "dom."
 msgid "Sunday"
 msgstr "domingo"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Swipe Action"
+msgstr "Acción de deslizamiento"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Swipe actions"
 msgstr "Acciones de deslizamiento"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
+msgstr "Deslice horizontalmente sobre un mensaje para ejecutar la acción elegida. En Windows también puede activarla la rueda horizontal del ratón."
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the left"
 msgstr "Deslizar a la izquierda"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the right"
 msgstr "Deslizar a la derecha"
@@ -21819,6 +21831,11 @@ msgstr "no existen esos datos adjuntos"
 #, fuzzy
 msgid "no such paragraph"
 msgstr "no existe ese párrafo"
+
+#. what a command says
+#: crates/model/src/rich.rs
+msgid "no such signature"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs

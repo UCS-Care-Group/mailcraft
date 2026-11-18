@@ -369,6 +369,11 @@ fn what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_
     assert_eq!(whole.message(id).unwrap().all_headers(), was.all_headers());
     let single = crate::io::write_mailbox(&whole).unwrap();
     assert!(String::from_utf8_lossy(&single).contains("X-MS-Exchange-AntiSpam-MessageData-0"));
+    let copy = tmp.0.join("copy.mailcraft");
+    s.run("file.saveAs", &json!({"path": copy})).unwrap();
+    let exported: Value = serde_json::from_slice(&fs::read(&copy).unwrap()).unwrap();
+    assert_eq!(exported, serde_json::from_slice::<Value>(&single).unwrap());
+    assert!(!s.mailbox.message(id).unwrap().header_block.is_loaded(), "Save As leaves the source content on disk");
     // View Source: every line, in its place.
     let source = s.run("mail.viewSource", &json!({"id": id})).unwrap();
     let source = source["source"].as_str().unwrap();
