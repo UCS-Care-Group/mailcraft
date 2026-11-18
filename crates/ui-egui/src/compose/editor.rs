@@ -923,6 +923,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         let seen = |to: bool| i.events.iter().any(|e| matches!(e, Event::WindowFocused(f) if *f == to));
         (seen(false), seen(true))
     });
+    let mut ime_composition = !st.preedit.is_empty();
     if left || came_back {
         st.preedit.clear();
     }
@@ -944,6 +945,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 }
                 Event::Ime(egui::ImeEvent::Preedit { text, .. }) => {
                     st.preedit = text.chars().take(MAX_PREEDIT).collect();
+                    ime_composition |= !st.preedit.is_empty();
                     None
                 }
                 Event::Copy | Event::Cut if !sel.is_empty() => {
@@ -1045,7 +1047,9 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     }
 
     if which == Which::Message {
-        spelling::advance_review(app, &ctx, spelling_locale.as_deref());
+        // A pending review must not move the caret beneath an IME candidate.
+        let review_locale = if ime_composition { None } else { spelling_locale.as_deref() };
+        spelling::advance_review(app, &ctx, review_locale);
     }
     let typing = focused && spelling_time < st.spelling_typed_until;
     if typing {

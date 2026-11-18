@@ -168,3 +168,41 @@ fn typo_beside_a_link_is_still_marked() {
     assert_eq!(report.issues.len(), 1);
     assert_eq!(report.issues[0].span, 0..10);
 }
+
+#[test]
+fn beginning_ime_composition_cancels_a_pending_spelling_review() {
+    use egui::{Event, ImeEvent};
+    use mailcraft_model::rich::Selection;
+
+    let mut app = MailApp::new(
+        mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0),
+        crate::Services { spelling: Some(Box::new(Italian)), ..Default::default() },
+    );
+    app.autosave = false;
+    app.execute("mail.new", json!({})).unwrap();
+    app.execute("compose.set", json!({"body": "Prima sopratutto"})).unwrap();
+    app.execute("compose.select", json!({"from": 0})).unwrap();
+    app.want_body_focus();
+    let mut harness =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                app.logic(ui.ctx());
+                app.ui(ui);
+            },
+            app,
+        );
+    let ctx = harness.ctx.clone();
+    let language = editor::id(harness.state()).with("spelling-language");
+    ctx.data_mut(|d| d.insert_temp(language, "it-IT".to_string()));
+    harness.run_steps(3);
+    assert!(editor::has_focus(&ctx));
+
+    review_next(harness.state_mut(), &ctx, "it-IT");
+    harness.event(Event::Ime(ImeEvent::Preedit { text: "ni".into(), active_range_chars: None }));
+    harness.run_steps(2);
+    assert_eq!(harness.state().session.compose.as_ref().unwrap().body.selection(), Selection::caret(0));
+    assert!(ctx.data(|d| d.get_temp::<ReviewScan>(editor::id(harness.state()).with("spelling-scan")).is_none()));
+    harness.event(Event::Ime(ImeEvent::Commit("你".into())));
+    harness.run_steps(2);
+    assert_eq!(harness.state().session.compose.as_ref().unwrap().body.plain(), "你Prima sopratutto");
+}
