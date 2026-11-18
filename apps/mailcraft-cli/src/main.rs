@@ -242,22 +242,27 @@ fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Resu
             }
             let open = |url: &str| eprintln!("sync: open this page in a browser to sign in:\n{url}");
             let cancel = std::sync::atomic::AtomicBool::new(false);
-            let tokens = if request.shared && !request.sends.is_empty() {
-                // (And for sending from it, when something waits in its Outbox.)
-                let signed = mailcraft_net::oauth::sign_in_for_shared_send(&oauth, &hint, &open, &cancel);
-                signed.map_err(|refusal| format!("sync: sending from shared mailboxes wasn't allowed ({refusal:?})"))?
-            } else if request.shared {
-                let signed = mailcraft_net::oauth::sign_in_for_shared(&oauth, &hint, &open, &cancel);
-                signed.map_err(|refusal| format!("sync: shared mailboxes weren't allowed ({refusal:?})"))?
-            } else {
-                let resource = mailcraft_net::oauth::Resource::GraphMail;
-                mailcraft_net::oauth::sign_in_for(&oauth, &hint, &open, &cancel, resource).map_err(|e| format!("sync: {e}"))?
-            };
-            // (Whoever signs in has to be the account that reads it: a shared mailbox's owner.)
+            let resource = mailcraft_net::oauth::Resource::GraphMail;
+            let signed = mailcraft_net::oauth::sign_in_for(&oauth, &hint, &open, &cancel, resource).map_err(|e| format!("sync: {e}"))?;
+            // (Whoever signs in has to be the account that reads it: a shared mailbox's owner. Nothing
+            // of somebody else's sign-in is used, not even to renew it.)
             let username = s.mailbox.account(signer).map(|a| a.username.clone()).unwrap_or_default();
-            if tokens.someone_else(&hint, &username) {
+            if signed.someone_else(&hint, &username) {
                 return Err(SOMEONE_ELSE.to_string().into());
             }
+            // A shared mailbox's token is asked for with what reading it takes, and sending from it
+            // when something waits in its Outbox (a sign-in's page asks for both with the rest).
+            let tokens = if request.shared {
+                let renewed = if request.sends.is_empty() {
+                    mailcraft_net::oauth::refresh_graph_shared(&oauth, &signed.refresh)
+                } else {
+                    mailcraft_net::oauth::refresh_graph_shared_send(&oauth, &signed.refresh)
+                };
+                let renewed = renewed.map_err(|e| format!("sync: the sign-in doesn't cover this shared mailbox ({e})"))?;
+                renewed.tokens
+            } else {
+                signed
+            };
             tokens.access
         }
     };

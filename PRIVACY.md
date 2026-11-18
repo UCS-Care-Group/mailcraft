@@ -77,7 +77,7 @@ MailCraft connects only to these, over encrypted connections:
 |---|---|---|
 | Your mail provider's servers (IMAP, SMTP) | Send/Receive, and on the timer you set; and, while the window is open and automatic Send/Receive is on, one connection kept open to each IMAP server that offers IDLE (your own mail server, signed in as Send/Receive is, looking at the Inbox only) so that new mail shows when it arrives. It is closed when you turn automatic Send/Receive off, work offline, edit the account (server, user name or sign-in) or sign out, remove the account or close the mailbox | What a mail program sends: your sign-in and your mail. To a server that asks which program this is (the `ID` command, RFC 2971), the program's name, `MailCraft`, and nothing else: no version, nothing of you |
 | A JMAP server you add an account for (the session address you gave it, and the addresses at the same server that its session names) | Send/Receive, on the timer you set, a few seconds after you mark, move or delete a message of the account or send one from it, and when you open a message that isn't downloaded yet; only in a build that connects to JMAP servers (the browser build, from the version that adds it) | What a mail program sends: your password or access token, and what you change in your mail: the marks you set on a message (read, flagged, answered, forwarded), the messages you move between the server's folders and those you delete for good are told to that server, and to nobody else. Mail you send from the account goes to that server to be sent, and to nobody else: the message whole, and the addresses it goes to, those in Bcc among them (the message itself names no Bcc); the server keeps its copy, in the account's Sent folder where it has one. A password or token you type is kept in memory only, until the program closes, the server turns it down or the account's server changes; it is never remembered in the credential store, the mailbox file, the settings or the browser's storage. Where the page you use signed you in itself, the program asks it for the credential at each Send/Receive or download (once more if the server turns it down), and keeps none of it beyond that |
-| Microsoft's sign-in pages and Microsoft Graph, for an account that signs in with Microsoft | When you sign in; for calendar, contacts, tasks (Microsoft To Do), sending mail, working hours, categories, automatic replies, the rules kept on the server and Outlook's Favorites | Your sign-in happens on Microsoft's page in your browser; the program receives tokens, never your password |
+| Microsoft's sign-in pages and Microsoft Graph, for an account that signs in with Microsoft | When you sign in; for calendar, contacts, tasks (Microsoft To Do), sending mail, working hours, categories (read, and made, recoloured and deleted there: their names and colours), automatic replies, the rules kept on the server and Outlook's Favorites | Your sign-in happens on Microsoft's page in your browser; the program receives tokens, never your password |
 | Google's sign-in page (`accounts.google.com/o/oauth2/v2/auth`) and token endpoint (`oauth2.googleapis.com/token`), for an account that signs in with Google | When you sign in, switch an existing account to Google sign-in or reconnect; the token endpoint is also used when a saved sign-in is renewed | The browser's sign-in request carries the application's client ID, the permissions requested, your account address as a login hint, a random state value, a PKCE challenge and a return address on your own computer. The token endpoint receives the authorization code and PKCE verifier, or the refresh token, together with the application's client ID and Desktop client-secret registration value. Google returns tokens and identifies the signed-in address in the identity token; MailCraft makes no separate user-info request. You enter your Google password on Google's page: MailCraft never sees it. |
 | Gmail's API (`gmail.googleapis.com`), for an account that signs in with Google, to move mail between Gmail's inbox categories | Not in this version: moving mail between Gmail's categories is switched off until Google has reviewed MailCraft's use of the API. Once it is switched on, only at the Send/Receive after you move a message of the Inbox from one Gmail category to another; never for an account that signs in with an app password | Gmail's own id of each message you moved, the category it goes to (the labels to add and take off), and the account's sign-in token, which Gmail's API takes as it is; nothing else of the message or of you |
 | The Exchange server of an Exchange server account (your organisation's own Exchange Server, Grommunio or SmarterMail), for its address list | When you press Check Names (Ctrl+K) in a message written from that account and a name you typed matches none or more than one of your contacts; and when you search the account's address list in People (its Address Book, chosen at the top of the list), for what you type in the search box, from two characters on, once you pause. Never while you type a recipient, never while you work offline, and never for a script or an agent | The names as you typed them (ten a request, at most fifty for one Check Names), with your sign-in, over the account's own connection. Who it finds (a name, an address, the job title, department and company, and in the Address Book the work and mobile numbers and the office) is kept in the window while you choose or look, and in the recipients you choose, and nowhere else: not in the mailbox file, not on disk, not in a log. Add to Contacts makes a contact on this computer of the person shown, on your press |
@@ -93,7 +93,7 @@ MailCraft connects only to these, over encrypted connections:
 | GitHub's release downloads (`github.com`, and `objects.githubusercontent.com` or `release-assets.githubusercontent.com`, where GitHub sends those), to download a new version | Only for a copy installed from the Windows `.msi`, the macOS app or a Linux AppImage, while the daily check is on and File › About › Install updates automatically is on (as it is unless you, or your organisation, turn it off); when a check finds a newer release | Requests for three files of that release: its list of checksums, the signature over it, and the package for your kind of computer. Nothing about you, your accounts, your mail or the version you run. The package is kept in the program's own folder, installed only when MailCraft's release signature says it is the project's own (when you press Restart to update, or when you quit), and deleted otherwise. Installing it connects to nothing |
 | The project's report relay (`mailcraft.work/api/report`), in the desktop app | Only when you press Send report (or Try again) in Help › Report a Problem; never by itself, never again by itself, and never for a script or an agent | One request, over HTTPS, with what the window showed you: the title, what you wrote, MailCraft's version and your platform, the GitHub username if you gave one, and the diagnostics if you left them ticked. No account, address, mailbox name, computer name or identifier, no cookie, no sign-in. The relay sees your IP address, as any web server does ([Problem reports](#problem-reports)) |
 
-Nothing in a message runs, and nothing in a message is fetched unless you ask for its pictures, or ask to unsubscribe from a list in one click (then only the list's address is told, as above). A message's own style sheet is read for how the message looks (colours, sizes, spacing, what the sender hid), but nothing in it is ever fetched: a sheet's `@import`, its fonts and its pictures are ignored, and a link it styles is never shown as visited. Its `@media` rules are tested against two things on your own computer and nothing else: how wide the message is laid out in the reading pane, and whether your window is dark; the program sends neither to anyone. One consequence to know: once you allow pictures, a message can show a different picture in a dark window, or at each of several widths, and the picture for the look on screen is fetched, so its server can tell from which address was asked for that your window is dark and how wide the message is laid out, to within a few pixels (it is told nothing else, and nothing is fetched until you allow pictures). What a sender hid in a message (a line of preview text, the other copy of a desktop and mobile pair) is not shown to you and is not quoted in your replies, but it is kept with the message on your computer, so that your search and your rules can find it, and it is what an agent you have allowed to read your mail is given as the message's text. The one other thing fetched for your mail is a sender's picture, and only once you turn sender images on.
+Nothing in a message runs, and nothing in a message is fetched unless you ask for its pictures, or ask to unsubscribe from a list in one click (then only the list's address is told, as above). A message's own style sheet is read for how the message looks (colours, sizes, spacing, what the sender hid), but nothing in it is ever fetched: a sheet's `@import`, its fonts and its pictures are ignored, and a link it styles is never shown as visited. A picture a message puts behind part of itself (a banner, a paper texture) is shown only when it is attached to the message or written into it; one on the web is never fetched for that, even when you allow the message's pictures. Its `@media` rules are tested against two things on your own computer and nothing else: how wide the message is laid out in the reading pane, and whether your window is dark; the program sends neither to anyone. One consequence to know: once you allow pictures, a message can show a different picture in a dark window, or at each of several widths, and the picture for the look on screen is fetched, so its server can tell from which address was asked for that your window is dark and how wide the message is laid out, to within a few pixels (it is told nothing else, and nothing is fetched until you allow pictures). What a sender hid in a message (a line of preview text, the other copy of a desktop and mobile pair) is not shown to you and is not quoted in your replies, but it is kept with the message on your computer, so that your search and your rules can find it, and it is what an agent you have allowed to read your mail is given as the message's text. The one other thing fetched for your mail is a sender's picture, and only once you turn sender images on.
 
 On a phone (the Android app) the same rules hold, and what it connects to is the same short list: the web address of a picture in a message, only when you ask for that message's pictures (or for a sender, a domain or all mail, as you chose in Settings › Pictures; never by itself for mail in Junk E-mail), through the one downloader that sends the address alone, with no cookies, no referrer and no sign-in, to public hosts only; nothing is fetched while the phone's Data Saver is on until you tap Download pictures; and the pictures are kept in the app's own cache folder, which Clear in Settings › Pictures empties. Sender images are off until you turn them on in Settings › Sender images: then, for the rows on screen, only for the people you know and the mail whose pictures you allow, never for Junk E-mail, and only for mail your server says really came from them, Gravatar is told the SHA-256 of the address, and favicon.im and Google's favicon service the domain of the sender's site alone. Whether a row shows a sender's picture is decided for that row's own message each time, so a message that only claims to be from someone never wears their picture.
 
@@ -111,38 +111,60 @@ computer, for you, and for nothing else:
 - reading and sending your mail (IMAP and SMTP access, and sending through Microsoft Graph);
 - reading and changing your calendar, and reading your contacts;
 - reading your mailbox settings (working hours, categories, automatic replies, and the rules your mailbox keeps on Microsoft's servers);
-- changing your automatic replies (`MailboxSettings.ReadWrite`), so that File › Info › Automatic Replies
-  can turn them on or off and change their text: never asked for on a sign-in page; it is asked for by
-  itself the first time you change your automatic replies or a rule is to go to the server (below), after
-  the program has asked you, and a yes to either is a yes to both. File › Info shows whether it was given.
-  Only your automatic replies and your rules are changed with it, never your categories, working hours or
-  other settings;
+- changing your mailbox settings (`MailboxSettings.ReadWrite`), so that File › Info › Automatic Replies
+  can turn your automatic replies on or off and change their text, a rule you keep on the server goes
+  there (below), and your list of categories is the same here and in Outlook: a category you make, delete
+  or give another colour here (one of Outlook's 25) is made, deleted or recoloured in your Microsoft
+  account, and a renamed one is made under its new name, given to your mail, events and to-dos there, and
+  the old one deleted. Only your automatic
+  replies, your rules and your categories are changed with it, never your working hours or other settings.
+  A category kept on this computer only is not put on that list, but mail, events and to-dos you give it
+  still carry its name to your account's server, as they always did;
 - reading and changing your To Do lists and tasks (`Tasks.ReadWrite`), so that your tasks are kept in
   step with Microsoft To Do: your tasks' titles, notes, dates, importance, categories and whether they are
-  done go to your own Microsoft account and come back from it, and nowhere else. It is never asked for
-  on a sign-in page, so signing in for mail never waits on it: it is asked for by itself, for a new account
-  and an old one alike, the first time its tasks would be kept in step, after the program has asked you,
-  and File › Info shows whether it was given. Until it is, tasks stay on this computer and nothing of them is sent. Even then, tasks that exist only on this computer are not sent on their own: the program asks you once ("Send your tasks to your account's To Do?", with the account to choose when you have several, and Not now) and keeps them here until you say yes; File › Info offers it again. A new task goes to the account you choose when you make it, and one made from a message (Add to Tasks) to that message's account when it has To Do;
-- changing the rules your mailbox keeps on Microsoft's servers (the same permission), so that a
-  rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
+  done go to your own Microsoft account and come back from it, and nowhere else. Once it is given, tasks that exist only on this computer are not sent on their own: the program asks you once ("Send your tasks to your account's To Do?", with the account to choose when you have several, and Not now) and keeps them here until you say yes; File › Info offers it again. A new task goes to the account you choose when you make it, and one made from a message (Add to Tasks) to that message's account when it has To Do;
+- changing the rules your mailbox keeps on Microsoft's servers (with `MailboxSettings.ReadWrite`), so that
+  a rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
   phone: the rule's name, the words it looks for and what it does go to your own Microsoft account and
-  nowhere else. It is never asked for on a sign-in page, so signing in for mail never waits on it: it is
-  asked for by itself the first time a rule is to go to the server, after the program has asked you, and
-  File › Info shows whether it was given. Until it is, your rules stay on this computer and nothing of them
-  is sent; the rules already on the server are read with your mailbox settings and shown;
+  nowhere else;
 - reading the list of folders you keep under Favorites in Outlook, if you ask for it;
-- reading and changing the mail of shared mailboxes you have been given access to, if you open one;
-- sending from a shared mailbox, asked for by itself the first time you send from one (an
-  answer to a meeting or an invitation from a shared mailbox's calendar is sending from it);
-- reading and changing the calendars of shared mailboxes you have been given access to, asked for by itself the
-  first time you tick one in the calendar's folder list (nothing of a shared mailbox's calendar is
-  read before that, and it comes from your own Microsoft servers with your own sign-in; what you
-  may see of it is up to its owner and your organisation);
-- the same permission is asked for by itself the first time you open somebody's calendar by their address
-  (Open Shared Calendar), without the permissions that reading a shared mailbox's mail takes; the
-  address you type goes only to your own Microsoft servers, the calendar is read with your own sign-in
-  and kept on this computer only, and what you may see of it is up to its owner and your organisation;
+- reading and changing the mail of shared mailboxes you have been given access to (`Mail.ReadWrite.Shared`);
+  nothing of a shared mailbox is read until you open it;
+- sending from a shared mailbox (`Mail.Send.Shared`; an answer to a meeting or an invitation from a shared
+  mailbox's calendar is sending from it);
+- reading and changing the calendars of shared mailboxes you have been given access to, and the calendars
+  you open by somebody's address (Open Shared Calendar) (`Calendars.ReadWrite.Shared`): nothing of a shared
+  mailbox's calendar is read before you tick it in the calendar's folder list; the address you type goes only
+  to your own Microsoft servers; either is read with your own sign-in, a calendar opened by address is kept on
+  this computer only, and what you may see of it is up to its owner and your organisation;
 - keeping you signed in (a refresh token, stored as described above).
+
+All of these but the Favorites are on the page of a sign-in, so that you are asked once. When
+Microsoft's page won't have them all, it is asked again: a personal account is never asked for the
+shared mailboxes and calendars (it has none); a page that won't have some of the permissions is asked
+again without the shared mailboxes' and calendars', then without the to-dos' and the settings' too; an
+organisation that makes an administrator approve some, or an owner who says no on the page, is not
+asked again for a bit less, only (for an administrator's approval) once more for what mail alone needs,
+so that signing in for mail never waits on the rest.
+The Favorites' two (`MailboxConfigItem.Read`, `Mail.ReadBasic`) are asked for by themselves, only
+when you ask for them, because an organisation may need an administrator to approve them.
+
+An account that signed in before MailCraft asked for all of this on one page is asked by the
+program, when it first needs one it doesn't have, in one question ("Keep in Step with Outlook", or
+"Shared Mailboxes and Calendars" when only those wait), and then on one page of Microsoft's for
+everything it lacks (Microsoft shows only what you haven't allowed yet; one that allowed changing its
+automatic replies or rules before has `MailboxSettings.ReadWrite` already, and its categories are
+kept in step without a new question). A shared mailbox you open, or ask to be read, opens that page
+at once. A question you close is not put again by itself while MailCraft stays open (it comes back
+when you change your automatic replies, press Allow in the Categories window, send from a shared
+mailbox or open a calendar by address, the next time MailCraft starts, or when you open another
+mailbox), and File › Info has one line for each Microsoft account (Sync with Outlook: on, partly on
+or off) with Ask again. Until they are given, nothing of your tasks and rules is sent and they stay
+on this computer, a change of your automatic replies waits for your answer (a no, or the question
+closed, drops it and says so), the rules already on the server are read with your mailbox settings
+and shown, your categories are shown as Outlook has them and can't be changed here, nothing of a
+shared mailbox or a calendar shared with you is read, and mail from a shared mailbox waits in its
+Outbox (a no holds it there) and is never sent from your own address instead.
 
 An administrator who approves MailCraft for an organisation is asked, in advance, for all of
 these, so that one approval covers what is asked later.
@@ -228,7 +250,9 @@ not in a release yet are marked "when the app is released".
   of its own for your password and never sees it. The page sends you back through a link on a
   scheme only MailCraft registers (`work.mailcraft.android` on Android), and the app checks that
   link, to the letter, before it believes it. What is asked of your account, and why, is
-  [Permissions asked of a Microsoft account](#permissions-asked-of-a-microsoft-account). The phone
+  [Permissions asked of a Microsoft account](#permissions-asked-of-a-microsoft-account), except that
+  the phone's page doesn't ask to change your To Do lists or your mailbox settings: the phone apps
+  don't keep your tasks, rules, automatic replies or categories in step. The phone
   apps do not use your phone's own calendar or contacts and ask for no permission to them.
 - **Secrets.** A sign-in token is sealed with a key held in the Android Keystore (on iPhone,
   when that app is released, the Keychain), which the system keeps outside the app's own files, and the
