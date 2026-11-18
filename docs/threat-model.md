@@ -58,7 +58,11 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
   checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
-  placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
+  placeholder; a `data:` address is never a link (`crates/html/src/data.rs`). A picture behind a
+  table, a cell, a block or the body is shown only when it is attached (`cid:`) or written into the
+  message (`data:`, within the same caps; none for a box that is hidden or 2 px or less across,
+  #601); an address on the web is never one: `crates/html/src/bg.rs` keeps none, so nothing asks for
+  it, in Junk E-mail or out of it, whatever the owner allows.
   Under a reply or forward, each one the reading pane would show goes as a part of its own beside
   the HTML, which refers to it by a Content-ID naming nothing of the owner (#602,
   `mailcraft_html::quotable_with_pictures`); one refused, hidden or past the caps is left out, and
@@ -214,6 +218,7 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
   only between names one character apart in length). An agent gets the warnings with `mail.get`
   as data, their details framed as message content. The owner can dismiss the banner (the cross at its right, `mail.dismissWarnings`, kept with the message as the kinds it held): a caution goes, a warning stays as a slim bar that opens again, and a kind that was not there brings the banner back. The command needs the owner (`Class::Settings`), so an agent cannot hide a warning.
+- **The signer's domain is the sender's choice** (#1472). `authentication.dkimDomain` in `mail.get` and `read_message` is the `header.d` of a passing DKIM signature, which whoever signs the mail picks; for an agent it is framed as untrusted, data and never instructions (`TEXT_KEYS`). The `spf`, `dkim` and `dmarc` words are short plain words read from the account's own server's topmost header.
 - **Send warnings are the owner's to answer** (#509). Before a message goes, `compose.send` looks
   for a recipient whose domain is a lookalike sender's would be (above), or whose part before the
   @ is one edit or one skeleton from a known address at the same domain (five characters or
@@ -423,6 +428,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
+  On a Microsoft account whose categories are kept in step with Outlook, an agent is asked
+  (`send`) before it writes a category there: one kept on this computer only sent there, a rename
+  of one that is there already, a name new to the list (given to an item, or by a rule) or another
+  colour; so is an Undo or Redo that would make one there again or give one there another colour,
+  and one that would have a category deleted there is asked as `delete`; the question names the
+  category.
   A copy that the server of a Microsoft account (Outlook.com, Microsoft 365) or an Exchange
   server account has made goes to Deleted Items on undo and is not counted as a removal; on any
   other account (IMAP, JMAP, one on this computer) the copy is removed and `delete` is asked. A step
@@ -486,7 +497,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). So does
   every background job of the window, listed in one place (`crates/ui-egui/src/jobs.rs`): each
   Send/Receive (IMAP, Microsoft Graph, Exchange, JMAP, Inbox passes, shared mailboxes), the
-  calendar and its check, free and busy times, the to-dos, the rules and the automatic replies.
+  calendar and its check, free and busy times, the to-dos, the rules, the automatic replies and the
+  categories.
   When another mailbox takes the place of the open one they are all called off, an answer that
   still comes for the old one is let go of whole, and no answer is taken in for an account under
   the address of the account open now; a shared mailbox's sign-in is checked against its owner's

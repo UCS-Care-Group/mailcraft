@@ -250,16 +250,182 @@ pub struct Run {
     /// A picture's id, kept by the text's holder: the run's text is then one [`OBJECT`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub picture: Option<u32>,
+    /// A table occupies one character in the editor, like an inline picture.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "read_pasted_table")]
+    pub table: Option<std::sync::Arc<PastedTable>>,
+}
+
+pub const MAX_PASTED_ROWS: usize = 256;
+pub const MAX_PASTED_COLUMNS: usize = 32;
+pub const MAX_PASTED_CELLS: usize = 2_048;
+pub const MAX_PASTED_SPANS: usize = 8_192;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
+pub struct PastedTable {
+    columns: u16,
+    rows: Vec<Vec<TableCell>>,
+    #[serde(skip)]
+    size: usize,
+}
+
+#[derive(Deserialize)]
+struct RawPastedTable {
+    columns: u16,
+    rows: Vec<Vec<TableCell>>,
+}
+
+// An invalid table in an old or externally written draft is ignored without losing its other runs.
+fn read_pasted_table<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<std::sync::Arc<PastedTable>>, D::Error> {
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(value
+        .and_then(|value| serde_json::from_value::<RawPastedTable>(value).ok())
+        .and_then(|raw| PastedTable::new(raw.columns, raw.rows))
+        .map(std::sync::Arc::new))
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TableCell {
+    pub lines: Vec<Vec<CellText>>,
+    pub header: bool,
+    pub colspan: u16,
+    pub rowspan: u16,
+    pub background: Option<String>,
+    pub alignment: CellAlignment,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CellAlignment {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CellText {
+    pub text: String,
+    pub style: Style,
+}
+
+impl PastedTable {
+    pub fn new(columns: u16, mut rows: Vec<Vec<TableCell>>) -> Option<Self> {
+        let width = usize::from(columns);
+        let height = rows.len();
+        if !(1..=MAX_PASTED_COLUMNS).contains(&width) || !(1..=MAX_PASTED_ROWS).contains(&height) {
+            return None;
+        }
+        let mut size = height;
+        let mut cells = 0;
+        let mut spans = 0;
+        let mut occupied = [0; MAX_PASTED_COLUMNS];
+        for (r, row) in rows.iter_mut().enumerate() {
+            cells += row.len();
+            if cells > MAX_PASTED_CELLS || row.len() > width {
+                return None;
+            }
+            let mut column = 0;
+            for cell in row {
+                while column < width && occupied.get(column).is_some_and(|end| *end > r) {
+                    column += 1;
+                }
+                let end_column = column + usize::from(cell.colspan);
+                let end_row = r + usize::from(cell.rowspan);
+                if end_column == column || end_column > width || end_row == r || end_row > height {
+                    return None;
+                }
+                let area = occupied.get_mut(column..end_column)?;
+                if area.iter().any(|end| *end > r) {
+                    return None;
+                }
+                area.fill(end_row);
+                column = end_column;
+
+                cell.background = cell.background.as_deref().and_then(safe_color);
+                size = size.saturating_add(1);
+                for line in &mut cell.lines {
+                    size = size.saturating_add(1);
+                    for run in line {
+                        spans += 1;
+                        if spans > MAX_PASTED_SPANS {
+                            return None;
+                        }
+                        size = size.saturating_add(1 + run.text.len());
+                        size = size.saturating_add(run.style.link.as_deref().map_or(0, str::len));
+                        if size > MAX_CHARS {
+                            return None;
+                        }
+                        run.text = clean_line(&run.text);
+                        run.style = std::mem::take(&mut run.style).clean();
+                    }
+                }
+                if size > MAX_CHARS {
+                    return None;
+                }
+            }
+        }
+        Some(Self { columns, rows, size })
+    }
+
+    pub fn columns(&self) -> u16 {
+        self.columns
+    }
+
+    pub fn rows(&self) -> &[Vec<TableCell>] {
+        &self.rows
+    }
+
+    pub fn plain(&self) -> String {
+        self.rows
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell| {
+                        cell.lines
+                            .iter()
+                            .map(|line| {
+                                let mut text = String::new();
+                                for run in line {
+                                    append_plain_run(&mut text, &run.text, &run.style);
+                                }
+                                text
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\t")
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
+fn append_plain_run(out: &mut String, text: &str, style: &Style) {
+    out.push_str(text);
+    if let Some(url) = &style.link {
+        let shown = text.trim();
+        let bare = url.split_once(':').map_or(url.as_str(), |(_, r)| r.trim_start_matches('/'));
+        // A telephone number says its link however it is spaced (`+44 (0)20…`).
+        let digits = |t: &str| t.replace("(0)", "").chars().filter(char::is_ascii_digit).collect::<String>();
+        let number = url.to_ascii_lowercase().starts_with("tel:") && digits(shown) == digits(bare);
+        if !number && !shown.eq_ignore_ascii_case(url) && !shown.eq_ignore_ascii_case(bare) {
+            out.push_str(&format!(" <{url}>"));
+        }
+    }
 }
 
 impl Run {
     pub fn new(text: impl Into<String>, style: Style) -> Run {
-        Run { text: text.into(), style, picture: None }
+        Run { text: text.into(), style, picture: None, table: None }
     }
 
     /// The picture `id`, as it stands in the text.
     pub fn picture(id: u32, style: Style) -> Run {
-        Run { text: OBJECT.to_string(), style, picture: Some(id) }
+        Run { text: OBJECT.to_string(), style, picture: Some(id), table: None }
+    }
+
+    pub fn table(table: std::sync::Arc<PastedTable>) -> Run {
+        Run { table: Some(table), ..Run::plain(OBJECT.to_string()) }
     }
 
     pub fn plain(text: impl Into<String>) -> Run {
@@ -331,7 +497,11 @@ impl Paragraph {
                 continue;
             }
             match out.last_mut() {
-                Some(last) if last.style == run.style && last.picture.is_none() && run.picture.is_none() => last.text.push_str(&run.text),
+                Some(last)
+                    if last.style == run.style && last.picture.is_none() && run.picture.is_none() && last.table.is_none() && run.table.is_none() =>
+                {
+                    last.text.push_str(&run.text)
+                }
                 _ => out.push(run),
             }
         }
@@ -507,6 +677,13 @@ impl RichText {
             let mut cur = Paragraph { runs: Vec::new(), list: p.list, level, signature: p.signature };
             for run in p.runs {
                 let style = run.style.clean();
+                if let Some(table) = run.table {
+                    if table.size < budget {
+                        budget -= table.size + 1;
+                        cur.runs.push(Run::table(table));
+                    }
+                    continue;
+                }
                 if let Some(id) = run.picture {
                     if budget == 0 {
                         break 'all;
@@ -564,7 +741,9 @@ impl RichText {
 
     /// Whether anything in it is more than plain text.
     pub fn has_formatting(&self) -> bool {
-        self.paragraphs.iter().any(|p| p.list != ListKind::None || p.runs.iter().any(|r| !r.style.is_plain() || r.picture.is_some()))
+        self.paragraphs
+            .iter()
+            .any(|p| p.list != ListKind::None || p.runs.iter().any(|r| !r.style.is_plain() || r.picture.is_some() || r.table.is_some()))
     }
 
     /// The pictures' ids, in the order they stand.
@@ -598,23 +777,17 @@ impl RichText {
                 ListKind::Numbered => out.push_str(&format!("{}. ", numbers.get(i).copied().unwrap_or(1))),
             }
             for run in &p.runs {
+                if let Some(table) = &run.table {
+                    out.push_str(&table.plain());
+                    continue;
+                }
                 if let Some(id) = run.picture {
                     if let Some(text) = describe(id).map(|t| clean_line(&t)).filter(|t| !t.trim().is_empty()) {
                         out.push_str(&format!("[{}]", text.trim()));
                     }
                     continue;
                 }
-                out.push_str(&run.text);
-                if let Some(url) = &run.style.link {
-                    let shown = run.text.trim();
-                    let bare = url.split_once(':').map_or(url.as_str(), |(_, r)| r.trim_start_matches('/'));
-                    // A telephone number says its link however it is spaced (`+44 (0)20…`).
-                    let digits = |t: &str| t.replace("(0)", "").chars().filter(char::is_ascii_digit).collect::<String>();
-                    let number = url.to_ascii_lowercase().starts_with("tel:") && digits(shown) == digits(bare);
-                    if !number && !shown.eq_ignore_ascii_case(url) && !shown.eq_ignore_ascii_case(bare) {
-                        out.push_str(&format!(" <{url}>"));
-                    }
-                }
+                append_plain_run(&mut out, &run.text, &run.style);
             }
         }
         out
@@ -651,19 +824,30 @@ impl RichText {
     /// at `at` (the paragraph there is cut; an empty rest of the last paragraph is left out).
     pub fn put_signature(&mut self, sig: &RichText, at: usize) -> Result<(), ModelError> {
         let marked: Vec<Paragraph> = sig.paragraphs.iter().map(|p| Paragraph { signature: true, ..p.clone() }).collect();
-        if self.len().saturating_add(sig.len()) > MAX_CHARS || self.paragraphs.len().saturating_add(marked.len()) > MAX_PARAGRAPHS {
-            return Err(ModelError::Invalid("the message can't hold that much text".into()));
-        }
+        let too_much = || ModelError::Invalid("the message can't hold that much text".into());
+        let combined = self.storage_len().saturating_add(sig.storage_len());
+        let lines = self.paragraphs.len().saturating_add(marked.len());
         if let Some((a, b)) = self.signature_paragraphs() {
+            let Some(replaced) = self.paragraphs.get(a..=b) else { return Err(ModelError::Invalid("no such signature".into())) };
+            let replaced_size =
+                replaced.iter().flat_map(|p| &p.runs).map(|r| r.text.chars().count() + r.table.as_ref().map_or(0, |table| table.size)).sum::<usize>()
+                    + replaced.len().saturating_sub(1);
+            if combined.saturating_sub(replaced_size) > MAX_CHARS || lines.saturating_sub(replaced.len()) > MAX_PARAGRAPHS {
+                return Err(too_much());
+            }
             self.paragraphs.splice(a..=b, marked);
             return Ok(());
         }
         let (pi, off) = self.locate(at)?;
         let last = pi + 1 == self.paragraphs.len();
         let Some(target) = self.paragraphs.get_mut(pi) else { return Err(ModelError::Invalid("no such paragraph".into())) };
+        let keep_tail = !last || off < target.chars();
+        if combined.saturating_add(1 + usize::from(keep_tail)) > MAX_CHARS || lines.saturating_add(usize::from(keep_tail)) > MAX_PARAGRAPHS {
+            return Err(too_much());
+        }
         let tail = target.split_off(off);
         let mut new = marked;
-        if !(tail.is_empty() && last) {
+        if keep_tail {
             new.push(Paragraph { signature: false, ..tail });
         }
         self.paragraphs.splice(pi + 1..pi + 1, new);
@@ -828,7 +1012,7 @@ impl RichText {
     pub fn insert_rich(&mut self, at: usize, fragment: &RichText) -> Result<usize, ModelError> {
         let (pi, off) = self.locate(at)?;
         let added = fragment.len();
-        if self.len().saturating_add(added) > MAX_CHARS
+        if self.storage_len().saturating_add(fragment.storage_len()) > MAX_CHARS
             || self.paragraphs.len().saturating_add(fragment.paragraphs.len().saturating_sub(1)) > MAX_PARAGRAPHS
         {
             return Err(ModelError::Invalid("the message can't hold that much text".into()));
@@ -860,6 +1044,15 @@ impl RichText {
             }
         }
         Ok(at + added)
+    }
+
+    /// Text plus the data held by table objects, for storage and history limits.
+    pub(super) fn storage_len(&self) -> usize {
+        self.pasted_tables().fold(self.len(), |size, table| size.saturating_add(table.size))
+    }
+
+    fn pasted_tables(&self) -> impl Iterator<Item = &std::sync::Arc<PastedTable>> {
+        self.paragraphs.iter().flat_map(|p| &p.runs).filter_map(|run| run.table.as_ref())
     }
 
     /// Remove `[from, to)`; a paragraph break inside it joins the paragraphs on either side

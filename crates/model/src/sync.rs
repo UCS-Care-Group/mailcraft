@@ -55,7 +55,18 @@ pub struct FolderState {
     /// too old, so that every folder is read in full now and then.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<crate::ImapStatus>,
+    /// Messages of the folder that failed to download, by UID, and how many runs they failed
+    /// (#1581). Tried again until [`MAX_TRIES`], then left out until the owner asks for them
+    /// again (`sync.retryFailed`).
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub failing: std::collections::BTreeMap<u32, u8>,
 }
+
+/// How many runs a message that fails to download is tried in before it is left out (#1581).
+pub const MAX_TRIES: u8 = 3;
+
+/// Most failing messages kept for one folder (#1581): a result can say anything.
+pub const MAX_FAILING: usize = 1000;
 
 /// A change made here for the server to take on. Server mailboxes are named by their path
 /// ([`FolderState::remote`]), messages by their UID there.
@@ -242,6 +253,19 @@ pub struct Tokens {
     /// identity token says it, and it tells an organisation's account from a personal one
     /// ([`crate::Directory::of_tenant`]). An identifier, not a secret; kept in memory like the rest.
     pub tenant: String,
+    /// Set by the one page for an older sign-in when it came back without the shared mailboxes'
+    /// and calendars' permissions (the account can't have them, so the page was asked again
+    /// without them): the tokens are good for everything else, and nobody may take them for
+    /// allowed to read or send from a shared mailbox.
+    pub shared_not_given: bool,
+    /// Set by the one page for an older sign-in when the provider had no To Do lists or mailbox
+    /// settings to give (the page was asked again for the shared mailboxes' permissions alone):
+    /// the tokens are good for the rest, and nobody may take them for allowed to keep the tasks,
+    /// rules, automatic replies and categories in step.
+    pub sync_not_given: bool,
+    /// The `scope` the token endpoint's answer states (RFC 6749 §5.1), empty when it said none:
+    /// the answer then matches what was asked. Names of permissions, not secrets.
+    pub granted_scope: String,
 }
 
 /// How long before an access token runs out it is renewed rather than used (seconds).
@@ -607,6 +631,15 @@ pub struct FolderDelta {
     /// after, so many times.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub refetch_refused: Vec<u32>,
+    /// UIDs of messages that failed to download in this run (#1581): the mailbox counts the run
+    /// against each ([`FolderState::failing`]); one that downloads is not named.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub failed: Vec<u32>,
+    /// UIDs of [`FolderState::failing`] the server no longer lists, or that the limit on how many
+    /// messages to have here leaves out now: no longer counted (#1581). (Not `removed`: nothing of
+    /// theirs is here to take out, and a change waiting for one of them must stay.)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub failing_gone: Vec<u32>,
     /// For a Gmail account's Inbox: which of Gmail's categories each message of it is in, as
     /// Gmail's searches said this run (#911), and Gmail's id of it. Said once, with the piece that
     /// ends the folder's reading; empty from every other server and folder.
@@ -952,6 +985,8 @@ impl SyncResult {
                         refetch_done,
                         refetch_too_large,
                         refetch_refused,
+                        failed,
+                        failing_gone,
                         gmail,
                         gmail_labels,
                     } = delta;
@@ -968,6 +1003,8 @@ impl SyncResult {
                     folder.refetch_done.extend(refetch_done);
                     folder.refetch_too_large.extend(refetch_too_large);
                     folder.refetch_refused.extend(refetch_refused);
+                    folder.failed.extend(failed);
+                    folder.failing_gone.extend(failing_gone);
                     folder.gmail.extend(gmail);
                     folder.gmail_labels.extend(gmail_labels);
                     folder.complete |= complete;
