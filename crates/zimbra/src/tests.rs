@@ -177,14 +177,35 @@ fn an_id_the_server_answers_gone_counts_as_removed() {
     let gone = server.deliver(2, "Vanishing", "");
     let token = whole(&run(&server, &request(""), PASSWORD)).token;
     // Changed in the delta, deleted before the read — too late for the delta's `deleted` list.
-    // The `item:{id}` probe comes back empty: the server's own word that it is gone. The run
-    // counts it removed and moves its token on; failing here would ask the same page for ever.
+    // The `GetMsgRequest` probe faults `mail.NO_SUCH_MSG`: the server's own word that it is gone.
+    // The run counts it removed and moves its token on; failing here would ask the same page for ever.
     server.change(gone, |m| m.flags = "u".into());
     server.vanish(gone);
     let all = whole(&run(&server, &request(&token), PASSWORD));
     assert_eq!(all.errors, Vec::<String>::new());
     assert!(all.whole && !all.token.is_empty());
     assert!(all.pages.iter().any(|p| p.removed.contains(&gone.to_string())));
+}
+
+#[test]
+fn a_message_moved_to_trash_is_not_the_deleted_one() {
+    let server = StandIn::new();
+    let trashed = server.deliver(2, "Moved to Trash", "");
+    let deleted = server.deliver(2, "Really deleted", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    // One delta page names both: one moved to Trash in webmail (a search with no scope would
+    // leave it out), one deleted before the read. The batch faults on the deletion, the probe
+    // names each by itself: the Trash message comes back, `mail.NO_SUCH_MSG` is the deleted one's
+    // own word. Only the deleted one is removed — the moved one must not vanish here.
+    server.change(trashed, |m| m.folder = 3);
+    server.change(deleted, |m| m.flags = "u".into());
+    server.vanish(deleted);
+    let all = whole(&run(&server, &request(&token), PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    assert!(all.whole && !all.token.is_empty());
+    let removed: Vec<&str> = all.pages.iter().flat_map(|p| p.removed.iter().map(String::as_str)).collect();
+    assert_eq!(removed, [deleted.to_string().as_str()]);
+    assert!(all.pages.iter().any(|p| p.messages.iter().any(|m| m.server.id == trashed.to_string() && m.server.folder == "3")));
 }
 
 #[test]

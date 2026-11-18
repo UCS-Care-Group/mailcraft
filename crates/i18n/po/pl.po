@@ -1702,8 +1702,9 @@ msgstr "Zastosuj wynik Wyślij/Odbierz przez Microsoft Graph"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Apply Send/Receive with Zimbra"
-msgstr ""
+msgstr "Zastosuj Wyślij/Odbierz z Zimbrą"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -4749,8 +4750,9 @@ msgstr "Pobieraj obrazy w wiadomościach automatycznie"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Download Zimbra Messages in Full"
-msgstr ""
+msgstr "Pobierz wiadomości Zimbra w całości"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14346,8 +14348,9 @@ msgstr "Wyślij/Odbierz przez Microsoft Graph"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Send/Receive with Zimbra"
-msgstr ""
+msgstr "Wyślij/Odbierz z Zimbrą"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -20681,28 +20684,33 @@ msgstr "Z na górze"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
-msgstr ""
+msgstr "Konta Zimbra są testowane: uruchom MailCraft z MAILCRAFT_ZIMBRA=1, aby je wypróbować"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts can't be sent and received yet: that part is not built"
-msgstr ""
+msgstr "Kont Zimbra nie można jeszcze wysyłać ani odbierać: ta część nie jest jeszcze zbudowana"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra {host} · not kept in step yet: this part is not built"
-msgstr ""
+msgstr "Zimbra {host} · jeszcze nie synchronizowano: ta część nie jest jeszcze zbudowana"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
-msgstr ""
+msgstr "Zimbra {host} · nie synchronizowano: konta Zimbra są wyłączone (uruchom MailCraft z MAILCRAFT_ZIMBRA=1, aby je wypróbować)"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra · no usable server address"
-msgstr ""
+msgstr "Zimbra · brak użytecznego adresu serwera"
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -20832,8 +20840,9 @@ msgstr "logowanie Microsoft jest używane tylko z własnymi serwerami poczty Mic
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
-msgstr ""
+msgstr "serwera, adresu i nazwy użytkownika konta Zimbra nie można zmienić, gdy jego poczta jest już tutaj: usuń je i dodaj drugie"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21125,8 +21134,9 @@ msgstr "konto staje się kontem JMAP lub przestaje nim być tylko przez usunięc
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
-msgstr ""
+msgstr "konto staje się kontem Zimbra lub przestaje nim być tylko przez usunięcie i ponowne dodanie"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21693,8 +21703,9 @@ msgstr "żadne konto nie przechowuje tu swoich reguł na serwerze"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "no account is a Zimbra account"
-msgstr ""
+msgstr "żadne konto nie jest kontem Zimbra"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
@@ -22812,8 +22823,9 @@ msgstr "żądanie zostało utracone"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "the result is for another account"
-msgstr ""
+msgstr "wynik dotyczy innego konta"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -24194,8 +24206,9 @@ msgstr "{name} nie ma adresu serwera JMAP, którego można użyć"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "{name} has no Zimbra server address that can be used"
-msgstr ""
+msgstr "{name} nie ma żadnego adresu serwera Zimbra, którego można użyć"
 
 #. what a command says
 #: crates/engine/src/io.rs
@@ -24271,8 +24284,9 @@ msgstr "{name} nie jest kontem Microsoft ani kontem serwera Exchange"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "{name} isn't a Zimbra account"
-msgstr ""
+msgstr "{name} nie jest kontem Zimbra"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

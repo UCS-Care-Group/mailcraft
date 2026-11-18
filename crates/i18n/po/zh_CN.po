@@ -1698,8 +1698,9 @@ msgstr "应用通过 Microsoft Graph 发送/接收的结果"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Apply Send/Receive with Zimbra"
-msgstr ""
+msgstr " Zimbra /"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -4742,8 +4743,9 @@ msgstr "自动下载邮件中的图片"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Download Zimbra Messages in Full"
-msgstr ""
+msgstr " Zimbra "
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14295,8 +14297,9 @@ msgstr "使用 Microsoft Graph 发送/接收"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Send/Receive with Zimbra"
-msgstr ""
+msgstr " Zimbra /"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -20602,28 +20605,33 @@ msgstr "Z 位于顶部"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
-msgstr ""
+msgstr "Zimbra 账户正在测试中：使用 MAILCRAFT_ZIMBRA=1 启动 MailCraft 即可试用"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts can't be sent and received yet: that part is not built"
-msgstr ""
+msgstr "Zimbra 账户尚不能收发邮件：该部分尚未构建"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra {host} · not kept in step yet: this part is not built"
-msgstr ""
+msgstr "Zimbra {host} · 尚未同步：该部分尚未构建"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
-msgstr ""
+msgstr "Zimbra {host} · 未同步：Zimbra 账户已关闭（使用 MAILCRAFT_ZIMBRA=1 启动 MailCraft 即可试用）"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra · no usable server address"
-msgstr ""
+msgstr "Zimbra · 没有可用的服务器地址"
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -20753,8 +20761,9 @@ msgstr "Microsoft 登录只能用于 Microsoft 自有的邮件服务器：此账
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
-msgstr ""
+msgstr "Zimbra 账户的服务器、地址和用户名在邮件存储后无法更改：请删除并添加另一个"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21046,8 +21055,9 @@ msgstr "要将账户改为 JMAP 账户或改为其他类型，必须移除账户
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
-msgstr ""
+msgstr "只有删除并重新添加，账户才能成为 Zimbra 账户或不再是 Zimbra 账户"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21608,8 +21618,9 @@ msgstr "此处没有账户在服务器上保存规则"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "no account is a Zimbra account"
-msgstr ""
+msgstr "没有任何账户是 Zimbra 账户"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
@@ -22727,8 +22738,9 @@ msgstr "请求已丢失"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "the result is for another account"
-msgstr ""
+msgstr "该结果属于另一个账户"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -24105,8 +24117,9 @@ msgstr "{name} 没有可以使用的 JMAP 服务器地址"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "{name} has no Zimbra server address that can be used"
-msgstr ""
+msgstr "{name} 没有可用的 Zimbra 服务器地址"
 
 #. what a command says
 #: crates/engine/src/io.rs
@@ -24182,8 +24195,9 @@ msgstr "{name} 不是 Microsoft 或 Exchange 服务器账户"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "{name} isn't a Zimbra account"
-msgstr ""
+msgstr "{name} 不是 Zimbra 账户"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
