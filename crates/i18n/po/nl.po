@@ -1247,6 +1247,11 @@ msgid "Address Book"
 msgstr "Adresboek"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Address list"
@@ -1398,6 +1403,11 @@ msgstr "Alle verzonden items"
 #, fuzzy
 msgid "All accounts"
 msgstr "Alle accounts"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "All address books"
+msgstr ""
 
 #. android, interface, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -8214,6 +8224,11 @@ msgid "List Accounts"
 msgstr "Accounts opsommen"
 
 #. command label
+#: crates/engine/src/cmd/people.rs
+msgid "List Address Books"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 msgid "List Calendars"
 msgstr "Agenda's opsommen"
@@ -14857,6 +14872,11 @@ msgid ""
 msgstr ""
 "Training\n"
 "weergeven"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Address Book"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -24899,6 +24919,11 @@ msgstr "{address}: {error}. Zie Bestand › Info."
 #, fuzzy
 msgid "{answer}: more ways to answer"
 msgstr "{answer}: meer manieren om te antwoorden"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "{book} (read-only)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

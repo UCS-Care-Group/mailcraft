@@ -1275,6 +1275,11 @@ msgid "Address Book"
 msgstr "通讯簿"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Address list"
@@ -1428,6 +1433,11 @@ msgstr "所有已发送邮件"
 #, fuzzy
 msgid "All accounts"
 msgstr "所有账户"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "All address books"
+msgstr ""
 
 #. android, interface, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -8513,6 +8523,11 @@ msgid "List Accounts"
 msgstr "列出账户"
 
 #. command label
+#: crates/engine/src/cmd/people.rs
+msgid "List Address Books"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 #, fuzzy
 msgid "List Calendars"
@@ -15373,6 +15388,11 @@ msgid ""
 "Show\n"
 "Training"
 msgstr "显示↵培训内容"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Address Book"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -25497,6 +25517,11 @@ msgstr "{address}：{error}。请参阅文件 › 信息。"
 #, fuzzy
 msgid "{answer}: more ways to answer"
 msgstr "{answer}：更多回复方式"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "{book} (read-only)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
