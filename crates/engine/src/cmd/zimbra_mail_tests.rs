@@ -4,7 +4,7 @@
 //! brings back, with results made by hand. (Against `mailcraft-zimbra`'s stand-in: the desktop
 //! app's runner.)
 
-use mailcraft_model::sync::{FolderListing, GraphFetched, GraphFolder, GraphMessage, ServerMessage, ZimbraMessagePage};
+use mailcraft_model::sync::{FolderListing, GraphFetched, GraphFolder, GraphMessage, ServerMessage, ZimbraMessagePage, ZimbraResume};
 use mailcraft_model::{Address, FlagStatus};
 use serde_json::json;
 
@@ -185,6 +185,44 @@ fn hostile_pieces_are_held_to_their_sizes() {
     odd.pages[0].messages[0].server.categories = vec!["\u{7}".into()];
     apply(&mut s, odd);
     assert!(subjects(&s, account, "Inbox").contains(&"Line break".to_string()));
+}
+
+#[test]
+fn a_folder_left_half_read_is_gone_on_from_and_nothing_goes_before_its_end() {
+    let (mut s, account) = session();
+    // A first read stopped inside the Inbox, at message 258.
+    let mut listed = result(account, "");
+    (listed.listing, listed.well_known, listed.partial) = (Some(listing()), vec!["2".into(), "3".into(), "5".into()], true);
+    apply(&mut s, listed);
+    let mut inbox = result(account, "");
+    inbox.pages = vec![ZimbraMessagePage {
+        folder: "2".into(),
+        messages: vec![mail("257", "2", "Hello", false), mail("258", "2", "Later", true)],
+        afresh: true,
+        ..Default::default()
+    }];
+    inbox.partial = true;
+    apply(&mut s, inbox);
+    let mut last = result(account, "");
+    (last.token, last.whole, last.resume) = ("4711".into(), true, Some(vec![ZimbraResume { folder: "2".into(), cursor: "258".into(), sort: 5 }]));
+    apply(&mut s, last);
+    // The next request goes on from where the read stopped, with the token.
+    let request = s.run("sync.zimbraRequest", &json!({"account": account})).unwrap();
+    assert_eq!(request["resume"], json!([{"folder": "2", "cursor": "258", "sort": 5}]), "{request}");
+    // A delta that still leaves a folder half-read removes nothing, though the run went well.
+    let mut delta = result(account, "4711");
+    delta.pages = vec![ZimbraMessagePage { removed: vec!["257".into()], last: true, ..Default::default() }];
+    (delta.token, delta.whole, delta.resume) = ("4712".into(), true, Some(vec![ZimbraResume { folder: "2".into(), cursor: "258".into(), sort: 5 }]));
+    apply(&mut s, delta);
+    assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
+    // The run that finishes the read ends it: "Hello" is gone, "Later" is all the read brought.
+    let mut tail = result(account, "4712");
+    tail.pages = vec![ZimbraMessagePage { folder: "2".into(), messages: vec![mail("258", "2", "Later", true)], last: true, ..Default::default() }];
+    (tail.token, tail.whole, tail.resume) = ("4713".into(), true, Some(Vec::new()));
+    apply(&mut s, tail);
+    assert_eq!(subjects(&s, account, "Inbox"), ["Later"]);
+    let server = s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap();
+    assert_eq!((server.token.as_str(), server.resume.is_empty()), ("4713", true));
 }
 
 #[test]

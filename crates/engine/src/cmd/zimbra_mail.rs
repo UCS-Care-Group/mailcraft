@@ -94,8 +94,16 @@ fn zimbra_account(mb: &Mailbox, account: Id) -> Result<(&Account, &ZimbraServer)
 /// What a Zimbra run of `account` should do. The host adds the password, which is never here.
 pub fn zimbra_mail_request(s: &Session, account: Id) -> Result<ZimbraMailRequest, CmdError> {
     let (a, server) = zimbra_account(&s.mailbox, account)?;
-    // A token that may not be one is not gone on from: the mailbox is read afresh.
+    // A token that may not be one is not gone on from: the mailbox is read afresh. The same holds
+    // for where a folder's fresh read stopped: an entry that can't be one is simply not gone on
+    // from, and the folder is read from its start.
     let token = if ZimbraServer::token_ok(&server.token) { server.token.clone() } else { String::new() };
+    let resume = server
+        .resume
+        .iter()
+        .filter(|e| mailcraft_model::sync::zimbra_id_ok(&e.folder) && (e.cursor.is_empty() || mailcraft_model::sync::zimbra_id_ok(&e.cursor)))
+        .cloned()
+        .collect();
     Ok(ZimbraMailRequest {
         account,
         email: a.email.clone(),
@@ -103,6 +111,7 @@ pub fn zimbra_mail_request(s: &Session, account: Id) -> Result<ZimbraMailRequest
         username: server.username.clone(),
         trusted: server.trusted.clone(),
         token,
+        resume,
         ..ZimbraMailRequest::default()
     })
 }
@@ -242,13 +251,20 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
         s.ews_run_cut.remove(&account);
     }
     // The run's end: what its reads left out goes, and the mailbox goes on from the run's token,
-    // in one step, when it went well.
+    // in one step, when it went well. With a folder left half-read (`resume`), nothing marked gone
+    // is gone yet — the tail of that folder's read is still to come — so nothing is removed until
+    // a run leaves no folder half-read.
     if result.whole && !result.partial && !run_cut {
-        graph_down::sweep(&mut s.mailbox, account, None, &mut down);
+        if result.resume.as_ref().is_none_or(Vec::is_empty) {
+            graph_down::sweep(&mut s.mailbox, account, None, &mut down);
+        }
         if !result.token.is_empty()
             && let Some(server) = s.mailbox.account_mut(account).ok().and_then(|a| a.zimbra.as_mut())
         {
             server.token = result.token.clone();
+            if let Some(resume) = &result.resume {
+                server.resume = resume.clone();
+            }
         }
     }
     if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() {
