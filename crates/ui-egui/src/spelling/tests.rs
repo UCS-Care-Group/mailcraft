@@ -190,6 +190,31 @@ fn a_typo_before_a_parenthesized_address_is_still_marked() {
 }
 
 #[test]
+fn balanced_parentheses_in_a_url_path_are_protected() {
+    for address in ["https://example.org/a(", "www.example.org/a("] {
+        let mut prefix = Run::plain(address);
+        prefix.style.link = Some("https://example.org/a".into());
+        let paragraph = Paragraph::new(vec![prefix, Run::plain("sopratutto)")], ListKind::None);
+        assert!(check(&Italian, "it-IT", &paragraph).issues.is_empty(), "{address}");
+    }
+    let mut link = Run::plain("https://example.org");
+    link.style.link = Some("https://example.org".into());
+    let paragraph = Paragraph::new(vec![Run::plain("sopratutto("), link, Run::plain(")sopratutto")], ListKind::None);
+    let spans: Vec<_> = check(&Italian, "it-IT", &paragraph).issues.into_iter().map(|issue| issue.span).collect();
+    assert_eq!(spans, [0..10, 31..41]);
+}
+
+#[test]
+fn a_typo_before_a_comma_separated_address_is_still_marked() {
+    let mut link = Run::plain("info@example.org");
+    link.style.link = Some("mailto:info@example.org".into());
+    let paragraph = Paragraph::new(vec![Run::plain("sopratutto,"), link], ListKind::None);
+    let report = check(&Italian, "it-IT", &paragraph);
+    assert_eq!(report.issues.len(), 1);
+    assert_eq!(report.issues[0].span, 0..10);
+}
+
+#[test]
 fn beginning_ime_composition_cancels_a_pending_spelling_review() {
     use egui::{Event, ImeEvent};
     use mailcraft_model::rich::Selection;
@@ -231,6 +256,7 @@ fn beginning_ime_composition_cancels_a_pending_spelling_review() {
     harness.event(Event::Ime(ImeEvent::Preedit { text: "hao".into(), active_range_chars: None }));
     harness.run_steps(2);
     assert!(editor::has_focus(&ctx));
+    assert_eq!(editor::preedit(harness.state(), &ctx), "hao");
     let body_id = editor::id(harness.state());
     ctx.memory_mut(|memory| memory.surrender_focus(body_id));
     review_next(harness.state_mut(), &ctx, "it-IT");
