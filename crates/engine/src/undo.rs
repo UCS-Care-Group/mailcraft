@@ -425,6 +425,11 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // Reminders kept for a sent copy to come down are what was learnt of the server, not the owner's
     // change: an undo leaves them as they are now (#948).
     out.follow_ups_pending = now.follow_ups_pending.clone();
+    // Whether an account has to be signed in again is its server's word, not the owner's change
+    // (#1556): an undo leaves it as it is now.
+    for a in &mut out.accounts {
+        a.sign_in_needed = now.account(a.id).is_some_and(|is| is.sign_in_needed);
+    }
     returned(&mut out, now);
     subscribed_stay(&mut out, now);
     // A message handed to a server to be sent (AU3-26) is the run's until its answer comes: undo

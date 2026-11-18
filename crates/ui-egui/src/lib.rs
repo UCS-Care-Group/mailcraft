@@ -247,6 +247,9 @@ mod shared_calendars;
 #[cfg(test)]
 mod shared_calendars_tests;
 mod shared_mailboxes;
+mod sign_in_needed;
+#[cfg(test)]
+mod sign_in_needed_tests;
 #[cfg(test)]
 mod signature_link_tests;
 #[cfg(test)]
@@ -4210,8 +4213,16 @@ impl MailApp {
             // No token for the mail: Microsoft wants the owner's say-so for it, or the sign-in has
             // run out. There is no IMAP leg to ask instead, so the owner is asked here (#124).
             if result.mail.is_none() && (result.consent_needed || result.sign_in_refused) {
+                // (A permission still to be given is no sign-in that ran out.)
+                if !result.consent_needed {
+                    self.note_sign_in_needed(account, true);
+                }
                 self.graph_mail_needs_sign_in(account, quiet, after_sign_in, result.consent_needed);
                 return;
+            }
+            // The mail came: the sign-in went through (#1556).
+            if result.mail.is_some() || streamed {
+                self.note_sign_in_needed(account, false);
             }
             let status = self.session.sync_status.clone();
             match result.mail.take() {
@@ -4389,6 +4400,8 @@ impl MailApp {
             // "Connect calendar and contacts": the token is Graph's; the next run uses it.
             match answer {
                 Ok(tokens) => {
+                    // Signed in on the page: the account is (#1556).
+                    self.note_sign_in_needed(account, false);
                     if !tokens.refresh.is_empty() {
                         self.remember("refresh", account, &tokens.refresh);
                         if let Some(mail) = self.tokens.get_mut(&account) {
@@ -4434,6 +4447,7 @@ impl MailApp {
         }
         match answer {
             Ok(tokens) => {
+                self.note_sign_in_needed(account, false);
                 self.remember("refresh", account, &tokens.refresh);
                 self.tokens.insert(account, tokens);
                 if let Err(e) = self.start_sync(&json!({"account": account})) {
@@ -4455,6 +4469,12 @@ impl MailApp {
                     // A retry may renew the otherwise usable refresh grant. Never erase it
                     // merely because the sign-in window was closed or the network failed.
                     tokens.access.clear();
+                }
+                // The provider no longer takes the account's sign-in: said until one goes
+                // through (#1556). (Not a page closed by itself, nor the provider out of reach.)
+                let email = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
+                if approval::needs_sign_in(&e, &email, !asked_for, !on_the_page) {
+                    self.note_sign_in_needed(account, true);
                 }
                 self.session.sync_status.clear();
                 self.note_sync_problems(account, std::slice::from_ref(&e), false);
@@ -4716,6 +4736,10 @@ impl MailApp {
             self.sync_refused |= refused;
             if signed_in {
                 self.keep_accepted_password(account);
+                // The server let the run in: the sign-in went through (#1556).
+                if !self.sync_refused {
+                    self.note_sign_in_needed(account, false);
+                }
             }
             for piece in &pieces {
                 self.note_said_problems(account, piece.problems(), false);
@@ -4758,6 +4782,8 @@ impl MailApp {
             }
             let totals = std::mem::take(&mut self.sync_totals);
             if std::mem::take(&mut self.sync_refused) {
+                // Said until a sign-in goes through (#1556).
+                self.note_sign_in_needed(account, true);
                 // Forget the password so the next try asks again, and the access token so the
                 // next try renews it (the refresh token stays for that).
                 self.passwords.remove(&account);

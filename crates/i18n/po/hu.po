@@ -764,6 +764,11 @@ msgstr ""
 "Fiók-\n"
 "beállítások"
 
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+msgid "Account Problems"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -8089,6 +8094,11 @@ msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file 
 msgstr "A levél olvasás közben érkezik. A törlés megtartja, ami benne van; az importálás újra hozza a többit."
 
 #. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+msgid "Mail doesn't arrive for these accounts until you sign in again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Mail folder"
@@ -14478,7 +14488,7 @@ msgid "Sign In Again for Automatic Replies"
 msgstr "Automatikus válaszlépések esetén ismét jelentkezzen be"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/sign_in_needed.rs
 #, fuzzy
 msgid "Sign in again"
 msgstr "Írja alá újra!"
@@ -17406,6 +17416,11 @@ msgstr "Ez a fiók nincs levelező szerver, hogy küldje el a választ."
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Ez a fiók nem jelent be a Microsoft-nál"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -23668,6 +23683,13 @@ msgid "{n} account has one"
 msgid_plural "{n} accounts have one"
 msgstr[0] "{n} fióknak van"
 msgstr[1] "{n} fióknak van"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+msgid "{n} account has to be signed in again"
+msgid_plural "{n} accounts have to be signed in again"
+msgstr[0] ""
+msgstr[1] ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt

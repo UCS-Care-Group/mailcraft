@@ -72,7 +72,9 @@ impl MailApp {
 
     /// The server of `account` turned its password down: the next Send/Receive asks for it again,
     /// and no round by itself goes back until then. What the system remembered is no good either.
+    /// The window says so until a sign-in goes through (#1556).
     pub(crate) fn ews_password_refused(&mut self, account: Id) {
+        self.note_sign_in_needed(account, true);
         self.passwords.remove(&account);
         self.jmap_refused.insert(account);
         if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
@@ -169,6 +171,10 @@ impl MailApp {
             // The server answered with its folders or its mail: it took the password (#802).
             if piece.server_answered() {
                 self.keep_accepted_password(account);
+                // (And the sign-in went through, #1556.)
+                if !self.sync_refused {
+                    self.note_sign_in_needed(account, false);
+                }
             }
             // What File › Info says: how this run signed in, and a certificate that needs a say.
             if !piece.signed_in_with.is_empty() {
