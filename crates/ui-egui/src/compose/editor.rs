@@ -923,10 +923,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         let seen = |to: bool| i.events.iter().any(|e| matches!(e, Event::WindowFocused(f) if *f == to));
         (seen(false), seen(true))
     });
-    let mut ime_composition = !st.preedit.is_empty();
-    if left || came_back {
+    if !focused || left || came_back {
         st.preedit.clear();
     }
+    let mut ime_composition = !st.preedit.is_empty();
     if focused {
         ctx.memory_mut(|m| {
             m.set_focus_lock_filter(id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: false })
@@ -1042,8 +1042,6 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             }
         }
         resync(&mut layout, app);
-    } else {
-        st.preedit.clear();
     }
 
     if which == Which::Message {
