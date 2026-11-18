@@ -302,9 +302,12 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // change: an undo leaves them as they are now (#948).
     out.follow_ups_pending = now.follow_ups_pending.clone();
     // Whether an account has to be signed in again is its server's word, not the owner's change
-    // (#1556): an undo leaves it as it is now.
+    // (#1556): an undo leaves it as it is now. An account the undo brings back keeps the mark it
+    // had when it went, the last its server said of it.
     for a in &mut out.accounts {
-        a.sign_in_needed = now.account(a.id).is_some_and(|is| is.sign_in_needed);
+        if let Some(is) = now.account(a.id) {
+            a.sign_in_needed = is.sign_in_needed;
+        }
     }
     returned(&mut out, now);
     subscribed_stay(&mut out, now);

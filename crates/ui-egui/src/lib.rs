@@ -4752,6 +4752,10 @@ impl MailApp {
                 e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
             });
             self.sync_refused |= refused;
+            // Said as soon as it is known, even when the run ends without its last piece (#1556).
+            if refused {
+                self.note_sign_in_needed(account, true);
+            }
             if signed_in {
                 self.keep_accepted_password(account);
                 // The server let the run in: the sign-in went through (#1556).

@@ -29,9 +29,10 @@ const MARK: f32 = 13.0;
 impl MailApp {
     /// Note that `account` has to be signed in again (`needed`), or has just signed in: the
     /// mark every kind of account shares ([`mailcraft_engine::cmd::account::note_sign_in_needed`]).
+    /// (The log line names no account, as since #566.)
     pub(crate) fn note_sign_in_needed(&mut self, account: Id, needed: bool) {
         if mailcraft_engine::cmd::account::note_sign_in_needed(&mut self.session, account, needed) {
-            log::info!("account {account}: {}", if needed { "has to be signed in again" } else { "signed in again" });
+            log::info!("sign-in: {}", if needed { "an account has to be signed in again" } else { "an account signed in again" });
         }
     }
 

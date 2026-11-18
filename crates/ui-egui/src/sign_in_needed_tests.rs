@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! An account that has to be signed in again (#1556): an IMAP or SMTP password turned down, a
-//! Google or Microsoft token that no longer works, an Exchange server's refusal all set the one
-//! mark, which Account Problems at the top right and the folder pane show until a sign-in goes
-//! through. Nothing pops up by itself, and a restart still says it. The hosts are fakes the tests
-//! answer; every address and secret is invented.
+//! Google or Microsoft token that no longer works, a JMAP or Exchange server's refusal, a shared
+//! mailbox's owner whose sign-in is refused all set the one mark, which Account Problems at the
+//! top right and the folder pane show until a sign-in goes through. Nothing pops up by itself,
+//! and a restart still says it. The hosts are fakes the tests answer; every address and secret
+//! is invented.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,7 +15,7 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
 use mailcraft_engine::Session;
 use mailcraft_model::Id;
-use mailcraft_model::sync::{EwsFolderDeltas, EwsMailResult, GraphMailResult, SyncRequest, SyncResult, SyncStage, SyncStep, Tokens};
+use mailcraft_model::sync::{EwsFolderDeltas, EwsMailResult, GraphMailResult, JmapMailResult, SyncRequest, SyncResult, SyncStage, SyncStep, Tokens};
 use serde_json::json;
 
 use crate::{GraphRequest, GraphResult, MailApp, Services, approval, dialogs};
@@ -24,6 +25,7 @@ const TYPED: &str = "invented-password";
 const REFUSED: &str = "Couldn't check for new mail: sign-in failed: [AUTHENTICATIONFAILED] invalid credentials";
 const SMTP_REFUSED: &str = "Couldn't send \"Hello\": sign-in failed: 535 5.7.8 authentication failed";
 const EWS: &str = "https://exchange.example.org/EWS/Exchange.asmx";
+const JMAP: &str = "https://jmap.example.org/jmap/session";
 
 fn app() -> MailApp {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
@@ -132,6 +134,21 @@ fn an_imap_or_smtp_password_turned_down_marks_the_account_until_a_run_signs_in()
         settle(&mut a);
         assert!(!needed(&a, id) && a.to_sign_in().is_empty());
     }
+}
+
+/// A refusal in a piece of the run is said at once, even when the run then stops without its
+/// last piece (its thread ended early).
+#[test]
+fn a_refusal_in_a_run_that_stops_early_still_marks_the_account() {
+    let mut a = app();
+    let runs = imap_host(&mut a);
+    let id =
+        a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    runs.lock().unwrap().push_back(vec![SyncResult { partial: true, errors: vec![REFUSED.to_string()], ..Default::default() }]);
+    a.execute("ui.sync", json!({"account": id, "password": TYPED})).unwrap();
+    settle(&mut a);
+    assert!(!a.syncing());
+    assert!(needed(&a, id));
 }
 
 fn add_google(a: &mut MailApp) -> Id {
@@ -276,6 +293,65 @@ fn an_exchange_server_that_turns_the_password_down_marks_the_account() {
     a.execute("ui.sync", json!({"account": id, "password": "the-right-one"})).unwrap();
     settle(&mut a);
     assert!(!needed(&a, id));
+}
+
+/// A JMAP server that turns the secret down marks the account; a run that ends without being
+/// whole (a change the server refused) leaves it, and the first whole run takes it away.
+#[test]
+fn a_jmap_server_that_turns_the_secret_down_marks_the_account_until_a_whole_run() {
+    let mut a = app();
+    let answers: Arc<Mutex<VecDeque<JmapMailResult>>> = Default::default();
+    let next = answers.clone();
+    a.services.jmap = Some(Box::new(move |job: crate::jmap_mail::JmapJob| {
+        let (tx, rx) = mpsc::channel();
+        let piece = next.lock().unwrap().pop_front().unwrap_or_default();
+        tx.send(JmapMailResult { account: job.request.account, email: job.request.email.clone(), ..piece }).unwrap();
+        rx
+    }));
+    let id =
+        a.execute("account.add", json!({"email": "ada@example.org", "kind": "jmap", "jmap": {"session": JMAP}})).unwrap()["id"].as_u64().unwrap();
+    answers.lock().unwrap().push_back(JmapMailResult { auth_refused: true, ..Default::default() });
+    a.execute("ui.sync", json!({"account": id, "password": TYPED})).unwrap();
+    settle(&mut a);
+    assert!(needed(&a, id));
+    assert_eq!(a.to_sign_in(), vec![(id, "ada@example.org".to_string())]);
+    assert!(a.dialog.is_none());
+    // Sign in again asks for the secret; a run it lets in that isn't whole says nothing of it.
+    a.execute("ui.sync", json!({"account": id})).unwrap();
+    assert!(asks_password(&a, id));
+    a.dialog = None;
+    answers.lock().unwrap().push_back(JmapMailResult::default());
+    a.execute("ui.sync", json!({"account": id, "password": "the-right-one"})).unwrap();
+    settle(&mut a);
+    assert!(needed(&a, id));
+    // A whole run takes the mark away.
+    answers.lock().unwrap().push_back(JmapMailResult { whole: true, ..Default::default() });
+    a.execute("ui.sync", json!({"account": id, "password": "the-right-one"})).unwrap();
+    settle(&mut a);
+    assert!(!needed(&a, id) && a.to_sign_in().is_empty());
+}
+
+/// A shared mailbox whose run finds its owner's sign-in refused marks the owner's account, not
+/// the shared mailbox; Account Problems lists the owner, whose Send/Receive signs in again.
+#[test]
+fn a_shared_mailbox_whose_owner_s_sign_in_is_refused_marks_the_owner() {
+    let mut a = MailApp::new(Session::empty(), Services::default());
+    a.autosave = false;
+    a.session.driver.set_auto_sync(false);
+    let owner = a.execute("account.add", json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    a.tokens.insert(owner, tokens("ms-1"));
+    let shared = a.execute("account.addSharedMailbox", json!({"account": owner, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+    a.services.graph = Some(Box::new(|req: GraphRequest| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(GraphResult { account: req.account.id, sign_in_refused: true, ..Default::default() }).unwrap();
+        rx
+    }));
+    a.services.sync = Some(Box::new(|_req: SyncRequest| mpsc::channel().1));
+    a.execute("ui.sync", json!({"account": shared, "quiet": true})).unwrap();
+    settle(&mut a);
+    assert!(needed(&a, owner) && !needed(&a, shared));
+    assert_eq!(a.to_sign_in().iter().map(|(id, _)| *id).collect::<Vec<_>>(), [owner]);
+    assert!(a.dialog.is_none());
 }
 
 fn window(app: MailApp) -> Harness<'static, MailApp> {

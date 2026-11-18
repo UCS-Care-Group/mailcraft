@@ -91,6 +91,20 @@ fn undo_and_redo_leave_the_mark_as_it_is_now() {
     assert!(!needed(&s, id));
 }
 
+/// An account that an Undo took away and a Redo brings back keeps the mark it had when it went:
+/// nothing signed it in meanwhile.
+#[test]
+fn an_account_brought_back_keeps_its_mark() {
+    let mut s = Session::empty();
+    let id = add(&mut s, json!({"email": "imap@example.org", "incoming": {"host": "imap.example.org"}}));
+    note_sign_in_needed(&mut s, id, true);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.account(id).is_none());
+    s.run("edit.redo", &json!({})).unwrap();
+    assert!(needed(&s, id));
+    assert_eq!(listed(&mut s, id), json!(true));
+}
+
 struct Temp(PathBuf);
 
 impl Drop for Temp {
