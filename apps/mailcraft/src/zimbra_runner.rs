@@ -183,6 +183,9 @@ pub(crate) fn run_mail(job: ZimbraJob, wake: &egui::Context) -> Receiver<ZimbraM
         };
         crate::block_on::block_on(mailcraft_zimbra::sync_mail(&transport, &request, &credentials, &cancel, &mut keep, &mut |piece| {
             let piece = settled(piece, transport.problem().as_ref());
+            for problem in &piece.errors {
+                log::debug!("zimbra run, account {}: {problem}", piece.account);
+            }
             if tx.send(piece).is_err() {
                 cancel.store(true, Ordering::Relaxed);
             }
