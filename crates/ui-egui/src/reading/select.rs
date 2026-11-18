@@ -502,6 +502,8 @@ pub struct PlaceState {
     viewport: egui::ViewportId,
     /// The pointer was over it then.
     hovered: bool,
+    /// The header may stay visible while an attachment replaces the body.
+    body_visible: bool,
     selection: Option<Selection>,
     /// What the pointer took where it went down, for a drag to go on from.
     pressed: Option<(Zone, Anchor<Point>)>,
@@ -538,6 +540,7 @@ impl PlaceState {
             frame: 0,
             viewport: egui::ViewportId::ROOT,
             hovered: false,
+            body_visible: true,
             selection: None,
             pressed: None,
             dragging: None,
@@ -833,7 +836,7 @@ pub(super) fn act(app: &mut MailApp, place: Place, action: Action) {
 /// A message is about to be shown at `place`. What was selected there in another message is
 /// forgotten; where the pointer goes down says whom the keys are for; and the keys that are
 /// about a selection are acted on: Ctrl+C copies it, Escape lets go of it.
-pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
+pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place, body_visible: bool) {
     let ctx = ui.ctx();
     let frame = super::images::frame(ctx);
     let viewport = ctx.viewport_id();
@@ -853,6 +856,10 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
     let fresh = state.message != m.id || state.frame.saturating_add(1) < frame;
     if fresh {
         state.reset(m.id);
+    }
+    state.body_visible = body_visible;
+    if !body_visible && state.selection.as_ref().is_some_and(|selection| selection.zone == Zone::Body) {
+        (state.selection, state.pressed, state.dragging, state.copy_when_laid) = (None, None, None, false);
     }
     (state.frame, state.viewport, state.hovered) = (frame, viewport, inside);
     if fresh && had_keys {
@@ -894,7 +901,7 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
     }
     // In the main window the shortcuts see Ctrl+A first and send it here when it is for a
     // message ([`select_all_params`]); a window of the system has its keys to itself.
-    if all && viewport != egui::ViewportId::ROOT && selections.key_target(viewport, frame) == Some(place) {
+    if all && body_visible && viewport != egui::ViewportId::ROOT && selections.key_target(viewport, frame) == Some(place) {
         actions.push(Action::SelectAll);
     }
     for action in actions {
@@ -1087,6 +1094,7 @@ fn selected_text(ctx: &egui::Context, state: &PlaceState) -> Option<String> {
             let header = state.header.as_slice();
             Some(range(header, selection).map(|(lo, hi)| copied(header, lo, hi)).unwrap_or_default())
         }
+        Zone::Body if !state.body_visible => Some(String::new()),
         Zone::Body => super::view::with_laid(ctx, state.place, state.message, |laid| {
             if !laid.done && selection.anchor.max(selection.head).seg >= laid.count() {
                 return None;
@@ -1160,7 +1168,11 @@ fn select_all(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let nothing = || tl!("No message is being read there").to_string();
     // The owner's Ctrl+A or Select All, or the control channel's (an agent's or a script's).
     let mine = !app.driven;
-    let state = app.text_selection.state(place).filter(|s| frame.is_some_and(|frame| s.frame.saturating_add(1) >= frame)).ok_or_else(nothing)?;
+    let state = app
+        .text_selection
+        .state(place)
+        .filter(|s| s.body_visible && frame.is_some_and(|frame| s.frame.saturating_add(1) >= frame))
+        .ok_or_else(nothing)?;
     state.selection = Some(Selection::new(Zone::Body, Point::START, Point::END));
     (state.pressed, state.dragging, state.extending) = (None, None, false);
     (state.seen, state.mine) = (state.extent(), mine);

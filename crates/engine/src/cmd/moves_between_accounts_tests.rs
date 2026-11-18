@@ -1736,6 +1736,8 @@ fn an_agent_is_asked_before_a_rule_puts_mail_on_another_accounts_server() {
     // onto this computer, a change of rules as ever.
     assert_eq!(classify(&s, "rules.add", &rule(other)), Access::Owner(Class::Send));
     assert_eq!(classify(&s, "rules.add", &rule(kept)), Access::Owner(Class::Settings));
+    // Asked as a send, it is a change of rules too: `--allow send` alone doesn't let it run (#661).
+    assert_eq!(crate::agent::also(&s, "rules.add", &rule(other), Class::Send), [Class::Settings]);
     assert_eq!(classify(&s, "rules.fromMessage", &json!({"id": two, "folder": other})), Access::Owner(Class::Send));
     assert_eq!(classify(&s, "rules.fromMessage", &json!({"id": two, "folder": kept})), Access::Owner(Class::Settings));
     // Made from a message of the account it files into: the rule is for that account's mail
