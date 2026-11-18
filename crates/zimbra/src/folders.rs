@@ -82,6 +82,9 @@ fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
     } else {
         let name: String = json::line(folder.get("name")).chars().take(MAX_NAME).collect();
         if name.is_empty() {
+            // A folder of mail that can't be named, and all that lies in it, is left out: the
+            // listing is not a complete one, and no token may be kept from a read on it.
+            out.complete = false;
             return;
         }
         let (total, unread) = (json::number(folder.get("n")), json::number(folder.get("u")));

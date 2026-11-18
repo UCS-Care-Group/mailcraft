@@ -114,10 +114,13 @@ fn ids_of_other_mailboxes_and_odd_ids_are_passed_over() {
             {"id": "a1b2:12", "l": "2"}, {"id": "0"}, {"id": "-4"}, {"id": "12345678901"}, {"id": "257", "l": "x:2", "su": "ok\u{0}\r\nyes"}
         ]}}}),
     );
-    let (messages, more) = items::answer(&found).unwrap();
-    assert!(!more);
-    assert_eq!(messages.len(), 1);
-    assert_eq!((messages[0].server.id.as_str(), messages[0].server.folder.as_str(), messages[0].subject.as_str()), ("257", "", "ok  yes"));
+    let page = items::answer(&found).unwrap();
+    assert!(!page.more);
+    assert_eq!(page.messages.len(), 1);
+    assert_eq!(
+        (page.messages[0].server.id.as_str(), page.messages[0].server.folder.as_str(), page.messages[0].subject.as_str()),
+        ("257", "", "ok  yes")
+    );
     let deleted = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "deleted": [{"m": {"ids": "1,x,2,a:3,,4"}}]}}}));
     assert_eq!(delta::answer(&deleted, false).unwrap().deleted, ["1", "2", "4"]);
 }
