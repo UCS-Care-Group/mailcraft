@@ -929,6 +929,11 @@ msgid "Address Book"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 msgid "Address list"
 msgstr ""
@@ -1016,6 +1021,11 @@ msgstr ""
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
 msgid "All accounts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "All address books"
 msgstr ""
 
 #. android, interface, what a command says
@@ -6720,6 +6730,11 @@ msgid "List Accounts"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/people.rs
+msgid "List Address Books"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 msgid "List Calendars"
 msgstr ""
@@ -12141,6 +12156,11 @@ msgstr ""
 msgid ""
 "Show\n"
 "Training"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Address Book"
 msgstr ""
 
 #. command label, interface, ribbon
@@ -19838,6 +19858,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "{answer}: more ways to answer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "{book} (read-only)"
 msgstr ""
 
 #. interface
