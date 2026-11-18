@@ -66,7 +66,7 @@ go when a row has several (files, importance, categories) is ours, the reference
   Ctrl+Shift+R, Ctrl+F, Ctrl+Q/U, Ctrl+1–4, Ctrl+E, Ctrl+Shift+A/Q/C/K, F9, Delete, arrows).
   Missing: keytips, Customize Keyboard, full keyboard access to every control, screen-reader
   labels beyond what egui/AccessKit give by default.
-- **Languages:** English, and French, German, Spanish, Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese and Georgian as preview languages (named
+- **Languages:** English, and French, German, Spanish, Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese, Georgian and Portuguese (Brazil) as preview languages (named
   "Français (aperçu)", "Deutsch (Vorschau)", "Nederlands (voorbeeld)", "Română (previzualizare)", "Magyar (előzetes)", "Polski (wersja zapoznawcza)", "Čeština (náhled)", "简体中文（预览）" and "ქართული (საცდელი)" in File › Options; the initial Chinese catalogue was reviewed by its contributor and is offered on desktop only until the browser has a CJK font, and the others (Georgian included) await native-speaker review; see `docs/translating.md`); Automatic follows the system. Every
   string goes through `tl!` and a pseudo-language proves it, each sentence one text with named
   places for what fills it, and a standard folder still called by its default name is shown in the
