@@ -276,6 +276,11 @@ fn choice<T: Clone + PartialEq>(ui: &mut Ui, label: egui::Id, id: &str, value: &
 
 /// One row of the panel: its label beside the field, in a column `label_w` wide, or above it
 /// when the panel is narrow (`None`).
+/// The category of `names` that `typed` names, in letters of any case and alphabet (#788).
+fn listed<'a>(names: &'a [String], typed: &str) -> Option<&'a String> {
+    names.iter().find(|n| mailcraft_model::sync::same_category(n, typed))
+}
+
 fn row(ui: &mut Ui, label_w: Option<f32>, label: &str, add: impl FnOnce(&mut Ui, egui::Id)) {
     let Some(label_w) = label_w else {
         let id = ui.label(label).id;
@@ -425,10 +430,11 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
                     options.extend(names.iter().map(|n| (n.clone(), n.as_str())));
                     // A category typed into the box that the mailbox doesn't list stays a choice.
                     let typed = panel.fields.category.clone();
-                    if !typed.is_empty() && !names.iter().any(|n| n.eq_ignore_ascii_case(&typed)) {
+                    let listed = listed(&names, &typed);
+                    if !typed.is_empty() && listed.is_none() {
                         options.push((typed.clone(), typed.as_str()));
                     }
-                    let mut picked = names.iter().find(|n| n.eq_ignore_ascii_case(&typed)).cloned().unwrap_or(typed.clone());
+                    let mut picked = listed.cloned().unwrap_or(typed.clone());
                     let was = picked.clone();
                     choice(ui, l, "advanced_category", &mut picked, &options, field_w);
                     // (Read as typed, `category:red`, unless another is picked.)
