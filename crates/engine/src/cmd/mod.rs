@@ -138,6 +138,9 @@ mod protected_moves_tests;
 mod quote_tests;
 #[cfg(test)]
 mod range_select_tests;
+pub mod react;
+#[cfg(test)]
+mod react_tests;
 #[cfg(test)]
 mod read_receipt_tests;
 #[cfg(test)]
@@ -248,6 +251,7 @@ pub fn registry() -> Registry {
     v.extend(device_limits::specs());
     v.extend(send_receive::specs());
     v.extend(send_later::specs());
+    v.extend(react::specs());
     v.extend(signature::specs());
     v.extend(senders::specs());
     v.extend(graph_mail::specs());

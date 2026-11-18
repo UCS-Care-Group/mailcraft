@@ -78,6 +78,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "mail.copy"
         | "mail.removeAttachment"
         | "mail.sendAgain"
+        | "mail.react"
         | "mail.setSendTime"
         | "mail.dismissWarnings"
         | "junk.blockSender"

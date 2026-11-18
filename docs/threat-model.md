@@ -305,6 +305,28 @@ Gets the request for a picture the owner asked for.
 - The picture cache (`apps/mailcraft/src/picture_cache.rs`) names files by hashes and never writes
   the address; it is capped and read back through the same checks as a download.
 
+### A reaction sent by one click
+
+React (#1544, `mail.react`) sends mail from one click: an emoji, as a reply (RFC 9078) to the
+sender of a message. It is the one thing that sends mail without a message to read through before
+Send, so it is held narrow. The emoji is one of six fixed ones (anything else is refused, so
+nothing a caller or a message writes reaches the mail's text), the recipient is one address (the
+message's sender, never its Reply-To: a message from `boss@company.example` with a Reply-To of
+another domain must not tell that domain the address is read, and the owner is shown the recipient
+beside the emoji), and nothing of the original is
+quoted. It is refused for a message with a warning about its sender (a failed check, a name that shows another address, a look-alike, made-up or brand-copying domain; not a warning about a link in the body, nor the External tag; an answer would confirm the address to whoever is behind it), for drafts, for the owner's own mail, for Junk E-mail (an answer would tell a
+spammer the address is read), for automated mail (`Auto-Submitted` other than `no`,
+`Precedence: bulk`, `list` or `junk`, a no-reply or `mailer-daemon` sender, a list's own address as
+the sender: nobody reads an answer, and a list could echo it to its members; only the headers
+MailCraft keeps by name are looked at, so mail read before this was added is judged by its sender
+alone) and for a second identical reaction (also when the server's copy in Sent Items has lost the
+mark). It waits as long as the owner's Undo Send says, like any sent mail, and can be taken back
+in that time. An agent is asked about it in the window (`send`) and must name the message. A reaction tells the sender the mail was read,
+as a read receipt does, but only when the owner clicks (PRIVACY.md says so). It goes through the account's normal
+sending over TLS like any mail, and a Microsoft or Exchange server account is refused rather than
+given a path of its own. The message text is never read into a reaction: `Content-Disposition:
+reaction` is written, never taken from mail that comes in.
+
 ### A hostile or compromised mail server
 
 Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
