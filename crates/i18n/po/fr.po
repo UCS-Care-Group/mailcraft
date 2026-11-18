@@ -1824,12 +1824,6 @@ msgid "As recipients see it"
 msgstr "Tel que les destinataires le voient"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "As the people you write to see it"
-msgstr "Tel que vos correspondants le voient"
-
-#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Ask again"
@@ -16921,6 +16915,12 @@ msgid "The name of someone you know."
 msgstr "Le nom de quelqu'un que vous connaissez."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The name people you write to will see"
+msgstr "Le nom que vos correspondants verront"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The name the calendar gives itself"
@@ -25199,6 +25199,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Lignes"
+
+#, fuzzy
+#~ msgid "As the people you write to see it"
+#~ msgstr "Tel que vos correspondants le voient"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
