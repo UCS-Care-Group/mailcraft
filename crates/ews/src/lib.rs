@@ -79,6 +79,9 @@ pub mod ntlm;
 pub mod reply;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+pub mod resolve;
+#[deny(missing_docs)]
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod run;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
@@ -93,6 +96,8 @@ mod b64;
 pub mod standin;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin_autodiscover;
+#[cfg(any(test, feature = "stand-in"))]
+pub mod standin_directory;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin_mail;
 #[cfg(any(test, feature = "stand-in"))]
@@ -113,6 +118,8 @@ mod mail_tests;
 #[cfg(test)]
 mod own_folders_tests;
 #[cfg(test)]
+mod resolve_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod threads_tests;
@@ -132,5 +139,6 @@ pub use http::{EndpointError, HttpExchange, HttpRequest, HttpResponse, Method, S
 pub use items::{GetItemMime, GetItemRecipients, ItemsPage, Recipients, Shape, SyncFolderItems};
 pub use ntlm::{Credentials as NtlmCredentials, NtlmError};
 pub use reply::{Message, Reply};
+pub use resolve::{Candidate, RecipientKind, ResolveNames, Resolved};
 pub use run::{failed_run, fetch_messages, sync_mail};
 pub use soap::{Element, Version};

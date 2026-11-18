@@ -189,6 +189,29 @@ fn menu_usable(app: &MailApp, menu: Menu) -> bool {
     (menu != Menu::RecentAttachments || crate::recent_attachments::available(app)) && menu.command().is_none_or(|command| app.enabled(command))
 }
 
+/// Whether a menu holds a text field the owner clicks in and types into: a colour typed by hand,
+/// a folder search. Such a menu keeps a click made inside it — that click is for the field, and
+/// not a way out of the menu. Every item of these menus shuts it itself
+/// ([`crate::widgets::mi`], [`crate::widgets::mi_check], the colour squares, a chosen folder), and
+/// a click outside it still shuts it. The font menu joins them when it gets its search field
+/// (#1494).
+fn holds_a_field(menu: Menu) -> bool {
+    matches!(menu, Menu::FontColor | Menu::Highlight | Menu::MoveMessages | Menu::Rules | Menu::MoveFolder)
+}
+
+/// The menus a button of the simplified row opens: its own, and those of what hangs under it.
+fn button_menus(b: &Button<'_>) -> Vec<Menu> {
+    b.item.menu.into_iter().chain(b.drops.iter().filter_map(|under| under.menu)).collect()
+}
+
+/// A menu's popup: one that holds a text field keeps a click made inside it (#1493). Only menus
+/// whose every item shuts the menu themselves get this; a `…` of folded groups or of what didn't
+/// fit holds plain buttons, which count on the popup shutting for them, so those stay as they are.
+fn menu_popup<'a>(resp: &egui::Response, menus: impl IntoIterator<Item = Menu>) -> egui::Popup<'a> {
+    let popup = egui::Popup::menu(resp);
+    if menus.into_iter().any(holds_a_field) { popup.close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside) } else { popup }
+}
+
 /// A menu as an entry of another (a `▾`, a `…`): it opens while it can ([`menu_usable`]), and is
 /// greyed otherwise, saying why when hovered.
 pub(crate) fn submenu(ui: &mut Ui, app: &mut MailApp, name: String, menu: Menu) {
@@ -592,14 +615,22 @@ fn home_calendar(app: &MailApp) -> Tab {
 
 fn home_people(app: &MailApp) -> Tab {
     let favorite = app.session.sel.contact.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.favorite);
-    Tab::of(vec![
-        g(
-            "New",
-            vec![
-                Item::big("newContact", "New\nContact", "people.new", no()).at(0, 1),
-                Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("people.new"),
-            ],
-        ),
+    let new = g(
+        "New",
+        vec![
+            Item::big("newContact", "New\nContact", "people.new", no()).at(0, 1),
+            Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("people.new"),
+        ],
+    );
+    // An organisation's address list, beside the contacts (#1262): where there is one.
+    let find = (!mailcraft_engine::cmd::people::address_lists(&app.session.mailbox).is_empty())
+        .then(|| g("Find", vec![Item::big("people", "Address\nBook", "people.addressBook", no()).at(5, 4)]));
+    // In the address list, what acts on a contact has nothing to act on: its card has its own.
+    if app.address_book_shown().is_some() {
+        return Tab::of(std::iter::once(new).chain(find).collect());
+    }
+    let mut groups = vec![
+        new,
         g("Delete", vec![Item::big("delete", "Delete", "people.delete", no()).at(1, 2).plain()]),
         g(
             "Communicate",
@@ -624,7 +655,9 @@ fn home_people(app: &MailApp) -> Tab {
                 Item::big("import", "Import", "ui.import", no()).at(4, 5),
             ],
         ),
-    ])
+    ];
+    groups.extend(find);
+    Tab::of(groups)
 }
 
 /// What Merge Duplicates opens its dialog with: the contacts picked together in the list, when
@@ -1396,6 +1429,21 @@ pub(crate) fn selected_categories(app: &MailApp) -> Vec<String> {
 /// Most names off the list that the Categorize menu shows.
 const MAX_OFF_LIST: usize = 32;
 
+/// The rows of [`category_menu`]: the categories of `accounts`, then the names of `carried` that
+/// none of them lists (at most [`MAX_OFF_LIST`]), each once as the lists compare names (any
+/// alphabet's capitals, #790), in grey unless a list gives it a colour.
+pub(crate) fn category_rows(mailbox: &mailcraft_model::Mailbox, accounts: &[Id], carried: &[String]) -> Vec<mailcraft_model::Category> {
+    let mut cats = mailbox.categories_for(accounts);
+    let listed = cats.len();
+    for name in carried {
+        if cats.len() < listed + MAX_OFF_LIST && !cats.iter().any(|c| mailcraft_model::sync::same_category(&c.name, name)) {
+            let color = accounts.iter().find_map(|a| mailbox.category_of(*a, name)).map_or(mailcraft_model::GREY_CATEGORY, |c| c.color);
+            cats.push(mailcraft_model::Category { name: name.clone(), color });
+        }
+    }
+    cats
+}
+
 /// The categories of `accounts`, those of the selection's items (#633), and the names of `carried`
 /// (what the items have) that aren't on those lists, as menu items that toggle one on the
 /// selection through `command`: an item moved from another account, or a name its server stopped
@@ -1409,15 +1457,8 @@ pub fn category_menu(
     has: impl Fn(&MailApp, &str) -> bool,
     clear: Option<&str>,
 ) {
-    let mailbox = &app.session.mailbox;
-    let mut cats: Vec<(String, egui::Color32)> = mailbox.categories_for(accounts).into_iter().map(|c| (c.name, crate::theme::c32(c.color))).collect();
-    let listed = cats.len();
-    for name in carried {
-        if cats.len() < listed + MAX_OFF_LIST && !cats.iter().any(|(c, _)| c.eq_ignore_ascii_case(name)) {
-            let color = accounts.iter().find_map(|a| mailbox.category_of(*a, name)).map_or(mailcraft_model::GREY_CATEGORY, |c| c.color);
-            cats.push((name.clone(), crate::theme::c32(color)));
-        }
-    }
+    let cats: Vec<(String, egui::Color32)> =
+        category_rows(&app.session.mailbox, accounts, carried).into_iter().map(|c| (c.name, crate::theme::c32(c.color))).collect();
     for (name, color) in cats {
         let on = has(app, &name);
         ui.horizontal(|ui| {
@@ -1626,7 +1667,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeEvent => {
             let id = app.session.sel.event;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.event(id)).is_some_and(|e| e.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.event(id))
+                    .is_some_and(|e| e.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name)))
             };
             let event = id.and_then(|id| app.session.mailbox.event(id));
             let account = event.map(|e| app.session.mailbox.event_account(e));
@@ -1636,7 +1678,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeContact => {
             let id = app.session.sel.contact;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.contact(id))
+                    .is_some_and(|c| c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, name)))
             };
             let contact = id.and_then(|id| app.session.mailbox.contact(id));
             let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());
@@ -1645,7 +1688,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeTask => {
             let id = app.session.sel.task;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.task(id)).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.task(id))
+                    .is_some_and(|x| x.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name)))
             };
             let task = id.and_then(|id| app.session.mailbox.task(id));
             let (account, carried) = (task.map(|t| t.origin.account), task.map(|t| t.categories.clone()).unwrap_or_default());
@@ -2083,7 +2127,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
         drop_mark(ui, drop_rect.center(), ink);
         let main = menu_tooltip(app, main, item, on);
         if on {
-            egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
+            menu_popup(&main, button_menus(b)).show(|ui| drop_menu(ui, app, b));
         }
         return;
     };
@@ -2104,7 +2148,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let tip = b.drops.first().map_or_else(|| item.tip_text(), |under| under.tip_text());
     let drop = drop.on_hover_text(tip);
     if item.menu != Some(Menu::RecentAttachments) || menu_usable(app, Menu::RecentAttachments) {
-        egui::Popup::menu(&drop).show(|ui| drop_menu(ui, app, b));
+        menu_popup(&drop, button_menus(b)).show(|ui| drop_menu(ui, app, b));
     }
 }
 
@@ -2213,7 +2257,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
             if on {
-                egui::Popup::menu(&resp).show(|ui| {
+                menu_popup(&resp, [menu]).show(|ui| {
                     ui.set_min_width(200.0);
                     menu_contents(ui, app, menu);
                 });
@@ -2259,7 +2303,7 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     let resp = menu_tooltip(app, small_frame(ui, item.icon, label, on, false, true), item, on);
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
                     if on {
-                        egui::Popup::menu(&resp).show(|ui| {
+                        menu_popup(&resp, [menu]).show(|ui| {
                             ui.set_min_width(200.0);
                             menu_contents(ui, app, menu);
                         });
@@ -2545,6 +2589,9 @@ mod move_menu_tests;
 
 #[cfg(test)]
 mod plain_tests;
+
+#[cfg(test)]
+mod category_rows_tests;
 
 #[cfg(test)]
 mod tests {

@@ -346,6 +346,8 @@ fn people_account(s: &mut Session, v: &Value) -> CmdResult {
         return Err(bad("that account's contacts aren't read from its server"));
     }
     s.view.people_account = value;
+    // The contacts, and no longer the organisation's address list.
+    s.view.people_book = None;
     // The selected contact stays selected only where it is listed.
     let shown = people::shown_account(s);
     s.sel.contact = s.sel.contact.filter(|id| s.mailbox.contact(*id).is_some_and(|c| shown.shows(&c.origin)));
