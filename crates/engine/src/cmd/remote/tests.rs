@@ -5,17 +5,19 @@
 
 use mailcraft_model::contact_sync::ContactChangeKind;
 use mailcraft_model::remote::{
-    ContactsDownload, EventChange, EventChangeKind, EventFields, EventOp, EventOutcome, EventReminder, EventRepeat, EventResult, EventTime,
-    EventWall, EventsDownload, EventsUpload, EventsUploaded, RemoteContact, RemoteEvent, RemoteEventKind,
+    ContactChangeKind as BookChangeKind, ContactOutcome, ContactsDownload, ContactsUploaded, EventChange, EventChangeKind, EventFields, EventOp,
+    EventOutcome, EventReminder, EventRepeat, EventResult, EventTime, EventWall, EventsDownload, EventsUpload, EventsUploaded, RemoteAddressBook,
+    RemoteContact, RemoteEvent, RemoteEventKind,
 };
-use mailcraft_model::{Address, Attendee, Contact, Event, Freq, Id, Labeled, Origin, Recurrence, Response, ShowAs};
+use mailcraft_model::{Address, Attendee, Contact, ContactBook, Event, Freq, Id, Labeled, Origin, Recurrence, Response, Rights, ShowAs};
 use mailcraft_time::{Date, DateTime, Timestamp};
 use proptest::prelude::*;
 use serde_json::{Value, json};
 
 use super::{
-    EventsWaiting, Merged, apply_contacts, apply_event_outcomes, apply_events, event_from_remote, event_upload, events_waiting, forget, keeper,
-    merge_contacts, merge_events, retry_event_changes, server_start, server_time,
+    EventsWaiting, Merged, apply_book_contact_outcomes, apply_book_contacts, apply_contacts, apply_event_outcomes, apply_events, book_contact_upload,
+    event_from_remote, event_upload, events_waiting, forget, keeper, merge_contacts, merge_events, resource_key, retry_event_changes, server_start,
+    server_time,
 };
 use crate::cmd::calendar::current_calendar;
 use crate::{CmdError, Session};
@@ -87,6 +89,24 @@ fn person(id: &str, first: &str, email: &str) -> RemoteContact {
 
 fn everybody(account: Id, contacts: Vec<RemoteContact>) -> ContactsDownload {
     ContactsDownload { account, email: "ada@example.org".into(), complete: true, contacts, ..Default::default() }
+}
+
+/// The address book the tests' server lists, as CardDAV names one.
+const CARDDAV_BOOK: &str = "/carddav/ada@example.org/contacts/personal/";
+
+/// A contact as a server names it: it says which book it came from, which decides whether it may
+/// be changed here.
+fn in_book(mut contact: RemoteContact) -> RemoteContact {
+    contact.book = "My contacts".into();
+    contact.book_id = CARDDAV_BOOK.into();
+    contact
+}
+
+/// [`everybody`] with the book the tests' server lists.
+fn carddav(account: Id, contacts: Vec<RemoteContact>) -> ContactsDownload {
+    let mut download = everybody(account, contacts);
+    download.books = vec![RemoteAddressBook { id: CARDDAV_BOOK.into(), name: "My contacts".into(), rights: Rights::Edit }];
+    download
 }
 
 /// The events that came from `account`'s server, by start.
@@ -470,6 +490,19 @@ fn times_become_the_wall_clock_times_of_their_own_moment() {
     // day the clocks go back is twenty-five hours long there.
     assert_eq!(days(at(2026, 11, 1, 4, 0), at(2026, 11, 2, 5, 0), &new_york), november_first);
     assert_eq!(days(at(2026, 10, 31, 22, 0), at(2026, 11, 1, 22, 0), &|_| 120), november_first);
+    // An all-day event whose midnight is the evening before in UTC (`2026-11-22T23:00Z` for the
+    // 23rd in Europe): its own zone names the day, wherever this computer is.
+    let evening = RemoteEvent {
+        start: at(2026, 11, 22, 23, 0),
+        end: at(2026, 11, 23, 23, 0),
+        all_day: true,
+        start_zone: "W. Europe Standard Time".into(),
+        ..remote("e", "x", 0, 0)
+    };
+    for offset_at in [&new_york as &dyn Fn(Timestamp) -> i32, &utc, &far_east, &far_west] {
+        let event = event_from_remote(&evening, "", offset_at);
+        assert_eq!((event.start, event.end), (clock(2026, 11, 23, 0, 0), clock(2026, 11, 24, 0, 0)));
+    }
     // Nothing overflows at the ends of time.
     for instant in [i64::MIN, -1, 0, i64::MAX] {
         for offset in [i32::MIN, 0, i32::MAX] {
@@ -1468,6 +1501,236 @@ fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
     assert_eq!(s.mailbox.contact_changes.iter().map(|c| (c.contact, c.kind)).collect::<Vec<_>>(), [(kept.id, ContactChangeKind::Create)]);
     assert_eq!(own(&s), before);
     assert!(s.mailbox.clone().repair().is_empty());
+}
+
+#[test]
+fn a_contact_is_matched_by_uid_when_the_server_names_a_different_url() {
+    let (mut s, account) = session();
+    let made = run(&mut s, "people.new", json!({"first": "Ada", "email": "ada@example.org"}));
+    let id = made["id"].as_u64().unwrap();
+    {
+        let contact = s.mailbox.contact_mut(id).unwrap();
+        contact.origin = Origin { account, id: "https://mail.example.org/carddav/ada/contacts/personal/one.vcf".into(), ..Default::default() };
+        contact.uid = "one-uid".into();
+        contact.book = "My contacts".into();
+        contact.book_id = "https://mail.example.org/carddav/ada/contacts/personal/".into();
+    }
+    let remote = RemoteContact { id: "/carddav/ada/contacts/personal/one.vcf".into(), uid: "one-uid".into(), ..person("", "Ada", "ada@example.org") };
+    let merged = apply_book_contacts(&mut s, &everybody(account, vec![remote])).unwrap();
+    assert_eq!(counts(&merged), (0, 1, 0, 0, 0));
+    let contact = s.mailbox.contact(id).unwrap();
+    assert_eq!((contact.origin.id.as_str(), contact.uid.as_str()), ("/carddav/ada/contacts/personal/one.vcf", "one-uid"));
+    assert_eq!(names(&s, account), ["Ada"]);
+}
+
+#[test]
+fn the_address_books_a_server_lists_are_kept_for_a_new_contact() {
+    use mailcraft_model::Rights;
+    let (mut s, account) = session();
+    let list = ContactsDownload {
+        books: vec![
+            RemoteAddressBook {
+                id: "https://mail.example.org/carddav/ada/contacts/personal/".into(),
+                name: "My contacts".into(),
+                rights: Rights::Edit,
+            },
+            RemoteAddressBook { id: "https://mail.example.org/carddav/ada/contacts/~book-9/".into(), name: "Team".into(), rights: Rights::Read },
+        ],
+        ..everybody(account, Vec::new())
+    };
+    apply_book_contacts(&mut s, &list).unwrap();
+    assert_eq!(s.mailbox.contact_books.len(), 2);
+    assert_eq!(s.mailbox.contact_books[0].name, "My contacts");
+    // A later list that is all there is replaces them; the chosen book is then gone.
+    apply_book_contacts(&mut s, &everybody(account, Vec::new())).unwrap();
+    assert!(s.mailbox.contact_books.is_empty());
+}
+
+#[test]
+fn a_remote_contact_is_deleted_through_its_server() {
+    let (mut s, account) = session();
+    apply_book_contacts(&mut s, &carddav(account, vec![in_book(person("c-bob", "Bob", "bob@example.org"))])).unwrap();
+    let bob = contact_called(&s, account, "c-bob");
+    run(&mut s, "people.delete", json!({"id": bob.id}));
+    assert!(s.mailbox.contact(bob.id).is_none(), "it goes from the list at once");
+    let upload = super::book_contact_upload(&s, account).expect("the deletion waits for the server");
+    assert_eq!((upload.ops[0].kind, upload.ops[0].remote.as_str()), (BookChangeKind::Delete, "c-bob"));
+    // A read before the delete goes out still lists it; the tombstone keeps it from returning.
+    apply_book_contacts(&mut s, &carddav(account, vec![in_book(person("c-bob", "Bob", "bob@example.org"))])).unwrap();
+    assert!(s.mailbox.contacts.values().all(|contact| contact.origin.id != "c-bob"));
+    super::apply_book_contact_outcomes(
+        &mut s,
+        &mailcraft_model::remote::ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![mailcraft_model::remote::ContactOutcome {
+                op: upload.ops[0].clone(),
+                result: EventResult::Done,
+                remote: "c-bob".into(),
+                status: 204,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    assert!(s.mailbox.book_contact_changes.is_empty(), "the answer settles the deletion");
+
+    // A server that refuses the deletion settles it too, even when the answer does not repeat
+    // the address. The next read then brings the contact back, as the server still has it.
+    apply_book_contacts(&mut s, &carddav(account, vec![in_book(person("c-denied", "Denied", "denied@example.org"))])).unwrap();
+    let denied = contact_called(&s, account, "c-denied");
+    run(&mut s, "people.delete", json!({"id": denied.id}));
+    let upload = super::book_contact_upload(&s, account).expect("the deletion waits for the server");
+    super::apply_book_contact_outcomes(
+        &mut s,
+        &mailcraft_model::remote::ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![mailcraft_model::remote::ContactOutcome {
+                op: upload.ops[0].clone(),
+                result: EventResult::Denied,
+                status: 403,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    assert!(s.mailbox.book_contact_changes.is_empty(), "a refusal is not retried forever");
+    assert!(s.mailbox.contact(denied.id).is_none(), "the local copy went at once");
+    apply_book_contacts(&mut s, &carddav(account, vec![in_book(person("c-denied", "Denied", "denied@example.org"))])).unwrap();
+    assert_eq!(contact_called(&s, account, "c-denied").first, "Denied", "the server's copy is back");
+
+    // A book shared read only refuses both changes here, before the server sees them.
+    s.mailbox.contact_books.push(ContactBook { account, id: "book-ro".into(), name: "Team".into(), rights: Rights::Read });
+    let ro = s.mailbox.add_contact(Contact {
+        display_name: "Read Only".into(),
+        uid: "ro-1".into(),
+        book: "Team".into(),
+        book_id: "book-ro".into(),
+        origin: Origin { account, id: "c-ro".into(), ..Default::default() },
+        ..Default::default()
+    });
+    let why = "The address book \"Team\" can only be read: the server hasn't given this account permission to change its contacts.";
+    assert_eq!(refused(&mut s, "people.edit", json!({"id": ro, "first": "Changed"})), why);
+    assert_eq!(refused(&mut s, "people.delete", json!({"id": ro})), why);
+    assert!(s.mailbox.contact(ro).is_some() && s.mailbox.book_contact_changes.is_empty());
+
+    // A book the server no longer lists is not silently treated as local: the change waits,
+    // and the owner is told why.
+    let gone = s.mailbox.add_contact(Contact {
+        display_name: "Gone Book".into(),
+        uid: "gone-1".into(),
+        book: "Old Team".into(),
+        book_id: "book-gone".into(),
+        origin: Origin { account, id: "c-gone".into(), ..Default::default() },
+        ..Default::default()
+    });
+    let why = "The address book \"Old Team\" is no longer available. Send/Receive may bring it back, and the contact can be changed then.";
+    assert_eq!(refused(&mut s, "people.edit", json!({"id": gone, "first": "Changed"})), why);
+    assert_eq!(refused(&mut s, "people.delete", json!({"id": gone})), why);
+    assert!(s.mailbox.contact(gone).is_some() && s.mailbox.book_contact_changes.is_empty());
+}
+
+#[test]
+fn a_new_contact_uses_the_account_named_with_its_address_book() {
+    let (mut s, account) = session();
+    let other = run(&mut s, "account.add", json!({"email": "bo@example.org", "incoming": {"host": "mail.example.org"}}))["id"].as_u64().unwrap();
+    s.mailbox.contact_books.push(ContactBook { account, id: "same-book".into(), name: "Ada's".into(), rights: Rights::Edit });
+    s.mailbox.contact_books.push(ContactBook { account: other, id: "same-book".into(), name: "Bo's".into(), rights: Rights::Edit });
+    let id = run(&mut s, "people.new", json!({"first": "Ada", "addressBook": "same-book", "addressBookAccount": other}))["id"].as_u64().unwrap();
+    let contact = s.mailbox.contact(id).unwrap();
+    assert_eq!((contact.origin.account, contact.book.as_str()), (other, "Bo's"));
+}
+
+#[test]
+fn an_older_answer_does_not_settle_a_newer_contact_change() {
+    let (mut s, account) = session();
+    apply_book_contacts(&mut s, &carddav(account, vec![in_book(person("c-1", "Ada", "ada@example.org"))])).unwrap();
+    let id = contact_called(&s, account, "c-1").id;
+    run(&mut s, "people.edit", json!({"id": id, "first": "Augusta"}));
+    let first = book_contact_upload(&s, account).expect("the first edit waits");
+    run(&mut s, "people.edit", json!({"id": id, "first": "Ada again"}));
+    let second = book_contact_upload(&s, account).expect("the second edit waits");
+    assert_ne!(first.ops[0].token, second.ops[0].token);
+    apply_book_contact_outcomes(
+        &mut s,
+        &ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![ContactOutcome {
+                op: first.ops[0].clone(),
+                result: EventResult::Done,
+                remote: "c-1".into(),
+                status: 204,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    let left = &s.mailbox.book_contact_changes;
+    assert_eq!(left.len(), 1, "the newer edit still waits");
+    assert_eq!(left[0].token, second.ops[0].token);
+    assert!(left[0].card.contains("Ada again"), "{}", left[0].card);
+}
+
+#[test]
+fn a_contact_deleted_while_its_creation_was_sent_asks_for_its_deletion() {
+    let (mut s, account) = session();
+    let book = CARDDAV_BOOK.to_string();
+    s.mailbox.contact_books.push(ContactBook { account, id: book.clone(), name: "My contacts".into(), rights: Rights::Edit });
+    let make = run(&mut s, "people.new", json!({"first": "Ada", "addressBook": book}));
+    let id = make["id"].as_u64().unwrap();
+    let upload = book_contact_upload(&s, account).expect("the new contact waits");
+    run(&mut s, "people.delete", json!({"id": id}));
+    apply_book_contact_outcomes(
+        &mut s,
+        &ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![ContactOutcome {
+                op: upload.ops[0].clone(),
+                result: EventResult::Done,
+                remote: format!("{CARDDAV_BOOK}{}.vcf", upload.ops[0].uid),
+                status: 201,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    assert!(s.mailbox.contact(id).is_none());
+    let delete = s.mailbox.book_contact_changes.iter().find(|change| change.kind == BookChangeKind::Delete).expect("a deletion waits");
+    assert_eq!(resource_key(&delete.remote), format!("/carddav/ada@example.org/contacts/personal/{}.vcf", upload.ops[0].uid));
+}
+
+#[test]
+fn a_contact_changed_while_its_creation_was_sent_queues_the_newer_card() {
+    let (mut s, account) = session();
+    let book = CARDDAV_BOOK.to_string();
+    s.mailbox.contact_books.push(ContactBook { account, id: book.clone(), name: "My contacts".into(), rights: Rights::Edit });
+    let id = run(&mut s, "people.new", json!({"first": "Ada", "addressBook": book}))["id"].as_u64().unwrap();
+    let upload = book_contact_upload(&s, account).expect("the new contact waits");
+    let remote = format!("{CARDDAV_BOOK}{}.vcf", upload.ops[0].uid);
+    if let Ok(contact) = s.mailbox.contact_mut(id) {
+        contact.first = "Augusta".into();
+    }
+    apply_book_contact_outcomes(
+        &mut s,
+        &ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![ContactOutcome {
+                op: upload.ops[0].clone(),
+                result: EventResult::Done,
+                remote: remote.clone(),
+                status: 201,
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    let update = s.mailbox.book_contact_changes.iter().find(|change| change.kind == BookChangeKind::Update).expect("the newer card waits");
+    assert!(update.card.contains("Augusta"), "{}", update.card);
+    assert_eq!(s.mailbox.contact(id).map(|contact| contact.origin.id.as_str()), Some(remote.as_str()));
 }
 
 #[test]

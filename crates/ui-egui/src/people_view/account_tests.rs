@@ -218,3 +218,32 @@ fn the_contact_picker_lists_every_account_whatever_people_shows() {
     assert_eq!(rows(w.state(), PickKind::Contact, "").len(), every);
     assert!(rows(w.state(), PickKind::Contact, "wren").iter().any(|row| row.0 == id));
 }
+
+#[test]
+fn an_exchange_contact_in_a_writable_book_is_not_marked_read_only() {
+    let mut w = testing::window("view.people");
+    let account = w
+        .state_mut()
+        .execute("account.add", json!({"email": "ada@example.org", "kind": "exchange", "ews": {"url": "https://mail.example.org/EWS/Exchange.asmx"}}))
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let download = ContactsDownload {
+        account,
+        email: "ada@example.org".into(),
+        complete: true,
+        books: vec![mailcraft_model::remote::RemoteAddressBook { id: "book-1".into(), name: "Contacts".into(), rights: Rights::Edit }],
+        contacts: vec![RemoteContact {
+            id: "remote-1".into(),
+            display_name: "Wren Work".into(),
+            book: "Contacts".into(),
+            book_id: "book-1".into(),
+            emails: vec![mailcraft_model::Labeled::new("", "wren@example.org")],
+            ..Default::default()
+        }],
+    };
+    mailcraft_engine::cmd::remote::apply_contacts(&mut w.state_mut().session, &download).unwrap();
+    let theirs = w.state().session.mailbox.contacts.values().find(|c| c.display_name == "Wren Work").unwrap().id;
+    assert!(!read_only_here(w.state(), w.state().session.mailbox.contact(theirs).unwrap()), "an Exchange book that may be written is not read-only");
+    w.state_mut().execute("people.edit", json!({"id": theirs, "first": "Ren"})).unwrap();
+}

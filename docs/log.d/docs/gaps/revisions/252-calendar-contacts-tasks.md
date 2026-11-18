@@ -1,0 +1,1 @@
+| 2026-11-04 | minor | #252: gap 5: Exchange server accounts keep their calendars, address books and to-dos in step both ways, and open a person's calendar or address book by address, with their defaults under Shared Calendars or the account's books; tried on a Grommunio container |

@@ -52,6 +52,9 @@ pub(crate) struct CalendarSync {
     pub(crate) jobs: CalendarJobs,
     /// A check of an account's calendar connection that the host is making.
     check_rx: Option<(Id, u64, Receiver<CalendarCheckResult>)>,
+    /// The days last asked of each Exchange server, so that moving to another week or month asks
+    /// again instead of waiting for a full Send/Receive.
+    ews_range: std::collections::HashMap<Id, (mailcraft_time::Date, mailcraft_time::Date)>,
 }
 
 impl CalendarSync {
@@ -77,6 +80,7 @@ impl MailApp {
 
     /// Look whether the calendar is due, and start a job when it is. Called every frame.
     pub(crate) fn calendar_tick(&mut self, ctx: &egui::Context) {
+        self.ews_calendar_tick();
         let focused = ctx.input(|i| i.focused);
         self.calendar_tick_at(focused, now_ms());
         if self.services.graph.is_none() || !self.session.driver.auto_sync() {
@@ -89,6 +93,42 @@ impl MailApp {
             // Nothing is happening: look again in a while, sooner when a change waits to go.
             let waits = self.session.driver.calendar.book.any_waiting();
             ctx.request_repaint_after(std::time::Duration::from_secs(if waits { 1 } else { 5 }));
+        }
+    }
+
+    /// Ask an Exchange server for the days now in view when the calendar's range changed: an
+    /// Exchange account's calendar is read with its mail runs, so moving to another week or month
+    /// must ask again instead of leaving what somebody put there unseen until a full Send/Receive.
+    fn ews_calendar_tick(&mut self) {
+        if self.session.view.module != mailcraft_engine::Module::Calendar || !self.session.driver.auto_sync() {
+            return;
+        }
+        // One run at a time: the calendar waits while mail is on its way.
+        if self.sync_rx.is_some() {
+            return;
+        }
+        let (from, to) = mailcraft_engine::cmd::view::calendar_range(&self.session);
+        let accounts: Vec<Id> = self
+            .session
+            .mailbox
+            .accounts
+            .iter()
+            .filter(|account| account.kind == mailcraft_model::AccountKind::Exchange && !account.is_shared())
+            .map(|account| account.id)
+            .collect();
+        for account in accounts {
+            if self.calendar.ews_range.get(&account) == Some(&(from, to)) {
+                continue;
+            }
+            // Without the password in this session, the owner is asked at the next Send/Receive
+            // rather than a dialog opening by itself as the days are turned.
+            if self.ews_secret(account).is_none() {
+                continue;
+            }
+            if self.start_ews_mail(account, true, &json!({})).is_ok() {
+                self.calendar.ews_range.insert(account, (from, to));
+                break;
+            }
         }
     }
 

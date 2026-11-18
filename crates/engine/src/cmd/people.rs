@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! People: contacts.
 
-use mailcraft_model::{AccountChoice, Address, Contact, Id, Labeled, Mailbox, PostalAddress, clean_name};
+use mailcraft_model::remote::ContactChangeKind;
+use mailcraft_model::{AccountChoice, Address, Contact, Id, Labeled, Mailbox, PostalAddress, Rights, clean_name};
 use mailcraft_time::Date;
 use serde_json::{Value, json};
 
 use super::contacts_remote;
 use super::tasks::kept_at;
-use super::{bad, done, fail, needs_message};
+use super::{bad, done, fail, needs_message, remote};
 use crate::session::parse_enum;
 use crate::{CmdError, CmdResult, CommandSpec, Module, PeopleSort, Session, p};
 
@@ -16,6 +17,10 @@ use crate::{CmdError, CmdResult, CommandSpec, Module, PeopleSort, Session, p};
 mod account_tests;
 #[cfg(test)]
 mod address_book_tests;
+#[cfg(test)]
+mod book_tests;
+#[cfg(test)]
+mod ews_contact_tests;
 #[cfg(test)]
 mod share_tests;
 
@@ -31,6 +36,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.list", "List Contacts", "People", list)
             .pure()
             .params(r#"{"query"?: string, "account"?: "all" | "here" | number} (default: what the list shows; 0 is "here")"#),
+        CommandSpec::new("people.addressBooks", "List Address Books", "People", address_books)
+            .pure()
+            .params(r#"{} — the address books the accounts' servers list: {"books": [{"account", "accountName", "id", "name", "rights": "freeBusy"|"read"|"edit"}]}"#),
         CommandSpec::new("people.search", "Search People", "Home › Find", search).pure().params(r#"{"query": string}"#),
         CommandSpec::new("people.favorite", "Add to Favorites", "Home › Actions", favorite)
             .params(r#"{"value"?: bool (default: toggle), "id"?: number}"#)
@@ -61,7 +69,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "folder"?: number (people.new only: the contacts folder it goes in, 0 for On this computer; default: with one account that keeps contacts, its main folder; with more, the account the list shows, else the folder last used)} — in a folder an account's server keeps, it goes to the server too (people.get says "notSent" until it has); the list moves to show it"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "folder"?: number (people.new only: the contacts folder it goes in, 0 for On this computer; default: with one account that keeps contacts, its main folder; with more, the account the list shows, else the folder last used), "addressBook"?: string (the id of an address book of people.addressBooks; default: the folder above), "addressBookAccount"?: number (the account that book belongs to, when two name the same id)} — in a folder an account's server keeps, it goes to the server too (people.get says "notSent" until it has); a contact put in an address book is sent to that book; the list moves to show it"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
@@ -147,14 +155,39 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
 }
 
 /// [`target`] for a command that changes or deletes the contact: refused for one in a contacts
-/// folder the account may only read. (What goes to a server is noted by the command,
-/// [`contacts_remote::note_contact`].)
+/// folder or address book the account may only read. (What goes to a server is noted by the
+/// command, [`contacts_remote::note_contact`] and [`remote::note_book_contact_changed`].)
 fn own_target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     let id = target(s, v)?;
     if let Some(c) = s.mailbox.contact(id) {
-        contacts_remote::changeable(&s.mailbox, c)?;
+        writable_contact(s, c)?;
     }
     Ok(id)
+}
+
+/// Whether `contact` may be changed here, saying why when it may not. An address-book contact (an
+/// Exchange server's book, or a CardDAV one) follows the rights the server gave that book; one in
+/// a contacts folder follows the folder's ([`contacts_remote::changeable`]).
+fn writable_contact(s: &Session, contact: &Contact) -> Result<(), CmdError> {
+    if contact.origin.account == 0 {
+        return Ok(());
+    }
+    if contact.book_id.is_empty() {
+        return contacts_remote::changeable(&s.mailbox, contact);
+    }
+    match s.mailbox.contact_books.iter().find(|book| book.account == contact.origin.account && book.id == contact.book_id) {
+        Some(book) if book.rights != Rights::Edit => Err(failed!(
+            "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts.",
+            name = book.name
+        )),
+        // The server no longer lists this book. A change would be lost, and the next read would
+        // put the server's copy back; say so instead of changing it here alone.
+        None => Err(failed!(
+            "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then.",
+            name = contact.book.trim()
+        )),
+        Some(_) => Ok(()),
+    }
 }
 
 fn line(v: &Value, k: &str) -> Option<String> {
@@ -264,7 +297,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     if c.name().is_empty() {
         return Err(bad("a contact needs a name, a company or an e-mail address"));
     }
-    let folder = contacts_remote::new_contact_folder(s, v)?;
+    let mut folder = contacts_remote::new_contact_folder(s, v)?;
     c.folder = folder;
     c.origin.account = contacts_remote::home(&s.mailbox, folder).map_or(0, |f| f.account);
     // Its categories take the spelling of the list its account's items use (one made here is
@@ -272,12 +305,33 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     if p::strings(v, "categories").is_some() {
         c.categories = super::category::spelled_all(s, c.origin.account, &c.categories, &[], c.origin.account)?;
     }
+    let book = p::str(v, "addressBook").map(str::trim).filter(|id| !id.is_empty());
+    let book_account = p::id(v, "addressBookAccount").unwrap_or(0);
+    if let Some(book) = book {
+        let found = s
+            .mailbox
+            .contact_books
+            .iter()
+            .find(|known| known.id == book && (book_account == 0 || known.account == book_account))
+            .filter(|known| known.rights.can_edit())
+            .cloned()
+            .ok_or_else(|| bad("that address book can't be written to"))?;
+        c.book = found.name;
+        c.book_id = found.id;
+        c.origin.account = found.account;
+        // An address-book contact is not in a contacts folder of this mailbox.
+        folder = 0;
+        c.folder = 0;
+    }
+    c.uid = super::remote::new_token(0, s.rev() ^ s.now().unsigned_abs().rotate_left(56));
     let id = s.mailbox.add_contact(c);
-    contacts_remote::note_contact(&mut s.mailbox, id, None)?;
+    if book.is_none() {
+        contacts_remote::note_contact(&mut s.mailbox, id, None)?;
+    }
     s.mailbox.contact_place = Some(folder);
     s.sel.contact = Some(id);
     reveal(s, id);
-    Ok(json!({"id": id, "folder": folder}))
+    Ok(json!({"id": id, "folder": folder, "addressBook": book}))
 }
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
@@ -285,6 +339,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let server = contacts_remote::server_copy(&s.mailbox, id);
     let mut c = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
     let had = c.categories.clone();
+    writable_contact(s, &c)?;
     apply(&mut c, v)?;
     if c.name().is_empty() {
         return Err(fail("a contact needs a name, a company or an e-mail address"));
@@ -292,8 +347,11 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if p::strings(v, "categories").is_some() {
         c.categories = super::category::spelled_all(s, c.origin.account, &c.categories, &had, c.origin.account)?;
     }
-    *s.mailbox.contact_mut(id)? = c;
-    contacts_remote::note_contact(&mut s.mailbox, id, server)?;
+    *s.mailbox.contact_mut(id)? = c.clone();
+    if c.book_id.is_empty() {
+        contacts_remote::note_contact(&mut s.mailbox, id, server)?;
+    }
+    remote::note_book_contact_changed(&mut s.mailbox, &c, ContactChangeKind::Update);
     Ok(json!({"id": id}))
 }
 
@@ -323,13 +381,23 @@ fn arrange(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
-    let id = own_target(s, v)?;
+    let id = target(s, v)?;
+    // A contact that lives on a CardDAV server is deleted there by the next sync. Its local
+    // copy goes now, so it disappears from the list at once; the tombstone below keeps a read
+    // of the server from bringing it back before the delete has gone out.
+    if let Some(contact) = s.mailbox.contact(id).cloned() {
+        writable_contact(s, &contact)?;
+        remote::note_book_contact_changed(&mut s.mailbox, &contact, ContactChangeKind::Delete);
+    }
     // The selection moves to the neighbour in the list.
     let order = sorted(s, &s.view.people_search);
     let at = order.iter().position(|x| *x == id);
     let server = contacts_remote::server_copy(&s.mailbox, id);
+    let in_a_book = s.mailbox.contact(id).is_some_and(|c| !c.book_id.is_empty());
     s.mailbox.remove_contact(id)?;
-    contacts_remote::note_contact(&mut s.mailbox, id, server)?;
+    if !in_a_book {
+        contacts_remote::note_contact(&mut s.mailbox, id, server)?;
+    }
     if s.sel.contact == Some(id) {
         s.sel.contact = at.and_then(|i| order.get(i + 1).or_else(|| i.checked_sub(1).and_then(|j| order.get(j)))).copied();
     }
@@ -357,8 +425,11 @@ fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
         "birthday": c.birthday.map(Date::iso), "notes": c.notes, "categories": c.categories, "favorite": c.favorite,
         "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
         "folder": c.folder, "notSent": contacts_remote::not_sent(mailbox, c.id),
-        "readOnly": contacts_remote::home(mailbox, c.folder).is_some_and(|f| !f.writable),
+        "readOnly": contacts_remote::home(mailbox, c.folder).is_some_and(|f| !f.writable)
+            || (c.origin.account != 0 && !c.book_id.is_empty()
+                && !mailbox.contact_books.iter().any(|b| b.account == c.origin.account && b.id == c.book_id && b.rights == Rights::Edit)),
         "keys": c.keys.iter().map(|k| json!({"kind": k.kind.name(), "fingerprint": super::keys::card_key_facts(k).fingerprint, "uri": k.uri})).collect::<Vec<_>>(),
+        "book": c.book, "bookId": c.book_id,
     })
 }
 
@@ -384,6 +455,21 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     };
     let items: Vec<Value> = sorted_of(s, &query, account).into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
     Ok(json!({"account": account.code(), "contacts": items}))
+}
+
+fn address_books(s: &mut Session, _: &Value) -> CmdResult {
+    let books: Vec<Value> = s
+        .mailbox
+        .contact_books
+        .iter()
+        .filter_map(|book| {
+            let account = s.mailbox.account(book.account)?;
+            Some(json!({
+                "account": book.account, "accountName": account.email, "id": book.id, "name": book.name, "rights": book.rights,
+            }))
+        })
+        .collect();
+    Ok(json!({"books": books}))
 }
 
 fn search(s: &mut Session, v: &Value) -> CmdResult {
@@ -421,7 +507,11 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
         c.categories.push(spelling);
     }
     let categories = c.categories.clone();
-    contacts_remote::note_contact(&mut s.mailbox, id, server)?;
+    let contact = c.clone();
+    if contact.book_id.is_empty() {
+        contacts_remote::note_contact(&mut s.mailbox, id, server)?;
+    }
+    remote::note_book_contact_changed(&mut s.mailbox, &contact, ContactChangeKind::Update);
     Ok(json!({"id": id, "categories": categories}))
 }
 
@@ -449,7 +539,8 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
         Some((f, l)) => (f.trim().to_string(), l.trim().to_string()),
         None => (from.name.trim().to_string(), String::new()),
     };
-    let id = s.mailbox.add_contact(Contact { first, last, emails: vec![Labeled::new("work", from.email)], ..Default::default() });
+    let uid = super::remote::new_token(0, s.rev() ^ s.now().unsigned_abs().rotate_left(40));
+    let id = s.mailbox.add_contact(Contact { first, last, emails: vec![Labeled::new("work", from.email)], uid, ..Default::default() });
     s.sel.contact = Some(id);
     reveal(s, id);
     s.view.module = Module::People;
