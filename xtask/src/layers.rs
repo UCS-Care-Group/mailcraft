@@ -66,6 +66,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("assuan", Class::Layer(3)),
     // Exchange Web Services over any HTTP, the same: no sockets, no browser APIs, and builds for the browser.
     ("ews", Class::Layer(3)),
+    // A Zimbra server's web service over any HTTP, the same: no sockets, no browser APIs.
+    ("zimbra", Class::Layer(3)),
     ("net", Class::Layer(3)),
     ("engine", Class::Layer(4)),
     ("mcp", Class::Layer(5)),
