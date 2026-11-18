@@ -121,6 +121,9 @@ enum Setup {
     Shared,
     /// That, and Tasks shows that account's To Do, where a new task goes.
     ToDo,
+    /// The account is a Microsoft account whose list of categories is kept in step with
+    /// Outlook's, and MailCraft may change it there; the first contact is the account's (#661).
+    Synced,
 }
 
 /// One row for every command an agent can be asked about: its params in the sample mailbox and
@@ -139,6 +142,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.retryPictures", "{}", Setup::None),
     ("ui.joinMeeting", r#"{"event": $event}"#, Setup::None),
     ("ui.reportProblem", r#"{"what": "x"}"#, Setup::None),
+    ("category.addToOutlook", r#"{"name": "Purple category", "account": $account}"#, Setup::None),
     // Delete.
     ("mail.deletePermanently", r#"{"ids": [$message]}"#, Setup::None),
     ("mail.removeAttachment", r#"{"id": $message, "index": 0}"#, Setup::None),
@@ -168,11 +172,12 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.connectMicrosoft", "{}", Setup::None),
     ("ui.automaticRepliesSignIn", r#"{"account": $account}"#, Setup::None),
     ("ui.connectFavorites", "{}", Setup::None),
-    ("ui.allowSharedSend", r#"{"account": $account}"#, Setup::None),
+    ("ui.allowSharedSend", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowSharedCalendars", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowTasks", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowRules", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowAutomaticReplies", r#"{"account": $account, "confirmed": true}"#, Setup::None),
+    ("ui.allowSync", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.adminConsent", "{}", Setup::None),
     ("ui.signInAgain", "{}", Setup::None),
     ("ui.microsoftClientId", r#"{"value": "x"}"#, Setup::None),
@@ -265,6 +270,10 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("tasks.fromEvent", "{}", Setup::ToDo),
     ("tasks.fromContact", "{}", Setup::ToDo),
     ("category.rename", r#"{"from": "Shared", "to": "y"}"#, Setup::Shared),
+    // A category made in Outlook (#661).
+    ("category.set", r##"{"name": "Travel", "color": "#2E8B57", "account": $account}"##, Setup::Synced),
+    ("mail.categorize", r#"{"ids": [$message], "category": "Travel"}"#, Setup::Synced),
+    ("people.categorize", r#"{"id": $contact, "category": "Travel"}"#, Setup::Synced),
 ];
 
 /// Asked about only for a dialog with changes the owner hasn't saved, which a test can't fill in
@@ -346,6 +355,17 @@ fn set_up(a: &mut MailApp, setup: Setup, i: &Ids) {
             t.origin.id = "t1".to_string();
             t.list = "L1".to_string();
             t.categories = vec!["Shared".to_string()];
+        }
+        Setup::Synced => {
+            let mb = &mut a.session.mailbox;
+            mb.accounts[0].kind = mailcraft_model::AccountKind::Microsoft;
+            mb.accounts[0].oauth = Some(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Microsoft, ..Default::default() });
+            mb.contact_mut(i.contact).unwrap().origin.account = i.account;
+            let red = mailcraft_model::Category { name: "Red category".into(), color: mailcraft_model::outlook_colors::OUTLOOK_COLORS[0] };
+            let email = mb.accounts[0].email.clone();
+            let download = mailcraft_model::remote::CategoriesDownload { account: i.account, email, categories: vec![red], complete: true };
+            a.session.run("sync.applyCategories", &json!({"download": download})).unwrap();
+            a.session.run("sync.categoryWrites", &json!({"account": i.account, "allowed": true})).unwrap();
         }
         Setup::Step(redo) => {
             a.execute("junk.add", json!({"list": "safe", "entry": "z@example.org"})).unwrap();

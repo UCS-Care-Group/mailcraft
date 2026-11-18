@@ -138,7 +138,7 @@ pub fn parse_iso(s: &str) -> Option<(DateTime, Option<i32>)> {
         (rest, None)
     };
     // Fractions of a second are dropped.
-    let clock = clock.split('.').next()?;
+    let clock = clock.split('.').next()?.trim();
     let mut parts = clock.split(':');
     let hour: u8 = parts.next()?.trim().parse().ok()?;
     let minute: u8 = parts.next().map_or(Some(0), |m| m.parse().ok())?;
@@ -193,6 +193,14 @@ mod tests {
         }
         // A junk zone reads as UTC rather than failing the whole date.
         assert_eq!(parse_rfc5322("1 Jul 2003 08:52:00 +9999").map(|x| x.1), Some(0));
+    }
+
+    #[test]
+    fn iso_space_before_offset() {
+        let d = Date::new(2026, 10, 11).unwrap();
+        let t = DateTime::new(d, 9, 30, 0).unwrap();
+        assert_eq!(parse_iso("2026-10-11 09:30 +02:00"), Some((t, Some(120))));
+        assert_eq!(parse_iso("2026-10-11 09:30 Z"), Some((t, Some(0))));
     }
 
     #[test]

@@ -22,6 +22,8 @@ internal class Opened(
     val hub: AccountsHub,
     val mail: MailListController,
     val settings: SettingsController,
+    /** New accounts whose first sync the owner said "Not now" to, held back over a restart. */
+    val holds: FirstSyncHolds,
 )
 
 /** What starting the Rust core has come to: under way, the core, or why there is none. */
@@ -130,14 +132,20 @@ class MailCraftApplication : Application() {
             // The core keeps the mailbox itself: opened from here (a phone that has one keeps it),
             // saved after a change, at `saveNow` and when it ends. Private and left out of every
             // backup (the manifest's rules), as the mail is private.
-            val core = Core.open(
+            // The accounts the owner said "Not now" to are held from the core's opening, before
+            // anything of its own starts (the core keeps them in memory only).
+            val core = Core.openHolding(
                 AndroidPlatform(applicationContext, handback, foreground::get),
                 File(noBackupFilesDir, "mailbox").path,
+                DeviceHolds(applicationContext).load().toList(),
             )
             createChannels(applicationContext, channelSpecs(core::t))
             // (Made after the hub, which keeps the mailbox for it; the hub's first sync asks it for room,
             // and is set before this returns, so before any sign-in can end.)
             var settings: SettingsController? = null
+            val holds = FirstSyncHolds(DeviceHolds(applicationContext)) { account, held ->
+                core.holdBackgroundSync(account, held)
+            }
             val hub = AccountsHub(
                 api = CoreAccounts(core, handback),
                 texts = CoreTexts(core),
@@ -145,7 +153,9 @@ class MailCraftApplication : Application() {
                 save = { core.saveNow() },
                 copy = { text -> copyToClipboard(applicationContext, text) },
                 sync = { core.syncNow() },
+                firstRound = { core.syncKeepingHolds() },
                 roomFor = { account, storageMb -> settings?.roomForFirstSync(account, storageMb) ?: false },
+                holds = holds,
             )
             val made = SettingsController(
                 api = CoreSettings(
@@ -154,11 +164,12 @@ class MailCraftApplication : Application() {
                     dir = noBackupFilesDir,
                     keep = { hub.saveNow() },
                     changed = { refreshRemindersSoon(core) },
+                    holds = holds,
                 ),
                 scope = scope,
             )
             settings = made
-            Opened(core, hub, MailListController(CoreMailSource(core)), made)
+            Opened(core, hub, MailListController(CoreMailSource(core)), made, holds)
         } catch (_: CoreException) {
             null
         } catch (_: LinkageError) {
@@ -190,6 +201,10 @@ class MailCraftApplication : Application() {
             // The reminders' alarms follow the core's schedule: at every open, and when it changed.
             events.register { event -> if (event is Event.ReminderScheduleChanged) refreshRemindersSoon(opened.core) }
             events.launchIn(scope) { nextEvent(opened.core) }
+            // The core keeps the holds in memory only: the ones the owner left say so again at every start.
+            // The holds were given at the opening; said again here, an account that has gone is
+            // forgotten (one that fails here is said again before the background's round).
+            scope.launch { opened.holds.reapply() }
             refreshRemindersSoon(opened.core)
             // Send/Receive while the app is closed: one periodic run, kept if it is there already.
             // (WorkManager not starting is no reason to refuse the core: the window still works.)

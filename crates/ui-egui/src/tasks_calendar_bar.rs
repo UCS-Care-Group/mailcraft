@@ -707,13 +707,14 @@ fn tasks_part(app: &mut MailApp, ui: &mut Ui, fill: bool) {
     new_task(app, ui);
     if fill {
         let bottom = ui.max_rect().max.y;
-        egui::ScrollArea::vertical().id_salt("tasks_calendar_bar_tasks").auto_shrink([false, false]).max_height((bottom - ui.cursor().min.y).max(0.0)).show(
-            ui,
-            |ui| {
+        egui::ScrollArea::vertical()
+            .id_salt("tasks_calendar_bar_tasks")
+            .auto_shrink([false, false])
+            .max_height((bottom - ui.cursor().min.y).max(0.0))
+            .show(ui, |ui| {
                 task_list(app, ui);
                 ui.add_space(FOOT);
-            },
-        );
+            });
         // Everything from the box down to the foot of the bar takes what is let go over it.
         let area = Rect::from_min_max(pos2(ui.max_rect().min.x, top), pos2(ui.max_rect().max.x, bottom));
         drop_target(app, ui, area);

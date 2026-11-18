@@ -32,6 +32,7 @@ fn app(runs: &Arc<AtomicUsize>) -> MailApp {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     a.autosave = false;
     let runs = runs.clone();
+    a.services.graph_categories = Some(Box::new(|_: crate::category_sync::CategoriesJob| mpsc::channel().1));
     a.services.sync = Some(Box::new(move |req: SyncRequest| {
         runs.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = mpsc::channel();
@@ -72,9 +73,12 @@ fn confirming_lets_it_connect_and_is_remembered_for_that_file() {
     let (dir, path) = crafted("confirm", "imap.example.org");
     open(&mut a, &path);
     assert!(a.is_unconfirmed());
+    // The categories' job is held with the rest (#661), and comes back with them.
+    assert!(a.services.graph_categories.is_none());
     let r = a.execute("ui.confirmServers", json!({})).unwrap();
     assert_eq!(r["confirmed"], true);
     assert!(!a.is_unconfirmed() && a.services.sync.is_some());
+    assert!(a.services.graph_categories.is_some());
     assert_eq!(a.ui.confirmed_mailboxes.len(), 1);
     // The same file again, as it was confirmed: not asked.
     a.execute("file.new", json!({})).unwrap();

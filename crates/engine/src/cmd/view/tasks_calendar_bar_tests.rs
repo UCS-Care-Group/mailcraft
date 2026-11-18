@@ -4,7 +4,7 @@
 
 use serde_json::{Value, json};
 
-use crate::{Module, Session, BarParts, ViewState};
+use crate::{BarParts, Module, Session, ViewState};
 
 const NOW: i64 = 1_790_000_000;
 

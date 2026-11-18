@@ -5,7 +5,7 @@
 //! dragged onto its tasks to become tasks (#831).
 
 use egui::{Event, Modifiers, PointerButton, Pos2};
-use mailcraft_engine::{Module, BarParts};
+use mailcraft_engine::{BarParts, Module};
 use mailcraft_model::{Contact, Task};
 use serde_json::json;
 
