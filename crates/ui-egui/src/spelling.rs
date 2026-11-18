@@ -115,13 +115,7 @@ pub(crate) fn check(host: &dyn HostChecker, locale: &str, paragraph: &Paragraph)
         if range.start < last || input.get(range.clone()) != Some(word) || word.contains(OBJECT) {
             continue;
         }
-        // Links are hidden from the provider but still count when deciding whether the
-        // reported word is part of an address split across formatting runs.
-        let boundary = |ch: char| ch.is_whitespace() || matches!(ch, '—' | '–' | OBJECT);
-        let left = text.get(..range.start).unwrap_or_default().rsplit(boundary).next().unwrap_or_default();
-        let right = text.get(range.end..).unwrap_or_default().split(boundary).next().unwrap_or_default();
-        let token = format!("{left}{word}{right}");
-        if token.contains('@') || token.contains("://") || token.get(..4).is_some_and(|start| start.eq_ignore_ascii_case("www.")) {
+        if within_address(&text, &range) {
             continue;
         }
         offset += text.get(last..range.start).unwrap_or_default().chars().count();
@@ -130,6 +124,35 @@ pub(crate) fn check(host: &dyn HostChecker, locale: &str, paragraph: &Paragraph)
         (last, offset) = (range.end, end);
     }
     report
+}
+
+/// Links are masked from the provider. Use the original text to find the address itself,
+/// so a change of formatting in its middle does not unprotect the visible half.
+fn within_address(text: &str, word: &Range<usize>) -> bool {
+    let boundary = |ch: char| ch.is_whitespace() || matches!(ch, '(' | ')' | '<' | '>' | '"' | OBJECT);
+    let left = text.get(..word.start).unwrap_or_default().rsplit(boundary).next().unwrap_or_default();
+    let right = text.get(word.end..).unwrap_or_default().split(boundary).next().unwrap_or_default();
+    let start = word.start - left.len();
+    let end = word.end + right.len();
+    let Some(token) = text.get(start..end) else { return false };
+    let word_end = word.end - start;
+
+    // Dash punctuation may stand between prose and a URL, but it may also be part of
+    // the URL's path. Once a URL starts, protect everything through the token's end.
+    if let Some((prefix, _)) = token.split_once("://") {
+        let scheme = prefix.rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))).next().unwrap_or_default();
+        if scheme.as_bytes().first().is_some_and(u8::is_ascii_alphabetic) && word_end > prefix.len() - scheme.len() {
+            return true;
+        }
+    }
+    let web_starts = std::iter::once(0).chain(token.match_indices(['—', '–']).map(|(at, dash)| at + dash.len()));
+    if web_starts.filter(|at| *at < word_end).any(|at| token.get(at..at + 4).is_some_and(|prefix| prefix.eq_ignore_ascii_case("www."))) {
+        return true;
+    }
+
+    let email_left = left.rsplit(['—', '–']).next().unwrap_or_default();
+    let email_right = right.split(['—', '–']).next().unwrap_or_default();
+    text.get(word.start - email_left.len()..word.end + email_right.len()).is_some_and(|address| address.contains('@'))
 }
 
 impl Suggestions {

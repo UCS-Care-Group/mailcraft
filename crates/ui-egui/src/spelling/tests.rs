@@ -170,6 +170,26 @@ fn typo_beside_a_link_is_still_marked() {
 }
 
 #[test]
+fn a_url_path_with_a_dash_is_protected_across_formatting_runs() {
+    for address in ["https://example.org/a—", "WWW.example.org/a—"] {
+        let mut prefix = Run::plain(address);
+        prefix.style.link = Some("https://example.org/a".into());
+        let paragraph = Paragraph::new(vec![prefix, Run::plain("sopratutto")], ListKind::None);
+        assert!(check(&Italian, "it-IT", &paragraph).issues.is_empty(), "{address}");
+    }
+}
+
+#[test]
+fn a_typo_before_a_parenthesized_address_is_still_marked() {
+    let mut link = Run::plain("info@example.org");
+    link.style.link = Some("mailto:info@example.org".into());
+    let paragraph = Paragraph::new(vec![Run::plain("sopratutto("), link, Run::plain(")")], ListKind::None);
+    let report = check(&Italian, "it-IT", &paragraph);
+    assert_eq!(report.issues.len(), 1);
+    assert_eq!(report.issues[0].span, 0..10);
+}
+
+#[test]
 fn beginning_ime_composition_cancels_a_pending_spelling_review() {
     use egui::{Event, ImeEvent};
     use mailcraft_model::rich::Selection;
@@ -205,4 +225,16 @@ fn beginning_ime_composition_cancels_a_pending_spelling_review() {
     harness.event(Event::Ime(ImeEvent::Commit("你".into())));
     harness.run_steps(2);
     assert_eq!(harness.state().session.compose.as_ref().unwrap().body.plain(), "你Prima sopratutto");
+
+    // A preedit left behind when the body loses focus must not cancel a new review.
+    harness.state_mut().execute("compose.select", json!({"from": 7})).unwrap();
+    harness.event(Event::Ime(ImeEvent::Preedit { text: "hao".into(), active_range_chars: None }));
+    harness.run_steps(2);
+    assert!(editor::has_focus(&ctx));
+    let body_id = editor::id(harness.state());
+    ctx.memory_mut(|memory| memory.surrender_focus(body_id));
+    review_next(harness.state_mut(), &ctx, "it-IT");
+    harness.run_steps(2);
+    let selection = harness.state().session.compose.as_ref().unwrap().body.selection();
+    assert_eq!((selection.start(), selection.end()), (7, 17));
 }
