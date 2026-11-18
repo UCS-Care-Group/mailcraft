@@ -88,6 +88,9 @@ pub struct StandIn {
     /// A broken server that answers every folder page with `more` and ignores the cursor it was
     /// given: the same page comes back each time, for ever.
     pub stuck: std::cell::Cell<bool>,
+    /// `in:anywhere` walks a folder the server already dropped: any `item:{…}` search through it
+    /// faults `mail.NO_SUCH_FOLDER`, though the id alone (`item:{id}`) still answers.
+    pub fault_anywhere: std::cell::Cell<bool>,
 }
 
 impl Default for StandIn {
@@ -121,7 +124,12 @@ impl StandIn {
         ] {
             state.folders.insert(id, (1, name.into(), view.into()));
         }
-        StandIn { state: RefCell::new(state), during: RefCell::new(Vec::new()), stuck: std::cell::Cell::new(false) }
+        StandIn {
+            state: RefCell::new(state),
+            during: RefCell::new(Vec::new()),
+            stuck: std::cell::Cell::new(false),
+            fault_anywhere: std::cell::Cell::new(false),
+        }
     }
 
     /// Make a folder; answers its id.
@@ -490,8 +498,12 @@ impl StandIn {
             let Some(ids) = ids else { return fault("service.INVALID_REQUEST") };
             let ids: Vec<u32> = ids.split(',').filter_map(|id| id.parse().ok()).collect();
             if anywhere {
-                // Scoped over every folder, an id it no longer has faults the whole request,
-                // while one it can't see (a hidden item stands for an index behind) faults too.
+                // Scoped over every folder: a folder it walks that is already gone faults the
+                // request (`fault_anywhere` stands for that), as does an id it no longer has or
+                // one it can't see (a hidden item stands for an index behind).
+                if self.fault_anywhere.get() {
+                    return fault("mail.NO_SUCH_FOLDER");
+                }
                 if ids.iter().any(|id| !s.items.contains_key(id) || s.hidden.contains(id) || s.vanished.contains(id)) {
                     return fault("mail.NO_SUCH_MSG");
                 }

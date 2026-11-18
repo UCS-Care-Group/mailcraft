@@ -527,6 +527,8 @@ const ACCOUNTS: &[&str] = &[
     // Mail to keep offline (#143): what is kept on this computer; the server keeps it all.
     "account.thinOffline",
     "ui.keepOffline",
+    // A Zimbra account's trusted device: this computer stops being trusted for its second step.
+    "ui.forgetZimbraTrust",
     // Device limits (MB3.16): what a phone keeps; the server keeps it all.
     "account.deviceLimits",
     "account.trimDevice",

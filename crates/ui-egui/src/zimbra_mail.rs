@@ -34,6 +34,11 @@ use crate::{MailApp, MailRun, dialogs};
 /// id. Filled by the host, read once by the window when the run ends. Never shown.
 pub type TrustSlot = Arc<Mutex<Option<(String, String)>>>;
 
+/// A sign-in token a run or a fetch signed in afresh, and how many milliseconds it lives: the
+/// window keeps it in memory for the session and hands it to the next run, so that an account
+/// with a second step asks for a code once, not on every run. Never written, never shown.
+pub type SessionSlot = Arc<Mutex<Option<(String, u64)>>>;
+
 /// What the host is asked to run ([`crate::Services::zimbra`]).
 pub struct ZimbraJob {
     pub request: ZimbraMailRequest,
@@ -43,6 +48,10 @@ pub struct ZimbraJob {
     pub code: Option<String>,
     /// The trusted-device token and device id an earlier sign-in brought, when one is kept.
     pub trusted: Option<(String, String)>,
+    /// A sign-in token of this session that may still be good: tried before a fresh sign-in.
+    pub session: Option<String>,
+    /// Where the host puts a fresh sign-in token and its lifetime, for the runs after this one.
+    pub session_back: SessionSlot,
     /// Where the host puts what this sign-in brought to keep.
     pub trust: TrustSlot,
     /// Set when the owner stops the run (Cancel): it stops before its next request.
@@ -54,6 +63,8 @@ pub struct ZimbraFetchJob {
     pub request: ZimbraFetchRequest,
     pub secret: String,
     pub trusted: Option<(String, String)>,
+    pub session: Option<String>,
+    pub session_back: SessionSlot,
     pub cancel: Arc<AtomicBool>,
 }
 
@@ -65,6 +76,33 @@ pub(crate) fn trust_text(token: &str, device: &str) -> String {
 fn trust_of(kept: &str) -> Option<(String, String)> {
     let (token, device) = kept.split_once('\n')?;
     (!token.is_empty()).then(|| (token.to_string(), device.to_string()))
+}
+
+/// File › Info under a Zimbra account's card: whether this computer is trusted for the account's
+/// second step, with a way to take that back.
+pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::Tokens, a: &mailcraft_model::Account) {
+    use crate::theme::regular;
+    let trusted = app.zimbra_trusted(a.id).is_some();
+    let session = app.zimbra_sessions.contains_key(&a.id);
+    if !trusted && !session {
+        return;
+    }
+    ui.horizontal(|ui| {
+        ui.add_space(36.0);
+        let line = if trusted {
+            tl!("This computer is trusted: the code of the authenticator app isn't asked for.")
+        } else {
+            tl!("A sign-in token of this session is kept: the password isn't asked for until it ends.")
+        };
+        ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+        let tip = tl!(
+            "Stop trusting this computer for this account: the next Send/Receive signs in afresh and asks for the code again (when the account has a second step). What the server has trusted can be withdrawn there too, under its own settings."
+        );
+        if ui.link(tl!("Forget")).on_hover_text(tip).clicked() {
+            app.forget_zimbra_trust(a.id);
+        }
+    });
+    ui.add_space(4.0);
 }
 
 impl MailApp {
@@ -80,6 +118,26 @@ impl MailApp {
     /// The trusted-device token kept for `account`, when one is.
     pub(crate) fn zimbra_trusted(&self, account: Id) -> Option<(String, String)> {
         self.remembered("trust", account).as_deref().and_then(trust_of)
+    }
+
+    /// Stop trusting this computer for `account`: the trusted-device token and the sign-in
+    /// token of this session are gone, so the next Send/Receive signs in afresh (and asks for
+    /// the code when the account has a second step).
+    pub(crate) fn forget_zimbra_trust(&mut self, account: Id) {
+        self.zimbra_sessions.remove(&account);
+        let Some(a) = self.session.mailbox.account(account) else { return };
+        for key in Self::secret_keys_of("trust", a) {
+            self.secret_cache.remove(&key);
+            if let Some(store) = &self.services.secrets {
+                store.delete(&key);
+            }
+        }
+    }
+
+    /// A sign-in token `account`'s server gave this session that is still good, when there is
+    /// one. In memory only, like an OAuth access token.
+    pub(crate) fn zimbra_session(&self, account: Id) -> Option<String> {
+        self.zimbra_sessions.get(&account).filter(|(_, until)| *until > mailcraft_time::now() as u64).map(|(token, _)| token.clone())
     }
 
     /// A Send/Receive of the Zimbra account `account`; `p` may carry the password the owner has
@@ -108,12 +166,29 @@ impl MailApp {
         }
         self.services.sync_cancel.store(false, Ordering::Relaxed);
         let trust: TrustSlot = Arc::default();
-        let trusted = if code.is_some() { None } else { self.zimbra_trusted(account) };
-        let job = ZimbraJob { request, secret: secret.clone(), code, trusted, trust: trust.clone(), cancel: self.services.sync_cancel.clone() };
+        let session_back: SessionSlot = Arc::default();
+        // A code the owner just typed signs in afresh: a kept token is neither sent nor wanted.
+        let (trusted, session) = if code.is_some() {
+            self.zimbra_sessions.remove(&account);
+            (None, None)
+        } else {
+            (self.zimbra_trusted(account), self.zimbra_session(account))
+        };
+        let job = ZimbraJob {
+            request,
+            secret: secret.clone(),
+            code,
+            trusted,
+            session,
+            session_back: session_back.clone(),
+            trust: trust.clone(),
+            cancel: self.services.sync_cancel.clone(),
+        };
         // What it sends is marked so, on disk, before it leaves (AU3-26).
         let pieces = self.hand_zimbra(account, job)?;
         (self.sync_refused, self.sync_password) = (false, Some(secret));
         self.zimbra_trust = Some((account, trust));
+        self.zimbra_session_back = Some((account, session_back));
         self.sync_run = Some((account, Some(self.waiting_to_go(account)), false, quiet));
         self.sync_rx = Some(MailRun::Zimbra { account, opening: self.session.openings(), pieces });
         self.session.sync_progress.phase(account, SyncPhase::Folders);
@@ -132,7 +207,8 @@ impl MailApp {
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
                     log::warn!("zimbra mail: the run stopped without its last piece (its thread ended early)");
-                    (self.sync_rx, self.sync_refused, self.sync_password, self.zimbra_trust) = (None, false, None, None);
+                    (self.sync_rx, self.sync_refused, self.sync_password, self.zimbra_trust, self.zimbra_session_back) =
+                        (None, false, None, None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
                 }
@@ -142,7 +218,8 @@ impl MailApp {
             if opening != self.session.openings() {
                 self.services.sync_cancel.store(true, Ordering::Relaxed);
                 if last {
-                    (self.sync_rx, self.sync_run, self.sync_refused, self.sync_password, self.zimbra_trust) = (None, None, false, None, None);
+                    (self.sync_rx, self.sync_run, self.sync_refused, self.sync_password, self.zimbra_trust, self.zimbra_session_back) =
+                        (None, None, false, None, None, None);
                     self.session.sync_status.clear();
                     return;
                 }
@@ -188,10 +265,21 @@ impl MailApp {
             if let Some((token, device)) = brought {
                 self.remember("trust", account, &trust_text(&token, &device));
             }
+            // And a sign-in token that lives a while: the runs after this one go with it.
+            let session = self
+                .zimbra_session_back
+                .take()
+                .filter(|(whose, _)| *whose == account)
+                .and_then(|(_, slot)| slot.lock().ok().and_then(|mut s| s.take()));
+            if let Some((token, lifetime)) = session {
+                let until = mailcraft_time::now() as u64 + lifetime / 1_000;
+                self.zimbra_sessions.insert(account, (token, until));
+            }
             if std::mem::take(&mut self.sync_refused) {
                 // Turned down: the next Send/Receive asks for it again, and no round by itself goes
                 // back until then. What the system remembered is no good either.
                 self.passwords.remove(&account);
+                self.zimbra_sessions.remove(&account);
                 self.jmap_refused.insert(account);
                 if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
                     for kind in ["password", "trust"] {
@@ -202,6 +290,7 @@ impl MailApp {
                 }
             } else if code_needed {
                 // A second step: the code is asked for, once; no round by itself tries again.
+                self.zimbra_sessions.remove(&account);
                 self.jmap_refused.insert(account);
                 if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
                     let key = Self::secret_key("trust", a);

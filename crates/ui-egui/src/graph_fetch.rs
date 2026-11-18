@@ -55,6 +55,9 @@ pub struct Fetching {
     pub(crate) cancel: Arc<AtomicBool>,
     /// For the status bar: how many are fetched of how many, while some aren't.
     pub(crate) progress: String,
+    /// Sign-in tokens a Zimbra fetch under way signed in afresh, to pick up when its answer
+    /// comes: the account's id and where the host put it.
+    pub(crate) zimbra_slots: Vec<(Id, crate::zimbra_mail::SessionSlot)>,
 }
 
 impl Fetching {
@@ -78,6 +81,7 @@ impl Fetching {
         }
         self.background = None;
         self.progress.clear();
+        self.zimbra_slots.clear();
     }
 }
 
@@ -92,7 +96,7 @@ enum Way {
     Graph(String),
     Jmap(String),
     Ews(String),
-    Zimbra(String, Option<(String, String)>),
+    Zimbra(String, Option<(String, String)>, Option<String>),
 }
 
 fn way(app: &MailApp, account: Id) -> Option<Way> {
@@ -102,7 +106,7 @@ fn way(app: &MailApp, account: Id) -> Option<Way> {
         AccountKind::Jmap if app.services.jmap_fetch.is_some() && !app.jmap_refused.contains(&account) => app.jmap_secret(account).map(Way::Jmap),
         AccountKind::Exchange if app.services.ews_fetch.is_some() && !app.jmap_refused.contains(&account) => app.ews_secret(account).map(Way::Ews),
         AccountKind::Zimbra if app.session.zimbra && app.services.zimbra_fetch.is_some() && !app.jmap_refused.contains(&account) => {
-            app.zimbra_secret(account).map(|secret| Way::Zimbra(secret, app.zimbra_trusted(account)))
+            app.zimbra_secret(account).map(|secret| Way::Zimbra(secret, app.zimbra_trusted(account), app.zimbra_session(account)))
         }
         _ => None,
     }
@@ -209,7 +213,7 @@ impl MailApp {
 
     /// Hand the host a fetch of `account`'s messages: `messages` alone, or, when there are none,
     /// the next `most` in the background. `None` when there is nothing to fetch.
-    fn hand_over(&self, account: Id, way: Way, messages: &[Id], most: usize, cancel: Arc<AtomicBool>) -> Option<Receiver<GraphFetchResult>> {
+    fn hand_over(&mut self, account: Id, way: Way, messages: &[Id], most: usize, cancel: Arc<AtomicBool>) -> Option<Receiver<GraphFetchResult>> {
         // Working offline, nothing is fetched: what is here is shown.
         if self.offline() {
             return None;
@@ -230,15 +234,42 @@ impl MailApp {
                 let request = asked(messages, |m| ews_mail::ews_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
                 Some(fetch(EwsFetchJob { request, secret, cancel }))
             }
-            Way::Zimbra(secret, trusted) => {
+            Way::Zimbra(secret, trusted, session) => {
                 let fetch = self.services.zimbra_fetch.as_ref()?;
                 let request = asked(
                     messages,
                     |m| mailcraft_engine::cmd::zimbra_mail::zimbra_fetch_request(&self.session, account, m, most).ok(),
                     |r| &mut r.ids,
                 )?;
-                Some(fetch(crate::zimbra_mail::ZimbraFetchJob { request, secret, trusted, cancel }))
+                let session_back: crate::zimbra_mail::SessionSlot = Default::default();
+                self.fetching.zimbra_slots.push((account, session_back.clone()));
+                Some(fetch(crate::zimbra_mail::ZimbraFetchJob { request, secret, trusted, session, session_back, cancel }))
             }
+        }
+    }
+
+    /// A sign-in token a Zimbra fetch signed in afresh, picked up as its answer came: kept for
+    /// the session so the next fetch signs in with it rather than the password. And when the
+    /// sign-in wants the code of the owner's authenticator app: the account's fetches wait for
+    /// the answer, which the code dialog asks for once.
+    fn take_zimbra_session(&mut self, account: Id, result: &GraphFetchResult) {
+        let mut rest = Vec::new();
+        for (whose, slot) in std::mem::take(&mut self.fetching.zimbra_slots) {
+            if whose == account {
+                if let Ok(mut s) = slot.lock()
+                    && let Some((token, lifetime)) = s.take()
+                {
+                    self.zimbra_sessions.insert(account, (token, mailcraft_time::now() as u64 + lifetime / 1_000));
+                }
+            } else {
+                rest.push((whose, slot));
+            }
+        }
+        self.fetching.zimbra_slots = rest;
+        if result.code_needed {
+            self.zimbra_sessions.remove(&account);
+            self.jmap_refused.insert(account);
+            self.dialog = crate::dialogs::Dialog::open("zimbraCode", self, &serde_json::json!({"account": account}));
         }
     }
 
@@ -287,6 +318,7 @@ impl MailApp {
             Err(std::sync::mpsc::TryRecvError::Disconnected) => GraphFetchResult { offline: true, ..Default::default() },
         };
         let messages = self.fetching.now.take().map(|(messages, ..)| messages).unwrap_or_default();
+        self.take_zimbra_session(result.account, &result);
         // What came is taken in, and what the command that waits does next is the engine's to say.
         let answered = self.session.fetch_now_answered(&messages, opening, result);
         if let Some(said) = answered.refused {
@@ -318,6 +350,7 @@ impl MailApp {
         if opening != self.session.openings() {
             return;
         }
+        self.take_zimbra_session(account, &result);
         // (Stopped by the owner, it is no server's doing: nothing to wait out.)
         let paused = self.session.sync_progress.full_paused;
         if let Some(stopped) = self.session.driver.fetch.background_came(account, paused, &result, now_ms()) {

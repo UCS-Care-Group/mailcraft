@@ -458,6 +458,12 @@ pub struct Services {
     /// so account setup can tell an address on an Exchange server from one on an IMAP server.
     /// Only the domain is given, and none of the hosts is asked anything.
     pub lookup_autodiscover: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
+    /// Desktop: ask each of the given hosts, on a background thread, whether a Zimbra server
+    /// answers at its web client's address (an `AuthRequest` that signs nobody in, refused with a
+    /// fault in Zimbra's own envelope; `mailcraft_zimbra::probe`), and answer with the names of
+    /// those that did. No credential goes: a probe asks for nothing of a mailbox's. Only hosts of
+    /// the owner's own domain are given. Absent where no host does.
+    pub zimbra_probe: Option<Box<dyn Fn(Vec<String>) -> Receiver<Vec<String>>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.
@@ -1281,6 +1287,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"account"?: number} — signs in for sending, calendar and contacts through Microsoft"#,
     ),
     (
+        "ui.forgetZimbraTrust",
+        "Forget Trusted Device",
+        "File › Info",
+        r#"{"id": number (a Zimbra account)} — this computer is no longer trusted for the account's second step: the trusted-device token the server gave (kept in this system's credential store) and the sign-in token held for this session are dropped; the password stays. The next Send/Receive signs in afresh and asks for the code of the authenticator app again when the account has a second step. Answers {"id", "forgotten": bool}"#,
+    ),
+    (
         "ui.automaticRepliesSignIn",
         "Sign In Again for Automatic Replies",
         "File › Info",
@@ -1650,6 +1662,12 @@ pub struct MailApp {
     pub(crate) ews_certificate: std::collections::HashMap<Id, String>,
     /// Where the Zimbra run under way puts what its sign-in brought to keep (a trusted device).
     pub(crate) zimbra_trust: Option<(Id, zimbra_mail::TrustSlot)>,
+    /// Sign-in tokens Zimbra servers gave this session, to hand the next run or fetch, by
+    /// account: the token and when it stops being good, in seconds ([`mailcraft_time::now`]).
+    /// Memory only, like an OAuth access token; the trusted device is the store's, not this.
+    pub(crate) zimbra_sessions: std::collections::HashMap<Id, (String, u64)>,
+    /// Where the Zimbra run under way puts a sign-in token it signed in afresh.
+    pub(crate) zimbra_session_back: Option<(Id, zimbra_mail::SessionSlot)>,
     /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
     /// against the mailbox they belong to.
     secrets_opening: u64,
@@ -1995,6 +2013,8 @@ impl MailApp {
             ews_signed_in: Default::default(),
             ews_certificate: Default::default(),
             zimbra_trust: None,
+            zimbra_sessions: Default::default(),
+            zimbra_session_back: None,
             secrets_opening: 0,
             secret_cache: Default::default(),
             secret_read: None,
@@ -2930,6 +2950,29 @@ impl MailApp {
                 };
                 self.begin_sign_in(account.id, oauth, &account.email, String::new(), false, true)
                     .map(|()| json!({"pending": "signIn", "account": account.id}))
+            }
+            "ui.forgetZimbraTrust" => {
+                let Some(account) = p.get("id").and_then(Value::as_u64) else { return Some(Err(tl!("`id` is required").to_string())) };
+                match self.session.mailbox.account(account) {
+                    Some(a) if a.kind == mailcraft_model::AccountKind::Zimbra => {
+                        let forgotten = self.zimbra_trusted(account).is_some() || self.zimbra_sessions.contains_key(&account);
+                        self.forget_zimbra_trust(account);
+                        Ok(json!({"id": account, "forgotten": forgotten}))
+                    }
+                    Some(_) => Err(tl!("This account isn't a Zimbra account").to_string()),
+                    None => Err(tl!("There is no such account").to_string()),
+                }
+            }
+            "ui.allowSharedCalendars" => {
+                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                }
+                let Some(shared) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                if self.session.mailbox.account(shared).is_some_and(mailcraft_model::Account::is_shared) {
+                    self.begin_shared_calendars_sign_in(shared)
+                } else {
+                    self.begin_opened_calendars_sign_in(shared)
+                }
             }
             "ui.automaticRepliesSignIn" => {
                 let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };

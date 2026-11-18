@@ -85,7 +85,7 @@ impl fmt::Display for Error {
             Error::AuthRefused => f.write_str("the Zimbra server turned the sign-in down: check the user name and the password"),
             Error::TwoFactor => f.write_str("this Zimbra account wants the code from your authenticator app"),
             Error::MustResync => f.write_str("the Zimbra server can no longer say what changed since the last Send/Receive"),
-            Error::NoSuchItem => f.write_str("the Zimbra server no longer has it"),
+            Error::NoSuchItem => f.write_str("the Zimbra server no longer has what it was asked for"),
             Error::Busy(_) => f.write_str("the Zimbra server is busy and asked to be left alone for a while"),
             Error::Fault(Fault::PermissionDenied) => f.write_str("the Zimbra server doesn't allow this for the account"),
             Error::Fault(Fault::AlreadyExists) => f.write_str("the Zimbra server has one of that name already"),

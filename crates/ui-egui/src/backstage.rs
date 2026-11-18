@@ -273,6 +273,10 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if a.kind == AccountKind::Exchange {
             crate::ews_setup::info_rows(app, ui, t, a);
         }
+        // A Zimbra account: whether this computer is trusted for its second step.
+        if a.kind == AccountKind::Zimbra {
+            crate::zimbra_mail::info_rows(app, ui, t, a);
+        }
         // Where keeping the to-dos, the rules, the automatic replies and the categories in step
         // with Outlook stands, in one line, with a way to turn it on (#661); what each stands at
         // is its tip.
