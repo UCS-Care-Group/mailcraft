@@ -6,6 +6,21 @@ use super::*;
 use ksni::Tray as _;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 
+#[test]
+fn published_pixmap_switches_between_the_same_plain_and_badged_artwork() {
+    let signals = Arc::new(Signals { pending: AtomicU8::new(0), online: AtomicBool::new(false), ctx: egui::Context::default() });
+    let mut item = make_item(signals).unwrap();
+    let [plain, badged] = super::super::icons().unwrap();
+    let original = item.icon_pixmap();
+    assert_eq!(original[0].data, sni_icon(plain).unwrap().data);
+    item.badged = true;
+    let marked = item.icon_pixmap();
+    assert_eq!(marked[0].data, sni_icon(badged).unwrap().data);
+    assert_ne!(marked[0].data, original[0].data);
+    item.badged = false;
+    assert_eq!(item.icon_pixmap()[0].data, original[0].data);
+}
+
 fn guarded_service(stopped: &Arc<AtomicUsize>) -> ShutdownOnDrop<Arc<AtomicUsize>> {
     ShutdownOnDrop {
         handle: stopped.clone(),
