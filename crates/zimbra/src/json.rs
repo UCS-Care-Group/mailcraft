@@ -74,8 +74,21 @@ pub(crate) fn list(value: Option<&Value>) -> &[Value] {
     }
 }
 
-/// The ids of a comma-separated list (`"257,258"`), own ids only, at most `most` of them.
-pub(crate) fn ids(value: Option<&Value>, most: usize) -> Vec<String> {
-    let Some(text) = text(value) else { return Vec::new() };
-    text.split(',').filter_map(|id| own_id(Some(&Value::String(id.to_string())))).take(most).collect()
+/// The ids of a comma-separated list (`"257,258"`), own ids only, at most `most` of them. The
+/// raw text is split, never [`text`]'s cut copy: a list longer than the cap is no list at all
+/// (`None`), so that a token cut in two can never pass for an id the server didn't send.
+pub(crate) fn ids(value: Option<&Value>, most: usize) -> Option<Vec<String>> {
+    const MAX_LIST: usize = 64 * 1024;
+    let raw = match value? {
+        Value::String(text) => text.as_str(),
+        Value::Object(map) => match map.get("_content") {
+            Some(Value::String(text)) => text.as_str(),
+            _ => return None,
+        },
+        _ => return Some(Vec::new()),
+    };
+    if raw.len() > MAX_LIST {
+        return None;
+    }
+    Some(raw.split(',').filter_map(|id| own_id(Some(&Value::String(id.to_string())))).take(most).collect())
 }

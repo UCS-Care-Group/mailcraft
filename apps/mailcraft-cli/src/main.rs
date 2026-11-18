@@ -487,7 +487,13 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     accounts
                         .iter()
                         .find(|a| {
-                            a.kind.has_server() && !matches!(a.kind, mailcraft_model::AccountKind::Jmap | mailcraft_model::AccountKind::Exchange)
+                            a.kind.has_server()
+                                && !matches!(
+                                    a.kind,
+                                    mailcraft_model::AccountKind::Jmap
+                                        | mailcraft_model::AccountKind::Exchange
+                                        | mailcraft_model::AccountKind::Zimbra
+                                )
                         })
                         .or_else(|| accounts.iter().find(|a| a.kind.has_server()))
                         .map(|a| a.id)

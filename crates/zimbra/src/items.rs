@@ -26,10 +26,27 @@ pub const BY_ID: usize = 100;
 const MAX_PEOPLE: usize = 200;
 const MAX_CATEGORIES: usize = 50;
 
-/// The page of folder `folder`'s messages that starts `offset` messages from the newest.
-pub fn folder_page(base: &str, token: &Secret, folder: &str, offset: usize) -> Result<HttpRequest, Error> {
-    let body =
-        json!({"query": format!("inid:\"{folder}\""), "types": "message", "sortBy": "dateDesc", "limit": PAGE, "offset": offset, "recip": "2"});
+/// One page of messages, with what the next page's cursor is made of.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Page {
+    /// The messages, as headers and a preview.
+    pub messages: Vec<GraphMessage>,
+    /// More messages wait.
+    pub more: bool,
+    /// The last item's id and sort value (`d`, in milliseconds): asked for as the next page's
+    /// `cursor`, so that a page never depends on how many messages lie before it (an offset moves
+    /// when another program deletes or delivers while the folder is read, and a message between
+    /// the pages would be missed for good).
+    pub cursor: Option<(String, u64)>,
+}
+
+/// The page of folder `folder`'s messages that lies behind `cursor` (its last item's id and sort
+/// value), or from the newest when there is none.
+pub fn folder_page(base: &str, token: &Secret, folder: &str, cursor: Option<(&str, u64)>) -> Result<HttpRequest, Error> {
+    let mut body = json!({"query": format!("inid:\"{folder}\""), "types": "message", "sortBy": "dateDesc", "limit": PAGE, "recip": "2"});
+    if let Some((id, sort)) = cursor {
+        body["cursor"] = json!({"id": id, "sortValue": sort.to_string()});
+    }
     soap::request(base, "SearchRequest", soap::MAIL, body, Some(token))
 }
 
@@ -40,11 +57,18 @@ pub fn by_id(base: &str, token: &Secret, ids: &[String]) -> Result<HttpRequest, 
     soap::request(base, "SearchRequest", soap::MAIL, body, Some(token))
 }
 
-/// The messages of a `SearchResponse` and whether there are more after them.
-pub fn answer(response: &HttpResponse) -> Result<(Vec<GraphMessage>, bool), Error> {
+/// The messages of a `SearchResponse`, whether there are more after them, and the last item's
+/// place in the sort order (the next page's cursor; `None` when the page holds nothing that can
+/// carry one).
+pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
     let answer = soap::answer("SearchRequest", response)?;
-    let messages = json::list(answer.get("m")).iter().take(PAGE).filter_map(message).collect();
-    Ok((messages, json::on(answer.get("more"))))
+    let listed = json::list(answer.get("m"));
+    let messages = listed.iter().take(PAGE).filter_map(message).collect();
+    let cursor = listed.iter().take(PAGE).next_back().and_then(|m| {
+        let id = json::line(m.get("id"));
+        (!id.is_empty() && id.len() <= 128 && !id.chars().any(char::is_control)).then(|| (id, json::number(m.get("d")).unwrap_or(0)))
+    });
+    Ok(Page { messages, more: json::on(answer.get("more")), cursor })
 }
 
 /// A message as the model has one, from its summary; `None` for one that has no own id.

@@ -53,11 +53,23 @@ pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
         return Ok(delta);
     }
     delta.more = json::on(answer.get("more"));
-    delta.changed = json::list(answer.get("m")).iter().filter_map(|m| json::own_id(m.get("id"))).take(CHANGES).collect();
+    let changed = json::list(answer.get("m"));
+    if changed.len() > CHANGES {
+        // More than asked for is not a page but an answer that can't be trusted: the token it
+        // comes with must never be kept, or what it dropped is gone for good.
+        return Err(Error::Unreadable);
+    }
+    delta.changed = changed.iter().filter_map(|m| json::own_id(m.get("id"))).collect();
+    let mut deleted_ids = 0usize;
     for deleted in json::list(answer.get("deleted")) {
         for m in json::list(deleted.get("m")) {
             let room = DELETES.saturating_sub(delta.deleted.len());
-            delta.deleted.extend(json::ids(m.get("ids"), room));
+            let Some(ids) = json::ids(m.get("ids"), room + 1) else { return Err(Error::Unreadable) };
+            deleted_ids += ids.len();
+            if deleted_ids > DELETES {
+                return Err(Error::Unreadable);
+            }
+            delta.deleted.extend(ids);
         }
     }
     Ok(delta)

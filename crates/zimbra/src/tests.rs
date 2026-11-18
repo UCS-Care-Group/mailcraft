@@ -71,7 +71,10 @@ fn a_first_read_lists_the_folders_of_mail_and_reads_each_from_its_start() {
     assert!(all.pages.iter().all(|p| !p.folder.is_empty()));
     let log = server.state.borrow().log.clone();
     assert_eq!(log.iter().filter(|l| *l == "AuthRequest").count(), 1);
-    assert_eq!(log.get(1).map(String::as_str), Some("GetFolderRequest"));
+    // The token is asked for before the folders are listed, so that a change made while the
+    // folders are read is part of the delta that goes on from the run.
+    assert_eq!(log.get(1).map(String::as_str), Some("SyncRequest"));
+    assert_eq!(log.get(2).map(String::as_str), Some("GetFolderRequest"));
 }
 
 #[test]

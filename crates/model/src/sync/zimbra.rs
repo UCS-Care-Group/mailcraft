@@ -274,7 +274,7 @@ impl ZimbraMailResult {
     pub fn check(&self) -> Result<(), &'static str> {
         const TOO_MANY: &str = "has more in it than is taken in";
         const ODD_ID: &str = "has a server id that can't be one";
-        if self.email.len() > crate::ZimbraServer::MAX_USERNAME || self.url.len() > crate::ZimbraServer::MAX_URL {
+        if self.email.chars().count() > crate::ZimbraServer::MAX_USERNAME || self.url.chars().count() > crate::ZimbraServer::MAX_URL {
             return Err("names an account or a server that is too long");
         }
         if self.pages.len() > MAX_ZIMBRA_PAGES || self.errors.len() > MAX_ZIMBRA_ERRORS {
@@ -292,6 +292,74 @@ impl ZimbraMailResult {
         }
         if self.errors.iter().any(|e| e.chars().take(MAX_ZIMBRA_ERROR + 1).count() > MAX_ZIMBRA_ERROR) {
             return Err("has a problem told at too great a length");
+        }
+        // A change handed back is trusted to name its ids: one that can't be a server id, or a
+        // text longer than is taken in, makes the whole piece suspect.
+        let said = |s: &String| s.chars().take(MAX_ZIMBRA_ERROR + 1).count() <= MAX_ZIMBRA_ERROR;
+        let names = |ns: &[String]| ns.len() <= MAX_CATEGORIES && ns.iter().all(|n| n.len() <= MAX_TEXT);
+        let change_ok = |change: &super::MessageChange| -> bool {
+            let id_ok = |id: &str| zimbra_id_ok(id) || super::marker_of(id).is_some_and(|m| m.len() <= MAX_ZIMBRA_ID);
+            match change {
+                super::MessageChange::Update { id, categories, .. } => {
+                    id_ok(id) && categories.as_ref().is_none_or(|c| names(&c.here) && names(&c.synced))
+                }
+                super::MessageChange::Move { id, to, .. } | super::MessageChange::Copy { id, to, .. } => {
+                    id_ok(id) && (to.is_empty() || zimbra_id_ok(to))
+                }
+                super::MessageChange::Delete { id } | super::MessageChange::MovedOut { id, .. } => id_ok(id),
+            }
+        };
+        let outcome_ok = |outcome: &super::MessageOutcome| match outcome {
+            super::MessageOutcome::Done { categories, folder, id, .. } => {
+                categories.as_ref().is_none_or(|ns| names(ns)) && (folder.is_empty() || zimbra_id_ok(folder)) && (id.is_empty() || zimbra_id_ok(id))
+            }
+            _ => true,
+        };
+        if self
+            .messages
+            .iter()
+            .any(|done| !change_ok(&done.change) || !outcome_ok(&done.outcome) || done.there.as_ref().is_some_and(|m| !message_content_ok(m)))
+        {
+            return Err("has a change of a message that can't be one");
+        }
+        let folder_change_ok = |change: &super::FolderChange| match change {
+            super::FolderChange::Create { name, parent, .. } => name.len() <= MAX_TEXT && (parent.is_empty() || zimbra_id_ok(parent)),
+            super::FolderChange::Rename { id, name, .. } => zimbra_id_ok(id) && name.len() <= MAX_TEXT,
+            super::FolderChange::Move { id, parent, .. } => zimbra_id_ok(id) && (parent.is_empty() || zimbra_id_ok(parent)),
+            super::FolderChange::Delete { id, shown } => {
+                zimbra_id_ok(id)
+                    && shown.name.len() <= MAX_TEXT
+                    && shown.folders.len() <= MAX_LISTED_FOLDERS
+                    && shown.messages.len() <= MAX_ZIMBRA_PAGE_MESSAGES
+            }
+        };
+        let folder_ok = |folder: &GraphFolder| {
+            (folder.id.is_empty() || zimbra_id_ok(&folder.id))
+                && (folder.parent.is_empty() || zimbra_id_ok(&folder.parent))
+                && folder.name.len() <= MAX_TEXT
+        };
+        if self.changes.iter().any(|done| {
+            !folder_change_ok(&done.change)
+                || match &done.outcome {
+                    super::ChangeOutcome::Done { folder } => !folder_ok(folder),
+                    super::ChangeOutcome::Refused { why } | super::ChangeOutcome::OwnFolder { why } => !said(why),
+                    _ => false,
+                }
+        }) {
+            return Err("has a change of a folder that can't be one");
+        }
+        if self.drafts.iter().any(|done| {
+            !(done.id.is_empty() || zimbra_id_ok(&done.id) || super::marker_of(&done.id).is_some())
+                || !(done.folder.is_empty() || zimbra_id_ok(&done.folder))
+                || done.change_key.len() > MAX_ZIMBRA_ID
+                || done.change.marker.len() > MAX_ZIMBRA_ID
+                || done.change.subject.as_ref().is_some_and(|s| s.len() > MAX_TEXT)
+        }) || self.sent.iter().any(|done| {
+            let said_ok = !matches!(&done.outcome, super::SendOutcome::Held { why, .. } if !said(why));
+            let left_ok = done.draft_left.is_empty() || zimbra_id_ok(&done.draft_left) || super::marker_of(&done.draft_left).is_some();
+            !said_ok || !left_ok
+        }) {
+            return Err("has a draft or a send that can't be one");
         }
         if crate::ZimbraServer::check_fingerprint(&self.untrusted).is_err() {
             return Err("has a certificate fingerprint that can't be one");

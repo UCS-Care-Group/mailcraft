@@ -65,13 +65,15 @@ impl<E: HttpExchange> Run<'_, E> {
     }
 }
 
-/// The piece every piece of the run starts from.
+/// The piece every piece of the run starts from. `from` is the token the run goes on from, or
+/// empty when it reads afresh: an unusable token is never echoed (a piece's check would refuse it
+/// whole, and the account would stay at the cursor that fails forever).
 fn blank(request: &ZimbraMailRequest) -> ZimbraMailResult {
     ZimbraMailResult {
         account: request.account,
         email: request.email.clone(),
         url: request.url.clone(),
-        from: request.token.clone(),
+        from: if mailcraft_model::ZimbraServer::token_ok(&request.token) { request.token.clone() } else { String::new() },
         ..ZimbraMailResult::default()
     }
 }
@@ -133,6 +135,25 @@ async fn run<E: HttpExchange>(
     let user = login(&request.username, &request.email);
     let signed_in = run.ask(auth::request(&run.base, &user, password)).await?;
     run.token = auth::answer(&signed_in).map_err(Stop::Failed)?;
+    let token_ok = !request.token.is_empty() && mailcraft_model::ZimbraServer::token_ok(&request.token);
+    if token_ok {
+        let listing = folder_listing(&run, request, emit).await?;
+        match changes(&run, request, &listing, emit).await {
+            Err(Stop::Failed(Error::MustResync)) => {}
+            done => return done,
+        }
+    }
+    afresh(&run, request, emit).await
+}
+
+/// The server's folders of mail, as a piece, and for the run itself: an incomplete listing
+/// answers for nothing (a folder left out of it would have its messages taken for deleted, so a
+/// run on it never keeps a token).
+async fn folder_listing<E: HttpExchange>(
+    run: &Run<'_, E>,
+    request: &ZimbraMailRequest,
+    emit: &mut dyn FnMut(ZimbraMailResult),
+) -> Result<folders::Listing, Stop> {
     let listed = run.ask(folders::request(&run.base, &run.token)).await?;
     let listing = folders::answer(&listed).map_err(Stop::Failed)?;
     let mut piece = blank(request);
@@ -140,14 +161,7 @@ async fn run<E: HttpExchange>(
     piece.well_known = listing.well_known.clone();
     piece.partial = true;
     emit(piece);
-    let token_ok = !request.token.is_empty() && mailcraft_model::ZimbraServer::token_ok(&request.token);
-    if token_ok {
-        match changes(&run, request, &listing, emit).await {
-            Err(Stop::Failed(Error::MustResync)) => {}
-            done => return done,
-        }
-    }
-    afresh(&run, request, &listing, emit).await
+    if listing.complete { Ok(listing) } else { Err(Stop::Failed(Error::Unreadable)) }
 }
 
 /// What changed since the request's token, page by page. Answers the token to go on from.
@@ -165,7 +179,7 @@ async fn changes<E: HttpExchange>(
         let mut messages: Vec<GraphMessage> = Vec::new();
         for ids in page.changed.chunks(items::BY_ID) {
             let found = run.ask(items::by_id(&run.base, &run.token, ids)).await?;
-            messages.extend(items::answer(&found).map_err(Stop::Failed)?.0);
+            messages.extend(items::answer(&found).map_err(Stop::Failed)?.messages);
         }
         // A message that went to a folder that is no folder of mail (the chat history, a calendar)
         // has left the mail.
@@ -185,43 +199,45 @@ async fn changes<E: HttpExchange>(
     Err(Stop::Failed(Error::Unreadable))
 }
 
-/// Every folder read from its start, after a token is asked for. Answers that token.
-async fn afresh<E: HttpExchange>(
-    run: &Run<'_, E>,
-    request: &ZimbraMailRequest,
-    listing: &folders::Listing,
-    emit: &mut dyn FnMut(ZimbraMailResult),
-) -> Result<String, Stop> {
+/// Every folder read from its start. The token is asked for **before** the folders are listed,
+/// so that what another program does while the folders are read is part of the delta that goes on
+/// from the run, not of a read that has already passed it by.
+async fn afresh<E: HttpExchange>(run: &Run<'_, E>, request: &ZimbraMailRequest, emit: &mut dyn FnMut(ZimbraMailResult)) -> Result<String, Stop> {
     let started = run.ask(delta::request(&run.base, &run.token, "")).await?;
     let token = delta::answer(&started, true).map_err(Stop::Failed)?.token;
+    let listing = folder_listing(run, request, emit).await?;
     let mut order: Vec<&mailcraft_model::sync::GraphFolder> = listing.folders.iter().collect();
     order.sort_by_key(|f| turn(f.kind));
     let mut whole = true;
     for folder in order {
-        let mut offset = 0usize;
+        let mut cursor: Option<(String, u64)> = None;
         for page_number in 0..MAX_FOLDER_PAGES {
-            let answered = run.ask(items::folder_page(&run.base, &run.token, &folder.id, offset)).await?;
-            let (messages, more) = items::answer(&answered).map_err(Stop::Failed)?;
-            let got = messages.len();
-            let end = !more || got == 0;
-            if !end && page_number + 1 == MAX_FOLDER_PAGES {
+            let answered =
+                run.ask(items::folder_page(&run.base, &run.token, &folder.id, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort)))).await?;
+            let page = items::answer(&answered).map_err(Stop::Failed)?;
+            // A page that says more and neither brings a message nor a cursor to follow is no
+            // page to go on from: without one, whatever lies behind it is never read.
+            if page.more && (page.messages.is_empty() || page.cursor.is_none()) {
+                return Err(Stop::Failed(Error::Unreadable));
+            }
+            let last = !page.more;
+            if !last && page_number + 1 == MAX_FOLDER_PAGES {
                 whole = false;
             }
+            cursor = page.cursor;
             let mut piece = blank(request);
-            let last = end || page_number + 1 == MAX_FOLDER_PAGES;
             piece.pages.push(ZimbraMessagePage {
                 folder: folder.id.clone(),
-                messages,
+                messages: page.messages,
                 afresh: page_number == 0,
-                last: last && whole,
+                last: (last || page_number + 1 == MAX_FOLDER_PAGES) && whole,
                 ..ZimbraMessagePage::default()
             });
             piece.partial = true;
             emit(piece);
-            if last {
+            if last || page_number + 1 == MAX_FOLDER_PAGES {
                 break;
             }
-            offset = offset.saturating_add(got);
         }
     }
     // A folder too large to read in one run is read again: no token is kept for it.

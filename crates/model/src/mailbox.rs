@@ -2961,7 +2961,7 @@ impl Mailbox {
         if from_account != to_account && self.puts_on_server(to_account) {
             return Err(invalid(BETWEEN_MAILBOXES));
         }
-        if from_account != to_account && self.keeps_changes_for_server(from_account) && m.unfetched {
+        if from_account != to_account && self.account(from_account).is_some_and(|a| a.kind.has_offline_window()) && m.unfetched {
             return Err(invalid(not_downloaded_yet(&subject_said(m))));
         }
         let server = m.server.clone().filter(|s| from_account == to_account && !s.gone && self.keeps_changes_for_server(from_account));

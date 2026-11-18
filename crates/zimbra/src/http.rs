@@ -113,7 +113,7 @@ pub fn check_endpoint(url: &str) -> Result<(), EndpointError> {
         let mut parts = host.split('.');
         parts.next() == Some("127")
             && parts.clone().count() == 3
-            && parts.all(|part| !part.is_empty() && part.len() <= 3 && part.bytes().all(|b| b.is_ascii_digit()))
+            && parts.all(|part| part.parse::<u8>().is_ok() && !part.starts_with('+') && part.bytes().all(|b| b.is_ascii_digit()))
     };
     if loopback { Ok(()) } else { Err(EndpointError::NotEncrypted) }
 }
