@@ -91,7 +91,7 @@ fn first_read(s: &mut Session, account: Id) {
     projects.partial = true;
     apply(s, projects);
     let mut last = result(account, "");
-    (last.token, last.whole) = ("4711".into(), true);
+    (last.token, last.whole, last.resume) = ("4711".into(), true, Some(Vec::new()));
     apply(s, last);
 }
 
@@ -136,7 +136,7 @@ fn a_delta_moves_marks_and_removes_by_server_id() {
         last: true,
         ..Default::default()
     }];
-    (delta.token, delta.whole) = ("4712".into(), true);
+    (delta.token, delta.whole, delta.resume) = ("4712".into(), true, Some(Vec::new()));
     let said = apply(&mut s, delta);
     assert_eq!(said["new"], 1);
     assert_eq!(subjects(&s, account, "Inbox"), ["Brand new"]);
@@ -164,7 +164,7 @@ fn a_piece_from_another_token_or_server_is_refused_and_a_cut_run_keeps_no_token(
     removal.partial = true;
     apply(&mut s, removal);
     let mut failed = result(account, "4711");
-    (failed.token, failed.errors) = ("4712".into(), vec!["Couldn't send and receive".into()]);
+    (failed.token, failed.resume, failed.errors) = ("4712".into(), Some(Vec::new()), vec!["Couldn't send and receive".into()]);
     apply(&mut s, failed);
     assert_eq!(s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap().token, "4711");
     assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
@@ -178,7 +178,7 @@ fn hostile_pieces_are_held_to_their_sizes() {
     let mut bad = mail("bad\u{0}id", "2", "x", true);
     bad.server.folder = "2".into();
     odd.pages = vec![ZimbraMessagePage { messages: vec![bad, mail("261", "2", "Line\r\nbreak", false)], last: true, ..Default::default() }];
-    (odd.token, odd.whole) = ("4712".into(), true);
+    (odd.token, odd.whole, odd.resume) = ("4712".into(), true, Some(Vec::new()));
     assert!(s.run("sync.applyZimbra", &json!({"result": odd.clone()})).is_err());
     // Past the model's check, a piece that had to be cut keeps no token.
     odd.pages[0].messages.remove(0);
