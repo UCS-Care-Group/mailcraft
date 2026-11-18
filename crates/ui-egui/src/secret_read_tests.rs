@@ -201,3 +201,20 @@ fn a_secret_written_this_session_is_answered_from_memory() {
     frames(&mut a, imap, microsoft, 5);
     assert_eq!(store.asks(), (0, 4));
 }
+
+/// #1468: the round that starts with the window must not be spent before the store has answered:
+/// it would leave the account out ("would have to ask") and the next round is minutes away.
+#[test]
+fn the_first_round_waits_for_the_store_and_then_fetches() {
+    let (store, answer) = Locked::new();
+    store.blocks.store(true, Ordering::SeqCst);
+    let (mut a, imap, microsoft, seen) = window(&store);
+    a.session.driver.set_auto_sync(true);
+    frames(&mut a, imap, microsoft, 50);
+    assert!(seen.lock().unwrap().is_empty());
+    store.blocks.store(false, Ordering::SeqCst);
+    drop(answer);
+    settle(&mut a);
+    frames(&mut a, imap, microsoft, 50);
+    assert_eq!(seen.lock().unwrap().as_slice(), ["pw"], "fetched by itself once the password was at hand");
+}

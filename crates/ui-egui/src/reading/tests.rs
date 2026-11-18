@@ -1330,8 +1330,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 24,
-        "reading.rs, colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), signature (and its tests), svg (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
+        checked, 26,
+        "reading.rs, backdrop (and its tests), colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), signature (and its tests), svg (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
     );
 }
 
@@ -4148,6 +4148,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
 
 // ---- meetings that arrive as mail ----
 
+mod bg_pictures;
 mod inline_blocks;
 mod invitation;
 mod primary;
@@ -4807,6 +4808,8 @@ fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
 
     // File › Options shows the switch, ticked; off there asks nothing, and the bar offers it again.
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail automatically").scroll_to_me();
     harness.run_steps(3);
     harness.get_by_label("Download pictures in mail automatically").click();
     harness.run_steps(3);

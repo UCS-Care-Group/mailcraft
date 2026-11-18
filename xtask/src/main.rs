@@ -15,12 +15,14 @@ mod icon;
 mod layers;
 mod mobile;
 mod parity;
+mod play_upload;
 mod release_key;
 mod release_notes;
 mod spdx;
 mod stats;
 mod test_files;
 mod version;
+mod version_code;
 mod wasm_clock;
 mod workflows;
 
@@ -57,6 +59,8 @@ commands:
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
   icon            render the app icon (assets/app-icon/source/mailcraft.svg) in every size into assets/app-icon
   version [...]   show or set the workspace version
+  version-code [X.Y.Z[-rc.N]]
+                  the Android version code of that version (default: the workspace's)
   release-notes [--write]
                   print the release notes with the fragments in packaging/release-notes.d/ joined in;
                   --write (before tagging) joins them into packaging/release-notes.md and removes them
@@ -67,6 +71,9 @@ commands:
                   make the two release keys (in use, spare): private keys into <dir>, public keys printed
   release-key sign <file>
                   sign <file> into <file>.sig with the key in MAILCRAFT_RELEASE_KEY (base64 PKCS#8)
+  play-upload <file.aab>
+                  the AAB to Google Play's internal track as a draft, with the service account's JSON
+                  key in PLAY_SERVICE_ACCOUNT_JSON (the release workflow; docs/releasing.md)
 ";
 
 fn main() -> ExitCode {
@@ -90,9 +97,11 @@ fn main() -> ExitCode {
         Some("ico") => ico::run(&rest),
         Some("icon") => icon::run(&root()),
         Some("version") => version::run(&root(), &rest),
+        Some("version-code") => version_code::run(&root(), &rest),
         Some("release-notes") => release_notes::run(&root(), rest.contains(&"--write")),
         Some("docs-log") => docs_log::run(&root(), &rest),
         Some("release-key") => release_key::run(&rest),
+        Some("play-upload") => play_upload::run(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())

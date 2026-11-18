@@ -30,7 +30,7 @@ use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Color32, Rect, Stroke, Vec2, pos2, vec2};
-use mailcraft_html::{Align, Block, BlockKind, Cell, Length, Line, LineHeight, LineStyle, Marker, Sides, Span, Table, VAlign};
+use mailcraft_html::{Align, BgPicture, Block, BlockKind, Cell, Length, Line, LineHeight, LineStyle, Marker, Rgb, Sides, Span, Table, VAlign};
 use mailcraft_model::Message;
 
 use super::colors::Paper;
@@ -168,6 +168,27 @@ pub enum ItemKind {
     },
     Picture(PictureItem),
     Placeholder(PlaceholderItem),
+    /// A picture behind a box, over its colour and under what it holds (#601); the item's
+    /// rectangle is the box's, which it is clipped to.
+    Backdrop(BackdropItem),
+}
+
+/// A picture behind a box (`super::backdrop`): one of the message's own, attached to it or
+/// written into it. Never one from the web.
+#[derive(Clone, Debug)]
+pub struct BackdropItem {
+    pub data: Arc<Vec<u8>>,
+    /// The size of one copy.
+    pub tile: Vec2,
+    /// Where the first copy's top left corner is, from the box's.
+    pub offset: Vec2,
+    /// Whether it repeats across and down.
+    pub repeat: [bool; 2],
+    /// What it is multiplied by: white, or darker in the dark theme.
+    pub tint: Color32,
+    /// What is painted over it, for a box with no colour of its own: the paper round it, a
+    /// little see-through.
+    pub veil: Option<Color32>,
 }
 
 /// A piece of text: a paragraph, or part of a very long one.
@@ -239,6 +260,8 @@ pub struct Stats {
     pub tables: usize,
     /// Layout tables that were stacked for want of room.
     pub stacked: usize,
+    /// Pictures behind boxes that are shown (#601).
+    pub behind: usize,
 }
 
 /// A message laid out, as far as it has been.
@@ -448,6 +471,55 @@ impl Cx<'_> {
         self.items.len() - 1
     }
 
+    /// Keep a place in the painting order for the picture behind a box, when there is one to show
+    /// (#601): the message's own (attached to it or written into it), under the caps of every
+    /// other picture. Its size is known when the box's is ([`Cx::fill_behind`]).
+    fn behind_slot(&mut self, picture: Option<&BgPicture>) -> Option<Behind> {
+        let picture = picture?;
+        super::backdrop::tint(&self.t)?;
+        if self.stats.pictures.saturating_add(self.stats.behind) >= images::MAX_PICTURES_PER_MESSAGE {
+            return None;
+        }
+        let src = picture.src.trim();
+        let bytes =
+            picture.data.as_ref().map(|p| p.0.clone()).or_else(|| self.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
+        // A drawing (#565) is shown as the picture of an `<img>` only, not behind a box.
+        let bytes = bytes.filter(|data| !mailcraft_html::looks_like_svg(data));
+        let (data, size) = bytes.and_then(|data| self.pictures.size(&data, self.frame).map(|size| (data, size)))?;
+        self.stats.behind += 1;
+        Some(Behind { slot: self.slot(), data, size })
+    }
+
+    /// `paper` (the box's colour, `asked`) as the text in the box is read on it: with `picture` set
+    /// where the picture kept for it is painted as it is, so that the colours of the text there
+    /// are not judged against the colour under the picture.
+    fn lit(&self, behind: &Option<Behind>, asked: Option<Rgb>, paper: Paper) -> Paper {
+        match asked {
+            Some(asked) if behind.is_some() && Paper::of(asked, &self.t).fill == super::colors::c32(asked) => Paper { picture: true, ..paper },
+            _ => paper,
+        }
+    }
+
+    /// Put the picture behind a box at `rect` into the place kept for it. `asked`: the box's own
+    /// colour; `paper`: what its text is read against.
+    fn fill_behind(&mut self, behind: Option<Behind>, rect: Rect, picture: Option<&BgPicture>, asked: Option<Rgb>, paper: Paper) {
+        let (Some(Behind { slot, data, size: [w, h] }), Some(picture)) = (behind, picture) else { return };
+        // Dimmed in the dark theme with a colour it turned dark, or none; veiled where there is none.
+        let veil = asked.is_none().then(|| paper.fill.gamma_multiply(super::backdrop::VEIL));
+        let turned = asked.is_some_and(|c| Paper::of(c, &self.t).fill != super::colors::c32(c));
+        let tint = match super::backdrop::tint(&self.t) {
+            Some(tint) if turned || veil.is_some() => tint,
+            _ => Color32::WHITE,
+        };
+        let tile = super::backdrop::tile_size(picture.size, vec2(w as f32, h as f32), rect.size());
+        let offset = super::backdrop::offset(picture.position, tile, rect.size());
+        let item = BackdropItem { data, tile, offset, repeat: picture.repeat.axes(), tint, veil };
+        self.right = self.right.max(rect.max.x);
+        if let Some(kept) = self.items.get_mut(slot) {
+            *kept = Item { rect, kind: ItemKind::Backdrop(item), seg: NO_SEG };
+        }
+    }
+
     fn fill_slot(&mut self, slot: usize, rect: Rect, color: Color32, radius: f32) {
         self.right = self.right.max(rect.max.x);
         if let Some(item) = self.items.get_mut(slot) {
@@ -458,6 +530,13 @@ impl Cx<'_> {
     fn measure(&mut self, job: LayoutJob) -> Arc<egui::Galley> {
         self.ctx.fonts_mut(|f| f.layout_job(job))
     }
+}
+
+/// The place kept for a picture behind a box, and the picture.
+struct Behind {
+    slot: usize,
+    data: Arc<Vec<u8>>,
+    size: [u32; 2],
 }
 
 /// What the block above was, for the gap under it and for joining quote bars.
@@ -956,7 +1035,8 @@ fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, padding: f32, 
     {
         bytes = Some(data);
     }
-    let bytes = bytes.filter(|_| cx.stats.pictures < images::MAX_PICTURES_PER_MESSAGE);
+    // (The pictures behind boxes count against the same cap: one message's pictures in all.)
+    let bytes = bytes.filter(|_| cx.stats.pictures.saturating_add(cx.stats.behind) < images::MAX_PICTURES_PER_MESSAGE);
     // An SVG drawing is read on a thread of its own: until it is, it is on its way, not broken.
     let reading = bytes.as_ref().is_some_and(|data| cx.pictures.is_reading(data, cx.frame));
     let natural = bytes.and_then(|data| cx.pictures.size(&data, cx.frame).map(|size| (data, size)));
@@ -1526,7 +1606,7 @@ fn grid(table: &Table) -> Grid<'_> {
 
 /// Whether the table itself is painted: a background, or lines.
 fn painted(table: &Table) -> bool {
-    table.background.is_some() || table.border || table.outline
+    table.background.is_some() || table.bg_picture.is_some() || table.border || table.outline
 }
 
 /// Whether a layout table is ruled: lines above or under some of its cells, and nothing else
@@ -1539,7 +1619,7 @@ fn ruled(table: &Table) -> bool {
     }
     let mut lines = false;
     for cell in table.rows.iter().flat_map(|r| &r.cells) {
-        if cell.background.is_some() || cell.border.left || cell.border.right {
+        if cell.background.is_some() || cell.bg_picture.is_some() || cell.border.left || cell.border.right {
             return false;
         }
         lines |= cell.border.top || cell.border.bottom;
@@ -1582,7 +1662,7 @@ fn padding(table: &Table, ruled: bool, cell: &Cell) -> Pad {
     } else if cell.blocks.is_empty() {
         // A cell that is only a colour or a line: a band or a divider.
         vec2(0.0, 3.0)
-    } else if ruled || painted(table) || cell.background.is_some() || cell.border.any() {
+    } else if ruled || painted(table) || cell.background.is_some() || cell.bg_picture.is_some() || cell.border.any() {
         BOX_PADDING
     } else {
         Vec2::ZERO
@@ -1865,7 +1945,7 @@ fn cell_paper(cx: &Cx<'_>, table: &Table, cell: &Cell, around: Paper) -> (Paper,
     match cell.background {
         Some(bg) => (Paper::of(bg, &cx.t), true),
         // A header cell of a data table is shaded a little when the message gives it no colour.
-        None if cell.header && !table.layout => (Paper { fill: around.shade(&cx.t), own: around.own, asked: None }, true),
+        None if cell.header && !table.layout => (Paper { fill: around.shade(&cx.t), own: around.own, asked: None, picture: false }, true),
         None => (around, false),
     }
 }
@@ -1945,6 +2025,8 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     };
     let around = table.background.map_or(paper, |bg| Paper::of(bg, &cx.t));
     let table_slot = table.background.map(|_| cx.slot());
+    let table_behind = cx.behind_slot(table.bg_picture.as_deref());
+    let around = cx.lit(&table_behind, table.background, around);
     let gap = gaps(table);
     let ruled = ruled(table);
     // The left edge of each column, and the right edge of the last.
@@ -1963,7 +2045,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     // Rows from the top; a cell that spans rows ends with the last of them.
     let mut tops = Vec::with_capacity(grid.rows);
     let mut bottoms: Vec<f32> = Vec::with_capacity(grid.rows);
-    let mut done: Vec<(usize, Option<usize>, Paper, f32)> = Vec::with_capacity(grid.cells.len());
+    let mut done: Vec<(usize, Option<usize>, Option<Behind>, Paper, f32)> = Vec::with_capacity(grid.cells.len());
     let mut next = 0;
     let mut top = y;
     for row in 0..grid.rows {
@@ -1981,10 +2063,12 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
             let pad = padding(table, ruled, placed.cell);
             let (inside, own) = cell_paper(cx, table, placed.cell, around);
             let slot = own.then(|| cx.slot());
+            let behind = cx.behind_slot(placed.cell.bg_picture.as_deref());
+            let inside = cx.lit(&behind, placed.cell.background, inside);
             let width = (right - left - pad.across()).max(MIN_CELL.min(right - left));
             let bottom =
                 flow(cx, &placed.cell.blocks, left + pad.left.min((right - left) / 2.0), top + pad.top, width, inside, depth + 1) + pad.bottom;
-            done.push((next, slot, inside, bottom));
+            done.push((next, slot, behind, inside, bottom));
             // ponytail: a cell spanning rows stays at the top; place it once the last row is known if senders need it.
             let single = placed.rows == 1;
             let alone = single && !placed.cell.blocks.iter().any(|b| matches!(b.kind, BlockKind::Table(_)));
@@ -1997,7 +2081,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
         across.end(cx);
         let bottom = done
             .iter()
-            .filter_map(|(index, _, _, bottom)| grid.cells.get(*index).filter(|p| p.row + p.rows - 1 == row).map(|_| *bottom))
+            .filter_map(|(index, _, _, _, bottom)| grid.cells.get(*index).filter(|p| p.row + p.rows - 1 == row).map(|_| *bottom))
             .fold(top, f32::max);
         // A cell the source places goes there; its own fill is painted later, over the whole cell.
         for (items, slot, cell_bottom, valign) in told {
@@ -2035,7 +2119,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     }
     let bottom = bottoms.last().copied().unwrap_or(y);
     let single = grid.cells.len() == 1 && table.width.is_none();
-    for (index, slot, inside, _) in done {
+    for (index, slot, behind, inside, _) in done {
         let Some(placed) = grid.cells.get(index) else { continue };
         let (left, right) = span(placed.col, placed.cols);
         let (Some(top), Some(low)) = (tops.get(placed.row), bottoms.get(placed.row + placed.rows - 1)) else { continue };
@@ -2051,6 +2135,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
             };
             cx.fill_slot(slot, rect, inside.fill, radius);
         }
+        cx.fill_behind(behind, rect, placed.cell.bg_picture.as_deref(), placed.cell.background, inside);
         let sides = if table.border { Sides::ALL } else { placed.cell.border };
         let look = edges_of(&cx.t, &placed.cell.lines, sides, around);
         let outer = Sides {
@@ -2065,6 +2150,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     if let (Some(slot), Some(bg)) = (table_slot, table.background) {
         cx.fill_slot(slot, whole, Paper::of(bg, &cx.t).fill, f32::from(table.radius));
     }
+    cx.fill_behind(table_behind, whole, table.bg_picture.as_deref(), table.background, around);
     // A table with lines round every cell has its outline from them.
     if !table.border {
         let look = table_edges(&cx.t, table, paper);
@@ -2099,6 +2185,8 @@ fn one_line(items: &[Item]) -> bool {
 fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Paper, depth: usize) -> f32 {
     let around = table.background.map_or(paper, |bg| Paper::of(bg, &cx.t));
     let table_slot = table.background.map(|_| cx.slot());
+    let table_behind = cx.behind_slot(table.bg_picture.as_deref());
+    let around = cx.lit(&table_behind, table.background, around);
     let between = gaps(table).y;
     let ruled = ruled(table);
     let mut at = y;
@@ -2116,6 +2204,8 @@ fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Pap
             let pad = padding(table, ruled, cell);
             let (inside, own) = cell_paper(cx, table, cell, around);
             let slot = own.then(|| cx.slot());
+            let behind = cx.behind_slot(cell.bg_picture.as_deref());
+            let inside = cx.lit(&behind, cell.background, inside);
             let width = (room - pad.across()).max(MIN_CELL.min(room));
             let bottom = if depth >= MAX_NESTING {
                 // Too deep to go on: what is in the cell is not laid out.
@@ -2127,6 +2217,7 @@ fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Pap
             if let Some(slot) = slot {
                 cx.fill_slot(slot, rect, inside.fill, f32::from(cell.radius));
             }
+            cx.fill_behind(behind, rect, cell.bg_picture.as_deref(), cell.background, inside);
             let look = edges_of(&cx.t, &cell.lines, if table.border { Sides::ALL } else { cell.border }, around);
             cell_lines(cx, rect, look, Sides::ALL, f32::from(cell.radius));
             at = bottom;
@@ -2137,6 +2228,7 @@ fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Pap
     if let (Some(slot), Some(bg)) = (table_slot, table.background) {
         cx.fill_slot(slot, whole, Paper::of(bg, &cx.t).fill, f32::from(table.radius));
     }
+    cx.fill_behind(table_behind, whole, table.bg_picture.as_deref(), table.background, around);
     if !table.border {
         let look = table_edges(&cx.t, table, paper);
         cell_lines(cx, whole, look, Sides::ALL, f32::from(table.radius));
