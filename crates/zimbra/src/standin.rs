@@ -392,14 +392,20 @@ impl StandIn {
 
     fn msg_action(&self, body: &Value) -> HttpResponse {
         let op = body.pointer("/action/op").and_then(Value::as_str).unwrap_or("").to_string();
-        let Some(id) = body.pointer("/action/id").and_then(Value::as_str).and_then(|id| id.parse::<u32>().ok()) else {
-            return fault("service.INVALID_REQUEST");
-        };
-        if !self.state.borrow().items.contains_key(&id) {
-            return fault("mail.NO_SUCH_MSG");
+        let id = body.pointer("/action/id").and_then(Value::as_str).unwrap_or("");
+        // An item of this mailbox, or one of a mounted mailbox's by its qualified id (`zid:item`).
+        if let Some(own) = id.parse::<u32>().ok().filter(|own| self.state.borrow().items.contains_key(own)) {
+            return self.msg_action_own(body, &op, own);
         }
+        if self.state.borrow().shared.contains_key(id) {
+            return self.msg_action_shared(body, &op, id);
+        }
+        fault("mail.NO_SUCH_MSG")
+    }
+
+    fn msg_action_own(&self, body: &Value, op: &str, id: u32) -> HttpResponse {
         let to = body.pointer("/action/l").and_then(Value::as_str).and_then(|l| l.parse::<u32>().ok());
-        match op.as_str() {
+        match op {
             "delete" => self.delete(id),
             "copy" => {
                 let Some(mut item) = self.state.borrow().items.get(&id).cloned() else { return fault("mail.NO_SUCH_MSG") };
@@ -417,7 +423,7 @@ impl StandIn {
                     .pointer("/action/tn")
                     .and_then(Value::as_str)
                     .map(|t| t.split(',').filter(|t| !t.is_empty()).map(String::from).collect::<Vec<_>>());
-                self.change(id, |m| match op.as_str() {
+                self.change(id, |m| match op {
                     "read" => m.flags = m.flags.replace('u', ""),
                     "!read" if !m.flags.contains('u') => m.flags.push('u'),
                     "flag" if !m.flags.contains('f') => m.flags.push('f'),
@@ -437,6 +443,29 @@ impl StandIn {
             _ => return fault("service.INVALID_REQUEST"),
         }
         soap("MsgActionResponse", json!({"action": {"op": op, "id": id.to_string()}}))
+    }
+
+    /// An action on a mounted mailbox's item: a move's target is another mounted folder of the
+    /// same reach (the server decides what is allowed, as it would).
+    fn msg_action_shared(&self, body: &Value, op: &str, id: &str) -> HttpResponse {
+        let mut s = self.state.borrow_mut();
+        let to = body.pointer("/action/l").and_then(Value::as_str).map(str::to_string);
+        if op == "move" && !to.as_deref().is_some_and(|to| s.mounts.contains_key(to)) {
+            return fault("mail.NO_SUCH_FOLDER");
+        }
+        let Some((folder, item)) = s.shared.get_mut(id) else { return fault("mail.NO_SUCH_MSG") };
+        match op {
+            "read" => item.flags = item.flags.replace('u', ""),
+            "!read" if !item.flags.contains('u') => item.flags.push('u'),
+            "flag" if !item.flags.contains('f') => item.flags.push('f'),
+            "!flag" => item.flags = item.flags.replace('f', ""),
+            "move" => *folder = to.unwrap_or_default(),
+            "delete" => {
+                s.shared.remove(id);
+            }
+            _ => return fault("service.INVALID_REQUEST"),
+        }
+        soap("MsgActionResponse", json!({"action": {"op": op, "id": id}}))
     }
 
     fn create_tag(&self, body: &Value) -> HttpResponse {
