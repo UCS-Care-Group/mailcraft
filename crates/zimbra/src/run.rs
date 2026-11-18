@@ -204,10 +204,12 @@ async fn changes<E: HttpExchange>(
         let page = delta::answer(&answered, false).map_err(Stop::Failed)?;
         let mut messages: Vec<GraphMessage> = Vec::new();
         let mut named: Vec<String> = Vec::new();
+        let mut probed_gone: std::collections::HashSet<String> = std::collections::HashSet::new();
         for ids in page.changed.chunks(items::BY_ID) {
             named.extend(ids.iter().cloned());
-            let found = run.ask(items::by_id(&run.base, &run.token, ids)).await?;
-            messages.extend(items::answer(&found).map_err(Stop::Failed)?.messages);
+            let (found, gone) = messages_by_id(run, ids).await?;
+            messages.extend(found);
+            probed_gone.extend(gone);
         }
         // A message that lies in a folder no listing knows may have gone to one made while the run
         // has been going on: the listing is asked for again, then the folder is known for
@@ -242,18 +244,21 @@ async fn changes<E: HttpExchange>(
                 break;
             }
         }
-        // An id the delta named that no message came back for can't be taken for gone: the
-        // message may still be there while the search leaves it out (an index behind, a scope
-        // the server reads differently). Stopping without the token loses nothing — the next
-        // run asks for the same delta, and a message that really was deleted turns up in its
-        // `deleted` list. Counting it as removed would delete it here while it lives on.
+        // An id the delta named that no message came back for can't be taken for gone on the
+        // search's word alone: the message may still be there while the search leaves it out (an
+        // index behind, a scope the server reads differently). Stopping without the token loses
+        // nothing — the next run asks for the same delta, and a message that really was deleted
+        // turns up in its `deleted` list. Only an id the server itself answered for by name — an
+        // `item:{id}` probe coming back empty — counts as gone: anything else would end the run
+        // on the same page for ever once one id is truly deleted.
         let returned: std::collections::HashSet<&str> = messages.iter().map(|m| m.server.id.as_str()).collect();
-        if named.iter().any(|id| !returned.contains(id.as_str())) {
+        if named.iter().any(|id| !returned.contains(id.as_str()) && !probed_gone.contains(id.as_str())) {
             return Err(Stop::Failed(Error::Unreadable));
         }
         let (messages, gone): (Vec<GraphMessage>, Vec<GraphMessage>) = messages.into_iter().partition(|m| mail.contains(m.server.folder.as_str()));
         let mut removed = page.deleted.clone();
         removed.extend(gone.into_iter().map(|m| m.server.id));
+        removed.extend(probed_gone);
         let mut piece = blank(request);
         piece.pages.push(ZimbraMessagePage { messages, removed, last: !page.more, ..ZimbraMessagePage::default() });
         piece.partial = true;
@@ -266,6 +271,36 @@ async fn changes<E: HttpExchange>(
     // More changes wait than one run reads: the token of the last whole page is kept, and the next
     // run goes on from it, so a mailbox that changes faster than a run follows still moves on.
     Ok(since)
+}
+
+/// The messages `ids` names: one request for the chunk, unless the server faults it as holding a
+/// name it no longer has — then each id is asked for by itself, so that a message deleted between
+/// the delta and the read is left out and not the whole run's end. With it come the ids the
+/// server itself answered for by name with an empty page — gone for certain, which an id a
+/// scoped search left out alone never is.
+async fn messages_by_id<E: HttpExchange>(run: &Run<'_, E>, ids: &[String]) -> Result<(Vec<GraphMessage>, Vec<String>), Stop> {
+    let found = run.ask(items::by_id(&run.base, &run.token, ids)).await?;
+    match items::answer(&found) {
+        Err(Error::NoSuchItem) => {}
+        done => return Ok((done.map_err(Stop::Failed)?.messages, Vec::new())),
+    }
+    // The chunk is faulted for an id it no longer has — or for `in:anywhere` walking a folder the
+    // server already dropped, which faults any id. Asked one at a time and by name alone, an id
+    // that is still there comes back; one answered with an empty page is told to the caller as
+    // gone — `item:{id}` names the item itself wherever it lies, so an empty answer for it is the
+    // server's own word. A fault it isn't (the index behind a new message looks the same): the
+    // run stops there as it does for a name the search leaves out.
+    let mut messages = Vec::new();
+    let mut gone = Vec::new();
+    for id in ids {
+        let one = run.ask(items::by_id_alone(&run.base, &run.token, id)).await?;
+        match items::answer(&one) {
+            Ok(page) if page.messages.is_empty() => gone.push(id.clone()),
+            Ok(page) => messages.extend(page.messages),
+            Err(e) => return Err(Stop::Failed(e)),
+        }
+    }
+    Ok((messages, gone))
 }
 
 /// One folder's read to its end, or as far as the page cap lets it go. `start` is where a run
