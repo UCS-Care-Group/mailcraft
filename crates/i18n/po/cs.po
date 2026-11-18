@@ -12514,6 +12514,16 @@ msgstr "Odebrat přílohu"
 msgid "Remove Everything"
 msgstr "Odstranit vše"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Odebrat importované\n"
+"duplicity"
+
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
