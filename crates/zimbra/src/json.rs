@@ -122,23 +122,6 @@ pub(crate) fn item_id(value: Option<&Value>) -> Option<String> {
         .then(|| text.to_string())
 }
 
-/// Whether `value` is an id of another mailbox (`<account>:<id>`): a folder or item shared with
-/// the owner, where [`own_id`] is `None` for the same reason. The same shapes [`own_id`] accepts
-/// are read, on the value as sent.
-pub(crate) fn foreign_id(value: Option<&Value>) -> bool {
-    let Some(raw) = raw(value) else { return false };
-    let raw = raw.trim();
-    match raw.split_once(':') {
-        Some((a, b)) => {
-            !a.is_empty()
-                && a.bytes().all(|c| c.is_ascii_alphanumeric() || b"-_".contains(&c))
-                && raw.len() <= 96
-                && own_id(Some(&Value::String(b.to_string()))).is_some()
-        }
-        None => false,
-    }
-}
-
 /// A list Zimbra may write as one object when there is one.
 pub(crate) fn list(value: Option<&Value>) -> &[Value] {
     match value {

@@ -84,6 +84,28 @@ impl Transport {
                     .unwrap_or_default();
                 if code.is_empty() {
                     log::debug!("zimbra {} {} -> {}{}{}", request.method().as_str(), named(), answer.status, query, trusted);
+                    // A probe by item id's hits: their shape (id and folder only, never a
+                    // subject or preview), so an answer the run can't read shows why.
+                    if answer.status == 200
+                        && query.contains("item:{")
+                        && let Ok(body) = serde_json::from_slice::<serde_json::Value>(&answer.body)
+                    {
+                        let hits: Vec<String> = body
+                            .pointer("/Body/SearchResponse/m")
+                            .and_then(|m| m.as_array().map(Vec::as_slice).or_else(|| m.as_object().map(|_| std::slice::from_ref(m))))
+                            .unwrap_or_default()
+                            .iter()
+                            .map(|m| {
+                                format!(
+                                    "{}:l={:?} keys={:?}",
+                                    m.get("id").and_then(|v| v.as_str()).unwrap_or("?"),
+                                    m.get("l"),
+                                    m.as_object().map(|o| o.keys().collect::<Vec<_>>()).unwrap_or_default()
+                                )
+                            })
+                            .collect();
+                        log::debug!("zimbra probe hits: {hits:?}");
+                    }
                 } else {
                     log::debug!("zimbra {} {} -> {} ({code}){query}", request.method().as_str(), named(), answer.status);
                 }
