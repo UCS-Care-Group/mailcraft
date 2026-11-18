@@ -630,6 +630,11 @@ pub(crate) fn selected_spelling(app: &MailApp, ctx: &egui::Context, locale: &str
     Some((issue.clone(), start))
 }
 
+#[cfg(test)]
+pub(crate) fn preedit(app: &MailApp, ctx: &egui::Context) -> String {
+    ctx.data(|data| data.get_temp::<State>(id(app).with("state"))).map_or_else(String::new, |state| state.preedit)
+}
+
 pub(crate) fn reveal_spelling(app: &MailApp, ctx: &egui::Context) {
     ctx.data_mut(|data| data.insert_temp(id(app).with("reveal-spelling"), true));
 }
