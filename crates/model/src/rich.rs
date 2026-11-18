@@ -825,11 +825,10 @@ impl RichText {
         let combined = self.storage_len().saturating_add(sig.storage_len());
         let lines = self.paragraphs.len().saturating_add(marked.len());
         if let Some((a, b)) = self.signature_paragraphs() {
-            let replaced = &self.paragraphs[a..=b];
+            let Some(replaced) = self.paragraphs.get(a..=b) else { return Err(ModelError::Invalid("no such signature".into())) };
             let replaced_size =
                 replaced.iter().flat_map(|p| &p.runs).map(|r| r.text.chars().count() + r.table.as_ref().map_or(0, |table| table.size)).sum::<usize>()
-                    + replaced.len()
-                    - 1;
+                    + replaced.len().saturating_sub(1);
             if combined.saturating_sub(replaced_size) > MAX_CHARS || lines.saturating_sub(replaced.len()) > MAX_PARAGRAPHS {
                 return Err(too_much());
             }

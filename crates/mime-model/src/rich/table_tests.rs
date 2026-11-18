@@ -60,6 +60,43 @@ fn implied_rows_stay_in_their_row_group() {
 }
 
 #[test]
+fn replacing_text_keeps_a_table_in_the_same_paragraph() {
+    use mailcraft_model::RichBody;
+
+    let fragment = from_html_for_compose("<table><tr><td>Part</td><td>Price</td></tr></table>");
+    let mut body = RichBody::from_plain("Hello world");
+    body.select(6, 6).unwrap();
+    body.paste(&fragment).unwrap();
+    let before = body.text().clone();
+    assert_eq!(before.paragraphs().len(), 1);
+    assert!(before.find("Price", true, 0, before.len()).is_empty());
+    assert!(before.find("o world", true, 0, before.len()).is_empty());
+    assert!(body.replace_places(&[(6, 7)], "x").is_err());
+    assert_eq!(body.text(), &before);
+    let places = before.find("world", true, 0, before.len());
+    assert_eq!(places, [(7, 12)]);
+    body.replace_places(&places, "there").unwrap();
+    assert_eq!(body.text().to_plain(), "Hello Part\tPricethere");
+    assert!(to_html(body.text()).contains("<table "));
+    assert!(body.undo());
+    assert_eq!(body.text(), &before);
+}
+
+#[test]
+fn empty_rows_obey_the_html_table_row_limit() {
+    use mailcraft_html::{BlockKind, MAX_TABLE_ROWS, parse_text_with_tables};
+
+    let html = format!("<table><tr><td>First</td></tr>{}</table>", "<tr></tr>".repeat(MAX_TABLE_ROWS + 1));
+    let blocks = parse_text_with_tables(&html, None);
+    let table = blocks.iter().find_map(|block| match &block.kind {
+        BlockKind::Table(table) => Some(table),
+        _ => None,
+    });
+    assert_eq!(table.unwrap().rows.len(), MAX_TABLE_ROWS);
+    assert_eq!(from_html_for_compose(&html).to_plain(), "First");
+}
+
+#[test]
 fn spreadsheet_clipboard_keeps_spacer_rows_columns_and_row_spans() {
     for html in [
         r#"<style>.xl65 { text-align:right }</style><table><colgroup><col span="3"></colgroup><tr><td rowspan="2">Part</td><td></td><td class="xl65">12,30</td></tr><tr><td></td><td></td></tr><tr><td></td><td></td><td></td></tr></table>"#,

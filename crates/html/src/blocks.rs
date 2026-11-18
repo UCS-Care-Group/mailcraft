@@ -1865,6 +1865,10 @@ impl Builder {
         }
         self.flush();
         if let Some(t) = self.table_at(table) {
+            if t.rows.len() >= MAX_TABLE_ROWS {
+                t.full = true;
+                return;
+            }
             t.last_row = t.rows.len() + 1 >= MAX_TABLE_ROWS;
         }
         let css = css_of(tag);
