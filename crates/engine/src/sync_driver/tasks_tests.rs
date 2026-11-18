@@ -151,6 +151,25 @@ fn a_late_answer_for_a_removed_account_asks_nothing() {
 }
 
 #[test]
+fn a_job_that_came_to_nothing_waits_from_when_its_answer_was_read() {
+    // (#661: a job that ran long, or an answer read after the window went a while without a
+    // frame, is not made to have waited already.)
+    let wait = super::Pacing::TASKS.first_retry_ms;
+    let (mut s, a) = session();
+    s.driver.tasks.clock = 60_000.0;
+    answered(&mut s, a, &TasksCame::default());
+    assert!(s.tasks_due(&facts(), tokens, 1_000.0 + wait).is_empty());
+    assert!(s.tasks_due(&facts(), tokens, 60_000.0 + wait - 1.0).is_empty());
+    assert_eq!(s.tasks_due(&facts(), tokens, 60_000.0 + wait), vec![a]);
+    // And so does a renewed sign-in the server refused.
+    let (mut s, a) = session();
+    s.driver.tasks.clock = 60_000.0;
+    answered(&mut s, a, &TasksCame { sign_in_refused: true, new_tokens: true, ..Default::default() });
+    assert!(s.tasks_due(&facts(), tokens, 60_000.0 + wait - 1.0).is_empty());
+    assert_eq!(s.tasks_due(&facts(), tokens, 60_000.0 + wait), vec![a]);
+}
+
+#[test]
 fn the_host_switch_and_working_offline_stop_the_jobs_that_start_by_themselves() {
     let (mut s, a) = session();
     s.driver.set_auto_sync(false);

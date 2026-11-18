@@ -7,6 +7,7 @@
 //!
 //! The script is JSON lines: control-channel requests (`{"method": …, "params": …}`, see
 //! `docs/control-protocol.md`), `{"shot": "/abs/out.png"}` to save the window as PNG,
+//! `{"wheel": {"x": x, "y": y, "dx": dx, "dy": dy}}` to send a trackpad movement at a point,
 //! `{"open": "/abs/file.ics"}` (or a `mailto:` link) as a later start would hand it over (#505),
 //! `{"trust": "/abs/ca.der"}` to trust a certification authority as the system's are (#30),
 //! `{"steps": n}` to run extra frames (a request with `"agent": {"allow": [...]}` comes as the MCP
@@ -49,6 +50,9 @@
 //! asks whether the tasks that exist only here are to be sent to it (#248).
 //! `{"host": {"autoReplies": "on"}}` gives every Microsoft account automatic replies that go out
 //! now, as a server has them; `"readOnly"`, the same read with a sign-in that may not change them.
+//! `{"host": {"categories": "allowed"}}` gives every Microsoft account the list of categories its
+//! server has (four made-up ones, the first time) and lets it be changed there (#661);
+//! `"readOnly"`, the same and none may be changed, the owner having been asked.
 //! And a Graph job (`{"host": {"graph": …}}`): `"consent"` (Microsoft wants the owner's
 //! permission first), `"refused"` (it refused the sign-in) or `"sendConsent"` (a shared
 //! mailbox's mail waits for permission to send from shared mailboxes, #70), `"opened"` (the
@@ -258,6 +262,7 @@ impl Host {
                 name: "Noor Haddad".into(),
                 email: if self.signed_in_as.is_empty() { email.to_string() } else { self.signed_in_as.clone() },
                 tenant: "3a1c5e7b-9d2f-4a6c-8e0b-1d3f5a7c9e2b".into(),
+                ..Default::default()
             }),
             "approval" => Err(NEEDS_APPROVAL.into()),
             "declined" => Err(SIGN_IN_DECLINED.into()),
@@ -646,6 +651,11 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
         // Every sender has a picture: a disc on a ground of two colours from their address,
         // drawn here (nothing is downloaded).
         sender_images: Some(Box::new(|address: String, _| answered(Ok(stand_in_picture(&address))))),
+        // (A job never runs: the stand-in has no sign-in. File › Info and the Categories window
+        // say what `{"host": {"categories": …}}` set.)
+        graph_categories: Some(Box::new(|job: mailcraft_ui_egui::category_sync::CategoriesJob| {
+            answered(mailcraft_ui_egui::category_sync::CategoriesResult { account: job.account.id, ..Default::default() })
+        })),
         ..Default::default()
     }
 }
@@ -863,6 +873,33 @@ fn main() {
                     let _ = app.stand_in_auto_replies(account, &setting, how != "readOnly");
                 }
             }
+            // Every Microsoft account's list as its server gave it (four made-up categories), then
+            // whether it may be changed there.
+            if let Some(how) = said.get("categories").and_then(|v| v.as_str()) {
+                let app = harness.state_mut();
+                let own: Vec<(u64, String)> = app
+                    .session
+                    .mailbox
+                    .accounts
+                    .iter()
+                    .filter(|a| a.kind == mailcraft_model::AccountKind::Microsoft && !a.is_shared())
+                    .map(|a| (a.id, a.email.clone()))
+                    .collect();
+                for (account, email) in own {
+                    if app.session.mailbox.synced_categories.contains_key(&account) {
+                        continue;
+                    }
+                    let colors = mailcraft_model::outlook_colors::OUTLOOK_COLORS;
+                    let made = [("Client work", 7), ("Travel", 4), ("Personal", 8), ("Urgent", 0)];
+                    let categories = made
+                        .iter()
+                        .map(|(name, i)| mailcraft_model::Category { name: (*name).into(), color: colors.get(*i).copied().unwrap_or(colors[0]) })
+                        .collect();
+                    let download = mailcraft_model::remote::CategoriesDownload { account, email, categories, complete: true };
+                    let _ = mailcraft_engine::cmd::remote::apply_categories(&mut app.session, &download);
+                }
+                app.stand_in_categories(how == "allowed");
+            }
             // A search on the server is asked with a token of this session (invented).
             if said.get("serverSearch").is_some() {
                 let app = harness.state_mut();
@@ -896,7 +933,19 @@ fn main() {
             harness.state_mut().open_from_system(what);
             step_n(&mut harness, 2);
         }
-        if let Some(p) = l.get("shot").and_then(|v| v.as_str()) {
+        if let Some(wheel) = l.get("wheel") {
+            let n = |key: &str| wheel.get(key).and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+            harness.event(egui::Event::PointerMoved(egui::pos2(n("x"), n("y"))));
+            step_n(&mut harness, 1);
+            harness.event(egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(n("dx"), n("dy")),
+                phase: egui::TouchPhase::Move,
+                source: egui::MouseWheelSource::Trackpad,
+                modifiers: egui::Modifiers::NONE,
+            });
+            step_n(&mut harness, 1);
+        } else if let Some(p) = l.get("shot").and_then(|v| v.as_str()) {
             step_n(&mut harness, 4);
             match harness.render() {
                 Ok(img) => {

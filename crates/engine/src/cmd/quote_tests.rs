@@ -314,6 +314,7 @@ fn a_draft_quoted_in_any_shipped_language_reopens_with_its_quote() {
         (Lang::Russian, "-----Исходное сообщение-----", "От: "),
         (Lang::Hungarian, "-----Eredeti üzenet-----", "Feladó: "),
         (Lang::ChineseSimplified, "-----原始邮件-----", "来自： "),
+        (Lang::Georgian, "-----თავდაპირველი წერილი-----", "ვისგან: "),
     ];
     for (lang, marker, from) in markers {
         let mut s = session();
