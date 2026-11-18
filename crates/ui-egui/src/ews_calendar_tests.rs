@@ -95,7 +95,7 @@ fn the_days_on_screen_are_read_with_the_calendar_alone_and_nothing_sent() {
     assert!(a.ews_calendar_tick_at(0.0));
     let request = asked.borrow()[0].clone();
     assert_eq!(request.account, account);
-    assert_eq!((request.from, request.to), a.calendar_window());
+    assert_eq!((request.from, request.to), a.session.calendar_window());
     assert!(request.calendars && !request.contacts && !request.tasks && request.background);
     assert!(request.changes.is_none() && request.contact_changes.is_none() && request.task_changes.is_none());
     // One at a time.
@@ -120,7 +120,7 @@ fn days_the_owner_goes_to_are_read_at_once() {
     assert!(a.ews_calendar_tick_at(2.0));
     a.poll_ews_calendar(3.0);
     let later = asked.borrow()[1].clone();
-    assert_eq!((later.from, later.to), a.calendar_window());
+    assert_eq!((later.from, later.to), a.session.calendar_window());
     assert!(later.from > NOW + 400 * 86_400);
     assert_eq!(titles(&a).len(), 2);
     // Back to where it was: read a minute ago, so not again.
@@ -139,9 +139,9 @@ fn nothing_is_read_when_the_calendar_is_not_in_front_or_nothing_is_at_hand() {
     assert!(!a.ews_calendar_tick_at(0.0));
     a.passwords.insert(account, password);
     // Automatic Send/Receive off: nothing by itself.
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     assert!(!a.ews_calendar_tick_at(0.0));
-    a.auto_sync = true;
+    a.session.driver.set_auto_sync(true);
     // A password turned down, or a certificate that needs a say, stops it until the owner acts.
     a.jmap_refused.insert(account);
     assert!(!a.ews_calendar_tick_at(0.0));
@@ -150,7 +150,7 @@ fn nothing_is_read_when_the_calendar_is_not_in_front_or_nothing_is_at_hand() {
     assert!(!a.ews_calendar_tick_at(0.0));
     a.ews_certificate.remove(&account);
     // A stretch a Send/Receive read whole counts as read.
-    let window = a.calendar_window();
+    let window = a.session.calendar_window();
     a.ews_calendar_send_receive_read(&found(&EwsDirectoryRequest {
         account,
         email: ME.into(),
