@@ -117,6 +117,14 @@ pub(crate) fn run_mail(job: ZimbraJob, wake: &egui::Context) -> Receiver<ZimbraM
     let wake = wake.clone();
     let spawned = std::thread::Builder::new().name("zimbra send/receive".into()).spawn(move || {
         let ZimbraJob { request, secret, code, trusted, trust, cancel } = job;
+        // The address is checked again before a password is sent to it: the mailbox file that
+        // carried it is hostile too.
+        if let Err(why) = mailcraft_model::ZimbraServer::check_url(request.url.trim()) {
+            let mut piece = ZimbraMailResult { account: request.account, ..ZimbraMailResult::default() };
+            piece.errors.push(format!("The Zimbra server's address {why}"));
+            let _ = tx.send(piece);
+            return;
+        }
         let transport = Transport::new(&request.trusted);
         let credentials = credentials(&secret, code.as_deref(), trusted.as_ref());
         // The trust the sign-in brought is in the slot before any piece, so that the window finds it
@@ -148,6 +156,12 @@ pub(crate) fn run_fetch(job: ZimbraFetchJob, wake: &egui::Context) -> Receiver<G
     let wake = wake.clone();
     let spawned = std::thread::Builder::new().name("zimbra message download".into()).spawn(move || {
         let ZimbraFetchJob { request, secret, trusted, cancel } = job;
+        if let Err(why) = mailcraft_model::ZimbraServer::check_url(request.url.trim()) {
+            let mut result = GraphFetchResult { account: request.account, ..GraphFetchResult::default() };
+            result.errors.push(format!("The Zimbra server's address {why}"));
+            let _ = tx.send(result);
+            return;
+        }
         let transport = Transport::new(&request.trusted);
         let credentials = credentials(&secret, None, trusted.as_ref());
         let mut result = crate::block_on::block_on(mailcraft_zimbra::fetch_messages(&transport, &request, &credentials, &cancel));

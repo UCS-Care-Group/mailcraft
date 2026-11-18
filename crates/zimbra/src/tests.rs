@@ -386,7 +386,8 @@ fn a_fetch_stops_taking_bodies_once_the_total_is_full() {
         ids.push(id.to_string());
     }
     let fetch = ZimbraFetchRequest { account: 3, email: USER.into(), url: URL.into(), ids, ..Default::default() };
-    let got = block_on(fetch_messages(&server, &fetch, &Secret::new(PASSWORD), &AtomicBool::new(false))).unwrap();
+    let credentials = crate::Credentials { password: Secret::new(PASSWORD), ..Default::default() };
+    let got = block_on(fetch_messages(&server, &fetch, &credentials, &AtomicBool::new(false))).unwrap();
     assert_eq!(got.errors, Vec::<String>::new());
     // 16 MiB at a time: the fifth would take the run past 64 MiB and is left for the next fetch.
     assert_eq!(got.fetched.len(), 4);
