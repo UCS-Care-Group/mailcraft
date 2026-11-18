@@ -24141,6 +24141,14 @@ msgid_plural "{n} messages that came back empty after a refused delete are being
 msgstr[0] "{n} messaggio tornato vuoto dopo un'eliminazione rifiutata viene scaricato di nuovo."
 msgstr[1] "{n} messaggi tornati vuoti dopo un'eliminazione rifiutata vengono scaricati di nuovo."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
+msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
+msgstr[0] "{n} messaggio che era solo su questo computer si trovava in una cartella che il server non elenca più. Ora è nella cartella «{name}»."
+msgstr[1] "{n} messaggi che erano solo su questo computer si trovavano in una cartella che il server non elenca più. Ora sono nella cartella «{name}»."
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -24148,13 +24156,6 @@ msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "{n} messaggio era già qui"
 msgstr[1] "{n} messaggi erano già qui"
-
-#. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
-msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
-msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
-msgstr[0] ""
-msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

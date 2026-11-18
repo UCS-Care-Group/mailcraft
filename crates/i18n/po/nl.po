@@ -23536,10 +23536,11 @@ msgstr[1] "{n} berichten die leeg terugkwamen na een geweigerde verwijdering, wo
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
 msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
 msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bericht dat alleen op deze computer stond, stond in een map die de server niet meer toont. Het staat nu in de map \"{name}\"."
+msgstr[1] "{n} berichten die alleen op deze computer stonden, stonden in een map die de server niet meer toont. Ze staan nu in de map \"{name}\"."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
