@@ -145,8 +145,20 @@ impl Calendar<'_> {
         let (r, _) = ui.allocate_exact_size(vec2(width, 26.0), Sense::hover());
         ui.painter().text(r.center(), Align2::CENTER_CENTER, crate::dates::month_year(open.month), semibold(13.0), t.text);
         let arrows = [
-            (if rtl { "next" } else { "previous" }, tl!("Previous Month"), -1, if rtl { r.max.x - 12.0 } else { r.min.x + 12.0 }, open.month != first_day().start_of_month()),
-            (if rtl { "previous" } else { "next" }, tl!("Next Month"), 1, if rtl { r.min.x + 12.0 } else { r.max.x - 12.0 }, open.month != last_day().start_of_month()),
+            (
+                if rtl { "next" } else { "previous" },
+                tl!("Previous Month"),
+                -1,
+                if rtl { r.max.x - 12.0 } else { r.min.x + 12.0 },
+                open.month != first_day().start_of_month(),
+            ),
+            (
+                if rtl { "previous" } else { "next" },
+                tl!("Next Month"),
+                1,
+                if rtl { r.min.x + 12.0 } else { r.max.x - 12.0 },
+                open.month != last_day().start_of_month(),
+            ),
         ];
         for (icon, tip, by, x, enabled) in arrows {
             let br = Rect::from_center_size(pos2(x, r.center().y), vec2(24.0, 24.0));
