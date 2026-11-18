@@ -96,9 +96,30 @@ pub(crate) fn checked_on(value: Option<&Value>) -> Option<bool> {
 /// the value as it was sent: [`text`] takes control characters out, and a cleaned-up copy of an
 /// id that isn't one could pass for a different id that is.
 pub(crate) fn own_id(value: Option<&Value>) -> Option<String> {
-    let raw = raw(value)?;
-    let text = raw.trim();
-    (!text.is_empty() && text.len() <= 10 && text.bytes().all(|b| b.is_ascii_digit()) && text.bytes().any(|b| b != b'0')).then(|| text.to_string())
+    let text = raw(value)?;
+    let text = text.trim();
+    (digits(text)).then(|| text.to_string())
+}
+
+/// Digits, and not zero — the shape of an id in one mailbox, its own or one shared into it.
+fn digits(text: &str) -> bool {
+    !text.is_empty() && text.len() <= 10 && text.bytes().all(|b| b.is_ascii_digit()) && text.bytes().any(|b| b != b'0')
+}
+
+/// The id of an item the account can reach: an [`own_id`], or one of a mailbox shared into its
+/// tree (`<account id>:<item id>` — the account part letters, digits and dashes, as Zimbra writes
+/// a zid, the item's digits; at most one `:` and under a hundred bytes in all). Anything else is
+/// no id at all. The check is the value as it was sent: [`text`] takes control characters out, and
+/// a cleaned-up copy of an id that isn't one could pass for a different id that is.
+pub(crate) fn item_id(value: Option<&Value>) -> Option<String> {
+    let text = raw(value)?;
+    let text = text.trim();
+    if digits(text) {
+        return Some(text.to_string());
+    }
+    let (zid, rid) = text.split_once(':')?;
+    (text.len() <= 96 && digits(rid) && !zid.is_empty() && zid.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b)))
+        .then(|| text.to_string())
 }
 
 /// Whether `value` is an id of another mailbox (`<account>:<id>`): a folder or item shared with

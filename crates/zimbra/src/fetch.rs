@@ -8,9 +8,15 @@
 use crate::error::Error;
 use crate::http::{HttpRequest, HttpResponse, Method, RESPONSE_LIMIT, Secret};
 
-/// The request for message `id` (an own id) whole.
+/// The request for message `id` whole: an own id, or one of a mailbox mounted into this one's
+/// tree (`<account id>:<item id>`, as the REST service takes them).
 pub fn request(base: &str, token: &Secret, id: &str) -> Result<HttpRequest, Error> {
-    if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let ok = match id.split_once(':') {
+        None => digits(id),
+        Some((zid, rid)) => !zid.is_empty() && zid.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b)) && digits(rid),
+    };
+    if !ok {
         return Err(Error::NoSuchItem);
     }
     let url = format!("{}/service/home/~/?id={id}&auth=co", base.trim_end_matches('/'));

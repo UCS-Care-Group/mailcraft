@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The folders of mail (`GetFolderRequest`): the whole tree, which is small, as a complete
 //! listing. Folders of appointments, contacts, tasks and documents are left out with all that lies
-//! in them, and so are the chat history, saved searches and folders shared from other mailboxes.
+//! in them, and so are the chat history and saved searches. A folder of mail shared from another
+//! mailbox (a `link` mountpoint) is a folder here under its qualified `<zid>:<rid>` id — and kept
+//! in `mounted` too, for what it is and whose it is.
 
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{GraphFolder, MAX_LISTED_FOLDERS};
@@ -120,15 +122,38 @@ fn mount(link: &Value, parent: &str, out: &mut Listing) {
     if !out.seen.insert(id.clone()) {
         out.complete = false;
     }
+    let view = json::line(link.get("view"));
     out.mounted.push(Mountpoint {
-        id,
-        name,
+        id: id.clone(),
+        name: name.clone(),
         owner: json::line(link.get("owner")).chars().take(MAX_NAME).collect(),
         zid,
         rid,
         parent: parent.to_string(),
-        view: json::line(link.get("view")),
+        view: view.clone(),
     });
+    // A mountpoint of mail is a folder of this mailbox too: its qualified id is the one a folder
+    // read (`inid:"<zid>:<rid>"`) and its items' `l` name, and a mailbox it is shared from is
+    // never mistaken for a folder of this one's own ids. Anything else it holds stays in
+    // `mounted` only.
+    if matches!(view.as_str(), "" | "message" | "conversation") {
+        if out.folders.len() >= MAX_LISTED_FOLDERS {
+            out.complete = false;
+            return;
+        }
+        let (total, unread) = (json::number(link.get("n")), json::number(link.get("u")));
+        let clamp = |n: Option<u64>| n.map_or(0, |n| u32::try_from(n).unwrap_or(u32::MAX));
+        out.folders.push(GraphFolder {
+            id,
+            parent: parent.to_string(),
+            name,
+            kind: FolderKind::Custom,
+            total: clamp(total),
+            unread: clamp(unread),
+            counted: total.is_some(),
+            well_known: false,
+        });
+    }
 }
 
 fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {

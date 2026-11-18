@@ -101,26 +101,20 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
     }
     let mut messages = Vec::new();
     for m in listed.iter().take(PAGE) {
-        // An item of another mailbox is passed over; a hit whose id is no id at all can't be
-        // told from a cached message the listing left out — on a fresh read the page would
-        // still complete, and the run would count that message gone while the token moves
-        // past the change.
-        if json::own_id(m.get("id")).is_none() {
-            if json::foreign_id(m.get("id")) {
-                continue;
-            }
+        // A hit whose id is no id at all can't be told from a cached message the listing left
+        // out: on a fresh read the page would still complete, and the run would count that
+        // message gone while the token moves past the change.
+        if json::item_id(m.get("id")).is_none() {
             return Err(Error::Unreadable);
         }
         match m.get("l") {
             // An item that names no folder at all can't be told moved or removed: an empty
             // folder would have the run count it deleted while the token moves past the change.
             None => return Err(Error::Unreadable),
-            Some(l) if json::own_id(Some(l)).is_some() => {}
-            // A folder of another mailbox: the item is passed over like a foreign id.
-            Some(l) if json::foreign_id(Some(l)) => continue,
-            // An `l` that is neither — null, empty, no id of any mailbox's shape — can't be
-            // placed; passing it over would lose a message the server did send.
-            Some(_) => return Err(Error::Unreadable),
+            // A folder the server names in no item's id shape passes the item over, like a
+            // bad id does.
+            Some(l) if json::item_id(Some(l)).is_none() => continue,
+            _ => {}
         }
         if json::bad_list(m.get("e")) {
             return Err(Error::Unreadable);
@@ -147,7 +141,7 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
 
 /// A message as the model has one, from its summary; `None` for one that has no own id.
 pub fn message(m: &Value) -> Option<GraphMessage> {
-    let id = json::own_id(m.get("id"))?;
+    let id = json::item_id(m.get("id"))?;
     let flags = json::raw(m.get("f")).unwrap_or_default();
     let has = |c: char| flags.contains(c);
     let people = |kind: &str| -> Vec<Address> {
@@ -171,7 +165,7 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
     let sent = json::number(m.get("sd")).map_or(arrived, |ms| i64::try_from(ms / 1000).unwrap_or(arrived));
     let server = ServerMessage {
         id,
-        folder: json::own_id(m.get("l"))?,
+        folder: json::item_id(m.get("l"))?,
         read: !has('u'),
         answered: has('r'),
         forwarded: has('w'),
@@ -185,7 +179,7 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
             Importance::Normal
         },
         size: json::number(m.get("s")).unwrap_or(0),
-        thread: json::own_id(m.get("cid")).unwrap_or_default(),
+        thread: json::item_id(m.get("cid")).unwrap_or_default(),
         ..ServerMessage::default()
     };
     Some(GraphMessage {

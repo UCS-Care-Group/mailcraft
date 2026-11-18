@@ -44,12 +44,30 @@ pub struct Item {
     pub mime: String,
 }
 
+/// A folder of another mailbox mounted into this one's tree (a `link`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Mount {
+    /// Its parent in this mailbox's tree (a local id).
+    pub parent: u32,
+    pub name: String,
+    /// The owner's address.
+    pub owner: String,
+    /// What the folder holds (`message`, `appointment`, …).
+    pub view: String,
+    /// The mailbox it is shared from can't be reached for it now: reads of it fault.
+    pub broken: bool,
+}
+
 /// What the stand-in holds.
 #[derive(Clone, Debug, Default)]
 pub struct State {
     /// Folders by id: (parent, name, view).
     pub folders: BTreeMap<u32, (u32, String, String)>,
     pub items: BTreeMap<u32, Item>,
+    /// Folders of other mailboxes mounted into this one's tree, by qualified id (`zid:rid`).
+    pub mounts: BTreeMap<String, Mount>,
+    /// Items of other mailboxes, by qualified id (`zid:item`), with their folder's (`zid:rid`).
+    pub shared: BTreeMap<String, (String, Item)>,
     /// The number of the last change; a token is one of these.
     pub change: u64,
     /// For each item, the number of the change that last touched it.
@@ -193,6 +211,44 @@ impl StandIn {
     /// an index behind leaves it out. Asked for by name it answers whole.
     pub fn behind(&self, id: u32) {
         self.state.borrow_mut().behind.insert(id);
+    }
+
+    /// Mount another mailbox's folder of mail into the tree under `parent` (a local id), owned by
+    /// `owner`; answers its qualified id `zid:rid`.
+    pub fn mount(&self, parent: u32, name: &str, owner: &str) -> String {
+        let mut s = self.state.borrow_mut();
+        s.next += 1;
+        let rid = s.next;
+        s.next += 1;
+        let qualified = format!("zzz{}:{rid}", s.next);
+        s.mounts.insert(qualified.clone(), Mount { parent, name: name.into(), owner: owner.into(), view: "message".into(), ..Mount::default() });
+        qualified
+    }
+
+    /// Put a message into the mounted folder `mount` (`zid:rid`); answers its qualified id.
+    pub fn deliver_shared(&self, mount: &str, subject: &str, flags: &str) -> String {
+        let mut s = self.state.borrow_mut();
+        s.next += 1;
+        let zid = mount.split(':').next().unwrap_or("z");
+        let id = format!("{zid}:{}", s.next);
+        let mime =
+            format!("From: Bob <bob@example.org>\r\nTo: {USER}\r\nSubject: {subject}\r\nMessage-ID: <{id}@example.org>\r\n\r\nHello from {id}.\r\n");
+        let date = 1_700_000_000_000 + u64::from(s.next % 10_000) * 1000;
+        s.shared.insert(
+            id.clone(),
+            (
+                mount.to_string(),
+                Item { folder: 0, flags: flags.into(), subject: subject.into(), from: "bob@example.org".into(), date, mime, ..Item::default() },
+            ),
+        );
+        id
+    }
+
+    /// The mailbox the mounted folder is shared from can't be reached: its reads fault.
+    pub fn break_mount(&self, mount: &str) {
+        if let Some(m) = self.state.borrow_mut().mounts.get_mut(mount) {
+            m.broken = true;
+        }
     }
 
     /// A folder that appears only when the next delta is answered, as if made while a run was
@@ -419,13 +475,27 @@ impl StandIn {
         let count = s.items.values().filter(|i| i.folder == id).count();
         let unread = s.items.values().filter(|i| i.folder == id && i.flags.contains('u')).count();
         let children: Vec<u32> = s.folders.iter().filter(|(_, (parent, _, _))| *parent == id).map(|(id, _)| *id).collect();
+        let links: Vec<Value> = s
+            .mounts
+            .iter()
+            .filter(|(_, m)| m.parent == id)
+            .map(|(qualified, m)| {
+                let (zid, rid) = qualified.split_once(':').unwrap_or((qualified.as_str(), ""));
+                let count = s.shared.values().filter(|(folder, _)| folder == qualified).count();
+                let unread = s.shared.values().filter(|(folder, i)| folder == qualified && i.flags.contains('u')).count();
+                json!({"id": qualified, "name": m.name, "owner": m.owner, "view": m.view, "zid": zid, "rid": rid, "n": count, "u": unread})
+            })
+            .collect();
         drop(s);
         let inner: Vec<Value> = children.into_iter().map(|child| self.tree(child)).collect();
         let mut folder = json!({"id": id.to_string(), "name": name, "n": count, "u": unread, "folder": inner});
-        if !view.is_empty()
-            && let Value::Object(map) = &mut folder
-        {
-            map.insert("view".into(), json!(view));
+        if let Value::Object(map) = &mut folder {
+            if !view.is_empty() {
+                map.insert("view".into(), json!(view));
+            }
+            if !links.is_empty() {
+                map.insert("link".into(), json!(links));
+            }
         }
         folder
     }
@@ -481,9 +551,20 @@ impl StandIn {
         let query = body.get("query").and_then(Value::as_str).unwrap_or("");
         let limit = body.get("limit").and_then(Value::as_u64).unwrap_or(10).min(1000) as usize;
         let offset = body.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
-        let mut found: Vec<(&u32, &Item)> = if let Some(folder) = query.strip_prefix("inid:\"").and_then(|q| q.strip_suffix('"')) {
-            let Ok(folder) = folder.parse::<u32>() else { return fault("service.INVALID_REQUEST") };
-            s.items.iter().filter(|(id, i)| i.folder == folder && !s.vanished.contains(id)).collect()
+        let mut found: Vec<(String, String, &Item)> = if let Some(folder) = query.strip_prefix("inid:\"").and_then(|q| q.strip_suffix('"')) {
+            if let Some(mount) = s.mounts.get(folder) {
+                if mount.broken {
+                    return fault("mail.NO_SUCH_FOLDER");
+                }
+                s.shared.iter().filter(|(_, (f, _))| f == folder).map(|(id, (f, i))| (id.clone(), f.clone(), i)).collect()
+            } else {
+                let Ok(folder) = folder.parse::<u32>() else { return fault("service.INVALID_REQUEST") };
+                s.items
+                    .iter()
+                    .filter(|(id, i)| i.folder == folder && !s.vanished.contains(id))
+                    .map(|(id, i)| (id.to_string(), i.folder.to_string(), i))
+                    .collect()
+            }
         } else if query.contains("item:{") {
             // As the real server: `in:` takes a folder's path and `anywhere` is no folder —
             // `is:anywhere` is the scope that names every folder. A search with no scope leaves
@@ -509,29 +590,34 @@ impl StandIn {
                 }
                 // One the index is behind on is no fault and no hit — the answer just leaves it
                 // out, the way a real server's quiet drop comes back.
-                s.items.iter().filter(|(id, _)| ids.contains(id) && !s.behind.contains(id)).collect()
+                s.items
+                    .iter()
+                    .filter(|(id, _)| ids.contains(id) && !s.behind.contains(id))
+                    .map(|(id, i)| (id.to_string(), i.folder.to_string(), i))
+                    .collect()
             } else {
                 // No scope: Trash and Junk are out, and an id that isn't found is simply no
                 // answer — the empty page is never the word that the item is gone.
                 s.items
                     .iter()
                     .filter(|(id, i)| ids.contains(id) && i.folder != 3 && i.folder != 4 && !s.hidden.contains(id) && !s.vanished.contains(id))
+                    .map(|(id, i)| (id.to_string(), i.folder.to_string(), i))
                     .collect()
             }
         } else {
             return fault("service.INVALID_REQUEST");
         };
-        found.sort_by_key(|(_, item)| std::cmp::Reverse(item.date));
+        found.sort_by_key(|(_, _, item)| std::cmp::Reverse(item.date));
         // A cursor continues after the item it names; when that item is gone Zimbra goes on from
         // its sort value instead (the list is dateDesc). A stuck server gives the first page again.
         let offset = match body.get("cursor") {
             Some(_) if self.stuck.get() => offset,
             Some(cursor) => {
-                let at = cursor.get("id").and_then(Value::as_str).and_then(|id| id.parse::<u32>().ok());
-                match at.and_then(|at| found.iter().position(|(id, _)| **id == at)) {
+                let at = cursor.get("id").and_then(Value::as_str).unwrap_or("");
+                match found.iter().position(|(id, _, _)| id.as_str() == at) {
                     Some(at) => at.saturating_add(1),
                     None => match cursor.get("sortVal").and_then(Value::as_str).and_then(|s| s.parse::<u64>().ok()) {
-                        Some(sort) => found.iter().position(|(_, i)| i.date < sort).unwrap_or(found.len()),
+                        Some(sort) => found.iter().position(|(_, _, i)| i.date < sort).unwrap_or(found.len()),
                         None => return fault("service.INVALID_REQUEST"),
                     },
                 }
@@ -543,8 +629,8 @@ impl StandIn {
             .into_iter()
             .skip(offset)
             .take(limit)
-            .map(|(id, i)| {
-                json!({"id": id.to_string(), "l": i.folder.to_string(), "f": i.flags, "tn": i.tags.join(","), "d": i.date, "sf": i.date.to_string(), "s": i.mime.len(),
+            .map(|(id, folder, i)| {
+                json!({"id": id, "l": folder, "f": i.flags, "tn": i.tags.join(","), "d": i.date, "sf": i.date.to_string(), "s": i.mime.len(),
                     "su": i.subject, "fr": format!("Hello from {id}."), "mid": format!("<{id}@example.org>"),
                     "e": [{"t": "f", "a": i.from, "p": "Bob"}, {"t": "t", "a": USER}]})
             })
@@ -578,9 +664,15 @@ impl StandIn {
         if request.method() != Method::Get || request.field("Cookie") != Some(cookie.as_str()) {
             return HttpResponse::new(401, Vec::new());
         }
-        let id = query.split('&').find_map(|pair| pair.strip_prefix("id=")).and_then(|id| id.parse::<u32>().ok());
+        let id = query.split('&').find_map(|pair| pair.strip_prefix("id=")).unwrap_or("");
         let s = self.state.borrow();
-        match id.and_then(|id| s.items.get(&id).filter(|_| !s.vanished.contains(&id)).map(|i| i.mime.clone())) {
+        let mime = id
+            .parse::<u32>()
+            .ok()
+            .and_then(|id| s.items.get(&id).filter(|_| !s.vanished.contains(&id)))
+            .or_else(|| s.shared.get(id).map(|(_, i)| i))
+            .map(|i| i.mime.clone());
+        match mime {
             Some(mime) => HttpResponse::new(200, mime.into_bytes()),
             None => HttpResponse::new(404, Vec::new()),
         }
