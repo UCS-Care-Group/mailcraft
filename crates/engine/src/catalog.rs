@@ -73,6 +73,7 @@ Home|Respond|Reply All|mail.replyAll
 Home|Respond|Forward|mail.forward
 Home|Respond|Reply with Meeting|calendar.fromMessage
 Home|Respond|Forward as Attachment|mail.forwardAsAttachment
+Home|Respond|React|mail.react
 Home|Respond|Reply with IM|mail.replyIm
 Home|Action Shortcuts|Move to Folder Action Shortcut|mail.move
 Home|Action Shortcuts|Reply and Delete|mail.replyAndDelete

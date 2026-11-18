@@ -2871,6 +2871,11 @@ msgid "Cc: {names}"
 msgstr "ასლი: {names}"
 
 #. interface
+#: crates/ui-egui/src/reading/react.rs
+msgid "Celebrate"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
@@ -6744,7 +6749,7 @@ msgid "Hold Unsent Mail"
 msgstr "გაუგზავნელი ფოსტის შეჩერება"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "მთავარი"
@@ -7495,6 +7500,11 @@ msgstr "დახრილი"
 msgid "Item"
 msgstr "ელემენტი"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+msgid "Item from Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -7916,6 +7926,11 @@ msgid "Later keeps this account on IMAP for now. You can switch whenever you lik
 msgstr "„მოგვიანებით“ ამ ანგარიშს ჯერჯერობით IMAP-ზე ტოვებს. გადართვა ნებისმიერ დროს შეგიძლიათ: ბრძანებებში მოძებნეთ „Microsoft Graph-ზე გადასვლა“."
 
 #. interface
+#: crates/ui-egui/src/reading/react.rs
+msgid "Laugh"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "Lavender"
 msgstr ""
@@ -7989,6 +8004,11 @@ msgstr "ლიცენზიები"
 #, fuzzy
 msgid "Light"
 msgstr "ღია"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+msgid "Like"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -8183,6 +8203,11 @@ msgstr "ძებნა… ჯერჯერობით {folders}, {files}, {m
 #, fuzzy
 msgid "Looks like a brand."
 msgstr "ბრენდს ჰგავს."
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+msgid "Love"
+msgstr ""
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -8672,6 +8697,11 @@ msgstr "საფოსტო ყუთი"
 msgid "Make a signature with New."
 msgstr "ხელმოწერა შექმენით ღილაკით „ახალი“."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Make an Item from a Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -9157,6 +9187,11 @@ msgstr "ჩაკეცვა"
 msgid "Mobile"
 msgstr "მობილური"
 
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+msgid "Module bar"
+msgstr ""
+
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
 #, fuzzy
@@ -9502,7 +9537,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "სახელები ან მისამართები, გამოყოფილი ;-ით"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Navigation"
 msgstr "ნავიგაცია"
@@ -10365,6 +10400,11 @@ msgstr "შესაბამისი არავინ ან თქვენ
 #, fuzzy
 msgid "None"
 msgstr "არცერთი"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "None of those messages is in this mailbox any more."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11477,6 +11517,11 @@ msgid "Otherwise a notification shows the sender and the subject, never the mess
 msgstr "სხვა შემთხვევაში შეტყობინება აჩვენებს გამგზავნსა და თემას, არასოდეს წერილის ტექსტს ან მის სურათებს. რა ჩანს ჩაკეტილ ეკრანზე, ამას ტელეფონის კონფიდენციალურობის საკუთარი პარამეტრი წყვეტს."
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
@@ -12203,6 +12248,11 @@ msgstr "ვადამოსული შეხსენებების გ�
 #, fuzzy
 msgid "Range"
 msgstr "პერიოდი"
+
+#. command label, interface
+#: crates/engine/src/cmd/react.rs crates/ui-egui/src/reading/react.rs
+msgid "React"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -12943,7 +12993,7 @@ msgid "Reset View"
 msgstr "ხედის ჩამოყრა"
 
 #. command label, ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Respond"
 msgstr "პასუხი"
@@ -13227,6 +13277,11 @@ msgstr "ამ წესის გაშვება ფოსტაზე მ�
 #, fuzzy
 msgid "SHA-256 fingerprint"
 msgstr "SHA-256 ანაბეჭდი"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+msgid "Sad"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -14527,6 +14582,11 @@ msgid "Show Outlook's Favorites"
 msgstr "Outlook-ის რჩეულების ჩვენება"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show Picture Attachments as Pictures"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -14649,6 +14709,11 @@ msgstr "მეტი დავალების ჩვენება"
 #, fuzzy
 msgid "Show password"
 msgstr "პაროლის ჩვენება"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+msgid "Show picture attachments as pictures"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -15520,6 +15585,11 @@ msgstr "კვი"
 #, fuzzy
 msgid "Sunday"
 msgstr "კვირა"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+msgid "Surprised"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -18226,6 +18296,12 @@ msgid "This item has changes that aren't saved. Save them?"
 msgstr "ამ ელემენტს შეუნახავი ცვლილებები აქვს. შევინახო?"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
+msgstr "ამ ელემენტს მიმაგრებული აქვს ფაილები, რომლებსაც მხოლოდ სერვერი ინახავს და რომლებიც ასლს არ ექნებოდა: აქედან მისი კოპირება შეუძლებელია."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This item has files attached, which only the server keeps and which would be lost: it can't be moved to another calendar from here."
@@ -20646,6 +20722,26 @@ msgid "a picture in a message is at most {mb} MB"
 msgstr "წერილში სურათი მაქსიმუმ {mb} მბ-ია"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+msgid "a reaction can't be sent to a draft or to mail you wrote"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+msgid "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+msgid "a reaction isn't sent to automated mail (a no-reply address, a mailing list, bulk mail)"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+msgid "a reaction isn't sent to mail in Junk E-mail"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
 msgid "a reply may be {most} characters long at most"
@@ -21482,7 +21578,7 @@ msgid "no message is being written"
 msgstr "არცერთი წერილი არ იწერება"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "წერილი id-ით {id} არ არსებობს"
@@ -21822,7 +21918,7 @@ msgid "select a conversation in conversation view first"
 msgstr "ჯერ მონიშნეთ მიმოწერა მიმოწერების ხედში"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "ჯერ მონიშნეთ წერილი"
@@ -22056,7 +22152,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "ანგარიშს შესასვლელად მომხმარებლის სახელი ან ელფოსტის მისამართი არ აქვს"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "ანგარიში აღარ არსებობს"
@@ -22492,7 +22588,7 @@ msgid "the sender has no address to put on the list"
 msgstr "გამგზავნს სიაში დასამატებელი მისამართი არ აქვს"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "გამგზავნს გამოსადეგი ელფოსტის მისამართი არ აქვს"
@@ -23055,7 +23151,7 @@ msgid "this account has no signature; add one in File › Options"
 msgstr "ამ ანგარიშს ხელმოწერა არ აქვს; დაამატეთ ფაილი › პარამეტრებში"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/react.rs
 #, fuzzy
 msgid "this account has no {folder} folder"
 msgstr "ამ ანგარიშს საქაღალდე {folder} არ აქვს"
@@ -23139,16 +23235,31 @@ msgid "this message already has as many attachments as it can carry"
 msgstr "ამ წერილს უკვე იმდენი დანართი აქვს, რამდენსაც დაიტევს"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+msgid "this message has a warning about its sender, so no reaction is sent to it"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/pictures.rs
 #, fuzzy
 msgid "this message has had as many pictures as it can"
 msgstr "ამ წერილს უკვე იმდენი სურათი აქვს, რამდენიც შეიძლება"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+msgid "this message has no Message-ID, so a reaction can't say what it answers"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "this message has no sender address to look for"
 msgstr "ამ წერილს საძიებელი გამგზავნის მისამართი არ აქვს"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+msgid "this message has no sender to send a reaction to"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -23187,6 +23298,11 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "გამეორება"
 msgstr[1] "გამეორება"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+msgid "to {recipient}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -23359,6 +23475,11 @@ msgstr "ოფლაინ რეჟიმში მუშაობა"
 #, fuzzy
 msgid "year"
 msgstr "წელი"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+msgid "you already reacted to this message with {emoji}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -24551,6 +24672,13 @@ msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "{n} წერილი უკვე აქ იყო"
 msgstr[1] "{n} წერილი უკვე აქ იყო"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/left_out.rs
