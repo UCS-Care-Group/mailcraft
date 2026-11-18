@@ -24,6 +24,27 @@ const MAX_DEPTH: usize = 64;
 /// Longest folder name taken, in characters.
 const MAX_NAME: usize = 255;
 
+/// A folder of another mailbox mounted into this one's tree (a `link` in `GetFolderResponse`):
+/// what the server shows it as and whose it is, as far as the answer names it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Mountpoint {
+    /// Its id in this mailbox (`<zid>:<rid>`), the one to search under.
+    pub id: String,
+    /// The name it is mounted under.
+    pub name: String,
+    /// The owner's address, when the server names it (`owner`).
+    pub owner: String,
+    /// The owner's mailbox id (`zid`).
+    pub zid: String,
+    /// The folder's id in the owner's mailbox (`rid`).
+    pub rid: String,
+    /// Its parent in this mailbox's tree.
+    pub parent: String,
+    /// What the folder holds (`message`, `appointment`, `contact`, …); only `message` ones are
+    /// mountable mail here.
+    pub view: String,
+}
+
 /// Every folder of mail the server has, parents before what lies in them, and which of them are
 /// the server's own.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -32,6 +53,9 @@ pub struct Listing {
     pub folders: Vec<GraphFolder>,
     /// The ids of the server's own folders (the Inbox, Sent, Drafts, Trash, Junk and the like).
     pub well_known: Vec<String>,
+    /// The folders of other mailboxes mounted into this one's tree, kept apart: their ids and
+    /// messages are another mailbox's, asked for under their qualified ids.
+    pub mounted: Vec<Mountpoint>,
     /// The tree was read to its end: a folder that isn't in it is one the server doesn't have.
     pub complete: bool,
     /// Every own id named, for knowing one the server names twice.
@@ -69,7 +93,42 @@ pub fn answer(response: &HttpResponse) -> Result<Listing, Error> {
     for top in tops {
         walk(top, "", 0, &mut out);
     }
+    // Mountpoints that hang off no folder of the tree are named at the answer's top.
+    for link in json::list(answer.get("link")) {
+        mount(link, "", &mut out);
+    }
     Ok(out)
+}
+
+/// One `link` of a folder: a mountpoint of another mailbox's folder, with `zid` and `rid` naming
+/// it in the owner's. One that can't be told whose it is or what it is isn't mounted at all —
+/// another mailbox's mail is never lost from a listing of this one.
+fn mount(link: &Value, parent: &str, out: &mut Listing) {
+    if out.mounted.len() >= MAX_LISTED_FOLDERS {
+        return;
+    }
+    let id = json::line(link.get("id"));
+    let Some((zid, rid)) = id.split_once(':') else { return };
+    let (zid, rid) = (zid.trim().to_string(), rid.trim().to_string());
+    if zid.is_empty() || !rid.bytes().all(|b| b.is_ascii_digit()) {
+        return;
+    }
+    let name: String = json::line(link.get("name")).chars().take(MAX_NAME).collect();
+    if name.is_empty() {
+        return;
+    }
+    if !out.seen.insert(id.clone()) {
+        out.complete = false;
+    }
+    out.mounted.push(Mountpoint {
+        id,
+        name,
+        owner: json::line(link.get("owner")).chars().take(MAX_NAME).collect(),
+        zid,
+        rid,
+        parent: parent.to_string(),
+        view: json::line(link.get("view")),
+    });
 }
 
 fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
@@ -138,5 +197,10 @@ fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
     }
     for inner in json::list(folder.get("folder")) {
         walk(inner, &here, depth + 1, out);
+    }
+    // Folders of other mailboxes mounted here are `link` entries: kept for what they are, not
+    // among this mailbox's own folders.
+    for link in json::list(folder.get("link")) {
+        mount(link, &here, out);
     }
 }

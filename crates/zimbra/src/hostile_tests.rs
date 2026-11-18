@@ -251,6 +251,38 @@ fn an_item_with_no_folder_is_unreadable_not_removed() {
 }
 
 #[test]
+fn a_mounted_folder_of_another_mailbox_is_kept_apart() {
+    let found = answer(
+        200,
+        &json!({"Body": {"GetFolderResponse": {"folder": {"id": "1", "folder": [
+            {"id": "2", "name": "Inbox", "view": "message"},
+            {"id": "300", "name": "Parent", "link": [
+                {"id": "abc123:257", "name": "shared-inbox", "owner": "team@example.org", "view": "message"},
+                {"id": "abc123:9", "name": "shared-cal", "owner": "team@example.org", "view": "appointment"},
+                {"id": "no-shape", "name": "broken"},
+                {"id": ":257", "name": "broken"},
+            ]},
+        ]}, "link": [{"id": "def456:2", "name": "top-level", "view": "message"}]}}}),
+    );
+    let listed = folders::answer(&found).unwrap();
+    // A folder shared into the tree is no folder of this mailbox's, and the listing stays complete:
+    // nothing of ours is lost by it. Ones that can't be told whole are passed over, and a second
+    // id of the same shape is a listing that answers for nothing.
+    assert_eq!(listed.folders.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["Inbox", "Parent"]);
+    assert!(listed.complete);
+    let mounted: Vec<(&str, &str, &str, &str)> =
+        listed.mounted.iter().map(|m| (m.id.as_str(), m.name.as_str(), m.owner.as_str(), m.view.as_str())).collect();
+    assert_eq!(
+        mounted,
+        [
+            ("abc123:257", "shared-inbox", "team@example.org", "message"),
+            ("abc123:9", "shared-cal", "team@example.org", "appointment"),
+            ("def456:2", "top-level", "", "message"),
+        ]
+    );
+}
+
+#[test]
 fn a_text_of_many_byte_characters_is_held_to_the_byte_limit() {
     // The parser's cap and the model validator's are both bytes: five thousand four-byte
     // characters are 20,000 bytes, over the 16 KiB either side allows, so the text is cut at
