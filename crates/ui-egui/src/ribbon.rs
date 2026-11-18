@@ -999,7 +999,7 @@ fn review() -> Tab {
         g(
             "Proofing",
             vec![
-                Item::big_menu("ui.spelling", "spelling", "Spelling", "Check spelling with a local dictionary", Menu::Spelling).at(0, 2),
+                Item::big_menu("spelling", "spelling", "Spelling", "Check spelling with a local dictionary", Menu::Spelling).at(0, 2),
                 Item::pending("review.thesaurus", "Thesaurus", 0),
                 Item::big("wordCount", "Word\nCount", "review.wordCount", no()).at(0, 3),
             ],
