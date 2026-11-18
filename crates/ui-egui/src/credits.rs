@@ -121,16 +121,16 @@ impl SortKey {
     /// Menu label and table header.
     pub fn label(self) -> (&'static str, &'static str) {
         match self {
-            SortKey::Name => ("Name (A–Z)", "Name"),
-            SortKey::Prs => ("Merged PRs", "PRs"),
-            SortKey::Commits => ("Commits", "Commits"),
-            SortKey::LinesAdded => ("Lines added", "+Lines"),
-            SortKey::LinesDeleted => ("Lines deleted", "−Lines"),
-            SortKey::LinesDelta => ("Line delta", "ΔLines"),
-            SortKey::BinaryAdded => ("Binary assets added", "+Bin"),
-            SortKey::BinaryDeleted => ("Binary assets removed", "−Bin"),
-            SortKey::FirstCommit => ("First commit", "First"),
-            SortKey::LastCommit => ("Last commit", "Last"),
+            SortKey::Name => (tl_later!("Name (A–Z)"), tl_later!("Name")),
+            SortKey::Prs => (tl_later!("Merged PRs"), tl_later!("PRs")),
+            SortKey::Commits => (tl_later!("Commits"), tl_later!("Commits")),
+            SortKey::LinesAdded => (tl_later!("Lines added"), tl_later!("+Lines")),
+            SortKey::LinesDeleted => (tl_later!("Lines deleted"), tl_later!("−Lines")),
+            SortKey::LinesDelta => (tl_later!("Line delta"), tl_later!("ΔLines")),
+            SortKey::BinaryAdded => (tl_later!("Binary assets added"), tl_later!("+Bin")),
+            SortKey::BinaryDeleted => (tl_later!("Binary assets removed"), tl_later!("−Bin")),
+            SortKey::FirstCommit => (tl_later!("First commit"), tl_later!("First")),
+            SortKey::LastCommit => (tl_later!("Last commit"), tl_later!("Last")),
         }
     }
 
