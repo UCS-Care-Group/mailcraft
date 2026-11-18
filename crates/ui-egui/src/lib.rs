@@ -1115,6 +1115,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Message › Attachments",
         r#"{"id"?: number (the selected message), "index": number (zero-based attachment index)} — preview the file using an installed helper, if supported"#,
     ),
+    (
+        attachment_open::OPEN_COMPOSE,
+        "Open Attachment",
+        "Message › Attachments",
+        r#"{"compose": number (draft being written), "index": number (zero-based attachment index)} — open a copy in the associated app"#,
+    ),
     ("ui.focusSearch", "Search", "Search", "{}"),
     (
         "ui.advancedSearch",
@@ -2161,6 +2167,7 @@ impl MailApp {
                 matches!(self.server_link(), server_search::Link::Ask | server_search::Link::NotConnected { retry: true })
             }
             None if id == "ui.copySelection" => self.text_selection.any(),
+            None if id == attachment_open::OPEN_COMPOSE => self.session.compose.as_ref().is_some_and(|c| !c.attachments.is_empty()),
             None if id == "ui.openDataFolder" => self.services.data_folder.is_some() && !self.data_removed,
             None => UI_COMMANDS.iter().any(|c| c.0 == id),
         }

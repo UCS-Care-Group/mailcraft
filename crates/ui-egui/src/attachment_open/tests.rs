@@ -111,3 +111,22 @@ fn junk_params_are_refused() {
     }
     assert!(opened.lock().unwrap().is_empty());
 }
+
+#[test]
+fn a_compose_attachment_keeps_the_same_opening_safeguards() {
+    let (mut a, id, opened) = app(&["report.pdf", "budget.xlsm", "invoice.pdf.js"]);
+    let reply = a.execute("mail.forward", json!({"id": id})).unwrap();
+    let compose = reply["compose"].as_u64().unwrap();
+    a.execute("mail.new", json!({})).unwrap();
+    assert_ne!(a.session.compose_id(), Some(compose));
+
+    let command = super::OPEN_COMPOSE;
+    assert_eq!(mailcraft_engine::agent::access(command), Some(mailcraft_engine::agent::Access::Never));
+    assert!(a.run(command, json!({"compose": compose, "index": 2})).is_err());
+    assert_eq!(a.run(command, json!({"compose": compose, "index": 1})).unwrap()["pending"], "confirm");
+    assert!(opened.lock().unwrap().is_empty());
+    a.dialog = None;
+
+    assert_eq!(a.run(command, json!({"compose": compose, "index": 0})).unwrap()["opened"], true);
+    assert_eq!(*opened.lock().unwrap(), vec![("report.pdf".to_string(), b"hello".to_vec())]);
+}
