@@ -99,6 +99,8 @@ internal class CoreSettings(
     private val keep: suspend () -> Unit,
     /** Hears the switches the owner saved (the Reminders switch sets or calls off the alarms). */
     private val changed: (Switches) -> Unit = {},
+    /** The accounts held back from their first sync, forgotten with the data ([removeData]). */
+    private val holds: FirstSyncHolds? = null,
 ) : SettingsApi {
     override fun codes(): List<String> =
         runCatching { keepOfflineCodes() }.getOrNull()?.takeIf { it.isNotEmpty() } ?: OFFLINE_CODES
@@ -158,13 +160,18 @@ internal class CoreSettings(
         null
     }
 
-    override suspend fun removeData(): DataRemoval? = try {
-        when (val done = core.deleteLocalData()) {
-            is DataRemoved.SignInsMayRemain -> DataRemoval(done.message)
-            else -> DataRemoval()
+    override suspend fun removeData(): DataRemoval? {
+        val remove: suspend () -> DataRemoval? = {
+            try {
+                when (val done = core.deleteLocalData()) {
+                    is DataRemoved.SignInsMayRemain -> DataRemoval(done.message)
+                    else -> DataRemoval()
+                }
+            } catch (_: CoreException) {
+                null
+            }
         }
-    } catch (_: CoreException) {
-        null
+        return if (holds != null) holds.removing(remove) else remove()
     }
 
     override suspend fun removalNoticeRead() {

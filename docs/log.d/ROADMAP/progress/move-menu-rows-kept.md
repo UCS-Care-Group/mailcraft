@@ -1,0 +1,1 @@
+| 2026-11-16 | #1176, follow-up: the Move to Folder and Copy to Folder menus build every account's folder tree once, when the menu opens, in one pass over the folders (as Move Items does) instead of on every frame, and fold a folder's search text once |

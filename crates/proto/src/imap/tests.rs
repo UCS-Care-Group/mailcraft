@@ -68,20 +68,20 @@ fn login_quotes_its_strings() {
 
 #[test]
 fn login_sends_what_quotes_cannot_carry_as_literals() {
-    let mut s = Script::new("+ go on\r\nA0001 OK welcome\r\n");
+    let mut s = Script::new("+ go on\r\nA0001 OK [CAPABILITY IMAP4rev1] welcome\r\n");
     let mut imap = Imap::resume(&mut s);
     imap.login("ada", "pässwörd").unwrap();
     assert_eq!(s.sent(), "A0001 LOGIN \"ada\" {10}\r\npässwörd\r\n");
 
     // Both as literals, each after its own go-ahead; a line break can't end the command early.
-    let mut s = Script::new("+ go on\r\n+ go on\r\nA0001 OK welcome\r\n");
+    let mut s = Script::new("+ go on\r\n+ go on\r\nA0001 OK [CAPABILITY IMAP4rev1] welcome\r\n");
     let mut imap = Imap::resume(&mut s);
     imap.login("ädä", "two\r\nA0002 LOGOUT").unwrap();
     assert_eq!(s.sent(), "A0001 LOGIN {5}\r\nädä {17}\r\ntwo\r\nA0002 LOGOUT\r\n");
 
     // A very long password too.
     let long = "x".repeat(MAX_QUOTED + 1);
-    let mut s = Script::new("+ go on\r\nA0001 OK welcome\r\n");
+    let mut s = Script::new("+ go on\r\nA0001 OK [CAPABILITY IMAP4rev1] welcome\r\n");
     Imap::resume(&mut s).login("ada", &long).unwrap();
     assert!(s.sent().starts_with("A0001 LOGIN \"ada\" {1001}\r\nxxx"));
 }
@@ -145,7 +145,7 @@ fn a_token_waits_for_the_go_ahead_otherwise() {
     // A server that hasn't said what it can do, one without SASL-IR, and one that has SASL-IR
     // but didn't list the mechanism: each is asked first.
     for greeting in ["", "* OK [CAPABILITY IMAP4rev1 AUTH=XOAUTH2] ready\r\n", "* OK [CAPABILITY IMAP4rev1 SASL-IR AUTH=PLAIN] ready\r\n"] {
-        let mut s = Script::new(format!("{greeting}+ \r\n* CAPABILITY IMAP4rev1 IDLE\r\nA0001 OK welcome\r\n"));
+        let mut s = Script::new(format!("{greeting}+ \r\n* CAPABILITY IMAP4rev1 IDLE\r\nA0001 OK [CAPABILITY IMAP4rev1 IDLE] welcome\r\n"));
         let mut imap = if greeting.is_empty() { Imap::resume(&mut s) } else { Imap::connect(&mut s).unwrap() };
         imap.authenticate_xoauth2("ada@example.org", TOKEN).unwrap();
         assert!(imap.is_authenticated(), "{greeting:?}");
@@ -1064,4 +1064,37 @@ fn namespace_reads_personal_prefix_and_delimiter() {
     imap.capabilities = Some(vec!["IMAP4REV1".into()]);
     assert_eq!(imap.namespace().unwrap(), None);
     assert_eq!(s.sent(), "");
+}
+
+/// #1147: a token sign-in is followed by the `ID` command where the server offers it, as for a
+/// password (Coremail refuses every mailbox until a client has said which it is).
+#[test]
+fn a_token_sign_in_is_followed_by_the_id_command_where_it_is_offered() {
+    let mut s = Script::new(
+        "* OK [CAPABILITY IMAP4rev1 SASL-IR AUTH=XOAUTH2 ID] ready\r\nA0001 OK [CAPABILITY IMAP4rev1 IDLE ID] welcome\r\nA0002 OK ID done\r\n",
+    );
+    let mut imap = Imap::connect(&mut s).unwrap();
+    imap.authenticate_xoauth2("ada@example.org", TOKEN).unwrap();
+    assert!(imap.is_authenticated());
+    assert_eq!(s.sent(), format!("A0001 AUTHENTICATE XOAUTH2 {}\r\nA0002 ID (\"name\" \"MailCraft\")\r\n", bearer()),);
+    assert!(s.finished());
+}
+
+/// #1147: after STARTTLS `resume` clears the capabilities, so they are asked for before `ID` goes
+/// out: a token sign-in over STARTTLS is followed by `ID` there too.
+#[test]
+fn a_token_sign_in_after_starttls_asks_what_the_server_can_do_before_id() {
+    let mut s = Script::new("+ \r\nA0001 OK welcome\r\n* CAPABILITY IMAP4rev1 ID\r\nA0002 OK done\r\nA0003 OK ID done\r\n");
+    let mut imap = Imap::resume(&mut s);
+    imap.authenticate_xoauth2("ada@example.org", TOKEN).unwrap();
+    assert!(imap.is_authenticated());
+    assert_eq!(s.sent(), format!("A0001 AUTHENTICATE XOAUTH2\r\n{}\r\nA0002 CAPABILITY\r\nA0003 ID (\"name\" \"MailCraft\")\r\n", bearer()),);
+    assert!(s.finished());
+
+    // Asked, and it doesn't offer `ID`: nothing more goes out.
+    let mut s = Script::new("+ \r\nA0001 OK welcome\r\n* CAPABILITY IMAP4rev1 IDLE\r\nA0002 OK done\r\n");
+    let mut imap = Imap::resume(&mut s);
+    imap.authenticate_xoauth2("ada@example.org", TOKEN).unwrap();
+    assert_eq!(s.sent(), format!("A0001 AUTHENTICATE XOAUTH2\r\n{}\r\nA0002 CAPABILITY\r\n", bearer()));
+    assert!(s.finished());
 }

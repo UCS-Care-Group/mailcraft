@@ -275,6 +275,31 @@ class SettingsControllerTest {
     }
 
     @Test
+    fun aNewAccountsFirstSyncAsksForWhatItsWindowBringsWithinTheSpaceGivenItsMail() {
+        val api = FakeSettings(free = 0)
+        val c = controller(api)
+        val month = api.estimate("1m")
+        val answers = mutableListOf<Boolean>()
+        // Plenty of space for its mail: what the window brings is the size asked about.
+        app.launch { answers.add(c.roomForFirstSync(1u, 100_000L)) }
+        assertEquals(month, c.ui.value.space?.warning?.needed)
+        assertEquals(1uL, c.ui.value.space?.account)
+        assertNull(c.ui.value.space?.forWindow)
+        c.actions().onSpaceNo()
+        assertEquals(listOf(false), answers)
+        // One megabyte for its mail: the core keeps it within that, so that is all it needs.
+        app.launch { answers.add(c.roomForFirstSync(1u, 1L)) }
+        assertEquals(1024L * 1024, c.ui.value.space?.warning?.needed)
+        c.actions().onSpaceYes()
+        assertEquals(listOf(false, true), answers)
+        // With room it goes on at once, asking nothing.
+        api.free = 50 * GIB
+        app.launch { answers.add(c.roomForFirstSync(1u, 500L)) }
+        assertEquals(listOf(false, true, true), answers)
+        assertNull(c.ui.value.space)
+    }
+
+    @Test
     fun twoSyncsThatAskAreAskedOneAfterTheOther() {
         val c = controller(FakeSettings(free = 0))
         val answers = mutableListOf<Boolean>()
