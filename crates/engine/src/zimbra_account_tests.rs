@@ -53,13 +53,11 @@ fn a_zimbra_account_is_added_and_its_commands_answer() {
     // The IMAP request is not for it, and its own isn't built.
     assert!(said(s.run("sync.request", &json!({"account": id}))).contains(NOT_BUILT));
     assert!(crate::cmd::account::sync_request(&s, id).is_err());
-    assert!(said(s.run("sync.zimbraRequest", &json!({"account": id}))).contains(NOT_BUILT));
-    assert!(said(s.run("sync.zimbraFetchRequest", &json!({"account": id}))).contains(NOT_BUILT));
-    let result = json!({"result": {"account": id, "email": "ada@example.org"}});
-    assert!(said(s.run("sync.applyZimbra", &result)).contains(NOT_BUILT));
-    // A result that isn't one, or for another account, is refused before anything else.
-    assert!(!said(s.run("sync.applyZimbra", &json!({"result": {"account": id, "email": "eve@example.org"}}))).contains(NOT_BUILT));
-    assert!(!said(s.run("sync.applyZimbra", &json!({"result": {"account": id, "token": "no spaces"}}))).contains(NOT_BUILT));
+    assert_eq!(s.run("sync.zimbraRequest", &json!({"account": id})).unwrap()["url"], URL);
+    assert!(s.run("sync.zimbraFetchRequest", &json!({"account": id})).unwrap()["ids"].as_array().unwrap().is_empty());
+    // A result that isn't one, or for another account, is refused.
+    assert!(s.run("sync.applyZimbra", &json!({"result": {"account": id, "email": "eve@example.org"}})).is_err());
+    assert!(s.run("sync.applyZimbra", &json!({"result": {"account": id, "token": "no spaces"}})).is_err());
 }
 
 #[test]

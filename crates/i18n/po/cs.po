@@ -1662,6 +1662,11 @@ msgid "Apply Downloaded To-dos"
 msgstr "Použít stažené úkoly"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Apply Downloaded Zimbra Messages"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -15580,7 +15585,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "Zastaveno před koncem. Opětovným importem souboru přinesete zbytek."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "Zastaveno; příště bude pokračovat odsud"
@@ -17489,7 +17494,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "Server odmítl přihlášení tohoto účtu. Znovu se přihlaste pomocí Odeslat/přijmout."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "Server odmítl přihlášení účtu {name}: přihlaste se znovu"
@@ -19494,7 +19499,7 @@ msgid "Up to 50 MB"
 msgstr "Do 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "Aktuální"
@@ -20659,9 +20664,8 @@ msgstr "Účty Zimbra se testují: spusťte MailCraft s MAILCRAFT_ZIMBRA=1 a vyz
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
-#, fuzzy
-msgid "Zimbra accounts can't be sent and received yet: that part is not built"
-msgstr "Účty Zimbra zatím nemohou odesílat a přijímat: tato část ještě není hotová"
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -21814,7 +21818,7 @@ msgid "no message with id {id}"
 msgstr "žádná zpráva s id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "žádná zpráva s id {id} ve složce {name}"
@@ -22790,12 +22794,6 @@ msgid "the request was lost"
 msgstr "požadavek se ztratil"
 
 #. what a command says
-#: crates/engine/src/cmd/zimbra_mail.rs
-#, fuzzy
-msgid "the result is for another account"
-msgstr "výsledek je pro jiný účet"
-
-#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result would make this account keep more sync state than is taken in"
@@ -23359,16 +23357,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "tento účet serveru Exchange nemá nastavení serveru"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "toto Odeslat/přijmout bylo pro jiný účet, ne pro {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "toto Odeslat/přijmout bylo pro server, který {name} uváděl dříve"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25740,6 +25743,14 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Účty Zimbra zatím nemohou odesílat a přijímat: tato část ještě není hotová"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "výsledek je pro jiný účet"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

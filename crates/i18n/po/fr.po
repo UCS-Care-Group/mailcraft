@@ -1666,6 +1666,11 @@ msgid "Apply Downloaded To-dos"
 msgstr "Appliquer les tâches téléchargées"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Apply Downloaded Zimbra Messages"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -15482,7 +15487,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "Interrompu avant la fin. Importez de nouveau le fichier pour récupérer le reste."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "Arrêté ; reprendra d'ici la prochaine fois"
@@ -17382,7 +17387,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "Le serveur a refusé la connexion pour ce compte. Utilisez Envoyer/Recevoir pour vous reconnecter."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "Le serveur a refusé la connexion pour {name} : reconnectez-vous"
@@ -19378,7 +19383,7 @@ msgid "Up to 50 MB"
 msgstr "Jusqu'à 50 Mo"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "À jour"
@@ -20526,9 +20531,8 @@ msgstr "Les comptes Zimbra sont en cours de test : démarrez MailCraft avec MAIL
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
-#, fuzzy
-msgid "Zimbra accounts can't be sent and received yet: that part is not built"
-msgstr "Les comptes Zimbra ne peuvent pas encore envoyer ni recevoir : cette partie n'est pas encore faite"
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -21675,7 +21679,7 @@ msgid "no message with id {id}"
 msgstr "aucun message avec l'id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "aucun message avec l'id {id} dans {name}"
@@ -22651,12 +22655,6 @@ msgid "the request was lost"
 msgstr "la demande s'est perdue"
 
 #. what a command says
-#: crates/engine/src/cmd/zimbra_mail.rs
-#, fuzzy
-msgid "the result is for another account"
-msgstr "le résultat est pour un autre compte"
-
-#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result would make this account keep more sync state than is taken in"
@@ -23220,16 +23218,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "ce compte de serveur Exchange n'a pas de paramètres de serveur"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "cet Envoyer/Recevoir était destiné à un autre compte, pas à {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "cet Envoyer/Recevoir concernait le serveur {name} nommé précédemment"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25480,6 +25483,14 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Lignes"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Les comptes Zimbra ne peuvent pas encore envoyer ni recevoir : cette partie n'est pas encore faite"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "le résultat est pour un autre compte"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"
