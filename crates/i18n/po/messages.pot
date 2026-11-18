@@ -1108,6 +1108,16 @@ msgstr ""
 msgid "Also Hotmail, Live and MSN"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Also keep this account's calendar, over CalDAV at this server"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Also keep this account's contacts, over CardDAV at this server"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Always Download Pictures from Sender"

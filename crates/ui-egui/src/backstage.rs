@@ -237,8 +237,8 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(width, 26.0));
             ui.new_child(egui::UiBuilder::new().max_rect(br)).add_sized(br.size(), button)
         };
-        let settings_w = button_w(ui, &tl!("Settings"));
-        let remove_w = button_w(ui, &tl!("Remove"));
+        let settings_w = button_w(ui, tl!("Settings"));
+        let remove_w = button_w(ui, tl!("Remove"));
         let settings_at = if removable { 94.0 + remove_w } else { 12.0 + settings_w };
         // (An account kept in step through Graph has no servers to change, #312.)
         let settings_tip = if a.is_shared() {
