@@ -1,0 +1,100 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! Messages as headers and a preview (`SearchRequest` for messages): a page of one folder's, newest
+//! first, or the messages a delta named, by id.
+//!
+//! What a message is said to be comes from its summary: `id`, `l` (its folder), `f` (its flags:
+//! `u` unread, `f` flagged, `r` replied, `w` forwarded, `d` draft, `a` with attachments, `!` and
+//! `?` high and low importance), `tn` (its tags, which are categories here), `d` (when it arrived,
+//! in milliseconds), `s` (its size), `su`, `fr` (the preview), `mid` (its `Message-ID`) and `e`
+//! (the people: `f` from, `t` to, `c` cc).
+
+use mailcraft_model::sync::{GraphMessage, ServerMessage};
+use mailcraft_model::{Address, FlagStatus, Importance};
+use serde_json::{Value, json};
+
+use crate::error::Error;
+use crate::http::{HttpRequest, HttpResponse, Secret};
+use crate::json;
+use crate::soap;
+
+/// Messages one page of a folder holds.
+pub const PAGE: usize = 250;
+/// Most messages asked for by id at once.
+pub const BY_ID: usize = 100;
+/// Most people taken of a message, and categories.
+const MAX_PEOPLE: usize = 200;
+const MAX_CATEGORIES: usize = 50;
+
+/// The page of folder `folder`'s messages that starts `offset` messages from the newest.
+pub fn folder_page(base: &str, token: &Secret, folder: &str, offset: usize) -> Result<HttpRequest, Error> {
+    let body =
+        json!({"query": format!("inid:\"{folder}\""), "types": "message", "sortBy": "dateDesc", "limit": PAGE, "offset": offset, "recip": "2"});
+    soap::request(base, "SearchRequest", soap::MAIL, body, Some(token))
+}
+
+/// The messages `ids` (own ids, at most [`BY_ID`]), wherever they are.
+pub fn by_id(base: &str, token: &Secret, ids: &[String]) -> Result<HttpRequest, Error> {
+    let ids: Vec<&str> = ids.iter().map(String::as_str).filter(|id| id.bytes().all(|b| b.is_ascii_digit())).take(BY_ID).collect();
+    let body = json!({"query": format!("item:{{{}}}", ids.join(",")), "types": "message", "limit": BY_ID, "recip": "2"});
+    soap::request(base, "SearchRequest", soap::MAIL, body, Some(token))
+}
+
+/// The messages of a `SearchResponse` and whether there are more after them.
+pub fn answer(response: &HttpResponse) -> Result<(Vec<GraphMessage>, bool), Error> {
+    let answer = soap::answer("SearchRequest", response)?;
+    let messages = json::list(answer.get("m")).iter().take(PAGE).filter_map(message).collect();
+    Ok((messages, json::on(answer.get("more"))))
+}
+
+/// A message as the model has one, from its summary; `None` for one that has no own id.
+pub fn message(m: &Value) -> Option<GraphMessage> {
+    let id = json::own_id(m.get("id"))?;
+    let flags = json::line(m.get("f"));
+    let has = |c: char| flags.contains(c);
+    let people = |kind: &str| -> Vec<Address> {
+        json::list(m.get("e"))
+            .iter()
+            .filter(|e| json::line(e.get("t")) == kind)
+            .take(MAX_PEOPLE)
+            .map(|e| Address::new(json::line(e.get("p")), json::line(e.get("a"))))
+            .filter(|a| !a.email.is_empty())
+            .collect()
+    };
+    let categories: Vec<String> =
+        json::line(m.get("tn")).split(',').map(str::trim).filter(|t| !t.is_empty()).take(MAX_CATEGORIES).map(String::from).collect();
+    let arrived = json::number(m.get("d")).map_or(0, |ms| i64::try_from(ms / 1000).unwrap_or(0));
+    let sent = json::number(m.get("sd")).map_or(arrived, |ms| i64::try_from(ms / 1000).unwrap_or(arrived));
+    let server = ServerMessage {
+        id,
+        folder: json::own_id(m.get("l")).unwrap_or_default(),
+        read: !has('u'),
+        answered: has('r'),
+        forwarded: has('w'),
+        flag: if has('f') { FlagStatus::Flagged } else { FlagStatus::None },
+        categories,
+        importance: if has('!') {
+            Importance::High
+        } else if has('?') {
+            Importance::Low
+        } else {
+            Importance::Normal
+        },
+        size: json::number(m.get("s")).unwrap_or(0),
+        thread: json::own_id(m.get("cid")).unwrap_or_default(),
+        ..ServerMessage::default()
+    };
+    Some(GraphMessage {
+        server,
+        message_id: json::line(m.get("mid")).trim_matches(['<', '>']).to_string(),
+        subject: json::line(m.get("su")),
+        from: people("f").into_iter().next().unwrap_or_default(),
+        to: people("t"),
+        cc: people("c"),
+        sent,
+        received: arrived,
+        preview: json::line(m.get("fr")),
+        has_attachments: has('a'),
+        draft: Some(has('d')),
+    })
+}

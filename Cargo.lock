@@ -3580,6 +3580,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-zimbra"
+version = "0.13.0"
+dependencies = [
+ "log",
+ "mailcraft-model",
+ "proptest",
+ "serde_json",
+]
+
+[[package]]
 name = "md-5"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,1 @@
+| 2026-11-16 | minor | Zimbra Z2: `zimbra`, L3: a Zimbra server's web service (SOAP in JSON and REST) without I/O, a hostile JSON reader, mail down as a run in pieces, and a strict stand-in; nothing drives it yet |
