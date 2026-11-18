@@ -458,15 +458,23 @@ fn sniffed(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
-/// `<img>` asks for by `cid:` and is a picture by its bytes.
-fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
+/// Separate the pictures the quoted HTML shows from the files it carries with it.
+fn quote_parts(m: &Message, html: &str, keep_files: bool) -> (Vec<Attachment>, Vec<Attachment>) {
     let ids = mailcraft_model::shown::shown_ids(html);
-    m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
+    let mut pictures = Vec::new();
+    let mut files = Vec::new();
+    for part in &m.attachments {
+        if mailcraft_model::shown::shown_in_place(&ids, part) {
+            pictures.push(part.clone());
+        } else if keep_files {
+            files.push(part.clone());
+        }
+    }
+    (pictures, files)
 }
 
 fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
-    // A forward carries every file; a reply only quotes the text and the pictures it shows.
+    // A forward carries ordinary files as well as the quoted text and its pictures.
     let m = match mode {
         ComposeMode::Forward => source_message(s, v)?,
         _ => reply_source(s, v)?,
@@ -521,18 +529,16 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     }
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
     // An original in HTML is carried below with its look; one in plain text is quoted in the body.
-    let quote = match &m.body.html {
+    let forward = mode == ComposeMode::Forward;
+    let (quote, attachments) = match &m.body.html {
         Some(html) if quoting => {
             let (html, written) = quoted_html(s, &m, html);
             let text = quote_text(s.interface_language.t(ORIGINAL), &html);
-            // The pictures the quote still shows: not those of what was left out of it. (A
-            // forward carries the original's own as its attachments.) And those written into
-            // the original, which go with both (#602).
-            let mut pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
+            let (mut pictures, files) = quote_parts(&m, &html, forward);
             pictures.extend(written);
-            Some(Quote { text, html, pictures })
+            (Some(Quote { text, html, pictures }), files)
         }
-        _ => None,
+        _ => (None, if forward { m.attachments.clone() } else { Vec::new() }),
     };
     let body = if quoting && quote.is_none() { quoted(s, &m) } else { String::new() };
     let sig = chosen_signature(s, m.account, None, true);
@@ -549,7 +555,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         // A reply is written the way the original was: HTML to HTML, plain text to plain text.
         format: if m.body.html.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
-        attachments: if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() },
+        attachments,
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
         references: if mode == ComposeMode::Forward { Vec::new() } else { references },
         ..Default::default()
@@ -994,7 +1000,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
                 .find(|marker| m.body.text.contains(&format!("\n\n{marker}")))
                 .unwrap_or_else(|| s.interface_language.t(ORIGINAL));
             let text = quote_text(marker, &quoted);
-            let pictures = shown_pictures(m, &quoted);
+            let (pictures, _) = quote_parts(m, &quoted, false);
             (Some(html.get(..at).unwrap_or("").to_string()), Some(Quote { text, html: quoted, pictures }))
         }
         None => (m.body.html.clone(), None),
