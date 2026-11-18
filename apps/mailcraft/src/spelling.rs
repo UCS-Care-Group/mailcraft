@@ -2,44 +2,71 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Use the operating system's local dictionaries on the UI thread.
 
-use std::cell::{OnceCell, RefCell};
+use std::cell::RefCell;
 use std::ops::Range;
+use std::time::{Duration, Instant};
 
 use mailcraft_ui_egui::spelling::HostChecker;
 use spellkit::Checker;
 
+const RETRY_OPEN: Duration = Duration::from_secs(5);
+const REFRESH_LOCALES: Duration = Duration::from_secs(30);
+
 #[derive(Default)]
 pub(crate) struct NativeChecker {
-    locales: OnceCell<Vec<String>>,
-    active: RefCell<Option<ActiveChecker>>,
+    locales: RefCell<Option<LocaleList>>,
+    active: RefCell<Option<ActiveChecker<Checker>>>,
 }
 
-struct ActiveChecker {
+struct LocaleList {
+    languages: Vec<String>,
+    refresh_at: Instant,
+}
+
+struct ActiveChecker<T> {
     locale: String,
-    checker: Option<Checker>,
+    state: OpenState<T>,
+}
+
+enum OpenState<T> {
+    Ready(T),
+    RetryAt(Instant),
+}
+
+impl<T> ActiveChecker<T> {
+    fn open_if_needed<'a>(active: &'a mut Option<Self>, locale: &str, now: Instant, open: impl FnOnce() -> Option<T>) -> Option<&'a T> {
+        if active.as_ref().is_none_or(|current| current.locale != locale || matches!(current.state, OpenState::RetryAt(retry) if now >= retry)) {
+            let state = open().map_or(OpenState::RetryAt(now + RETRY_OPEN), OpenState::Ready);
+            *active = Some(Self { locale: locale.to_owned(), state });
+        }
+        match &active.as_ref()?.state {
+            OpenState::Ready(checker) => Some(checker),
+            OpenState::RetryAt(_) => None,
+        }
+    }
 }
 
 impl NativeChecker {
     fn with_checker<T>(&self, locale: &str, use_checker: impl FnOnce(&Checker) -> T) -> Option<T> {
         let mut active = self.active.try_borrow_mut().ok()?;
-        if active.as_ref().is_none_or(|current| current.locale != locale) {
-            let checker = if locale.is_empty() { Checker::new() } else { Checker::with_locale(locale) };
-            *active = Some(ActiveChecker { locale: locale.to_owned(), checker: checker.ok() });
-        }
-        active.as_ref()?.checker.as_ref().map(use_checker)
+        ActiveChecker::open_if_needed(&mut active, locale, Instant::now(), || {
+            if locale.is_empty() { Checker::new().ok() } else { Checker::with_locale(locale).ok() }
+        })
+        .map(use_checker)
     }
 }
 
 impl HostChecker for NativeChecker {
     fn locales(&self) -> Vec<String> {
-        self.locales
-            .get_or_init(|| {
-                let mut locales = Checker::available_locales();
-                locales.sort();
-                locales.dedup();
-                locales
-            })
-            .clone()
+        let mut cached = self.locales.borrow_mut();
+        if cached.as_ref().is_none_or(|list| Instant::now() >= list.refresh_at) {
+            let mut languages = Checker::available_locales();
+            languages.sort_unstable();
+            languages.dedup();
+            let refresh = if languages.is_empty() { RETRY_OPEN } else { REFRESH_LOCALES };
+            *cached = Some(LocaleList { languages, refresh_at: Instant::now() + refresh });
+        }
+        cached.as_ref().map_or_else(Vec::new, |list| list.languages.clone())
     }
 
     fn check(&self, locale: &str, text: &str) -> Option<Vec<Range<usize>>> {
@@ -50,3 +77,6 @@ impl HostChecker for NativeChecker {
         self.with_checker(locale, |checker| checker.suggest(word)).unwrap_or_default()
     }
 }
+
+#[cfg(test)]
+mod tests;
