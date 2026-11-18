@@ -2237,7 +2237,9 @@ fn the_mailboxs_categories_come_with_a_colour_each_or_are_not_to_be_had() {
     assert!(server.request(0).starts_with("GET /v1.0/me/outlook/masterCategories HTTP/1.1\r\n"), "{}", server.request(0));
     let read: Vec<_> = download.categories.iter().map(|c| (c.name.as_str(), c.color)).collect();
     let grey = Rgb(0x8A, 0x8A, 0x8A);
-    assert_eq!(read, [("Red category", Rgb(0xD1, 0x3B, 0x3B)), ("Project X", Rgb(0x2F, 0x6F, 0xD0)), ("Plain", grey), ("Odd", grey)]);
+    let none = mailcraft_model::outlook_colors::NO_COLOR;
+    assert_eq!(read, [("Red category", Rgb(0xD1, 0x3B, 0x3B)), ("Project X", Rgb(0x2F, 0x6F, 0xD0)), ("Plain", none), ("Odd", grey)]);
+    assert!(download.complete, "one page, read whole");
     // The permission for it is one an older sign-in doesn't have: that is said as what it is,
     // for the host to note and go on.
     let server =
@@ -2249,6 +2251,22 @@ fn the_mailboxs_categories_come_with_a_colour_each_or_are_not_to_be_had() {
     );
     assert!(matches!(refused, NetError::Forbidden(_)));
     assert_no_token(&refused);
+}
+
+#[test]
+fn a_list_of_categories_is_whole_only_when_every_page_was_read_and_none_was_cut() {
+    let entry = |i: usize| json!({"id": format!("{i}"), "displayName": format!("Name {i}"), "color": "preset1"});
+    // Two pages, both read.
+    let server = serving(move |n, _, own| match n {
+        0 => page(vec![entry(1)], Some(format!("{own}/v1.0/me/outlook/masterCategories?page=2"))),
+        _ => page(vec![entry(2)], None),
+    });
+    let download = categories_at(&server.url(""), TOKEN).unwrap();
+    assert_eq!((download.categories.len(), download.complete), (2, true));
+    // More than a read keeps: not the whole list, so nothing is taken for deleted there.
+    let server = FakeHttp::answering(page((0..250).map(entry).collect(), None));
+    let download = categories_at(&server.url(""), TOKEN).unwrap();
+    assert_eq!((download.categories.len(), download.complete), (mailcraft_model::remote::MAX_REMOTE_CATEGORIES, false));
 }
 
 #[test]

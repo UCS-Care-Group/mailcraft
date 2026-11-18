@@ -70,6 +70,27 @@ impl MailApp {
         self.remembered("password", account)
     }
 
+    /// The server of `account` turned its password down: the next Send/Receive asks for it again,
+    /// and no round by itself goes back until then. What the system remembered is no good either.
+    pub(crate) fn ews_password_refused(&mut self, account: Id) {
+        self.passwords.remove(&account);
+        self.jmap_refused.insert(account);
+        if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
+            let key = Self::secret_key("password", a);
+            store.delete(&key);
+            self.secret_cache.remove(&key);
+        }
+    }
+
+    /// The server of `account` turned down `used`, the password a look-up went with: forgotten as
+    /// [`Self::ews_password_refused`] says, unless the owner has given another meanwhile, which is
+    /// kept.
+    pub(crate) fn ews_password_refused_with(&mut self, account: Id, used: &str) {
+        if self.ews_secret(account).as_deref() == Some(used) {
+            self.ews_password_refused(account);
+        }
+    }
+
     /// A Send/Receive of the Exchange server account `account`; `p` may carry the password the owner
     /// has just typed, and `inboxPass` asks for the Inbox alone. Asks for the password the first time.
     pub(crate) fn start_ews_mail(&mut self, account: Id, quiet: bool, p: &Value) -> Result<Value, String> {
@@ -197,15 +218,7 @@ impl MailApp {
                 self.session.driver.round.queue.push_front((whose, quiet));
             }
             if std::mem::take(&mut self.sync_refused) {
-                // Turned down: the next Send/Receive asks for it again, and no round by itself goes
-                // back until then. What the system remembered is no good either.
-                self.passwords.remove(&account);
-                self.jmap_refused.insert(account);
-                if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
-                    let key = Self::secret_key("password", a);
-                    store.delete(&key);
-                    self.secret_cache.remove(&key);
-                }
+                self.ews_password_refused(account);
             } else if untrusted {
                 // The certificate question comes first (File › Info): no round by itself tries again.
                 self.jmap_refused.insert(account);

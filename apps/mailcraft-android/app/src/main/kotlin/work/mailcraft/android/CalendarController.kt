@@ -194,6 +194,9 @@ internal data class CalendarUiState(
 ) {
     fun range(weekStart: DayOfWeek): DateRange = CalendarPaging.range(mode, anchor, weekStart)
 
+    /** The days read for the view: its own and, for a swiped view, the pages beside it. */
+    fun loadRange(weekStart: DayOfWeek): DateRange = CalendarPaging.loadRange(mode, anchor, weekStart)
+
     /**
      * A new event opened before the calendars were read has no calendar of its own, while the editor
      * shows the first it can write to: the draft takes that one, so what is shown is what is saved.
@@ -248,7 +251,7 @@ internal class CalendarController(
         val today = now().toLocalDate()
         _state.update { it.copy(today = today) }
         val shown = _state.value
-        val range = shown.range(weekStart())
+        val range = shown.loadRange(weekStart())
         reads += 1
         val read = reads
         scope.launch {
@@ -257,7 +260,7 @@ internal class CalendarController(
             _state.update { current ->
                 // Only the latest read of the range still shown is kept: the owner may have turned the
                 // page since, or a change may have been read again after this read began.
-                if (read != reads || current.range(weekStart()) != range) {
+                if (read != reads || current.loadRange(weekStart()) != range) {
                     current
                 } else {
                     current.copy(
@@ -271,7 +274,10 @@ internal class CalendarController(
     }
 
     private fun show(change: (CalendarUiState) -> CalendarUiState) {
-        _state.update { change(it).copy(events = Loaded.Loading, notice = null) }
+        _state.update { current ->
+            val next = change(current)
+            next.copy(anchor = CalendarPaging.heldToPages(next.anchor), events = Loaded.Loading, notice = null)
+        }
         refresh()
     }
 
@@ -279,7 +285,12 @@ internal class CalendarController(
 
     fun goToday() = show { it.copy(anchor = now().toLocalDate()) }
 
-    fun step(direction: Int) = show { it.copy(anchor = CalendarPaging.step(it.mode, it.anchor, direction)) }
+    fun step(direction: Int) = show { it.copy(anchor = CalendarPaging.shift(it.mode, it.anchor, direction)) }
+
+    /** A page swiped to: the view stays as it is, on [day]. */
+    fun goTo(day: LocalDate) {
+        if (CalendarPaging.heldToPages(day) != _state.value.anchor) show { it.copy(anchor = day) }
+    }
 
     /** A day of the month grid or of the agenda: the day view on it. */
     fun openDay(day: LocalDate) = show { it.copy(mode = CalendarMode.Day, anchor = day) }

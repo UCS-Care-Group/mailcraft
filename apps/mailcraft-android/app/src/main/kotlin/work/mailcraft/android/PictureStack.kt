@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import uniffi.mailcraft_mobile.ComposeStart
 import uniffi.mailcraft_mobile.Core
 
 /**
@@ -74,6 +75,7 @@ internal class PictureStack(
         links: LinkOpener,
         attachments: AttachmentActions = AttachmentActions.None,
         onLeft: () -> Unit = {},
+        onCompose: (ComposeStart) -> Unit = {},
     ) = ReadingActions(
         onOpen = { id, width, dark -> reading.open(id, width, dark) },
         onClose = {
@@ -89,6 +91,7 @@ internal class PictureStack(
         onDownloadNow = reading::downloadNow,
         onLink = links::open,
         attachments = attachments,
+        onCompose = onCompose,
     )
 
     private companion object {
@@ -103,5 +106,6 @@ internal class ReadingStack(core: Core, context: Context, scope: CoroutineScope,
     private val links = CoreLinks(core)
 
     /** What the reading pane asks; leaving a message lets go of what its attachments held. */
-    fun actions() = pictures.readingActions(links, attachments.actions(), attachments::reset)
+    fun actions(onCompose: (ComposeStart) -> Unit) =
+        pictures.readingActions(links, attachments.actions(), attachments::reset, onCompose)
 }
