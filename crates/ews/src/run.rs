@@ -521,7 +521,7 @@ impl<E: HttpExchange> Run<'_, E> {
         let op = GetUserOptions;
         match self.ask(&op.element(), &|reply| op.answer(reply)).await {
             Ok(found) => {
-                log::info!("ews mail: the server {} a signature", if found.is_some() { "has" } else { "has no" });
+                log::info!("ews mail: the server {}", if found.is_some() { "has a signature" } else { "has no signature" });
                 found
             }
             Err(_) => {
