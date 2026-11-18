@@ -1241,7 +1241,9 @@ impl AccountSetup {
             // Another kind of account, offered beside servers that are only a guess (#761): once
             // it is taken, the password typed for those goes. (Back from it leads to the kinds of
             // account, Choose, as for a kind picked there.)
-            (Page::Password, Action::Pick(kind)) if self.guessed => {
+            // (A Zimbra tile may also sit beside settings that were found, when its probe
+            // answered for the domain — #761's guard covers the guessed-only tiles.)
+            (Page::Password, Action::Pick(kind)) if self.guessed || kind == Kind::Zimbra => {
                 self.pick(app, kind);
                 if self.page != Page::Password {
                     self.forget_password();
@@ -2315,6 +2317,17 @@ impl AccountSetup {
                             }
                         }
                     });
+                }
+            }
+            // IMAP may have been found and checked below — and still be the Zimbra server its
+            // domain's names point at (most Zimbra servers speak IMAP too). Only when the probe
+            // answered is the kind offered here, where the settings just found stand.
+            if zimbra_on && !self.zimbra_found.is_empty() && !(self.guessed && self.found.is_none()) {
+                if let Some(host) = self.zimbra_found.first() {
+                    note(ui, &fmt(tl!("A Zimbra server answered at {host}: your account may be on it."), &[("host", host)]), t.text);
+                }
+                if tile(ui, Kind::Zimbra, ui.available_width().min(260.0), &t).clicked() {
+                    offered = Some(Kind::Zimbra);
                 }
             }
             if !self.note.is_empty() && !oauth_first {
