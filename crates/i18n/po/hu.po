@@ -2,7 +2,7 @@
 # The catalogue is a draft for native-speaker review.
 msgid ""
 msgstr "Munkahét"
-"MunkahétProject-Id-Version: MailCraft\n"
+"MunkahétMunkahétProject-Id-Version: MailCraft\n"
 "PO-Revision-Date: 2026-11-14 21:30+0100\n"
 "Last-Translator: MailCraft contributors\n"
 "Language-Team: Hungarian\n"
@@ -691,7 +691,7 @@ msgid ""
 "About\n"
 "MailCraft"
 msgstr "Munkahét"
-"MunkahétA MailCraft\n"
+"MunkahétMunkahétA MailCraft\n"
 "névjegye"
 
 #. interface, name
@@ -785,7 +785,7 @@ msgid ""
 "Account\n"
 "Settings"
 msgstr "Munkahét"
-"MunkahétFiók-\n"
+"MunkahétMunkahétFiók-\n"
 "beállítások"
 
 #. command label, interface, ribbon location
@@ -843,7 +843,7 @@ msgid ""
 "Add\n"
 "Account"
 msgstr "Munkahét"
-"MunkahétFiók\n"
+"MunkahétMunkahétFiók\n"
 "hozzáadása"
 
 #. command label, interface
@@ -1051,7 +1051,7 @@ msgid ""
 "Add to\n"
 "Favorites"
 msgstr "Munkahét"
-"MunkahétHozzáadás a\n"
+"MunkahétMunkahétHozzáadás a\n"
 "Kedvencekhez"
 
 #. command label, interface, ribbon
@@ -2063,7 +2063,7 @@ msgid ""
 "Attach\n"
 "File"
 msgstr "Munkahét"
-"MunkahétFájl\n"
+"MunkahétMunkahétFájl\n"
 "csatolása"
 
 #. command label
@@ -2705,7 +2705,7 @@ msgid ""
 "Cancel\n"
 "All"
 msgstr "Munkahét"
-"MunkahétÖsszes\n"
+"MunkahétMunkahétÖsszes\n"
 "megszakítása"
 
 #. command label
@@ -3065,7 +3065,7 @@ msgid ""
 "Check\n"
 "Names"
 msgstr "Munkahét"
-"MunkahétNevek\n"
+"MunkahétMunkahétNevek\n"
 "ellenőrzése"
 
 #. ribbon
@@ -3677,7 +3677,7 @@ msgid ""
 "Copy\n"
 "Diagnostics"
 msgstr "Munkahét"
-"MunkahétDiagnosztikai adatok\n"
+"MunkahétMunkahétDiagnosztikai adatok\n"
 "másolása"
 
 #. command label, interface
@@ -4979,7 +4979,7 @@ msgid ""
 "Edit\n"
 "Contact"
 msgstr "Munkahét"
-"MunkahétNévjegy\n"
+"MunkahétMunkahétNévjegy\n"
 "szerkesztése"
 
 #. ribbon
@@ -4989,7 +4989,7 @@ msgid ""
 "Edit\n"
 "Task"
 msgstr "Munkahét"
-"MunkahétFeladat\n"
+"MunkahétMunkahétFeladat\n"
 "szerkesztése"
 
 #. command label
@@ -5077,7 +5077,7 @@ msgid ""
 "Email\n"
 "Calendar"
 msgstr "Munkahét"
-"MunkahétNaptár küldése\n"
+"MunkahétMunkahétNaptár küldése\n"
 "e-mailben"
 
 #. command label, interface, name
@@ -5451,7 +5451,7 @@ msgid ""
 "Export\n"
 "Contacts"
 msgstr "Munkahét"
-"MunkahétNévjegyek\n"
+"MunkahétMunkahétNévjegyek\n"
 "exportálása"
 
 #. ribbon
@@ -5589,7 +5589,7 @@ msgid ""
 "Filter\n"
 "Email"
 msgstr "Munkahét"
-"MunkahétÜzenetek\n"
+"MunkahétMunkahétÜzenetek\n"
 "szűrése"
 
 #. command label, ribbon
@@ -5761,7 +5761,7 @@ msgid ""
 "Folder\n"
 "Pane"
 msgstr "Munkahét"
-"MunkahétMappa-\n"
+"MunkahétMunkahétMappa-\n"
 "ablak"
 
 #. ribbon
@@ -6003,7 +6003,7 @@ msgid ""
 "Forward\n"
 "Contact"
 msgstr "Munkahét"
-"MunkahétNévjegy\n"
+"MunkahétMunkahétNévjegy\n"
 "továbbítása"
 
 #. command label
@@ -6271,7 +6271,7 @@ msgid ""
 "Gmail\n"
 "Categories"
 msgstr "Munkahét"
-"MunkahétGmail-\n"
+"MunkahétMunkahétGmail-\n"
 "kategóriák"
 
 #. command label, ribbon
@@ -6610,7 +6610,7 @@ msgid ""
 "\n"
 "Thank you"
 msgstr "Munkahét"
-"MunkahétÜdvözlöm!\n"
+"MunkahétMunkahétÜdvözlöm!\n"
 "\n"
 "Szeretném a munkahelyi fiókommal használni a MailCraft nyílt forráskódú levelező- és naptáralkalmazást, amely a saját számítógépemen fut. A szervezetünkben új alkalmazást csak rendszergazda hagyhat jóvá. A jóváhagyást egyszer kell megadni, az egész szervezet számára. A Microsoft jóváhagyási oldala:\n"
 "\n"
@@ -6634,7 +6634,7 @@ msgid ""
 "\n"
 "Thank you"
 msgstr "Munkahét"
-"MunkahétTisztelt Rendszergazda!\n"
+"MunkahétMunkahétTisztelt Rendszergazda!\n"
 "\n"
 "Szeretném a MailCraftot használni a munkahelyi fiókommal. A MailCraft egy nyílt forráskódú levelező- és naptárprogram, amely a saját telefonomon fut. A szervezetünkben új programot csak rendszergazda hagyhat jóvá, ezért az Ön jóváhagyására van szükség, egyszer, az egész szervezet számára. A Microsoft erre szolgáló oldala itt található:\n"
 "\n"
@@ -8799,7 +8799,7 @@ msgid ""
 "Mark\n"
 "Complete"
 msgstr "Munkahét"
-"MunkahétMegjelölés\n"
+"MunkahétMunkahétMegjelölés\n"
 "befejezettként"
 
 #. ribbon
@@ -8809,7 +8809,7 @@ msgid ""
 "Mark All\n"
 "as Read"
 msgstr "Munkahét"
-"MunkahétÖsszes megjelölése\n"
+"MunkahétMunkahétÖsszes megjelölése\n"
 "olvasottként"
 
 #. command label, interface
@@ -8909,7 +8909,7 @@ msgid ""
 "Merge\n"
 "Duplicates"
 msgstr "Munkahét"
-"MunkahétIsmétlődő névjegyek\n"
+"MunkahétMunkahétIsmétlődő névjegyek\n"
 "egyesítése"
 
 #. command label
@@ -8957,7 +8957,7 @@ msgid ""
 "Message\n"
 "Preview"
 msgstr "Munkahét"
-"MunkahétÜzenetek\n"
+"MunkahétMunkahétÜzenetek\n"
 "előnézete"
 
 #. command label, ribbon
@@ -9661,7 +9661,7 @@ msgid ""
 "New\n"
 "Appointment"
 msgstr "Munkahét"
-"MunkahétÚj\n"
+"MunkahétMunkahétÚj\n"
 "találkozó"
 
 #. ribbon
@@ -9671,7 +9671,7 @@ msgid ""
 "New\n"
 "Contact"
 msgstr "Munkahét"
-"MunkahétÚj\n"
+"MunkahétMunkahétÚj\n"
 "névjegy"
 
 #. ribbon
@@ -9681,7 +9681,7 @@ msgid ""
 "New\n"
 "Email"
 msgstr "Munkahét"
-"MunkahétÚj\n"
+"MunkahétMunkahétÚj\n"
 "e-mail"
 
 #. ribbon
@@ -9691,7 +9691,7 @@ msgid ""
 "New\n"
 "Folder"
 msgstr "Munkahét"
-"MunkahétÚj\n"
+"MunkahétMunkahétÚj\n"
 "mappa"
 
 #. ribbon
@@ -9701,7 +9701,7 @@ msgid ""
 "New\n"
 "Items"
 msgstr "Munkahét"
-"MunkahétÚj\n"
+"MunkahétMunkahétÚj\n"
 "elemek"
 
 #. ribbon
@@ -9711,7 +9711,7 @@ msgid ""
 "New\n"
 "Meeting"
 msgstr "Munkahét"
-"MunkahétÚj\n"
+"MunkahétMunkahétÚj\n"
 "értekezlet"
 
 #. ribbon
@@ -9721,7 +9721,7 @@ msgid ""
 "New\n"
 "Task"
 msgstr "Munkahét"
-"MunkahétÚj\n"
+"MunkahétMunkahétÚj\n"
 "feladat"
 
 #. interface
@@ -9875,7 +9875,7 @@ msgid ""
 "Next 7\n"
 "Days"
 msgstr "Munkahét"
-"MunkahétKövetkező\n"
+"MunkahétMunkahétKövetkező\n"
 "7 nap"
 
 #. command label
@@ -11187,7 +11187,7 @@ msgid ""
 "Open\n"
 "Calendar"
 msgstr "Munkahét"
-"MunkahétNaptár\n"
+"MunkahétMunkahétNaptár\n"
 "megnyitása"
 
 #. interface, ribbon location
@@ -11953,7 +11953,7 @@ msgid ""
 "Plain\n"
 "Text"
 msgstr "Munkahét"
-"MunkahétEgyszerű\n"
+"MunkahétMunkahétEgyszerű\n"
 "szöveg"
 
 #. command label, ribbon
@@ -11993,7 +11993,7 @@ msgid ""
 "Pop\n"
 "Out"
 msgstr "Munkahét"
-"MunkahétKülön\n"
+"MunkahétMunkahétKülön\n"
 "ablakban"
 
 #. command label, interface
@@ -12437,7 +12437,7 @@ msgid ""
 "Recent\n"
 "Searches"
 msgstr "Munkahét"
-"MunkahétLegutóbbi\n"
+"MunkahétMunkahétLegutóbbi\n"
 "keresések"
 
 #. command label, ribbon
@@ -12611,7 +12611,7 @@ msgid ""
 "Remove\n"
 "Attachment"
 msgstr "Munkahét"
-"MunkahétMelléklet\n"
+"MunkahétMunkahétMelléklet\n"
 "eltávolítása"
 
 #. command label, interface
@@ -12639,7 +12639,7 @@ msgid ""
 "Remove Imported\n"
 "Duplicates"
 msgstr "Munkahét"
-"MunkahétAz importált\n"
+"MunkahétMunkahétAz importált\n"
 "duplikátumok eltávolítása"
 
 #. command label, interface
@@ -12757,7 +12757,7 @@ msgid ""
 "Remove from\n"
 "Favorites"
 msgstr "Munkahét"
-"MunkahétEltávolítás a\n"
+"MunkahétMunkahétEltávolítás a\n"
 "Kedvencekből"
 
 #. command label, interface
@@ -12943,7 +12943,7 @@ msgid ""
 "Reply\n"
 "All"
 msgstr "Munkahét"
-"MunkahétVálasz\n"
+"MunkahétMunkahétVálasz\n"
 "mindenkinek"
 
 #. command label, interface
@@ -12995,7 +12995,7 @@ msgid ""
 "Report a\n"
 "Problem"
 msgstr "Munkahét"
-"MunkahétHiba\n"
+"MunkahétMunkahétHiba\n"
 "bejelentése"
 
 #. command label, interface
@@ -13041,7 +13041,7 @@ msgid ""
 "Reset\n"
 "View"
 msgstr "Munkahét"
-"MunkahétNézet\n"
+"MunkahétMunkahétNézet\n"
 "alaphelyzetbe"
 
 #. command label
@@ -13135,7 +13135,7 @@ msgid ""
 "Reverse\n"
 "Sort"
 msgstr "Munkahét"
-"MunkahétFordított\n"
+"MunkahétMunkahétFordított\n"
 "sorrend"
 
 #. command label, interface
@@ -13187,7 +13187,7 @@ msgid ""
 "Ribbon\n"
 "Layout"
 msgstr "Munkahét"
-"MunkahétA menüszalag\n"
+"MunkahétMunkahétA menüszalag\n"
 "elrendezése"
 
 #. command label, interface, ribbon
@@ -13299,7 +13299,7 @@ msgid ""
 "Run Rules\n"
 "Now"
 msgstr "Munkahét"
-"MunkahétSzabályok\n"
+"MunkahétMunkahétSzabályok\n"
 "futtatása"
 
 #. command label, interface
@@ -13381,7 +13381,7 @@ msgid ""
 "Save\n"
 "Calendar"
 msgstr "Munkahét"
-"MunkahétNaptár\n"
+"MunkahétMunkahétNaptár\n"
 "mentése"
 
 #. ribbon
@@ -13391,7 +13391,7 @@ msgid ""
 "Save\n"
 "Draft"
 msgstr "Munkahét"
-"MunkahétPiszkozat\n"
+"MunkahétMunkahétPiszkozat\n"
 "mentése"
 
 #. interface
@@ -13407,7 +13407,7 @@ msgid ""
 "Save All\n"
 "Attachments"
 msgstr "Munkahét"
-"MunkahétAz összes\n"
+"MunkahétMunkahétAz összes\n"
 "melléklet mentése"
 
 #. command label
@@ -13720,7 +13720,7 @@ msgid ""
 "Search\n"
 "Calendar"
 msgstr "Munkahét"
-"MunkahétKeresés a\n"
+"MunkahétMunkahétKeresés a\n"
 "naptárban"
 
 #. ribbon
@@ -13730,7 +13730,7 @@ msgid ""
 "Search\n"
 "Commands"
 msgstr "Munkahét"
-"MunkahétParancsok\n"
+"MunkahétMunkahétParancsok\n"
 "keresése"
 
 #. command label, interface, name
@@ -14224,7 +14224,7 @@ msgid ""
 "Send/Receive\n"
 "All Folders"
 msgstr "Munkahét"
-"MunkahétKüldés/fogadás\n"
+"MunkahétMunkahétKüldés/fogadás\n"
 "minden mappában"
 
 #. command label, interface
@@ -14590,7 +14590,7 @@ msgid ""
 "Show\n"
 "Message"
 msgstr "Munkahét"
-"MunkahétÜzenet\n"
+"MunkahétMunkahétÜzenet\n"
 "megjelenítése"
 
 #. ribbon
@@ -14600,7 +14600,7 @@ msgid ""
 "Show\n"
 "Progress"
 msgstr "Munkahét"
-"MunkahétFolyamat\n"
+"MunkahétMunkahétFolyamat\n"
 "megtekintése"
 
 #. ribbon
@@ -14738,7 +14738,7 @@ msgid ""
 "Show as\n"
 "Conversations"
 msgstr "Munkahét"
-"MunkahétMegjelenítés\n"
+"MunkahétMunkahétMegjelenítés\n"
 "beszélgetésként"
 
 #. command label, interface
@@ -14940,7 +14940,7 @@ msgid ""
 "Side-by-\n"
 "Side"
 msgstr "Munkahét"
-"MunkahétEgymás\n"
+"MunkahétMunkahétEgymás\n"
 "mellett"
 
 #. command label
@@ -16487,7 +16487,7 @@ msgid ""
 "\n"
 "Hide the copy under Shared Calendars? The shared mailbox's own calendar stays, and lets you change events, answer meeting requests and send from the mailbox where you may. Nothing on the server changes: right-click the shared mailbox's calendar to show the copy again."
 msgstr "Munkahét"
-"MunkahétA megosztott postafiók naptára {address} kétszer jelenik meg: a Megosztott postafiókban az Én naptáram alatt, a Megosztott naptárak alatt pedig \"{name}\" néven, mert azt is megosztották és elfogadták.\n"
+"MunkahétMunkahétA megosztott postafiók naptára {address} kétszer jelenik meg: a Megosztott postafiókban az Én naptáram alatt, a Megosztott naptárak alatt pedig \"{name}\" néven, mert azt is megosztották és elfogadták.\n"
 "\n"
 "A másolat elrejtése Shared Naptár alatt? A megosztott postafiók saját naptára szerint, és lehetővé teszi, hogy az események megváltoztassa, a találka kéréseket válaszoljon, és küldjön a postafiókból, ahol csak tud. A kiszolgálón semmi sem változik: kattintson a megosztott postafiók naptárára, hogy a másolatot újra megmutassa."
 
@@ -16523,7 +16523,7 @@ msgid ""
 "\n"
 "Remove the copy opened by address? The other one stays, and nothing on the server changes."
 msgstr "Munkahét"
-"MunkahétA {name} naptára most már a naptárlistádban van, mert azt megosztották veled és elfogadták.\n"
+"MunkahétMunkahétA {name} naptára most már a naptárlistádban van, mert azt megosztották veled és elfogadták.\n"
 "\n"
 "Címre is megnyitottad, így kétszer is ott van. A másik a címre nyitott másolatot távolítsd el? A másik marad, és a szerveren semmi változás."
 
@@ -18896,7 +18896,7 @@ msgid ""
 "Tighter\n"
 "Spacing"
 msgstr "Munkahét"
-"MunkahétSűrűbb\n"
+"MunkahétMunkahétSűrűbb\n"
 "elrendezés"
 
 #. command label
@@ -18999,7 +18999,7 @@ msgid ""
 "\n"
 "Until you allow it, your automatic replies aren't changed."
 msgstr "Munkahét"
-"MunkahétAhhoz, hogy a(z) {address} automatikus válaszait szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
+"MunkahétMunkahétAhhoz, hogy a(z) {address} automatikus válaszait szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
 "\n"
 "Amíg nem engedélyezi, az automatikus válaszok nem módosulnak."
 
@@ -19011,7 +19011,7 @@ msgid ""
 "\n"
 "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr "Munkahét"
-"MunkahétAhhoz, hogy a(z) {address} szabályait, automatikus válaszait és kategóriáit szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
+"MunkahétMunkahétAhhoz, hogy a(z) {address} szabályait, automatikus válaszait és kategóriáit szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
 "\n"
 "Amíg nem engedélyezi, a szabályok ezen a számítógépen maradnak, és semmi sem jut el belőlük a Microsofthoz, az automatikus válaszok nem módosulnak, és a postafiók kategóriái itt nem módosíthatók."
 
@@ -19023,7 +19023,7 @@ msgid ""
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
 msgstr "Munkahét"
-"MunkahétAhhoz, hogy a(z) {address} feladatait és automatikus válaszait szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a To Do listák és a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
+"MunkahétMunkahétAhhoz, hogy a(z) {address} feladatait és automatikus válaszait szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a To Do listák és a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
 "\n"
 "Amíg nem engedélyezi, a feladatok ezen a számítógépen maradnak, és semmi sem jut el belőlük a Microsofthoz, az automatikus válaszok pedig nem módosulnak."
 
@@ -19035,7 +19035,7 @@ msgid ""
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
 msgstr "Munkahét"
-"MunkahétAhhoz, hogy a {address} feladatait lépést tarthasson a Microsoft To Do-val, a MailCraft-nak szüksége van az engedélyére, hogy elolvassa és megváltoztassa a To Do listáit és feladatait.\n"
+"MunkahétMunkahétAhhoz, hogy a {address} feladatait lépést tarthasson a Microsoft To Do-val, a MailCraft-nak szüksége van az engedélyére, hogy elolvassa és megváltoztassa a To Do listáit és feladatait.\n"
 "\n"
 "A Microsoft oldala egyszer megnyílik a böngészőjében, hogy kérje Önt. Amíg nem engedi, a feladatok ezen a számítógépen maradnak, és semmi sem kerül a Microsoftba."
 
@@ -19047,7 +19047,7 @@ msgid ""
 "\n"
 "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr "Munkahét"
-"MunkahétAhhoz, hogy a(z) {address} feladatait, szabályait, automatikus válaszait és kategóriáit szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a To Do listák és a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
+"MunkahétMunkahétAhhoz, hogy a(z) {address} feladatait, szabályait, automatikus válaszait és kategóriáit szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a To Do listák és a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
 "\n"
 "Amíg nem engedélyezi, a feladatok és a szabályok ezen a számítógépen maradnak, és semmi sem jut el belőlük a Microsofthoz, az automatikus válaszok nem módosulnak, és a postafiók kategóriái itt nem módosíthatók."
 
@@ -19065,7 +19065,7 @@ msgid ""
 "\n"
 "Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr "Munkahét"
-"MunkahétA(z) {address} címmel megnyitott megosztott postafiókok olvasásához és az azokból való küldéshez, valamint az Önnel megosztott naptárak megjelenítéséhez a MailCraftnak szüksége van az Ön engedélyére. A Microsoft oldala megnyílik a böngészőben, és egyszer rákérdez mindenre, amit a MailCraft használ, és Ön még nem engedélyezett.\n"
+"MunkahétMunkahétA(z) {address} címmel megnyitott megosztott postafiókok olvasásához és az azokból való küldéshez, valamint az Önnel megosztott naptárak megjelenítéséhez a MailCraftnak szüksége van az Ön engedélyére. A Microsoft oldala megnyílik a böngészőben, és egyszer rákérdez mindenre, amit a MailCraft használ, és Ön még nem engedélyezett.\n"
 "\n"
 "Amíg nem engedélyezi, semmi sem olvasható ezekből a postafiókokból és naptárakból, a megosztott postafiókból küldendő levelek és értekezlet-válaszok ezen a számítógépen várnak, és semmi sem megy el helyettük az Ön saját címéről."
 
@@ -19370,7 +19370,7 @@ msgid ""
 "Unread/\n"
 "Read"
 msgstr "Munkahét"
-"MunkahétOlvasatlan/\n"
+"MunkahétMunkahétOlvasatlan/\n"
 "olvasott"
 
 #. command label
@@ -20068,7 +20068,7 @@ msgid ""
 "Work\n"
 "Offline"
 msgstr "Munkahét"
-"MunkahétKapcsolat nélküli\n"
+"MunkahétMunkahétKapcsolat nélküli\n"
 "munka"
 
 #. ribbon

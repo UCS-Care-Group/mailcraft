@@ -23955,7 +23955,7 @@ msgstr "{why}. {n} hier darin vorgenommene Änderungen warten auf diesem Compute
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "{why}: send this message from another account, or save it as a draft"
-msgstr ""
+msgstr "{why}: Senden Sie diese Nachricht von einem anderen Konto, oder speichern Sie sie als Entwurf"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
