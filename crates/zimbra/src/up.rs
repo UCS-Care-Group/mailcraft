@@ -58,6 +58,18 @@ pub fn folder_action(base: &str, token: &Secret, op: &str, id: &str, extra: Valu
     soap::request(base, "FolderActionRequest", soap::MAIL, json!({"action": action}), Some(token))
 }
 
+/// The request that makes the tag `name` in the colour `rgb`: one the server's list doesn't have
+/// yet, so that it gets the colour it has here rather than the server's own.
+pub fn create_tag(base: &str, token: &Secret, name: &str, rgb: &mailcraft_model::Rgb) -> Result<HttpRequest, Error> {
+    soap::request(base, "CreateTagRequest", soap::MAIL, json!({"tag": {"name": name, "rgb": rgb.hex()}}), Some(token))
+}
+
+/// The tag names `names` carry, as a `tn` update writes them: no comma (which parts names), no
+/// empty name, capped.
+pub fn tag_names(names: &[String]) -> Vec<String> {
+    names.iter().map(|c| c.replace(',', " ").trim().to_string()).filter(|c| !c.is_empty()).take(50).collect()
+}
+
 /// The request that does `op` to message `id`, with `extra` beside it.
 pub fn message_action(base: &str, token: &Secret, op: &str, id: &str, extra: Value) -> Result<HttpRequest, Error> {
     let mut action = json!({"op": op, "id": id});
@@ -149,9 +161,7 @@ pub fn message_requests(base: &str, token: &Secret, change: &MessageChange) -> R
                 out.push(message_action(base, token, if on { "flag" } else { "!flag" }, id, json!({}))?);
             }
             if let Some(categories) = categories {
-                let names: Vec<String> =
-                    categories.here.iter().map(|c| c.replace(',', " ").trim().to_string()).filter(|c| !c.is_empty()).take(50).collect();
-                out.push(message_action(base, token, "update", id, json!({"tn": names.join(",")}))?);
+                out.push(message_action(base, token, "update", id, json!({"tn": tag_names(&categories.here).join(",")}))?);
             }
         }
         MessageChange::Move { id, to, .. } => out.push(message_action(base, token, "move", id, json!({"l": to}))?),

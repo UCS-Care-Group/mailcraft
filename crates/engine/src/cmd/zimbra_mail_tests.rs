@@ -398,3 +398,21 @@ fn a_change_made_here_goes_up_and_is_settled_by_its_answer() {
     assert_eq!(crate::cmd::account::unpushed(&s, account), 0);
     assert!(zimbra_mail_request(&s, account).unwrap().messages.is_empty());
 }
+
+#[test]
+fn the_servers_tags_become_categories_with_their_colours() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    let request = zimbra_mail_request(&s, account).unwrap();
+    // The account's own categories go with the request, for a tag the run has to make.
+    assert_eq!(request.categories, s.mailbox.categories_of(account).to_vec());
+    let mut piece = result(account, "4711");
+    piece.partial = true;
+    piece.categories = vec![
+        mailcraft_model::Category { name: "CraftiCraft".into(), color: mailcraft_model::Rgb(0xF5, 0x8E, 0xE1) },
+        mailcraft_model::Category { name: "Work".into(), color: mailcraft_model::Rgb(0x00, 0x84, 0xC7) },
+    ];
+    apply(&mut s, piece);
+    assert_eq!(s.mailbox.category("CraftiCraft").map(|c| c.color), Some(mailcraft_model::Rgb(0xF5, 0x8E, 0xE1)));
+    assert_eq!(s.mailbox.category("Work").map(|c| c.color), Some(mailcraft_model::Rgb(0x00, 0x84, 0xC7)));
+}

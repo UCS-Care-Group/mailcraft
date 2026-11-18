@@ -103,6 +103,10 @@ pub struct ZimbraMailRequest {
     /// many runs as it takes instead of failing every one of them.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub resume: Vec<ZimbraResume>,
+    /// The account's categories with their colours, so that a tag the run makes for a name the
+    /// server doesn't have gets the colour it has here.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub categories: Vec<crate::Category>,
     /// Nobody is waiting for this run: it gets the share of requests background work has.
     #[serde(skip_serializing_if = "is_false")]
     pub background: bool,
@@ -211,6 +215,9 @@ pub struct ZimbraMailResult {
     /// Every folder of mail the server has, when they could be listed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub listing: Option<FolderListing>,
+    /// The server's tags as categories: a name and a colour each, when they could be read.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub categories: Vec<crate::Category>,
     /// The ids of the server's own folders (the Inbox and the other special folders), which are
     /// never renamed, moved or deleted ([`crate::Folder::server_owned`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -415,6 +422,9 @@ impl ZimbraMailResult {
         }) {
             return Err(ODD_ID);
         }
+        if self.categories.len() > MAX_CATEGORIES || self.categories.iter().any(|c| c.name.len() > MAX_TEXT) {
+            return Err(TOO_MANY);
+        }
         if let Some(listing) = &self.listing {
             if listing.folders.len() > MAX_LISTED_FOLDERS {
                 return Err(TOO_MANY);
@@ -465,6 +475,7 @@ impl ZimbraMailResult {
         if let Some(listing) = piece.listing {
             self.listing = Some(listing);
         }
+        self.categories.extend(piece.categories);
         self.well_known.extend(piece.well_known);
         self.pages.extend(piece.pages);
         self.errors.extend(piece.errors);
@@ -506,6 +517,7 @@ impl std::fmt::Debug for ZimbraMailRequest {
             .field("messages", &self.messages.len())
             .field("drafts", &self.drafts.len())
             .field("sends", &self.sends.len())
+            .field("categories", &self.categories.len())
             .field("background", &self.background)
             .finish()
     }
@@ -534,6 +546,7 @@ impl std::fmt::Debug for ZimbraMailResult {
             .field("drafts", &self.drafts.len())
             .field("sent", &self.sent.len())
             .field("listing", &self.listing.as_ref().map(|listing| (listing.folders.len(), listing.complete)))
+            .field("categories", &self.categories.len())
             .field("pages", &self.pages.len())
             .field("messages", &messages)
             .field("token", &!self.token.is_empty())

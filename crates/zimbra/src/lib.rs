@@ -19,6 +19,7 @@
 //! - [`delta`]: what changed in the mailbox since a token (`SyncRequest`).
 //! - [`items`]: messages as headers and a preview (`SearchRequest`), by folder or by id.
 //! - [`fetch`]: a message whole, from its REST address, the token in a cookie.
+//! - [`tags`]: the mailbox's tags (`GetTagRequest`), which are categories here, with their colours.
 //! - [`run`]: mail down: [`sync_mail`] and [`fetch_messages`], which run the rest over an
 //!   [`HttpExchange`] and hand the run back in pieces.
 //!
@@ -38,6 +39,7 @@ pub mod items;
 mod json;
 pub mod run;
 pub mod soap;
+pub mod tags;
 pub mod up;
 
 #[cfg(any(test, feature = "stand-in"))]

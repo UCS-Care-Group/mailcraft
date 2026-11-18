@@ -115,6 +115,38 @@ fn messages_are_marked_tagged_moved_and_deleted_by_their_ids() {
 }
 
 #[test]
+fn a_tag_the_server_doesnt_have_is_made_in_the_colour_it_has_here() {
+    let server = StandIn::new();
+    server.state.borrow_mut().tags.insert("Known".into(), "#0084C7".into());
+    let marked = server.deliver(2, "Marked", "");
+    let mut asked = request();
+    asked.categories = vec![
+        mailcraft_model::Category { name: "Known".into(), color: mailcraft_model::Rgb(0, 0, 0) },
+        mailcraft_model::Category { name: "CraftiCraft".into(), color: mailcraft_model::Rgb(0xF5, 0x8E, 0xE1) },
+    ];
+    asked.messages = vec![MessageChange::Update {
+        message: 1,
+        id: marked.to_string(),
+        read: None,
+        flag: None,
+        categories: Some(CategoriesUp { synced: vec![], here: vec!["Known".into(), "CraftiCraft".into(), "Colouress".into()] }),
+        importance: None,
+    }];
+    run(&server, &asked);
+    let s = server.state.borrow();
+    // One CreateTagRequest: for the new name that has a colour here, before the message's update.
+    assert_eq!(s.log.iter().filter(|l| *l == "CreateTagRequest").count(), 1);
+    let made = s.log.iter().position(|l| *l == "CreateTagRequest").unwrap();
+    let update = s.log.iter().position(|l| *l == "MsgActionRequest").unwrap();
+    assert!(made < update);
+    assert_eq!(s.tags.get("CraftiCraft").map(String::as_str), Some("#F58EE1"));
+    // The server's own tag wasn't made again; a name with no colour here went through `tn` alone.
+    assert_eq!(s.tags.get("Known").map(String::as_str), Some("#0084C7"));
+    assert_eq!(s.tags.get("Colouress").map(String::as_str), Some(""));
+    assert_eq!(s.items.get(&marked).unwrap().tags, ["Known", "CraftiCraft", "Colouress"]);
+}
+
+#[test]
 fn mail_is_sent_once_by_its_upload_and_a_bcc_is_held() {
     let server = StandIn::new();
     let mut asked = request();

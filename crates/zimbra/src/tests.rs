@@ -76,10 +76,11 @@ fn a_first_read_lists_the_folders_of_mail_and_reads_each_from_its_start() {
     assert!(all.pages.iter().all(|p| !p.folder.is_empty()));
     let log = server.state.borrow().log.clone();
     assert_eq!(log.iter().filter(|l| *l == "AuthRequest").count(), 1);
-    // The token is asked for before the folders are listed, so that a change made while the
-    // folders are read is part of the delta that goes on from the run.
-    assert_eq!(log.get(1).map(String::as_str), Some("SyncRequest"));
-    assert_eq!(log.get(2).map(String::as_str), Some("GetFolderRequest"));
+    // The tags are read first; then the token is asked for before the folders are listed, so that
+    // a change made while the folders are read is part of the delta that goes on from the run.
+    assert_eq!(log.get(1).map(String::as_str), Some("GetTagRequest"));
+    assert_eq!(log.get(2).map(String::as_str), Some("SyncRequest"));
+    assert_eq!(log.get(3).map(String::as_str), Some("GetFolderRequest"));
 }
 
 #[test]
@@ -466,6 +467,22 @@ fn the_token_goes_in_the_header_or_a_cookie_and_never_in_an_address() {
     assert!(!String::from_utf8_lossy(auth.body()).contains('\r'));
     assert!(crate::auth::request("http://zimbra.example.org", "ada", &Credentials::password(PASSWORD)).is_err());
     assert!(crate::fetch::request(URL, &token, "1&zauthtoken=x").is_err());
+}
+
+#[test]
+fn the_servers_tags_come_down_as_categories_with_their_colours() {
+    let server = StandIn::new();
+    {
+        let mut s = server.state.borrow_mut();
+        s.tags.insert("CraftiCraft".into(), "#F58EE1".into());
+        s.tags.insert("Plain".into(), String::new());
+    }
+    let all = whole(&run(&server, &request(""), PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    let pink = all.categories.iter().find(|c| c.name == "CraftiCraft").unwrap();
+    assert_eq!(pink.color, mailcraft_model::Rgb(0xF5, 0x8E, 0xE1));
+    // A tag the server's `tn` made has no colour of its own: grey here.
+    assert_eq!(all.categories.iter().find(|c| c.name == "Plain").map(|c| c.color), Some(mailcraft_model::GREY_CATEGORY));
 }
 
 #[test]

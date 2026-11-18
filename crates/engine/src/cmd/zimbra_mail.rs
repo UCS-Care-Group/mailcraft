@@ -114,6 +114,9 @@ pub fn zimbra_mail_request(s: &Session, account: Id) -> Result<ZimbraMailRequest
         changes: graph_mail::folder_changes(&s.mailbox, account, mailcraft_model::sync::MAX_FOLDER_CHANGES).0,
         messages: super::graph_up::message_changes(s, account, mailcraft_model::sync::MAX_MESSAGE_CHANGES).0,
         sends: super::graph_send::sends(s, account),
+        // The account's categories, so a tag the run makes for a name the server doesn't have
+        // gets the colour it has here.
+        categories: s.mailbox.categories_of(account).to_vec(),
         ..ZimbraMailRequest::default()
     })
 }
@@ -268,6 +271,14 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     errors.extend(refused.iter().cloned());
     if let Some(listing) = &result.listing {
         down.removed = zimbra_down::take_folders(&mut s.mailbox, account, listing, &result.well_known, &mut taken);
+    }
+    // The server's tags are the categories its messages carry: taken in as the server's list has
+    // them, a name and a colour each.
+    if !result.categories.is_empty() {
+        let download = mailcraft_model::remote::CategoriesDownload { account, email: result.email.clone(), categories: result.categories.clone() };
+        if let Err(e) = super::remote::apply_categories(s, &download) {
+            errors.push(e.to_string());
+        }
     }
     let mut index = std::mem::take(&mut s.graph_index);
     for page in &result.pages {

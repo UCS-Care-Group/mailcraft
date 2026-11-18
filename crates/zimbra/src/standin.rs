@@ -74,6 +74,8 @@ pub struct State {
     /// The texts of the messages sent, in order, and the send ids already sent.
     pub sent: Vec<Vec<u8>>,
     pub suids: Vec<String>,
+    /// The mailbox's tags by name: their `rgb`, empty for one a message's `tn` made.
+    pub tags: BTreeMap<String, String>,
     next: u32,
 }
 
@@ -248,6 +250,13 @@ impl StandIn {
             ("FolderActionRequest", "urn:zimbraMail") => self.folder_action(body),
             ("MsgActionRequest", "urn:zimbraMail") => self.msg_action(body),
             ("SendMsgRequest", "urn:zimbraMail") => self.send_msg(body),
+            ("GetTagRequest", "urn:zimbraMail") => {
+                let s = self.state.borrow();
+                let tags: Vec<Value> =
+                    s.tags.iter().map(|(name, rgb)| if rgb.is_empty() { json!({"name": name}) } else { json!({"name": name, "rgb": rgb}) }).collect();
+                soap("GetTagResponse", json!({"tag": tags}))
+            }
+            ("CreateTagRequest", "urn:zimbraMail") => self.create_tag(body),
             _ => fault("service.UNKNOWN_DOCUMENT"),
         }
     }
@@ -350,13 +359,33 @@ impl StandIn {
                     "flag" if !m.flags.contains('f') => m.flags.push('f'),
                     "!flag" => m.flags = m.flags.replace('f', ""),
                     "move" => m.folder = to.unwrap_or(m.folder),
-                    "update" => m.tags = tags.unwrap_or_default(),
+                    "update" => m.tags = tags.clone().unwrap_or_default(),
                     _ => {}
                 });
+                // As Zimbra does: a `tn` update makes the tags it names.
+                if op == "update" {
+                    let mut s = self.state.borrow_mut();
+                    for name in tags.unwrap_or_default() {
+                        s.tags.entry(name).or_default();
+                    }
+                }
             }
             _ => return fault("service.INVALID_REQUEST"),
         }
         soap("MsgActionResponse", json!({"action": {"op": op, "id": id.to_string()}}))
+    }
+
+    fn create_tag(&self, body: &Value) -> HttpResponse {
+        let Some(name) = body.pointer("/tag/name").and_then(Value::as_str).filter(|name| !name.is_empty()) else {
+            return fault("service.INVALID_REQUEST");
+        };
+        let rgb = body.pointer("/tag/rgb").and_then(Value::as_str).unwrap_or("").to_string();
+        let mut s = self.state.borrow_mut();
+        s.next += 1;
+        let id = s.next;
+        s.tags.insert(name.to_string(), rgb.clone());
+        s.change += 1;
+        soap("CreateTagResponse", json!({"tag": [{"id": id.to_string(), "name": name, "rgb": rgb}]}))
     }
 
     fn send_msg(&self, body: &Value) -> HttpResponse {
