@@ -55,9 +55,23 @@ fn notice(ui: &mut Ui, rtl: bool, label: egui::RichText) {
 pub(crate) fn show(ui: &mut Ui, source: &Source, t: &Tokens) -> bool {
     let mut close = false;
     let rtl = crate::i18n::current() == crate::i18n::Lang::Hebrew;
-    notice(ui, rtl, egui::RichText::new(tl!("Shown as text: nothing in it runs, opens or is downloaded.")).color(t.text_dim).size(11.5));
+    notice(
+        ui,
+        rtl,
+        egui::RichText::new(tl!(
+            "Shown as text: nothing in it runs, opens or is downloaded."
+        ))
+        .color(t.text_dim)
+        .size(11.5),
+    );
     if source.truncated {
-        notice(ui, rtl, egui::RichText::new(tl!("The source is long: only its first megabyte is shown.")).color(t.text_dim).size(11.5));
+        notice(
+            ui,
+            rtl,
+            egui::RichText::new(tl!("The source is long: only its first megabyte is shown."))
+                .color(t.text_dim)
+                .size(11.5),
+        );
     }
     egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).fill(t.panel).inner_margin(6.0).show(ui, |ui| {
         egui::ScrollArea::both().max_height(420.0).auto_shrink([false, false]).show(ui, |ui| {
