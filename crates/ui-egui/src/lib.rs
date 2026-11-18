@@ -117,6 +117,8 @@ mod field_drag_tests;
 pub mod files;
 mod find_replace;
 mod folder_properties;
+#[cfg(test)]
+mod folder_search_tests;
 mod follow_up_tick;
 mod font_index;
 #[cfg(test)]
