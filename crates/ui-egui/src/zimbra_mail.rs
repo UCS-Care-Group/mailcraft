@@ -103,12 +103,15 @@ impl MailApp {
         if self.unconfirmed {
             request.trusted.clear();
         }
-        let Some(run) = self.services.zimbra.as_ref() else { return Err(tl!("This build can't connect to mail servers").to_string()) };
+        if self.services.zimbra.is_none() {
+            return Err(tl!("This build can't connect to mail servers").to_string());
+        }
         self.services.sync_cancel.store(false, Ordering::Relaxed);
         let trust: TrustSlot = Arc::default();
         let trusted = if code.is_some() { None } else { self.zimbra_trusted(account) };
         let job = ZimbraJob { request, secret: secret.clone(), code, trusted, trust: trust.clone(), cancel: self.services.sync_cancel.clone() };
-        let pieces = run(job);
+        // What it sends is marked so, on disk, before it leaves (AU3-26).
+        let pieces = self.hand_zimbra(account, job)?;
         (self.sync_refused, self.sync_password) = (false, Some(secret));
         self.zimbra_trust = Some((account, trust));
         self.sync_run = Some((account, Some(self.waiting_to_go(account)), false, quiet));
@@ -174,6 +177,8 @@ impl MailApp {
             // The run is over.
             self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
+            // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
+            self.session.send_run_answered(account);
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
                 self.session.driver.round.queue.push_front((whose, quiet));
             }

@@ -775,7 +775,9 @@ pub fn refetch_hollow(mb: &mut Mailbox) -> usize {
     let servers: HashSet<Id> = mb
         .accounts
         .iter()
-        .filter(|a| matches!(a.kind, mailcraft_model::AccountKind::Microsoft | mailcraft_model::AccountKind::Exchange))
+        .filter(|a| {
+            matches!(a.kind, mailcraft_model::AccountKind::Microsoft | mailcraft_model::AccountKind::Exchange | mailcraft_model::AccountKind::Zimbra)
+        })
         .map(|a| a.id)
         .collect();
     if servers.is_empty() {

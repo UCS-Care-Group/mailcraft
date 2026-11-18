@@ -375,3 +375,26 @@ fn messages_are_fetched_whole_by_server_id() {
     assert!(hello.body.text.contains("The whole text"));
     assert_eq!(hello.flag, FlagStatus::None);
 }
+
+#[test]
+fn a_change_made_here_goes_up_and_is_settled_by_its_answer() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    let hello = s.mailbox.messages.values().find(|m| m.subject == "Hello").map(|m| m.id).unwrap();
+    s.run("mail.markRead", &json!({"ids": [hello]})).unwrap();
+    assert!(crate::cmd::account::unpushed(&s, account) > 0);
+    let request = zimbra_mail_request(&s, account).unwrap();
+    let change = request.messages.iter().find(|c| c.id() == "257").cloned().unwrap();
+    assert!(matches!(&change, mailcraft_model::sync::MessageChange::Update { read: Some(true), .. }));
+    let mut answered = result(account, "4711");
+    answered.messages = vec![mailcraft_model::sync::MessageChangeDone {
+        change,
+        outcome: mailcraft_model::sync::MessageOutcome::Done { categories: None, flag: None, folder: String::new(), id: String::new() },
+        there: None,
+    }];
+    (answered.token, answered.whole) = ("4712".into(), true);
+    let said = apply(&mut s, answered);
+    assert_eq!(said["pushed"], 1);
+    assert_eq!(crate::cmd::account::unpushed(&s, account), 0);
+    assert!(zimbra_mail_request(&s, account).unwrap().messages.is_empty());
+}

@@ -402,11 +402,10 @@ impl AccountKind {
     }
 
     /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP,
-    /// through Microsoft Graph, through Exchange Web Services, or over JMAP). Not yet for a Zimbra
-    /// account: its sending comes after its reading, and until then no mail is put in its Outbox,
-    /// where it would wait for ever.
+    /// through Microsoft Graph, through Exchange Web Services, through Zimbra's web service, or over
+    /// JMAP).
     pub fn sends_mail(self) -> bool {
-        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
+        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange | AccountKind::Zimbra)
     }
 
     /// Whether the kind is kept in step only while its feature switch is on (`MAILCRAFT_ZIMBRA=1`:
@@ -2600,7 +2599,7 @@ impl Mailbox {
     /// and an Exchange server account's (#252). Moves between accounts stay Graph's
     /// ([`Mailbox::is_graph`], [`Mailbox::puts_on_server`]).
     pub fn keeps_changes_for_server(&self, account: Id) -> bool {
-        self.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange))
+        self.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange | AccountKind::Zimbra))
     }
 
     /// Whether `account` is kept in step through Microsoft Graph.

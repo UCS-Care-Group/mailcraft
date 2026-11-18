@@ -28,7 +28,8 @@ use mailcraft_model::sync::{
 use crate::auth::{Answer, Credentials, Trust};
 use crate::error::Error;
 use crate::http::{HttpExchange, HttpRequest, HttpResponse, Secret, TransportError};
-use crate::{auth, delta, fetch, folders, items};
+use crate::{auth, delta, fetch, folders, items, up};
+use mailcraft_model::sync::{SendDone, SendOutcome};
 
 /// Most pages of one folder read in a run (at [`items::PAGE`] each), most rounds of a delta, and
 /// most times the folder listing is asked for again when a change names a folder it doesn't know.
@@ -179,6 +180,7 @@ async fn run<E: HttpExchange>(
     let user = login(&request.username, &request.email);
     (run.token, *trust) = sign_in(&run, &user, credentials).await?;
     keep(trust);
+    upward(&run, request, emit).await?;
     let token_ok = !request.token.is_empty() && mailcraft_model::ZimbraServer::token_ok(&request.token);
     if token_ok {
         let listing = folder_listing(&run, request, emit).await?;
@@ -210,6 +212,107 @@ async fn folder_listing<E: HttpExchange>(
     piece.partial = true;
     emit(piece);
     if listing.complete { Ok(listing) } else { Err(Stop::Failed(Error::Unreadable)) }
+}
+
+/// What was done here, taken up before anything is read: the folders' changes, the messages', and
+/// what waits in the Outbox. Each kind is a piece; each message sent is a piece of its own, as soon
+/// as it is known.
+async fn upward<E: HttpExchange>(run: &Run<'_, E>, request: &ZimbraMailRequest, emit: &mut dyn FnMut(ZimbraMailResult)) -> Result<(), Stop> {
+    if !request.changes.is_empty() {
+        let mut piece = blank(request);
+        piece.partial = true;
+        for change in request.changes.iter().take(mailcraft_model::sync::MAX_FOLDER_CHANGES) {
+            let outcome = match up::folder_change(&run.base, &run.token, change) {
+                Err(outcome) => outcome,
+                Ok(asked) => {
+                    let answer = run.ask(Ok(asked)).await?;
+                    if let Some(e) = up::stops("FolderActionRequest", &answer).or_else(|| up::stops("CreateFolderRequest", &answer)) {
+                        emit(piece);
+                        return Err(Stop::Failed(e));
+                    }
+                    up::folder_done(change, &answer)
+                }
+            };
+            piece.changes.push(up::folder_change_done(change, outcome));
+        }
+        emit(piece);
+    }
+    if !request.messages.is_empty() {
+        let mut piece = blank(request);
+        piece.partial = true;
+        for change in request.messages.iter().take(mailcraft_model::sync::MAX_MESSAGE_CHANGES) {
+            let mut outcome = up::message_done(change);
+            match up::message_requests(&run.base, &run.token, change) {
+                Err(e) => outcome = up::message_refused(e),
+                Ok(asked) => {
+                    for one in asked {
+                        let answer = run.ask(Ok(one)).await?;
+                        if let Some(e) = up::stops("MsgActionRequest", &answer) {
+                            emit(piece);
+                            return Err(Stop::Failed(e));
+                        }
+                        if let Err(e) = up::acted("MsgActionRequest", &answer) {
+                            outcome = up::message_refused(e);
+                            break;
+                        }
+                    }
+                }
+            }
+            piece.messages.push(up::message_change_done(change, outcome));
+        }
+        emit(piece);
+    }
+    for send in request.sends.iter().take(up::MAX_SENDS) {
+        let mut piece = blank(request);
+        piece.partial = true;
+        let held = |why: String, lost: bool| SendDone { message: send.message, outcome: SendOutcome::Held { lost, why }, ..SendDone::default() };
+        if let Some(done) = up::held_before(send) {
+            piece.sent.push(done);
+            emit(piece);
+            continue;
+        }
+        let Some(message) = send.mime.as_deref() else { continue };
+        let text = up::written(message);
+        if text.len() > up::MAX_UPLOAD {
+            piece.sent.push(held(crate::Error::Transport(TransportError::BodyTooLarge).to_string(), false));
+            emit(piece);
+            continue;
+        }
+        // The upload sends nothing: whatever happens to it, the message waits or is held with why.
+        let answered = run.ask(up::upload(&run.base, &run.token, text)).await?;
+        let upload = match up::uploaded(&answered) {
+            Ok(upload) => upload,
+            Err(e @ (Error::AuthRefused | Error::Busy(_))) => return Err(Stop::Failed(e)),
+            Err(e) => {
+                piece.sent.push(held(format!("the Zimbra server didn't take the message: {e}"), false));
+                emit(piece);
+                continue;
+            }
+        };
+        // The send is asked once; an answer that never came holds it as one that may have gone.
+        let suid = up::send_id(request.account, send, message);
+        let outcome = match run.ask(up::send(&run.base, &run.token, &upload, &suid)).await {
+            Ok(answer) => match crate::soap::answer("SendMsgRequest", &answer) {
+                Ok(_) => SendOutcome::Sent,
+                Err(e @ (Error::AuthRefused | Error::Busy(_))) => return Err(Stop::Failed(e)),
+                Err(e) => SendOutcome::Held { lost: false, why: e.to_string() },
+            },
+            // (Called off, or the server not reached: nothing went, and it waits.)
+            Err(Stop::Cancelled) => return Err(Stop::Cancelled),
+            Err(Stop::Failed(e @ Error::Transport(TransportError::Unreachable | TransportError::Tls | TransportError::RedirectRefused))) => {
+                emit(piece);
+                return Err(Stop::Failed(e));
+            }
+            Err(Stop::Failed(e)) => {
+                piece.sent.push(held(String::new(), true));
+                emit(piece);
+                return Err(Stop::Failed(e));
+            }
+        };
+        piece.sent.push(SendDone { message: send.message, outcome, ..SendDone::default() });
+        emit(piece);
+    }
+    Ok(())
 }
 
 /// What changed since the request's token, page by page. Answers the token to go on from.

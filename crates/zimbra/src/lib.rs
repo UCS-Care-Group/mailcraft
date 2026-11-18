@@ -38,6 +38,7 @@ pub mod items;
 mod json;
 pub mod run;
 pub mod soap;
+pub mod up;
 
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin;
@@ -46,6 +47,8 @@ pub mod standin;
 mod hostile_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod up_tests;
 
 pub use auth::{Credentials, Trust};
 pub use error::{Error, Fault};

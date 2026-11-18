@@ -42,6 +42,7 @@ pub(crate) enum Waiting {
     Graph(Box<GraphRequest>, Sender<GraphResult>),
     Ews(Box<EwsJob>, Sender<EwsMailResult>),
     Jmap(Box<JmapJob>, Sender<JmapMailResult>),
+    Zimbra(Box<crate::zimbra_mail::ZimbraJob>, Sender<mailcraft_model::sync::ZimbraMailResult>),
 }
 
 fn not_saved(why: &str) -> String {
@@ -125,6 +126,22 @@ impl MailApp {
         }
     }
 
+    /// Hand a Zimbra account's run to the host, what it sends marked first.
+    pub(crate) fn hand_zimbra(
+        &mut self,
+        account: Id,
+        job: crate::zimbra_mail::ZimbraJob,
+    ) -> Result<Receiver<mailcraft_model::sync::ZimbraMailResult>, String> {
+        let going: Vec<Id> = job.request.sends.iter().map(|up| up.message).collect();
+        match self.saved_before_sending(account, &going) {
+            Saved::Now => {
+                self.services.zimbra.as_ref().map(|run| run(job)).ok_or_else(|| tl!("This build can't connect to mail servers").to_string())
+            }
+            Saved::Later(rev) => Ok(self.wait_for_save(rev, account, |tx| Waiting::Zimbra(Box::new(job), tx))),
+            Saved::Failed(why) => Err(why),
+        }
+    }
+
     /// Hand a JMAP account's run to the host, what it sends marked first.
     pub(crate) fn hand_jmap(&mut self, account: Id, job: JmapJob) -> Result<Receiver<JmapMailResult>, String> {
         let going: Vec<Id> = job.request.sends.iter().map(|up| up.message).collect();
@@ -160,6 +177,9 @@ impl MailApp {
                 Waiting::Graph(_, tx) => drop(tx.send(GraphResult { account, errors, ..Default::default() })),
                 Waiting::Ews(_, tx) => drop(tx.send(EwsMailResult { account, errors, partial: false, ..Default::default() })),
                 Waiting::Jmap(_, tx) => drop(tx.send(JmapMailResult { account, errors, partial: false, ..Default::default() })),
+                Waiting::Zimbra(_, tx) => {
+                    drop(tx.send(mailcraft_model::sync::ZimbraMailResult { account, errors, partial: false, ..Default::default() }))
+                }
             }
             return;
         }
@@ -197,6 +217,16 @@ impl MailApp {
             }
             Waiting::Jmap(job, _) => {
                 if let (Some(run), Some(MailRun::Jmap { account: whose, pieces, .. })) = (&self.services.jmap, &mut self.sync_rx)
+                    && *whose == account
+                {
+                    *pieces = run(*job);
+                    true
+                } else {
+                    false
+                }
+            }
+            Waiting::Zimbra(job, _) => {
+                if let (Some(run), Some(MailRun::Zimbra { account: whose, pieces, .. })) = (&self.services.zimbra, &mut self.sync_rx)
                     && *whose == account
                 {
                     *pieces = run(*job);

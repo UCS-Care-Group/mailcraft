@@ -7,7 +7,7 @@ use mailcraft_model::{AccountKind, FolderKind, Message};
 use serde_json::{Value, json};
 
 use crate::Session;
-use crate::cmd::zimbra_mail::{NOT_BUILT, SENDING_NOT_BUILT, SWITCHED_OFF};
+use crate::cmd::zimbra_mail::{NOT_BUILT, SWITCHED_OFF};
 
 const URL: &str = "https://zimbra.example.org";
 
@@ -89,14 +89,19 @@ fn its_settings_are_checked_and_its_kind_is_kept() {
 }
 
 #[test]
-fn a_message_from_a_zimbra_account_is_not_filed_as_sent() {
+fn a_message_from_a_zimbra_account_waits_in_its_outbox_and_goes_with_the_next_run() {
     let mut s = switched_on();
     let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
     s.run("mail.new", &json!({"account": id, "to": "bob@example.org", "subject": "Hello", "body": "Hi"})).unwrap();
-    assert!(said(s.run("compose.send", &json!({}))).contains(SENDING_NOT_BUILT));
-    let sent = s.mailbox.folder_of_kind(id, FolderKind::Sent).unwrap();
-    assert_eq!(s.mailbox.count(sent), 0);
-    assert!(s.compose.is_some());
+    s.run("compose.send", &json!({})).unwrap();
+    let (sent, outbox) = (s.mailbox.folder_of_kind(id, FolderKind::Sent).unwrap(), s.mailbox.folder_of_kind(id, FolderKind::Outbox).unwrap());
+    assert_eq!((s.mailbox.count(sent), s.mailbox.count(outbox)), (0, 1));
+    let request = s.run("sync.zimbraRequest", &json!({"account": id})).unwrap();
+    let sends = request["sends"].as_array().unwrap();
+    assert_eq!(sends.len(), 1);
+    // (The message itself goes to the host beside the request, never as text in a command's answer
+    // that an agent reads: the request says which.)
+    assert!(sends[0]["message"].as_u64().is_some());
 }
 
 #[test]

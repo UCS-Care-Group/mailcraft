@@ -13,6 +13,8 @@ workspace = true
 mailcraft-ews = { workspace = true }
 # What a run brings back is the model's own sync data (a lower layer, wasm-ready).
 mailcraft-model = { workspace = true }
+# A message to send is written as the RFC 5322 text it is by the program's own writer (a lower layer).
+mailcraft-mime-model = { workspace = true }
 log = { workspace = true }
 # Zimbra speaks its SOAP in JSON as well as XML: the requests are written, and the answers read,
 # by serde_json, already in the tree, with its recursion limit and the crate's own size caps.

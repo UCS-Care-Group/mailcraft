@@ -244,6 +244,8 @@ pub fn apply_fetch(s: &mut Session, result: GraphFetchResult) -> Result<Value, c
         jmap_mail::apply_jmap_fetch(s, result)
     } else if kind == Some(AccountKind::Exchange) {
         ews_mail::apply_ews_fetch(s, result)
+    } else if kind == Some(AccountKind::Zimbra) {
+        crate::cmd::zimbra_mail::apply_zimbra_fetch(s, result)
     } else {
         graph_mail::apply_graph_fetch(s, result)
     }
