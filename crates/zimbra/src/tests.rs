@@ -679,3 +679,45 @@ fn a_probe_asks_an_auth_request_and_reads_the_refusal_as_zimbras() {
         assert!(!probe::is_zimbra(&HttpResponse::new(status, body.to_vec())), "{status}");
     }
 }
+
+#[test]
+fn a_folder_mounted_from_another_mailbox_is_read_whole_and_refreshed_on_every_run() {
+    let server = StandIn::new();
+    server.deliver(2, "Own", "");
+    let mount = server.mount(1, "Shared", "team@example.org");
+    let shared = server.deliver_shared(&mount, "Shared mail", "u");
+
+    // A first read: the mount is a folder of the listing, read under its qualified id.
+    let pieces = run(&server, &request(""), PASSWORD);
+    let all = whole(&pieces);
+    assert_eq!(all.errors, Vec::<String>::new());
+    assert!(all.whole);
+    let listing = all.listing.clone().unwrap();
+    assert!(listing.folders.iter().any(|f| f.id == mount && f.name == "Shared" && f.parent.is_empty() && !f.well_known));
+    let mount_pages: Vec<_> = all.pages.iter().filter(|p| p.folder == mount).collect();
+    assert!(mount_pages.first().is_some_and(|p| p.afresh) && mount_pages.last().is_some_and(|p| p.last));
+    let m = &mount_pages.first().unwrap().messages[0];
+    assert_eq!((m.server.id.as_str(), m.server.folder.as_str(), m.subject.as_str()), (shared.as_str(), mount.as_str(), "Shared mail"));
+
+    // A tokened run: the delta is the mailbox's own items' alone — the mount is read whole again.
+    let pieces = run(&server, &request(&all.token), PASSWORD);
+    let second = whole(&pieces);
+    assert_eq!(second.errors, Vec::<String>::new());
+    assert!(second.whole);
+    assert!(second.pages.iter().any(|p| p.folder == mount && p.messages.iter().any(|m| m.server.id == shared)));
+
+    // And fetched whole by its qualified id.
+    let fetch = ZimbraFetchRequest { account: 3, email: USER.into(), url: URL.into(), ids: vec![shared.clone()], ..Default::default() };
+    let got = block_on(fetch_messages(&server, &fetch, &Credentials::password(PASSWORD), &AtomicBool::new(false), &mut |_, _| {})).unwrap();
+    assert_eq!(got.fetched.len(), 1);
+    assert!(String::from_utf8_lossy(&got.fetched[0].mime).contains("Subject: Shared mail"));
+
+    // The mailbox it is shared from gone, its read faults: the run still ends whole, and the
+    // folder is simply left as it was — nothing of it is emitted, nothing of it removed.
+    server.break_mount(&mount);
+    let pieces = run(&server, &request(&all.token), PASSWORD);
+    let third = whole(&pieces);
+    assert_eq!(third.errors, Vec::<String>::new());
+    assert!(third.whole);
+    assert!(!third.pages.iter().any(|p| p.folder == mount));
+}

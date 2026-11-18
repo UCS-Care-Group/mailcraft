@@ -224,14 +224,20 @@ fn ids_of_other_mailboxes_and_odd_ids_are_passed_over() {
     let found = answer(
         200,
         &json!({"Body": {"SearchResponse": {"m": [
-            {"id": "a1b2:12", "l": "2"}, {"id": "257", "l": "x:2", "su": "another mailbox's"}, {"id": "300", "l": "2", "su": "ok\u{0}\r\nyes"}
+            {"id": "a1b2:12", "l": "x:2", "su": "shared"}, {"id": "257", "l": "a b", "su": "no folder"}, {"id": "300", "l": "2", "su": "ok\u{0}\r\nyes"}
         ]}}}),
     );
     let page = items::answer(&found).unwrap();
     assert!(!page.more);
-    assert_eq!(page.messages.len(), 1);
+    // An item of a mailbox mounted into this one's is kept by its qualified id; one whose folder
+    // is no id at all is passed over.
+    assert_eq!(page.messages.len(), 2);
     assert_eq!(
         (page.messages[0].server.id.as_str(), page.messages[0].server.folder.as_str(), page.messages[0].subject.as_str()),
+        ("a1b2:12", "x:2", "shared")
+    );
+    assert_eq!(
+        (page.messages[1].server.id.as_str(), page.messages[1].server.folder.as_str(), page.messages[1].subject.as_str()),
         ("300", "2", "ok  yes")
     );
     // An id of another mailbox's item in a deletion list is passed over; an entry that is no
@@ -276,8 +282,8 @@ fn an_item_with_no_folder_is_unreadable_not_removed() {
     // token on past the change, so the whole answer is refused.
     let found = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "257", "su": "where am I"}]}}}));
     assert_eq!(items::answer(&found), Err(Error::Unreadable));
-    // A folder the item says is another mailbox's passes it over, like a foreign id does.
-    let foreign = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "257", "l": "998:2", "su": "not ours"}]}}}));
+    // A folder the server names in no item's id shape passes the item over, like a bad id does.
+    let foreign = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "257", "l": "a:b:c", "su": "not a folder"}]}}}));
     assert_eq!(items::answer(&foreign).unwrap().messages.len(), 0);
     // A `more` that is no flag can't tell the page ends the read either: read off, the run
     // would count what it never listed as gone.
@@ -302,10 +308,13 @@ fn a_mounted_folder_of_another_mailbox_is_kept_apart() {
         ]}, "link": [{"id": "def456:2", "name": "top-level", "view": "message"}]}}}),
     );
     let listed = folders::answer(&found).unwrap();
-    // A folder shared into the tree is no folder of this mailbox's, and the listing stays complete:
-    // nothing of ours is lost by it. Ones that can't be told whole are passed over, and a second
-    // id of the same shape is a listing that answers for nothing.
-    assert_eq!(listed.folders.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["Inbox", "Parent"]);
+    // A mountpoint of mail is a folder of this mailbox's — under its qualified id, never one of
+    // its own — and is kept in `mounted` besides, for what it is and whose it is. Ones that can't
+    // be told whole are passed over, and a shared folder of anything but mail stays in `mounted`
+    // alone. The listing stays complete: nothing of ours is lost by any of it.
+    let folders: Vec<(&str, &str, &str)> = listed.folders.iter().map(|f| (f.id.as_str(), f.name.as_str(), f.parent.as_str())).collect();
+    assert_eq!(folders, [("2", "Inbox", ""), ("300", "Parent", ""), ("abc123:257", "shared-inbox", "300"), ("def456:2", "top-level", "")]);
+    assert!(listed.folders.iter().all(|f| !f.well_known || !f.id.contains(':')));
     assert!(listed.complete);
     let mounted: Vec<(&str, &str, &str, &str)> =
         listed.mounted.iter().map(|m| (m.id.as_str(), m.name.as_str(), m.owner.as_str(), m.view.as_str())).collect();

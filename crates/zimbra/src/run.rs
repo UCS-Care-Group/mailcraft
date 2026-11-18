@@ -215,6 +215,9 @@ async fn run<E: HttpExchange>(
             Err(Stop::Failed(Error::MustResync)) => {}
             done => {
                 let since = done?;
+                // The mailbox's delta is its own items' alone: folders mounted from other
+                // mailboxes are read whole again instead, or left as they were.
+                refresh_mounted(&run, request, &listing, emit).await?;
                 let resume = resume_folders(&run, request, &listing, emit).await?;
                 return Ok((since, resume));
             }
@@ -537,6 +540,78 @@ async fn folder_tail<E: HttpExchange>(
     Ok(None)
 }
 
+/// A folder mounted from another mailbox (`<zid>:<rid>`), read whole into memory first and handed
+/// over in one piece at its end. Its items are another mailbox's: a read that can't be had, or one
+/// that stops in the middle, leaves the folder as it was rather than half-swapped or empty — and
+/// keeps the run's own mail out of it. The mailbox's own delta never names them (their changes are
+/// the other mailbox's journal's), so a mounted folder is read this way on every run.
+async fn mounted_tail<E: HttpExchange>(
+    run: &Run<'_, E>,
+    request: &ZimbraMailRequest,
+    folder: &str,
+    emit: &mut dyn FnMut(ZimbraMailResult),
+) -> Result<(), Stop> {
+    let mut pages = Vec::new();
+    let mut cursor: Option<(String, u64)> = None;
+    for page_number in 0..MAX_FOLDER_PAGES {
+        let answered = match run.ask(items::folder_page(&run.base, &run.token, folder, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort)))).await
+        {
+            Ok(answered) => answered,
+            Err(Stop::Cancelled) => return Err(Stop::Cancelled),
+            Err(Stop::Failed(_)) => return Ok(()),
+        };
+        let page = match items::answer(&answered) {
+            Ok(page) => page,
+            Err(_) => return Ok(()),
+        };
+        // The same sense a folder's own read asks for: a page that says more without a way on, or
+        // that hands the cursor it was asked from back, is no read at all.
+        if page.more && (page.messages.is_empty() || page.cursor.is_none() || page.cursor == cursor) {
+            return Ok(());
+        }
+        let last = !page.more;
+        cursor = page.cursor;
+        pages.push(ZimbraMessagePage {
+            folder: folder.to_string(),
+            messages: page.messages,
+            afresh: page_number == 0,
+            last,
+            ..ZimbraMessagePage::default()
+        });
+        if last {
+            let mut piece = blank(request);
+            piece.pages = pages;
+            piece.partial = true;
+            emit(piece);
+            return Ok(());
+        }
+    }
+    // More than one run's worth of pages: none of it goes out, the folder stays as it was.
+    Ok(())
+}
+
+/// Whether `folder` is one mounted from another mailbox (`<zid>:<rid>`), rather than one of this
+/// mailbox's own.
+fn mounted(folder: &str) -> bool {
+    folder.contains(':')
+}
+
+/// Every mounted folder of the listing read whole again: the run's delta is the mailbox's own
+/// items' alone, and theirs is never named in it.
+async fn refresh_mounted<E: HttpExchange>(
+    run: &Run<'_, E>,
+    request: &ZimbraMailRequest,
+    listing: &folders::Listing,
+    emit: &mut dyn FnMut(ZimbraMailResult),
+) -> Result<(), Stop> {
+    for folder in listing.folders.iter().take(MAX_LISTED_FOLDERS) {
+        if mounted(&folder.id) {
+            mounted_tail(run, request, &folder.id, emit).await?;
+        }
+    }
+    Ok(())
+}
+
 /// The folders whose fresh read a run before this one had to stop in the middle of (`request`'s
 /// `resume`), read to their end — or to where they stop again, which is handed back.
 async fn resume_folders<E: HttpExchange>(
@@ -549,6 +624,10 @@ async fn resume_folders<E: HttpExchange>(
     for entry in request.resume.iter().take(MAX_LISTED_FOLDERS) {
         // A folder no longer in the listing is gone, and its read with it.
         if !listing.folders.iter().any(|f| f.id == entry.folder) {
+            continue;
+        }
+        if mounted(&entry.folder) {
+            mounted_tail(run, request, &entry.folder, emit).await?;
             continue;
         }
         let start = if entry.cursor.is_empty() { None } else { Some((entry.cursor.clone(), entry.sort)) };
@@ -582,6 +661,10 @@ async fn afresh<E: HttpExchange>(
         if capped {
             // A folder this run never reached starts over on the next one.
             left.push(ZimbraResume { folder: folder.id.clone(), ..ZimbraResume::default() });
+            continue;
+        }
+        if mounted(&folder.id) {
+            mounted_tail(run, request, &folder.id, emit).await?;
             continue;
         }
         if let Some(again) = folder_tail(run, request, &folder.id, None, emit).await? {
