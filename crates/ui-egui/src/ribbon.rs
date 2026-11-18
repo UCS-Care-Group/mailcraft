@@ -7,9 +7,12 @@
 //! out in three rows, in named groups. The simplified one is a single row, in which what doesn't
 //! fit first loses its label and then goes behind `…` ([`plan`]).
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use egui::{Align2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::{CalView, Filter, Module, Pane, PeopleSort, SortBy, TaskFilter, TaskSort};
-use mailcraft_model::{FolderKind, Id, Importance};
+use mailcraft_model::{Account, Folder, FolderKind, Id, Importance};
 use serde_json::{Value, json};
 
 use crate::theme::{Tokens, medium, paint_clipped, regular, semibold};
@@ -212,6 +215,29 @@ pub(crate) fn usable(app: &MailApp, item: &Item) -> bool {
 /// Whether a menu can be opened now: the command it stands for can run, or it stands for none.
 fn menu_usable(app: &MailApp, menu: Menu) -> bool {
     (menu != Menu::RecentAttachments || crate::recent_attachments::available(app)) && menu.command().is_none_or(|command| app.enabled(command))
+}
+
+/// Whether a menu holds a text field the owner clicks in and types into: a colour typed by hand,
+/// a folder search. Such a menu keeps a click made inside it — that click is for the field, and
+/// not a way out of the menu. Every item of these menus shuts it itself
+/// ([`crate::widgets::mi`], [`crate::widgets::mi_check], the colour squares, a chosen folder), and
+/// a click outside it still shuts it. The font menu joins them when it gets its search field
+/// (#1494).
+fn holds_a_field(menu: Menu) -> bool {
+    matches!(menu, Menu::FontColor | Menu::Highlight | Menu::MoveMessages | Menu::Rules | Menu::MoveFolder)
+}
+
+/// The menus a button of the simplified row opens: its own, and those of what hangs under it.
+fn button_menus(b: &Button<'_>) -> Vec<Menu> {
+    b.item.menu.into_iter().chain(b.drops.iter().filter_map(|under| under.menu)).collect()
+}
+
+/// A menu's popup: one that holds a text field keeps a click made inside it (#1493). Only menus
+/// whose every item shuts the menu themselves get this; a `…` of folded groups or of what didn't
+/// fit holds plain buttons, which count on the popup shutting for them, so those stay as they are.
+fn menu_popup<'a>(resp: &egui::Response, menus: impl IntoIterator<Item = Menu>) -> egui::Popup<'a> {
+    let popup = egui::Popup::menu(resp);
+    if menus.into_iter().any(holds_a_field) { popup.close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside) } else { popup }
 }
 
 /// A menu as an entry of another (a `▾`, a `…`): it opens while it can ([`menu_usable`]), and is
@@ -436,6 +462,16 @@ fn no() -> Value {
     json!({})
 }
 
+/// What the owner pressed: with Shift held and nothing else, Delete runs as Delete Permanently,
+/// as in Outlook, whose permanent delete key is Shift+Delete (#1438).
+fn pressed(ui: &Ui, command: &'static str) -> &'static str {
+    if command == "mail.delete" && ui.ctx().input(|i| i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.command && !i.modifiers.alt) {
+        "mail.deletePermanently"
+    } else {
+        command
+    }
+}
+
 fn home_mail(app: &MailApp) -> Tab {
     // Junk ▾: Block Sender, Never Block…, Not Junk and Junk E-mail Options (#504).
     let junk = Item::small_menu("junk", "junk", "Junk", "Junk", Menu::Junk);
@@ -607,14 +643,22 @@ fn home_calendar(app: &MailApp) -> Tab {
 
 fn home_people(app: &MailApp) -> Tab {
     let favorite = app.session.sel.contact.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.favorite);
-    Tab::of(vec![
-        g(
-            "New",
-            vec![
-                Item::big("newContact", "New\nContact", "people.new", no()).at(0, 1),
-                Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("people.new"),
-            ],
-        ),
+    let new = g(
+        "New",
+        vec![
+            Item::big("newContact", "New\nContact", "people.new", no()).at(0, 1),
+            Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("people.new"),
+        ],
+    );
+    // An organisation's address list, beside the contacts (#1262): where there is one.
+    let find = (!mailcraft_engine::cmd::people::address_lists(&app.session.mailbox).is_empty())
+        .then(|| g("Find", vec![Item::big("people", "Address\nBook", "people.addressBook", no()).at(5, 4)]));
+    // In the address list, what acts on a contact has nothing to act on: its card has its own.
+    if app.address_book_shown().is_some() {
+        return Tab::of(std::iter::once(new).chain(find).collect());
+    }
+    let mut groups = vec![
+        new,
         g("Delete", vec![Item::big("delete", "Delete", "people.delete", no()).at(1, 2).plain()]),
         g(
             "Communicate",
@@ -639,7 +683,9 @@ fn home_people(app: &MailApp) -> Tab {
                 Item::big("import", "Import", "ui.import", no()).at(4, 5),
             ],
         ),
-    ])
+    ];
+    groups.extend(find);
+    Tab::of(groups)
 }
 
 /// What Merge Duplicates opens its dialog with: the contacts picked together in the list, when
@@ -1146,47 +1192,168 @@ struct FolderSearch {
     text: String,
     /// The row the arrow keys are on, among the rows they can choose.
     at: usize,
-    /// The frame the menu was last drawn in: a gap means it was closed, and it opens afresh.
+    /// The frame the menu was last drawn in: a popup's sizing pass draws it twice in one frame,
+    /// and the second must keep the first's state.
     seen: Option<u64>,
 }
 
-/// A folder as the menu lists it: its id, name, place in the tree (`Inbox/Projects`) and depth.
-type FolderRow = (Id, String, String, usize);
-
-/// The folders whose name holds `query` (any part, ignoring case and accents), as indexes into
-/// `list`. Nothing typed (or nothing but marks) is all of them.
-fn folder_matches(list: &[FolderRow], query: &str) -> Vec<usize> {
-    let wanted = mailcraft_model::words::fold(&query.chars().take(FOLDER_SEARCH_MAX).collect::<String>());
-    list.iter().enumerate().filter(|(_, row)| wanted.is_empty() || mailcraft_model::words::fold(&row.1).contains(&wanted)).map(|(i, _)| i).collect()
+/// A folder as Move to Folder, Copy to Folder and the Move Items and Copy Items dialogs list it.
+/// Built in one pass over the mailbox when the list opens, not on every frame (#1176).
+pub(crate) struct FolderRow {
+    pub(crate) id: Id,
+    /// Its name, shown indented under its account's heading.
+    pub(crate) name: String,
+    /// Its place in its account (`Inbox/Projects`), shown for a search's matches.
+    pub(crate) path: String,
+    pub(crate) depth: usize,
+    /// What a search reads: its place and its mailbox, folded once.
+    pub(crate) fold: String,
+    /// The account it is in, as a search's match names it (`Name (address)`).
+    pub(crate) account: String,
+    /// The account's name, on the first of its folders: the heading above its tree.
+    pub(crate) heading: Option<String>,
 }
 
-/// A search box and then every folder of the account in view as menu items, indented; `pick` runs
-/// with the chosen one. Typing narrows the list to the folders whose name matches, each shown
-/// with its place in the tree; the arrow keys and Enter choose, and Escape clears the search
-/// before it closes the menu (#74).
-pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut MailApp, Id)) {
-    let account = app.session.mailbox.folder(app.session.view.folder).map(|f| f.account).or(app.session.mailbox.default_account().map(|a| a.id));
-    let Some(account) = account else { return };
-    fn walk(app: &MailApp, account: Id, parent: Option<Id>, depth: usize, out: &mut Vec<FolderRow>) {
-        if depth > 32 {
+/// The folders whose place (or mailbox) holds `query` (any part, ignoring case and accents), as
+/// indexes into `list`. Nothing typed (or nothing but marks) is all of them.
+fn folder_matches(list: &[FolderRow], query: &str) -> Vec<usize> {
+    let wanted = mailcraft_model::words::fold(&query.chars().take(FOLDER_SEARCH_MAX).collect::<String>());
+    list.iter().enumerate().filter(|(_, row)| wanted.is_empty() || row.fold.contains(&wanted)).map(|(i, _)| i).collect()
+}
+
+/// What a folder menu offers.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FolderScope {
+    /// The account in view's folders, as rules, Move Folder and a message file's menu take them.
+    ThisAccount,
+    /// Every account's folders, for Move to Folder and Copy to Folder: mail reaches another
+    /// account's server too (#451).
+    EveryAccount,
+}
+
+/// The account in view, else the default one.
+fn account_in_view(app: &MailApp) -> Option<Id> {
+    let mb = &app.session.mailbox;
+    mb.folder(app.session.view.folder).map(|f| f.account).or_else(|| mb.default_account().map(|a| a.id))
+}
+
+/// Most folders a menu lists, and how deep a tree is walked, however a mailbox is tangled.
+const FOLDER_ROWS_MAX: usize = 100_000;
+const FOLDER_DEPTH_MAX: usize = 32;
+
+/// `account`'s folders, and those under `parent`, appended to `out` as a tree, each with its place
+/// built as the tree is walked.
+fn walk_folders(
+    under: &HashMap<(Id, Option<Id>), Vec<&Folder>>,
+    account: &Account,
+    parent: Option<Id>,
+    above: &str,
+    depth: usize,
+    out: &mut Vec<FolderRow>,
+) {
+    if depth > FOLDER_DEPTH_MAX {
+        return;
+    }
+    let account_name = crate::nav::account_name(account);
+    let label = crate::nav::account_label(account);
+    let email = account.email.trim();
+    for f in under.get(&(account.id, parent)).into_iter().flatten() {
+        if out.len() >= FOLDER_ROWS_MAX {
             return;
         }
-        for f in app.session.mailbox.children(account, parent) {
-            out.push((f.id, crate::nav::folder_name(f).to_string(), crate::nav::folder_path(&app.session.mailbox, f.id), depth));
-            walk(app, account, Some(f.id), depth + 1, out);
+        let name = crate::nav::folder_name(f).to_string();
+        let path = if above.is_empty() { name.clone() } else { format!("{above}/{name}") };
+        // (A search finds a folder by its place, by the mailbox it is in, or by its address.)
+        let fold = mailcraft_model::words::fold(&format!("{path} - {label} - {email}"));
+        out.push(FolderRow { id: f.id, name, path: path.clone(), depth, fold, account: account_name.clone(), heading: None });
+        walk_folders(under, account, Some(f.id), &path, depth + 1, out);
+    }
+}
+
+/// The folders `scope` offers, in the folder pane's order: the account in view's first, then the
+/// others' as the pane has them, each as a tree. `bool` is whether more than one mailbox is
+/// listed: then each tree has its account's name above it and a search's matches name theirs.
+///
+/// The trees are found in one pass over the mailbox's folders, as Move Items builds them, so that
+/// a mailbox of several accounts with thousands of folders opens the menu without a wait (#1176).
+pub(crate) fn folder_rows(app: &MailApp, scope: FolderScope) -> (Vec<FolderRow>, bool) {
+    let mb = &app.session.mailbox;
+    let in_view = account_in_view(app);
+    let mut accounts: Vec<&Account> = match scope {
+        FolderScope::ThisAccount => in_view.and_then(|id| mb.account(id)).into_iter().collect(),
+        FolderScope::EveryAccount => {
+            let mut all = mb.accounts_in_order();
+            if let Some(at) = all.iter().position(|a| Some(a.id) == in_view) {
+                let a = all.remove(at);
+                all.insert(0, a);
+            }
+            all
+        }
+    };
+    let many = accounts.len() > 1;
+    // (Each account's folders under their parent, sorted as `Mailbox::children` sorts them.)
+    let rank = |f: &Folder| FolderKind::STANDARD.iter().position(|k| *k == f.kind).unwrap_or(usize::MAX);
+    let listed: std::collections::HashSet<Id> = accounts.iter().map(|a| a.id).collect();
+    let mut under: HashMap<(Id, Option<Id>), Vec<&Folder>> = HashMap::new();
+    for f in &mb.folders {
+        if listed.contains(&f.account) {
+            under.entry((f.account, f.parent)).or_default().push(f);
         }
     }
-    let mut list = Vec::new();
-    walk(app, account, None, 0, &mut list);
+    for v in under.values_mut() {
+        v.sort_by(|a, b| rank(a).cmp(&rank(b)).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+    }
+    let mut out = Vec::new();
+    for a in accounts.drain(..) {
+        let first = out.len();
+        walk_folders(&under, a, None, "", 0, &mut out);
+        // (The account's name above the first of its folders, none for an account that has none.)
+        if many && let Some(row) = out.get_mut(first) {
+            row.heading = Some(crate::nav::account_label(a));
+        }
+    }
+    (out, many)
+}
 
+/// A menu's folder list, kept while the menu is open: built once when it opens rather than on
+/// every frame, since every account's folders can be thousands (#1176).
+struct FolderList {
+    rows: Vec<FolderRow>,
+    many: bool,
+}
+
+/// A search box and then the folders of `scope` as menu items; `pick` runs with the chosen one.
+/// Typing narrows the list to the folders whose place (or mailbox) matches, each shown with its
+/// place in the tree; the arrow keys and Enter choose, and Escape clears the search before it
+/// closes the menu (#74).
+fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pick: impl FnMut(&mut MailApp, Id)) {
     let key = ui.scope_id().with("folder-search");
+    let list_key = ui.scope_id().with("folder-list");
     let frame = ui.ctx().cumulative_frame_nr();
     let mut st: FolderSearch = ui.data(|d| d.get_temp(key)).unwrap_or_default();
-    let fresh = st.seen.is_none_or(|seen| frame > seen.saturating_add(2));
+    // (The menu opens afresh when its layer wasn't on screen in the pass before, which egui knows
+    // itself: no frame count guesses at it, and a menu that stayed open through a pass with no
+    // repaint keeps its list. The frame keeps a popup's sizing pass, which draws the menu twice
+    // in one frame, from reading the folders twice.)
+    let was_open = ui.ctx().memory(|m| m.areas().visible_last_frame(&ui.layer_id()));
+    let fresh = st.seen != Some(frame) && !was_open;
     if fresh {
         st = FolderSearch::default();
     }
     st.seen = Some(frame);
+    // (The folders are read once, when the menu opens, and kept while it is drawn: reading every
+    // account's tree on every frame made the menu stutter with thousands of folders (#1176).)
+    let list: Arc<FolderList> = match (fresh, ui.data(|d| d.get_temp::<Arc<FolderList>>(list_key))) {
+        (false, Some(list)) => list,
+        _ => {
+            let (rows, many) = folder_rows(app, scope);
+            let list = Arc::new(FolderList { rows, many });
+            ui.data_mut(|d| d.insert_temp(list_key, Arc::clone(&list)));
+            list
+        }
+    };
+    let many = list.many;
+    let list = &list.rows;
 
     let edit = ui.add(egui::TextEdit::singleline(&mut st.text).hint_text(tl!("Search folders")).desired_width(200.0).char_limit(FOLDER_SEARCH_MAX));
     let edit = crate::text_menu::field(edit);
@@ -1194,10 +1361,10 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
         edit.request_focus();
     }
     let searching = !mailcraft_model::words::fold(&st.text).is_empty();
-    let shown = folder_matches(&list, &st.text);
+    let shown = folder_matches(list, &st.text);
     // The rows the keys can choose: not the folder in view, which can't be moved to.
     let current = app.session.view.folder;
-    let choosable: Vec<usize> = shown.iter().copied().filter(|i| list.get(*i).is_some_and(|row| row.0 != current)).collect();
+    let choosable: Vec<usize> = shown.iter().copied().filter(|i| list.get(*i).is_some_and(|row| row.id != current)).collect();
     st.at = st.at.min(choosable.len().saturating_sub(1));
     let (down, up, enter, escape) = ui.input_mut(|i| {
         (
@@ -1221,7 +1388,7 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
         }
     }
     let marked = if searching { choosable.get(st.at).copied() } else { None };
-    let mut chosen = if enter { marked.and_then(|i| list.get(i)).map(|row| row.0) } else { None };
+    let mut chosen = if enter { marked.and_then(|i| list.get(i)).map(|row| row.id) } else { None };
 
     ui.add_space(2.0);
     egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
@@ -1229,15 +1396,25 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
             ui.label(egui::RichText::new(tl!("No folders match")).color(Tokens::get(ui.ctx()).text_dim));
         }
         for i in shown {
-            let Some((id, name, path, depth)) = list.get(i) else { continue };
-            let label = if searching { path.clone() } else { format!("{}{name}", "    ".repeat(*depth)) };
+            let Some(row) = list.get(i) else { continue };
+            // (Above each account's tree: its name, which a search's matches show instead.)
+            if !searching && let Some(heading) = &row.heading {
+                ui.add_space(2.0);
+                ui.label(egui::RichText::new(heading).small().color(Tokens::get(ui.ctx()).text_dim));
+            }
+            let label = if searching {
+                // (A search's matches name their mailbox: the same place exists in each.)
+                if many { format!("{} - {}", row.path, row.account) } else { row.path.clone() }
+            } else {
+                format!("{}{name}", "    ".repeat(row.depth), name = row.name)
+            };
             let button = egui::Button::new(label).selected(marked == Some(i)).min_size(vec2(200.0, 0.0));
-            let response = ui.add_enabled(*id != current, button);
+            let response = ui.add_enabled(row.id != current, button);
             if marked == Some(i) && (down || up) {
                 response.scroll_to_me(None);
             }
             if response.clicked() {
-                chosen = Some(*id);
+                chosen = Some(row.id);
             }
         }
     });
@@ -1247,6 +1424,17 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
         ui.data_mut(|d| d.insert_temp(key, FolderSearch::default()));
         ui.close();
     }
+}
+
+/// A search box and then every folder of the account in view, as menu items.
+pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
+    folder_menu_scope(ui, app, FolderScope::ThisAccount, pick);
+}
+
+/// The same for Move to Folder and Copy to Folder, whose folders are every account's: a message
+/// moved from one mailbox into another is what the target accepts (#451).
+pub fn folder_menu_all(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
+    folder_menu_scope(ui, app, FolderScope::EveryAccount, pick);
 }
 
 /// The accounts of the selected messages, each once.
@@ -1269,6 +1457,21 @@ pub(crate) fn selected_categories(app: &MailApp) -> Vec<String> {
 /// Most names off the list that the Categorize menu shows.
 const MAX_OFF_LIST: usize = 32;
 
+/// The rows of [`category_menu`]: the categories of `accounts`, then the names of `carried` that
+/// none of them lists (at most [`MAX_OFF_LIST`]), each once as the lists compare names (any
+/// alphabet's capitals, #790), in grey unless a list gives it a colour.
+pub(crate) fn category_rows(mailbox: &mailcraft_model::Mailbox, accounts: &[Id], carried: &[String]) -> Vec<mailcraft_model::Category> {
+    let mut cats = mailbox.categories_for(accounts);
+    let listed = cats.len();
+    for name in carried {
+        if cats.len() < listed + MAX_OFF_LIST && !cats.iter().any(|c| mailcraft_model::sync::same_category(&c.name, name)) {
+            let color = accounts.iter().find_map(|a| mailbox.category_of(*a, name)).map_or(mailcraft_model::GREY_CATEGORY, |c| c.color);
+            cats.push(mailcraft_model::Category { name: name.clone(), color });
+        }
+    }
+    cats
+}
+
 /// The categories of `accounts`, those of the selection's items (#633), and the names of `carried`
 /// (what the items have) that aren't on those lists, as menu items that toggle one on the
 /// selection through `command`: an item moved from another account, or a name its server stopped
@@ -1282,15 +1485,8 @@ pub fn category_menu(
     has: impl Fn(&MailApp, &str) -> bool,
     clear: Option<&str>,
 ) {
-    let mailbox = &app.session.mailbox;
-    let mut cats: Vec<(String, egui::Color32)> = mailbox.categories_for(accounts).into_iter().map(|c| (c.name, crate::theme::c32(c.color))).collect();
-    let listed = cats.len();
-    for name in carried {
-        if cats.len() < listed + MAX_OFF_LIST && !cats.iter().any(|(c, _)| c.eq_ignore_ascii_case(name)) {
-            let color = accounts.iter().find_map(|a| mailbox.category_of(*a, name)).map_or(mailcraft_model::GREY_CATEGORY, |c| c.color);
-            cats.push((name.clone(), crate::theme::c32(color)));
-        }
-    }
+    let cats: Vec<(String, egui::Color32)> =
+        category_rows(&app.session.mailbox, accounts, carried).into_iter().map(|c| (c.name, crate::theme::c32(c.color))).collect();
     for (name, color) in cats {
         let on = has(app, &name);
         ui.horizontal(|ui| {
@@ -1385,13 +1581,13 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 Some(why) => {
                     ui.label(tl!(why));
                 }
-                None => folder_menu(ui, app, |app, folder| {
+                None => folder_menu_all(ui, app, |app, folder| {
                     let _ = app.run("mail.move", json!({"folder": folder}));
                 }),
             }
             ui.separator();
             ui.menu_button(tl!("Copy to Folder"), |ui| {
-                folder_menu(ui, app, |app, folder| {
+                folder_menu_all(ui, app, |app, folder| {
                     let _ = app.run("mail.copy", json!({"folder": folder}));
                 });
             });
@@ -1499,7 +1695,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeEvent => {
             let id = app.session.sel.event;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.event(id)).is_some_and(|e| e.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.event(id))
+                    .is_some_and(|e| e.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name)))
             };
             let event = id.and_then(|id| app.session.mailbox.event(id));
             let account = event.map(|e| app.session.mailbox.event_account(e));
@@ -1509,7 +1706,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeContact => {
             let id = app.session.sel.contact;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.contact(id))
+                    .is_some_and(|c| c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, name)))
             };
             let contact = id.and_then(|id| app.session.mailbox.contact(id));
             let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());
@@ -1518,7 +1716,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeTask => {
             let id = app.session.sel.task;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.task(id)).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.task(id))
+                    .is_some_and(|x| x.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name)))
             };
             let task = id.and_then(|id| app.session.mailbox.task(id));
             let (account, carried) = (task.map(|t| t.origin.account), task.map(|t| t.categories.clone()).unwrap_or_default());
@@ -1747,7 +1946,7 @@ fn entry(ui: &mut Ui, app: &mut MailApp, item: &Item) {
         button = button.shortcut_text(key);
     }
     if ui.add_enabled(enabled, button).clicked() {
-        let _ = app.run(id, params.clone());
+        let _ = app.run(pressed(ui, id), params.clone());
         ui.close();
     }
 }
@@ -1963,13 +2162,13 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
         drop_mark(ui, drop_rect.center(), ink);
         let main = menu_tooltip(app, main, item, on);
         if on {
-            egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
+            menu_popup(&main, button_menus(b)).show(|ui| drop_menu(ui, app, b));
         }
         return;
     };
     let main = command_tooltip(app, main, &item.tip_text(), command);
     if main.clicked() && on {
-        let _ = app.run(command, params.clone());
+        let _ = app.run(pressed(ui, command), params.clone());
     }
     if !b.has_drop() {
         return;
@@ -1984,7 +2183,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let tip = b.drops.first().map_or_else(|| item.tip_text(), |under| under.tip_text());
     let drop = drop.on_hover_text(tip);
     if item.menu != Some(Menu::RecentAttachments) || menu_usable(app, Menu::RecentAttachments) {
-        egui::Popup::menu(&drop).show(|ui| drop_menu(ui, app, b));
+        menu_popup(&drop, button_menus(b)).show(|ui| drop_menu(ui, app, b));
     }
 }
 
@@ -2084,7 +2283,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             app.hit.add("ribbonLabel", hit_id(item.key), text);
             let resp = command_tooltip(app, resp, &item.tip_text(), command);
             if resp.clicked() && on {
-                let _ = app.run(command, params.clone());
+                let _ = app.run(pressed(ui, command), params.clone());
             }
         }
         (None, Some(menu)) => {
@@ -2094,7 +2293,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
             if on {
-                egui::Popup::menu(&resp).show(|ui| {
+                menu_popup(&resp, [menu]).show(|ui| {
                     ui.set_min_width(200.0);
                     menu_contents(ui, app, menu);
                 });
@@ -2132,7 +2331,7 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
                     let resp = command_tooltip(app, resp, &item.tip_text(), command);
                     if resp.clicked() && on {
-                        let _ = app.run(command, params.clone());
+                        let _ = app.run(pressed(ui, command), params.clone());
                     }
                 }
                 (None, Some(menu)) => {
@@ -2140,7 +2339,7 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     let resp = menu_tooltip(app, small_frame(ui, item.icon, label, on, false, true), item, on);
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
                     if on {
-                        egui::Popup::menu(&resp).show(|ui| {
+                        menu_popup(&resp, [menu]).show(|ui| {
                             ui.set_min_width(200.0);
                             menu_contents(ui, app, menu);
                         });
@@ -2446,7 +2645,13 @@ mod dense_tests;
 mod fit_tests;
 
 #[cfg(test)]
+mod move_menu_tests;
+
+#[cfg(test)]
 mod plain_tests;
+
+#[cfg(test)]
+mod category_rows_tests;
 
 #[cfg(test)]
 mod tests {
@@ -3129,7 +3334,15 @@ mod tests {
     }
 
     fn folder_row(name: &str) -> FolderRow {
-        (1, name.to_string(), name.to_string(), 0)
+        FolderRow {
+            id: 1,
+            name: name.to_string(),
+            path: name.to_string(),
+            depth: 0,
+            fold: mailcraft_model::words::fold(name),
+            account: String::new(),
+            heading: None,
+        }
     }
 
     /// Typing narrows the list to the folders whose name holds it, any part, whatever the case
