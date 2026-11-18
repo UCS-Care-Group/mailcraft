@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.AddressRecord
+import uniffi.mailcraft_mobile.ComposeStart
 import uniffi.mailcraft_mobile.MessageView
 
 private val Gutter = 16.dp
@@ -56,14 +57,16 @@ internal class ReadingActions(
     val onDownloadNow: () -> Unit,
     val onLink: (LinkInfo) -> LinkResult,
     val attachments: AttachmentActions = AttachmentActions.None,
+    /** Start writing: a reply, a forward, a draft continued, or a message for a `mailto:` link. */
+    val onCompose: (ComposeStart) -> Unit = {},
 ) {
     companion object {
         val None = ReadingActions({ _, _, _ -> }, {}, {}, {}, { LinkResult.Ignored })
     }
 }
 
-/** A way of answering a message, which the composer will take. */
-internal enum class Reply { Reply, ReplyAll, Forward }
+/** A way of answering a message, or continuing a draft, which the composer takes. */
+internal enum class Reply { Reply, ReplyAll, Forward, Edit }
 
 /**
  * The reading pane: the message's header, the banner that offers its pictures, its attachments, and
@@ -78,6 +81,8 @@ internal fun ReadingPane(
     actions: ReadingActions,
     modifier: Modifier = Modifier,
     attachments: AttachmentUi = AttachmentUi(),
+    /** The message is a draft: it is continued rather than answered. */
+    draft: Boolean = false,
 ) {
     val dark = isSystemInDarkTheme()
     val snackbar = remember { SnackbarHostState() }
@@ -106,7 +111,7 @@ internal fun ReadingPane(
                             links = opened.links,
                             pictures = ui.pictures,
                             rule = colors.outlineVariant,
-                            onLink = { link -> notice = linkNotice(texts, actions.onLink(link)) },
+                            onLink = { link -> notice = followed(texts, actions, link) },
                             onLinkDetails = { details = it },
                         )
                     }
@@ -115,7 +120,7 @@ internal fun ReadingPane(
                     Column(modifier = Modifier.fillMaxSize()) {
                         MessageBody(texts, ui, opened, env, paper, bodyWidth, actions, Modifier.weight(1f))
                         HorizontalDivider()
-                        ReplyBar(texts) { notice = texts.t("Writing a message is not available in this version yet.") }
+                        ReplyBar(texts, draft) { actions.onCompose(startFor(it, id)) }
                     }
                 }
             }
@@ -125,7 +130,7 @@ internal fun ReadingPane(
     AttachmentLayers(texts, attachments, actions.attachments) { notice = it }
     details?.let { link ->
         LinkDetails(texts, link, onOpen = {
-            notice = linkNotice(texts, actions.onLink(link))
+            notice = followed(texts, actions, link)
             details = null
         }) { details = null }
     }
@@ -133,8 +138,14 @@ internal fun ReadingPane(
 
 private fun linkNotice(texts: Texts, result: LinkResult): String? = when (result) {
     LinkResult.NoApp -> texts.t("No app on this phone can open that link.")
-    LinkResult.ComposerPending -> texts.t("Writing a message is not available in this version yet.")
     LinkResult.Opened, LinkResult.Ignored -> null
+}
+
+/** Follows [link]: a mail address opens the composer, filled in and never sent by itself; the rest goes to the core. */
+private fun followed(texts: Texts, actions: ReadingActions, link: LinkInfo): String? {
+    if (link.goes != LinkGoes.Composer) return linkNotice(texts, actions.onLink(link))
+    actions.onCompose(ComposeStart.New(0uL, link.shown))
+    return null
 }
 
 @Composable
@@ -161,15 +172,23 @@ private fun MessageBody(
     }
 }
 
+/** What a button of the bar starts writing: an answer to message [id], or a draft continued. */
+internal fun startFor(reply: Reply, id: ULong): ComposeStart = when (reply) {
+    Reply.Reply -> ComposeStart.Reply(id)
+    Reply.ReplyAll -> ComposeStart.ReplyAll(id)
+    Reply.Forward -> ComposeStart.Forward(id)
+    Reply.Edit -> ComposeStart.Draft(id)
+}
+
 @Composable
-private fun ReplyBar(texts: Texts, onReply: () -> Unit) {
+private fun ReplyBar(texts: Texts, draft: Boolean, onReply: (Reply) -> Unit) {
     Surface(tonalElevation = 2.dp) {
         FlowRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(ButtonGap),
         ) {
-            Reply.entries.forEach { reply ->
-                OutlinedButton(onClick = onReply) { Text(replyLabel(texts, reply)) }
+            (if (draft) listOf(Reply.Edit) else Reply.entries.filter { it != Reply.Edit }).forEach { reply ->
+                OutlinedButton(onClick = { onReply(reply) }) { Text(replyLabel(texts, reply)) }
             }
         }
     }
@@ -179,6 +198,7 @@ internal fun replyLabel(texts: Texts, reply: Reply): String = when (reply) {
     Reply.Reply -> texts.t("Reply")
     Reply.ReplyAll -> texts.t("Reply all")
     Reply.Forward -> texts.t("Forward")
+    Reply.Edit -> texts.t("Edit draft")
 }
 
 @Composable

@@ -7,11 +7,12 @@ use std::sync::atomic::AtomicBool;
 
 use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::{Account, Message, Security};
+use mailcraft_proto::ProtoError;
 use mailcraft_proto::smtp::Smtp;
 
 use crate::transport::{self, Patience, Service, Stream};
 use crate::{NetError, not_signed_in};
-use mailcraft_i18n::said;
+use mailcraft_i18n::{Arg, said};
 
 /// What the client calls itself in EHLO: an address literal that says nothing about this machine.
 const CLIENT_NAME: &str = "[127.0.0.1]";
@@ -65,8 +66,10 @@ fn shown(text: &str) -> String {
 }
 
 /// Connect to the account's outgoing server, encrypt as it asks, and sign in when there is a
-/// user name, a password, and a server that offers a way. An account that signs in with OAuth
-/// always does, with `secret` as its access token (XOAUTH2).
+/// user name, a password, and a server that offers a way, unless the owner said the server takes
+/// mail without one ([`Account::outgoing_without_sign_in`], a relay): it is then never shown the
+/// password. An account that signs in with OAuth always does, with `secret` as its access token
+/// (XOAUTH2).
 pub(crate) fn open_smtp<'a>(account: &Account, secret: &str) -> Result<Smtp<Stream<'a>>, NetError> {
     open_smtp_with(account, secret, &Patience::default(), None)
 }
@@ -107,7 +110,7 @@ pub(crate) fn open_smtp_with<'a>(
     if account.oauth.is_some() {
         // A server that doesn't take tokens is an error, not a reason to go on unsigned.
         smtp.auth_xoauth2(user, secret)?;
-    } else if !user.is_empty() && !secret.is_empty() && (offered.auth_plain || offered.auth_login) {
+    } else if !account.outgoing_without_sign_in && !user.is_empty() && !secret.is_empty() && (offered.auth_plain || offered.auth_login) {
         smtp.auth(user, secret)?;
     }
     Ok(smtp)
@@ -116,6 +119,42 @@ pub(crate) fn open_smtp_with<'a>(
 /// The message as it goes out: one that was never dated is dated now.
 pub(crate) fn dated(message: &Message) -> Cow<'_, Message> {
     if message.date == 0 { Cow::Owned(Message { date: mailcraft_time::now(), ..message.clone() }) } else { Cow::Borrowed(message) }
+}
+
+/// Whether the server's words ask for a sign-in: a 530, or an enhanced status code of class 7
+/// ("security or policy", `5.7.x`; `4.7.x` for a refusal that may be tried again), which is how a relay
+/// refuses at MAIL or at RCPT ("554 5.7.1 Relay access denied", the address in front of it).
+/// Not when it asks for STARTTLS, which a 530 says too.
+fn wants_sign_in(said: &str) -> bool {
+    if said.to_ascii_lowercase().contains("starttls") {
+        return false;
+    }
+    said.split_whitespace().any(|word| word == "530" || is_security_status(word))
+}
+
+/// `4.7.1`, `5.7.0`, `5.7.26`: an enhanced status code (RFC 3463) of class 7.
+fn is_security_status(word: &str) -> bool {
+    let mut parts = word.split('.');
+    let (class, subject, detail) = (parts.next(), parts.next(), parts.next());
+    matches!(class, Some("4" | "5"))
+        && subject == Some("7")
+        && detail.is_some_and(|d| (1..=3).contains(&d.len()) && d.bytes().all(|b| b.is_ascii_digit()))
+        && parts.next().is_none()
+}
+
+/// What a relay that was told "no sign-in" says when it turns out to want one (530, or 5.7.x:
+/// "authentication required", "relay access denied"): what the server said, with a hint to untick the choice (#836). Anything else is
+/// left as it is.
+pub(crate) fn relay_hint(account: &Account, e: NetError) -> NetError {
+    match e {
+        NetError::Proto(ProtoError::Rejected(why)) if account.outgoing_without_sign_in && wants_sign_in(&why.to_string()) => {
+            NetError::Proto(ProtoError::Rejected(said!(
+                "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)",
+                server = Arg::said(why)
+            )))
+        }
+        other => other,
+    }
 }
 
 /// Hand one message to an open session.
@@ -137,7 +176,7 @@ pub fn send(account: &Account, secret: &str, message: &Message) -> Result<(), Ne
     // A message that can't be sent is found out before any connection is made.
     let envelope = Envelope::of(account, message)?;
     let mut smtp = open_smtp(account, secret).map_err(|e| e.without(secret))?;
-    let sent = deliver(&mut smtp, &envelope, message).map_err(|e| e.without(secret));
+    let sent = deliver(&mut smtp, &envelope, message).map_err(|e| relay_hint(account, e).without(secret));
     let _ = smtp.quit();
     sent
 }
