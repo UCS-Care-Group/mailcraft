@@ -312,6 +312,8 @@ pub mod window_places;
 pub mod windows;
 #[cfg(test)]
 mod writing_tools_tests;
+#[cfg(test)]
+mod zimbra_info_tests;
 mod zones;
 
 use std::sync::mpsc::Receiver;

@@ -1,0 +1,1 @@
+| 2026-11-16 | Zimbra Z1: the skeleton of Zimbra accounts behind `MAILCRAFT_ZIMBRA=1` (the account's kind and server settings, the shapes of a run, the commands registered and refusing); nothing is kept in step yet |

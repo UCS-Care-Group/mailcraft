@@ -1185,6 +1185,10 @@ pub struct Session {
     /// instead of writing one itself ([`crate::cmd::graph_switch::prepare_backup`]). Set only by
     /// the window once the copy is on disk, never by a command's params. Never saved.
     pub graph_switch_backup: Option<(Id, PathBuf)>,
+    /// Zimbra accounts may be added and kept in step through a Zimbra server's web service: the
+    /// switch for testing, off until a tester has confirmed it on a server of their own. Set by the
+    /// host (`MAILCRAFT_ZIMBRA=1`), never by a command's params. Never saved.
+    pub zimbra: bool,
     /// A folder tree of mbox files read and parsed by the host off the window's thread, waiting
     /// for `file.importFolderTree` with `staged` to put it in (#420). Never saved.
     pub staged_tree: Option<crate::import_tree::Parsed>,
@@ -1375,6 +1379,7 @@ impl Session {
             only_shown: None,
             saving: Saving::Asked,
             graph_switch_backup: None,
+            zimbra: false,
             staged_tree: None,
             staged_pst: None,
             pst_running: None,

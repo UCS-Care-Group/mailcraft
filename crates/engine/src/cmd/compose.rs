@@ -1627,6 +1627,14 @@ pub(super) fn send_now(s: &mut Session) -> CmdResult {
             "which sends its mail: send this message from another account, or save it as a draft to send it from that version",
         ));
     }
+    // Nor does a Zimbra account yet: its sending is not built, and the message would be filed as
+    // sent without having gone anywhere.
+    if account.kind == AccountKind::Zimbra {
+        return Err(failed!(
+            "{why}: send this message from another account, or save it as a draft",
+            why = mailcraft_i18n::Arg::words(super::zimbra_mail::SENDING_NOT_BUILT)
+        ));
+    }
     // An account that sends its mail queues the message for the next Send/Receive; a local one
     // has nowhere to send it, so it is filed as sent (and delivered to local accounts it names).
     let queued = account.kind.sends_mail();
