@@ -44,6 +44,8 @@ mod signed_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tnef_tests;
+#[cfg(test)]
 mod write_tests;
 
 pub use mailto::{Mailto, is_mailto, parse_mailto};
