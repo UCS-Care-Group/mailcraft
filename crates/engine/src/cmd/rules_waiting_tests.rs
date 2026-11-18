@@ -1546,3 +1546,69 @@ Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encod
         assert!(!binned, "sent {sent}: deleted for a word of the version downloaded before");
     }
 }
+
+/// A draft saved here and taken up, then changed on a phone, is listed afresh and is what the
+/// listing says until it is downloaded. Undoing the save meanwhile sends nothing up, which would
+/// take the server's text, files and Bcc away: the phone's version comes down instead.
+#[test]
+fn undoing_a_save_of_a_draft_changed_since_on_a_phone_sends_nothing_up() {
+    use mailcraft_model::sync::DraftDone;
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let drafts = s.mailbox.folder_of_kind(account, FolderKind::Drafts).unwrap();
+    s.mailbox.folder_mut(drafts).unwrap().server = Some(ServerFolder { id: "F-dr".into(), caught_up: true, ..Default::default() });
+    let first = GraphMessage { draft: Some(true), has_attachments: true, from: Address::new("Ada", ME), ..listed("D1", "F-dr", "Plan") };
+    let page = MessagePage { folder: "F-dr".into(), messages: vec![first], ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    let mime = format!(
+        "From: Ada <{ME}>\r\nTo: Ben <ben@example.org>\r\nBcc: Carl <carl@example.org>\r\nSubject: Plan\r\nMessage-ID: <D1@example.org>\r\n\
+MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+--b\r\nContent-Type: text/plain\r\n\r\nHi Ben. The budget is attached, with all the numbers.\r\n--b\r\nContent-Type: application/pdf; name=\"plan.pdf\"\r\n\
+Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n--b--\r\n"
+    );
+    let fetched = vec![GraphFetched { id: "D1".into(), mime: mime.into_bytes() }];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let id = here(&s, account, "D1").id;
+    {
+        let m = here(&s, account, "D1");
+        assert!(!m.unfetched && m.has_attachments() && !m.bcc.is_empty(), "{m:?}");
+    }
+    // Edited here and saved: a step of its own.
+    s.run("mail.editDraft", &json!({"id": id})).unwrap();
+    s.run("compose.set", &json!({"subject": "Plan, v2"})).unwrap();
+    s.run("compose.saveDraft", &json!({})).unwrap();
+    s.run("compose.close", &json!({})).unwrap();
+    // Taken up by the next run.
+    let (ups, _) = super::graph_drafts::draft_changes(&s, account, 10);
+    let up = ups.into_iter().find(|u| u.message == id).expect("the save goes up");
+    let done = DraftDone { change: up, id: "D1".into(), folder: "F-dr".into(), change_key: "CK2".into(), fields: true, ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), drafts: vec![done], partial: true, ..Default::default() })
+        .unwrap();
+    assert!(!here(&s, account, "D1").server_draft.as_ref().unwrap().pending);
+    // Changed on a phone: listed afresh with a new change key, to be fetched again.
+    let mut now = GraphMessage { draft: Some(true), has_attachments: true, from: Address::new("Ada", ME), ..listed("D1", "F-dr", "Plan, v3") };
+    now.server.change_key = "CK3".into();
+    let page = MessagePage { folder: "F-dr".into(), messages: vec![now], ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    assert!(here(&s, account, "D1").unfetched);
+    // Undo (of the save, the last step) before the new version is downloaded.
+    assert!(s.undo());
+    let (ups, _) = super::graph_drafts::draft_changes(&s, account, 10);
+    assert!(ups.iter().all(|u| u.message != id), "the draft as the listing said went up over the phone's");
+    assert!(super::graph_down::still_to_fetch(&s.mailbox, here(&s, account, "D1")), "the phone's version isn't asked for");
+    // The phone's version comes down, file and all, and stays as it is.
+    let phone = format!(
+        "From: Ada <{ME}>\r\nTo: Ben <ben@example.org>\r\nBcc: Carl <carl@example.org>\r\nSubject: Plan, v3\r\nMessage-ID: <D1@example.org>\r\n\
+MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+--b\r\nContent-Type: text/plain\r\n\r\nHi Ben. The budget, as of today.\r\n--b\r\nContent-Type: application/pdf; name=\"plan.pdf\"\r\n\
+Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n--b--\r\n"
+    );
+    let fetched = vec![GraphFetched { id: "D1".into(), mime: phone.into_bytes() }];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let m = here(&s, account, "D1");
+    assert!(!m.unfetched && m.has_attachments() && !m.bcc.is_empty() && m.body.text.contains("as of today"), "{m:?}");
+    let (ups, _) = super::graph_drafts::draft_changes(&s, account, 10);
+    assert!(ups.iter().all(|u| u.message != id), "the phone's version went up again");
+}
