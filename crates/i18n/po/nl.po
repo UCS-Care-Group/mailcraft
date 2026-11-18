@@ -16457,6 +16457,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "Het gedeelde postvak kon niet worden toegevoegd"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "Het gedeelde postvak kon niet worden gelezen."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -19714,6 +19720,12 @@ msgstr "een gedeelde postbus heeft geen map Uitgesteld"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "een gedeeld postvak wordt bereikt via de serverinstellingen van het account waarmee het is geopend: wijzig die van dat account"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "een gedeeld postvak bewaart offline evenveel e-mail als het account waarmee het is geopend: wijzig die van dat account"
 
@@ -19782,6 +19794,18 @@ msgstr "voeg eerst een account toe (Bestand › Account toevoegen)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "voeg minstens één ontvanger toe"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "een Exchange-serveraccount heeft een serveradres nodig dat kan worden gebruikt om een gedeeld postvak te openen"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "de server en de gebruikersnaam van een Exchange-serveraccount kunnen niet worden gewijzigd zolang de e-mail van een gedeeld postvak dat ermee is geopend hier is: verwijder eerst het gedeelde postvak"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -20859,14 +20883,14 @@ msgstr "gedeeld postvak"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "gedeelde postvakken worden geopend onder een via Microsoft Graph bijgehouden account"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "gedeelde postvakken worden geopend onder een via Microsoft Graph bijgehouden account of onder een Exchange-serveraccount"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "gedeelde postvakken worden geopend onder een account dat via Microsoft Graph wordt bijgehouden"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "gedeelde postvakken worden geopend onder een account dat via Microsoft Graph wordt bijgehouden of een Exchange-serveraccount is"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -22810,7 +22834,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} is een JMAP-account, en deze versie verzendt en ontvangt daar nog niet mee"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} is een gedeeld postvak waarvan het account is verdwenen: verwijder het en voeg het opnieuw toe"
@@ -24181,6 +24205,14 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "gedeelde postvakken worden geopend onder een via Microsoft Graph bijgehouden account"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "gedeelde postvakken worden geopend onder een account dat via Microsoft Graph wordt bijgehouden"
 
 #, fuzzy
 #~ msgid "The colour is set in Outlook"

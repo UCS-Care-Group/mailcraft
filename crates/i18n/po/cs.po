@@ -17009,6 +17009,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "Sdílenou poštovní schránku se nepodařilo přidat"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "Sdílenou poštovní schránku se nepodařilo přečíst."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -20310,6 +20316,12 @@ msgstr "sdílená poštovní schránka nemá složku Odložené"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "sdílená poštovní schránka se připojuje přes nastavení serveru účtu, přes který je otevřena: změňte nastavení toho účtu"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "sdílená poštovní schránka uchovává offline tolik pošty jako účet, přes který je otevřena: změňte nastavení toho účtu"
 
@@ -20377,6 +20389,18 @@ msgstr "nejprve přidejte účet (Soubor › Přidat účet)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "přidejte aspoň jednoho příjemce"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "účet serveru Exchange potřebuje k otevření sdílené poštovní schránky použitelnou adresu serveru"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "server a uživatelské jméno účtu serveru Exchange nelze změnit, dokud je zde pošta sdílené poštovní schránky otevřené přes něj: nejprve odeberte sdílenou poštovní schránku"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21459,14 +21483,14 @@ msgstr "sdílená poštovní schránka"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "sdílené poštovní schránky se otevírají pod účtem synchronizovaným přes Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "sdílené poštovní schránky se otevírají pod účtem synchronizovaným přes Microsoft Graph nebo pod účtem serveru Exchange"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "sdílené poštovní schránky se otevírají pod účtem, který se synchronizuje přes Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "sdílené poštovní schránky se otevírají pod účtem, který je synchronizován přes Microsoft Graph nebo je účtem serveru Exchange"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -23420,7 +23444,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} je účet JMAP a tato verze s ním zatím neumí odesílat a přijímat"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} je sdílená poštovní schránka, jejíž účet už neexistuje: odeberte ji a přidejte znovu"
@@ -24903,6 +24927,14 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ nebyla nalezena na serveru, takže ji nelze přeposlat jako přílohu"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "sdílené poštovní schránky se otevírají pod účtem synchronizovaným přes Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "sdílené poštovní schránky se otevírají pod účtem, který se synchronizuje přes Microsoft Graph"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"

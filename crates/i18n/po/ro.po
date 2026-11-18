@@ -17077,6 +17077,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "Cutia poștală partajată nu a putut fi adăugată"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "Cutia poștală partajată nu a putut fi citită."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -20399,6 +20405,12 @@ msgstr "o cutie poștală partajată nu are folder Amânate"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "o cutie poștală partajată este accesată prin setările de server ale contului prin care este deschisă: modificați-le pe cele ale acelui cont"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "o cutie poștală partajată păstrează offline tot atâtea e-mailuri cât contul prin care este deschisă: modificați setarea acelui cont"
 
@@ -20467,6 +20479,18 @@ msgstr "adăugați întâi un cont (Fișier › Adăugare cont)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "adăugați cel puțin un destinatar"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "un cont de server Exchange are nevoie de o adresă de server utilizabilă pentru a deschide o cutie poștală partajată"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "serverul și numele de utilizator ale unui cont de server Exchange nu pot fi schimbate cât timp e-mailurile unei cutii poștale partajate deschise prin el sunt aici: eliminați mai întâi cutia poștală partajată"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21548,14 +21572,14 @@ msgstr "cutie poștală partajată"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "cutiile poștale partajate se deschid sub un cont sincronizat prin Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "cutiile poștale partajate se deschid sub un cont sincronizat prin Microsoft Graph sau sub un cont de server Exchange"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "cutiile poștale partajate se deschid sub un cont sincronizat prin Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "cutiile poștale partajate se deschid sub un cont care este sincronizat prin Microsoft Graph sau este un cont de server Exchange"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -23511,7 +23535,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} este un cont JMAP, iar această versiune nu trimite și nu primește încă prin el"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} este o cutie poștală partajată al cărei cont nu mai există: eliminați-o și adăugați-o din nou"
@@ -24998,6 +25022,14 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "cutiile poștale partajate se deschid sub un cont sincronizat prin Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "cutiile poștale partajate se deschid sub un cont sincronizat prin Microsoft Graph"
 
 #, fuzzy
 #~ msgid "The colour is set in Outlook"

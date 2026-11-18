@@ -17081,6 +17081,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "Nie można dodać udostępnionej skrzynki pocztowej"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "Nie można odczytać udostępnionej skrzynki pocztowej."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -20405,6 +20411,12 @@ msgstr "udostępniona skrzynka pocztowa nie ma folderu Uśpione"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "udostępniona skrzynka pocztowa jest osiągana przez ustawienia serwera konta, przez które jest otwarta: zmień ustawienia tego konta"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "udostępniona skrzynka pocztowa przechowuje offline tyle poczty, co konto, przez które jest otwarta: zmień ustawienie tego konta"
 
@@ -20473,6 +20485,18 @@ msgstr "najpierw dodaj konto (Plik › Dodaj konto)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "dodaj co najmniej jednego odbiorcę"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "konto serwera Exchange potrzebuje adresu serwera, którego można użyć, aby otworzyć udostępnioną skrzynkę pocztową"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "serwera i nazwy użytkownika konta serwera Exchange nie można zmienić, dopóki poczta udostępnionej skrzynki pocztowej otwartej przez to konto jest tutaj: najpierw usuń udostępnioną skrzynkę pocztową"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21555,14 +21579,14 @@ msgstr "skrzynka współdzielona"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "udostępnione skrzynki pocztowe otwierają się na koncie synchronizowanym przez Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "udostępnione skrzynki pocztowe otwierają się na koncie synchronizowanym przez Microsoft Graph lub na koncie serwera Exchange"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "udostępnione skrzynki pocztowe otwierają się na koncie, które jest synchronizowane przez Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "udostępnione skrzynki pocztowe otwierają się na koncie, które jest synchronizowane przez Microsoft Graph lub jest kontem serwera Exchange"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -23518,7 +23542,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} to konto JMAP, a ta wersja nie wysyła jeszcze i nie odbiera poczty za jego pomocą"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} to udostępniona skrzynka pocztowa, której konta już nie ma: usuń ją i dodaj ponownie"
@@ -25005,6 +25029,14 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nie została znaleziona na serwerze, więc nie można jej przekazać dalej jako załącznika"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "udostępnione skrzynki pocztowe otwierają się na koncie synchronizowanym przez Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "udostępnione skrzynki pocztowe otwierają się na koncie, które jest synchronizowane przez Microsoft Graph"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
