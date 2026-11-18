@@ -33,10 +33,10 @@ pub struct Page {
     pub messages: Vec<GraphMessage>,
     /// More messages wait.
     pub more: bool,
-    /// The last item's id and sort value (`d`, in milliseconds): asked for as the next page's
-    /// `cursor`, so that a page never depends on how many messages lie before it (an offset moves
-    /// when another program deletes or delivers while the folder is read, and a message between
-    /// the pages would be missed for good).
+    /// The last item's id and sort value (`sf`, in milliseconds, falling back to `d` when it
+    /// has none): asked for as the next page's `cursor`, so that a page never depends on how many
+    /// messages lie before it (an offset moves when another program deletes or delivers while
+    /// the folder is read, and a message between the pages would be missed for good).
     pub cursor: Option<(String, u64)>,
 }
 
@@ -52,24 +52,35 @@ pub fn folder_page(base: &str, token: &Secret, folder: &str, cursor: Option<(&st
 
 /// The messages `ids` (own ids, at most [`BY_ID`]), wherever they are.
 pub fn by_id(base: &str, token: &Secret, ids: &[String]) -> Result<HttpRequest, Error> {
-    by_id_in(base, token, ids, true)
-}
-
-/// One message `id` asks for again, this time by its own name: `in:anywhere` makes the server walk
-/// every folder to scope the search, and a folder it walks that is already gone faults the request
-/// no matter which id it names — while `item:{id}` alone resolves the id itself.
-pub fn by_id_alone(base: &str, token: &Secret, id: &str) -> Result<HttpRequest, Error> {
-    by_id_in(base, token, &[id.to_string()], false)
-}
-
-/// The messages `ids` (own ids, at most [`BY_ID`]), scoped `anywhere` or asked for by name alone.
-fn by_id_in(base: &str, token: &Secret, ids: &[String], anywhere: bool) -> Result<HttpRequest, Error> {
     let ids: Vec<&str> = ids.iter().map(String::as_str).filter(|id| id.bytes().all(|b| b.is_ascii_digit())).take(BY_ID).collect();
-    // `in:anywhere`: a search without it leaves Trash and Junk out, and an id a delta named that
+    // `is:anywhere`: a search without it leaves Trash and Junk out, and an id a delta named that
     // doesn't come back would be dropped while the run's token moves on.
-    let query = format!("{}item:{{{}}}", if anywhere { "in:anywhere " } else { "" }, ids.join(","));
+    let query = format!("is:anywhere item:{{{}}}", ids.join(","));
     let body = json!({"query": query, "types": "message", "limit": BY_ID, "recip": "2"});
     soap::request(base, "SearchRequest", soap::MAIL, body, Some(token))
+}
+
+/// One message `id` asks for again when the batch search faults: `GetMsgRequest` names the item
+/// itself wherever it lies — Trash and Junk included, which a search without `is:anywhere`
+/// leaves out — and its `mail.NO_SUCH_MSG` is the server's own word that it is gone.
+pub fn probe(base: &str, token: &Secret, id: &str) -> Result<HttpRequest, Error> {
+    let id: String = id.chars().filter(|c| c.is_ascii_digit()).collect();
+    soap::request(base, "GetMsgRequest", soap::MAIL, json!({"m": {"id": id}}), Some(token))
+}
+
+/// What [`probe`] asked: the message it found, `None` for the server's own `mail.NO_SUCH_MSG`,
+/// and an error for anything else — a fault a deletion can't have written keeps the run from
+/// moving past the id.
+pub fn probe_answer(response: &HttpResponse) -> Result<Option<GraphMessage>, Error> {
+    let answer = match soap::answer("GetMsgRequest", response) {
+        Ok(answer) => answer,
+        Err(Error::NoSuchItem) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    if json::bad_list(answer.get("m")) {
+        return Err(Error::Unreadable);
+    }
+    Ok(json::list(answer.get("m")).first().and_then(message))
 }
 
 /// The messages of a `SearchResponse`, whether there are more after them, and the last item's

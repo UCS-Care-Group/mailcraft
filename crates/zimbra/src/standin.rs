@@ -3,7 +3,8 @@
 //! An in-process Zimbra server for tests: strict about what it is sent, small in what it does.
 //!
 //! It answers `AuthRequest`, `GetFolderRequest`, `SyncRequest`, `SearchRequest` (`inid:"<folder>"`
-//! and `in:anywhere item:{…}`) and the REST address of a whole message, in JSON as Zimbra writes it. A request
+//! and `is:anywhere item:{…}` — `in:` takes a folder's path, and `anywhere` is none), `GetMsgRequest`,
+//! and the REST address of a whole message, in JSON as Zimbra writes it. A request
 //! that isn't as the protocol has it (not a POST of a SOAP envelope in JSON, the wrong namespace, a
 //! token in the address or missing from the header) is refused with a fault, so that a client that
 //! strays fails its tests. Every change made through it is numbered, which is what its tokens are.
@@ -208,6 +209,7 @@ impl StandIn {
             ("GetFolderRequest", "urn:zimbraMail") => soap("GetFolderResponse", json!({"folder": [self.tree(1)]})),
             ("SyncRequest", "urn:zimbraMail") => self.sync(body),
             ("SearchRequest", "urn:zimbraMail") => self.search(body),
+            ("GetMsgRequest", "urn:zimbraMail") => self.get_msg(body),
             _ => fault("service.UNKNOWN_DOCUMENT"),
         }
     }
@@ -283,24 +285,34 @@ impl StandIn {
         let mut found: Vec<(&u32, &Item)> = if let Some(folder) = query.strip_prefix("inid:\"").and_then(|q| q.strip_suffix('"')) {
             let Ok(folder) = folder.parse::<u32>() else { return fault("service.INVALID_REQUEST") };
             s.items.iter().filter(|(id, i)| i.folder == folder && !s.vanished.contains(id)).collect()
-        } else if let Some(ids) = query
-            .strip_prefix("in:anywhere item:{")
-            .and_then(|q| q.strip_suffix('}'))
-            .or_else(|| query.strip_prefix("item:{").and_then(|q| q.strip_suffix('}')))
-        {
+        } else if query.contains("item:{") {
+            // As the real server: `in:` takes a folder's path and `anywhere` is no folder —
+            // `is:anywhere` is the scope that names every folder. A search with no scope leaves
+            // Trash and Junk out, and `item:{id}` alone is no word that the item is gone.
+            if query.starts_with("in:anywhere") {
+                return fault("mail.NO_SUCH_FOLDER");
+            }
+            let (anywhere, ids) = match query.strip_prefix("is:anywhere item:{").or_else(|| query.strip_prefix("item:{")) {
+                Some(rest) => (query.starts_with("is:anywhere"), rest.strip_suffix('}')),
+                None => (false, None),
+            };
+            let Some(ids) = ids else { return fault("service.INVALID_REQUEST") };
             let ids: Vec<u32> = ids.split(',').filter_map(|id| id.parse().ok()).collect();
-            // As the real server: `in:anywhere` makes it walk every folder, and an id it no longer
-            // has faults the whole request there. `item:{id}` by itself names the item wherever
-            // it lies: an id it no longer has comes back as an empty page, while one it can't
-            // see (a hidden item stands for an index behind) still faults.
-            if query.starts_with("in:anywhere") && ids.iter().any(|id| !s.items.contains_key(id) || s.hidden.contains(id) || s.vanished.contains(id))
-            {
-                return fault("mail.NO_SUCH_MSG");
+            if anywhere {
+                // Scoped over every folder, an id it no longer has faults the whole request,
+                // while one it can't see (a hidden item stands for an index behind) faults too.
+                if ids.iter().any(|id| !s.items.contains_key(id) || s.hidden.contains(id) || s.vanished.contains(id)) {
+                    return fault("mail.NO_SUCH_MSG");
+                }
+                s.items.iter().filter(|(id, _)| ids.contains(id)).collect()
+            } else {
+                // No scope: Trash and Junk are out, and an id that isn't found is simply no
+                // answer — the empty page is never the word that the item is gone.
+                s.items
+                    .iter()
+                    .filter(|(id, i)| ids.contains(id) && i.folder != 3 && i.folder != 4 && !s.hidden.contains(id) && !s.vanished.contains(id))
+                    .collect()
             }
-            if ids.iter().any(|id| s.hidden.contains(id)) {
-                return fault("mail.NO_SUCH_MSG");
-            }
-            s.items.iter().filter(|(id, _)| ids.contains(id) && !s.vanished.contains(id)).collect()
         } else {
             return fault("service.INVALID_REQUEST");
         };
@@ -333,6 +345,27 @@ impl StandIn {
             })
             .collect();
         soap("SearchResponse", json!({"more": more, "offset": offset, "m": m}))
+    }
+
+    /// One item asked for by name, wherever it lies: gone is `mail.NO_SUCH_MSG`, the server's own
+    /// word for it, while one it can't see faults another way (the index behind is no deletion).
+    fn get_msg(&self, body: &Value) -> HttpResponse {
+        let s = self.state.borrow();
+        let Some(id) = body.pointer("/m/id").and_then(Value::as_str).and_then(|id| id.parse::<u32>().ok()) else {
+            return fault("service.INVALID_REQUEST");
+        };
+        if s.hidden.contains(&id) {
+            return fault("service.FAILURE");
+        }
+        let Some(i) = s.items.get(&id).filter(|_| !s.vanished.contains(&id)) else {
+            return fault("mail.NO_SUCH_MSG");
+        };
+        soap(
+            "GetMsgResponse",
+            json!({"m": [{"id": id.to_string(), "l": i.folder.to_string(), "f": i.flags, "tn": i.tags.join(","), "d": i.date, "sf": i.date.to_string(), "s": i.mime.len(),
+                "su": i.subject, "fr": format!("Hello from {id}."), "mid": format!("<{id}@example.org>"),
+                "e": [{"t": "f", "a": i.from, "p": "Bob"}, {"t": "t", "a": USER}]}]}),
+        )
     }
 
     fn rest(&self, request: &HttpRequest, query: &str) -> HttpResponse {

@@ -1703,8 +1703,9 @@ msgstr "Applica Invia/Ricevi con Microsoft Graph"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Apply Send/Receive with Zimbra"
-msgstr ""
+msgstr "Applica Invia/Ricevi con Zimbra"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -4753,8 +4754,9 @@ msgstr "Scarica automaticamente le immagini nella posta"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Download Zimbra Messages in Full"
-msgstr ""
+msgstr "Scarica i messaggi Zimbra per intero"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14363,8 +14365,9 @@ msgstr "Invia/Ricevi con Microsoft Graph"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Send/Receive with Zimbra"
-msgstr ""
+msgstr "Invia/Ricevi con Zimbra"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -20708,28 +20711,33 @@ msgstr "Z in alto"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
-msgstr ""
+msgstr "Gli account Zimbra sono in fase di test: avvia MailCraft con MAILCRAFT_ZIMBRA=1 per provarli"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts can't be sent and received yet: that part is not built"
-msgstr ""
+msgstr "Gli account Zimbra non possono ancora inviare e ricevere: quella parte non è ancora pronta"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra {host} · not kept in step yet: this part is not built"
-msgstr ""
+msgstr "Zimbra {host} · non ancora sincronizzato: questa parte non è ancora pronta"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
-msgstr ""
+msgstr "Zimbra {host} · non sincronizzato: gli account Zimbra sono disattivati (avvia MailCraft con MAILCRAFT_ZIMBRA=1 per provarli)"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra · no usable server address"
-msgstr ""
+msgstr "Zimbra · nessun indirizzo del server utilizzabile"
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -20858,8 +20866,9 @@ msgstr "un accesso Microsoft si usa solo con i server di posta di Microsoft: que
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
-msgstr ""
+msgstr "il server, l'indirizzo e il nome utente di un account Zimbra non possono essere cambiati una volta che la sua posta è qui: rimuovilo e aggiungi l'altro"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21169,8 +21178,9 @@ msgstr "un account diventa un account JMAP, o smette di esserlo, solo rimuovendo
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
-msgstr ""
+msgstr "un account diventa un account Zimbra, o smette di esserlo, solo rimuovendolo e aggiungendolo di nuovo"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21739,8 +21749,9 @@ msgstr "nessun account qui conserva le sue regole sul suo server"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "no account is a Zimbra account"
-msgstr ""
+msgstr "nessun account è un account Zimbra"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
@@ -22863,8 +22874,9 @@ msgstr "la richiesta è andata persa"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "the result is for another account"
-msgstr ""
+msgstr "il risultato è per un altro account"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -24248,8 +24260,9 @@ msgstr "{name} non ha un indirizzo di server JMAP utilizzabile"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "{name} has no Zimbra server address that can be used"
-msgstr ""
+msgstr "{name} non ha un indirizzo del server Zimbra utilizzabile"
 
 #. what a command says
 #: crates/engine/src/io.rs
@@ -24325,8 +24338,9 @@ msgstr "{name} non è un account Microsoft o di server Exchange"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "{name} isn't a Zimbra account"
-msgstr ""
+msgstr "{name} non è un account Zimbra"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

@@ -222,7 +222,7 @@ async fn changes<E: HttpExchange>(
             // A folder that is no folder of mail is never in the listing: asking again for it for
             // ever would end the run, so a listing that brings no new folder is the last word —
             // what still isn't known has left the mail, and is asked about no more.
-            let known = mail.len();
+            let before: std::collections::HashSet<String> = mail.iter().map(|id| id.to_string()).collect();
             relisted += 1;
             if relisted > MAX_RELISTS {
                 return Ok(since);
@@ -239,7 +239,9 @@ async fn changes<E: HttpExchange>(
             emit(piece);
             listing = again;
             mail = listing.folders.iter().map(|f| f.id.as_str()).collect();
-            if mail.len() == known {
+            // The ids, not their count: one folder made while another was deleted between the two
+            // listings leaves the count unchanged.
+            if mail.iter().all(|id| before.contains(*id)) {
                 not_mail.extend(messages.iter().map(|m| m.server.folder.clone()).filter(|f| !mail.contains(f.as_str())));
                 break;
             }
@@ -249,8 +251,8 @@ async fn changes<E: HttpExchange>(
         // index behind, a scope the server reads differently). Stopping without the token loses
         // nothing — the next run asks for the same delta, and a message that really was deleted
         // turns up in its `deleted` list. Only an id the server itself answered for by name — an
-        // `item:{id}` probe coming back empty — counts as gone: anything else would end the run
-        // on the same page for ever once one id is truly deleted.
+        // a `GetMsgRequest` probe answering `mail.NO_SUCH_MSG` — counts as gone: anything else
+        // would end the run on the same page for ever once one id is truly deleted.
         let returned: std::collections::HashSet<&str> = messages.iter().map(|m| m.server.id.as_str()).collect();
         if named.iter().any(|id| !returned.contains(id.as_str()) && !probed_gone.contains(id.as_str())) {
             return Err(Stop::Failed(Error::Unreadable));
@@ -276,27 +278,27 @@ async fn changes<E: HttpExchange>(
 /// The messages `ids` names: one request for the chunk, unless the server faults it as holding a
 /// name it no longer has — then each id is asked for by itself, so that a message deleted between
 /// the delta and the read is left out and not the whole run's end. With it come the ids the
-/// server itself answered for by name with an empty page — gone for certain, which an id a
-/// scoped search left out alone never is.
+/// server itself answered for by name — gone for certain, which an id a search left out alone
+/// never is.
 async fn messages_by_id<E: HttpExchange>(run: &Run<'_, E>, ids: &[String]) -> Result<(Vec<GraphMessage>, Vec<String>), Stop> {
     let found = run.ask(items::by_id(&run.base, &run.token, ids)).await?;
     match items::answer(&found) {
         Err(Error::NoSuchItem) => {}
         done => return Ok((done.map_err(Stop::Failed)?.messages, Vec::new())),
     }
-    // The chunk is faulted for an id it no longer has — or for `in:anywhere` walking a folder the
-    // server already dropped, which faults any id. Asked one at a time and by name alone, an id
-    // that is still there comes back; one answered with an empty page is told to the caller as
-    // gone — `item:{id}` names the item itself wherever it lies, so an empty answer for it is the
-    // server's own word. A fault it isn't (the index behind a new message looks the same): the
-    // run stops there as it does for a name the search leaves out.
+    // The chunk is faulted for an id it no longer has — or for `is:anywhere` walking a folder the
+    // server already dropped, which faults any id. Asked one at a time by `GetMsgRequest`, an id
+    // that is still there comes back — the request names the item itself wherever it lies, Trash
+    // and Junk included. Its `mail.NO_SUCH_MSG` is told to the caller as gone: the server's own
+    // word, which an empty search page never is (a scope can leave a folder out). Any other fault
+    // ends the run as it does for a name the search leaves out.
     let mut messages = Vec::new();
     let mut gone = Vec::new();
     for id in ids {
-        let one = run.ask(items::by_id_alone(&run.base, &run.token, id)).await?;
-        match items::answer(&one) {
-            Ok(page) if page.messages.is_empty() => gone.push(id.clone()),
-            Ok(page) => messages.extend(page.messages),
+        let one = run.ask(items::probe(&run.base, &run.token, id)).await?;
+        match items::probe_answer(&one) {
+            Ok(Some(message)) => messages.push(message),
+            Ok(None) => gone.push(id.clone()),
             Err(e) => return Err(Stop::Failed(e)),
         }
     }
