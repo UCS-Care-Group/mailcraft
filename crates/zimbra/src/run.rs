@@ -28,7 +28,7 @@ use mailcraft_model::sync::{
 use crate::auth::{Answer, Credentials, Trust};
 use crate::error::Error;
 use crate::http::{HttpExchange, HttpRequest, HttpResponse, Secret, TransportError};
-use crate::{auth, delta, fetch, folders, items, up};
+use crate::{auth, delta, fetch, folders, items, tags, up};
 use mailcraft_model::sync::{SendDone, SendOutcome};
 
 /// Most pages of one folder read in a run (at [`items::PAGE`] each), most rounds of a delta, and
@@ -180,7 +180,25 @@ async fn run<E: HttpExchange>(
     let user = login(&request.username, &request.email);
     (run.token, *trust) = sign_in(&run, &user, credentials).await?;
     keep(trust);
-    upward(&run, request, emit).await?;
+    // The server's tags as categories, before anything goes up: a tag a message change names and
+    // the list doesn't have is made in the colour it has here, never twice in a run.
+    let mut known: std::collections::HashSet<String> = std::collections::HashSet::new();
+    match run.ask(tags::request(&run.base, &run.token)).await {
+        Ok(answered) => match tags::answer(&answered) {
+            Ok(tags) => {
+                known.extend(tags.iter().map(|tag| tag.name.to_lowercase()));
+                let mut piece = blank(request);
+                piece.categories = tags;
+                piece.partial = true;
+                emit(piece);
+            }
+            Err(e @ (Error::AuthRefused | Error::Busy(_))) => return Err(Stop::Failed(e)),
+            // Tags that couldn't be read are no reason to leave the mail unread.
+            Err(_) => {}
+        },
+        Err(e) => return Err(e),
+    }
+    upward(&run, request, &mut known, emit).await?;
     let token_ok = !request.token.is_empty() && mailcraft_model::ZimbraServer::token_ok(&request.token);
     if token_ok {
         let listing = folder_listing(&run, request, emit).await?;
@@ -217,7 +235,12 @@ async fn folder_listing<E: HttpExchange>(
 /// What was done here, taken up before anything is read: the folders' changes, the messages', and
 /// what waits in the Outbox. Each kind is a piece; each message sent is a piece of its own, as soon
 /// as it is known.
-async fn upward<E: HttpExchange>(run: &Run<'_, E>, request: &ZimbraMailRequest, emit: &mut dyn FnMut(ZimbraMailResult)) -> Result<(), Stop> {
+async fn upward<E: HttpExchange>(
+    run: &Run<'_, E>,
+    request: &ZimbraMailRequest,
+    known: &mut std::collections::HashSet<String>,
+    emit: &mut dyn FnMut(ZimbraMailResult),
+) -> Result<(), Stop> {
     if !request.changes.is_empty() {
         let mut piece = blank(request);
         piece.partial = true;
@@ -241,6 +264,22 @@ async fn upward<E: HttpExchange>(run: &Run<'_, E>, request: &ZimbraMailRequest, 
         let mut piece = blank(request);
         piece.partial = true;
         for change in request.messages.iter().take(mailcraft_model::sync::MAX_MESSAGE_CHANGES) {
+            // A tag the server's list doesn't have is made first, in the colour it has here, when
+            // the account's list has one for the name; a `tn` update would make it without one.
+            if let mailcraft_model::sync::MessageChange::Update { categories: Some(categories), .. } = change {
+                for name in up::tag_names(&categories.here) {
+                    if !known.insert(name.to_lowercase()) {
+                        continue;
+                    }
+                    let Some(rgb) = request.categories.iter().find(|c| c.name.eq_ignore_ascii_case(&name)).map(|c| c.color) else {
+                        continue;
+                    };
+                    let answer = run.ask(up::create_tag(&run.base, &run.token, &name, &rgb)).await?;
+                    if let Some(e) = up::stops("CreateTagRequest", &answer) {
+                        return Err(Stop::Failed(e));
+                    }
+                }
+            }
             let mut outcome = up::message_done(change);
             match up::message_requests(&run.base, &run.token, change) {
                 Err(e) => outcome = up::message_refused(e),
