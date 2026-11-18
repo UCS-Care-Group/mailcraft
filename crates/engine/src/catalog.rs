@@ -150,7 +150,7 @@ View|Arrangement|Expand/Collapse Groups|view.groups
 View|Arrangement|Single Line|view.oneLine
 View|Layout|Folder Pane|view.folderPane
 View|Layout|Reading Pane|view.readingPane
-View|Layout|To-Do Bar|view.todoBar
+View|Layout|To-Do Bar|view.tasksCalendarBar
 View|Layout|Use Tighter Spacing|view.density
 View|People Pane|People Pane|view.peoplePane
 View|Window|Reminders Window|view.reminders

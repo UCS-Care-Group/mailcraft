@@ -269,7 +269,7 @@ const SAFE: &[&str] = &[
     "view.readingPane",
     "view.gmailCategories",
     "view.folderPane",
-    "view.todoBar",
+    "view.tasksCalendarBar",
     "view.navigationBar",
     "view.conversations",
     "view.sort",

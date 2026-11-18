@@ -170,7 +170,7 @@ fn build(app: &MailApp) -> Result<Built, Box<dyn std::error::Error + Send + Sync
     Ok((menu, items))
 }
 
-/// A native menu for `block`, with the menus inside it (View › To-Do Bar, #831).
+/// A native menu for `block`, with the menus inside it (View › Tasks and Calendar Bar, #831).
 fn submenu(app: &MailApp, block: &MenuBlock, items: &mut Vec<(MenuItem, Action, bool)>) -> Result<Submenu, muda::Error> {
     let sub = Submenu::new(escape(&block.title), true);
     for entry in &block.entries {

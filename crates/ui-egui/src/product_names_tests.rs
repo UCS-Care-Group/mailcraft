@@ -34,6 +34,7 @@ const FORBIDDEN: &[&str] = &[
     "OneNote",
     "OneDrive",
     "SharePoint",
+    "To-Do Bar",
 ];
 
 /// Labels that may contain one of those names, each with why: they say what MailCraft connects
@@ -42,6 +43,7 @@ const ALLOWED: &[(&str, &str)] = &[
     ("Favorites from Outlook", "reads the Favorites the owner keeps in Outlook on the web, through Microsoft Graph"),
     ("Outlook's Favorites", "the same Favorites, read from Outlook on the web: the folder pane's switch for them"),
     ("Show Outlook's Favorites", "turns on reading the Favorites kept in Outlook on the web"),
+    ("To-Do Bar", "the catalog's feature name, kept as the incumbent calls it so that parity is still measured against it; the window says Tasks and Calendar Bar (#831)"),
 ];
 
 /// Phrases of the interface's texts that may name one of those products, each with why. Each is

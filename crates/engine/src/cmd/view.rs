@@ -15,7 +15,7 @@ use crate::{CalView, CmdResult, CommandSpec, Filter, Module, Pane, Scope, Sessio
 
 pub mod display;
 #[cfg(test)]
-mod todo_bar_tests;
+mod tasks_calendar_bar_tests;
 
 pub fn specs() -> Vec<CommandSpec> {
     let mut specs = vec![
@@ -32,8 +32,8 @@ pub fn specs() -> Vec<CommandSpec> {
             .when(crate::gmail::offered)
             .params(r#"{"value": "folders"|"tabs"} — Gmail's inbox categories as five folders under a Gmail account's Inbox in the folder pane, or as a row of tabs above its message list (#911)"#),
         CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).reads().params(TOGGLE),
-        CommandSpec::new("view.todoBar", "To-Do Bar", "View › Layout", todo_bar).reads().params(
-            r#"{"part": "calendar"|"people"|"tasks"|"off", "value"?: bool (default: toggle), "module"?: "mail"|"calendar"|"people"|"tasks" (default: the one in front)} — the To-Do Bar beside that module: its date navigator and next appointments, its favourite contacts, its tasks, each on or off; "off" closes it. Each module keeps its own. Answers what that module's bar shows"#,
+        CommandSpec::new("view.tasksCalendarBar", "Tasks and Calendar Bar", "View › Layout", tasks_calendar_bar).reads().params(
+            r#"{"part": "calendar"|"people"|"tasks"|"off", "value"?: bool (default: toggle), "module"?: "mail"|"calendar"|"people"|"tasks" (default: the one in front)} — the Tasks and Calendar Bar beside that module: its date navigator and next appointments, its favourite contacts, its tasks, each on or off; "off" closes it. Each module keeps its own. Answers what that module's bar shows"#,
         ),
         CommandSpec::new("view.navigationBar", "Navigation Bar", "View › Layout", navigation_bar)
             .reads()
@@ -133,32 +133,32 @@ fn folder_pane(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"value": s.view.folder_pane}))
 }
 
-/// What the To-Do Bar of `module` shows, as `view.todoBar` answers it.
-pub fn todo_bar_json(s: &Session, module: Module) -> Value {
-    let parts = s.view.todo_bar.of(module);
+/// What the Tasks and Calendar Bar of `module` shows, as `view.tasksCalendarBar` answers it.
+pub fn tasks_calendar_bar_json(s: &Session, module: Module) -> Value {
+    let parts = s.view.tasks_calendar_bar.of(module);
     json!({"module": module, "calendar": parts.calendar, "people": parts.people, "tasks": parts.tasks, "open": parts.any()})
 }
 
-fn todo_bar(s: &mut Session, v: &Value) -> CmdResult {
+fn tasks_calendar_bar(s: &mut Session, v: &Value) -> CmdResult {
     let module = match v.get("module") {
         None | Some(Value::Null) => s.view.module,
         Some(m) => m.as_str().and_then(parse_enum::<Module>).ok_or_else(|| bad("`module` is mail, calendar, people or tasks"))?,
     };
     let part = p::req_str(v, "part")?.trim().to_ascii_lowercase();
     let value = p::opt_bool(v, "value")?;
-    let parts = s.view.todo_bar.of_mut(module);
+    let parts = s.view.tasks_calendar_bar.of_mut(module);
     let flag = match part.as_str() {
         "calendar" => &mut parts.calendar,
         "people" => &mut parts.people,
         "tasks" => &mut parts.tasks,
         "off" => {
-            *parts = crate::TodoParts::default();
-            return Ok(todo_bar_json(s, module));
+            *parts = crate::BarParts::default();
+            return Ok(tasks_calendar_bar_json(s, module));
         }
         _ => return Err(bad("`part` is calendar, people, tasks or off")),
     };
     *flag = value.unwrap_or(!*flag);
-    Ok(todo_bar_json(s, module))
+    Ok(tasks_calendar_bar_json(s, module))
 }
 
 fn conversations(s: &mut Session, v: &Value) -> CmdResult {
@@ -386,11 +386,11 @@ fn people_account(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn reset(s: &mut Session, _: &Value) -> CmdResult {
-    // The To-Do Bar is the window's layout, not the view's arrangement: it stays as it is, as
+    // The Tasks and Calendar Bar is the window's layout, not the view's arrangement: it stays as it is, as
     // in Outlook (#831).
-    let keep = (s.view.module, s.view.folder, s.view.date, s.view.todo_bar);
+    let keep = (s.view.module, s.view.folder, s.view.date, s.view.tasks_calendar_bar);
     s.view = ViewState::default();
-    (s.view.module, s.view.folder, s.view.date, s.view.todo_bar) = keep;
+    (s.view.module, s.view.folder, s.view.date, s.view.tasks_calendar_bar) = keep;
     done()
 }
 

@@ -80,38 +80,38 @@ impl Module {
     }
 }
 
-/// What the To-Do Bar shows in one module (#831): each of its three parts, stacked in this order
+/// What the Tasks and Calendar Bar shows in one module (#831): each of its three parts, stacked in this order
 /// (the date navigator and the next appointments, the favourite contacts, the tasks), on or off.
 /// All three off is the bar closed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub struct TodoParts {
+pub struct BarParts {
     pub calendar: bool,
     pub people: bool,
     pub tasks: bool,
 }
 
-impl TodoParts {
+impl BarParts {
     /// Whether the bar is open: one part at least is on.
     pub fn any(self) -> bool {
         self.calendar || self.people || self.tasks
     }
 }
 
-/// The To-Do Bar of each module, which Outlook remembers apart (#831): it may be open beside the
+/// The Tasks and Calendar Bar of each module, which Outlook remembers apart (#831): it may be open beside the
 /// mail and closed in the calendar. Closed everywhere until the owner opens it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub struct TodoBar {
-    pub mail: TodoParts,
-    pub calendar: TodoParts,
-    pub people: TodoParts,
-    pub tasks: TodoParts,
+pub struct TasksCalendarBar {
+    pub mail: BarParts,
+    pub calendar: BarParts,
+    pub people: BarParts,
+    pub tasks: BarParts,
 }
 
-impl TodoBar {
+impl TasksCalendarBar {
     /// What the bar shows in `module`.
-    pub fn of(&self, module: Module) -> TodoParts {
+    pub fn of(&self, module: Module) -> BarParts {
         match module {
             Module::Mail => self.mail,
             Module::Calendar => self.calendar,
@@ -120,7 +120,7 @@ impl TodoBar {
         }
     }
 
-    pub fn of_mut(&mut self, module: Module) -> &mut TodoParts {
+    pub fn of_mut(&mut self, module: Module) -> &mut BarParts {
         match module {
             Module::Mail => &mut self.mail,
             Module::Calendar => &mut self.calendar,
@@ -354,8 +354,8 @@ pub struct ViewState {
     pub scope: Scope,
     pub reading_pane: Pane,
     pub folder_pane: bool,
-    /// The To-Do Bar, module by module (`view.todoBar`, #831).
-    pub todo_bar: TodoBar,
+    /// The Tasks and Calendar Bar, module by module (`view.tasksCalendarBar`, #831).
+    pub tasks_calendar_bar: TasksCalendarBar,
     /// The switch between Mail, Calendar, People and Tasks at the foot of the pane on the left,
     /// in place of the bar of icons down the window's edge (#1174; `view.navigationBar`), so the
     /// bar's column is the window's. Where the module in view has no pane for it (Mail or the
@@ -403,7 +403,7 @@ impl Default for ViewState {
             scope: Scope::Folder,
             reading_pane: Pane::Right,
             folder_pane: true,
-            todo_bar: TodoBar::default(),
+            tasks_calendar_bar: TasksCalendarBar::default(),
             nav_foot: false,
             calendar: CalView::Week,
             date: Date::default(),

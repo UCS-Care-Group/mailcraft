@@ -160,7 +160,7 @@ msgid "(no subject)"
 msgstr "(nessun oggetto)"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "(no title)"
 msgstr "(senza titolo)"
@@ -939,7 +939,7 @@ msgid "Add a task to {address} (it waits here until To Do is allowed)"
 msgstr "Aggiungi un’attività a {address} (resta qui finché To Do non è consentito)"
 
 #. interface
-#: crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Add a task…"
 msgstr "Aggiungi un'attività…"
@@ -987,7 +987,7 @@ msgid "Add as a Microsoft account"
 msgstr "Aggiungi come account Microsoft"
 
 #. interface
-#: crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Add contacts to Favorites to keep them here"
 msgstr "Aggiungi contatti ai Preferiti per tenerli qui"
@@ -1153,7 +1153,7 @@ msgid "All accounts"
 msgstr "Tutti gli account"
 
 #. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "All day"
 msgstr "Tutto il giorno"
@@ -2440,7 +2440,7 @@ msgid "By Subject"
 msgstr "Per oggetto"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Calendario"
@@ -8414,13 +8414,13 @@ msgid "Mark All as Read"
 msgstr "Segna tutti come letti"
 
 #. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Mark Complete"
 msgstr "Segna come completato"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Mark Incomplete"
 msgstr "Segna come non completato"
@@ -8879,7 +8879,7 @@ msgid "More results on the server can't be asked for now"
 msgstr "Al momento non è possibile richiedere altri risultati sul server"
 
 #. interface
-#: crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "More tasks are in the Tasks module."
 msgstr "Altre attività si trovano nel modulo Attività."
@@ -10182,7 +10182,7 @@ msgid "Nothing in it: replaces what is open here"
 msgstr "Vuota: sostituisce ciò che è aperto qui"
 
 #. interface
-#: crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Nothing in the next 7 days"
 msgstr "Niente nei prossimi 7 giorni"
@@ -10266,7 +10266,7 @@ msgid "Nothing on."
 msgstr "Niente in programma."
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Nothing to do here."
 msgstr "Niente da fare qui."
@@ -11260,7 +11260,7 @@ msgid "Pending development"
 msgstr "Sviluppo in corso"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "People"
 msgstr "Contatti"
@@ -12228,10 +12228,10 @@ msgid "Remove {name}"
 msgstr "Rimuovi {name}"
 
 #. interface
-#: crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
-msgid "Remove {part} from the To-Do Bar"
-msgstr "Rimuovi {part} dalla barra attività"
+msgid "Remove {part} from the Tasks and Calendar Bar"
+msgstr "Rimuovi {part} dalla barra attività e calendario"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -15077,10 +15077,26 @@ msgid "Task:"
 msgstr "Attività:"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "Attività"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Tasks and\n"
+"Calendar Bar"
+msgstr ""
+"Barra attività\n"
+"e calendario"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Tasks and Calendar Bar"
+msgstr "Barra attività e calendario"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -18220,22 +18236,6 @@ msgstr "Per cambiare, salva prima i server IMAP e SMTP standard di Google e un n
 msgid "To use another server or user name, remove the account and add it again."
 msgstr "Per usare un altro server o un altro nome utente, rimuovi l'account e aggiungilo di nuovo."
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid ""
-"To-Do\n"
-"Bar"
-msgstr ""
-"Barra\n"
-"attività"
-
-#. command label, ribbon
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "To-Do Bar"
-msgstr "Barra attività"
-
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
 #, fuzzy
@@ -18255,7 +18255,7 @@ msgid "To: {names}"
 msgstr "A: {names}"
 
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Today"
 msgstr "Oggi"
@@ -18267,7 +18267,7 @@ msgid "Today could not be read."
 msgstr "Non è stato possibile leggere Oggi."
 
 #. android, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Tomorrow"
 msgstr "Domani"
@@ -23433,7 +23433,7 @@ msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this acco
 msgstr "{n} modifiche al calendario «{name}» sono trattenute qui, non inviate: questo account potrebbe non poterlo più modificare. Vengono inviate se potrà di nuovo."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "{n} contact"
 msgid_plural "{n} contacts"

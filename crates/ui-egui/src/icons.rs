@@ -903,8 +903,8 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rect(2.5, 3.5, 17.5, 16.5, c);
             pen.line_c(&[(7.0, 3.5), (7.0, 16.5)], a);
         }
-        // The To-Do Bar (#831): a strip down the right of the window, with two ticked lines.
-        "todoBar" => {
+        // The Tasks and Calendar Bar (#831): a strip down the right of the window, with two ticked lines.
+        "tasksCalendarBar" => {
             pen.rect(2.5, 3.5, 17.5, 16.5, c);
             pen.line_c(&[(12.0, 3.5), (12.0, 16.5)], a);
             if !small {
@@ -1419,7 +1419,7 @@ pub const NAMES: &[&str] = &[
     "filter",
     "readingPane",
     "folderPane",
-    "todoBar",
+    "tasksCalendarBar",
     "navigationBar",
     "conversations",
     "ribbon",

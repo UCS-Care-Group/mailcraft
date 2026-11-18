@@ -133,14 +133,14 @@ enum Row {
 
 use Row::{Cmd, Own as O, Sep, Sub};
 
-/// View › To-Do Bar (#831): each part on or off for the module in front, and Off, as the
+/// View › Tasks and Calendar Bar (#831): each part on or off for the module in front, and Off, as the
 /// ribbon's dropdown has them.
-const TODO_BAR: &[Row] = &[
-    Row::With { label: "Calendar", id: "view.todoBar", params: r#"{"part": "calendar"}"# },
-    Row::With { label: "People", id: "view.todoBar", params: r#"{"part": "people"}"# },
-    Row::With { label: "Tasks", id: "view.todoBar", params: r#"{"part": "tasks"}"# },
+const TASKS_CALENDAR_BAR: &[Row] = &[
+    Row::With { label: "Calendar", id: "view.tasksCalendarBar", params: r#"{"part": "calendar"}"# },
+    Row::With { label: "People", id: "view.tasksCalendarBar", params: r#"{"part": "people"}"# },
+    Row::With { label: "Tasks", id: "view.tasksCalendarBar", params: r#"{"part": "tasks"}"# },
     Sep,
-    Row::With { label: "Off", id: "view.todoBar", params: r#"{"part": "off"}"# },
+    Row::With { label: "Off", id: "view.tasksCalendarBar", params: r#"{"part": "off"}"# },
 ];
 
 const FILE: &[Row] = &[
@@ -187,7 +187,7 @@ const VIEW: &[Row] = &[
     Sep,
     Cmd("view.readingPane"),
     Cmd("view.folderPane"),
-    Sub("To-Do Bar", TODO_BAR),
+    Sub("Tasks and Calendar Bar", TASKS_CALENDAR_BAR),
     Cmd("view.conversations"),
     Cmd("view.reverseSort"),
     Sep,
@@ -294,7 +294,7 @@ pub struct Item {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Entry {
     Item(Item),
-    /// A menu inside the menu (View › To-Do Bar).
+    /// A menu inside the menu (View › Tasks and Calendar Bar).
     Submenu(MenuBlock),
     Separator,
 }

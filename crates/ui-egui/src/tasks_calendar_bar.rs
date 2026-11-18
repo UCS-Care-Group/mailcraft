@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The To-Do Bar (#831): a narrow pane down the right of the window that keeps the calendar, the
-//! favourite contacts and the tasks in view whatever module is in front. View › To-Do Bar turns
-//! each of its three parts on or off (`view.todoBar`), module by module; they stand one under the
+//! The Tasks and Calendar Bar (#831): a narrow pane down the right of the window that keeps the calendar, the
+//! favourite contacts and the tasks in view whatever module is in front. View › Tasks and Calendar Bar turns
+//! each of its three parts on or off (`view.tasksCalendarBar`), module by module; they stand one under the
 //! other in Outlook's order: the date navigator and the next appointments, the people, the tasks.
 //! A title typed in its box is a new task, a double click opens what it lists, and a message
 //! dragged out of the list and let go over its tasks becomes a task.
@@ -57,21 +57,21 @@ const MAX_TASKS: usize = 200;
 const TITLE_MAX: usize = 500;
 
 /// Where the bar's own memory lives in egui's: the month the navigator shows, and what is typed.
-const MONTH_ID: &str = "todo_bar_month";
-const NEW_TASK_ID: &str = "todo_bar_new_task";
+const MONTH_ID: &str = "tasks_calendar_bar_month";
+const NEW_TASK_ID: &str = "tasks_calendar_bar_new_task";
 
 /// What each part lists is worked out when the mailbox, the day or what it depends on changes,
 /// not at every frame: a large mailbox's events, contacts and tasks are not gone through again
 /// while the owner reads mail beside the bar. Each is kept under these names with what it was
 /// worked out from.
-const BUSY_CACHE: &str = "todo_bar_busy";
-const NEXT_CACHE: &str = "todo_bar_next";
-const PEOPLE_CACHE: &str = "todo_bar_people";
-const TASKS_CACHE: &str = "todo_bar_tasks";
+const BUSY_CACHE: &str = "tasks_calendar_bar_busy";
+const NEXT_CACHE: &str = "tasks_calendar_bar_next";
+const PEOPLE_CACHE: &str = "tasks_calendar_bar_people";
+const TASKS_CACHE: &str = "tasks_calendar_bar_tasks";
 /// Where the bar says, each frame, whether its tasks take what is dragged onto them.
-const TAKES_ID: &str = "todo_bar_takes";
+const TAKES_ID: &str = "tasks_calendar_bar_takes";
 /// Where it says in which frame something dragged was last over its tasks.
-const OVER_ID: &str = "todo_bar_over";
+const OVER_ID: &str = "tasks_calendar_bar_over";
 
 /// The most months the navigator stacks when the bar is tall enough (Outlook shows more than one
 /// when there is room), and the gap between two.
@@ -95,7 +95,7 @@ const PEOPLE_LEAST: f32 = 2.0 * PERSON_H;
 const FOOT: f32 = 8.0;
 
 /// An appointment dragged out of the calendar (or the bar's own list of the next ones), for the
-/// tasks of the To-Do Bar: let go over them, it becomes a task (`tasks.fromEvent`). The calendar
+/// tasks of the Tasks and Calendar Bar: let go over them, it becomes a task (`tasks.fromEvent`). The calendar
 /// moves it as before wherever else it is let go.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct EventDrag {
@@ -109,7 +109,7 @@ pub(crate) struct EventDrag {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ContactDrag(pub Vec<Id>);
 
-/// Whether the To-Do Bar's tasks were on screen this frame, to take an appointment or a contact
+/// Whether the Tasks and Calendar Bar's tasks were on screen this frame, to take an appointment or a contact
 /// let go over them: only then does dragging one out of its list carry it. (The bar is laid out
 /// before the module, so the module's rows know.)
 pub(crate) fn takes_drops(ctx: &egui::Context) -> bool {
@@ -117,7 +117,7 @@ pub(crate) fn takes_drops(ctx: &egui::Context) -> bool {
     ctx.data(|d| d.get_temp::<(u64, bool)>(egui::Id::unique(TAKES_ID))).is_some_and(|(at, takes)| takes && at == frame)
 }
 
-/// Whether something dragged is over the To-Do Bar's tasks this frame: the calendar then neither
+/// Whether something dragged is over the Tasks and Calendar Bar's tasks this frame: the calendar then neither
 /// shows where its appointment would go nor moves it there when it is let go.
 pub(crate) fn over_tasks(ctx: &egui::Context) -> bool {
     let frame = ctx.cumulative_frame_nr();
@@ -142,7 +142,7 @@ pub(crate) struct Plan {
 /// [`TASKS_LEAST`]. `agenda[n]` is the height of the next appointments with the first `n` of
 /// them listed (`agenda[0]` alone: there are none), and `people` the favourites' own height.
 /// The appointments get room before a second month does.
-pub(crate) fn plan(height: f32, parts: mailcraft_engine::TodoParts, agenda: &[f32], people: f32) -> Plan {
+pub(crate) fn plan(height: f32, parts: mailcraft_engine::BarParts, agenda: &[f32], people: f32) -> Plan {
     let all = agenda.len().saturating_sub(1);
     let least = all.min(1);
     let calendar = |months: u8, events: usize| {
@@ -243,8 +243,8 @@ pub(crate) fn busy_days_cached(ctx: &egui::Context, s: &mailcraft_engine::Sessio
 fn busy_month_cached(ctx: &egui::Context, s: &mailcraft_engine::Session, first: Date, k: u8) -> Arc<[bool; 42]> {
     let slot = match k {
         0 => BUSY_CACHE,
-        1 => "todo_bar_busy_1",
-        _ => "todo_bar_busy_2",
+        1 => "tasks_calendar_bar_busy_1",
+        _ => "tasks_calendar_bar_busy_2",
     };
     cached(ctx, slot, (s.rev(), s.mailbox.events.len(), s.zone(), first), || busy_days(s, first))
 }
@@ -285,7 +285,7 @@ pub(crate) fn widest(available: f32) -> Option<f32> {
 /// The bar, at the right of the window, when the module in front has one part of it on at least.
 /// Laid out before the module itself, which takes what is left.
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
-    let parts = app.session.view.todo_bar.of(app.session.view.module);
+    let parts = app.session.view.tasks_calendar_bar.of(app.session.view.module);
     let frame = ui.ctx().cumulative_frame_nr();
     // Too narrow a window for both: the bar isn't drawn, nothing is dropped on it, and what the
     // owner chose stays for a wider one.
@@ -295,20 +295,20 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let Some(max) = room.filter(|_| parts.any()) else { return };
     drag_ghost(ui);
     let t = Tokens::get(ui.ctx());
-    let wanted = sane_width(app.ui.todo_bar_width);
+    let wanted = sane_width(app.ui.tasks_calendar_bar_width);
     // A window that leaves less than the width the owner chose has the bar narrower, and the
     // panel remembers the width it was given: so that it has the chosen width again in a wider
     // window, the bar is another panel while it is held in, which starts from the chosen width
     // when the window grows.
     let held_in = wanted > max;
-    let shown = egui::Panel::right(egui::IdSalt::new(("todo_bar", held_in)))
+    let shown = egui::Panel::right(egui::IdSalt::new(("tasks_calendar_bar", held_in)))
         .default_size(wanted.min(max))
         .size_range(MIN_WIDTH..=max)
         .resizable(true)
         .show_separator_line(t.pane_rule)
         .frame(egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border)))
         .show(ui, |ui| {
-            app.hit.add("todoBar", 0, ui.max_rect());
+            app.hit.add("tasksCalendarBar", 0, ui.max_rect());
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
             // The calendar and the favourites at their own height, the tasks under them taking
             // what is left and scrolling inside it, as in Outlook; the whole bar scrolls only
@@ -320,7 +320,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             if plan.fits {
                 bar_parts(app, ui, parts, plan);
             } else {
-                egui::ScrollArea::vertical().id_salt("todo_bar_scroll").auto_shrink([false, false]).show(ui, |ui| {
+                egui::ScrollArea::vertical().id_salt("tasks_calendar_bar_scroll").auto_shrink([false, false]).show(ui, |ui| {
                     bar_parts(app, ui, parts, plan);
                     ui.add_space(FOOT);
                 });
@@ -330,12 +330,12 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     // with the room), and what is dragged meanwhile isn't kept either.
     let width = shown.response.rect.width();
     if !held_in && (width - wanted).abs() > 0.5 {
-        app.ui.todo_bar_width = sane_width(width);
+        app.ui.tasks_calendar_bar_width = sane_width(width);
     }
 }
 
 /// The parts that are on, one under the other, as `plan` shares the height out.
-fn bar_parts(app: &mut MailApp, ui: &mut Ui, parts: mailcraft_engine::TodoParts, plan: Plan) {
+fn bar_parts(app: &mut MailApp, ui: &mut Ui, parts: mailcraft_engine::BarParts, plan: Plan) {
     if parts.calendar {
         calendar_part(app, ui, plan);
     }
@@ -377,10 +377,10 @@ fn heading(app: &mut MailApp, ui: &mut Ui, title: &str, part: &'static str) {
         ui.painter().rect_filled(close, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
     }
     icons::paint(ui.painter(), Rect::from_center_size(close.center(), vec2(10.0, 10.0)), "close", t.icon, t.accent);
-    let tip = crate::i18n::fmt(tl!("Remove {part} from the To-Do Bar"), &[("part", title)]);
+    let tip = crate::i18n::fmt(tl!("Remove {part} from the Tasks and Calendar Bar"), &[("part", title)]);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tip.clone()));
     if resp.on_hover_text(tip.clone()).clicked() {
-        let _ = app.run("view.todoBar", json!({"part": part, "value": false}));
+        let _ = app.run("view.tasksCalendarBar", json!({"part": part, "value": false}));
     }
 }
 
@@ -627,7 +627,7 @@ fn people_part(app: &mut MailApp, ui: &mut Ui, room: Option<f32>) {
     match room {
         Some(room) if people_height(list.len()) > room + 0.5 => {
             let top = ui.cursor().min.y;
-            egui::ScrollArea::vertical().id_salt("todo_bar_people").max_height(room).auto_shrink([false, true]).show(ui, |ui| {
+            egui::ScrollArea::vertical().id_salt("tasks_calendar_bar_people").max_height(room).auto_shrink([false, true]).show(ui, |ui| {
                 people_rows(app, ui, &list);
             });
             // (The scroll area takes the room it was given, whatever egui's spacing says.)
@@ -707,7 +707,7 @@ fn tasks_part(app: &mut MailApp, ui: &mut Ui, fill: bool) {
     new_task(app, ui);
     if fill {
         let bottom = ui.max_rect().max.y;
-        egui::ScrollArea::vertical().id_salt("todo_bar_tasks").auto_shrink([false, false]).max_height((bottom - ui.cursor().min.y).max(0.0)).show(
+        egui::ScrollArea::vertical().id_salt("tasks_calendar_bar_tasks").auto_shrink([false, false]).max_height((bottom - ui.cursor().min.y).max(0.0)).show(
             ui,
             |ui| {
                 task_list(app, ui);
@@ -878,8 +878,8 @@ fn drop_target(app: &mut MailApp, ui: &mut Ui, area: Rect) {
 }
 
 #[cfg(test)]
-#[path = "todo_bar_more_tests.rs"]
-mod todo_bar_more_tests;
+#[path = "tasks_calendar_bar_more_tests.rs"]
+mod tasks_calendar_bar_more_tests;
 #[cfg(test)]
-#[path = "todo_bar_tests.rs"]
-mod todo_bar_tests;
+#[path = "tasks_calendar_bar_tests.rs"]
+mod tasks_calendar_bar_tests;

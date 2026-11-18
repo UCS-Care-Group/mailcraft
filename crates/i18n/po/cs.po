@@ -160,7 +160,7 @@ msgid "(no subject)"
 msgstr "(bez předmětu)"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "(no title)"
 msgstr "(bez názvu)"
@@ -940,7 +940,7 @@ msgid "Add a task to {address} (it waits here until To Do is allowed)"
 msgstr "Přidat úkol do {address} (počká zde, dokud nebude povolen To Do)"
 
 #. interface
-#: crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Add a task…"
 msgstr "Přidat úkol…"
@@ -988,7 +988,7 @@ msgid "Add as a Microsoft account"
 msgstr "Přidat jako účet Microsoft"
 
 #. interface
-#: crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Add contacts to Favorites to keep them here"
 msgstr "Přidejte kontakty do Oblíbených, aby zde zůstaly"
@@ -1154,7 +1154,7 @@ msgid "All accounts"
 msgstr "Všechny účty"
 
 #. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "All day"
 msgstr "Celý den"
@@ -2446,7 +2446,7 @@ msgid "By Subject"
 msgstr "Podle předmětu"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Kalendář"
@@ -8450,13 +8450,13 @@ msgid "Mark All as Read"
 msgstr "Označit vše jako přečtené"
 
 #. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Mark Complete"
 msgstr "Označit jako dokončené"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Mark Incomplete"
 msgstr "Označit jako nedokončené"
@@ -8917,7 +8917,7 @@ msgid "More results on the server can't be asked for now"
 msgstr "O další výsledky na serveru teď nelze požádat"
 
 #. interface
-#: crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "More tasks are in the Tasks module."
 msgstr "Další úkoly jsou v modulu Úkoly."
@@ -10223,7 +10223,7 @@ msgid "Nothing in it: replaces what is open here"
 msgstr "Nic v ní není: nahradí to, co je zde otevřeno"
 
 #. interface
-#: crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Nothing in the next 7 days"
 msgstr "Nic v následujících 7 dnech"
@@ -10307,7 +10307,7 @@ msgid "Nothing on."
 msgstr "Nic není."
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Nothing to do here."
 msgstr "Zde není co dělat."
@@ -11301,7 +11301,7 @@ msgid "Pending development"
 msgstr "Čeká na vývoj"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "People"
 msgstr "Lidé"
@@ -12279,10 +12279,10 @@ msgid "Remove {name}"
 msgstr "Odebrat {name}"
 
 #. interface
-#: crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
-msgid "Remove {part} from the To-Do Bar"
-msgstr "Odebrat {part} z panelu úkolů"
+msgid "Remove {part} from the Tasks and Calendar Bar"
+msgstr "Odebrat {part} z panelu úkolů a kalendáře"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -15143,10 +15143,26 @@ msgid "Task:"
 msgstr "Úkol:"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "Úkoly"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Tasks and\n"
+"Calendar Bar"
+msgstr ""
+"Panel úkolů\n"
+"a kalendáře"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Tasks and Calendar Bar"
+msgstr "Panel úkolů a kalendáře"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -18300,22 +18316,6 @@ msgstr "Před přepnutím nejprve uložte standardní servery IMAP a SMTP od Goo
 msgid "To use another server or user name, remove the account and add it again."
 msgstr "Chcete-li použít jiný server nebo uživatelské jméno, odeberte účet a přidejte ho znovu."
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid ""
-"To-Do\n"
-"Bar"
-msgstr ""
-"Panel\n"
-"úkolů"
-
-#. command label, ribbon
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "To-Do Bar"
-msgstr "Panel úkolů"
-
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
 #, fuzzy
@@ -18335,7 +18335,7 @@ msgid "To: {names}"
 msgstr "Komu: {names}"
 
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Today"
 msgstr "Dnes"
@@ -18347,7 +18347,7 @@ msgid "Today could not be read."
 msgstr "Dnešek se nepodařilo přečíst."
 
 #. android, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Tomorrow"
 msgstr "Zítra"
@@ -23545,7 +23545,7 @@ msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this acco
 msgstr "Změny kalendáře „{name}“ ({n}) se zde zadržují a neodesílají: tento účet ho už nesmí měnit. Odešlou se, pokud bude zase smět."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/todo_bar.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "{n} contact"
 msgid_plural "{n} contacts"

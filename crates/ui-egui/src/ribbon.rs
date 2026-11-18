@@ -140,7 +140,7 @@ pub(crate) enum Menu {
     Signature,
     MoveFolder,
     ReadingPane,
-    TodoBar,
+    TasksCalendarBar,
     GmailCategories,
     NavigationBar,
     Preview,
@@ -1060,7 +1060,7 @@ fn view_of_any(app: &MailApp) -> Tab {
     let mut layout = vec![
         Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
         Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
-        Item::big_menu("todoBar", "todoBar", "To-Do\nBar", "To-Do Bar", Menu::TodoBar).at(0, 2),
+        Item::big_menu("tasksCalendarBar", "tasksCalendarBar", "Tasks and\nCalendar Bar", "Tasks and Calendar Bar", Menu::TasksCalendarBar).at(0, 2),
         Item::big_menu("navigationBar", "navigationBar", "Navigation\nBar", "Navigation Bar", Menu::NavigationBar).at(0, 3),
     ];
     // Gmail's categories as folders or as tabs (#911): only with a Gmail account that shows them.
@@ -1690,13 +1690,13 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 mi_check(ui, app, label, cur == pane, "view.readingPane", json!({"value": code}));
             }
         }
-        // The To-Do Bar's parts, each on or off for the module in front, and Off (#831).
-        Menu::TodoBar => {
-            let parts = app.session.view.todo_bar.of(app.session.view.module);
+        // The Tasks and Calendar Bar's parts, each on or off for the module in front, and Off (#831).
+        Menu::TasksCalendarBar => {
+            let parts = app.session.view.tasks_calendar_bar.of(app.session.view.module);
             for (label, code, on) in [("Calendar", "calendar", parts.calendar), ("People", "people", parts.people), ("Tasks", "tasks", parts.tasks)] {
-                mi_check(ui, app, label, on, "view.todoBar", json!({"part": code, "value": !on}));
+                mi_check(ui, app, label, on, "view.tasksCalendarBar", json!({"part": code, "value": !on}));
             }
-            mi_check(ui, app, "Off", !parts.any(), "view.todoBar", json!({"part": "off"}));
+            mi_check(ui, app, "Off", !parts.any(), "view.tasksCalendarBar", json!({"part": "off"}));
         }
         Menu::NavigationBar => {
             let foot = app.session.view.nav_foot;

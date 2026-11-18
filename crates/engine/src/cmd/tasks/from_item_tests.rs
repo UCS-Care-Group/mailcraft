@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A to-do made from an appointment or a contact (#831), as Outlook makes one when either is
-//! dragged onto the To-Do Bar's tasks: named as the item, with what it says in the notes.
+//! dragged onto the Tasks and Calendar Bar's tasks: named as the item, with what it says in the notes.
 
 use mailcraft_model::{Address, Attendee, Contact, Event, Freq, Id, Labeled, PostalAddress, Recurrence};
 use mailcraft_time::{Date, DateTime};
@@ -83,7 +83,7 @@ fn an_appointment_becomes_a_task_named_as_it_with_when_and_where_in_its_notes() 
     ] {
         assert!(task.notes.contains(words), "{words:?} in {:?}", task.notes);
     }
-    // The module in front stays (a drop on the To-Do Bar); the task is the one selected.
+    // The module in front stays (a drop on the Tasks and Calendar Bar); the task is the one selected.
     assert_eq!(s.view.module, Module::Mail);
     assert_eq!(s.sel.task, Some(task.id));
     // The appointment is as it was.

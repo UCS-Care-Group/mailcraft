@@ -188,7 +188,7 @@ fn title_of(text: &str, otherwise: &str) -> String {
 }
 
 /// Make the task, where a new one goes, and show it unless `show` is false (an item dropped on
-/// the To-Do Bar, which leaves the module in front).
+/// the Tasks and Calendar Bar, which leaves the module in front).
 fn make(s: &mut Session, v: &Value, mut task: Task) -> CmdResult {
     task.due = p::date(v, "due")?;
     let show = p::opt_bool(v, "show")?.unwrap_or(true);

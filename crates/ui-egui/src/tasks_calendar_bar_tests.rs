@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The To-Do Bar (#831): drawn when a part of it is on, with what it lists.
+//! The Tasks and Calendar Bar (#831): drawn when a part of it is on, with what it lists.
 
 use std::sync::Arc;
 
@@ -35,7 +35,7 @@ fn mail_at(width: f32, bar_on: bool) -> (Option<Rect>, f32) {
         bar(&mut w, &["calendar", "people", "tasks"]);
     }
     w.run_steps(4);
-    (hit(&w, "todoBar", 0), hit(&w, "readingPane", 0).expect("the reading pane").width())
+    (hit(&w, "tasksCalendarBar", 0), hit(&w, "readingPane", 0).expect("the reading pane").width())
 }
 
 /// The bar leaves the module what it needs (#831): at the smallest window it isn't drawn and the
@@ -63,32 +63,32 @@ fn the_bar_leaves_the_reading_pane_room_in_a_narrow_window() {
 #[test]
 fn a_narrow_window_does_not_change_the_width_that_was_chosen() {
     let mut w = testing::window_sized(mailcraft_engine::sample::mailbox(testing::now(), 0), "view.mail", egui::vec2(760.0, 700.0));
-    w.state_mut().ui.todo_bar_width = 400.0;
+    w.state_mut().ui.tasks_calendar_bar_width = 400.0;
     bar(&mut w, &["tasks"]);
-    assert!(hit(&w, "todoBar", 0).is_none());
-    assert_eq!(w.state().ui.todo_bar_width, 400.0);
+    assert!(hit(&w, "tasksCalendarBar", 0).is_none());
+    assert_eq!(w.state().ui.tasks_calendar_bar_width, 400.0);
 }
 
 /// The width the owner chose comes back when a window that held the bar in grows again.
 #[test]
 fn the_chosen_width_comes_back_in_a_wider_window() {
     let mut w = testing::window_sized(mailcraft_engine::sample::mailbox(testing::now(), 0), "view.mail", egui::vec2(1024.0, 700.0));
-    w.state_mut().ui.todo_bar_width = 400.0;
+    w.state_mut().ui.tasks_calendar_bar_width = 400.0;
     bar(&mut w, &["tasks"]);
-    let held = hit(&w, "todoBar", 0).expect("room for a narrow bar").width();
+    let held = hit(&w, "tasksCalendarBar", 0).expect("room for a narrow bar").width();
     assert!(held < 300.0, "held in at 1024 px: {held}");
-    assert_eq!(w.state().ui.todo_bar_width, 400.0, "what was chosen is kept while it is held in");
+    assert_eq!(w.state().ui.tasks_calendar_bar_width, 400.0, "what was chosen is kept while it is held in");
     w.set_size(egui::vec2(1600.0, 700.0));
     w.run_steps(6);
-    let wide = hit(&w, "todoBar", 0).unwrap().width();
+    let wide = hit(&w, "tasksCalendarBar", 0).unwrap().width();
     assert!((wide - 400.0).abs() < 6.0, "{wide}");
-    assert_eq!(w.state().ui.todo_bar_width, 400.0);
+    assert_eq!(w.state().ui.tasks_calendar_bar_width, 400.0);
     // And held in again by a narrow one, and back.
     w.set_size(egui::vec2(1024.0, 700.0));
     w.run_steps(6);
     w.set_size(egui::vec2(1600.0, 700.0));
     w.run_steps(6);
-    assert!((hit(&w, "todoBar", 0).unwrap().width() - 400.0).abs() < 6.0);
+    assert!((hit(&w, "tasksCalendarBar", 0).unwrap().width() - 400.0).abs() < 6.0);
 }
 
 /// More than [`MAX_TASKS`] open tasks: the bar lists that many, and says there are more.
@@ -111,7 +111,7 @@ fn window(module: &str) -> Window {
 
 fn bar(w: &mut Window, parts: &[&str]) {
     for part in parts {
-        w.state_mut().execute("view.todoBar", json!({"part": part, "value": true})).unwrap();
+        w.state_mut().execute("view.tasksCalendarBar", json!({"part": part, "value": true})).unwrap();
     }
     w.run_steps(4);
 }
@@ -127,9 +127,9 @@ fn first_task(w: &Window) -> Id {
 #[test]
 fn the_bar_is_drawn_with_the_parts_that_are_on_at_the_right_of_the_window() {
     let mut w = window("view.mail");
-    assert!(hit(&w, "todoBar", 0).is_none(), "closed until it is opened");
+    assert!(hit(&w, "tasksCalendarBar", 0).is_none(), "closed until it is opened");
     bar(&mut w, &["calendar", "people", "tasks"]);
-    let r = hit(&w, "todoBar", 0).expect("the bar");
+    let r = hit(&w, "tasksCalendarBar", 0).expect("the bar");
     assert!(r.max.x >= 1270.0 && r.width() >= MIN_WIDTH - 1.0 && r.width() <= MAX_WIDTH + 1.0, "{r:?}");
     // Its parts stand in Outlook's order: the calendar, the people, the tasks.
     let (cal, people, tasks) =
@@ -144,10 +144,10 @@ fn the_bar_is_drawn_with_the_parts_that_are_on_at_the_right_of_the_window() {
     // Another module has a bar of its own, closed.
     w.state_mut().execute("view.people", json!({})).unwrap();
     w.run_steps(3);
-    assert!(hit(&w, "todoBar", 0).is_none());
+    assert!(hit(&w, "tasksCalendarBar", 0).is_none());
     w.state_mut().execute("view.mail", json!({})).unwrap();
     w.run_steps(3);
-    assert!(hit(&w, "todoBar", 0).is_some());
+    assert!(hit(&w, "tasksCalendarBar", 0).is_some());
 }
 
 #[test]
@@ -157,11 +157,11 @@ fn a_part_closes_from_its_own_button_and_the_last_closes_the_bar() {
     assert!(hit(&w, "todoCloseCalendar", 0).is_none());
     let close = hit(&w, "todoClosePeople", 0).unwrap();
     testing::click(&mut w, close.center(), PointerButton::Primary, 1);
-    assert!(!w.state().session.view.todo_bar.mail.people);
+    assert!(!w.state().session.view.tasks_calendar_bar.mail.people);
     let close = hit(&w, "todoCloseTasks", 0).unwrap();
     testing::click(&mut w, close.center(), PointerButton::Primary, 1);
     w.run_steps(2);
-    assert!(hit(&w, "todoBar", 0).is_none());
+    assert!(hit(&w, "tasksCalendarBar", 0).is_none());
 }
 
 #[test]
@@ -267,18 +267,18 @@ fn the_bar_and_its_width_are_kept_between_runs() {
     let mut w = window("view.mail");
     bar(&mut w, &["calendar", "tasks"]);
     w.state_mut().execute("view.calendar", json!({})).unwrap();
-    w.state_mut().execute("view.todoBar", json!({"part": "people"})).unwrap();
+    w.state_mut().execute("view.tasksCalendarBar", json!({"part": "people"})).unwrap();
     let mut saved = w.state().prefs();
-    saved.todo_bar_width = 333.0;
+    saved.tasks_calendar_bar_width = 333.0;
     let mut next = crate::MailApp::new(mailcraft_engine::Session::empty(), crate::Services::default());
     next.apply_prefs(serde_json::from_value(serde_json::to_value(&saved).unwrap()).unwrap());
-    assert_eq!(next.session.view.todo_bar, w.state().session.view.todo_bar);
-    assert!(next.session.view.todo_bar.mail.calendar && next.session.view.todo_bar.calendar.people);
-    assert_eq!(next.ui.todo_bar_width, 333.0);
+    assert_eq!(next.session.view.tasks_calendar_bar, w.state().session.view.tasks_calendar_bar);
+    assert!(next.session.view.tasks_calendar_bar.mail.calendar && next.session.view.tasks_calendar_bar.calendar.people);
+    assert_eq!(next.ui.tasks_calendar_bar_width, 333.0);
     // A width that is no width comes back as one.
-    saved.todo_bar_width = f32::NAN;
+    saved.tasks_calendar_bar_width = f32::NAN;
     next.apply_prefs(saved);
-    assert_eq!(next.ui.todo_bar_width, DEFAULT_WIDTH);
+    assert_eq!(next.ui.tasks_calendar_bar_width, DEFAULT_WIDTH);
 }
 
 #[test]

@@ -40,7 +40,7 @@ fn wanted(rows: &[Row]) -> usize {
 fn every_listed_command_exists_and_none_is_left_out() {
     let app = app();
     let tables: Vec<&[Row]> = TABLES.iter().map(|t| t.1).chain([HELP]).collect();
-    for rows in tables.iter().copied().chain([TODO_BAR]) {
+    for rows in tables.iter().copied().chain([TASKS_CALENDAR_BAR]) {
         for row in rows {
             if let Row::Cmd(id) | Row::With { id, .. } = row {
                 assert!(app.session.registry.get(id).is_some(), "{id} is not a command");
@@ -236,15 +236,15 @@ fn nothing_runs_from_the_menu_while_file_or_a_dialog_is_open() {
     assert!(app.dialog.is_some());
 }
 
-/// #831: View › To-Do Bar, a menu of its own with the ribbon's Calendar, People, Tasks and Off:
+/// #831: View › Tasks and Calendar Bar, a menu of its own with the ribbon's Calendar, People, Tasks and Off:
 /// each turns its part on or off for the module in front, as the ribbon's dropdown does.
 #[test]
 fn the_view_menu_has_the_to_do_bar_and_its_items_turn_the_parts_on_and_off() {
     let (mut app, _) = sample();
     let menus = menus(&app);
     let view = menus.iter().find(|m| m.title == "View").unwrap();
-    let Some(Entry::Submenu(bar)) = view.entries.iter().find(|e| matches!(e, Entry::Submenu(b) if b.title == "To-Do Bar")) else {
-        panic!("no To-Do Bar in View")
+    let Some(Entry::Submenu(bar)) = view.entries.iter().find(|e| matches!(e, Entry::Submenu(b) if b.title == "Tasks and Calendar Bar")) else {
+        panic!("no Tasks and Calendar Bar in View")
     };
     let labels: Vec<&str> = items(bar).map(|i| i.label.as_str()).collect();
     assert_eq!(labels, ["Calendar", "People", "Tasks", "Off"]);
@@ -255,17 +255,17 @@ fn the_view_menu_has_the_to_do_bar_and_its_items_turn_the_parts_on_and_off() {
     }
     run(&mut app, &action("Calendar"), String::new);
     run(&mut app, &action("Tasks"), String::new);
-    let parts = app.session.view.todo_bar.mail;
+    let parts = app.session.view.tasks_calendar_bar.mail;
     assert!(parts.calendar && parts.tasks && !parts.people);
     // Again: off. In another module, that module's own bar.
     run(&mut app, &action("Calendar"), String::new);
-    assert!(!app.session.view.todo_bar.mail.calendar);
+    assert!(!app.session.view.tasks_calendar_bar.mail.calendar);
     app.execute("view.calendar", serde_json::json!({})).unwrap();
     run(&mut app, &action("People"), String::new);
-    assert!(app.session.view.todo_bar.calendar.people && !app.session.view.todo_bar.mail.people);
+    assert!(app.session.view.tasks_calendar_bar.calendar.people && !app.session.view.tasks_calendar_bar.mail.people);
     app.execute("view.mail", serde_json::json!({})).unwrap();
     run(&mut app, &action("Off"), String::new);
-    assert!(!app.session.view.todo_bar.mail.any() && app.session.view.todo_bar.calendar.people);
+    assert!(!app.session.view.tasks_calendar_bar.mail.any() && app.session.view.tasks_calendar_bar.calendar.people);
     // Not while File is open, as every other command of the menus.
     app.ui.backstage = true;
     assert!(!enabled(&app, &action("Tasks")));

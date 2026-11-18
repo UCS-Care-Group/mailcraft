@@ -1,19 +1,19 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The To-Do Bar's height shared out as Outlook shares it (the tasks take what is left and scroll
+//! The Tasks and Calendar Bar's height shared out as Outlook shares it (the tasks take what is left and scroll
 //! inside it, the navigator stacks months when there is room), and appointments and contacts
 //! dragged onto its tasks to become tasks (#831).
 
 use egui::{Event, Modifiers, PointerButton, Pos2};
-use mailcraft_engine::{Module, TodoParts};
+use mailcraft_engine::{Module, BarParts};
 use mailcraft_model::{Contact, Task};
 use serde_json::json;
 
 use super::*;
 use crate::people_view::testing::{self, Window};
 
-fn parts(calendar: bool, people: bool, tasks: bool) -> TodoParts {
-    TodoParts { calendar, people, tasks }
+fn parts(calendar: bool, people: bool, tasks: bool) -> BarParts {
+    BarParts { calendar, people, tasks }
 }
 
 fn window_of(mailbox: mailcraft_model::Mailbox, module: &str, height: f32) -> Window {
@@ -29,7 +29,7 @@ fn sample() -> mailcraft_model::Mailbox {
 
 fn bar(w: &mut Window, on: &[&str]) {
     for part in on {
-        w.state_mut().execute("view.todoBar", json!({"part": part, "value": true})).unwrap();
+        w.state_mut().execute("view.tasksCalendarBar", json!({"part": part, "value": true})).unwrap();
     }
     w.run_steps(4);
 }
@@ -98,7 +98,7 @@ fn the_tasks_take_the_rest_of_the_bar_and_scroll_inside_it() {
     }
     let mut w = window_of(mailbox, "view.mail", 800.0);
     bar(&mut w, &["calendar", "people", "tasks"]);
-    let bar_rect = hit(&w, "todoBar", 0).unwrap();
+    let bar_rect = hit(&w, "tasksCalendarBar", 0).unwrap();
     let drop = hit(&w, "todoTaskDrop", 0).unwrap();
     // The tasks reach down to the foot of the bar, not past it: the bar itself doesn't scroll.
     assert!((drop.max.y - bar_rect.max.y).abs() < 1.5, "{drop:?} in {bar_rect:?}");
@@ -183,7 +183,7 @@ fn an_appointment_dragged_out_of_the_calendar_onto_the_tasks_becomes_one_and_sta
     assert_eq!(s.mailbox.event(id).map(|e| e.start), Some(start), "the appointment didn't move");
     assert_eq!(s.view.module, Module::Calendar, "the calendar stays in front");
     // Without the bar's tasks, a drag only moves it in the calendar, as before.
-    w.state_mut().execute("view.todoBar", json!({"part": "off"})).unwrap();
+    w.state_mut().execute("view.tasksCalendarBar", json!({"part": "off"})).unwrap();
     w.run_steps(3);
     assert!(!takes_drops(&w.ctx));
 }
