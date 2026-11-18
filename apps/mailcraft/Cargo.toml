@@ -105,6 +105,9 @@ objc2-user-notifications = { version = "0.3", default-features = false, features
 ] }
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+# Local spelling in the language packs installed in Windows or macOS. The native API's
+# unsafe calls stay in this MIT OR Apache-2.0 wrapper; no dictionary data is distributed.
+spellkit = "0.4.2"
 # Native tray/menu-bar icon, using the existing MailCraft artwork; no GTK dependency on Unix.
 tray-icon = { version = "0.26", default-features = false }
 # A password or sign-in the owner asks to be remembered goes to the operating system's credential

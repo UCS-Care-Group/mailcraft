@@ -5,8 +5,10 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
+mod capitals;
+
 use super::find::{Place, moved};
-use super::{Format, ListKind, MAX_CHARS, RichText, Style};
+use super::{Format, ListKind, MAX_CHARS, MAX_FIND, RichText, Style, clean_line};
 use crate::ModelError;
 
 /// Most undo steps one message keeps.
@@ -250,6 +252,30 @@ impl RichBody {
         Ok(())
     }
 
+    /// Finish a typed word, then capitalize the first word of the sentence if needed.
+    /// The correction is its own undo step, so Undo restores what was typed.
+    pub fn type_with_auto_capitalization(&mut self, text: &str, language: &str) -> Result<(), ModelError> {
+        let sel = self.selection;
+        let initial = if sel.is_empty() && self.typing == Some(sel.head) && matches!(text, " " | "\n" | "\r" | "\r\n") {
+            capitals::find(&self.text, sel.head, language)
+        } else {
+            None
+        };
+        self.type_text(text)?;
+        let Some(initial) = initial else { return Ok(()) };
+        let extra = initial.extra_chars();
+        if self.text.len().saturating_add(extra) > MAX_CHARS {
+            return Ok(());
+        }
+        self.edit(false, |text, selection| {
+            initial.replace(text)?;
+            *selection = Selection::caret(selection.head.saturating_add(extra));
+            Ok(())
+        })?;
+        self.typing = None;
+        Ok(())
+    }
+
     /// After a space typed at the caret (#973): a paragraph that holds only `* ` or `- ` before
     /// the caret becomes a bulleted list item, `1. ` or `1) ` a numbered one, and the typed marker
     /// goes, as an undo step of its own (Undo puts the marker back as text). Nothing for a list item
@@ -412,6 +438,27 @@ impl RichBody {
             *s = Selection { anchor: moved(s.anchor, places, with_chars), head: moved(s.head, places, with_chars) };
             Ok(())
         })?;
+        self.typing = None;
+        Ok(())
+    }
+
+    /// Replace the expected text at an exact position, as one undo step. The text
+    /// that goes in looks as the first character did, and the caret goes just after it.
+    pub fn replace_exact(&mut self, place: Place, expected: &str, with: &str) -> Result<(), ModelError> {
+        let (from, to) = place;
+        let valid_line = |text: &str| text.len() <= 4 * MAX_FIND && text.chars().count() <= MAX_FIND && clean_line(text) == text;
+        if from >= to || to - from > MAX_FIND || !valid_line(expected) || !valid_line(with) {
+            return Err(ModelError::Invalid("expected and replacement must be on one line".into()));
+        }
+        if to - from != expected.chars().count() || self.text.slice(from, to)?.text() != expected {
+            return Err(ModelError::Invalid("the text has changed at the place to replace".into()));
+        }
+        self.edit(false, |text, selection| {
+            text.replace_places(&[place], with)?;
+            *selection = Selection::caret(from + with.chars().count());
+            Ok(())
+        })?;
+        self.pending = None;
         self.typing = None;
         Ok(())
     }

@@ -197,6 +197,10 @@ fn items(ui: &mut Ui, kind: Kind, selected: bool, paste: bool) -> (Option<Item>,
 /// has its menu as a submenu of it instead: open by its own note ([`Nested`]), and counted by the
 /// drop-down as one of its own (`MenuState`), so that neither closes the other.
 fn menu(resp: &Response, kind: Kind, selected: bool, takes: Takes) {
+    menu_with(resp, kind, selected, takes, |_| false);
+}
+
+fn menu_with(resp: &Response, kind: Kind, selected: bool, takes: Takes, mut extra: impl FnMut(&mut Ui) -> bool) {
     let ctx = &resp.ctx;
     let id = Popup::default_response_id(resp);
     let pass = ctx.cumulative_pass_nr();
@@ -214,6 +218,11 @@ fn menu(resp: &Response, kind: Kind, selected: bool, takes: Takes) {
     }
     let paste = ctx.data(|d| d.get_temp::<bool>(pasting())).unwrap_or(false);
     let (mut chosen, mut keyboard) = (None, false);
+    let mut contents = |ui: &mut Ui| {
+        let extra_keyboard = extra(ui);
+        (chosen, keyboard) = items(ui, kind, selected, paste);
+        keyboard |= extra_keyboard;
+    };
     let open = match nested.as_mut() {
         Some(n) => {
             n.pass = pass;
@@ -223,14 +232,14 @@ fn menu(resp: &Response, kind: Kind, selected: bool, takes: Takes) {
             if crate::keys::list_escape(ctx) && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
                 n.open = false;
             }
-            Popup::menu(resp).open_bool(&mut n.open).at_position(at).show(|ui| (chosen, keyboard) = items(ui, kind, selected, paste));
+            Popup::menu(resp).open_bool(&mut n.open).at_position(at).show(contents);
             if n.open {
                 MenuState::from_id(ctx, resp.layer_id.id, |state| state.open_item = Some(id));
             }
             n.open
         }
         None => {
-            Popup::context_menu(resp).show(|ui| (chosen, keyboard) = items(ui, kind, selected, paste));
+            Popup::context_menu(resp).show(&mut contents);
             Popup::is_id_open(ctx, id)
         }
     };
@@ -361,8 +370,8 @@ fn attach(resp: Response, kind: Kind) -> Response {
 /// The body of a message being written, or a signature being edited, `resp`, with the menu;
 /// `selected`: whether anything is selected in it; `takes`: what a paste brings into it. (Where a
 /// right click puts the caret is the body's own.)
-pub(crate) fn body(resp: &Response, selected: bool, takes: Takes) {
-    menu(resp, Kind::Text, selected, takes);
+pub(crate) fn body(resp: &Response, selected: bool, takes: Takes, extra: impl FnMut(&mut Ui) -> bool) {
+    menu_with(resp, Kind::Text, selected, takes, extra);
 }
 
 /// What was chosen this pass becomes its input, for [`deliver`]. The extra pass asked for runs in

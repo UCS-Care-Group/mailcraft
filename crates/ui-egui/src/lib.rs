@@ -269,6 +269,7 @@ mod signatures;
 mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
+pub mod spelling;
 mod subscribed;
 #[cfg(test)]
 mod subscribed_tests;
@@ -323,6 +324,8 @@ pub use unconfirmed::ConfirmedMailbox;
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
 #[derive(Default)]
 pub struct Services {
+    /// Local system dictionaries for the message composer, when the host provides them.
+    pub spelling: Option<spelling::Host>,
     /// The Windows host reads the local Recent Items folder on a worker, only when asked by the owner.
     pub recent_attachments: Option<recent_attachments::Loader>,
     /// Desktop: the icon and application id of the main window, which every other window of the

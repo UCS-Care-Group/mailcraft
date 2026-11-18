@@ -797,6 +797,14 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     {
         set(app, json!({"autoLists": lists}));
     }
+    let mut capitalize = prefs.auto_capitalize;
+    if ui
+        .checkbox(&mut capitalize, tl!("Capitalize the first word of sentences"))
+        .on_hover_text(tl!("Capitalizes after you finish typing a word. Undo restores what you typed."))
+        .changed()
+    {
+        set(app, json!({"autoCapitalize": capitalize}));
+    }
     let mut in_window = app.ui.replies_in_window;
     let switch = ui
         .checkbox(&mut in_window, tl!("Open new messages, replies and forwards in a new window"))

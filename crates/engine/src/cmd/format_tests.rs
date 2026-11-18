@@ -447,3 +447,79 @@ fn a_typed_marker_and_space_start_a_list_and_undo_puts_the_marker_back() {
     key(&mut s, "* ");
     assert_eq!(mine(&s), "* ");
 }
+
+#[test]
+fn typed_sentence_initials_capitalize_on_space_or_enter_and_undo_restores_the_letter() {
+    let key_type = |s: &mut Session, text: &str| {
+        for c in text.chars() {
+            run(s, "compose.type", json!({"text": c.to_string(), "autoCapitalize": true}));
+        }
+    };
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    key_type(&mut s, "è pronto. «quanto costa?»\necco ");
+    assert_eq!(mine(&s), "È pronto. «Quanto costa?»\nEcco ");
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(mine(&s), "È pronto. «Quanto costa?»\necco ");
+    run(&mut s, "compose.redo", json!({}));
+    assert_eq!(mine(&s), "È pronto. «Quanto costa?»\nEcco ");
+
+    let mut s = session();
+    s.interface_language = mailcraft_i18n::Lang::Dutch;
+    run(&mut s, "mail.new", json!({}));
+    key_type(&mut s, "ijs\n");
+    assert_eq!(mine(&s), "IJs\n");
+
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    key_type(&mut s, "istanbul");
+    run(&mut s, "compose.type", json!({"text": " ", "autoCapitalize": true, "capitalLanguage": "tr-TR"}));
+    assert_eq!(mine(&s), "İstanbul ");
+}
+
+#[test]
+fn automatic_capitalization_leaves_abbreviations_addresses_and_pasted_text_alone() {
+    let key_type = |s: &mut Session, text: &str| {
+        for c in text.chars() {
+            run(s, "compose.type", json!({"text": c.to_string(), "autoCapitalize": true}));
+        }
+    };
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    key_type(&mut s, "gentile dott. rossi. https://example.org/ciao\ninfo@example.org\n");
+    assert_eq!(mine(&s), "Gentile dott. rossi. https://example.org/ciao\ninfo@example.org\n");
+    run(&mut s, "edit.paste", json!({"text": "testo incollato"}));
+    key_type(&mut s, " ");
+    assert!(mine(&s).ends_with("\ntesto incollato "));
+
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "file.options", json!({"autoCapitalize": false}));
+    key_type(&mut s, "resta minuscolo ");
+    assert_eq!(mine(&s), "resta minuscolo ");
+}
+
+#[test]
+fn replace_exact_checks_the_old_word_and_keeps_its_style_and_list() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "oggi sopratutto"}));
+    run(&mut s, "format.bullets", json!({}));
+    run(&mut s, "format.bold", json!({"from": 5, "to": 15}));
+    run(&mut s, "compose.select", json!({"from": 0}));
+    assert!(s.run("compose.replaceText", &json!({"from": 5, "to": 15, "expected": "altra cosa", "text": "soprattutto"})).is_err());
+    assert_eq!(mine(&s), "oggi sopratutto");
+    assert_eq!(compose(&s).body.selection(), Selection::caret(0));
+
+    run(&mut s, "compose.replaceText", json!({"from": 5, "to": 15, "expected": "sopratutto", "text": "soprattutto"}));
+    let body = &compose(&s).body;
+    assert_eq!(body.text().list_at(0), ListKind::Bullet);
+    assert!(body.text().all(5, 16, |style| style.bold).unwrap());
+    assert!(!body.text().style_at(5).bold);
+    assert_eq!(mine(&s), "oggi soprattutto");
+    assert_eq!(body.selection(), Selection::caret(16));
+
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(mine(&s), "oggi sopratutto");
+    assert_eq!(compose(&s).body.selection(), Selection::caret(0));
+}

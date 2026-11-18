@@ -34,6 +34,7 @@ use serde_json::{Value, json};
 
 use crate::MailApp;
 use crate::clicks::{Anchor, Unit};
+use crate::spelling;
 use crate::theme::{Tokens, regular, semibold};
 
 /// The message's own font size on screen, in points (the reading pane's).
@@ -184,9 +185,17 @@ struct Para {
     start: usize,
     top: f32,
     pictures: Vec<PictureBox>,
+    spelling: Option<spelling::Checked>,
 }
 
 impl Para {
+    fn spelling(&mut self, host: &dyn spelling::HostChecker, locale: &str) -> &[spelling::Issue] {
+        if self.spelling.as_ref().is_none_or(|checked| checked.locale != locale) {
+            self.spelling = Some(spelling::check(host, locale, &self.source));
+        }
+        self.spelling.as_ref().map_or(&[], |checked| checked.issues.as_slice())
+    }
+
     fn indent(&self) -> f32 {
         indent_of(&self.source)
     }
@@ -364,7 +373,7 @@ impl Layout {
                 rect.is_finite().then_some(PictureBox { local, id, rect })
             })
             .collect();
-        Para { chars: p.chars(), source: p.clone(), number, galley, start: 0, top: 0.0, pictures }
+        Para { chars: p.chars(), source: p.clone(), number, galley, start: 0, top: 0.0, pictures, spelling: None }
     }
 
     /// Characters in the text.
@@ -561,6 +570,21 @@ fn store(ctx: &egui::Context, id: egui::Id) -> Arc<Mutex<Layout>> {
     ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Layout>>>(id.with("layout")).clone())
 }
 
+pub(crate) fn selected_spelling(app: &MailApp, ctx: &egui::Context, locale: &str) -> Option<(spelling::Issue, usize)> {
+    let (selection, _) = now(app, Which::Message)?;
+    let store = store(ctx, id(app));
+    let layout = store.lock().ok()?;
+    let paragraph = layout.para_at(selection.start())?;
+    let checked = paragraph.spelling.as_ref().filter(|checked| checked.locale == locale)?;
+    let start = paragraph.start;
+    let issue = checked.issues.iter().find(|issue| start + issue.span.start == selection.start() && start + issue.span.end == selection.end())?;
+    Some((issue.clone(), start))
+}
+
+pub(crate) fn reveal_spelling(app: &MailApp, ctx: &egui::Context) {
+    ctx.data_mut(|data| data.insert_temp(id(app).with("reveal-spelling"), true));
+}
+
 /// How many paragraphs of the current message's body were laid out since the window opened, for tests.
 #[cfg(test)]
 pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
@@ -570,6 +594,7 @@ pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
 /// What the body remembers between frames besides its layout.
 #[derive(Clone, Default)]
 struct State {
+    spelling_menu: Option<spelling::Suggestions>,
     /// Where the caret goes up and down from (the column it was in before it went up or down).
     column: Option<f32>,
     /// What the pointer took where it went down, for dragging a selection from there.
@@ -693,7 +718,9 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     if editable && (take_focus || (which == Which::Message && app.take_body_focus()) || (which == Which::Signature && app.take_signature_focus())) {
         resp.request_focus();
     }
-    let mut reveal = false;
+    let mut reveal = ctx.data_mut(|d| d.remove_temp::<bool>(id.with("reveal-spelling")).unwrap_or_default());
+    let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
+    let capital_language = spelling_locale.clone().filter(|locale| !locale.is_empty());
 
     // A selected picture of a signature is made wider or narrower by its corner.
     if which == Which::Signature
@@ -794,6 +821,20 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     // A right click: the caret goes where it is, unless that is on the selection; then the text's
     // menu, whose items do what their keys do (`crate::text_menu`).
     if editable {
+        let secondary = resp.secondary_clicked();
+        if secondary {
+            st.spelling_menu = (|| {
+                let locale = spelling_locale.as_deref()?;
+                let host = app.services.spelling.as_deref()?;
+                let pointer = ui.input(|input| input.pointer.interact_pos())?;
+                let at = layout.char_under(pointer - origin)?;
+                let index = layout.paras.partition_point(|p| p.start <= at).checked_sub(1)?;
+                let p = layout.paras.get_mut(index)?;
+                let start = p.start;
+                let issue = p.spelling(host, locale).iter().find(|issue| issue.span.contains(&(at - start)))?.clone();
+                Some(spelling::Suggestions::new(host, locale, issue, start))
+            })();
+        }
         if resp.hovered()
             && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary))
             && let (Some(pointer), Some((sel, _))) = (ui.input(|i| i.pointer.interact_pos()), now(app, which))
@@ -805,7 +846,17 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         }
         // Both take pictures: a signature, and a message's text since #547.
         let takes = crate::text_menu::Takes::Pictures;
-        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes);
+        let mut chosen = None;
+        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes, |ui| {
+            st.spelling_menu.as_ref().is_some_and(|suggestions| suggestions.show(ui, &mut chosen))
+        });
+        if let Some(word) = chosen
+            && let Some(suggestions) = st.spelling_menu.take()
+        {
+            suggestions.apply(app, word);
+            resp.request_focus();
+            resync(&mut layout, app);
+        }
     }
 
     // The keyboard.
@@ -830,7 +881,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             let Some((sel, plain)) = now(app, which) else { break };
             let asked = match event {
                 // (A space may start a list, #973: the engine looks at the paragraph.)
-                Event::Text(text) if text == " " => ask("compose.type", json!({"text": text, "autoList": true})),
+                Event::Text(text) if text == " " => ask("compose.type", json!({"text": text, "autoList": true, "autoCapitalize": true})),
                 Event::Text(text) if !text.is_empty() => ask("compose.type", json!({"text": text})),
                 Event::Ime(egui::ImeEvent::Commit(text)) => {
                     st.preedit.clear();
@@ -911,7 +962,12 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 }
                 _ => None,
             };
-            if let Some(Ask { command, params }) = asked {
+            if let Some(Ask { command, mut params }) = asked {
+                if params.get("autoCapitalize") == Some(&Value::Bool(true))
+                    && let Some(language) = &capital_language
+                {
+                    params["capitalLanguage"] = json!(language);
+                }
                 reveal = true;
                 // `run`: the link's dialog opens from Ctrl+K, and what goes wrong is said. A
                 // picture pasted into a signature goes as Paste Picture's does: made smaller when
@@ -939,7 +995,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let fill = ui.visuals().selection.bg_fill;
     let fill = if focused { fill } else { fill.gamma_multiply(0.55) };
     let first = layout.paras.partition_point(|p| origin.y + p.top + p.height() < clip.min.y);
-    for p in layout.paras.iter().skip(first) {
+    let mut checks = 0;
+    for p in layout.paras.iter_mut().skip(first) {
         if origin.y + p.top > clip.max.y {
             break;
         }
@@ -948,6 +1005,24 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             paint_selection(painter, p, at, sel, fill);
         }
         painter.galley(at, p.galley.clone(), t.text);
+        if let (Some(locale), Some(host)) = (spelling_locale.as_deref(), app.services.spelling.as_deref()) {
+            if p.spelling.as_ref().is_none_or(|checked| checked.locale != locale) {
+                if checks < 8 {
+                    p.spelling(host, locale);
+                    checks += 1;
+                } else {
+                    ctx.request_repaint();
+                }
+            }
+            if let Some(checked) = p.spelling.as_ref().filter(|checked| checked.locale == locale) {
+                for issue in &checked.issues {
+                    let is_typing = focused && sel.is_empty() && sel.head > p.start + issue.span.start && sel.head <= p.start + issue.span.end;
+                    if !is_typing {
+                        paint_spelling(painter, p, at, issue.span.clone(), t.icon_red);
+                    }
+                }
+            }
+        }
         for b in &p.pictures {
             let r = b.rect.translate(at.to_vec2());
             let picture = shown.iter().find(|x| x.id == b.id);
@@ -1111,6 +1186,32 @@ fn paint_selection(painter: &egui::Painter, p: &Para, at: egui::Pos2, sel: Selec
     }
 }
 
+fn paint_spelling(painter: &egui::Painter, p: &Para, at: egui::Pos2, span: std::ops::Range<usize>, ink: egui::Color32) {
+    let mut start = 0;
+    for row in &p.galley.rows {
+        let end = start + row.char_count_including_newline().0;
+        let (lo, hi) = (span.start.max(start), span.end.min(end));
+        if lo < hi {
+            let x = at.x + row.pos.x;
+            let left = x + row.x_offset(CharIndex(lo - start));
+            let right = x + row.x_offset(CharIndex(hi - start));
+            let y = at.y + row.max_y() - 1.0;
+            if left < right {
+                let path = std::iter::successors(Some(left), |x| (*x + 2.0 < right).then_some(*x + 2.0))
+                    .chain(std::iter::once(right))
+                    .enumerate()
+                    .map(|(i, x)| pos2(x, y + (i % 2) as f32))
+                    .collect();
+                painter.add(egui::Shape::line(path, Stroke::new(1.0, ink)));
+            }
+        }
+        start = end;
+        if start >= span.end {
+            break;
+        }
+    }
+}
+
 /// What a key does: the command, and whether it moved the caret up or down (which keeps the
 /// column it goes up and down in).
 fn key_press(layout: &Layout, st: &mut State, sel: Selection, plain: bool, key: Key, m: Modifiers, page: f32) -> (Option<Ask>, bool) {
@@ -1180,7 +1281,7 @@ fn key_press(layout: &Layout, st: &mut State, sel: Selection, plain: bool, key: 
         Key::PageDown => return (to(vertical(st, page)), true),
         Key::Home => to(if m.ctrl || m.command { 0 } else { layout.line_ends(head).0 }),
         Key::End => to(if m.ctrl || m.command { len } else { layout.line_ends(head).1 }),
-        Key::Enter if !m.command && !m.alt => ask("compose.type", json!({"text": "\n"})),
+        Key::Enter if !m.command && !m.alt => ask("compose.type", json!({"text": "\n", "autoCapitalize": true})),
         Key::Backspace if sel.is_empty() && word && head > 0 => ask("compose.delete", json!({"from": layout.word_left(head), "to": head})),
         Key::Backspace => ask("compose.delete", json!({})),
         // (At the end, nothing: not the paragraph break before a signature that isn't shown.)
