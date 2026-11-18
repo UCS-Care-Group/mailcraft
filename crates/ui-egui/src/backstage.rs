@@ -783,6 +783,25 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let _ = app.run("file.options", params);
     };
     section(ui, tl!("Mail"), t);
+    ui.label(tl!("Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."));
+    for (direction, label, current) in
+        [("left", tl!("Swipe to the left"), app.ui.swipe_left), ("right", tl!("Swipe to the right"), app.ui.swipe_right)]
+    {
+        row(ui, label, |ui| {
+            let combo = egui::ComboBox::from_id_salt(("opt_swipe", direction)).selected_text(current.label()).show_ui(ui, |ui| {
+                for action in crate::swipe::Action::ALL {
+                    if ui.selectable_label(action == current, action.label()).clicked() {
+                        let _ = app.run("ui.swipeAction", json!({"direction": direction, "action": action.code()}));
+                    }
+                }
+            });
+            combo.response.widget_info(|| {
+                let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, label);
+                info.current_text_value = Some(current.label().to_string());
+                info
+            });
+        });
+    }
     let mut mark = prefs.mark_read_on_open;
     if ui.checkbox(&mut mark, tl!("Mark a message as read when it is opened in the reading pane")).changed() {
         set(app, json!({"markReadOnOpen": mark}));
