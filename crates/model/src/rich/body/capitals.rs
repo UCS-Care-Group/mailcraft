@@ -45,18 +45,19 @@ pub(super) fn find(text: &RichText, caret: usize, language: &str) -> Option<Init
     let split = context.rmatch_indices(char::is_whitespace).next().map_or(0, |(idx, space)| idx + space.len());
     let token = context.get(split..)?;
     let word = token.trim_start_matches(opening);
-    let body = word.trim_end_matches(|c| closing(c) || matches!(c, '.' | '!' | '?' | ',' | ':' | ';' | '…'));
+    let body = word.trim_end_matches(|c| closing(c) || sentence_punctuation(c) || matches!(c, ',' | ':' | ';' | '…'));
     let mut letters = body.chars();
     let first = letters.next().filter(|ch| ch.is_lowercase())?;
     // A complete word can have apostrophes, hyphens and combining accents. URLs,
-    // addresses, paths and dotted identifiers contain other punctuation.
-    if !letters.all(word_character) {
+    // addresses, paths and dotted identifiers contain other punctuation. An
+    // uppercase letter within a word is likely intentional (for example, iPhone).
+    if !letters.all(|c| word_character(c) && !c.is_uppercase()) {
         return None;
     }
     let before = context.get(..split)?.trim_end();
     let starts_paragraph = start == 0 && before.trim_start_matches(|c: char| c.is_whitespace() || opening(c)).is_empty();
     let before_sentence = before.trim_end_matches(|c: char| c.is_whitespace() || opening(c));
-    if !starts_paragraph && !sentence_ends(before_sentence) {
+    if !starts_paragraph && !sentence_ends(before_sentence, start == 0) {
         return None;
     }
     let position = split + token.len() - word.len();
@@ -83,9 +84,13 @@ fn word_character(c: char) -> bool {
     c.is_alphabetic() || matches!(c, '\'' | '’' | '-' | '\u{0300}'..='\u{036f}' | '\u{1ab0}'..='\u{1aff}' | '\u{1dc0}'..='\u{1dff}')
 }
 
-fn sentence_ends(before: &str) -> bool {
+fn sentence_punctuation(c: char) -> bool {
+    matches!(c, '.' | '!' | '?' | '。' | '！' | '？')
+}
+
+fn sentence_ends(before: &str, starts_at_paragraph: bool) -> bool {
     let before = before.trim_end_matches(|c: char| c.is_whitespace() || closing(c));
-    if before.ends_with(['!', '?', '。', '！', '？']) {
+    if before.ends_with(|c| c != '.' && sentence_punctuation(c)) {
         return true;
     }
     let Some(stem) = before.strip_suffix('.') else { return false };
@@ -94,7 +99,17 @@ fn sentence_ends(before: &str) -> bool {
     }
     let last = stem.split_whitespace().next_back().unwrap_or_default().trim_start_matches(opening);
     // Initials and dotted abbreviations like e.g. and z.B.
-    if last.is_empty() || last.split('.').all(|part| part.chars().count() == 1) {
+    if last.is_empty()
+        || last.split('.').all(|part| {
+            let mut letters = part.chars();
+            letters.next().is_some_and(char::is_alphabetic) && letters.next().is_none()
+        })
+    {
+        return false;
+    }
+    // A bare number at the start of the paragraph is a list marker. A number at
+    // the end of a sentence, like "I ordered 2.", still marks a sentence boundary.
+    if starts_at_paragraph && stem.trim_start() == last && last.chars().all(|c| c.is_ascii_digit()) {
         return false;
     }
     let abbreviations = [

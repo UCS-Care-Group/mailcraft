@@ -270,6 +270,26 @@ fn huge_documents_are_capped() {
 // ---- writing: RichBody ----
 
 #[test]
+fn auto_capitalization_respects_sentence_endings_and_existing_word_case() {
+    for (before, typed, lang, expected) in [
+        ("ready？", "\n", "en", "Ready？\n"),
+        ("go！ ready。", " ", "en", "go！ Ready。 "),
+        ("iPhone", " ", "en", "iPhone "),
+        ("eBay", "\n", "en", "eBay\n"),
+        ("ijs", " ", "nl", "IJs "),
+        ("I ordered 2. please confirm", " ", "en", "I ordered 2. please confirm "),
+        ("I ordered 2. please", " ", "en", "I ordered 2. Please "),
+        ("2. item", " ", "en", "2. item "),
+        ("J. user", " ", "en", "J. user "),
+    ] {
+        let mut body = RichBody::default();
+        body.type_text(before).unwrap();
+        body.type_with_auto_capitalization(typed, lang).unwrap();
+        assert_eq!(body.plain(), expected, "{before:?}");
+    }
+}
+
+#[test]
 fn a_body_saved_as_plain_text_still_opens() {
     let b: RichBody = serde_json::from_str(r#""Dear Ada,\n\nThanks.""#).unwrap();
     assert_eq!(b.plain(), "Dear Ada,\n\nThanks.");
