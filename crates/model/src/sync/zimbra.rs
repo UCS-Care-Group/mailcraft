@@ -111,6 +111,11 @@ pub struct ZimbraMailRequest {
     /// the owner is looking at is there before the rest of the mailbox has been read (S15).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub first: String,
+    /// One folder, by server id, asked for beside a run that is under way: the run reads only its
+    /// first pages (no changes go up, nothing is marked, the token stays where it is), so that a
+    /// folder the owner just opened shows its newest mail without waiting on the whole mailbox.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub one: String,
     /// Nobody is waiting for this run: it gets the share of requests background work has.
     #[serde(skip_serializing_if = "is_false")]
     pub background: bool,

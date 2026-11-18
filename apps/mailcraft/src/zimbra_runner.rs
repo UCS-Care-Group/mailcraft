@@ -65,9 +65,10 @@ impl Transport {
                     .flatten()
                     .and_then(|v| v.pointer("/Body/Fault/Detail/Error/Code").and_then(|c| c.as_str().map(str::to_string)))
                     .unwrap_or_default();
-                // A refused search's query is its own ids (`inid:"<folder>"`, `item:{<ids>}`):
-                // which of them the server no longer has. Held short, and of no other request.
-                let query = (answer.status >= 400 && named() == "SearchRequest")
+                // A search's query is its own ids (`inid:"<folder>"`, `item:{<ids>}`): which
+                // folder the run is at, and which of them the server no longer has on a fault.
+                // Held short, and of no other request.
+                let query = (named() == "SearchRequest")
                     .then(|| serde_json::from_slice::<serde_json::Value>(request.body()).ok())
                     .flatten()
                     .and_then(|v| v.pointer("/Body/SearchRequest/query").and_then(|q| q.as_str().map(|s| s.chars().take(96).collect::<String>())))

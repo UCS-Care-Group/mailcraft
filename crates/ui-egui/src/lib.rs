@@ -1668,6 +1668,10 @@ pub struct MailApp {
     pub(crate) zimbra_sessions: std::collections::HashMap<Id, (String, u64)>,
     /// Where the Zimbra run under way puts a sign-in token it signed in afresh.
     pub(crate) zimbra_session_back: Option<(Id, zimbra_mail::SessionSlot)>,
+    /// A read of the folder just opened, beside the run under way (Zimbra, #peek).
+    pub(crate) zimbra_peek: Option<zimbra_mail::ZimbraPeek>,
+    /// The folder a peek was last begun for: opening it again doesn't start one again.
+    pub(crate) zimbra_peeking: Option<Id>,
     /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
     /// against the mailbox they belong to.
     secrets_opening: u64,
@@ -2015,6 +2019,8 @@ impl MailApp {
             zimbra_trust: None,
             zimbra_sessions: Default::default(),
             zimbra_session_back: None,
+            zimbra_peek: None,
+            zimbra_peeking: None,
             secrets_opening: 0,
             secret_cache: Default::default(),
             secret_read: None,
@@ -5200,6 +5206,7 @@ impl MailApp {
         }
         self.poll_graph_switch_copy();
         self.tick_graph_switch();
+        self.poll_zimbra_peek();
         let _ = files::poll(self);
         files::drain_inbox(self);
         opening::poll_ahead(self, ctx);

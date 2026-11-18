@@ -157,7 +157,9 @@ pub async fn sync_mail<E: HttpExchange>(
     let mut last = blank(request);
     let mut trust = Trust::default();
     match run(exchange, request, credentials, cancel, emit, &mut trust, keep).await {
-        Ok((token, resume)) => (last.token, last.resume, last.whole) = (token, Some(resume), true),
+        // (A one-folder peek ends as a piece of its own: it is no whole run's end — nothing it
+        // could sweep, no token it could move.)
+        Ok((token, resume)) => (last.token, last.resume, last.whole) = (token, Some(resume), request.one.is_empty()),
         Err(Stop::Cancelled) => last.stopped = true,
         Err(Stop::Failed(e)) => {
             match e {
@@ -189,6 +191,12 @@ async fn run<E: HttpExchange>(
     let user = login(&request.username, &request.email);
     (run.token, *trust) = sign_in(&run, &user, credentials).await?;
     keep(&run.token, trust);
+    // One folder beside a run that is under way: its newest pages, and nothing else — nothing
+    // goes up, nothing is marked, and the token the mailbox's own run goes on from stays put.
+    if !request.one.is_empty() {
+        peek(&run, request, emit).await?;
+        return Ok((String::new(), Vec::new()));
+    }
     // The server's tags as categories, before anything goes up: a tag a message change names and
     // the list doesn't have is made in the colour it has here, never twice in a run.
     let mut known: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -554,10 +562,19 @@ async fn folder_tail<E: HttpExchange>(
     Ok(None)
 }
 
-/// A mounted folder's pages under `queried`, whole in memory or not at all (`None`).
-async fn read_mount<E: HttpExchange>(run: &Run<'_, E>, queried: &str) -> Result<Option<Vec<items::Page>>, Stop> {
+/// A mounted folder's pages under `queried`, whole in memory or not at all (`None`). While it
+/// reads, the run's progress goes out (no messages: they go out whole at the end, or not at all).
+async fn read_mount<E: HttpExchange>(
+    run: &Run<'_, E>,
+    request: &ZimbraMailRequest,
+    mount: &folders::Mountpoint,
+    queried: &str,
+    of: (u32, u32, u32),
+    emit: &mut dyn FnMut(ZimbraMailResult),
+) -> Result<Option<Vec<items::Page>>, Stop> {
     let mut pages = Vec::new();
     let mut cursor: Option<(String, u64)> = None;
+    let mut read: u32 = 0;
     for _ in 0..MAX_FOLDER_PAGES {
         let answered = match run.ask(items::folder_page(&run.base, &run.token, queried, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort)))).await
         {
@@ -576,7 +593,12 @@ async fn read_mount<E: HttpExchange>(run: &Run<'_, E>, queried: &str) -> Result<
         }
         let last = !page.more;
         cursor = page.cursor.clone();
+        read = read.saturating_add(u32::try_from(page.messages.len()).unwrap_or(u32::MAX));
         pages.push(page);
+        let mut say = blank(request);
+        say.progress = Some(mailcraft_model::sync::GraphProgress { folder: mount.id.clone(), read, total: of.2, number: of.0, folders: of.1 });
+        say.partial = true;
+        emit(say);
         if last {
             return Ok(Some(pages));
         }
@@ -602,7 +624,7 @@ async fn mounted_tail<E: HttpExchange>(
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) -> Result<(), Stop> {
     for queried in [mount.id.as_str(), mount.local.as_str()].into_iter().filter(|q| !q.is_empty()) {
-        let Some(pages) = read_mount(run, queried).await? else { continue };
+        let Some(pages) = read_mount(run, request, mount, queried, of, emit).await? else { continue };
         let read = pages.iter().fold(0u32, |n, p| n.saturating_add(u32::try_from(p.messages.len()).unwrap_or(u32::MAX)));
         let mut piece = blank(request);
         piece.pages = pages
@@ -621,6 +643,13 @@ async fn mounted_tail<E: HttpExchange>(
         emit(piece);
         return Ok(());
     }
+    // No read came back under either id: the share stays as it was, but not without a word —
+    // a mounted folder that can't be read is not an empty one.
+    let name: String = mount.name.chars().take(80).collect();
+    let mut piece = blank(request);
+    piece.errors.push(format!("the shared folder {name} couldn't be read"));
+    piece.partial = true;
+    emit(piece);
     Ok(())
 }
 
@@ -638,7 +667,10 @@ async fn refresh_mounted<E: HttpExchange>(
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) -> Result<(), Stop> {
     let folders = u32::try_from(listing.folders.len()).unwrap_or(u32::MAX);
-    for (n, folder) in listing.folders.iter().take(MAX_LISTED_FOLDERS).enumerate() {
+    let mut order: Vec<&mailcraft_model::sync::GraphFolder> = listing.folders.iter().take(MAX_LISTED_FOLDERS).collect();
+    // The share in view first: a mounted folder the owner has open reads before the rest.
+    order.sort_by_key(|f| f.id != request.first);
+    for (n, folder) in order.iter().enumerate() {
         if let Some(mount) = mountpoint(listing, &folder.id) {
             let of = (u32::try_from(n + 1).unwrap_or(u32::MAX), folders, if folder.counted { folder.total } else { 0 });
             mounted_tail(run, request, mount, of, emit).await?;
@@ -723,6 +755,36 @@ async fn afresh<E: HttpExchange>(
         }
     }
     Ok((token, left))
+}
+
+/// How many pages a peek at one folder reads at most: enough for what is in view.
+const PEEK_PAGES: usize = 8;
+
+/// The first pages of the one folder `request` names (`one`), so a folder just opened shows its
+/// newest mail while a whole run goes on elsewhere. Its pages are no fresh read's: nothing
+/// already there is marked, and `last` stays unset so the folder isn't taken for read to its end.
+async fn peek<E: HttpExchange>(run: &Run<'_, E>, request: &ZimbraMailRequest, emit: &mut dyn FnMut(ZimbraMailResult)) -> Result<(), Stop> {
+    let mut cursor: Option<(String, u64)> = None;
+    let mut read: u32 = 0;
+    for _ in 0..PEEK_PAGES {
+        let answered =
+            run.ask(items::folder_page(&run.base, &run.token, &request.one, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort)))).await?;
+        let page = items::answer(&answered).map_err(Stop::Failed)?;
+        // A peek stops where a page gives no way on rather than faulting the run: what came so
+        // far is already more than was in view.
+        let more = page.more && page.cursor.is_some() && page.cursor != cursor;
+        cursor = page.cursor;
+        read = read.saturating_add(u32::try_from(page.messages.len()).unwrap_or(u32::MAX));
+        let mut piece = blank(request);
+        piece.pages.push(ZimbraMessagePage { folder: request.one.clone(), messages: page.messages, ..ZimbraMessagePage::default() });
+        piece.progress = Some(mailcraft_model::sync::GraphProgress { folder: request.one.clone(), read, ..Default::default() });
+        piece.partial = true;
+        emit(piece);
+        if !more {
+            return Ok(());
+        }
+    }
+    Ok(())
 }
 
 /// Fetch the messages `request` names whole, signing in with `credentials` (a code is never asked

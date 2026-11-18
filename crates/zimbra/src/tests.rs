@@ -100,6 +100,27 @@ fn the_folder_in_view_is_read_first() {
 }
 
 #[test]
+fn a_peek_reads_the_one_folder_and_nothing_else() {
+    let server = StandIn::new();
+    let projects = server.add_folder(2, "Projects");
+    server.deliver(projects, "Filed", "u");
+    server.deliver(2, "Inbox mail", "");
+    let mut request = request("tok_1");
+    request.one = projects.to_string();
+    let all = whole(&run(&server, &request, PASSWORD));
+    // Just the folder's pages: nothing marked afresh, no end-of-run token, no folders listed.
+    assert_eq!(all.errors, Vec::<String>::new());
+    assert!(!all.whole && all.token.is_empty());
+    assert!(all.listing.is_none());
+    assert_eq!(all.pages.len(), 1);
+    let page = &all.pages[0];
+    assert_eq!((page.folder.as_str(), page.afresh, page.last), (projects.to_string().as_str(), false, false));
+    assert_eq!(page.messages[0].subject, "Filed");
+    let log = server.state.borrow().log.clone();
+    assert!(!log.iter().any(|l| l == "GetFolderRequest" || l == "SyncRequest"), "{log:?}");
+}
+
+#[test]
 fn a_delta_brings_what_changed_since_the_token_and_what_was_deleted() {
     let server = StandIn::new();
     let kept = server.deliver(2, "Kept", "u");
@@ -729,11 +750,12 @@ fn a_folder_mounted_from_another_mailbox_is_read_whole_and_refreshed_on_every_ru
     assert!(String::from_utf8_lossy(&got.fetched[0].mime).contains("Subject: Shared mail"));
 
     // The mailbox it is shared from gone, its read faults: the run still ends whole, and the
-    // folder is simply left as it was — nothing of it is emitted, nothing of it removed.
+    // folder is simply left as it was — nothing of it is emitted, nothing of it removed — but
+    // the failed read is said, not silent.
     server.break_mount(&mount);
     let pieces = run(&server, &request(&all.token), PASSWORD);
     let third = whole(&pieces);
-    assert_eq!(third.errors, Vec::<String>::new());
+    assert_eq!(third.errors, ["the shared folder Shared couldn't be read".to_string()]);
     assert!(third.whole);
     assert!(!third.pages.iter().any(|p| p.folder == mount));
 

@@ -20,7 +20,7 @@
 //! ask for no code, until the server stops taking it.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::TryRecvError;
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 
 use mailcraft_engine::cmd::zimbra_mail::apply_zimbra_mail;
@@ -105,7 +105,91 @@ pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::
     ui.add_space(4.0);
 }
 
+/// A read of the folder just opened, going beside the Send/Receive under way (`ZimbraJob`'s
+/// `request.one` names it): the owner sees its newest mail without waiting on the whole mailbox.
+pub(crate) struct ZimbraPeek {
+    pub account: Id,
+    /// The mailbox opening the read was begun under: its pieces are nobody's under another.
+    pub opening: u64,
+    pub pieces: Receiver<mailcraft_model::sync::ZimbraMailResult>,
+    pub cancel: Arc<AtomicBool>,
+    /// Where a sign-in token this read makes is kept, for the runs after it.
+    pub session_back: SessionSlot,
+}
+
 impl MailApp {
+    /// A peek at `folder` when it is a Zimbra account's: begun only when a way to sign in is
+    /// already at hand (a kept sign-in token, the password this session knows or the system
+    /// remembered) — a folder just opened never asks for a password or a code.
+    fn start_zimbra_peek(&mut self, folder: Id) {
+        if let Some(peek) = self.zimbra_peek.take() {
+            peek.cancel.store(true, Ordering::Relaxed);
+        }
+        let (account, remote) = match self.session.mailbox.folder(folder) {
+            Some(f) => (f.account, f.server.as_ref().map(|s| s.id.clone()).unwrap_or_default()),
+            None => return,
+        };
+        if remote.is_empty() || self.session.mailbox.account(account).is_none_or(|a| a.kind != mailcraft_model::AccountKind::Zimbra) {
+            return;
+        }
+        let (Some(zimbra), session) = (self.services.zimbra.as_ref(), self.zimbra_session(account)) else { return };
+        let secret = self.zimbra_secret(account).unwrap_or_default();
+        if secret.is_empty() && session.is_none() {
+            return;
+        }
+        let Ok(request) = self.session.run("sync.zimbraRequest", &json!({"account": account, "folder": folder, "background": true})) else { return };
+        let Ok(request) = serde_json::from_value::<ZimbraMailRequest>(request) else { return };
+        let session_back: SessionSlot = Arc::default();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let job = ZimbraJob {
+            request,
+            secret,
+            code: None,
+            trusted: self.zimbra_trusted(account),
+            session,
+            session_back: session_back.clone(),
+            trust: Arc::default(),
+            cancel: cancel.clone(),
+        };
+        let pieces = zimbra(job);
+        self.zimbra_peek = Some(ZimbraPeek { account, opening: self.session.openings(), pieces, cancel, session_back });
+    }
+
+    /// Peek at the folder just opened while a run is under way, and take in what a peek under way
+    /// has brought. Called from the frame's polls, beside [`MailApp::poll_sync`].
+    pub(crate) fn poll_zimbra_peek(&mut self) {
+        if self.session.zimbra {
+            let folder = self.session.view.folder;
+            if folder != 0 && Some(folder) != self.zimbra_peeking {
+                self.zimbra_peeking = Some(folder);
+                self.start_zimbra_peek(folder);
+            }
+        }
+        for _ in 0..8 {
+            let Some(peek) = &self.zimbra_peek else { return };
+            let piece = match peek.pieces.try_recv() {
+                Ok(piece) => piece,
+                Err(TryRecvError::Empty) => return,
+                Err(TryRecvError::Disconnected) => {
+                    let Some(peek) = self.zimbra_peek.take() else { return };
+                    if let Some((token, lifetime)) = peek.session_back.lock().ok().and_then(|mut s| s.take()) {
+                        let until = mailcraft_time::now() as u64 + lifetime / 1_000;
+                        self.zimbra_sessions.insert(peek.account, (token, until));
+                    }
+                    return;
+                }
+            };
+            // Another mailbox took the place of the one the read was for: what it brings is
+            // nobody's (and what it read changes nothing of its token).
+            if peek.opening != self.session.openings() {
+                continue;
+            }
+            if let Err(e) = apply_zimbra_mail(&mut self.session, piece) {
+                log::debug!("zimbra peek: {e}");
+            }
+        }
+    }
+
     /// The password a job of the Zimbra account `account` goes with, when one is at hand: the one
     /// typed this session, or else the one the operating system was asked to remember.
     pub(crate) fn zimbra_secret(&self, account: Id) -> Option<String> {
