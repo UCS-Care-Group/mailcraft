@@ -71,15 +71,25 @@ pub fn grid_id(field: Id) -> Id {
 /// `day` moved by `key` in the month's grid; `None` for a key the grid doesn't take. Page Up and
 /// Page Down keep the day of the month, the month's last when it hasn't got it.
 pub fn moved(day: Date, key: Key) -> Option<Date> {
+    moved_in_layout(day, key, false)
+}
+
+/// Move in the direction the user sees: RTL grids put the next day to the left.
+fn moved_in_layout(day: Date, key: Key, rtl: bool) -> Option<Date> {
     Some(match key {
-        Key::ArrowLeft => day.add_days(-1),
-        Key::ArrowRight => day.add_days(1),
+        Key::ArrowLeft => day.add_days(if rtl { 1 } else { -1 }),
+        Key::ArrowRight => day.add_days(if rtl { -1 } else { 1 }),
         Key::ArrowUp => day.add_days(-7),
         Key::ArrowDown => day.add_days(7),
         Key::PageUp => day.add_months(-1),
         Key::PageDown => day.add_months(1),
         _ => return None,
     })
+}
+
+/// Keep the first weekday and the first day of each week at the Hebrew reading edge.
+fn visual_column(index: i64, rtl: bool) -> f32 {
+    (if rtl { 6 - index } else { index }) as f32
 }
 
 impl Calendar<'_> {
@@ -128,14 +138,15 @@ impl Calendar<'_> {
         let mut open = ui.ctx().data(|d| d.get_temp::<Open>(state_id))?;
         let mut picked = None;
         let width = 7.0 * CELL.x;
+        let rtl = crate::i18n::current() == crate::i18n::Lang::Hebrew;
         ui.set_width(width);
         // The heading: the month between the arrows to the months either side, which stop at the
         // calendar's ends.
         let (r, _) = ui.allocate_exact_size(vec2(width, 26.0), Sense::hover());
         ui.painter().text(r.center(), Align2::CENTER_CENTER, crate::dates::month_year(open.month), semibold(13.0), t.text);
         let arrows = [
-            ("previous", tl!("Previous Month"), -1, r.min.x + 12.0, open.month != first_day().start_of_month()),
-            ("next", tl!("Next Month"), 1, r.max.x - 12.0, open.month != last_day().start_of_month()),
+            (if rtl { "next" } else { "previous" }, tl!("Previous Month"), -1, if rtl { r.max.x - 12.0 } else { r.min.x + 12.0 }, open.month != first_day().start_of_month()),
+            (if rtl { "previous" } else { "next" }, tl!("Next Month"), 1, if rtl { r.min.x + 12.0 } else { r.max.x - 12.0 }, open.month != last_day().start_of_month()),
         ];
         for (icon, tip, by, x, enabled) in arrows {
             let br = Rect::from_center_size(pos2(x, r.center().y), vec2(24.0, 24.0));
@@ -158,7 +169,7 @@ impl Calendar<'_> {
         let (r, _) = ui.allocate_exact_size(vec2(width, 18.0), Sense::hover());
         for i in 0..7u8 {
             let weekday = Weekday::from_index(i64::from(self.week_start.index()) + i64::from(i));
-            let x = r.min.x + (f32::from(i) + 0.5) * CELL.x;
+            let x = r.min.x + (visual_column(i64::from(i), rtl) + 0.5) * CELL.x;
             ui.painter().text(pos2(x, r.center().y), Align2::CENTER_CENTER, tl!(weekday.short()), regular(10.0), t.text_dim);
         }
         // The days: one widget has the keyboard, on one day; each day is clicked, and named for
@@ -176,7 +187,7 @@ impl Calendar<'_> {
             });
             for key in [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown, Key::PageUp, Key::PageDown] {
                 if ui.input_mut(|i| i.consume_key(Modifiers::NONE, key))
-                    && let Some(day) = moved(open.active, key)
+                    && let Some(day) = moved_in_layout(open.active, key, rtl)
                 {
                     open.active = day;
                     open.month = day.start_of_month();
@@ -198,7 +209,7 @@ impl Calendar<'_> {
                 continue;
             }
             let day = Date::from_days(days);
-            let cell = Rect::from_min_size(pos2(area.min.x + (n % 7) as f32 * CELL.x, area.min.y + (n / 7) as f32 * CELL.y), CELL);
+            let cell = Rect::from_min_size(pos2(area.min.x + visual_column(n % 7, rtl) * CELL.x, area.min.y + (n / 7) as f32 * CELL.y), CELL);
             let resp = ui.interact(cell, state_id.with(("day", days)), Sense::CLICK);
             let current = self.current == Some(day);
             resp.widget_info(|| WidgetInfo::selected(Role::Button, true, current, crate::dates::long(day)));
