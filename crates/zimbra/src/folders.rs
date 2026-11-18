@@ -34,6 +34,8 @@ pub struct Listing {
     pub well_known: Vec<String>,
     /// The tree was read to its end: a folder that isn't in it is one the server doesn't have.
     pub complete: bool,
+    /// Every own id named, for knowing one the server names twice.
+    seen: std::collections::HashSet<String>,
 }
 
 /// The request for the folder tree.
@@ -72,7 +74,20 @@ fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
         out.complete = false;
         return;
     }
-    let Some(id) = json::own_id(folder.get("id")) else { return };
+    let Some(id) = json::own_id(folder.get("id")) else {
+        // A folder shared from another mailbox is named by a foreign id (`<account>:<id>`): it
+        // isn't one of this mailbox's, and leaving it out loses nothing of ours. An id of no
+        // shape at all, or none, means a folder we can't account for: the listing isn't complete.
+        if !json::line(folder.get("id")).contains(':') {
+            out.complete = false;
+        }
+        return;
+    };
+    if !out.seen.insert(id.clone()) {
+        // An id the server names twice names two folders, or one folder twice: the listing isn't
+        // one that answers for what it lists.
+        out.complete = false;
+    }
     let view = json::line(folder.get("view"));
     if !matches!(view.as_str(), "" | "message" | "conversation") || id == CHATS {
         return;

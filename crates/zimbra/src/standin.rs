@@ -3,7 +3,7 @@
 //! An in-process Zimbra server for tests: strict about what it is sent, small in what it does.
 //!
 //! It answers `AuthRequest`, `GetFolderRequest`, `SyncRequest`, `SearchRequest` (`inid:"<folder>"`
-//! and `item:{…}`) and the REST address of a whole message, in JSON as Zimbra writes it. A request
+//! and `in:anywhere item:{…}`) and the REST address of a whole message, in JSON as Zimbra writes it. A request
 //! that isn't as the protocol has it (not a POST of a SOAP envelope in JSON, the wrong namespace, a
 //! token in the address or missing from the header) is refused with a fault, so that a client that
 //! strays fails its tests. Every change made through it is numbered, which is what its tokens are.
@@ -50,15 +50,26 @@ pub struct State {
     pub deleted: Vec<(u32, u64)>,
     /// Tokens older than this are refused with `mail.MUST_RESYNC`.
     pub oldest: u64,
+    /// Items a delta names but a search doesn't find (`hide`): gone between the two answers.
+    pub hidden: std::collections::BTreeSet<u32>,
     /// Every request that came, as its path and SOAP operation (no secret is kept).
     pub log: Vec<String>,
     next: u32,
 }
 
 /// The stand-in server.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct StandIn {
     pub state: RefCell<State>,
+    /// Things that happen while the next delta is being answered, as another program would do
+    /// them: for a folder made while a run is already under way.
+    pub during: RefCell<Vec<Box<dyn FnOnce(&mut State)>>>,
+}
+
+impl std::fmt::Debug for StandIn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StandIn").field("state", &self.state).finish_non_exhaustive()
+    }
 }
 
 impl StandIn {
@@ -78,7 +89,7 @@ impl StandIn {
         ] {
             state.folders.insert(id, (1, name.into(), view.into()));
         }
-        StandIn { state: RefCell::new(state) }
+        StandIn { state: RefCell::new(state), during: RefCell::new(Vec::new()) }
     }
 
     /// Make a folder; answers its id.
@@ -124,6 +135,27 @@ impl StandIn {
         s.change += 1;
         let at = s.change;
         s.deleted.push((id, at));
+    }
+
+    /// A delta still names the message, but a search for it comes back empty: it went between the
+    /// two answers.
+    pub fn hide(&self, id: u32) {
+        self.state.borrow_mut().hidden.insert(id);
+    }
+
+    /// A folder that appears only when the next delta is answered, as if made while a run was
+    /// already under way; answers the id it will have.
+    pub fn add_folder_later(&self, parent: u32, name: &str) -> u32 {
+        let id = {
+            let mut s = self.state.borrow_mut();
+            s.next += 1;
+            s.next
+        };
+        let name = name.to_string();
+        self.during.borrow_mut().push(Box::new(move |s: &mut State| {
+            s.folders.insert(id, (parent, name, "message".into()));
+        }));
+        id
     }
 
     fn answer(&self, request: &HttpRequest) -> HttpResponse {
@@ -187,11 +219,16 @@ impl StandIn {
     }
 
     fn sync(&self, body: &Value) -> HttpResponse {
-        let s = self.state.borrow();
+        let s = self.state.borrow_mut();
         let Some(since) = body.get("token").and_then(Value::as_str) else {
             return soap("SyncResponse", json!({"token": s.change.to_string(), "md": 1, "folder": [{"id": "1"}]}));
         };
         let Ok(since) = since.parse::<u64>() else { return fault("service.INVALID_REQUEST") };
+        // Things that happen while this delta is being put together.
+        let mut s = s;
+        for act in self.during.borrow_mut().drain(..) {
+            act(&mut s);
+        }
         if since < s.oldest {
             return fault("mail.MUST_RESYNC");
         }
@@ -230,13 +267,24 @@ impl StandIn {
         let mut found: Vec<(&u32, &Item)> = if let Some(folder) = query.strip_prefix("inid:\"").and_then(|q| q.strip_suffix('"')) {
             let Ok(folder) = folder.parse::<u32>() else { return fault("service.INVALID_REQUEST") };
             s.items.iter().filter(|(_, i)| i.folder == folder).collect()
-        } else if let Some(ids) = query.strip_prefix("item:{").and_then(|q| q.strip_suffix('}')) {
+        } else if let Some(ids) = query.strip_prefix("in:anywhere item:{").and_then(|q| q.strip_suffix('}')) {
             let ids: Vec<u32> = ids.split(',').filter_map(|id| id.parse().ok()).collect();
-            s.items.iter().filter(|(id, _)| ids.contains(id)).collect()
+            s.items.iter().filter(|(id, _)| ids.contains(id) && !s.hidden.contains(id)).collect()
         } else {
             return fault("service.INVALID_REQUEST");
         };
         found.sort_by_key(|(_, item)| std::cmp::Reverse(item.date));
+        // A cursor continues after the item it names.
+        let offset = match body.get("cursor") {
+            Some(cursor) => {
+                let at = cursor.get("id").and_then(Value::as_str).and_then(|id| id.parse::<u32>().ok());
+                match at.and_then(|at| found.iter().position(|(id, _)| **id == at)) {
+                    Some(at) => at.saturating_add(1),
+                    None => return fault("service.INVALID_REQUEST"),
+                }
+            }
+            None => offset,
+        };
         let more = found.len() > offset.saturating_add(limit);
         let m: Vec<Value> = found
             .into_iter()

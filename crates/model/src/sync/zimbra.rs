@@ -97,9 +97,37 @@ pub struct ZimbraMailRequest {
     /// What waits in the Outbox, sent after the drafts.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sends: Vec<SendUp>,
+    /// The folders whose fresh read a run before this one had to stop in the middle of, and where
+    /// it stopped: they are read to their end first. Kept in the mailbox file with the token
+    /// ([`crate::ZimbraServer::resume`]), so a folder too large for one run is finished over as
+    /// many runs as it takes instead of failing every one of them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub resume: Vec<ZimbraResume>,
     /// Nobody is waiting for this run: it gets the share of requests background work has.
     #[serde(skip_serializing_if = "is_false")]
     pub background: bool,
+}
+
+/// Where the fresh read of one folder goes on from (`ZimbraMailRequest::resume`,
+/// `ZimbraMailResult::resume`): the folder's server id, and the cursor its last read page ended
+/// on — the last item's own id and its sort value — or an empty cursor to read it from its start.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ZimbraResume {
+    /// The folder's server id.
+    pub folder: String,
+    /// The id of the item the last page ended on; empty reads the folder from its start.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub cursor: String,
+    /// The sort value the last page ended on (the item's `d`, in milliseconds).
+    pub sort: u64,
+}
+
+/// Flags only: no id of a folder or an item shows.
+impl std::fmt::Debug for ZimbraResume {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZimbraResume").field("folder", &!self.folder.is_empty()).field("cursor", &!self.cursor.is_empty()).finish()
+    }
 }
 
 /// Messages of a Zimbra account to fetch whole (their MIME text), by server id, in this order: the
@@ -198,6 +226,11 @@ pub struct ZimbraMailResult {
     /// step. Empty: none is kept.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub token: String,
+    /// Where each folder's unfinished fresh read goes on from, in the same piece as `token`
+    /// ([`ZimbraResume`]): kept with it in one step. `Some`, even when empty, in the piece that
+    /// carries the token; `None` in every other.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resume: Option<Vec<ZimbraResume>>,
     /// Problems worth telling the owner; empty when all went well.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<String>,
@@ -367,6 +400,11 @@ impl ZimbraMailResult {
         if self.well_known.len() > MAX_LISTED_FOLDERS || !self.well_known.iter().all(|id| zimbra_id_ok(id)) {
             return Err(ODD_ID);
         }
+        if self.resume.as_ref().is_some_and(|resume| {
+            resume.len() > MAX_LISTED_FOLDERS || resume.iter().any(|e| !zimbra_id_ok(&e.folder) || (!e.cursor.is_empty() && !zimbra_id_ok(&e.cursor)))
+        }) {
+            return Err(ODD_ID);
+        }
         if let Some(listing) = &self.listing {
             if listing.folders.len() > MAX_LISTED_FOLDERS {
                 return Err(TOO_MANY);
@@ -406,6 +444,9 @@ impl ZimbraMailResult {
             if !theirs.is_empty() {
                 *mine = theirs;
             }
+        }
+        if let Some(resume) = piece.resume {
+            self.resume = Some(resume);
         }
         self.changes.extend(piece.changes);
         self.messages.extend(piece.messages);
@@ -485,6 +526,7 @@ impl std::fmt::Debug for ZimbraMailResult {
             .field("pages", &self.pages.len())
             .field("messages", &messages)
             .field("token", &!self.token.is_empty())
+            .field("resume", &self.resume.as_ref().map_or(0, Vec::len))
             .field("errors", &self.errors.len())
             .field("busy_for", &self.busy_for)
             .field("partial", &self.partial)

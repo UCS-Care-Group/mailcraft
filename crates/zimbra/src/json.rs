@@ -85,7 +85,9 @@ pub(crate) fn ids(value: Option<&Value>, most: usize) -> Option<Vec<String>> {
             Some(Value::String(text)) => text.as_str(),
             _ => return None,
         },
-        _ => return Some(Vec::new()),
+        // A shape that isn't a list of ids is no list at all, rather than an empty one: an empty
+        // one would have its caller take the page's token for good.
+        _ => return None,
     };
     if raw.len() > MAX_LIST {
         return None;

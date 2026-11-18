@@ -120,6 +120,108 @@ fn a_long_delta_comes_a_page_at_a_time() {
 }
 
 #[test]
+fn a_message_in_trash_or_junk_the_delta_names_is_not_dropped() {
+    let server = StandIn::new();
+    let trashed = server.deliver(3, "Trashed", "");
+    let junked = server.deliver(4, "Junked", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    server.change(trashed, |m| m.flags = "u".into());
+    server.change(junked, |m| m.flags = "u".into());
+    let all = whole(&run(&server, &request(&token), PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    let page = all.pages.iter().find(|p| p.folder.is_empty()).unwrap();
+    let ids: Vec<&str> = page.messages.iter().map(|m| m.server.id.as_str()).collect();
+    assert!(ids.contains(&trashed.to_string().as_str()) && ids.contains(&junked.to_string().as_str()), "{ids:?}");
+    assert!(page.removed.is_empty());
+}
+
+#[test]
+fn a_folder_made_while_the_run_goes_on_keeps_its_message() {
+    let server = StandIn::new();
+    let moving = server.deliver(2, "Moving", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    let made = server.add_folder_later(2, "Made mid-run");
+    server.change(moving, |m| m.folder = made);
+    let all = whole(&run(&server, &request(&token), PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    // The folders were listed again inside the run (the first run's listing makes three), the
+    // listing has the new one, and the message came back in it rather than as removed.
+    let log = server.state.borrow().log.clone();
+    assert_eq!(log.iter().filter(|l| *l == "GetFolderRequest").count(), 3, "{log:?}");
+    assert!(all.listing.clone().unwrap().folders.iter().any(|f| f.id == made.to_string()));
+    let page = all.pages.iter().find(|p| p.folder.is_empty()).unwrap();
+    assert!(page.messages.iter().any(|m| m.server.id == moving.to_string() && m.server.folder == made.to_string()));
+    assert!(page.removed.is_empty());
+}
+
+#[test]
+fn an_id_the_delta_names_that_is_gone_is_dropped_by_name() {
+    let server = StandIn::new();
+    let gone = server.deliver(2, "Vanishing", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    server.change(gone, |m| m.flags = "u".into());
+    server.hide(gone);
+    let all = whole(&run(&server, &request(&token), PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    let page = all.pages.iter().find(|p| p.folder.is_empty()).unwrap();
+    assert!(page.messages.is_empty() && page.removed.contains(&gone.to_string()));
+}
+
+#[test]
+fn a_folder_left_half_read_goes_on_from_where_it_stopped() {
+    let server = StandIn::new();
+    let older = server.deliver(2, "Older", "");
+    let newer = server.deliver(2, "Newer", "");
+    let sort = server.state.borrow().items.get(&newer).unwrap().date;
+    // As the last run left it: folder 2 was read as far as `newer`.
+    let mut req = request("");
+    req.resume = vec![mailcraft_model::sync::ZimbraResume { folder: "2".into(), cursor: newer.to_string(), sort }];
+    let all = whole(&run(&server, &req, PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    let folder = all.pages.iter().filter(|p| p.folder == "2").collect::<Vec<_>>();
+    assert_eq!(folder.len(), 1);
+    assert!(!folder[0].afresh && folder[0].last);
+    assert_eq!(folder[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), [older.to_string().as_str()]);
+    // Nothing is left over: the piece that keeps the token carries an empty list.
+    assert_eq!(all.resume, Some(Vec::new()));
+}
+
+#[test]
+fn a_run_on_a_token_finishes_a_folder_left_half_read() {
+    let server = StandIn::new();
+    let older = server.deliver(2, "Older", "");
+    let newer = server.deliver(2, "Newer", "");
+    let sort = server.state.borrow().items.get(&newer).unwrap().date;
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    server.deliver(2, "Fresh", "");
+    let mut req = request(&token);
+    req.resume = vec![mailcraft_model::sync::ZimbraResume { folder: "2".into(), cursor: newer.to_string(), sort }];
+    let all = whole(&run(&server, &req, PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    let folder = all.pages.iter().filter(|p| p.folder == "2").collect::<Vec<_>>();
+    assert_eq!(folder.len(), 1);
+    assert!(!folder[0].afresh && folder[0].last);
+    assert_eq!(folder[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), [older.to_string().as_str()]);
+    assert_eq!(all.resume, Some(Vec::new()));
+}
+
+#[test]
+fn a_fetch_stops_taking_bodies_once_the_total_is_full() {
+    let server = StandIn::new();
+    let mut ids = Vec::new();
+    for subject in ["One", "Two", "Three"] {
+        let id = server.deliver(2, subject, "");
+        server.change(id, |m| m.mime = "x".repeat(35 * 1024 * 1024));
+        ids.push(id.to_string());
+    }
+    let fetch = ZimbraFetchRequest { account: 3, email: USER.into(), url: URL.into(), ids, ..Default::default() };
+    let got = block_on(fetch_messages(&server, &fetch, &Secret::new(PASSWORD), &AtomicBool::new(false))).unwrap();
+    assert_eq!(got.errors, Vec::<String>::new());
+    // 35 MB at a time: the third would take the run past 64 MB and is left for the next fetch.
+    assert_eq!(got.fetched.len(), 2);
+}
+
+#[test]
 fn a_token_the_server_lost_reads_the_mailbox_afresh() {
     let server = StandIn::new();
     server.deliver(2, "Here", "");

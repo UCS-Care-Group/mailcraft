@@ -50,7 +50,13 @@ fn user_names_fingerprints_and_tokens_are_checked_as_text() {
 
 #[test]
 fn nothing_of_the_server_shows_in_debug_output() {
-    let server = ZimbraServer { url: "https://mail.example.org".into(), username: "ada".into(), trusted: "ab".repeat(32), token: "1234".into() };
+    let server = ZimbraServer {
+        url: "https://mail.example.org".into(),
+        username: "ada".into(),
+        trusted: "ab".repeat(32),
+        token: "1234".into(),
+        ..ZimbraServer::default()
+    };
     let shown = format!("{server:?}");
     for secret in ["mail.example.org", "ada", "abab", "1234"] {
         assert!(!shown.contains(secret), "{shown}");

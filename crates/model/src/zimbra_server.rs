@@ -35,6 +35,11 @@ pub struct ZimbraServer {
     /// is, and it is never checked as one.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub token: String,
+    /// Where each folder's unfinished fresh read goes on from
+    /// ([`crate::sync::ZimbraResume`]): kept in the same step as `token`, so a folder too large for
+    /// one run is finished over as many runs as it takes. Not a setting either.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub resume: Vec<crate::sync::ZimbraResume>,
 }
 
 /// The address, the name, the fingerprint and the token stay out of debug output, which may reach
@@ -46,6 +51,7 @@ impl std::fmt::Debug for ZimbraServer {
             .field("username", &!self.username.is_empty())
             .field("trusted", &!self.trusted.is_empty())
             .field("token", &!self.token.is_empty())
+            .field("resume", &self.resume.len())
             .finish()
     }
 }

@@ -44,8 +44,8 @@ pub struct Page {
 /// value), or from the newest when there is none.
 pub fn folder_page(base: &str, token: &Secret, folder: &str, cursor: Option<(&str, u64)>) -> Result<HttpRequest, Error> {
     let mut body = json!({"query": format!("inid:\"{folder}\""), "types": "message", "sortBy": "dateDesc", "limit": PAGE, "recip": "2"});
-    if let Some((id, sort)) = cursor {
-        body["cursor"] = json!({"id": id, "sortValue": sort.to_string()});
+    if let (Some((id, sort)), Value::Object(map)) = (cursor, &mut body) {
+        map.insert("cursor".into(), json!({"id": id, "sortValue": sort.to_string()}));
     }
     soap::request(base, "SearchRequest", soap::MAIL, body, Some(token))
 }
@@ -53,7 +53,9 @@ pub fn folder_page(base: &str, token: &Secret, folder: &str, cursor: Option<(&st
 /// The messages `ids` (own ids, at most [`BY_ID`]), wherever they are.
 pub fn by_id(base: &str, token: &Secret, ids: &[String]) -> Result<HttpRequest, Error> {
     let ids: Vec<&str> = ids.iter().map(String::as_str).filter(|id| id.bytes().all(|b| b.is_ascii_digit())).take(BY_ID).collect();
-    let body = json!({"query": format!("item:{{{}}}", ids.join(",")), "types": "message", "limit": BY_ID, "recip": "2"});
+    // `in:anywhere`: a search without it leaves Trash and Junk out, and an id a delta named that
+    // doesn't come back would be dropped while the run's token moves on.
+    let body = json!({"query": format!("in:anywhere item:{{{}}}", ids.join(",")), "types": "message", "limit": BY_ID, "recip": "2"});
     soap::request(base, "SearchRequest", soap::MAIL, body, Some(token))
 }
 
@@ -66,7 +68,10 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
     let messages = listed.iter().take(PAGE).filter_map(message).collect();
     let cursor = listed.iter().take(PAGE).next_back().and_then(|m| {
         let id = json::line(m.get("id"));
-        (!id.is_empty() && id.len() <= 128 && !id.chars().any(char::is_control)).then(|| (id, json::number(m.get("d")).unwrap_or(0)))
+        // A last item with no `d` is no cursor to go on from: a sort value made up as 0 could end
+        // the folder early or read it again from its start.
+        let sort = json::number(m.get("d"))?;
+        (!id.is_empty() && id.len() <= 128 && !id.chars().any(char::is_control)).then_some((id, sort))
     });
     Ok(Page { messages, more: json::on(answer.get("more")), cursor })
 }
