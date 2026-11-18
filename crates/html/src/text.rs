@@ -4,8 +4,9 @@
 
 use std::borrow::Cow;
 
+use crate::bidi::{self, Dir};
 use crate::entities::escape;
-use crate::{Block, BlockKind, MAX_BLOCKS, MAX_INPUT, Marker, Span, Table, truncate};
+use crate::{Align, Block, BlockKind, MAX_BLOCKS, MAX_INPUT, Marker, Span, Table, truncate};
 
 /// Deepest quote written as `>` marks or `<blockquote>` elements; deeper quotes are written at this depth.
 const MAX_QUOTE_MARKS: usize = 32;
@@ -22,7 +23,8 @@ const MAX_URL: usize = 2048;
 /// `\n` in the span text. Leading `>` marks become the block's `quote` depth and are removed; text
 /// that changes its depth without a blank line starts a block right under the one before
 /// (`space` 0). Bare `http://`, `https://` and `www.` addresses and e-mail addresses become link
-/// spans.
+/// spans. A paragraph whose first strong letter is written from the right (Hebrew, Arabic and
+/// the like) is aligned right.
 pub fn text_blocks(text: &str) -> Vec<Block> {
     let text = truncate(text, MAX_INPUT);
     let text: Cow<'_, str> = if text.contains('\r') { Cow::Owned(text.replace("\r\n", "\n").replace('\r', "\n")) } else { Cow::Borrowed(text) };
@@ -35,7 +37,9 @@ pub fn text_blocks(text: &str) -> Vec<Block> {
     let mut flush = |paragraph: &mut String, depth: u8, gap: bool| {
         if !paragraph.is_empty() && blocks.len() < MAX_BLOCKS {
             let space = u8::from(gap && !blocks.is_empty());
-            blocks.push(Block { quote: depth, space, ..Block::new(BlockKind::Paragraph, autolink(paragraph)) });
+            // A paragraph that reads from the right stands at the right (#603).
+            let align = if bidi::rtl(Dir::Auto, paragraph.chars()) { Align::Right } else { Align::Left };
+            blocks.push(Block { quote: depth, space, align, ..Block::new(BlockKind::Paragraph, autolink(paragraph)) });
         }
         paragraph.clear();
     };

@@ -98,6 +98,64 @@ impl GmailCategory {
     }
 }
 
+/// Most of Gmail's labels kept for a message (#1153).
+pub const MAX_GMAIL_LABELS: usize = 32;
+/// Longest of Gmail's labels kept, in characters.
+pub const MAX_GMAIL_LABEL_LEN: usize = 128;
+/// Most entries of a label list looked at before [`MAX_GMAIL_LABELS`] are kept: the rest are
+/// not read.
+const MAX_LABELS_READ: usize = 256;
+
+/// Gmail's labels of a message as they are kept (#1153): each cleaned as a name is
+/// ([`mailcraft_names::incoming`]: one line, no control or format characters, trimmed, at most
+/// [`MAX_GMAIL_LABEL_LEN`] characters), the empty ones dropped, each once (ignoring case), at most
+/// [`MAX_GMAIL_LABELS`], in the server's order.
+pub fn tidy_labels<S: AsRef<str>>(labels: impl IntoIterator<Item = S>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    // Each kept label in small letters, worked out once.
+    let mut seen: Vec<String> = Vec::new();
+    for label in labels.into_iter().take(MAX_LABELS_READ) {
+        if out.len() >= MAX_GMAIL_LABELS {
+            break;
+        }
+        let Some(label) = mailcraft_names::incoming(label.as_ref(), MAX_GMAIL_LABEL_LEN) else { continue };
+        let lower = label.to_lowercase();
+        if label_name(&label).trim().is_empty() || seen.contains(&lower) {
+            continue;
+        }
+        seen.push(lower);
+        out.push(label);
+    }
+    out
+}
+
+/// Whether a label is one of Gmail's own (`\Inbox`, `\Sent`, `\Drafts`, `\Starred`,
+/// `\Important`…), which Gmail writes with a backslash in front.
+pub fn is_system_label(label: &str) -> bool {
+    label.starts_with('\\')
+}
+
+/// A label as the search box names it: without the backslash of Gmail's own (`important`).
+pub fn label_name(label: &str) -> &str {
+    label.strip_prefix('\\').unwrap_or(label)
+}
+
+/// The last part of a nested label (`Clients` of `Work/Clients`), as the message list and the
+/// reading pane show it; the whole path is the tooltip. Gmail parts nested labels with `/`.
+pub fn label_leaf(label: &str) -> &str {
+    label.rsplit('/').find(|part| !part.trim().is_empty()).unwrap_or(label)
+}
+
+/// Gmail's labels of a mailbox file's message, cleaned as a synchronisation's are: a file can say
+/// anything there. What isn't a list of text is no labels.
+pub(crate) fn labels_from_file<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let serde_json::Value::Array(entries) = serde_json::Value::deserialize(deserializer)? else { return Ok(Vec::new()) };
+    Ok(tidy_labels(entries.iter().filter_map(serde_json::Value::as_str)))
+}
+
 /// Whether a mail server's name is Gmail's (`imap.gmail.com`, and the same under
 /// `googlemail.com`), whatever the case and a dot at its end.
 pub fn is_gmail_host(host: &str) -> bool {
@@ -128,6 +186,15 @@ impl Account {
 }
 
 impl Message {
+    /// Gmail's labels of the message that the message list and the reading pane show (#1153): the
+    /// owner's own, not Gmail's (`\Inbox`, `\Sent`, `\Drafts` are the folder it is in,
+    /// `\Starred` its flag, and `\Important` is Gmail's guess, not the sender's importance nor
+    /// the owner's, and would mark most mail), and not the label of the folder it is shown in
+    /// (`folder`, the folder's path on the server), which says nothing new.
+    pub fn shown_gmail_labels<'a>(&'a self, folder: &'a str) -> impl Iterator<Item = &'a str> + 'a {
+        self.gmail_labels.iter().map(String::as_str).filter(move |label| !is_system_label(label) && !label.eq_ignore_ascii_case(folder))
+    }
+
     /// The Gmail category the owner moved the message to here, while Gmail hasn't heard of the
     /// move (#911): it differs from what Gmail last said, and Gmail's id of it is known.
     pub fn gmail_move_waiting(&self) -> Option<crate::GmailCategory> {

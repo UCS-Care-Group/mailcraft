@@ -27,6 +27,9 @@ use serde_json::{Value, json};
 use crate::theme::{Tokens, c32, medium, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
 
+#[cfg(test)]
+mod event_color_tests;
+
 /// Height of the strip with Today, Back and Forward and the days in view.
 const HEADER_H: f32 = 46.0;
 /// Width of the hour labels beside the time grid.
@@ -367,6 +370,17 @@ impl Slot {
         }
         params
     }
+}
+
+/// `params` for a new item, without the calendar of the block it was picked in when that is a copy
+/// of a calendar on the web (nothing new goes into one): it goes where the ribbon's New goes.
+pub(crate) fn aimed(app: &MailApp, mut params: Value) -> Value {
+    let subscribed =
+        params.get("calendar").and_then(Value::as_u64).is_some_and(|id| app.session.mailbox.calendar(id).is_some_and(|c| c.is_subscribed()));
+    if let (true, Some(fields)) = (subscribed, params.as_object_mut()) {
+        fields.remove("calendar");
+    }
+    params
 }
 
 fn load_slot(ctx: &egui::Context) -> Option<Slot> {
@@ -804,9 +818,11 @@ fn pane_of(panes: &[PaneView], calendar: Id) -> usize {
 }
 
 /// Whether a calendar is one the account may read and not change.
-fn read_only(app: &MailApp, calendar: Id) -> bool {
+pub(crate) fn read_only(app: &MailApp, calendar: Id) -> bool {
     let mailbox = &app.session.mailbox;
-    mailbox.calendar(calendar).is_some_and(|c| !c.can_edit() && mailcraft_engine::cmd::remote::keeper(mailbox, &c.origin).is_some())
+    mailbox
+        .calendar(calendar)
+        .is_some_and(|c| c.is_subscribed() || (!c.can_edit() && mailcraft_engine::cmd::remote::keeper(mailbox, &c.origin).is_some()))
 }
 
 /// Working in a block makes its calendar the one being worked in (where the ribbon's New
@@ -985,6 +1001,7 @@ fn side_pane(app: &mut MailApp, ui: &mut Ui) {
         .resizable(true)
         .frame(egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border)));
     panel.show(ui, |ui| {
+        crate::nav::module_foot(app, ui);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         // As many months as the pane has room for over the list of calendars; one at the least.
         let groups = calendar_groups(app);
@@ -1451,6 +1468,14 @@ fn calendar_menu(ui: &mut Ui, app: &mut MailApp, row: &CalendarRow, several: boo
         ui.separator();
         mi(ui, app, "Remove Shared Calendar", "calendar.removeShared", json!({"id": row.id}));
     }
+    // One on the web (#209): updated ahead of its time, or let go of.
+    if app.session.mailbox.calendar(row.id).is_some_and(|c| c.is_subscribed()) {
+        ui.separator();
+        if app.services.subscription.is_some() && !app.subscription_needs_address(row.id) {
+            mi(ui, app, "Update Now", "calendar.refreshSubscribed", json!({"id": row.id}));
+        }
+        mi(ui, app, "Unsubscribe", "calendar.unsubscribe", json!({"id": row.id}));
+    }
     // A shared mailbox's calendar that the server lists under Shared Calendars too (#70): the
     // copy is hidden, or shown again, here.
     match listed_twice(app, row.id) {
@@ -1787,8 +1812,8 @@ struct Look {
 
 /// An event is a block tinted with its colour `base` (its category's, or its calendar's) with a
 /// stronger edge down its left in its calendar's colour, which also says how the time shows:
-/// busy is solid, tentative hatched, working elsewhere dotted, free hollow (and the block
-/// outlined and nearly empty), out of office purple whatever the calendar's colour. Cancelled
+/// busy is solid, tentative hatched, working elsewhere dotted, free hollow and outlined.
+/// Free events without a category use a faint calendar tint. Out of office is purple. Cancelled
 /// events fade; so, when `dim`, do those of a calendar that lies under another.
 fn look(ev: &Event, base: Color32, calendar: Color32, t: &Tokens, hovered: bool, dim: bool) -> Look {
     let soft = t.data_soft(hovered);
@@ -1797,7 +1822,7 @@ fn look(ev: &Event, base: Color32, calendar: Color32, t: &Tokens, hovered: bool,
         ShowAs::Busy => (calendar, 1.0, Edge::Solid, false),
         ShowAs::WorkingElsewhere => (calendar, 0.8, Edge::Dotted, false),
         ShowAs::Tentative => (calendar, 0.6, Edge::Hatched, false),
-        ShowAs::Free => (calendar, 0.2, Edge::Hollow, true),
+        ShowAs::Free => (calendar, if ev.categories.is_empty() { 0.2 } else { 1.0 }, Edge::Hollow, true),
         ShowAs::OutOfOffice => (purple, 1.0, Edge::Solid, false),
     };
     if dim && !ev.cancelled {
@@ -1884,8 +1909,8 @@ fn paint_line(p: &Painter, pos: egui::Pos2, width: f32, text: &str, font: FontId
 }
 
 /// The small marks of an event (private, meeting, repeats, its categories), right to left from
-/// `right`. Returns where the text beside them has to stop.
-fn paint_marks(p: &Painter, item: &Item, look: &Look, right: f32, left: f32, y: f32) -> f32 {
+/// `right`. Returns where the text beside them has to stop, at or beyond `text_end` when it fits.
+fn paint_marks(p: &Painter, item: &Item, look: &Look, right: f32, text_end: f32, y: f32) -> f32 {
     let mut x = right;
     // How much it matters comes first (a red mark for high, a blue arrow down for low, in their
     // own colours whatever the item's), then that it is held online.
@@ -1894,7 +1919,7 @@ fn paint_marks(p: &Painter, item: &Item, look: &Look, right: f32, left: f32, y: 
         Importance::Low => Some("importanceLow"),
         Importance::Normal => None,
     };
-    if let Some(icon) = importance.filter(|_| x - 13.0 > left + 28.0) {
+    if let Some(icon) = importance.filter(|_| x - 14.0 >= text_end) {
         icons::paint(p, Rect::from_center_size(pos2(x - 6.0, y), vec2(12.0, 12.0)), icon, look.dim, look.dim);
         x -= 14.0;
     }
@@ -1904,13 +1929,13 @@ fn paint_marks(p: &Painter, item: &Item, look: &Look, right: f32, left: f32, y: 
         (item.ev.is_meeting(), "meeting"),
         (item.ev.recurrence.is_some(), "recurrence"),
     ] {
-        if on && x - 13.0 > left + 28.0 {
+        if on && x - 14.0 >= text_end {
             icons::paint(p, Rect::from_center_size(pos2(x - 6.0, y), vec2(12.0, 12.0)), icon, look.dim, look.dim);
             x -= 14.0;
         }
     }
     for color in &item.tags {
-        if x - 10.0 > left + 28.0 {
+        if x - 11.0 >= text_end {
             p.rect_filled(Rect::from_center_size(pos2(x - 5.0, y), vec2(8.0, 8.0)), 2.0, *color);
             x -= 11.0;
         }
@@ -1939,7 +1964,7 @@ fn paint_block(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, s
     if rect.height() < 32.0 {
         // One line: the title, and the place after it when it fits.
         let y = rect.center().y;
-        let stop = paint_marks(&p, item, &look, right, left, y);
+        let stop = paint_marks(&p, item, &look, right, left + 28.0, y);
         let used = paint_line(&p, pos2(left, y), stop - left, item.title(), semibold(11.5), look.ink, strike);
         if !place.is_empty() && stop - left - used > 48.0 {
             paint_clipped(&p, pos2(left + used + 8.0, y), stop - left - used - 8.0, place, regular(10.5), look.dim);
@@ -1947,7 +1972,7 @@ fn paint_block(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, s
         return;
     }
     let y = rect.min.y + 11.0;
-    let stop = paint_marks(&p, item, &look, right, left, y);
+    let stop = paint_marks(&p, item, &look, right, left + 28.0, y);
     paint_line(&p, pos2(left, y), stop - left, item.title(), semibold(11.5), look.ink, strike);
     paint_clipped(&p, pos2(left, y + 15.0), right - left, &item.times(twelve), regular(10.5), look.dim);
     if !place.is_empty() && rect.height() >= 46.0 {
@@ -1977,7 +2002,7 @@ fn paint_bar(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, sta
     let p = p.with_clip_rect(rect.intersect(p.clip_rect()));
     let y = rect.center().y;
     let mut left = rect.min.x + EDGE_W + 5.0;
-    let stop = paint_marks(&p, item, &look, rect.max.x - 4.0, left, y);
+    let stop = paint_marks(&p, item, &look, rect.max.x - 4.0, left + 28.0, y);
     // A timed event that runs over days says when it starts.
     if !item.ev.all_day && starts {
         left += paint_clipped(&p, pos2(left, y), stop - left, &crate::dates::clock(item.occ.start, twelve), regular(10.5), look.dim) + 5.0;
@@ -1989,8 +2014,8 @@ fn paint_bar(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, sta
     }
 }
 
-/// A timed event in a month cell: a chip tinted like its block in the hours, with the same
-/// edge on its left, then the time and the title.
+/// A timed event in a month cell. Its title stays visible in narrow columns; the time
+/// appears beside it when both can fit and stays available in the tooltip.
 fn paint_chip(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, selected: bool, hovered: bool) {
     let look = look(&item.ev, item.color, item.edge, t, hovered, item.dim);
     p.rect_filled(rect, 3.0, look.fill);
@@ -2007,8 +2032,20 @@ fn paint_chip(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, se
     let p = p.with_clip_rect(rect.intersect(p.clip_rect()));
     let y = rect.center().y;
     let mut left = rect.min.x + EDGE_W + 5.0;
-    let stop = paint_marks(&p, item, &look, rect.max.x - 3.0, left + 40.0, y);
-    left += paint_clipped(&p, pos2(left, y), stop - left, &crate::dates::clock(item.occ.start, twelve), regular(10.5), look.dim) + 5.0;
+    let right = rect.max.x - 3.0;
+    let time = crate::dates::clock(item.occ.start, twelve);
+    let time_font = regular(10.5);
+    let time_width = p.layout_no_wrap(time.clone(), time_font.clone(), look.dim).size().x;
+    // Reserve title space before placing any marks, with or without the time.
+    const TITLE_ROOM: f32 = 48.0;
+    let time_room = time_width + 5.0;
+    let show_time = right - left >= time_room + TITLE_ROOM;
+    let title_left = left + if show_time { time_room } else { 0.0 };
+    let stop = paint_marks(&p, item, &look, right, title_left + TITLE_ROOM, y);
+    if show_time {
+        paint_clipped(&p, pos2(left, y), time_width, &time, time_font, look.dim);
+        left = title_left;
+    }
     paint_line(&p, pos2(left, y), stop - left, item.title(), semibold(11.5), look.ink, item.ev.cancelled);
 }
 
@@ -2228,7 +2265,7 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
 /// selected), two open a new appointment for it. `pick` is the slot under the pointer.
 fn empty_input(app: &mut MailApp, resp: &Response, slot: &mut Option<Slot>, pick: impl Fn() -> Slot) {
     if opens(resp) {
-        let _ = app.run("ui.openWindow", pick().form());
+        let _ = app.run("ui.openWindow", aimed(app, pick().form()));
         *slot = None;
     } else if resp.clicked() {
         let _ = app.run("calendar.select", json!({"id": null}));
@@ -2251,9 +2288,12 @@ fn empty_input(app: &mut MailApp, resp: &Response, slot: &mut Option<Slot>, pick
         resp.context_menu(|ui| {
             ui.set_min_width(200.0);
             use crate::widgets::mi;
-            mi(ui, app, "New Appointment", "ui.openWindow", picked.form_for(Kind::Appointment));
-            mi(ui, app, "New Meeting", "ui.openWindow", picked.form_for(Kind::Meeting));
-            mi(ui, app, "New All Day Event", "ui.openWindow", picked.form_for(Kind::AllDay));
+            let form = aimed(app, picked.form_for(Kind::Appointment));
+            mi(ui, app, "New Appointment", "ui.openWindow", form);
+            let form = aimed(app, picked.form_for(Kind::Meeting));
+            mi(ui, app, "New Meeting", "ui.openWindow", form);
+            let form = aimed(app, picked.form_for(Kind::AllDay));
+            mi(ui, app, "New All Day Event", "ui.openWindow", form);
         });
     }
 }
@@ -2266,12 +2306,12 @@ fn finish_entry(app: &mut MailApp, slot: &mut Option<Slot>, entry: Entry) {
         Entry::Make(title) => {
             if let Some(picked) = slot.take() {
                 // The new appointment is selected in the slot's place.
-                let _ = app.run("calendar.new", picked.appointment(&title));
+                let _ = app.run("calendar.new", aimed(app, picked.appointment(&title)));
             }
         }
         Entry::Form => {
             if let Some(picked) = slot.take() {
-                let _ = app.run("ui.openWindow", picked.form());
+                let _ = app.run("ui.openWindow", aimed(app, picked.form()));
             }
         }
     }
@@ -4793,7 +4833,7 @@ mod tests {
         assert!(rig.app.hit.rect("calendarConnect", account).is_none());
         let before = rig.at("Design review");
 
-        rig.app.graph_consent_needed.insert(account);
+        rig.app.session.driver.calendar.consent_needed.insert(account);
         rig.frames(2);
         let button = rig.app.hit.rect("calendarConnect", account).expect("the line is shown");
         // The calendar is all there, under the line.
@@ -4806,7 +4846,7 @@ mod tests {
         assert_eq!(rig.selected(), (None, None), "the click went to the button, not to the calendar under it");
 
         // Connected: the line goes.
-        rig.app.graph_consent_needed.remove(&account);
+        rig.app.session.driver.calendar.consent_needed.remove(&account);
         rig.frames(2);
         assert!(rig.app.hit.rect("calendarConnect", account).is_none());
         assert_eq!(rig.at("Design review"), before);
@@ -6813,7 +6853,7 @@ mod tests {
         use egui_kittest::kittest::Queryable as _;
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         // Whose meeting it is, and what was answered so far.
@@ -7532,7 +7572,7 @@ mod tests {
         let team = rig.app.session.mailbox.calendars.iter().find(|c| c.name == "Team").map(|c| c.id).unwrap();
         let mut app = MailApp::new(Session::at(rig.app.session.mailbox.clone(), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         let mut harness = egui_kittest::Harness::builder()
@@ -7675,7 +7715,7 @@ mod tests {
         assert!(rig.app.hit.rect("calendarExtras", account).is_none());
         // The sign-in covers the calendar and not the mailbox's categories and working hours:
         // one line under the list of calendars, and no bar across the calendar.
-        rig.app.calendar.extras_missing.insert(account);
+        rig.app.session.driver.calendar.extras_missing.insert(account);
         rig.frames(2);
         let line = rig.app.hit.rect("calendarExtras", account).expect("the line");
         let last_row = rig.app.hit.rect("calendar", own).unwrap();
@@ -7697,10 +7737,10 @@ mod tests {
         assert_eq!(rig.selected(), (None, None));
         let _ = rig.app.execute("ui.cancelSignIn", json!({}));
         // A calendar that can't be read at all says so across the top, and the line keeps quiet.
-        rig.app.graph_consent_needed.insert(account);
+        rig.app.session.driver.calendar.consent_needed.insert(account);
         rig.frames(2);
         assert!(rig.app.hit.rect("calendarExtras", account).is_none() && rig.app.hit.rect("calendarConnect", account).is_some());
-        rig.app.graph_consent_needed.remove(&account);
+        rig.app.session.driver.calendar.consent_needed.remove(&account);
         rig.frames(2);
         assert_eq!(rig.at("Design review"), before, "the line takes nothing from the calendar");
         // With the extras there, the line goes.

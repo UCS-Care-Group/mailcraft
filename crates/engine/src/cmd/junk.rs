@@ -108,16 +108,16 @@ fn add_senders(s: &mut Session, v: &Value, list: JunkList, domain: bool) -> Resu
 
 fn block_sender(s: &mut Session, v: &Value) -> CmdResult {
     let (ids, entries) = add_senders(s, v, JunkList::Blocked, false)?;
-    // The messages go to Junk E-mail, as Junk does; one its server keeps where it is (a JMAP
-    // account's, for now) stays, its sender blocked all the same.
+    // The messages go to Junk E-mail, as Junk does; one a JMAP account's server has stays where it
+    // is when that server has no such folder, its sender blocked all the same.
     let before = s.rows();
     let mut moved = Vec::new();
     for id in ids {
         let Some((account, folder)) = s.mailbox.message(id).map(|m| (m.account, m.folder)) else { continue };
-        if s.mailbox.stays_on_server(id) {
+        let Some(junk) = s.mailbox.folder_of_kind(account, FolderKind::Junk) else { continue };
+        if s.mailbox.stays_out_of(id, junk) {
             continue;
         }
-        let Some(junk) = s.mailbox.folder_of_kind(account, FolderKind::Junk) else { continue };
         if folder != junk && s.mailbox.move_message(id, junk).is_ok() {
             moved.push(id);
         }

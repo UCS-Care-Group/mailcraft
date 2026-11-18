@@ -30,18 +30,21 @@ const NOTES_MAX: usize = 20_000;
 const PLACE_W: f32 = 200.0;
 
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
+    // The organisation's address list, chosen in place of the contacts (#1262).
+    if app.address_book_shown().is_some() {
+        crate::address_book::show(app, ui);
+        return;
+    }
     let t = Tokens::get(ui.ctx());
     let layout = list_layout(app, ui.ctx());
     keyboard(app, ui, &layout);
     keep_picked(app);
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     let max = (ui.available_width() - 320.0).max(260.0);
-    egui::Panel::left("people_list")
-        .default_size(320.0f32.min(max))
-        .size_range(240.0..=max)
-        .resizable(true)
-        .frame(frame)
-        .show(ui, |ui| list(app, ui, &layout));
+    egui::Panel::left("people_list").default_size(320.0f32.min(max)).size_range(240.0..=max).resizable(true).frame(frame).show(ui, |ui| {
+        crate::nav::module_foot(app, ui);
+        list(app, ui, &layout);
+    });
     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| card(app, ui, layout.total));
 }
 
@@ -289,11 +292,17 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
     ui: &mut Ui,
     layout: &Layout<G>,
     reveal: Option<(Id, u16)>,
+    overlay_scroll_bars: bool,
     label: impl Fn(G) -> String,
     mut row: impl FnMut(&mut Ui, Id, u16, Rect),
 ) {
     let t = Tokens::get(ui.ctx());
+    let plain = ui.style().clone();
+    if overlay_scroll_bars {
+        crate::widgets::overlay_scroll_style(ui, &t);
+    }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
+        ui.set_style(plain.clone());
         let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), layout.height), Sense::hover());
         let (origin, width) = (area.min, area.width());
         if let Some(r) = reveal.and_then(|row| layout.position(row)).and_then(|i| layout.rows.get(i)) {
@@ -309,6 +318,7 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
             row(ui, r.id, r.copy, Rect::from_min_size(pos2(origin.x, origin.y + r.top), vec2(width, layout.row_h)));
         }
     });
+    ui.set_style(plain);
 }
 
 /// The contact list as laid out, with the names of the categories its headings stand for when it
@@ -570,15 +580,8 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     if resp.on_hover_text(tl!("New Contact")).clicked() {
         let _ = app.run("people.new", json!({}));
     }
-    let accounts = people::contact_accounts(&app.session.mailbox);
-    let shown = people::shown_account(&app.session);
-    if !accounts.is_empty() {
-        ui.add_space(2.0);
-        if let Some(choice) = widgets::account_choice(ui, &app.session.mailbox, &accounts, shown) {
-            let _ = app.run("view.peopleAccount", json!({"value": choice.code()}));
-        }
-        ui.add_space(8.0);
-    }
+    // Whose contacts, or an organisation's address list.
+    crate::address_book::book_choice(app, ui);
     let line = ui.cursor().min.y;
     ui.painter().line_segment([pos2(header.min.x, line), pos2(header.max.x, line)], Stroke::new(1.0, t.border));
 
@@ -590,7 +593,14 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     let at = chosen_row(ui.ctx(), PEOPLE_ROW, &layout.layout, selected);
     let reveal = selection_changed(ui, "people_list_seen", at).then_some(at).flatten();
     let labelled = labelled(app);
-    show_rows(ui, layout, reveal, |g| group_label(g, &layout.names), |ui, id, copy, rect| contact_row(app, ui, id, copy, rect, labelled));
+    show_rows(
+        ui,
+        layout,
+        reveal,
+        app.overlay_scroll_bars,
+        |g| group_label(g, &layout.names),
+        |ui, id, copy, rect| contact_row(app, ui, id, copy, rect, labelled),
+    );
 }
 
 /// Whether each row says where its contact is: every account's contacts are in one list.
@@ -647,7 +657,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         p.rect_filled(rect, 0.0, t.hover_subtle);
     }
     p.line_segment([pos2(rect.min.x + 54.0, rect.max.y), pos2(rect.max.x, rect.max.y)], Stroke::new(1.0, t.border.linear_multiply(0.7)));
-    widgets::avatar(ui, pos2(rect.min.x + 28.0, rect.center().y), 16.0, &avatar_address(&c));
+    crate::sender_images::contact_avatar(app, ui, pos2(rect.min.x + 28.0, rect.center().y), 16.0, &avatar_address(&c));
     let left = rect.min.x + 54.0;
     let mut right = rect.max.x - 12.0;
     if c.favorite {
@@ -719,7 +729,9 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
                 account.as_slice(),
                 &carried,
                 "people.categorize",
-                |app, name| app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name))),
+                |app, name| {
+                    app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, name)))
+                },
                 None,
             );
         });
@@ -745,7 +757,15 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
         ui.painter().text(pos2(r.center().x, y + 50.0), Align2::CENTER_CENTER, tl!("Select a contact to see the details"), regular(13.0), t.text_dim);
         return;
     };
-    egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt(("contact_card", c.id)).show(ui, |ui| {
+    // One scroll state for the card, at the top again for another contact: not one in egui's
+    // memory for every contact ever shown.
+    let mut area = egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("contact_card");
+    let shown = egui::Id::unique("mailcraft-contact-card-shown");
+    if ui.ctx().data(|d| d.get_temp::<Id>(shown)) != Some(c.id) {
+        ui.ctx().data_mut(|d| d.insert_temp(shown, c.id));
+        area = area.vertical_scroll_offset(0.0);
+    }
+    area.show(ui, |ui| {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 28, right: 28, top: 24, bottom: 28 }).show(ui, |ui| {
             ui.set_max_width(ui.available_width().min(CARD_W));
             ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
@@ -777,11 +797,11 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
 }
 
 /// The avatar, the name, what they do and where, and the categories.
-fn card_header(app: &MailApp, ui: &mut Ui, c: &Contact) {
+fn card_header(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
     let t = Tokens::get(ui.ctx());
     ui.horizontal(|ui| {
         let (r, _) = ui.allocate_exact_size(vec2(80.0, 80.0), Sense::hover());
-        widgets::avatar(ui, r.center(), 40.0, &avatar_address(c));
+        crate::sender_images::contact_avatar(app, ui, r.center(), 40.0, &avatar_address(c));
         ui.add_space(12.0);
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
@@ -852,7 +872,7 @@ pub(crate) fn section(ui: &mut Ui, title: &str) {
 }
 
 /// One line of a section: an icon, a value and its label. A `link` is a button.
-fn field(ui: &mut Ui, icon: &str, value: &str, label: &str, link: bool) -> egui::Response {
+pub(crate) fn field(ui: &mut Ui, icon: &str, value: &str, label: &str, link: bool) -> egui::Response {
     let t = Tokens::get(ui.ctx());
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), if link { Sense::click() } else { Sense::hover() });
     if link && resp.hovered() {

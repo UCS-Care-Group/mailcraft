@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-FileCopyrightText: MailCraft contributors
+  SPDX-License-Identifier: MIT OR Apache-2.0
+
+  The window's own theme, for what shows before the first frame is drawn: light or dark as the
+  system is. Everything that is drawn after that is Compose's, with the app's own colours.
+-->
+<resources>
+    <style name="Theme.MailCraft" parent="Theme.AppCompat.DayNight.NoActionBar" />
+</resources>

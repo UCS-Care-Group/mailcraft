@@ -77,7 +77,7 @@ use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use mailcraft_charset::base64::STANDARD;
-use mailcraft_mime::WriteOptions;
+use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::remote::{
     BusyTime, CalendarsDownload, CategoriesDownload, ContactsDownload, EventChangeKind, EventFields, EventOp, EventOutcome, EventResult, EventTime,
     EventsDownload, EventsUpload, EventsUploaded, FreeBusy, FreeBusyAsk, MAX_BUSY, MAX_CONTACTS, MAX_EVENT_OPS, MAX_EVENTS, MAX_REMOTE_CALENDARS,
@@ -207,7 +207,7 @@ pub struct SendOptions {
 /// Send one message through Microsoft Graph, as the owner of `token` (an access token for
 /// Graph). Graph also files a copy in the account's Sent Items.
 ///
-/// The message goes as it would over SMTP (`mailcraft_mime::write`), in base64. Graph has no
+/// The message goes as it would over SMTP (`mailcraft_mime_model::write`), in base64. Graph has no
 /// envelope: it reads who the message is for from the message's own header fields. So the `Bcc`
 /// field is written here, which it never is for SMTP; Exchange delivers to the people it names
 /// and leaves the field out of what everybody else gets.
@@ -882,7 +882,7 @@ fn mime_body_with(message: &Message, options: &SendOptions) -> Result<String, Ne
     let message = if message.date == 0 { Cow::Owned(Message { date: mailcraft_time::now(), ..message.clone() }) } else { Cow::Borrowed(message) };
     let offset_minutes = options.offset_minutes.unwrap_or_else(|| mailcraft_time::local_offset_minutes(message.date));
     // With the Bcc field: it is the only way Graph learns of those it names.
-    let mime = mailcraft_mime::write(&message, &WriteOptions { include_bcc: true, offset_minutes });
+    let mime = mailcraft_mime_model::write(&message, &WriteOptions { include_bcc: true, offset_minutes });
     if mime.len() > MAX_MESSAGE {
         return Err(NetError::Config("the message is too large to send through Microsoft Graph".into()));
     }
@@ -2002,11 +2002,10 @@ fn calendar_color(name: &str) -> Option<Rgb> {
     COLORS.iter().find(|(known, _)| *known == name).map(|(_, color)| *color)
 }
 
-/// Our own colours for the numbered colours Graph gives a category (`preset0` to `preset24`,
-/// [`mailcraft_model::preset_category_color`]); grey for none or any other.
+/// Our own colour for the numbered colour Graph gives a category (`preset0` to `preset24`);
+/// grey for none or any other ([`mailcraft_model::outlook_colors`]).
 fn category_color(name: &str) -> Rgb {
-    let number = name.to_ascii_lowercase().strip_prefix("preset").and_then(|n| n.parse::<i64>().ok());
-    number.and_then(mailcraft_model::preset_category_color).unwrap_or(mailcraft_model::GREY_CATEGORY)
+    mailcraft_model::outlook_colors::outlook_color(name)
 }
 
 /// One calendar of a list as the mailbox can take it, in the group called `group`.
@@ -2097,7 +2096,7 @@ fn calendars_at(base: &str, token: &str, shared: Option<&str>) -> Result<Calenda
 fn categories_at(base: &str, token: &str) -> Result<CategoriesDownload, NetError> {
     let graph = Graph::at(base, token)?;
     let mut download = CategoriesDownload::default();
-    graph.list(Doing::Categories, graph.url(MASTER_CATEGORIES), &[], MAX_REMOTE_CATEGORIES, &mut |entry: &Value| {
+    download.complete = graph.list(Doing::Categories, graph.url(MASTER_CATEGORIES), &[], MAX_REMOTE_CATEGORIES, &mut |entry: &Value| {
         download.categories.push(Category { name: text(entry, "displayName").to_string(), color: category_color(text(entry, "color")) });
     })?;
     download.tidy();
@@ -2218,6 +2217,9 @@ pub use tasks::{push_tasks, tasks};
 mod rules;
 pub use rules::{MAX_FOLDER_LOOKUPS, push_rules, rules};
 
+mod categories;
+pub use categories::push_categories;
+
 mod settings;
 pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
 
@@ -2241,6 +2243,8 @@ pub mod standin;
 #[cfg(test)]
 mod auto_replies_tests;
 #[cfg(test)]
+mod categories_tests;
+#[cfg(test)]
 mod people_tests;
 #[cfg(test)]
 mod rules_tests;
@@ -2257,5 +2261,7 @@ mod tasks_tests;
 mod shared_calendar_move_tests;
 #[cfg(test)]
 mod standin_tests;
+#[cfg(test)]
+mod standin_todo_tests;
 #[cfg(test)]
 mod tests;

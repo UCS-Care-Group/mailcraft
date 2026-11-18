@@ -13,6 +13,7 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
+mailcraft-mime-model = { workspace = true }
 mailcraft-proto = { workspace = true }
 mailcraft-i18n = { workspace = true }
 thiserror = { workspace = true }
@@ -38,10 +39,22 @@ quick-xml = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 schannel = { workspace = true }
 
+# The roots Mozilla trusts for mail in NSS's own list (`libnssckbi.so`), where the system extracts
+# no bundle for mail (#30, `anchors_nss`): Debian, Ubuntu, Linux Mint, FreeBSD. The same PKCS#11
+# binding the desktop app reads tokens with (Apache-2.0); loading the module and calling it are
+# its unsafe, behind a safe API.
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+cryptoki = "0.12.1"
+
 [features]
 # A stand-in for Microsoft Graph that holds a client to the documented contract
 # (`graph::standin`), for the tests of the crates that sit on this one. Never in a build that isn't a test's.
 stand-in = []
+
+# The stand-in as a server on loopback, for host tests (`examples/standin.rs`).
+[[example]]
+name = "standin"
+required-features = ["stand-in"]
 
 [dev-dependencies]
 proptest = { workspace = true }

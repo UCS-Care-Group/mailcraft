@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-12 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -58,7 +58,11 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
   checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
-  placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
+  placeholder; a `data:` address is never a link (`crates/html/src/data.rs`). A picture behind a
+  table, a cell, a block or the body is shown only when it is attached (`cid:`) or written into the
+  message (`data:`, within the same caps; none for a box that is hidden or 2 px or less across,
+  #601); an address on the web is never one: `crates/html/src/bg.rs` keeps none, so nothing asks for
+  it, in Junk E-mail or out of it, whatever the owner allows.
   Under a reply or forward, each one the reading pane would show goes as a part of its own beside
   the HTML, which refers to it by a Content-ID naming nothing of the owner (#602,
   `mailcraft_html::quotable_with_pictures`); one refused, hidden or past the caps is left out, and
@@ -197,6 +201,34 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
   only between names one character apart in length). An agent gets the warnings with `mail.get`
   as data, their details framed as message content. The owner can dismiss the banner (the cross at its right, `mail.dismissWarnings`, kept with the message as the kinds it held): a caution goes, a warning stays as a slim bar that opens again, and a kind that was not there brings the banner back. The command needs the owner (`Class::Settings`), so an agent cannot hide a warning.
+- **Send warnings are the owner's to answer** (#509). Before a message goes, `compose.send` looks
+  for a recipient whose domain is a lookalike sender's would be (above), or whose part before the
+  @ is one edit or one skeleton from a known address at the same domain (five characters or
+  more; compared as it reads, without a `+tag` and without the dots Gmail ignores, so that none
+  of them, nor what draws nothing, pads a lookalike past the comparison), and for 5 or more
+  people outside the owner's organisation, at 2 or more registrable domains, in To and Cc (not
+  when all of them were on the message replied to or forwarded, whose To and Cc its sender wrote;
+  never for an owner without an organisation, for whom everybody would be outside). The
+  known correspondents are the same contacts and Sent Items, never somebody who only wrote to the
+  owner, so a lookalike that wrote first is still asked about when the owner replies. A message
+  with a warning is refused unless the call says `"confirmed": true` (or `"moveToBcc": true`
+  moves the outsiders first); the window asks its owner, and an agent's send through the window
+  is asked about every time, whatever `--allow` says, with its own `confirmed` and `moveToBcc`
+  dropped. The yes holds only for the warnings shown: what would send more is refused. Headless,
+  nobody can be asked, so the call's own `confirmed` is honoured, as for any script; sending at
+  all still needs `--allow send`. The yes, the owner's or an agent's question's, holds for the
+  recipient lines asked about: a message changed while the question was up is asked about again
+  (the owner's) or not sent (the agent's). An address is shown with what draws nothing, and a
+  look-alike `@` or `.`, before the @ as its code (`<U+200B>`, `<U+FF20>`), and its domain as it goes over
+  the wire (`xn--…`). Numbered mailboxes (`sales1`, `sales2`) and
+  dots Gmail ignores are not lookalikes. The rules are `crates/model/src/send_warnings.rs`,
+  bounded to 1,000 different recipients (each counted once, however often it is named, so padding
+  with a known address hides nothing) and 20 lookalikes said; a message to more is a warning of its
+  own (`tooManyRecipients`), so what isn't looked at is never let through unasked. What they don't cover: only `compose.send`
+  is checked (Send Again of a message held in an Outbox, and meeting requests and their answers,
+  are not); the known correspondents are whatever the contacts and Sent Items hold, so an agent
+  that adds a contact or moves a message into Sent Items (both safe for agents) makes that address
+  known; and an agent allowed input (`--allow input`) can press any button, a question's included.
 - **A meeting invitation does not rewrite a meeting it isn't about.** An invitation carrying the
   `UID` of a meeting on a local calendar changes or removes it only when it names the same
   organizer (`crates/engine/src/cmd/calendar/invitation.rs`, `same_organizer`); the bar shows the
@@ -260,8 +292,25 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   in that set and below the mailbox's UIDNEXT, at most twice its EXISTS plus 1,000 distinct ones;
   more is the command's error and nothing of it is taken in.
 - **Secrets aren't handed to the wrong party:** a sign-in goes only to the server the account names,
-  over TLS (below). OAuth uses the authorization code with PKCE and a loopback redirect
+  over TLS (below). An outgoing server the owner marked as needing no sign-in (a relay,
+  #836) is never shown the password, even when it offers a way to sign in; an account that signs in
+  on its provider's page has no such choice. OAuth uses the authorization code with PKCE and a loopback redirect
   (`crates/net/src/oauth.rs`).
+- **An address list is a server's word, read as hostile** (#1262). Check Names asks an Exchange
+  server account's address list (`ResolveNames`, the directory alone) only on the owner's press,
+  and only for the names typed that the contacts don't settle: at most ten, each one line of at
+  most 256 characters; People's Address Book asks it for what the owner types in its search box,
+  one text at a time, once typing pauses, and lets go of a look-up that what is typed has passed.
+  Of each answer at most 100 people are read, each a name, an SMTP address that has one `@` and
+  nothing that could end a header or add a recipient, the kind of recipient, four bounded lines
+  (company, department, job title, office) and the work and mobile numbers, kept only when they
+  are written as phone numbers are (digits with spaces, `+`, `-`, `.`, `/`, brackets and an
+  extension's `x`); other numbers, postal addresses and notes the answer holds are dropped
+  (`crates/ews/src/resolve.rs`, and again in `DirectoryPerson::checked`). Who is found lives in
+  the window and is never written down, unless the owner presses Add to Contacts. The engine checks them again
+  as a command's params (`compose.checkNames` `found`), puts a name in only when exactly one
+  person matches it, and asks the owner to choose among several. A server can offer a wrong
+  person for a name; the owner sees the address before the message goes.
 - A compromised server can still read and change the mail it holds. That is the server's job, not
   something a client can prevent; end-to-end encryption would be (see Known limits).
 
@@ -281,9 +330,23 @@ Watches or changes traffic between MailCraft and its servers.
   is allowed only to loopback, for tests.
 - **No silent downgrade:** a server that doesn't offer STARTTLS when it was asked for is an error
   ("the server doesn't offer STARTTLS", `crates/net/src/sync.rs`, `crates/net/src/send.rs`).
-- **Provider discovery** asks a DNS-over-HTTPS resolver for the domain's mail exchangers
-  (`mailcraft_net::lookup_mx`): only the domain goes out, never the mailbox name, and only when the
-  owner presses Connect.
+- **Provider discovery** asks a DNS-over-HTTPS resolver about the domain alone, never the mailbox
+  name, and only when the owner presses Connect: for its mail exchangers (`mailcraft_net::lookup_mx`)
+  and, for a domain nobody here knows, for its mail servers' SRV records of RFC 6186
+  (`mailcraft_net::discover`, #1063), the hosts its `_autodiscover._tcp` SRV record names and
+  the host `autodiscover.<domain>` is an alias of (CNAME; `mailcraft_net::autodiscover_hosts`).
+  The Autodiscover hosts only choose a page, and none of them is asked anything for it:
+  Microsoft's is Microsoft 365, signed in on Microsoft's page; cPanel's is IMAP; any other is a
+  question to the owner, an Exchange server or IMAP, with neither the default. IMAP is the servers
+  the RFC 6186 records name, else the guess.
+- **The alias step** ([autodiscover.md](autodiscover.md) specifies it). The Exchange server search
+  (`crates/ews/src/autodiscover.rs`) asks the alias's host too, after the SRV record's targets, at
+  port 443, at most two. It takes the place of MS-OXDISCO §3.1.5.4, the plain-HTTP redirect, which
+  is never taken, so that a domain whose SRV record is only in its own network's DNS is found. An
+  alias isn't the SRV record's word: its host is asked about before anything is sent to it outside
+  the domain, and has the sign-in only after the owner's yes inside it too (AU3-V1, as §3.1.5.4 asks
+  the user, and RFC 9525 §6.1.1 lets a name from the DNS be checked against only once the user has
+  associated it). A forged or stale alias costs a question, never the password.
 - The one thing fetched over plain `http` is a picture the owner asked for, when that is the address
   the message gives; nothing of the owner's travels with it.
 
@@ -347,6 +410,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
+  On a Microsoft account whose categories are kept in step with Outlook, an agent is asked
+  (`send`) before it writes a category there: one kept on this computer only sent there, a rename
+  of one that is there already, a name new to the list (given to an item, or by a rule) or another
+  colour; so is an Undo or Redo that would make one there again or give one there another colour,
+  and one that would have a category deleted there is asked as `delete`; the question names the
+  category.
   A copy that the server of a Microsoft account (Outlook.com, Microsoft 365) or an Exchange
   server account has made goes to Deleted Items on undo and is not counted as a removal; on any
   other account (IMAP, JMAP, one on this computer) the copy is removed and `delete` is asked. A step
@@ -410,7 +479,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). So does
   every background job of the window, listed in one place (`crates/ui-egui/src/jobs.rs`): each
   Send/Receive (IMAP, Microsoft Graph, Exchange, JMAP, Inbox passes, shared mailboxes), the
-  calendar and its check, free and busy times, the to-dos, the rules and the automatic replies.
+  calendar and its check, free and busy times, the to-dos, the rules, the automatic replies and the
+  categories.
   When another mailbox takes the place of the open one they are all called off, an answer that
   still comes for the old one is let go of whole, and no answer is taken in for an account under
   the address of the account open now; a shared mailbox's sign-in is checked against its owner's
@@ -593,8 +663,10 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 - **Malware running as the owner.** A program with the owner's rights can read the mailbox, the
   control key and, usually, the credential store. MailCraft doesn't defend against its own user's
   account being compromised.
-- **No S/MIME or OpenPGP yet.** Messages are protected in transit (TLS) but not end to end, and
-  signatures aren't checked.
+- **No end-to-end encryption yet.** Messages are protected in transit (TLS) but not end to end:
+  S/MIME and OpenPGP signatures are checked where a message is read (S/MIME without a revocation
+  check), but signing and encrypting what is sent, and opening encrypted mail, are not built
+  (#30).
 - **The mailbox isn't encrypted at rest.** It relies on the operating system's disk encryption
   (BitLocker, FileVault, LUKS, GELI).
 - **Builds not signed by Windows or macOS.** Releases carry MailCraft's own signature over their
@@ -613,6 +685,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-12 | minor | #1103: provider discovery asks the DNS for the domain's Autodiscover hosts (SRV record and `autodiscover.<domain>` alias) beside its exchangers; the Exchange search's alias step, in the place of MS-OXDISCO's plain-HTTP redirect and specified in autodiscover.md, asks the owner before the sign-in goes to the alias's host |
 | 2026-11-11 | minor | #30 part 4: the owner's own private keys kept in the credential store (`key:openpgp:`, `key:smime:`; passphrase-protected, S/MIME on Linux and FreeBSD only) and the rules they pass; running GnuPG (fixed arguments, no shell, a time limit and a cap on its output, the direct trust model) |
 | 2026-11-07 | patch | #843: a `.pst` distribution list's stream of members is read within caps |
 | 2026-11-07 | patch | AU3-11, AU3-12, AU3-13, AU3-14, AU3-15, AU3-V5: on Exchange Online only its own verdict above the hop where it took the mail in is read (with its id or none), only for mail it says came in, and a failure there without that word; a copy MailCraft puts on a server leaves every verdict behind; Safe Senders don't take mail its server failed out of Junk; a meeting a server keeps is changed only by its organizer's own message; links are judged in every look a message has, and a message with more looks than are checked says so; a part is shown in place only as a picture an `<img>` asks for |
