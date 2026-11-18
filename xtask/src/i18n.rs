@@ -4,7 +4,8 @@
 //! `crates/i18n/po/messages.pot`, and merged into each language's catalogue (`fr.po`, …).
 //!
 //! What is gathered: every literal in `tl!("…")` and `tln!(n, "…", "…")` in the window
-//! (`crates/ui-egui`); a literal passed where a function of the window puts that parameter through
+//! (`crates/ui-egui`), and in `tl_later!("…")`, which marks one that reaches `tl!` through a
+//! variable (a label in a table, a constant, the reason a check gives); a literal passed where a function of the window puts that parameter through
 //! `tl!` (`mi(ui, app, "New Message", …)`); the window's own commands (`UI_COMMANDS`); the engine's
 //! command labels, the parts of their ribbon locations and the reasons a command can't run; the
 //! names the window shows through `tl!(x.label())` (`fn label`/`name`/`title`… returning a
@@ -567,8 +568,8 @@ fn ribbon(toks: &[Tok], file: &str, texts: &mut Texts) {
     }
 }
 
-/// `tl!("…")`, `tlc!("context", "…")`, `tln!(n, "…", "…")`, and a literal where a function
-/// translates that parameter.
+/// `tl!("…")`, `tlc!("context", "…")`, `tln!(n, "…", "…")`, `tl_later!("…")`, and a literal where
+/// a function translates that parameter.
 fn literals(toks: &[Tok], file: &str, through: &BTreeMap<String, BTreeSet<usize>>, consts: &BTreeMap<String, String>, texts: &mut Texts) {
     for i in 0..toks.len() {
         if is(toks, i, &["tl", "!", "("]) {
@@ -577,6 +578,10 @@ fn literals(toks: &[Tok], file: &str, through: &BTreeMap<String, BTreeSet<usize>
             } else if let (Some(Tok::Ident(name)), Some(Tok::Punct(')'))) = (toks.get(i + 3), toks.get(i + 4))
                 && let Some(s) = consts.get(name)
             {
+                add(texts, s, None, file, "interface");
+            }
+        } else if is(toks, i, &["tl_later", "!", "("]) {
+            if let Some(s) = args(toks, i + 2).first().and_then(|a| lit(a)) {
                 add(texts, s, None, file, "interface");
             }
         } else if is(toks, i, &["tlc", "!", "("]) {
@@ -1215,3 +1220,7 @@ mod tests {
         assert!(mismatch(&one).is_none());
     }
 }
+
+#[cfg(test)]
+#[path = "i18n_tests.rs"]
+mod i18n_tests;
