@@ -68,7 +68,11 @@ impl FindReplace {
             let resp = ui.add(egui::TextEdit::singleline(&mut self.with).char_limit(MAX_FIND).desired_width(f32::INFINITY));
             app.hit.add("replaceText", 0, crate::text_menu::field(resp).rect);
         }
-        let case = ui.with_layout(caption_layout(), |ui| ui.checkbox(&mut self.match_case, tl!("Match case"))).inner;
+        let case = ui
+            .with_layout(caption_layout(), |ui| {
+                ui.checkbox(&mut self.match_case, tl!("Match case"))
+            })
+            .inner;
         app.hit.add("findMatchCase", 0, case.rect);
         if !self.note.is_empty() {
             ui.with_layout(caption_layout(), |ui| {
