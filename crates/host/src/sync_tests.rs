@@ -97,7 +97,9 @@ fn a_round_that_is_due_runs_the_account_with_the_stored_sign_in_and_keeps_the_ne
     let seen = Arc::new(Mutex::new(Vec::new()));
     let seen2 = seen.clone();
     let mut sr = SendReceive::with_runner(move |req: GraphRequest| {
-        seen2.lock().unwrap().push((req.refresh.clone(), req.oauth.client_id.clone(), req.access.is_empty()));
+        // (Its renewed sign-in must be the account's own: the run checks it before anything goes.)
+        let signer = req.signer.as_ref().map(|a| a.id) == Some(req.account.id);
+        seen2.lock().unwrap().push((req.refresh.clone(), req.oauth.client_id.clone(), req.access.is_empty(), signer));
         let pieces = req.mail_pieces.clone().unwrap();
         let _ = pieces.send(GraphMailResult { account: req.account.id, email: req.account.email.clone(), ..Default::default() });
         GraphResult {
@@ -113,7 +115,7 @@ fn a_round_that_is_due_runs_the_account_with_the_stored_sign_in_and_keeps_the_ne
     assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::Waiting), "one run at a time");
     assert!(matches!(until_over(&mut sr, &mut s, &c), Taken::Done { account, .. } if account == id));
     assert!(!sr.busy());
-    assert_eq!(*seen.lock().unwrap(), [("old-refresh".to_string(), "app-id".to_string(), true)]);
+    assert_eq!(*seen.lock().unwrap(), [("old-refresh".to_string(), "app-id".to_string(), true, true)]);
     assert_eq!(store.get(&key).as_deref(), Some("new-refresh"), "the newest refresh token is the account's");
     // The round is over and the next is not due for the owner's minutes.
     assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::Idle));
@@ -444,4 +446,91 @@ fn a_store_that_says_nothing_more_reads_and_removes_as_it_gets_and_deletes() {
     assert_eq!(store.read("refresh:a@example.org|graph"), Ok(Some("r".to_string())));
     assert_eq!(store.remove("refresh:a@example.org|graph"), Ok(()));
     assert_eq!(store.read("refresh:a@example.org|graph"), Ok(None));
+}
+
+#[test]
+fn a_refresh_token_another_job_got_is_kept_and_leaves_the_mail_token_alone() {
+    let (s, id) = session(AccountKind::Microsoft);
+    let store = Store::default();
+    let key = secret_key("refresh", s.mailbox.account(id).unwrap());
+    let c = ctx(&store, 10_000.0);
+    let mut sr = SendReceive::new();
+    let mail = Tokens { access: "mail-access".into(), refresh: "first".into(), expires_at: 9_999, ..Default::default() };
+    assert_eq!(sr.adopt_tokens(&s, &c, id, mail), Adopted::Kept);
+    // The calendar's or the to-dos' job renewed the sign-in for itself.
+    let theirs = Tokens { access: "calendar-access".into(), refresh: "second".into(), expires_at: 9_999, ..Default::default() };
+    assert_eq!(sr.adopt_refresh(&s, &c, id, &theirs), Adopted::Kept);
+    assert_eq!(sr.refresh_for(&s, &c, id).as_deref(), Some("second"));
+    assert_eq!(store.get(&key).as_deref(), Some("second"));
+    assert!(matches!(sr.mail_access(&s, &c, id), Some(crate::fetch::Access::Held(t)) if t == "mail-access"));
+    // Somebody else's is not kept.
+    let other = Tokens { refresh: "third".into(), email: "someone@example.net".into(), ..Default::default() };
+    assert_eq!(sr.adopt_refresh(&s, &c, id, &other), Adopted::WrongPerson);
+    assert_eq!(sr.refresh_for(&s, &c, id).as_deref(), Some("second"));
+    // With no session token yet, the next mail job renews one with it.
+    let mut fresh = SendReceive::new();
+    assert_eq!(fresh.adopt_refresh(&s, &c, id, &theirs), Adopted::Kept);
+    assert!(matches!(fresh.mail_access(&s, &c, id), Some(crate::fetch::Access::Renew { refresh, .. }) if refresh == "second"));
+}
+
+#[test]
+fn an_account_held_back_is_in_no_round_until_let_go() {
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), 1_791_993_600, 0);
+    let added = s.run("account.add", &serde_json::json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap();
+    let a = added["id"].as_u64().unwrap();
+    for mut sr in [SendReceive::default(), SendReceive::default().graph_only()] {
+        assert!(sr.eligible(&s, a));
+        sr.hold(a, true);
+        assert!(sr.held(a) && !sr.eligible(&s, a));
+        sr.hold(a, false);
+        assert!(sr.eligible(&s, a));
+        sr.hold(a, true);
+        sr.release_all();
+        assert!(sr.eligible(&s, a));
+    }
+}
+
+#[test]
+fn an_account_held_back_after_its_round_was_queued_is_left_out_of_it() {
+    let (mut s, id) = session(AccountKind::Microsoft);
+    let store = Store::default();
+    let mut sr = SendReceive::with_runner(|req| GraphResult { account: req.account.id, ..Default::default() });
+    let (h, c) = (host(), ctx(&store, 10_000.0));
+    assert!(sr.start_round(&mut s, &c, &[id]));
+    sr.hold(id, true);
+    assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::LeftOut { why: Left::Held, account } if account == id));
+    assert!(!sr.busy());
+}
+
+#[test]
+fn a_run_refused_for_its_sign_in_still_takes_in_what_went_with_the_accounts_own() {
+    // A run whose sign-in turned out somebody else's part-way: the message that went before, with
+    // the account's own token, is filed as sent and never sent again; the tokens are not kept.
+    let (mut s, id) = session(AccountKind::Microsoft);
+    let outbox = s.mailbox.folder_of_kind(id, mailcraft_model::FolderKind::Outbox).unwrap();
+    let message =
+        s.mailbox.add_message(mailcraft_model::Message { folder: outbox, account: id, subject: "Invoice".into(), ..Default::default() }).unwrap();
+    let store = Store::default();
+    let key = secret_key("refresh", s.mailbox.account(id).unwrap());
+    store.set(&key, "mine").unwrap();
+    let mut sr = SendReceive::with_runner(move |req| GraphResult {
+        account: req.account.id,
+        sent: vec![message],
+        tokens: Some(Tokens { refresh: "theirs".into(), email: "you@example.org".into(), ..Default::default() }),
+        ..Default::default()
+    });
+    let h = host();
+    let c = ctx(&store, 10_000.0);
+    // (The message waiting to go queues a round first; then the account's run starts.)
+    let mut started = false;
+    for _ in 0..3 {
+        started = matches!(sr.what_to_run(&h, &mut s, &c), Step::Started { .. });
+        if started {
+            break;
+        }
+    }
+    assert!(started);
+    assert_eq!(until_over(&mut sr, &mut s, &c), Taken::WrongPerson { account: id });
+    assert_eq!(store.get(&key).as_deref(), Some("mine"), "the stranger's tokens are not kept");
+    assert!(s.mailbox.message(message).is_none_or(|m| m.folder != outbox), "sent, and gone from the Outbox");
 }

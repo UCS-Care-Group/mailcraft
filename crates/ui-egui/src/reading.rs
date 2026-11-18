@@ -23,6 +23,9 @@
 //! answer) says so in a bar between its header and its body, with the ways to answer it
 //! ([`invitation`]).
 
+mod backdrop;
+#[cfg(test)]
+mod backdrop_tests;
 pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
@@ -44,6 +47,7 @@ mod signature;
 mod signature_tests;
 #[cfg(test)]
 mod tests;
+pub(crate) mod unsubscribe;
 mod view;
 mod warnings;
 #[cfg(test)]
@@ -119,7 +123,7 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
             let said = tl!("Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first.");
             ui.add(egui::Label::new(egui::RichText::new(said).font(regular(11.5)).color(t.text_dim)).wrap());
         }
-        unreadable_line(ui, m, t, app.windows.len());
+        unreadable_line(ui, m, doc.from_text, t, app.windows.len());
     });
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
@@ -212,9 +216,13 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     if place == Place::Pane && m.draft {
         draft_bar(app, ui, m);
     }
+    // One waiting in the Outbox for its Send time: when it goes, and the way to change or cancel that (#950).
+    if place == Place::Pane {
+        crate::send_later::queued_bar(app, ui, m);
+    }
     header(app, ui, m, place, |app, ui, t| {
         remote::line(app, ui, m, &doc, access, progress, place, t);
-        unreadable_line(ui, m, t, app.windows.len());
+        unreadable_line(ui, m, doc.from_text, t, app.windows.len());
     });
     // A meeting that came with the message: what it is, and the ways to answer it.
     invitation::bar(app, ui, m, place);
@@ -284,33 +292,35 @@ pub(crate) fn unfetched_said(app: &MailApp, m: &Message) -> &'static str {
     }
 }
 
-/// Whether `m`'s subject, sender or text holds U+FFFD, the mark a reader leaves for a character
-/// it couldn't read (bytes that aren't in the character set the message names, or no name for
-/// one that isn't UTF-8 or Windows-1252).
-pub(crate) fn has_unreadable(m: &Message) -> bool {
+/// Whether `m`'s subject, sender or what is shown of its body holds U+FFFD, the mark a reader
+/// leaves for a character it couldn't read (bytes that aren't in the character set the message
+/// names, or no name for one that isn't UTF-8 or Windows-1252). The text part counts only when it
+/// is what is shown (`text_shown`, [`view::Doc::from_text`] of the document on screen): a mark in
+/// the plain copy of a message read as HTML (a sender's program that lost a © there) is nothing
+/// the owner sees.
+pub(crate) fn has_unreadable(m: &Message, text_shown: bool) -> bool {
     const MARK: char = char::REPLACEMENT_CHARACTER;
-    [m.subject.as_str(), m.from.name.as_str(), m.from.email.as_str(), m.body.text.as_str(), m.body.html.as_deref().unwrap_or("")]
-        .iter()
-        .any(|text| text.contains(MARK))
+    [m.subject.as_str(), m.from.name.as_str(), m.from.email.as_str(), m.body.html.as_deref().unwrap_or("")].iter().any(|text| text.contains(MARK))
+        || (text_shown && m.body.text.contains(MARK))
 }
 
 /// Messages whose [`has_unreadable`] answer is kept ([`unreadable_line`]), at the least: more
 /// with more windows open, so that every message on screen keeps its answer.
 const UNREADABLE_KEPT: usize = 8;
 
-/// The line above a message that holds a character that couldn't be read ([`has_unreadable`]):
+/// The line above a message that shows a character that couldn't be read ([`has_unreadable`]):
 /// why there is a � in it. One line for the whole message, so that no � needs a word of its own.
 /// Looked for once per message and kept, not every frame: a body can be long.
-fn unreadable_line(ui: &mut Ui, m: &Message, t: &Tokens, windows: usize) {
+fn unreadable_line(ui: &mut Ui, m: &Message, text_shown: bool, t: &Tokens, windows: usize) {
     // Kept for the last few messages shown (the pane and windows), under one key: not one entry
     // in egui's memory for every message ever read.
     let key = egui::Id::unique("mailcraft-unreadable");
-    let this = egui::Id::unique((m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len)));
+    let this = egui::Id::unique((m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len), text_shown));
     let known = ui.ctx().data(|d| d.get_temp::<Vec<(egui::Id, bool)>>(key)).unwrap_or_default();
     let unreadable = match known.iter().find(|(of, _)| *of == this) {
         Some((_, kept)) => *kept,
         None => {
-            let found = has_unreadable(m);
+            let found = has_unreadable(m, text_shown);
             let mut known = known;
             if known.len() >= UNREADABLE_KEPT.max(windows.saturating_add(2)) {
                 known.remove(0);
@@ -463,6 +473,8 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         // What may not be what it seems about it, above everything else (#508).
         warnings::banner(app, ui, m, place, &t);
+        // That it comes from a mailing list, and Unsubscribe (#1207).
+        unsubscribe::bar(app, ui, m, place, &t);
         // What checking its Digital signature found (#30).
         signature::bar(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).
@@ -647,6 +659,9 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
     let thread = app.session.conversation(m.id);
     if thread.len() > 1 {
         ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
+            ui.spacing_mut().button_padding = vec2(10.0, 4.0);
+            ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::new(1.0, t.border);
             ui.label(
                 egui::RichText::new(tln!(thread.len(), "{n} message in this conversation:", "{n} messages in this conversation:"))
                     .font(regular(11.5))
@@ -659,7 +674,10 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
                     other.from.display(),
                     crate::dates::list_label(other.date, app.session.now(), app.session.offset_at(other.date), app.session.prefs.twelve_hour)
                 );
-                let button = ui.add_enabled(*id != m.id, egui::Button::new(egui::RichText::new(label).font(regular(11.0))).small());
+                let button = ui.add_enabled(
+                    *id != m.id,
+                    egui::Button::new(egui::RichText::new(label).font(regular(11.5))).min_size(vec2(0.0, 22.0)).corner_radius(6),
+                );
                 app.hit.add("conversationMessage", *id, button.rect);
                 if button.clicked() {
                     // The newest message of a conversation open in the list, by its own row there,

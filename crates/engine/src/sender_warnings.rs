@@ -305,6 +305,16 @@ impl Session {
         known
     }
 
+    /// What the warnings are measured against, brought up to date with the mailbox: the send
+    /// warnings (#509) use the same known correspondents as the sender warnings.
+    pub(crate) fn known_facts(&mut self) -> Arc<Facts> {
+        let mut checks = std::mem::take(&mut self.sender_checks);
+        checks.known.update(self);
+        let facts = checks.facts();
+        self.sender_checks = checks;
+        facts
+    }
+
     /// The sender warnings of `m` (`mailcraft_model::sender_warnings`): with its links looked at
     /// when `links` is set and its body is here. Worked out once and kept, until the message, or
     /// what they are measured against (the contacts, Sent Items, the owner's accounts), changes.

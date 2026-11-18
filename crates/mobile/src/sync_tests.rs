@@ -3,7 +3,7 @@
 //! Send/Receive through the binding: a core over a fake platform, a Microsoft account, and a
 //! runner that plays the Graph stand-in (it asks no server). Nothing here leaves this machine.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::time::{Duration, Instant};
@@ -17,6 +17,7 @@ use mailcraft_model::{Address, FolderKind};
 use serde_json::json;
 
 use crate::fake_tests::{FakePlatform, block_on};
+use crate::queue::Queue;
 use crate::{Core, CoreError, Event, NetworkKind, NotificationTopic};
 
 const EMAIL: &str = "owner@example.org";
@@ -30,7 +31,7 @@ fn session() -> Session {
     s
 }
 
-type Runner = dyn Fn(GraphRequest) -> GraphResult + Send + Sync;
+pub(crate) type Runner = dyn Fn(GraphRequest) -> GraphResult + Send + Sync;
 
 fn core_with(platform: Arc<FakePlatform>, make: impl FnOnce() -> Session + Send + 'static, runner: Arc<Runner>) -> Arc<Core> {
     Core::start_with(platform, make, SendReceive::with_runner(move |req| runner(req))).unwrap()
@@ -45,7 +46,7 @@ fn account_of(core: &Core) -> (u64, String) {
 }
 
 /// A platform that has a refresh token kept for the account, as an earlier sign-in left it.
-fn signed_in(runner: Arc<Runner>) -> (Arc<Core>, Arc<FakePlatform>, u64) {
+pub(crate) fn signed_in(runner: Arc<Runner>) -> (Arc<Core>, Arc<FakePlatform>, u64) {
     let platform = FakePlatform::new();
     let core = core_with(platform.clone(), session, runner);
     let (id, key) = account_of(&core);
@@ -96,7 +97,7 @@ fn second_run(req: &GraphRequest) -> GraphMailResult {
 
 /// A runner that brings the first download and then one new message, counting its calls and what
 /// refresh token each was given.
-fn stand_in() -> (Arc<Runner>, Arc<Mutex<Vec<String>>>) {
+pub(crate) fn stand_in() -> (Arc<Runner>, Arc<Mutex<Vec<String>>>) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let log = seen.clone();
     let runner: Arc<Runner> = Arc::new(move |req: GraphRequest| {
@@ -115,7 +116,7 @@ fn stand_in() -> (Arc<Runner>, Arc<Mutex<Vec<String>>>) {
 }
 
 /// What is waiting in the event stream now, without waiting for more.
-fn drain(core: &Core) -> Vec<Event> {
+pub(crate) fn drain(core: &Core) -> Vec<Event> {
     let mut out = Vec::new();
     let mut cx = Context::from_waker(Waker::noop());
     loop {
@@ -134,6 +135,11 @@ fn until_finished(core: &Core) -> Vec<Event> {
     loop {
         all.extend(drain(core));
         if all.iter().any(|e| matches!(e, Event::SyncFinished { .. })) {
+            // The round's end is pushed from inside the job that finished it, and the session
+            // thread pushes that job's `RevChanged` only after the job returns. A call is a job
+            // behind it, so once it has answered that push has been made.
+            let _ = block_on(core.call(|_| Ok(())));
+            all.extend(drain(core));
             return all;
         }
         assert!(Instant::now() < deadline, "the round never ended: {all:?}");
@@ -194,6 +200,55 @@ fn new_mail_notifications_can_be_switched_off_and_many_are_counted() {
 }
 
 #[test]
+fn the_privacy_switch_makes_a_notification_say_new_mail_and_nothing_else() {
+    let (runner, _) = stand_in();
+    let (core, _, _) = signed_in(runner);
+    core.set_notify_new_mail_only(true);
+    block_on(core.sync_now()).unwrap();
+    until_finished(&core);
+    block_on(core.sync_now()).unwrap();
+    let events = until_finished(&core);
+    let told: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Notification { notification } => Some(notification.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(told.len(), 1, "{events:?}");
+    assert_eq!((told[0].topic, told[0].title.as_str(), told[0].body.as_str()), (NotificationTopic::Mail, "New mail", ""));
+    // Nothing of the message is anywhere in what the app is told.
+    let all = format!("{told:?}");
+    assert!(!all.contains("Ada") && !all.contains("Budget"), "{all}");
+}
+
+#[test]
+fn the_primary_switch_drops_the_arrivals_gmail_put_in_other_categories() {
+    let (runner, _) = stand_in();
+    let (core, _, _) = signed_in(runner);
+    block_on(core.sync_now()).unwrap();
+    until_finished(&core);
+    let kept = block_on(core.call(|s| {
+        let ids: Vec<_> = s.mailbox.messages.keys().copied().collect();
+        let found: Vec<_> = ids
+            .iter()
+            .map(|id| mailcraft_engine::arrivals::Arrival { message: *id, account: 0, folder: 0, sender: String::new(), subject: String::new() })
+            .collect();
+        assert_eq!(crate::sync::primary_only(&s.mailbox, &found).len(), found.len(), "no category: kept");
+        for m in s.mailbox.messages.values_mut() {
+            std::sync::Arc::make_mut(m).gmail_category = Some(mailcraft_model::GmailCategory::Promotions);
+        }
+        let other = crate::sync::primary_only(&s.mailbox, &found).len();
+        for m in s.mailbox.messages.values_mut() {
+            std::sync::Arc::make_mut(m).gmail_category = Some(mailcraft_model::GmailCategory::Primary);
+        }
+        Ok((other, crate::sync::primary_only(&s.mailbox, &found).len(), found.len()))
+    }))
+    .unwrap();
+    assert_eq!((kept.0, kept.1), (0, kept.2));
+}
+
+#[test]
 fn background_sync_runs_one_round_and_says_what_it_brought() {
     let (runner, _) = stand_in();
     let (core, _, _) = signed_in(runner);
@@ -223,6 +278,100 @@ fn background_sync_keeps_to_its_budget() {
     let deadline = Instant::now() + Duration::from_secs(10);
     while block_on(core.sync_status()).unwrap().running {
         assert!(Instant::now() < deadline, "the run never ended");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn a_background_sync_that_is_dropped_calls_its_round_off() {
+    let runner: Arc<Runner> = Arc::new(|req: GraphRequest| {
+        // A server that never answers, until it is called off.
+        let until = Instant::now() + Duration::from_secs(30);
+        while !req.cancel.load(Ordering::Relaxed) && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        GraphResult { account: req.account.id, ..Default::default() }
+    });
+    let (core, _, _) = signed_in(runner);
+    {
+        // The worker's call, with a budget far longer than the test: it is dropped while it waits.
+        let mut call = std::pin::pin!(core.background_sync(600_000));
+        let mut cx = Context::from_waker(Waker::noop());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            assert!(call.as_mut().poll(&mut cx).is_pending(), "the round ended by itself");
+            if block_on(core.sync_status()).unwrap().running {
+                break;
+            }
+            assert!(Instant::now() < deadline, "the round never started");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+    // The round is called off and ends long before the server would have answered.
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while block_on(core.sync_status()).unwrap().running {
+        assert!(Instant::now() < deadline, "the round outlived the call that started it");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn a_background_sync_whose_round_ends_at_once_is_attached_to_that_round() {
+    // No sign-in kept: the round ends inside `ask`, before it returns.
+    let (runner, _) = stand_in();
+    let core = core_with(FakePlatform::new(), session, runner);
+    let sync = core.sync.clone();
+    let (attached, after) = block_on(core.call(move |session| {
+        let shared = crate::sync_api::Started::default();
+        let answer = crate::sync_api::start_attached(&sync, session, Queue::new(), &shared);
+        assert!(answer.started, "{answer:?}");
+        Ok((shared.round.load(Ordering::SeqCst), sync.round()))
+    }))
+    .unwrap();
+    // Round 0 (stored plus one) ended there; the call is not attached to round 1, the next.
+    assert_eq!((attached, after), (1, 1));
+}
+
+#[test]
+fn a_stale_stop_request_never_replaces_the_current_rounds() {
+    let hang = Arc::new(AtomicBool::new(false));
+    let (quick, _) = stand_in();
+    let hanging = hang.clone();
+    let runner: Arc<Runner> = Arc::new(move |req: GraphRequest| {
+        if !hanging.load(Ordering::SeqCst) {
+            return quick(req);
+        }
+        // A server that never answers, until it is called off.
+        let until = Instant::now() + Duration::from_secs(30);
+        while !req.cancel.load(Ordering::Relaxed) && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        GraphResult { account: req.account.id, ..Default::default() }
+    });
+    let (core, _, _) = signed_in(runner);
+    // Round 0 ends; round 1 is the one under way.
+    assert!(block_on(core.background_sync(10_000)).unwrap().finished);
+    hang.store(true, Ordering::SeqCst);
+    assert!(block_on(core.sync_now()).unwrap().started);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !block_on(core.sync_status()).unwrap().running {
+        assert!(Instant::now() < deadline, "the round never started");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // Round 1's call is dropped, then a call still holding round 0 is: both on the session's
+    // thread, so that no wake comes between them.
+    let sync = core.sync.clone();
+    block_on(core.call(move |_| {
+        assert_eq!(sync.round(), 1);
+        sync.stop_later(1);
+        sync.stop_later(0);
+        Ok(())
+    }))
+    .unwrap();
+    core.enqueue_tick();
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while block_on(core.sync_status()).unwrap().running {
+        assert!(Instant::now() < deadline, "round 1 was not called off");
         std::thread::sleep(Duration::from_millis(10));
     }
 }
@@ -383,8 +532,8 @@ fn junk_budgets_and_calls_never_panic() {
         assert!(!summary.ran);
     }
     assert!(matches!(block_on(core.sign_in(u64::MAX)), Err(CoreError::Failed { .. })));
-    assert!(!core.sign_in_redirect(String::new()));
-    assert!(!core.sign_in_redirect("x".repeat(100_000)));
+    assert!(!core.hand_back_redirect(String::new()));
+    assert!(!core.hand_back_redirect("x".repeat(100_000)));
     core.shutdown();
     assert!(matches!(block_on(core.sync_now()), Err(CoreError::Cancelled)));
 }

@@ -32,8 +32,9 @@
 //! changed here since the server last said. No server id and no sync state is logged.
 
 use mailcraft_model::sync::{
-    ChangeOutcome, EwsFetchRequest, EwsFolderState, EwsMailRequest, EwsMailResult, EwsScope, FolderChange, FolderChangeDone, GraphFetchResult,
-    MAX_DRAFTS, MAX_EWS_STATE_BYTES, MAX_EWS_STATES, MAX_FOLDER_CHANGES, MAX_MESSAGE_CHANGES, MessageOutcome, SendOutcome, SyncPhase,
+    ChangeOutcome, EwsFetchRequest, EwsFolderState, EwsMailRequest, EwsMailResult, EwsResolveRequest, EwsScope, FolderChange, FolderChangeDone,
+    GraphFetchResult, MAX_DRAFTS, MAX_EWS_STATE_BYTES, MAX_EWS_STATES, MAX_FOLDER_CHANGES, MAX_MESSAGE_CHANGES, MAX_RESOLVE_TEXT, MAX_RESOLVE_TEXTS,
+    MessageOutcome, SendOutcome, SyncPhase, one_line,
 };
 use mailcraft_model::{Account, AccountKind, EwsServer, FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
@@ -83,6 +84,12 @@ fn named_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
     p::id(v, "account")
         .or_else(|| s.mailbox.accounts.iter().find(|a| a.kind == AccountKind::Exchange).map(|a| a.id))
         .ok_or_else(|| fail("no account is an Exchange server account"))
+}
+
+/// Whether `account` is an Exchange server account whose server can be asked (for its address
+/// list, People's Address Book).
+pub fn has_address_list(mb: &Mailbox, account: Id) -> bool {
+    ews_account(mb, account).is_ok()
 }
 
 /// The account `account` and its server, when it is an Exchange server account whose server
@@ -206,7 +213,7 @@ pub fn ews_fetch_request(s: &Session, account: Id, message: Option<Id>, most: us
                 .ok_or_else(|| failed!("no message with id {id} in {name}", id, name = a.name))?;
             m.server
                 .as_ref()
-                .filter(|server| graph_down::still_to_fetch(&s.mailbox, m) && ews_down::is_id(&server.id))
+                .filter(|server| (graph_down::still_to_fetch(&s.mailbox, m) || s.asked_for_save(id)) && ews_down::is_id(&server.id))
                 .map(|server| vec![server.id.clone()])
                 .unwrap_or_default()
         }
@@ -223,6 +230,42 @@ pub fn ews_fetch_request(s: &Session, account: Id, message: Option<Id>, most: us
         trusted: server.trusted.clone(),
         ids,
         background: message.is_none(),
+    })
+}
+
+/// The names `texts` to look up in the address list of the account the message being written goes
+/// from (#1262), when that is an Exchange server account whose server may be used: each name one
+/// line, at most [`MAX_RESOLVE_TEXT`] characters, each once, at most [`MAX_RESOLVE_TEXTS`] of them.
+/// Nothing but the names goes to the server.
+pub fn ews_resolve_request(s: &Session, texts: &[String]) -> Result<EwsResolveRequest, CmdError> {
+    let compose = s.compose.as_ref().ok_or_else(|| fail("no message is being written"))?;
+    let account = s
+        .mailbox
+        .account(compose.account)
+        .or(s.mailbox.default_account())
+        .map(|a| a.id)
+        .ok_or_else(|| fail("add an account first (File › Add Account)"))?;
+    ews_resolve_request_for(s, account, texts)
+}
+
+/// What the address list of the Exchange server account `account` is asked for `texts` (People's
+/// Address Book: what the owner searches for).
+pub fn ews_resolve_request_for(s: &Session, account: Id, texts: &[String]) -> Result<EwsResolveRequest, CmdError> {
+    let (a, server) = ews_account(&s.mailbox, account)?;
+    let mut asked: Vec<String> = Vec::new();
+    for text in texts {
+        let text = one_line(text, MAX_RESOLVE_TEXT);
+        if !text.is_empty() && !asked.iter().any(|seen| seen.to_lowercase() == text.to_lowercase()) && asked.len() < MAX_RESOLVE_TEXTS {
+            asked.push(text);
+        }
+    }
+    Ok(EwsResolveRequest {
+        account,
+        email: a.email.clone(),
+        url: server.url.clone(),
+        username: server.username.clone(),
+        trusted: server.trusted.clone(),
+        texts: asked,
     })
 }
 
@@ -349,7 +392,8 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     }
     let mut sent = 0;
     for done in &result.sent {
-        if super::graph_send::send_done(&mut s.mailbox, account, done, s.interface_language, &mut refused) {
+        let sent_at = s.now();
+        if super::graph_send::send_done_at(&mut s.mailbox, account, done, s.interface_language, &mut refused, Some(sent_at)) {
             sent += usize::from(matches!(done.outcome, SendOutcome::Sent));
             taken.updated += 1;
             s.graph_index = Default::default();
@@ -398,7 +442,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         s.ews_run_cut.remove(&account);
     }
     if result.whole && !result.partial && !run_cut {
-        graph_down::sweep(&mut s.mailbox, account, &mut down);
+        graph_down::sweep(&mut s.mailbox, account, None, &mut down);
     }
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);

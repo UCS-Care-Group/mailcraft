@@ -122,12 +122,12 @@ pub(crate) fn accepted(address: &str) -> Result<&str, &'static str> {
 }
 
 /// What follows `scheme` (`https://`, in any case) at the start of `address`.
-fn after_scheme<'a>(address: &'a str, scheme: &str) -> Option<&'a str> {
+pub(crate) fn after_scheme<'a>(address: &'a str, scheme: &str) -> Option<&'a str> {
     address.get(..scheme.len()).filter(|head| head.eq_ignore_ascii_case(scheme)).and_then(|_| address.get(scheme.len()..))
 }
 
 /// The server's name (an IPv6 address keeps its brackets) and the port after it, if any.
-fn split_authority(authority: &str) -> Result<(&str, Option<&str>), &'static str> {
+pub(crate) fn split_authority(authority: &str) -> Result<(&str, Option<&str>), &'static str> {
     const NOT_A_NAME: &str = "names a server that isn't letters, digits, dots and dashes, or an IP address";
     if authority.starts_with('[') {
         let close = authority.find(']').ok_or(NOT_A_NAME)?;

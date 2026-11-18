@@ -134,8 +134,11 @@ fn sync_pack(dir: &Path, n: u32) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Whether a pack of `dir` an opening wrote into is still to be flushed.
-#[cfg(test)]
+/// Whether a pack of `dir` an opening wrote into is still to be flushed. For the one test that
+/// asks it, which takes a file's permissions away to keep a flush from working and is Unix's
+/// alone: without that cfg the function has no caller on Windows, and `-D warnings` makes dead
+/// code an error (#1396).
+#[cfg(all(test, unix))]
 pub(super) fn unsynced(dir: &Path) -> bool {
     lock(known()).get(dir).is_some_and(|k| k.unsynced)
 }
@@ -537,7 +540,10 @@ impl Writer {
             k.current = self.pack;
         }
         for (hash, loc) in placed {
-            k.at.entry(hash).or_insert(loc);
+            // A block written again when its old place was past its pack's end is where it went
+            // now: the stale place would read somebody else's bytes, and the block would count as
+            // gone, its header lines unreadable from then on (#1399).
+            k.at.insert(hash, loc);
         }
         (None, loose)
     }

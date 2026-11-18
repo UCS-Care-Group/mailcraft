@@ -288,3 +288,49 @@ fn the_folders_are_listed_as_home_move_lists_them() {
     walk(mb, account, None, 0, &mut expected);
     assert_eq!(dialog.listed(), expected);
 }
+
+/// Every mailbox the owner has is offered: the mailbox in view's folders first, then
+/// another account's under its name, and a folder of that account can be chosen.
+#[test]
+fn every_mailboxs_folders_are_offered() {
+    let mut harness = window();
+    let (id, _, _) = selected(&mut harness);
+    let (first_local, other_roots, archive) = {
+        let app = harness.state_mut();
+        let local = app.session.mailbox.message(id).unwrap().account;
+        let other = app.execute("account.add", json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+        let first_local = app.session.mailbox.children(local, None).first().map(|f| f.id);
+        let other_roots: Vec<Id> = app.session.mailbox.children(other, None).iter().map(|f| f.id).collect();
+        let archive = app.session.mailbox.folder_of_kind(other, FolderKind::Archive).unwrap();
+        (first_local, other_roots, archive)
+    };
+    let dialog = crate::move_items::MoveItems::open(harness.state(), false).unwrap();
+    let listed: Vec<Id> = dialog.listed().into_iter().map(|(folder, _, _)| folder).collect();
+    assert_eq!(listed.first().copied(), first_local, "the mailbox in view's folders come first");
+    for folder in &other_roots {
+        assert!(listed.contains(folder), "another mailbox's folder is listed");
+    }
+    press(&mut harness, egui::Key::V);
+    choose(&mut harness, archive);
+    assert_eq!(harness.state().session.mailbox.message(id).unwrap().folder, archive);
+}
+
+/// A search finds another mailbox's folders by its account's name too.
+#[test]
+fn a_search_finds_another_mailboxs_folders() {
+    let mut harness = window();
+    selected(&mut harness);
+    {
+        let app = harness.state_mut();
+        app.execute("account.add", json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap();
+    }
+    press(&mut harness, egui::Key::V);
+    harness.event(egui::Event::Text("owner@example.org".into()));
+    harness.run_steps(3);
+    let Some(Dialog::MoveItems(d)) = harness.state().dialog.as_ref() else { panic!("Move Items is open") };
+    let marked = d.marked().expect("a folder of that mailbox is marked");
+    let mb = &harness.state().session.mailbox;
+    let marked_in = mb.folder(marked).map(|f| f.account);
+    let other = mb.accounts.iter().find(|a| a.email == "owner@example.org").map(|a| a.id);
+    assert_eq!(marked_in, other, "a folder of the mailbox named is marked");
+}

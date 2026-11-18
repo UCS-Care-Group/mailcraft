@@ -54,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.markUnread", "Mark as Unread", "Home › Tags", mark_unread).key("Mod+U").params(IDS).selection(needs_message),
         CommandSpec::new("mail.toggleRead", "Unread/ Read", "Home › Tags", toggle_read).params(IDS).selection(needs_message),
         CommandSpec::new("mail.markAllRead", "Mark All as Read", "Folder › Clean Up", mark_all_read)
-            .params(r#"{"folder"?: number} (default: the folder in view)"#),
+            .params(r#"{"folder"?: number} — a folder that is there, read strictly: an id as text, `null`, `0` or a fraction is refused rather than taken for the folder in view (default: the folder in view). Answers {"folder", "changed"}"#),
         CommandSpec::new("mail.flag", "Follow Up", "Home › Tags", flag)
             .key("Insert")
             .params(r#"{"due"?: "YYYY-MM-DD", "ids"?: [number]}"#)
@@ -126,7 +126,11 @@ const PAGE_ROWS: u64 = 10;
 /// The most a page may be, whatever a caller says.
 const MAX_PAGE_ROWS: u64 = 10_000;
 
-fn select(s: &mut Session, v: &Value) -> CmdResult {
+/// What `mail.select` is asked to select, checked as it checks it (#553): the messages named (none
+/// for `{"ids": []}`; anything else is read strictly), each in the mailbox, and the row named by
+/// `copy` one the list shows. Nothing is changed. The window asks it before it lets go of a draft
+/// for a click that `mail.select` would refuse (#727).
+pub fn select_target(s: &mut Session, v: &Value) -> Result<(Vec<Id>, u16), crate::CmdError> {
     // `{"ids": []}` selects nothing; anything else is read strictly (#553).
     let none = v.get("id").is_none() && v.get("ids").and_then(Value::as_array).is_some_and(Vec::is_empty);
     let ids = if none { Vec::new() } else { p::ids_strict(v)?.ok_or_else(|| bad("`id` or `ids` is required"))? };
@@ -134,8 +138,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         return Err(failed!("no message with id {id}", id = missing));
     }
     let Some(last) = ids.last().copied() else {
-        s.sel.clear_messages();
-        return done();
+        return Ok((ids, 0));
     };
     // Which of the message's rows was clicked, for one listed under several categories.
     // (Named wrongly, it is refused: the conversation's row, row 0, takes all of it, #503.)
@@ -150,6 +153,15 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     if copy > 0 && !s.rows().iter().any(|r| r.id == last && r.copy == copy) {
         return Err(bad("`copy` names none of the rows the list shows the message in"));
     }
+    Ok((ids, copy))
+}
+
+fn select(s: &mut Session, v: &Value) -> CmdResult {
+    let (ids, copy) = select_target(s, v)?;
+    let Some(last) = ids.last().copied() else {
+        s.sel.clear_messages();
+        return done();
+    };
     // A Shift+click from an anchor the list shows, in the list in view: the selection is that
     // span of the list's own rows, every one of them listed, so none of what is asked below of
     // whether the list shows them is (over a span of thousands of messages, that took 60 ms).
@@ -834,7 +846,9 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
-    let folder = p::id(v, "folder").unwrap_or(s.view.folder);
+    // An id, read strictly (#1449): an id as text or `null` is refused, never taken to mean the
+    // folder in view, which would mark all of another folder's mail read without a word.
+    let folder = p::id_strict(v, "folder")?.unwrap_or(s.view.folder);
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }
@@ -842,7 +856,7 @@ fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
     for id in &ids {
         s.mailbox.message_mut(*id)?.read = true;
     }
-    Ok(json!({"changed": ids.len()}))
+    Ok(json!({"folder": folder, "changed": ids.len()}))
 }
 
 fn flag(s: &mut Session, v: &Value) -> CmdResult {
@@ -850,21 +864,33 @@ fn flag(s: &mut Session, v: &Value) -> CmdResult {
     let offset = s.offset_at(s.now());
     // Due at the end of the working day.
     let due = due.and_then(|d| mailcraft_time::DateTime::new(d, s.prefs.work_end.min(23), 0, 0)).map(|t| t.to_timestamp(offset));
-    each(s, v, |m| {
+    let ids = targets(s, v)?;
+    let r = each(s, v, |m| {
         m.flag = FlagStatus::Flagged;
         m.flag_due = due.or(m.flag_due);
-    })
+    });
+    // A date chosen here and a reminder's time are one time (#948): the reminder moves to it.
+    if let Some(due) = due {
+        let now = s.now();
+        s.mailbox.follow_up_due_chosen(&ids, due, now);
+    }
+    r
 }
 
 fn clear_flag(s: &mut Session, v: &Value) -> CmdResult {
     each(s, v, |m| {
         m.flag = FlagStatus::None;
         m.flag_due = None;
+        // The reminder goes with the flag (#948).
+        m.follow_up = None;
     })
 }
 
 fn complete(s: &mut Session, v: &Value) -> CmdResult {
-    each(s, v, |m| m.flag = FlagStatus::Complete)
+    each(s, v, |m| {
+        m.flag = FlagStatus::Complete;
+        m.follow_up = None;
+    })
 }
 
 fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
@@ -874,24 +900,33 @@ fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
         m.flag = if all_flagged { FlagStatus::None } else { FlagStatus::Flagged };
         if all_flagged {
             m.flag_due = None;
+            m.follow_up = None;
         }
     })
 }
 
-fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+/// What a Categorize call does, as its params say: the category, the accounts of the messages it
+/// is put on or taken off, and whether it is put on. The agent gate reads them through this too
+/// (#661), so that the two never differ.
+pub(crate) fn categorizing(s: &Session, v: &Value) -> Result<(String, BTreeSet<Id>, bool), crate::CmdError> {
     let name = mailcraft_model::clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
     let ids = targets(s, v)?;
     let all_have = ids.iter().filter_map(|id| s.mailbox.message(*id)).all(|m| m.has_category(&name));
     let on = p::bool(v, "value").unwrap_or(!all_have);
+    let accounts: BTreeSet<Id> = ids.iter().filter_map(|id| s.mailbox.message(*id)).map(|m| m.account).collect();
+    Ok((name, accounts, on))
+}
+
+fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+    let (name, accounts, on) = categorizing(s, v)?;
     // Each message takes the spelling of its account's list. A category nobody defined yet joins
     // that list as it is put on, in grey, so it can be given a colour.
-    let accounts: BTreeSet<Id> = ids.iter().filter_map(|id| s.mailbox.message(*id)).map(|m| m.account).collect();
     let mut spelled = HashMap::new();
     for account in accounts {
         spelled.insert(account, super::category::spelled(s, account, &name, on)?);
     }
     each(s, v, |m| {
-        m.categories.retain(|c| !c.eq_ignore_ascii_case(&name));
+        m.categories.retain(|c| !mailcraft_model::sync::same_category(c, &name));
         if on {
             m.categories.push(spelled.get(&m.account).unwrap_or(&name).clone());
         }
@@ -1021,3 +1056,6 @@ mod from_sender_tests;
 #[cfg(test)]
 #[path = "mail_actions_tests.rs"]
 mod mail_actions_tests;
+#[cfg(test)]
+#[path = "mark_all_read_tests.rs"]
+mod mark_all_read_tests;
