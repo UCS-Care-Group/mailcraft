@@ -43,3 +43,15 @@ fn the_words_carry_no_address() {
         assert!(!text.contains("example") && !text.contains("://"));
     }
 }
+
+#[test]
+fn a_record_that_fails_its_check_mid_connection_says_what_to_look_at() {
+    let said = mid_connection(from(Error::DecryptError));
+    assert_eq!(said.kind(), ErrorKind::InvalidData);
+    // Said in words that can be translated, by the protocol layer that turns it into a problem.
+    assert!(said.get_ref().is_some_and(|inner| inner.is::<mailcraft_proto::DamagedStream>()), "{said}");
+    assert!(!said.to_string().contains("decrypt"));
+    // Anything else is as it was.
+    let other = from(Error::AlertReceived(AlertDescription::BadCertificate));
+    assert_eq!(mid_connection(other).to_string(), from(Error::AlertReceived(AlertDescription::BadCertificate)).to_string());
+}
