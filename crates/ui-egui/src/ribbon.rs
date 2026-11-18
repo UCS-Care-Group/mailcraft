@@ -200,6 +200,29 @@ fn menu_usable(app: &MailApp, menu: Menu) -> bool {
     (menu != Menu::RecentAttachments || crate::recent_attachments::available(app)) && menu.command().is_none_or(|command| app.enabled(command))
 }
 
+/// Whether a menu holds a text field the owner clicks in and types into: a colour typed by hand,
+/// a folder search. Such a menu keeps a click made inside it — that click is for the field, and
+/// not a way out of the menu. Every item of these menus shuts it itself
+/// ([`crate::widgets::mi`], [`crate::widgets::mi_check], the colour squares, a chosen folder), and
+/// a click outside it still shuts it. The font menu joins them when it gets its search field
+/// (#1494).
+fn holds_a_field(menu: Menu) -> bool {
+    matches!(menu, Menu::FontColor | Menu::Highlight | Menu::MoveMessages | Menu::Rules | Menu::MoveFolder)
+}
+
+/// The menus a button of the simplified row opens: its own, and those of what hangs under it.
+fn button_menus(b: &Button<'_>) -> Vec<Menu> {
+    b.item.menu.into_iter().chain(b.drops.iter().filter_map(|under| under.menu)).collect()
+}
+
+/// A menu's popup: one that holds a text field keeps a click made inside it (#1493). Only menus
+/// whose every item shuts the menu themselves get this; a `…` of folded groups or of what didn't
+/// fit holds plain buttons, which count on the popup shutting for them, so those stay as they are.
+fn menu_popup<'a>(resp: &egui::Response, menus: impl IntoIterator<Item = Menu>) -> egui::Popup<'a> {
+    let popup = egui::Popup::menu(resp);
+    if menus.into_iter().any(holds_a_field) { popup.close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside) } else { popup }
+}
+
 /// A menu as an entry of another (a `▾`, a `…`): it opens while it can ([`menu_usable`]), and is
 /// greyed otherwise, saying why when hovered.
 pub(crate) fn submenu(ui: &mut Ui, app: &mut MailApp, name: String, menu: Menu) {
@@ -2139,7 +2162,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
         drop_mark(ui, drop_rect.center(), ink);
         let main = menu_tooltip(app, main, item, on);
         if on {
-            egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
+            menu_popup(&main, button_menus(b)).show(|ui| drop_menu(ui, app, b));
         }
         return;
     };
@@ -2160,7 +2183,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let tip = b.drops.first().map_or_else(|| item.tip_text(), |under| under.tip_text());
     let drop = drop.on_hover_text(tip);
     if item.menu != Some(Menu::RecentAttachments) || menu_usable(app, Menu::RecentAttachments) {
-        egui::Popup::menu(&drop).show(|ui| drop_menu(ui, app, b));
+        menu_popup(&drop, button_menus(b)).show(|ui| drop_menu(ui, app, b));
     }
 }
 
@@ -2269,7 +2292,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
             if on {
-                egui::Popup::menu(&resp).show(|ui| {
+                menu_popup(&resp, [menu]).show(|ui| {
                     ui.set_min_width(200.0);
                     menu_contents(ui, app, menu);
                 });
@@ -2315,7 +2338,7 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     let resp = menu_tooltip(app, small_frame(ui, item.icon, label, on, false, true), item, on);
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
                     if on {
-                        egui::Popup::menu(&resp).show(|ui| {
+                        menu_popup(&resp, [menu]).show(|ui| {
                             ui.set_min_width(200.0);
                             menu_contents(ui, app, menu);
                         });

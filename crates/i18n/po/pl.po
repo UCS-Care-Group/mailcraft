@@ -13226,6 +13226,11 @@ msgstr "Zapisano tylko na tym komputerze: ten element nie znajduje się w Twoim 
 msgid "Saved the message to {name}"
 msgstr "Zapisano wiadomość w: {name}"
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
+msgstr ""
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
@@ -21501,6 +21506,11 @@ msgid "only the headers of “{subject}” are here, so it can't be forwarded as
 msgstr "dostępne są tylko nagłówki wiadomości „{subject}”, więc nie można jej przekazać dalej jako załącznika"
 
 #. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
 #, fuzzy
 msgid "only your own calendars can be put in a message"
@@ -22615,6 +22625,11 @@ msgstr "tekst zawiera znak, którego nie można wysłać"
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
 msgstr "treści wiadomości „{subject}” nie można odczytać na tym komputerze, więc nie można jej przekazać dalej jako załącznika"
+
+#. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -25042,10 +25057,20 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then fo
 msgstr "„{subject}” nie została jeszcze pobrana: otwórz ją, gdy będziesz online, a potem przekaż ją dalej jako załącznik"
 
 #. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
 msgstr "„{subject}” była zbyt duża, aby ją pobrać: jest tu tylko jej nagłówek, więc nie można jej przekazać dalej jako załącznika"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
