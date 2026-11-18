@@ -1279,28 +1279,10 @@ msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page tha
 msgstr "Engedélyezze a böngészőben megnyílt oldalon, hogy a MailCraft szinkronban tartsa ezt a postafiókot az Outlookkal…"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr "Hagyja, hogy a MailCraft elolvassa mások naptárait a böngészőjében megnyílt oldalon…"
-
-#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Allow MailCraft to read shared mailboxes on the page that opened in your browser…"
 msgstr "Hagyja, hogy MailCraft elolvassa a megosztott postafiókákat az oldalon, amely megnyílt a böngésző…"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr "Hagyja, hogy MailCraft elolvassa a megosztott postafiókok naptárait a böngészőjében megnyitott oldalon…"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
-msgstr "Hagyja, hogy MailCraft küldjen megosztott postafiókákról a böngészőjében megnyitott oldalon…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1919,10 +1901,10 @@ msgid "Ask for permission to read and change your To Do lists and tasks: Microso
 msgstr "Kérjen engedélyt a To Do listáinak és feladatainak olvasására és módosítására: A Microsoft oldala megnyitja a böngészőjében. Enélkül a feladatok ezen a számítógépen maradnak."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-msgstr "Kérjen engedélyt a megosztott postafiókok naptárainak elolvasására: A Microsoft oldala a böngészőjében nyílik meg. Enélkül a postafiók naptárából semmi sem olvasható."
+msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
+msgstr "Engedély kérése a megosztott postafiókok olvasásához és az azokból való küldéshez, valamint az Önnel megosztott naptárak olvasásához: a Microsoft oldala megnyílik a böngészőben. Enélkül semmi sem olvasható vagy küldhető belőlük."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3599,7 +3581,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr "A kontaktusok nem mennek a törölt tárgyakhoz."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "Folytassa"
@@ -5881,6 +5863,12 @@ msgstr "Olyan továbbítószerverhez, amely jelszó nélkül fogadja a leveleket
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
 msgstr "Egy Microsoft-nál bejelentkező fiókhoz: az Outlook kedvencei alatt található mappák ugyanabból a sorrendben kerülnek bemutatásra. A szerverről olvasnak, és soha nem változtattak meg ott. Enélkül a MailCraft-ban található kedvencek jelennek meg."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, nothing of shared mailboxes is read or sent: {error}"
+msgstr "Egyelőre semmi sem olvasható vagy küldhető a megosztott postafiókokból: {error}"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -8281,12 +8269,6 @@ msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive 
 msgstr "Egy másik postafiókából nem lehet bemenni egy Outboxba: a következő Küldés/fogadó küldené el"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Mail from the shared mailbox waits: {error}"
-msgstr "A megosztott postafiókából érkező levelek várnak: {error}"
-
-#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
@@ -8473,7 +8455,7 @@ msgid "MailCraft is up to date ({version})."
 msgstr "MailCraft naprakész ({version})."
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr "MailCraft még nem olvashatja el mások naptárát."
@@ -11203,7 +11185,7 @@ msgid "Open Result from the Server"
 msgstr "Nyissa meg a kiszolgáló eredményét"
 
 #. command label, interface
-#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Open Shared Calendar"
 msgstr "Megosztott naptár megnyitása"
@@ -11483,12 +11465,6 @@ msgstr "Más fiókok és a helyi fiók"
 #, fuzzy
 msgid "Other people's calendars can be opened under a Microsoft work or school account"
 msgstr "Más emberek naptárai Microsoft munka vagy iskolai fiók alatt is nyithatók"
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Other people's calendars weren't allowed: {error}"
-msgstr "Más emberek naptárai nem voltak megengedettek: {error}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -13983,12 +13959,6 @@ msgstr "Automatikus küldés és fogadás"
 msgid "Send automatic replies"
 msgstr "Automatikus válaszok küldése"
 
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Send from a Shared Mailbox"
-msgstr "Küldés megosztott postafiókából"
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -14418,6 +14388,12 @@ msgid "Shared Calendars"
 msgstr "Megosztott naptárak"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Shared Mailboxes and Calendars"
+msgstr "Megosztott postafiókok és naptárak"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Shared mailbox · No access: Microsoft won't open it for you. Send/Receive tries again"
@@ -14442,16 +14418,28 @@ msgid "Shared mailboxes"
 msgstr "Megosztott postafiókok"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Shared mailboxes weren't allowed: {error}"
-msgstr "Megosztott postafiókák nem engedélyezettek: {error}"
+msgid "Shared mailboxes and calendars weren't allowed: {error}"
+msgstr "A megosztott postafiókok és naptárak nem lettek engedélyezve: {error}"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
+#: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
-msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr "Megosztott postafiókák naptárai nem megengedettek: {error}"
+msgid "Shared mailboxes and calendars: asking for your permission…"
+msgstr "Megosztott postafiókok és naptárak: engedély kérése…"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: not allowed ({why})"
+msgstr "Megosztott postafiókok és naptárak: nem engedélyezett ({why})"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: waiting for your permission"
+msgstr "Megosztott postafiókok és naptárak: az Ön engedélyére vár"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
@@ -14576,12 +14564,6 @@ msgstr "Feladatok megjelenítése"
 #, fuzzy
 msgid "Show Training"
 msgstr "Képzés megjelenítése"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Show a Shared Mailbox's Calendars"
-msgstr "Megosztásos postafiók naptárak megjelenítése"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -16032,12 +16014,6 @@ msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at m
 msgstr "Ez nem egy GitHub felhasználónév: betűk, számjegyek és egyetlen kötőjelek, legfeljebb 39. Hagyja üresen a dobozt, ha nincs."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "That isn't a shared mailbox"
-msgstr "Ez nem megosztott postafiók"
-
-#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "That isn't the password of this file."
@@ -16390,12 +16366,6 @@ msgstr ""
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
 msgstr "A(z) {name} naptár és az ezen a számítógépen tárolt eseményei törlődnek, a hozzá tárolt címmel együtt. Semmi nem kerül elküldésre; a címmel újra előfizethet."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "The calendars of the shared mailbox wait: {error}"
-msgstr "A megosztott postafiók naptárai várakoznak: {error}"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -17132,6 +17102,12 @@ msgid "The rules sent couldn't be noted: {error}"
 msgstr "A küldött szabályokat nem lehetett megjegyezni: {error}"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
+msgstr "Ugyanez az oldal kéri a hozzáférhető megosztott postafiókok olvasását és az azokból való küldést, valamint az Önnel megosztott naptárak olvasását, hogy a MailCraftnak ne kelljen újra kérdeznie."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The search for your Exchange server asks to start again with an address in another domain, {host}."
@@ -17816,7 +17792,7 @@ msgid "This account has no mail server to send the answer through."
 msgstr "Ez a fiók nincs levelező szerver, hogy küldje el a választ."
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Ez a fiók nem jelent be a Microsoft-nál"
@@ -18640,7 +18616,7 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "A sorozat még nem érkezett meg a fiók kiszolgálójára. Egy kis idő múlva módosíthatja valamelyik előfordulását."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
 msgstr "A megosztott postafiókhoz tartozó fiók már nincs meg"
@@ -18832,18 +18808,6 @@ msgid "To add another Google address, go back and start a new account setup."
 msgstr "Ha szeretne hozzáadni egy másik Google címet, menjen vissza és indítson el egy új fiók beállítást."
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
-msgstr ""
-"A {address}-tól érkező találkozók megválaszolásához vagy küldéséhez MailCraft-nak szüksége van az engedélyére, hogy közös postafiókákból küldhessen.\n"
-"\n"
-"A Microsoft oldala egyszer megnyílik a böngészőjében. A válasz {address}-ként vagy annak nevében a szervezet választása. Amíg nem engedi, a válasz ezen a számítógépen vár, és semmi sem kerül elküldésre a saját címéről."
-
-#. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
@@ -18910,40 +18874,16 @@ msgid "To me"
 msgstr "Nekem"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+"To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"
 "\n"
-"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+"Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr ""
-"Mások megosztott naptárainak megnyitásához a MailCraft olvasási engedélyt kér. A Microsoft oldala egyszer nyílik meg a böngészőben az engedélykéréshez.\n"
+"A(z) {address} címmel megnyitott megosztott postafiókok olvasásához és az azokból való küldéshez, valamint az Önnel megosztott naptárak megjelenítéséhez a MailCraftnak szüksége van az Ön engedélyére. A Microsoft oldala megnyílik a böngészőben, és egyszer rákérdez mindenre, amit a MailCraft használ, és Ön még nem engedélyezett.\n"
 "\n"
-"A megnyitott naptárak csak ezen a számítógépen jelennek meg. Az Outlookban és más eszközökön nem lesznek láthatók."
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr ""
-"Ahhoz, hogy erről a címről küldhessen levelet, a MailCraft engedélyt kér a megosztott postafiókokból való küldéshez: {address}. A Microsoft engedélykérő oldala egyszer nyílik meg a böngészőben.\n"
-"\n"
-"A szervezet beállítása dönti el, hogy a levél feladójaként a(z) {address} cím jelenik meg, vagy a levél ennek nevében megy ki. Engedélyezésig az üzenet a megosztott fiók Postázandó üzenetek mappájában vár. A saját címéről nem megy ki üzenet."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid ""
-"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-msgstr ""
-"A {address} naptárainak megjelenítéséhez MailCraft-nak szüksége van az engedélyére, hogy elolvassa a megosztott postafiókák naptárait.\n"
-"\n"
-"A Microsoft oldala egyszer megnyílik a böngészőjében. A naptárról csak egyszer láthatja a tulajdonosát és a szervezetét, hogy döntsön: ez nem változtat semmin. Amíg nem engedi, {address} naptáraiból semmit sem olvasunk."
+"Amíg nem engedélyezi, semmi sem olvasható ezekből a postafiókokból és naptárakból, a megosztott postafiókból küldendő levelek és értekezlet-válaszok ezen a számítógépen várnak, és semmi sem megy el helyettük az Ön saját címéről."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -20352,12 +20292,6 @@ msgid "Your organisation doesn't allow Exchange Web Services for this account. A
 msgstr "A szervezet ennél a fióknál nem engedélyezi az Exchange Web Services használatát. Forduljon a rendszergazdához."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr "A szervezet nem engedi, hogy MailCraft elolvassa a megosztott postafiókák naptárait."
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
@@ -20368,6 +20302,12 @@ msgstr "A szervezet nem engedi, hogy MailCraft megváltoztassa az automatikus v�
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
 msgstr "A szervezete nem engedi, hogy a MailCraft szinkronban tartsa ezt a postafiókot az Outlookkal"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
+msgstr "A szervezete nem engedi, hogy a MailCraft olvassa a megosztott postafiókokat és az Önnel megosztott naptárakat"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -20436,22 +20376,10 @@ msgid "Your organisation's administrator has to approve MailCraft keeping this m
 msgstr "A szervezet rendszergazdájának egyszer jóvá kell hagynia, hogy a MailCraft szinkronban tartsa ezt a postafiókot az Outlookkal: Fájl › Információ"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr "A szervezet adminisztrátorának jóvá kell hagynia a mások naptárainak olvasását egyszer: Fájl › Infó"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postafiókok olvasását egyszer: Fájl › Info"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postafiókok naptárainak olvasását egyszer: Fájl › Információ"
+msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
+msgstr "A szervezete rendszergazdájának egyszer jóvá kell hagynia, hogy a MailCraft megosztott postafiókokat és naptárakat olvasson: Fájl › Információ"
 
 #. interface
 #: crates/ui-egui/src
@@ -25292,6 +25220,110 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Sorok"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
+#~ msgstr "Hagyja, hogy a MailCraft elolvassa mások naptárait a böngészőjében megnyílt oldalon…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
+#~ msgstr "Hagyja, hogy MailCraft elolvassa a megosztott postafiókok naptárait a böngészőjében megnyitott oldalon…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
+#~ msgstr "Hagyja, hogy MailCraft küldjen megosztott postafiókákról a böngészőjében megnyitott oldalon…"
+
+#, fuzzy
+#~ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
+#~ msgstr "Kérjen engedélyt a megosztott postafiókok naptárainak elolvasására: A Microsoft oldala a böngészőjében nyílik meg. Enélkül a postafiók naptárából semmi sem olvasható."
+
+#, fuzzy
+#~ msgid "Mail from the shared mailbox waits: {error}"
+#~ msgstr "A megosztott postafiókából érkező levelek várnak: {error}"
+
+#, fuzzy
+#~ msgid "Other people's calendars weren't allowed: {error}"
+#~ msgstr "Más emberek naptárai nem voltak megengedettek: {error}"
+
+#, fuzzy
+#~ msgid "Send from a Shared Mailbox"
+#~ msgstr "Küldés megosztott postafiókából"
+
+#, fuzzy
+#~ msgid "Shared mailboxes weren't allowed: {error}"
+#~ msgstr "Megosztott postafiókák nem engedélyezettek: {error}"
+
+#, fuzzy
+#~ msgid "Shared mailboxes' calendars weren't allowed: {error}"
+#~ msgstr "Megosztott postafiókák naptárai nem megengedettek: {error}"
+
+#, fuzzy
+#~ msgid "Show a Shared Mailbox's Calendars"
+#~ msgstr "Megosztásos postafiók naptárak megjelenítése"
+
+#, fuzzy
+#~ msgid "That isn't a shared mailbox"
+#~ msgstr "Ez nem megosztott postafiók"
+
+#, fuzzy
+#~ msgid "The calendars of the shared mailbox wait: {error}"
+#~ msgstr "A megosztott postafiók naptárai várakoznak: {error}"
+
+#, fuzzy
+#~ msgid ""
+#~ "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "A {address}-tól érkező találkozók megválaszolásához vagy küldéséhez MailCraft-nak szüksége van az engedélyére, hogy közös postafiókákból küldhessen.\n"
+#~ "\n"
+#~ "A Microsoft oldala egyszer megnyílik a böngészőjében. A válasz {address}-ként vagy annak nevében a szervezet választása. Amíg nem engedi, a válasz ezen a számítógépen vár, és semmi sem kerül elküldésre a saját címéről."
+
+#, fuzzy
+#~ msgid ""
+#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+#~ msgstr ""
+#~ "Mások megosztott naptárainak megnyitásához a MailCraft olvasási engedélyt kér. A Microsoft oldala egyszer nyílik meg a böngészőben az engedélykéréshez.\n"
+#~ "\n"
+#~ "A megnyitott naptárak csak ezen a számítógépen jelennek meg. Az Outlookban és más eszközökön nem lesznek láthatók."
+
+#, fuzzy
+#~ msgid ""
+#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "Ahhoz, hogy erről a címről küldhessen levelet, a MailCraft engedélyt kér a megosztott postafiókokból való küldéshez: {address}. A Microsoft engedélykérő oldala egyszer nyílik meg a böngészőben.\n"
+#~ "\n"
+#~ "A szervezet beállítása dönti el, hogy a levél feladójaként a(z) {address} cím jelenik meg, vagy a levél ennek nevében megy ki. Engedélyezésig az üzenet a megosztott fiók Postázandó üzenetek mappájában vár. A saját címéről nem megy ki üzenet."
+
+#, fuzzy
+#~ msgid ""
+#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
+#~ msgstr ""
+#~ "A {address} naptárainak megjelenítéséhez MailCraft-nak szüksége van az engedélyére, hogy elolvassa a megosztott postafiókák naptárait.\n"
+#~ "\n"
+#~ "A Microsoft oldala egyszer megnyílik a böngészőjében. A naptárról csak egyszer láthatja a tulajdonosát és a szervezetét, hogy döntsön: ez nem változtat semmin. Amíg nem engedi, {address} naptáraiból semmit sem olvasunk."
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+#~ msgstr "A szervezet nem engedi, hogy MailCraft elolvassa a megosztott postafiókák naptárait."
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
+#~ msgstr "A szervezet adminisztrátorának jóvá kell hagynia a mások naptárainak olvasását egyszer: Fájl › Infó"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
+#~ msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postafiókok olvasását egyszer: Fájl › Info"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
+#~ msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postafiókok naptárainak olvasását egyszer: Fájl › Információ"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
