@@ -159,6 +159,10 @@ fn window_commands_validate() {
     a.services.system_locale = Some("pl-PL".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "pl");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Polish);
+    // Czech too.
+    a.services.system_locale = Some("cs-CZ".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "cs");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Czech);
     assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());
@@ -297,6 +301,34 @@ fn saved_settings_come_back_and_bad_ones_are_tamed() {
     // A height the owner dragged comes back as it was.
     b.apply_prefs(UiState { list_height: 610.0, ..Default::default() });
     assert_eq!(b.ui.list_height, 610.0);
+}
+
+#[test]
+fn unknown_attachment_preview_formats_preserve_the_other_settings() {
+    use crate::attachment_preview::Format;
+
+    let saved = json!({
+        "theme": "dark",
+        "language": "nl",
+        "attachmentPreviews": true,
+        "attachmentPreviewWithoutWarning": ["pdf", "future-format", "png", "pdf", null, 7],
+    });
+    let settings: UiState = serde_json::from_value(saved).unwrap();
+    assert_eq!(settings.attachment_preview_without_warning, [Format::Pdf, Format::Png].into_iter().collect());
+    assert_eq!(settings.theme, crate::theme::Appearance::Dark);
+    assert_eq!(settings.language, "nl");
+    assert!(settings.attachment_previews);
+    let round_trip = serde_json::to_value(&settings).unwrap();
+    assert_eq!(round_trip["attachmentPreviewWithoutWarning"], json!(["pdf", "png"]));
+
+    for value in [json!(["future-format"]), json!("pdf"), json!(null), json!({"format": "png"})] {
+        let settings: UiState = serde_json::from_value(json!({"theme": "dark", "attachmentPreviewWithoutWarning": value})).unwrap();
+        assert!(settings.attachment_preview_without_warning.is_empty());
+        assert_eq!(settings.theme, crate::theme::Appearance::Dark);
+    }
+    let older: UiState = serde_json::from_value(json!({"theme": "dark"})).unwrap();
+    assert!(older.attachment_preview_without_warning.is_empty());
+    assert_eq!(older.theme, crate::theme::Appearance::Dark);
 }
 
 #[test]

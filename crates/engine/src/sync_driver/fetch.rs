@@ -41,6 +41,9 @@ pub struct FetchDriver {
     pub tried: Option<Vec<Id>>,
     /// The message last asked for when it was opened (not asked again while it stays open).
     pub opened: Option<Id>,
+    /// The server's copy of a message asked for for Save Message As, and what came (#1561,
+    /// [`super::as_received`]): held until the save writes it.
+    pub for_save: Option<super::as_received::ForSave>,
 }
 
 /// How far the background fetch has got, as the engine said after the last batch taken in.
@@ -95,7 +98,7 @@ impl FetchDriver {
     pub fn forget(&mut self) {
         self.stuck.clear();
         (self.idle_until, self.offline) = (0.0, false);
-        (self.then, self.held, self.tried, self.opened) = (None, None, None, None);
+        (self.then, self.held, self.tried, self.opened, self.for_save) = (None, None, None, None, None);
     }
 
     /// Whether the background is to wait at `now`: it found nothing to fetch a moment ago.
@@ -164,7 +167,12 @@ pub fn needs_whole(s: &Session, id: &str, params: &Value) -> Option<Id> {
         "mail.viewSource" | "mail.saveAllAttachments" | "compose.attachItem" => p::id_strict(params, "id").ok()?,
         _ => p::message_strict(params).ok()?,
     };
-    to_fetch(s, id, named.or(selected)?)
+    let message = named.or(selected)?;
+    // Save Message As waits for the message as its server holds it, whole here or not (#1561).
+    if id == "file.exportMessage" && s.mailbox.message(message).is_some_and(|m| super::as_received::to_ask(s, m)) {
+        return Some(message);
+    }
+    to_fetch(s, id, message)
 }
 
 /// `message`, when command `id` waits for it to be fetched whole first.

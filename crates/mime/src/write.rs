@@ -395,12 +395,19 @@ fn quoted(s: &str) -> String {
 /// The `filename` parameters of `Content-Disposition`: a quoted name when it is plain ASCII, else
 /// the RFC 2231 form (`filename*=utf-8''…`, in numbered pieces when long) after an ASCII stand-in
 /// for readers that don't know it.
-fn file_name_params(name: &str) -> String {
+pub(crate) fn file_name_params(name: &str) -> String {
     if is_plain(name) && name.len() <= 200 {
         return format!("; filename={}", quoted(name));
     }
-    let stand_in: String =
-        name.chars().map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') { c } else { '_' }).take(NAME_PIECE).collect();
+    let ascii = |s: &str| -> String { s.chars().map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') { c } else { '_' }).collect() };
+    // The extension (at most 16 characters) is kept whole, so a reader that only knows `filename=`
+    // still opens the file with the right program; the stem is cut (at a character) to fit.
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((stem, ext)) if ext.chars().count() <= 16 => (stem, format!(".{}", ascii(ext))),
+        _ => (name, String::new()),
+    };
+    let room = NAME_PIECE.saturating_sub(ext.len());
+    let stand_in = format!("{}{ext}", ascii(stem).chars().take(room).collect::<String>());
     let mut out = format!("; filename=\"{stand_in}\"");
     let mut pieces: Vec<String> = vec![String::new()];
     for b in name.bytes() {

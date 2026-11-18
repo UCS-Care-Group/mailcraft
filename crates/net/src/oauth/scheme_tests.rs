@@ -32,6 +32,7 @@ fn endpoints_of(server: &FakeHttp) -> Endpoints {
         token: server.url("/token"),
         scope: "mail.read mail.send offline_access".into(),
         consent: String::new(),
+        fewer: String::new(),
         lesser: String::new(),
     }
 }

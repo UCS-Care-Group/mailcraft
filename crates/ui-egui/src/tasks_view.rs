@@ -605,12 +605,16 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
             account.as_slice(),
             &carried,
             "tasks.categorize",
-            |app, name| app.session.mailbox.task(id).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name))),
+            |app, name| app.session.mailbox.task(id).is_some_and(|x| x.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name))),
             None,
         );
     });
     ui.separator();
-    for (label, value) in [("High Importance", Importance::High), ("Normal Importance", Importance::Normal), ("Low Importance", Importance::Low)] {
+    for (label, value) in [
+        (tl_later!("High Importance"), Importance::High),
+        (tl_later!("Normal Importance"), Importance::Normal),
+        (tl_later!("Low Importance"), Importance::Low),
+    ] {
         mi_check(ui, app, label, importance == value, "tasks.edit", json!({"id": id, "importance": value.code()}));
     }
     ui.separator();

@@ -108,6 +108,11 @@ impl Session {
         };
         let Some(first) = messages.first().copied() else { return Ok(None) };
         let Some(account) = self.mailbox.message(first).map(|m| m.account) else { return Ok(None) };
+        // Save Message As asks for the server's copy of its message, and the answer is held for it
+        // (#1561).
+        if id == "file.exportMessage" && self.mailbox.message(first).is_some_and(|m| super::as_received::to_ask(self, m)) {
+            self.ask_for_save(first);
+        }
         // Named, for the selection may have moved on by the time they are here. Another command's
         // `id`, if the call gave one, stays as it was, for the command to judge; a forward's
         // messages are named by `ids` instead, as the engine took them, the one in focus last.
@@ -173,7 +178,7 @@ impl Session {
     /// messages; else it goes on with the rest, if there are any, and runs once none is left to
     /// fetch. Another command runs once its own message is here, whatever else of the batch it
     /// came in didn't come.
-    pub fn fetch_now_answered(&mut self, messages: &[Id], opening: u64, result: GraphFetchResult) -> NowAnswered {
+    pub fn fetch_now_answered(&mut self, messages: &[Id], opening: u64, mut result: GraphFetchResult) -> NowAnswered {
         let nothing = |refused| NowAnswered { refused, next: NowNext::Nothing };
         // Asked for in a mailbox that another has taken the place of: it is nobody's here (nor is
         // a command that waits for it).
@@ -191,7 +196,12 @@ impl Session {
         let brought = !Came::of(self, messages, &result).answered.is_empty();
         self.driver.fetch.offline = result.offline;
         let account = result.account;
+        // What came for a save, out of the answer before it is taken in (#1561).
+        let for_save = self.copy_for_save(messages, &mut result);
         let mut refused = if account != 0 { apply_fetch(self, result).err() } else { None };
+        if let Some(copy) = for_save {
+            self.answered_for_save(copy, refused.is_none() && account != 0);
+        }
         let said = refused.as_ref().map(ToString::to_string);
         let whole = |s: &Session, m: &Id| s.mailbox.message(*m).is_some_and(|m| !m.unfetched);
         let Some(then) = self.driver.fetch.then.take() else { return nothing(said) };

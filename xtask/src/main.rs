@@ -15,12 +15,14 @@ mod icon;
 mod layers;
 mod mobile;
 mod parity;
+mod play_upload;
 mod release_key;
 mod release_notes;
 mod spdx;
 mod stats;
 mod test_files;
 mod version;
+mod version_code;
 mod wasm_clock;
 mod workflows;
 
@@ -48,13 +50,17 @@ commands:
                   i18n --check, release-notes, docs-log), then clippy -D warnings, test, wasm, deny
                   (stops at first failure; XTASK_CI_ONLY=a,b runs only those steps, XTASK_CI_SKIP=a,b skips them)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
-  i18n [--check]  gather the interface's English into crates/i18n/po/messages.pot and merge it into
+  i18n [--check] [--lenient]
+                  gather the interface's English into crates/i18n/po/messages.pot and merge it into
                   each language's .po (coverage per language); --check changes nothing, fails if out of date
+                  (only reports it with --lenient, and in CI's merge queue and on main)
   parity          recompute the Outlook feature-parity summary in docs/parity-checklist.md
   ico <out.ico> <in.png>...
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
   icon            render the app icon (assets/app-icon/source/mailcraft.svg) in every size into assets/app-icon
   version [...]   show or set the workspace version
+  version-code [X.Y.Z[-rc.N]]
+                  the Android version code of that version (default: the workspace's)
   release-notes [--write]
                   print the release notes with the fragments in packaging/release-notes.d/ joined in;
                   --write (before tagging) joins them into packaging/release-notes.md and removes them
@@ -65,6 +71,9 @@ commands:
                   make the two release keys (in use, spare): private keys into <dir>, public keys printed
   release-key sign <file>
                   sign <file> into <file>.sig with the key in MAILCRAFT_RELEASE_KEY (base64 PKCS#8)
+  play-upload <file.aab>
+                  the AAB to Google Play's internal track as a draft, with the service account's JSON
+                  key in PLAY_SERVICE_ACCOUNT_JSON (the release workflow; docs/releasing.md)
 ";
 
 fn main() -> ExitCode {
@@ -84,13 +93,15 @@ fn main() -> ExitCode {
         Some("ci") => cmd_ci(),
         Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
         Some("parity") => parity::run(&root()),
-        Some("i18n") => i18n::run(&root(), rest.contains(&"--check")),
+        Some("i18n") => i18n::run(&root(), rest.contains(&"--check"), i18n::lenient(rest.contains(&"--lenient"), event().as_deref())),
         Some("ico") => ico::run(&rest),
         Some("icon") => icon::run(&root()),
         Some("version") => version::run(&root(), &rest),
+        Some("version-code") => version_code::run(&root(), &rest),
         Some("release-notes") => release_notes::run(&root(), rest.contains(&"--write")),
         Some("docs-log") => docs_log::run(&root(), &rest),
         Some("release-key") => release_key::run(&rest),
+        Some("play-upload") => play_upload::run(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())
@@ -104,6 +115,11 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// The GitHub Actions event this runs for (`pull_request`, `merge_group`, `push`), when in CI.
+fn event() -> Option<String> {
+    std::env::var("GITHUB_EVENT_NAME").ok()
 }
 
 /// Workspace root (parent of the xtask crate).
@@ -303,7 +319,7 @@ fn cmd_ci() -> Result<(), String> {
         ("workflows", Box::new(|| workflows::run(&root()))),
         ("layers", Box::new(cmd_layers)),
         ("wasm-clock", Box::new(|| metadata().and_then(|m| wasm_clock::run(&root(), &m)))),
-        ("i18n", Box::new(|| i18n::run(&root(), true))),
+        ("i18n", Box::new(|| i18n::run(&root(), true, i18n::lenient(false, event().as_deref())))),
         ("release-notes", Box::new(|| release_notes::check(&root()))),
         ("docs-log", Box::new(|| docs_log::check(&root()))),
         (
