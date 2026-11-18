@@ -68,10 +68,21 @@ pub(crate) fn on(value: Option<&Value>) -> bool {
 }
 
 /// An item's or a folder's id in the account's own mailbox: digits, and not zero. An id of
-/// another mailbox (`<account id>:257`, a folder shared with the owner) is not one.
+/// another mailbox (`<account id>:257`, a folder shared with the owner) is not one. The check is
+/// the value as it was sent: [`text`] takes control characters out, and a cleaned-up copy of an
+/// id that isn't one could pass for a different id that is.
 pub(crate) fn own_id(value: Option<&Value>) -> Option<String> {
-    let text = text(value)?;
-    let text = text.trim();
+    let raw = match value? {
+        Value::String(text) => text.as_str(),
+        Value::Number(n) => {
+            return Some(n.to_string())
+                .filter(|s| !s.is_empty() && s.len() <= 10 && s.bytes().all(|b| b.is_ascii_digit()) && s.bytes().any(|b| b != b'0'));
+        }
+        Value::Object(map) => return own_id(map.get("_content")),
+        Value::Array(list) => return own_id(list.first()),
+        _ => return None,
+    };
+    let text = raw.trim();
     (!text.is_empty() && text.len() <= 10 && text.bytes().all(|b| b.is_ascii_digit()) && text.bytes().any(|b| b != b'0')).then(|| text.to_string())
 }
 
@@ -82,6 +93,13 @@ pub(crate) fn list(value: Option<&Value>) -> &[Value] {
         Some(one @ Value::Object(_)) => std::slice::from_ref(one),
         _ => &[],
     }
+}
+
+/// A field the answer holds that is no list of anything — neither the array Zimbra writes for
+/// many, the object it writes for one, nor null: there but unreadable, where [`list`] would pass
+/// it for an empty list and a page or a listing would come out complete while it isn't.
+pub(crate) fn bad_list(value: Option<&Value>) -> bool {
+    matches!(value, Some(v) if !matches!(v, Value::Array(_) | Value::Object(_) | Value::Null))
 }
 
 /// The ids of a comma-separated list (`"257,258"`), own ids only, at most `most` of them. The
@@ -99,7 +117,9 @@ pub(crate) fn ids(value: Option<&Value>, most: usize) -> Option<Vec<String>> {
         // one would have its caller take the page's token for good.
         _ => return None,
     };
-    if raw.len() > MAX_LIST {
+    // A control character in a list of ids is no odd id to pass over: left in, it would turn one
+    // id into another the server didn't name — a deletion could take a message it wasn't for.
+    if raw.len() > MAX_LIST || raw.chars().any(char::is_control) {
         return None;
     }
     Some(raw.split(',').filter_map(|id| own_id(Some(&Value::String(id.to_string())))).take(most).collect())

@@ -417,3 +417,120 @@ fn a_server_that_answers_the_same_page_for_ever_is_cut_off() {
     let all = whole(&run(&server, &request(""), PASSWORD));
     assert!(!all.whole && !all.errors.is_empty() && all.token.is_empty());
 }
+
+/// A server whose answer of one operation is replaced before it is read: `operation` names the
+/// SOAP answer (`SearchResponse`, `SyncResponse`, `GetFolderResponse`); for the folder listing the
+/// first folder's children take the replacement, for the others the `m` list.
+struct Altered {
+    server: StandIn,
+    operation: &'static str,
+    replacement: serde_json::Value,
+}
+
+impl crate::http::HttpExchange for Altered {
+    async fn exchange(&self, request: &crate::http::HttpRequest) -> Result<crate::http::HttpResponse, crate::http::TransportError> {
+        let response = self.server.exchange(request).await?;
+        let mut body: serde_json::Value = serde_json::from_slice(response.body()).unwrap_or_default();
+        if let Some(answer) = body.pointer_mut(&format!("/Body/{}", self.operation)) {
+            if self.operation == "GetFolderResponse" {
+                answer["folder"][0]["folder"] = self.replacement.clone();
+            } else {
+                answer["m"] = self.replacement.clone();
+            }
+        }
+        Ok(crate::http::HttpResponse::new(response.status(), body.to_string().into_bytes()))
+    }
+}
+
+fn collect(server: &impl crate::http::HttpExchange, token: &str) -> Vec<ZimbraMailResult> {
+    let mut pieces = Vec::new();
+    block_on(sync_mail(server, &request(token), &Secret::new(PASSWORD), &AtomicBool::new(false), &mut |p| pieces.push(p))).unwrap();
+    pieces
+}
+
+#[test]
+fn a_page_of_no_list_shape_completes_no_fresh_sweep() {
+    // `m` as a string where the page's messages belong: nothing of the folder may come out read.
+    let server = StandIn::new();
+    server.deliver(2, "Still on server", "");
+    let broken = Altered { server, operation: "SearchResponse", replacement: serde_json::json!("unreadable") };
+    let all = whole(&collect(&broken, ""));
+    assert!(!all.whole && all.token.is_empty(), "{all:?}");
+}
+
+#[test]
+fn a_delta_of_no_list_shape_moves_no_token() {
+    // `m` as a string where the page's changes belong: nothing may move past them.
+    let server = StandIn::new();
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    server.deliver(2, "Arrived after the token", "");
+    let broken = Altered { server, operation: "SyncResponse", replacement: serde_json::json!("unreadable") };
+    let all = whole(&collect(&broken, &token));
+    assert!(all.token.is_empty(), "{all:?}");
+}
+
+#[test]
+fn folder_children_of_no_list_shape_make_no_complete_listing() {
+    // A folder's `folder` field as a string: the tree is only half-read, and an empty listing it
+    // emits may never be the complete one a sweep is trusted with.
+    let server = StandIn::new();
+    server.deliver(2, "Still on server", "");
+    let broken = Altered { server, operation: "GetFolderResponse", replacement: serde_json::json!("unreadable") };
+    let pieces = collect(&broken, "");
+    assert!(
+        !pieces.iter().any(|p| p.listing.as_ref().is_some_and(|l| l.complete && l.folders.is_empty())),
+        "an unreadable tree passed for a complete listing"
+    );
+}
+
+#[test]
+fn an_invalid_deleted_id_becomes_no_others_id() {
+    // A NUL inside a deleted id: taken out it would name another message — the raw id is checked,
+    // and the answer refused.
+    let response = crate::http::HttpResponse::new(
+        200,
+        serde_json::json!({"Body":{"SyncResponse":{"token":"42","deleted":[{"m":[{"ids":"3\u{0000}00"}]}]}}}).to_string().into_bytes(),
+    );
+    assert!(crate::delta::answer(&response, false).is_err());
+}
+
+#[test]
+fn a_page_cursor_sends_the_documents_sort_val() {
+    let request = crate::items::folder_page(URL, &Secret::new("token"), "2", Some(("300", 1_700_000_000_000))).unwrap();
+    let body: serde_json::Value = serde_json::from_slice(request.body()).unwrap_or_default();
+    assert_eq!(body.pointer("/Body/SearchRequest/cursor/sortVal"), Some(&serde_json::json!("1700000000000")));
+}
+
+#[test]
+fn a_page_cursor_reads_the_hits_sort_field() {
+    // `sf`, not `d`, is what a `sortVal` continues from: a hit with `sf` and no `d` still carries
+    // a cursor.
+    let response = crate::http::HttpResponse::new(
+        200,
+        serde_json::json!({"Body":{"SearchResponse":{"more":true,"m":[{"id":"300","l":"2","sf":"1700000000000"}]}}}).to_string().into_bytes(),
+    );
+    assert_eq!(crate::items::answer(&response).ok().and_then(|p| p.cursor), Some(("300".into(), 1_700_000_000_000)));
+}
+
+#[test]
+fn a_resume_survives_the_cursor_items_deletion() {
+    let server = StandIn::new();
+    // More than the test page cap: the run stops with a cursor to go on from.
+    for n in 0..1_100 {
+        server.deliver(2, &format!("Message {n}"), "");
+    }
+    let first = whole(&run(&server, &request(""), PASSWORD));
+    assert_eq!(first.errors, Vec::<String>::new());
+    let resume = first.resume.clone().unwrap_or_default();
+    let stopped = resume.iter().find(|e| !e.cursor.is_empty()).unwrap();
+    // The item the cursor names is deleted in webmail between the two runs: Zimbra goes on from
+    // the cursor's sort value, and so does the stand-in — the folder's tail is still read.
+    server.delete(stopped.cursor.parse::<u32>().unwrap());
+    let mut again = request(&first.token);
+    again.resume = resume;
+    let second = whole(&run(&server, &again, PASSWORD));
+    assert_eq!(second.errors, Vec::<String>::new());
+    assert_eq!(second.resume, Some(Vec::new()));
+    let read: usize = second.pages.iter().filter(|p| p.folder == "2").map(|p| p.messages.len()).sum();
+    assert_eq!(read, 100);
+}
