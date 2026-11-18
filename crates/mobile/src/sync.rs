@@ -245,7 +245,7 @@ pub(crate) struct SyncHost {
     notify_new_mail_only: AtomicBool,
     notify_primary_only: AtomicBool,
     pub(crate) tick_queued: AtomicBool,
-    pub(crate) pacer: Pacer,
+    pub(crate) pacer: Arc<Pacer>,
     /// A fetch is under way or waiting (read by the driver thread, as `busy` is).
     pub(crate) fetch_busy: AtomicBool,
     /// How fetch jobs are run (the tests swap theirs in).
@@ -281,7 +281,7 @@ impl SyncHost {
             notify_new_mail_only: AtomicBool::new(false),
             notify_primary_only: AtomicBool::new(false),
             tick_queued: AtomicBool::new(false),
-            pacer: Pacer::default(),
+            pacer: Arc::default(),
             fetch_busy: AtomicBool::new(false),
             fetch_runner: std::sync::Mutex::new(crate::fetch::default_runner()),
             job_runners: Mutex::new(crate::jobs::default_runners()),

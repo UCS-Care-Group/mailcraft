@@ -29,6 +29,9 @@ const FIELD_URIS: &[&str] = &[
     "item:Flag",
     "item:ConversationId",
     "item:DateTimeReceived",
+    "item:DateTimeSent",
+    "item:Size",
+    "message:InternetMessageId",
     "item:HasAttachments",
     "item:Attachments",
 ];
@@ -87,6 +90,10 @@ pub struct Item {
     pub mime: Vec<u8>,
     /// The conversation it is in (`ConversationId`); empty: one of its own, named after it.
     pub conversation: String,
+    /// The element it is listed as: `Message`, or a meeting's `MeetingRequest`,
+    /// `MeetingResponse` or `MeetingCancellation` ([MS-OXWSMTGS]), of which the `Default` shape
+    /// gives less (#1457).
+    pub element: String,
 }
 
 impl Item {
@@ -184,11 +191,22 @@ impl State {
             files: Vec::new(),
             mime,
             conversation: String::new(),
+            element: "Message".into(),
         });
         self.item_log.push(ItemLog { rev: self.rev, folder: folder_id.clone(), id: id.clone(), kind: ItemChange::Create });
         if let Some(f) = self.folders.iter_mut().find(|f| f.id == folder_id) {
             f.total = f.total.saturating_add(1);
             f.unread = f.unread.saturating_add(u32::from(!read));
+        }
+        id
+    }
+
+    /// Makes a meeting's message arrive as [`State::deliver`] does a message: `element` is
+    /// `MeetingRequest`, `MeetingResponse` or `MeetingCancellation`. Its id.
+    pub fn deliver_meeting(&mut self, folder: &str, subject: &str, element: &str) -> String {
+        let id = self.deliver(folder, subject, false);
+        if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+            item.element = element.into();
         }
         id
     }
@@ -323,9 +341,37 @@ impl State {
             self.hostile == Some(Hostile::BadItems) && (self.bad_items_in.is_empty() || self.bad_items_in.split(',').any(|f| f == item.folder));
         let long = "x".repeat(2_000);
         let id = if hostile { long.as_str() } else { item.id.as_str() };
-        let mut xml = format!("<t:Message><t:ItemId Id=\"{}\" ChangeKey=\"{}\"/>", escape(id), escape(&item.change_key));
+        let element = item.element.as_str();
+        let mut xml = format!("<t:{element}><t:ItemId Id=\"{}\" ChangeKey=\"{}\"/>", escape(id), escape(&item.change_key));
         let wants = |uri: &str| extra.iter().any(|e| e == uri);
-        if shape != "IdOnly" {
+        if shape != "IdOnly" && element != "Message" {
+            // A meeting's message, as Exchange Server 2019 gives it in the `Default` shape: its
+            // times, size, sender, importance and `Message-ID` only when they are asked for.
+            xml.push_str(&format!("<t:Subject>{}</t:Subject><t:Sensitivity>Normal</t:Sensitivity>", escape(&item.subject)));
+            if wants("item:DateTimeReceived") {
+                xml.push_str(&format!("<t:DateTimeReceived>{}</t:DateTimeReceived>", item.received));
+            }
+            if wants("item:Size") {
+                xml.push_str(&format!("<t:Size>{}</t:Size>", item.mime.len()));
+            }
+            if wants("item:Importance") {
+                xml.push_str(&format!("<t:Importance>{}</t:Importance>", item.importance));
+            }
+            if wants("item:DateTimeSent") {
+                xml.push_str(&format!("<t:DateTimeSent>{}</t:DateTimeSent>", item.sent));
+            }
+            xml.push_str(&format!("<t:HasAttachments>{}</t:HasAttachments><t:IsAssociated>false</t:IsAssociated>", item.attachments));
+            if wants("message:From") {
+                xml.push_str(&people("From", std::slice::from_ref(&item.from)));
+            }
+            if wants("message:InternetMessageId") {
+                xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId>", escape(&item.message_id)));
+            }
+            xml.push_str(&format!("<t:IsRead>{}</t:IsRead>", item.read));
+            if element == "MeetingRequest" {
+                xml.push_str(&people("Organizer", std::slice::from_ref(&item.from)));
+            }
+        } else if shape != "IdOnly" {
             let subject = if hostile { "x".repeat(20_000) } else { item.subject.clone() };
             xml.push_str(&format!(
                 "<t:ParentFolderId Id=\"{}\" ChangeKey=\"AQAAAA==\"/><t:ItemClass>IPM.Note</t:ItemClass><t:Subject>{}</t:Subject><t:DateTimeReceived>{}</t:DateTimeReceived><t:Size>{}</t:Size><t:Importance>{}</t:Importance><t:IsSubmitted>false</t:IsSubmitted><t:IsDraft>{}</t:IsDraft><t:DateTimeSent>{}</t:DateTimeSent><t:HasAttachments>{}</t:HasAttachments>",
@@ -375,7 +421,7 @@ impl State {
                 .collect();
             xml.push_str(&format!("<t:Attachments>{all}</t:Attachments>"));
         }
-        xml.push_str("</t:Message>");
+        xml.push_str(&format!("</t:{element}>"));
         xml
     }
 

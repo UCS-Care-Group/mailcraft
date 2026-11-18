@@ -58,7 +58,11 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
   checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
-  placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
+  placeholder; a `data:` address is never a link (`crates/html/src/data.rs`). A picture behind a
+  table, a cell, a block or the body is shown only when it is attached (`cid:`) or written into the
+  message (`data:`, within the same caps; none for a box that is hidden or 2 px or less across,
+  #601); an address on the web is never one: `crates/html/src/bg.rs` keeps none, so nothing asks for
+  it, in Junk E-mail or out of it, whatever the owner allows.
   Under a reply or forward, each one the reading pane would show goes as a part of its own beside
   the HTML, which refers to it by a Content-ID naming nothing of the owner (#602,
   `mailcraft_html::quotable_with_pictures`); one refused, hidden or past the caps is left out, and
@@ -292,6 +296,21 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   #836) is never shown the password, even when it offers a way to sign in; an account that signs in
   on its provider's page has no such choice. OAuth uses the authorization code with PKCE and a loopback redirect
   (`crates/net/src/oauth.rs`).
+- **An address list is a server's word, read as hostile** (#1262). Check Names asks an Exchange
+  server account's address list (`ResolveNames`, the directory alone) only on the owner's press,
+  and only for the names typed that the contacts don't settle: at most ten, each one line of at
+  most 256 characters; People's Address Book asks it for what the owner types in its search box,
+  one text at a time, once typing pauses, and lets go of a look-up that what is typed has passed.
+  Of each answer at most 100 people are read, each a name, an SMTP address that has one `@` and
+  nothing that could end a header or add a recipient, the kind of recipient, four bounded lines
+  (company, department, job title, office) and the work and mobile numbers, kept only when they
+  are written as phone numbers are (digits with spaces, `+`, `-`, `.`, `/`, brackets and an
+  extension's `x`); other numbers, postal addresses and notes the answer holds are dropped
+  (`crates/ews/src/resolve.rs`, and again in `DirectoryPerson::checked`). Who is found lives in
+  the window and is never written down, unless the owner presses Add to Contacts. The engine checks them again
+  as a command's params (`compose.checkNames` `found`), puts a name in only when exactly one
+  person matches it, and asks the owner to choose among several. A server can offer a wrong
+  person for a name; the owner sees the address before the message goes.
 - A compromised server can still read and change the mail it holds. That is the server's job, not
   something a client can prevent; end-to-end encryption would be (see Known limits).
 
@@ -391,6 +410,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
+  On a Microsoft account whose categories are kept in step with Outlook, an agent is asked
+  (`send`) before it writes a category there: one kept on this computer only sent there, a rename
+  of one that is there already, a name new to the list (given to an item, or by a rule) or another
+  colour; so is an Undo or Redo that would make one there again or give one there another colour,
+  and one that would have a category deleted there is asked as `delete`; the question names the
+  category.
   A copy that the server of a Microsoft account (Outlook.com, Microsoft 365) or an Exchange
   server account has made goes to Deleted Items on undo and is not counted as a removal; on any
   other account (IMAP, JMAP, one on this computer) the copy is removed and `delete` is asked. A step
@@ -454,7 +479,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). So does
   every background job of the window, listed in one place (`crates/ui-egui/src/jobs.rs`): each
   Send/Receive (IMAP, Microsoft Graph, Exchange, JMAP, Inbox passes, shared mailboxes), the
-  calendar and its check, free and busy times, the to-dos, the rules and the automatic replies.
+  calendar and its check, free and busy times, the to-dos, the rules, the automatic replies and the
+  categories.
   When another mailbox takes the place of the open one they are all called off, an answer that
   still comes for the old one is let go of whole, and no answer is taken in for an account under
   the address of the account open now; a shared mailbox's sign-in is checked against its owner's

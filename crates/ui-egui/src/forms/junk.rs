@@ -54,8 +54,8 @@ fn about(page: JunkList) -> &'static str {
 
 fn title(page: JunkList) -> &'static str {
     match page {
-        JunkList::Safe => "Safe Senders",
-        JunkList::Blocked => "Blocked Senders",
+        JunkList::Safe => tl_later!("Safe Senders"),
+        JunkList::Blocked => tl_later!("Blocked Senders"),
     }
 }
 
