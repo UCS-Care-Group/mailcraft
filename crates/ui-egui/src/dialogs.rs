@@ -898,7 +898,7 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
         text = format!("{text} {stay}");
     }
     // The switch is the account's, and a shared mailbox's is its owner's.
-    let mut owners: Vec<Id> = asking.iter().filter_map(|r| account(r)).map(|a| mb.owner_of(a).map_or(a, |o| o.id)).collect();
+    let mut owners: Vec<Id> = asking.iter().filter_map(|r| account(r)).map(|a| mb.opened_through(a).map_or(a, |o| o.id)).collect();
     owners.sort_unstable();
     owners.dedup();
     let tick = if owners.len() > 1 { tl!("Don't ask again for these accounts") } else { tl!("Don't ask again for this account") };

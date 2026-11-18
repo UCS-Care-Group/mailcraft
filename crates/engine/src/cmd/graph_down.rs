@@ -801,10 +801,10 @@ pub fn refetch_hollow(mb: &mut Mailbox) -> usize {
 }
 
 /// How large a message of `account` is fetched whole in the background: its own Download
-/// messages in full, and for a shared mailbox its owner's (#70: it keeps as much mail as its
-/// owner's account does; there is no setting of its own).
+/// messages in full, and for a shared mailbox its owner's (#70, #482: it keeps as much mail as
+/// its owner's account does; there is no setting of its own).
 fn keeps_whole(mb: &Mailbox, account: Id) -> Option<u64> {
-    let a = mb.owner_of(account).or(mb.account(account))?;
+    let a = mb.opened_through(account).or(mb.account(account))?;
     a.download_in_full.limit()
 }
 

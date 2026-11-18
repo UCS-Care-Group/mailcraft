@@ -1607,13 +1607,10 @@ impl Mailbox {
         self.accounts.iter().filter(|a| a.shared_of == Some(account) && a.id != account).collect()
     }
 
-    /// The account whose sign-in reads the shared mailbox `account`: a Microsoft account that is
-    /// no shared mailbox itself. `None` for an account that isn't a shared mailbox, and for one
-    /// whose owner is gone or can't be one (a file may say anything).
     /// The **mail to keep offline** of `account`: its own, and for a shared mailbox its owner's
-    /// (#143: it has none of its own). All for an account that isn't here.
+    /// (#143: it has none of its own; [`Mailbox::opened_through`]). All for an account that isn't here.
     pub fn keep_offline_of(&self, account: Id) -> KeepOffline {
-        self.owner_of(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
+        self.opened_through(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
     }
 
     /// The earliest received time of `account`'s mail that is listed from its server at `now`:
@@ -1632,9 +1629,9 @@ impl Mailbox {
     }
 
     /// Whether Delete on a whole conversation of `account`'s asks first (#503): its own switch,
-    /// and for a shared mailbox its owner's.
+    /// and for a shared mailbox its owner's ([`Mailbox::opened_through`]).
     pub fn asks_before_deleting_conversation(&self, account: Id) -> bool {
-        self.owner_of(account).or(self.account(account)).is_none_or(|a| !a.skip_conversation_question)
+        self.opened_through(account).or(self.account(account)).is_none_or(|a| !a.skip_conversation_question)
     }
 
     /// The Exchange server account whose server, user name and password read the shared mailbox
@@ -1645,6 +1642,19 @@ impl Mailbox {
         self.account(owner).filter(|o| o.kind == AccountKind::Exchange && !o.is_shared())
     }
 
+    /// The account the shared mailbox `account` is opened through, and whose settings it follows
+    /// (the mail to keep offline, Download messages in full, asking before deleting a conversation):
+    /// its owner, a Microsoft account ([`Mailbox::owner_of`]) or an Exchange server account
+    /// ([`Mailbox::ews_owner_of`]). `None` for an account that isn't a shared mailbox, and for one
+    /// whose owner is gone or can't be one (a file may say anything).
+    pub fn opened_through(&self, account: Id) -> Option<&Account> {
+        self.owner_of(account).or_else(|| self.ews_owner_of(account))
+    }
+
+    /// The account whose sign-in reads the shared mailbox `account` through Microsoft Graph: a
+    /// Microsoft account that is no shared mailbox itself. `None` for an account that isn't a
+    /// shared mailbox, and for one whose owner is gone or can't be one (a file may say anything).
+    /// Of either kind: [`Mailbox::opened_through`].
     pub fn owner_of(&self, account: Id) -> Option<&Account> {
         let owner = self.account(account)?.shared_of.filter(|owner| *owner != account)?;
         self.account(owner).filter(|o| o.kind == AccountKind::Microsoft && !o.is_shared())
@@ -1672,7 +1682,7 @@ impl Mailbox {
         let mut out: Vec<&Account> = Vec::with_capacity(self.accounts.len());
         for a in own {
             out.push(a);
-            out.extend(shared.get(&a.id).into_iter().flatten().filter(|s| self.owner_of(s.id).is_some()));
+            out.extend(shared.get(&a.id).into_iter().flatten().filter(|s| self.opened_through(s.id).is_some()));
         }
         // (A shared mailbox whose owner is missing.)
         let placed: HashSet<Id> = out.iter().map(|a| a.id).collect();

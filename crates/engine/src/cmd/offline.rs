@@ -114,7 +114,7 @@ fn outside_of(s: &Session, account: Option<Id>, window: &OfflineWindow) -> Vec<I
         return Vec::new();
     }
     let accounts: Option<HashSet<Id>> =
-        account.map(|a| mb.accounts.iter().filter(|x| x.id == a || mb.owner_of(x.id).is_some_and(|o| o.id == a)).map(|x| x.id).collect());
+        account.map(|a| mb.accounts.iter().filter(|x| x.id == a || mb.opened_through(x.id).is_some_and(|o| o.id == a)).map(|x| x.id).collect());
     mb.messages
         .values()
         .filter(|m| !m.unfetched && accounts.as_ref().is_none_or(|set| set.contains(&m.account)))

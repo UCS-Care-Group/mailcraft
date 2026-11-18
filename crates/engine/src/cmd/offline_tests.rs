@@ -173,3 +173,31 @@ fn another_mailbox_starts_the_background_fetch_afresh() {
     s.run("file.new", &json!({})).unwrap();
     assert!(!s.driver.fetch.offline && !s.driver.fetch.resting(1.0));
 }
+
+/// A shared mailbox opened through an Exchange server account (#482) is thinned with it: by the
+/// owner's window, when the owner's account is named, and counted in what a shorter one frees.
+#[test]
+fn a_shared_mailbox_of_an_exchange_server_account_goes_with_its_window() {
+    use mailcraft_model::sync::ServerMessage;
+    use mailcraft_model::{Body, FolderKind, Mailbox, Message, ServerFolder};
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    let ews = json!({"url": "https://exchange.example.org/EWS/Exchange.asmx"});
+    let owner = s.run("account.add", &json!({"email": "owner@example.org", "kind": "exchange", "ews": ews})).unwrap()["id"].as_u64().unwrap();
+    let shared = s.run("account.addSharedMailbox", &json!({"account": owner, "address": "support@example.org"})).unwrap()["id"].as_u64().unwrap();
+    s.run("account.edit", &json!({"id": owner, "keepOffline": "1m"})).unwrap();
+    let inbox = s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "in".into(), ..Default::default() });
+    let add = |s: &mut Session, d: i64| {
+        let server = ServerMessage { id: format!("S{d}"), folder: "in".into(), ..Default::default() };
+        let body = Body { text: format!("Received {d} days ago. ").repeat(100), html: None };
+        s.mailbox
+            .add_message(Message { account: shared, folder: inbox, received: NOW - d * DAY, server: Some(server), body, ..Default::default() })
+            .unwrap()
+    };
+    let (old, new) = (add(&mut s, 200), add(&mut s, 2));
+    let size = s.run("account.offlineSize", &json!({"account": owner, "keepOffline": "1m"})).unwrap();
+    assert_eq!(size["messages"], 1, "{size}");
+    assert_eq!(s.run("account.thinOffline", &json!({"account": owner})).unwrap()["thinned"], 1);
+    assert!(s.mailbox.message(old).unwrap().unfetched);
+    assert!(!s.mailbox.message(new).unwrap().unfetched);
+}

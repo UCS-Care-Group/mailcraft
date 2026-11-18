@@ -5,7 +5,7 @@
 //! are its own.
 
 use mailcraft_model::sync::{EwsFolderDeltas, EwsMailResult, EwsMessagePage, GraphFolder, GraphMessage, ServerMessage};
-use mailcraft_model::{AccountKind, Address, FolderKind, Id};
+use mailcraft_model::{AccountKind, Address, FolderKind, Id, KeepOffline};
 use serde_json::json;
 
 use crate::Session;
@@ -245,4 +245,24 @@ fn the_shared_mailbox_follows_its_owners_server_until_its_mail_is_here() {
     s.run("account.edit", &json!({"id": owner, "ews": {"trusted": "cd".repeat(32)}})).unwrap();
     let copy = s.mailbox.account(id).unwrap().ews.clone().unwrap();
     assert_eq!((copy.trusted, copy.hierarchy.as_str()), ("cd".repeat(32), "H1"), "the same mailbox: its state stays");
+}
+
+/// What a shared mailbox takes from the account it is opened through (#143, #503): the mail to keep
+/// offline and asking before deleting a conversation follow an Exchange server owner's as they
+/// follow a Microsoft account's, and can't be set on the shared mailbox.
+#[test]
+fn a_shared_mailbox_follows_its_exchange_owners_settings() {
+    let (mut s, owner) = session();
+    let id = add(&mut s, owner, SHARED);
+    assert_eq!(s.mailbox.opened_through(id).map(|o| o.id), Some(owner));
+    s.run("account.edit", &json!({"id": owner, "keepOffline": "1w", "askBeforeDeletingConversation": false})).unwrap();
+    assert_eq!(s.mailbox.keep_offline_of(id), KeepOffline::Week1);
+    assert!(!s.mailbox.asks_before_deleting_conversation(id));
+    let why = s.run("account.edit", &json!({"id": id, "keepOffline": "all"})).unwrap_err().to_string();
+    assert!(why.contains("opened through"), "{why}");
+    let why = s.run("account.edit", &json!({"id": id, "askBeforeDeletingConversation": true})).unwrap_err().to_string();
+    assert!(why.contains("opened through"), "{why}");
+    let listed = s.run("account.list", &json!({})).unwrap();
+    let it = listed["accounts"].as_array().unwrap().iter().find(|a| a["id"] == id).unwrap().clone();
+    assert_eq!((it["keepOffline"].as_str(), it["askBeforeDeletingConversation"].as_bool()), (Some("1w"), Some(false)), "as its owner's");
 }

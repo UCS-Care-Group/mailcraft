@@ -730,7 +730,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 /// listed afresh at their next run (MB3.16).
 fn relist(mb: &mut mailcraft_model::Mailbox, account: Id) {
     let accounts: Vec<Id> =
-        mb.accounts.iter().filter(|a| a.id == account || mb.owner_of(a.id).is_some_and(|o| o.id == account)).map(|a| a.id).collect();
+        mb.accounts.iter().filter(|a| a.id == account || mb.opened_through(a.id).is_some_and(|o| o.id == account)).map(|a| a.id).collect();
     relist_accounts(mb, &accounts);
 }
 

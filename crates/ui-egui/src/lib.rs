@@ -3874,7 +3874,7 @@ impl MailApp {
         if self.shared_refused.contains_key(&account) {
             return false;
         }
-        let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
+        let account = self.session.mailbox.opened_through(account).map_or(account, |owner| owner.id);
         let Some(a) = self.session.mailbox.account(account) else { return false };
         // (A JMAP account's secret is in memory only, never with the operating system; and one its
         // server turned down waits for the owner.)
