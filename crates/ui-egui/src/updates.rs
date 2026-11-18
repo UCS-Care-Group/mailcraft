@@ -588,13 +588,7 @@ pub(crate) fn bar(
                 // Reserve the icon's own slot: cursor.min is the LEFT edge in RTL as well,
                 // so painting at it would put the icon on the wrong side of the notice.
                 let (icon_slot, _) = ui.allocate_exact_size(vec2(24.0, 26.0), egui::Sense::hover());
-                crate::icons::paint(
-                    ui.painter(),
-                    egui::Rect::from_center_size(icon_slot.center(), vec2(18.0, 18.0)),
-                    "info",
-                    t.icon,
-                    t.accent,
-                );
+                crate::icons::paint(ui.painter(), egui::Rect::from_center_size(icon_slot.center(), vec2(18.0, 18.0)), "info", t.icon, t.accent);
                 // A line too long for the window (or longer in another language) is cut short
                 // and whole on hover, so the buttons stay on screen.
                 let room = (ui.available_width() - buttons.len() as f32 * 84.0).max(80.0);
