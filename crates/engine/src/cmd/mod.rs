@@ -23,6 +23,9 @@ pub mod calendar_extra;
 pub mod calendar_opened;
 pub mod calendar_settings;
 pub mod calendar_subscribed;
+pub mod categories_remote;
+#[cfg(test)]
+mod categories_remote_tests;
 pub mod category;
 #[cfg(test)]
 mod category_tests;
@@ -31,6 +34,10 @@ pub mod compose;
 mod compose_trust_tests;
 #[cfg(test)]
 mod conversation_thread_tests;
+pub mod dav_account;
+#[cfg(test)]
+mod dav_account_tests;
+pub mod dav_sync;
 pub mod device_limits;
 #[cfg(test)]
 mod device_limits_relist_tests;
@@ -41,6 +48,8 @@ mod ews_down;
 pub mod ews_mail;
 mod ews_up;
 #[cfg(test)]
+mod failing_messages_tests;
+#[cfg(test)]
 mod favorites_tests;
 pub mod file;
 pub mod folder;
@@ -48,6 +57,8 @@ pub mod folder;
 mod folder_empty_tests;
 #[cfg(test)]
 mod folder_kind_tests;
+#[cfg(test)]
+mod folder_new_tests;
 #[cfg(test)]
 mod folder_properties_tests;
 pub mod followup;
@@ -128,6 +139,8 @@ mod range_select_tests;
 mod read_receipt_tests;
 #[cfg(test)]
 mod refused_delete_tests;
+#[cfg(test)]
+mod relay_without_sign_in_tests;
 pub mod remote;
 #[cfg(test)]
 mod reply_to_first_tests;
@@ -166,6 +179,8 @@ mod thread_ids;
 pub mod unsubscribe;
 #[cfg(test)]
 mod unsubscribe_tests;
+#[cfg(test)]
+mod upcoming_reminders_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
@@ -219,6 +234,7 @@ pub fn registry() -> Registry {
     v.extend(unsubscribe::specs());
     v.extend(keys::specs());
     v.extend(category::specs());
+    v.extend(categories_remote::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());
     v.extend(offline::specs());
@@ -229,6 +245,8 @@ pub fn registry() -> Registry {
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
     v.extend(ews_mail::specs());
+    v.extend(dav_account::specs());
+    v.extend(dav_sync::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());

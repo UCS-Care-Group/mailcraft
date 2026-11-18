@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import uniffi.mailcraft_mobile.ComposeStart
 import uniffi.mailcraft_mobile.Core
 
 /**
@@ -70,9 +71,17 @@ internal class PictureStack(
     }
 
     /** What the reading pane asks, answered by [reading], with links followed by [links]. */
-    fun readingActions(links: LinkOpener) = ReadingActions(
+    fun readingActions(
+        links: LinkOpener,
+        attachments: AttachmentActions = AttachmentActions.None,
+        onLeft: () -> Unit = {},
+        onCompose: (ComposeStart) -> Unit = {},
+    ) = ReadingActions(
         onOpen = { id, width, dark -> reading.open(id, width, dark) },
-        onClose = reading::close,
+        onClose = {
+            reading.close(it)
+            onLeft()
+        },
         onAllow = {
             reading.allow(it)
             // Settings reads the choices from here: a sender or domain just allowed must be in them.
@@ -81,9 +90,22 @@ internal class PictureStack(
         },
         onDownloadNow = reading::downloadNow,
         onLink = links::open,
+        attachments = attachments,
+        onCompose = onCompose,
     )
 
     private companion object {
         const val FOLDER = "pictures.cache"
     }
+}
+
+/** What the reading pane is made of: pictures, the links it follows, and attachments (open, save, share). */
+internal class ReadingStack(core: Core, context: Context, scope: CoroutineScope, mark: suspend (ULong) -> Boolean) {
+    val pictures = PictureStack(core, context, scope, mark)
+    val attachments = AttachmentController(CoreAttachments(core), AndroidAttachmentDevice(context), scope)
+    private val links = CoreLinks(core)
+
+    /** What the reading pane asks; leaving a message lets go of what its attachments held. */
+    fun actions(onCompose: (ComposeStart) -> Unit) =
+        pictures.readingActions(links, attachments.actions(), attachments::reset, onCompose)
 }

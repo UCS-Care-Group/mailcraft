@@ -266,11 +266,17 @@ fn a_sign_in_adds_the_account_and_keeps_only_the_refresh_token_in_the_secure_sto
     assert!(!text.contains("refresh-token-1") && !text.contains("the-access-token"));
     assert!(!rig.phone.secrets.kept.lock().unwrap().iter().any(|(_, v)| v.contains("the-access-token")));
     // The page was sent where the system brings the app back to, for what a Graph account takes
-    // and nothing that is asked for by itself.
+    // and, so that the owner is asked once, the shared mailboxes' two the phone uses; not the
+    // to-dos', nor the shared calendars', which the phone doesn't read.
     let page = query_of(&rig.phone.pages.lock().unwrap()[0]);
     assert_eq!(page["redirect_uri"], format!("{SCHEME}://oauth2redirect"));
     assert_eq!(page["login_hint"], ADA);
-    assert!(page["scope"].contains("Mail.ReadWrite") && !page["scope"].contains("Tasks") && !page["scope"].contains("Shared"));
+    let scope = &page["scope"];
+    assert!(scope.contains("Mail.ReadWrite.Shared") && scope.contains("Mail.Send.Shared"), "{scope}");
+    assert!(!scope.contains("Tasks") && !scope.contains("Calendars.ReadWrite.Shared"), "{scope}");
+    // (Nor what keeping the rules, the automatic replies and the categories in step takes, #661:
+    // the mailbox's settings are only read.)
+    assert!(page["scope"].contains("MailboxSettings.Read") && !page["scope"].contains("MailboxSettings.ReadWrite"), "{}", page["scope"]);
     // The code went to the token endpoint once, with the verifier whose hash the page was shown.
     assert_eq!(server.asked(), 1);
     // The next hand-back finds nobody waiting.
@@ -801,8 +807,16 @@ fn with_sign_ins_not_remembered_add_account_keeps_nothing_in_the_store() {
     assert_eq!(rig.secrets_kept(), 0);
     // A permission given then writes nothing either.
     rig.page_comes_back_with(CODE_BACK);
+    let server2 = TokenServer::start(|_| (200, tokens_for(ADA, "Ada Lumen", "refresh-token-2")));
+    *rig.core.signins.server.lock().unwrap() =
+        Some((format!("http://127.0.0.1:{0}/authorize", server2.port), format!("http://127.0.0.1:{0}/token", server2.port)));
     assert_eq!(block_on(rig.core.grant_permission(account, Permission::Tasks)).unwrap(), PermissionOutcome::Granted);
     assert_eq!(rig.secrets_kept(), 0);
+    // It is the session's sign-in now, so the to-dos' job has one, and the engine knows it was allowed.
+    let sync = rig.core.sync.clone();
+    let (refresh, held) = block_on(rig.core.call(move |s| Ok((sync.refresh_for(s, account), s.tasks_blocked(account, Some("x")))))).unwrap();
+    assert_eq!(refresh.as_deref(), Some("refresh-token-2"));
+    assert!(!held);
 }
 
 #[test]

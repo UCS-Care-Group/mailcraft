@@ -1,0 +1,1 @@
+- Android: when you answer "Not now" to a new account's first sync for want of room, the account now stays out of the background's syncs too, after a restart as well, until you say "Sync anyway" or pull to refresh.

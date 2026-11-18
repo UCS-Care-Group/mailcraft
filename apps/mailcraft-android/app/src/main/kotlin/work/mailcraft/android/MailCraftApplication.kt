@@ -10,9 +10,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
+import uniffi.mailcraft_mobile.Event
 
 /** The Rust core and what the app built on it, once both are ready. */
 internal class Opened(
@@ -20,6 +22,8 @@ internal class Opened(
     val hub: AccountsHub,
     val mail: MailListController,
     val settings: SettingsController,
+    /** New accounts whose first sync the owner said "Not now" to, held back over a restart. */
+    val holds: FirstSyncHolds,
 )
 
 /** What starting the Rust core has come to: under way, the core, or why there is none. */
@@ -83,6 +87,31 @@ class MailCraftApplication : Application() {
         runCatching { ready.core.setNotifyNewMail(mailNotificationsAllowed(applicationContext)) }
     }
 
+    /** Keeps the system's alarms in step with the core's next reminders. */
+    private val reminders by lazy {
+        ReminderScheduler(
+            AndroidAlarms(this),
+            PrefsReminderStore(this),
+            System::currentTimeMillis,
+        ) { DeviceSwitches(this).load().reminders }
+    }
+
+    /** Sets the reminders' alarms again from [core], off the caller's way. */
+    private fun refreshRemindersSoon(core: Core) {
+        scope.launch { reminders.refresh(ReminderWords.from(core::t)) { askSchedule(core, it) } }
+    }
+
+    /**
+     * Sets the reminders' alarms again from the one core, opening it when no window has (after a
+     * restart, an update, a change of the clock or the zone): true when they were set, false
+     * when the core couldn't say (worth trying again), null when there is no core.
+     */
+    internal suspend fun refreshRemindersNow(): Boolean? {
+        begin()
+        val opened = (started.first { it !is Phase.Loading } as? Phase.Ready)?.value ?: return null
+        return reminders.refresh(ReminderWords.from(opened.core::t)) { askSchedule(opened.core, it) }
+    }
+
     /**
      * The mailbox is written when no window is on screen: the system may end the process after it.
      * (A core still opening has nothing of the owner's to write yet.)
@@ -103,11 +132,20 @@ class MailCraftApplication : Application() {
             // The core keeps the mailbox itself: opened from here (a phone that has one keeps it),
             // saved after a change, at `saveNow` and when it ends. Private and left out of every
             // backup (the manifest's rules), as the mail is private.
-            val core = Core.open(
+            // The accounts the owner said "Not now" to are held from the core's opening, before
+            // anything of its own starts (the core keeps them in memory only).
+            val core = Core.openHolding(
                 AndroidPlatform(applicationContext, handback, foreground::get),
                 File(noBackupFilesDir, "mailbox").path,
+                DeviceHolds(applicationContext).load().toList(),
             )
             createChannels(applicationContext, channelSpecs(core::t))
+            // (Made after the hub, which keeps the mailbox for it; the hub's first sync asks it for room,
+            // and is set before this returns, so before any sign-in can end.)
+            var settings: SettingsController? = null
+            val holds = FirstSyncHolds(DeviceHolds(applicationContext)) { account, held ->
+                core.holdBackgroundSync(account, held)
+            }
             val hub = AccountsHub(
                 api = CoreAccounts(core, handback),
                 texts = CoreTexts(core),
@@ -115,17 +153,23 @@ class MailCraftApplication : Application() {
                 save = { core.saveNow() },
                 copy = { text -> copyToClipboard(applicationContext, text) },
                 sync = { core.syncNow() },
+                firstRound = { core.syncKeepingHolds() },
+                roomFor = { account, storageMb -> settings?.roomForFirstSync(account, storageMb) ?: false },
+                holds = holds,
             )
-            val settings = SettingsController(
+            val made = SettingsController(
                 api = CoreSettings(
                     core = core,
                     store = DeviceSwitches(applicationContext),
                     dir = noBackupFilesDir,
                     keep = { hub.saveNow() },
+                    changed = { refreshRemindersSoon(core) },
+                    holds = holds,
                 ),
                 scope = scope,
             )
-            Opened(core, hub, MailListController(CoreMailSource(core)), settings)
+            settings = made
+            Opened(core, hub, MailListController(CoreMailSource(core)), made, holds)
         } catch (_: CoreException) {
             null
         } catch (_: LinkageError) {
@@ -154,7 +198,14 @@ class MailCraftApplication : Application() {
             events.register { event -> opened.mail.handle(event, scope) }
             // A pull to refresh is the hub's Send/Receive: the list shows its spinner and its word.
             opened.mail.follow(opened.hub.syncing, opened.hub.syncNotice, opened.hub::syncNoticeShown, scope)
+            // The reminders' alarms follow the core's schedule: at every open, and when it changed.
+            events.register { event -> if (event is Event.ReminderScheduleChanged) refreshRemindersSoon(opened.core) }
             events.launchIn(scope) { nextEvent(opened.core) }
+            // The core keeps the holds in memory only: the ones the owner left say so again at every start.
+            // The holds were given at the opening; said again here, an account that has gone is
+            // forgotten (one that fails here is said again before the background's round).
+            scope.launch { opened.holds.reapply() }
+            refreshRemindersSoon(opened.core)
             // Send/Receive while the app is closed: one periodic run, kept if it is there already.
             // (WorkManager not starting is no reason to refuse the core: the window still works.)
             runCatching { scheduleBackgroundSync(applicationContext) }

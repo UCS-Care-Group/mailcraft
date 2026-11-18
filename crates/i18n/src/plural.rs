@@ -25,6 +25,9 @@ pub enum Rule {
     /// Singular when the last two digits are 1 (1, 101); dual when they are 2 (2, 102); the nominative
     /// plural for 3 and 4 (3, 4, 103); the genitive plural for the rest (0, 5, 11, 12, 22, 100).
     Slovenian,
+    /// Three forms (`plural=(n==1 ? 0 : (n>=2 && n<=4) ? 1 : 2)`): Czech (and Slovak).
+    /// One for 1; another for 2, 3 and 4 alone (22 is "22 zpráv"); the third for the rest, 0 included.
+    Czech,
 }
 
 impl Rule {
@@ -45,6 +48,11 @@ impl Rule {
                 3 | 4 => 2,
                 _ => 3,
             },
+            Rule::Czech => match n {
+                1 => 0,
+                2..=4 => 1,
+                _ => 2,
+            },
             Rule::Romanian => match n {
                 1 => 0,
                 0 => 1,
@@ -59,7 +67,7 @@ impl Rule {
         match self {
             Rule::Single => 1,
             Rule::NotOne | Rule::AboveOne => 2,
-            Rule::Romanian | Rule::Polish => 3,
+            Rule::Romanian | Rule::Polish | Rule::Czech => 3,
             Rule::Slovenian => 4,
         }
     }
@@ -83,6 +91,7 @@ impl Rule {
             (Some(3), Some("n==1?0:(n==0||(n%100>0&&n%100<20))?1:2")) => Rule::Romanian,
             (Some(3), Some("n==1?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2")) => Rule::Polish,
             (Some(4), Some("n%100==1?0:n%100==2?1:n%100==3||n%100==4?2:3")) => Rule::Slovenian,
+            (Some(3), Some("n==1?0:(n>=2&&n<=4)?1:2" | "(n==1)?0:(n>=2&&n<=4)?1:2" | "n==1?0:n>=2&&n<=4?1:2")) => Rule::Czech,
             _ => Rule::NotOne,
         }
     }

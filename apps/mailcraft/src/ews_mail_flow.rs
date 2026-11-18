@@ -20,17 +20,17 @@ use mailcraft_model::{FolderKind, Id, Mailbox};
 use mailcraft_ui_egui::{MailApp, Services};
 use serde_json::{Value, json};
 
-const ME: &str = "ada@example.org";
-const USER: &str = "CORP\\ada";
-const PASSWORD: &str = "an invented password";
+pub(crate) const ME: &str = "ada@example.org";
+pub(crate) const USER: &str = "CORP\\ada";
+pub(crate) const PASSWORD: &str = "an invented password";
 /// Wednesday 2026-10-14 16:00 UTC.
-const NOW: i64 = 1_791_993_600;
+pub(crate) const NOW: i64 = 1_791_993_600;
 
 /// Serves the stand-in over HTTP on this machine until the test is over: one request per
 /// connection. Its address.
-struct Server {
-    url: String,
-    standin: Arc<StandIn>,
+pub(crate) struct Server {
+    pub(crate) url: String,
+    pub(crate) standin: Arc<StandIn>,
     stop: Arc<AtomicBool>,
 }
 
@@ -42,7 +42,7 @@ impl Drop for Server {
     }
 }
 
-fn serve() -> Server {
+pub(crate) fn serve() -> Server {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}/EWS/Exchange.asmx", listener.local_addr().unwrap());
     let standin = Arc::new(StandIn::new());
@@ -115,7 +115,7 @@ fn window(server: &Server) -> (MailApp, Id) {
 
 /// Send/Receive as the owner asks for it, to its end; the background download is then held back
 /// (as after Stop), so that what is opened next isn't here whole yet. What `ui.sync` answered.
-fn send_receive(app: &mut MailApp, params: Value) -> Value {
+pub(crate) fn send_receive(app: &mut MailApp, params: Value) -> Value {
     let started = app.execute("ui.sync", params).unwrap();
     for _ in 0..6_000 {
         app.poll_sync();
@@ -339,4 +339,42 @@ fn an_account_with_nothing_deleted_goes_on_from_the_folder_lists_state() {
         assert!(app.session.sync_status.starts_with("Up to date"), "{}", app.session.sync_status);
         assert!(!hierarchy(&app).is_empty(), "the folder list goes on from its state");
     }
+}
+
+/// Save Message As (#1561): the message as its server holds it, asked for through the host's own
+/// runner for the save though it is whole here already, and written byte for byte; made of its
+/// parts it would be another file.
+#[test]
+fn save_message_as_writes_the_message_as_the_server_holds_it() {
+    let server = serve();
+    let item = server.standin.state().deliver("inbox", "Minutes", false);
+    let received = b"Received: from relay.example.net by mx.example.org;\r\n\tWed, 14 Oct 2026 07:29:58 +0000\r\n\
+X-Odd-Field:   kept   as   it   came\r\nFrom: Zoe Park <zoe@example.org>\r\nTo: Ada <ada@example.org>\r\nSubject: Minutes\r\n\
+Message-ID: <minutes@example.org>\r\nDate: Wed, 14 Oct 2026 09:30:00 +0200\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed;\r\n boundary=\"=_one\"\r\n\r\n--=_one\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n\
+The minutes are attached.\r\n--=_one\r\nContent-Type: application/octet-stream; name=\"minutes.bin\"\r\n\
+Content-Disposition: attachment; filename=\"minutes.bin\"\r\nContent-Transfer-Encoding: base64\r\n\r\nAAECAwQF\r\nBgcICQoL\r\n--=_one--\r\n"
+        .to_vec();
+    if let Some(it) = server.standin.state().items.iter_mut().find(|it| it.id == item) {
+        it.mime = received.clone();
+    }
+    let (mut app, account) = window(&server);
+    send_receive(&mut app, json!({"account": account, "password": PASSWORD}));
+    let (minutes, ..) = here(&app, account, "Minutes").unwrap();
+    app.session.sel.messages = vec![minutes];
+    until(&mut app, &|app| !app.session.mailbox.message(minutes).unwrap().unfetched);
+    let rebuilt = app.execute("file.exportMessage", json!({"id": minutes})).unwrap();
+    assert_eq!(rebuilt["asReceived"], false, "an agent's call fetches nothing first");
+
+    let dir = std::env::temp_dir().join(format!("mailcraft-save-as-received-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("Minutes.eml");
+    let asked = || server.standin.state().requests.iter().filter(|r| r.operation == "GetItem").count();
+    let before = asked();
+    assert_eq!(app.run("file.exportMessage", json!({"id": minutes, "path": path.to_string_lossy()})).unwrap()["pending"], "download");
+    until(&mut app, &|_| path.exists());
+    assert_eq!(std::fs::read(&path).unwrap(), received);
+    assert!(asked() > before, "its server was asked for it");
+    assert!(app.session.driver.fetch.for_save.is_none(), "nothing of it is held once it is written");
+    let _ = std::fs::remove_dir_all(&dir);
 }

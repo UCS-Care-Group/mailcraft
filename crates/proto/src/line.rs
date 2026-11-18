@@ -26,7 +26,25 @@ fn closed() -> ProtoError {
     ProtoError::Io(said!("the server closed the connection"))
 }
 
+/// An encrypted connection whose records failed their check in the middle (#1581): carried in an
+/// `io::Error` by the transport, said in the interface's language here.
+#[derive(Debug)]
+pub struct DamagedStream;
+
+impl std::fmt::Display for DamagedStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the encrypted connection was damaged on the way")
+    }
+}
+
+impl std::error::Error for DamagedStream {}
+
 fn io_error(e: &std::io::Error) -> ProtoError {
+    if e.get_ref().is_some_and(|inner| inner.is::<DamagedStream>()) {
+        return ProtoError::Io(said!(
+            "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+        ));
+    }
     match e.kind() {
         ErrorKind::TimedOut | ErrorKind::WouldBlock => ProtoError::Io(said!("the server took too long to answer")),
         ErrorKind::UnexpectedEof | ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset | ErrorKind::BrokenPipe => closed(),
@@ -260,6 +278,19 @@ mod tests {
         // The claim alone is refused: nothing is read or allocated.
         let mut s = Script::new("");
         assert!(matches!(Wire::new(&mut s).read_block(MAX_LITERAL + 1), Err(ProtoError::Protocol(_))));
+    }
+
+    #[test]
+    fn a_damaged_stream_is_said_in_words_that_can_be_translated() {
+        let e = std::io::Error::new(ErrorKind::InvalidData, DamagedStream);
+        let said = match io_error(&e) {
+            ProtoError::Io(said) => said.to_string(),
+            other => format!("{other:?}"),
+        };
+        assert!(said.contains("antivirus or firewall"), "{said}");
+        // Any other invalid data is as the system said it.
+        let other = std::io::Error::new(ErrorKind::InvalidData, "bad");
+        assert_eq!(io_error(&other), ProtoError::Io("bad".to_string().into()));
     }
 
     #[test]

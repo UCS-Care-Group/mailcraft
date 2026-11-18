@@ -78,6 +78,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::io::{BackgroundSave, ContentSource, MAX_FILE, MAX_MAILBOX_JSON, OpenProgress, SaveProgress, SaveReport, SaveStage};
 
+#[path = "store_export.rs"]
+mod export;
 #[path = "store_index.rs"]
 mod index;
 #[path = "store_pack.rs"]
@@ -313,8 +315,16 @@ impl Parts {
 
     /// The parts kept as content files of their own (a header block in a pack is not one).
     fn all(&self) -> impl Iterator<Item = &Part> {
-        let loose_headers = self.headers.iter().filter(|_| self.headers_at.is_none());
-        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).chain(&self.original).chain(loose_headers)
+        self.all_with_kind().map(|(_, part)| part)
+    }
+
+    /// The same, each with whether it is the header block, told by the field it is kept in and
+    /// never by its bytes: an attachment may hold the very same ones (#1399).
+    fn all_with_kind(&self) -> impl Iterator<Item = (bool, &Part)> {
+        let ordinary =
+            self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).chain(&self.original).map(|p| (false, p));
+        let loose_headers = self.headers.iter().filter(|_| self.headers_at.is_none()).map(|p| (true, p));
+        ordinary.chain(loose_headers)
     }
 
     /// As the mailbox file has it under `blobs`: `{"text":[hash,length],"attachments":[…,null]}`.
@@ -3236,23 +3246,22 @@ fn save_locked(mut st: MutexGuard<'_, State>, shared: &Shared, path: &Path, mail
 /// Save `mailbox` to `path` as one self-contained file (an export, a copy to carry somewhere),
 /// written whole and atomically. Returns the bytes written.
 pub fn save_single(path: &Path, mailbox: &Mailbox) -> Result<u64, String> {
-    let bytes = crate::io::write_mailbox(mailbox)?;
-    // Never write a file a later open would refuse.
-    if bytes.len() as u64 > MAX_MAILBOX_JSON {
-        return Err(format!(
-            "the mailbox is {} MB, more than one file holds ({} MB); nothing was written. A mailbox this large is kept by saving it where it is kept (content in a folder beside the mailbox file), not as one file",
-            bytes.len() >> 20,
-            MAX_MAILBOX_JSON >> 20
-        ));
-    }
+    save_single_with(path, mailbox, |id| mailbox.messages.get(&id).cloned().ok_or_else(|| format!("no message with id {id}")))
+}
+
+/// [`save_single`], fetching content only while its message is being written. The caller keeps
+/// the source mailbox alive throughout the write; no fully loaded copy or whole-file buffer.
+pub(crate) fn save_single_with(path: &Path, mailbox: &Mailbox, load: impl Fn(Id) -> Result<Arc<Message>, String>) -> Result<u64, String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
-    write_atomic(&resolve(path), &bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut file = AtomicFile::create(&resolve(path)).map_err(|e| format!("{}: {e}", path.display()))?;
+    let bytes = export::write(&mut file, mailbox, load, MAX_MAILBOX_JSON).map_err(|e| format!("{}: {e}", path.display()))?;
+    file.commit().map_err(|e| format!("{}: {e}", path.display()))?;
     // The file is another one now: nothing known about the old one holds, and a state of it
     // still waiting to be written has had its turn.
     let (pins, named_before) = (std::mem::take(&mut st.pins), std::mem::take(&mut st.named_before));
     *st = State { newest: next_seq(), swept: st.swept, pins, named_before, ..State::default() };
-    Ok(bytes.len() as u64)
+    Ok(bytes)
 }
 
 /// The content files message `m` names as it would be saved: what it keeps on disk, and what of
@@ -3382,8 +3391,12 @@ fn prepare(
 /// than every later save failing.
 fn on_disk_here(id: Id, parts: &Parts, st: &State, dir: &Path, folders: &Folders) -> Result<(), String> {
     // (A header block that is gone is unavailable, never a save refused: the message has the lines
-    // it reads by name, #1376.)
-    for p in parts.all().filter(|p| !p.held && Some(**p) != parts.headers && !st.live.contains_key(&p.r.hash)) {
+    // it reads by name, #1376. Told by the field it is kept in, never by its bytes: an attachment
+    // may hold the very same ones, and is checked like any other, #1399.)
+    for (is_headers, p) in parts.all_with_kind().filter(|(_, p)| !p.held && !st.live.contains_key(&p.r.hash)) {
+        if is_headers {
+            continue;
+        }
         if present(dir, &p.r, folders) {
             continue;
         }

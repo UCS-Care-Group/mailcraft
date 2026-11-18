@@ -20,9 +20,12 @@ use crate::keep::Keep;
 use crate::platform::{Native, NetworkKind, Platform};
 use crate::queue::Queue;
 use crate::records::{LinkKind, LinkTarget};
+use crate::reminders::ScheduleWatch;
 use crate::sync::{FIRST_WAIT, SyncHost, follow_time_zone};
 use crate::{CoreError, DataRemoved, HostError, android};
 
+/// The most accounts a core is opened holding back (more than a phone has accounts).
+const MOST_HELD: usize = 256;
 /// The longest id of a command that is looked up, and the most bytes of parameters that are read:
 /// more is refused, as nothing a phone sends is that long.
 const MAX_COMMAND_ID: usize = 128;
@@ -122,7 +125,7 @@ pub struct Core {
     waiting: Arc<Waiting>,
     /// This core's entry in [`BUDGETS`], when its device gave a budget.
     budget_id: Option<u64>,
-    events: Arc<Queue<Event>>,
+    pub(crate) events: Arc<Queue<Event>>,
     pub(crate) platform: Arc<dyn Platform>,
     /// The same platform as the host sees it: what the sign-in code of `mailcraft-host` is given.
     pub(crate) native: Arc<Native>,
@@ -154,8 +157,18 @@ impl Core {
 
     /// A core over the mailbox kept in `dir` (the app's private, no-backup folder), restored when
     /// there is one.
-    pub(crate) fn start_in(platform: Arc<dyn Platform>, dir: &str) -> Result<Arc<Core>, CoreError> {
-        Core::start_stored(platform, |keep| keep.map_or_else(Session::empty, |k| Session::new(k.open())), SendReceive::new(), Some(dir.to_string()))
+    /// `held`: the accounts held back from what starts by itself ([`Core::hold_background_sync`]).
+    pub(crate) fn start_in(platform: Arc<dyn Platform>, dir: &str, held: &[u64]) -> Result<Arc<Core>, CoreError> {
+        // (The end-to-end build's one seam: its sign-in and Graph are the stand-in's.)
+        #[cfg(feature = "e2e")]
+        crate::e2e::route()?;
+        Core::start_stored(
+            platform,
+            |keep| keep.map_or_else(Session::empty, |k| Session::new(k.open())),
+            SendReceive::new(),
+            Some(dir.to_string()),
+            held,
+        )
     }
 
     /// [`Core::start`] with the Send/Receive state the caller made (the tests': runs that ask no server).
@@ -164,16 +177,18 @@ impl Core {
         make: impl FnOnce() -> Session + Send + 'static,
         send_receive: SendReceive,
     ) -> Result<Arc<Core>, CoreError> {
-        Core::start_stored(platform, move |_| make(), send_receive, None)
+        Core::start_stored(platform, move |_| make(), send_receive, None, &[])
     }
 
     /// The one start: `make` builds the session (given the mailbox's storage when there is one
-    /// it is to open from), on the core's thread.
+    /// it is to open from), on the core's thread. The accounts in `held` (at most [`MOST_HELD`])
+    /// are held back from what starts by itself before the driver's first wake.
     pub(crate) fn start_stored(
         platform: Arc<dyn Platform>,
         make: impl FnOnce(Option<&Keep>) -> Session + Send + 'static,
         send_receive: SendReceive,
         dir: Option<String>,
+        held: &[u64],
     ) -> Result<Arc<Core>, CoreError> {
         android::check()?;
         let native = Arc::new(Native { inner: platform.clone() });
@@ -228,7 +243,13 @@ impl Core {
         let (jobs, inbox) = mpsc::sync_channel::<Job>(MAX_WAITING_JOBS);
         let memory_budget = host.memory_budget();
         // The phone runs Microsoft (Graph) accounts only, for a clock-started round as for an asked one.
-        let sync = Arc::new(SyncHost::new(host, platform.clone(), sink.clone(), send_receive.graph_only(), keep.clone()));
+        let mut send_receive = send_receive.graph_only();
+        // Held before the driver starts, so that its first wake already leaves them out (an
+        // account that is gone is let go when the app says the hold again: `hold_background_sync`).
+        for account in held.iter().take(MOST_HELD) {
+            send_receive.hold(*account, true);
+        }
+        let sync = Arc::new(SyncHost::new(host, platform.clone(), sink.clone(), send_receive, keep.clone()));
         // The session is built before `start` returns, so a `make` that panics is an error here and
         // not a core whose every call would wait for a reply that never comes.
         let (ready_tx, ready) = mpsc::sync_channel::<bool>(1);
@@ -384,6 +405,8 @@ fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink:
     };
     let _ = ready.send(true);
     let mut last = session.rev();
+    let mut reminders = ScheduleWatch::default();
+    let _ = catch_unwind(AssertUnwindSafe(|| reminders.changed(&session)));
     let mut wait: Option<std::time::Duration> = None;
     loop {
         let job = match wait {
@@ -397,6 +420,9 @@ fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink:
                 Err(_) => break,
             },
         };
+        if job.is_some() {
+            let _ = catch_unwind(AssertUnwindSafe(|| reminders.before_job(&session)));
+        }
         // (A job catches its own panic; this is for what it does outside it.)
         if let Some(job) = job
             && catch_unwind(AssertUnwindSafe(|| job(&mut session))).is_err()
@@ -407,6 +433,9 @@ fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink:
         if now != last {
             last = now;
             sink.push(Event::RevChanged { rev: now });
+            if catch_unwind(AssertUnwindSafe(|| reminders.changed(&session))).unwrap_or(false) {
+                sink.push(Event::ReminderScheduleChanged);
+            }
         }
         wait = keep.and_then(|k| catch_unwind(AssertUnwindSafe(|| k.after_job(&session))).unwrap_or(None));
     }
@@ -433,7 +462,15 @@ impl Core {
     /// core ends. A file that can't be read is kept aside and a `StorageNotice` says so.
     #[uniffi::constructor]
     pub fn open(platform: Arc<dyn Platform>, data_dir: String) -> Result<Arc<Core>, CoreError> {
-        Core::start_in(platform, &data_dir)
+        Core::start_in(platform, &data_dir, &[])
+    }
+
+    /// [`Core::open`], with the accounts the owner held back (the app keeps them, the core only in
+    /// memory: [`Core::hold_background_sync`]) held before anything starts by itself, the first
+    /// wake of Send/Receive and the calendar's and to-dos' jobs included. At most 256 are taken.
+    #[uniffi::constructor]
+    pub fn open_holding(platform: Arc<dyn Platform>, data_dir: String, held: Vec<u64>) -> Result<Arc<Core>, CoreError> {
+        Core::start_in(platform, &data_dir, &held)
     }
 
     /// Write the mailbox to disk now (the app calls it from `onStop`). Nothing to do for a core
@@ -466,6 +503,8 @@ impl Core {
             // fresh one counts as saved, so nothing is written until the owner changes something;
             // the names of sign-ins still in the store are kept by `sync` for the retry.
             session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+            // The accounts held back went with it (a new one may come to have the same number).
+            sync.release_holds();
             if let Some(keep) = &keep {
                 keep.reset(session);
             }

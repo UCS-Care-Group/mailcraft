@@ -22,6 +22,48 @@ const SHOW: u8 = 1;
 const QUIT: u8 = 2;
 const SYNC: u8 = 4;
 
+/// Reuse the folder pane's cached counts for Inboxes of the owner's server accounts,
+/// the same account and folder scope as new-mail alerts. Shared, local and imported
+/// mail, and mail filed outside the Inbox, must not keep the indicator lit.
+fn has_unread(session: &mut mailcraft_engine::Session) -> bool {
+    use mailcraft_model::FolderKind;
+    let counts = session.folder_counts();
+    session.mailbox.folders.iter().any(|f| {
+        f.kind == FolderKind::Inbox
+            && counts.unread(f.id) > 0
+            && session.mailbox.account(f.account).is_some_and(|a| !a.is_shared() && a.kind.has_server())
+    })
+}
+
+/// Both backends use the same artwork. Generate the badge once, never on each frame,
+/// and composite it into the icon so desktops cannot place it in a different corner.
+fn icons() -> Option<[egui::IconData; 2]> {
+    let plain = crate::app_icon()?;
+    let mut badged = plain.clone();
+    let side = badged.width.min(badged.height) as f32;
+    let center = side * 0.20;
+    let radius = side * 0.15;
+    let rim = side * 0.035;
+    let width = usize::try_from(badged.width).ok().filter(|w| *w > 0)?;
+    for (i, pixel) in badged.rgba.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+        let x = (i % width) as f32 + 0.5 - center;
+        let y = (i / width) as f32 + 0.5 - center;
+        let distance = x.hypot(y);
+        let coverage = (radius + rim + 0.5 - distance).clamp(0.0, 1.0);
+        if coverage == 0.0 {
+            continue;
+        }
+        let red = (radius + 0.5 - distance).clamp(0.0, 1.0);
+        let color = [255.0 - red * 25.0, 255.0 - red * 215.0, 255.0 - red * 200.0];
+        let alpha = coverage + f32::from(pixel[3]) / 255.0 * (1.0 - coverage);
+        for (channel, color) in pixel.iter_mut().take(3).zip(color) {
+            *channel = ((color * coverage + f32::from(*channel) * (alpha - coverage)) / alpha).round() as u8;
+        }
+        pixel[3] = (alpha * 255.0).round() as u8;
+    }
+    Some([plain, badged])
+}
+
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub fn prefer_x11(close_to_tray: bool, reachable: impl FnOnce() -> bool) -> bool {
     close_to_tray && reachable()
@@ -133,8 +175,9 @@ impl Tray {
     /// notification, another launch, an unsaved-work question) restore a hidden window too.
     pub fn pump(&mut self, ctx: &Context, app: &mut MailApp) {
         self.configure(app.ui.close_to_tray, backend::Backend::start);
+        let unread = self.backend.is_some() && has_unread(&mut app.session);
         if let Some(backend) = &mut self.backend {
-            backend.poll();
+            backend.poll(unread);
         }
         let pending = self.signals.pending.swap(0, Ordering::Relaxed);
         let sync = ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("mailcraft.tray.sync"))).unwrap_or(false);
@@ -234,7 +277,7 @@ mod backend {
         pub fn start(_: std::sync::Arc<super::Signals>) -> Self {
             Self
         }
-        pub fn poll(&mut self) {}
+        pub fn poll(&mut self, _: bool) {}
         pub fn ready(&self) -> bool {
             false
         }

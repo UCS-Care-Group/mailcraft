@@ -2593,6 +2593,17 @@ fn hostile_params_never_panic() {
     junk.push(json!({"result": {"account": ews, "email": "other@example.org"}}));
     junk.push(json!({"account": ews, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "kind": "exchange", "ews": {"url": 5, "username": [], "trusted": "zz"}}));
     junk.push(json!({"id": ews, "ews": {"url": "http://evil.example/", "trusted": "x".repeat(200)}, "email": "ews@example.org"}));
+    // Calendar and contacts servers (#209), switched on so that their commands get past the door:
+    // homes that are none, too many, or not lists; names and pins that are none; answers that make
+    // no sense.
+    s.dav_enabled = true;
+    junk.push(
+        json!({"id": ews, "calendarHomes": ["https://dav.example.org/cal/", "http://evil.example/", "https://u:p@x.example/", 5, null, "\u{0}"]}),
+    );
+    junk.push(json!({"id": ews, "contactHomes": (0..1000).map(|n| format!("https://h{n}.example.org/")).collect::<Vec<_>>(), "username": "x".repeat(100_000)}));
+    junk.push(json!({"id": ews, "calendarHomes": {"deep": [[[]]]}, "contactHomes": "x", "trusted": [1], "separatePassword": "yes"}));
+    junk.push(json!({"id": jmap, "calendarHomes": ["https://outlook.office365.com/", "https://www.googleapis.com/"], "trusted": "zz".repeat(40)}));
+    junk.push(json!({"account": ews, "result": {"collections": [{"href": "\u{0}", "syncToken": "x".repeat(100_000)}], "uploaded": [null, 5]}}));
     // Several messages being written (#286): ids of messages being written that are none, of
     // another kind, the largest there is, and ones open beside others.
     junk.push(json!({"compose": null, "text": "x"}));
@@ -2859,4 +2870,18 @@ fn a_reply_quotes_only_the_first_names_of_a_long_list() {
     let c = s.compose.as_ref().unwrap();
     let body = c.quote.as_ref().map_or_else(|| c.body.plain(), |q| q.text.clone());
     assert!(body.contains("(+4900)") && !body.contains("u4999@"), "{}", body.len());
+}
+
+/// The window runs a command it asked about first with `"confirmed": true` added (the owner's
+/// yes): no command refuses that note as a parameter it doesn't take. Remove Imported Duplicates
+/// did, so its question's yes could never go ahead.
+#[test]
+fn no_command_refuses_the_windows_yes() {
+    let mut s = session();
+    let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
+    for id in ids {
+        if let Err(e) = s.run(id, &json!({"confirmed": true})) {
+            assert!(!e.to_string().contains("`confirmed` isn't a parameter"), "{id}: {e}");
+        }
+    }
 }

@@ -163,6 +163,15 @@ fn window_commands_validate() {
     a.services.system_locale = Some("sl-SI".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "sl");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Slovenian);
+    // Czech too.
+    a.services.system_locale = Some("cs-CZ".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "cs");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Czech);
+    // Georgian too, and Automatic in Georgia follows it.
+    assert_eq!(a.execute("ui.language", json!({"language": "ka"})).unwrap()["inForce"], "ka");
+    a.services.system_locale = Some("ka-GE".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "ka");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Georgian);
     assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());
@@ -290,9 +299,45 @@ fn saved_settings_come_back_and_bad_ones_are_tamed() {
     .unwrap_or_default();
     b.apply_prefs(odd);
     assert!((150.0..=500.0).contains(&b.ui.folder_pane_width) && (240.0..=900.0).contains(&b.ui.list_width));
-    let nan: UiState = UiState { folder_pane_width: f32::NAN, list_width: f32::INFINITY, ..Default::default() };
+    let nan: UiState = UiState { folder_pane_width: f32::NAN, list_width: f32::INFINITY, list_height: f32::NAN, ..Default::default() };
     b.apply_prefs(nan);
-    assert_eq!((b.ui.folder_pane_width, b.ui.list_width), (230.0, 380.0));
+    assert_eq!((b.ui.folder_pane_width, b.ui.list_width, b.ui.list_height), (230.0, 380.0, 0.0));
+    // A negative height is the share of the window again, as a new install has it (#1372).
+    b.apply_prefs(UiState { list_height: -40.0, ..Default::default() });
+    assert_eq!(b.ui.list_height, 0.0);
+    b.apply_prefs(UiState { list_height: 1e30, ..Default::default() });
+    assert_eq!(b.ui.list_height, 4000.0);
+    // A height the owner dragged comes back as it was.
+    b.apply_prefs(UiState { list_height: 610.0, ..Default::default() });
+    assert_eq!(b.ui.list_height, 610.0);
+}
+
+#[test]
+fn unknown_attachment_preview_formats_preserve_the_other_settings() {
+    use crate::attachment_preview::Format;
+
+    let saved = json!({
+        "theme": "dark",
+        "language": "nl",
+        "attachmentPreviews": true,
+        "attachmentPreviewWithoutWarning": ["pdf", "future-format", "png", "pdf", null, 7],
+    });
+    let settings: UiState = serde_json::from_value(saved).unwrap();
+    assert_eq!(settings.attachment_preview_without_warning, [Format::Pdf, Format::Png].into_iter().collect());
+    assert_eq!(settings.theme, crate::theme::Appearance::Dark);
+    assert_eq!(settings.language, "nl");
+    assert!(settings.attachment_previews);
+    let round_trip = serde_json::to_value(&settings).unwrap();
+    assert_eq!(round_trip["attachmentPreviewWithoutWarning"], json!(["pdf", "png"]));
+
+    for value in [json!(["future-format"]), json!("pdf"), json!(null), json!({"format": "png"})] {
+        let settings: UiState = serde_json::from_value(json!({"theme": "dark", "attachmentPreviewWithoutWarning": value})).unwrap();
+        assert!(settings.attachment_preview_without_warning.is_empty());
+        assert_eq!(settings.theme, crate::theme::Appearance::Dark);
+    }
+    let older: UiState = serde_json::from_value(json!({"theme": "dark"})).unwrap();
+    assert!(older.attachment_preview_without_warning.is_empty());
+    assert_eq!(older.theme, crate::theme::Appearance::Dark);
 }
 
 #[test]

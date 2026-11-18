@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
-import uniffi.mailcraft_mobile.AttachmentFile
-import uniffi.mailcraft_mobile.AttachmentVerdict
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.Event
@@ -79,36 +77,13 @@ internal sealed interface FetchOutcome {
     }
 }
 
-/** What may be done with an attachment: the core judges it by its kind, as the desktop does. */
-internal enum class AttachmentUse {
-    Open,
-    AskMacros,
-    AskScripts,
-    SaveOnly,
-    ;
-
-    /** Whether it may be handed to another app to open (after asking, for [AskMacros] and [AskScripts]). */
-    val opens: Boolean get() = this != SaveOnly
-
-    companion object {
-        fun of(verdict: AttachmentVerdict): AttachmentUse = when (verdict) {
-            AttachmentVerdict.OPEN -> Open
-            AttachmentVerdict.ASK_MACROS -> AskMacros
-            AttachmentVerdict.ASK_SCRIPTS -> AskScripts
-            AttachmentVerdict.SAVE_ONLY -> SaveOnly
-        }
-    }
-}
-
 /**
  * What the reading pane and search ask of the core to have mail downloaded: one seam, so that they
- * run without the library. A message's text and attachments are the sender's: shown, never run.
+ * run without the library. An attachment is asked for through [CoreAttachments] (the core waits for its
+ * message). A message's text and attachments are the sender's: shown, never run.
  */
 internal interface FetchApi {
     suspend fun open(message: ULong): OpenResult
-
-    /** The attachment's file, waiting for its message when it isn't on the phone yet; null when it can't be had. */
-    suspend fun attachment(message: ULong, index: UInt): AttachmentFile?
 
     /** A search on the account's server (null when it couldn't be asked), and its next page. */
     suspend fun searchServer(account: ULong, query: String): ServerSearchAnswer?
@@ -123,13 +98,6 @@ internal class CoreFetching(private val core: Core) : FetchApi {
             OpenResult.of(core.openMessage(message))
         } catch (e: CoreException) {
             OpenResult.Unavailable(e.message.orEmpty())
-        }
-
-    override suspend fun attachment(message: ULong, index: UInt): AttachmentFile? =
-        try {
-            core.fetchAttachment(message, index)
-        } catch (_: CoreException) {
-            null
         }
 
     override suspend fun searchServer(account: ULong, query: String): ServerSearchAnswer? =

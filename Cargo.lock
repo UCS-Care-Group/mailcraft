@@ -3264,6 +3264,7 @@ dependencies = [
  "mailcraft-model",
  "mailcraft-net",
  "mailcraft-time",
+ "serde_json",
 ]
 
 [[package]]
@@ -3343,6 +3344,7 @@ dependencies = [
  "mailcraft-charset",
  "mailcraft-html",
  "mailcraft-time",
+ "mailcraft-tnef",
  "proptest",
  "serde_json",
  "thiserror 2.0.21",
@@ -3372,6 +3374,7 @@ dependencies = [
  "mailcraft-html",
  "mailcraft-i18n",
  "mailcraft-link",
+ "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-net",
@@ -3502,6 +3505,15 @@ dependencies = [
  "js-sys",
  "proptest",
  "serde",
+]
+
+[[package]]
+name = "mailcraft-tnef"
+version = "0.13.0"
+dependencies = [
+ "mailcraft-charset",
+ "mailcraft-pst",
+ "proptest",
 ]
 
 [[package]]

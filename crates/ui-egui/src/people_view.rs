@@ -30,6 +30,11 @@ const NOTES_MAX: usize = 20_000;
 const PLACE_W: f32 = 200.0;
 
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
+    // The organisation's address list, chosen in place of the contacts (#1262).
+    if app.address_book_shown().is_some() {
+        crate::address_book::show(app, ui);
+        return;
+    }
     let t = Tokens::get(ui.ctx());
     let layout = list_layout(app, ui.ctx());
     keyboard(app, ui, &layout);
@@ -575,15 +580,8 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     if resp.on_hover_text(tl!("New Contact")).clicked() {
         let _ = app.run("people.new", json!({}));
     }
-    let accounts = people::contact_accounts(&app.session.mailbox);
-    let shown = people::shown_account(&app.session);
-    if !accounts.is_empty() {
-        ui.add_space(2.0);
-        if let Some(choice) = widgets::account_choice(ui, &app.session.mailbox, &accounts, shown) {
-            let _ = app.run("view.peopleAccount", json!({"value": choice.code()}));
-        }
-        ui.add_space(8.0);
-    }
+    // Whose contacts, or an organisation's address list.
+    crate::address_book::book_choice(app, ui);
     let line = ui.cursor().min.y;
     ui.painter().line_segment([pos2(header.min.x, line), pos2(header.max.x, line)], Stroke::new(1.0, t.border));
 
@@ -659,7 +657,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         p.rect_filled(rect, 0.0, t.hover_subtle);
     }
     p.line_segment([pos2(rect.min.x + 54.0, rect.max.y), pos2(rect.max.x, rect.max.y)], Stroke::new(1.0, t.border.linear_multiply(0.7)));
-    widgets::avatar(ui, pos2(rect.min.x + 28.0, rect.center().y), 16.0, &avatar_address(&c));
+    crate::sender_images::contact_avatar(app, ui, pos2(rect.min.x + 28.0, rect.center().y), 16.0, &avatar_address(&c));
     let left = rect.min.x + 54.0;
     let mut right = rect.max.x - 12.0;
     if c.favorite {
@@ -731,7 +729,9 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
                 account.as_slice(),
                 &carried,
                 "people.categorize",
-                |app, name| app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name))),
+                |app, name| {
+                    app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, name)))
+                },
                 None,
             );
         });
@@ -797,11 +797,11 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
 }
 
 /// The avatar, the name, what they do and where, and the categories.
-fn card_header(app: &MailApp, ui: &mut Ui, c: &Contact) {
+fn card_header(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
     let t = Tokens::get(ui.ctx());
     ui.horizontal(|ui| {
         let (r, _) = ui.allocate_exact_size(vec2(80.0, 80.0), Sense::hover());
-        widgets::avatar(ui, r.center(), 40.0, &avatar_address(c));
+        crate::sender_images::contact_avatar(app, ui, r.center(), 40.0, &avatar_address(c));
         ui.add_space(12.0);
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
@@ -872,7 +872,7 @@ pub(crate) fn section(ui: &mut Ui, title: &str) {
 }
 
 /// One line of a section: an icon, a value and its label. A `link` is a button.
-fn field(ui: &mut Ui, icon: &str, value: &str, label: &str, link: bool) -> egui::Response {
+pub(crate) fn field(ui: &mut Ui, icon: &str, value: &str, label: &str, link: bool) -> egui::Response {
     let t = Tokens::get(ui.ctx());
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), if link { Sense::click() } else { Sense::hover() });
     if link && resp.hovered() {
