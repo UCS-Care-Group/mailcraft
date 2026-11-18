@@ -290,24 +290,21 @@ impl MailApp {
         let started = ews_address_list_request(&self.session, account)
             .map_err(|e| tl!(&e.to_string()).to_string())
             .and_then(|r| self.start_job(r, "").map_err(|(error, _)| error));
-        let held = match self.address_lists.iter().position(|h| h.account == account) {
-            Some(at) => &mut self.address_lists[at],
-            None => {
-                self.address_lists.push(HeldList {
-                    account,
-                    server: server_of(&self.session, account),
-                    opening,
-                    list: None,
-                    keys: Vec::new(),
-                    error: None,
-                    pending: None,
-                    at_ms: now,
-                    version: 0,
-                });
-                let last = self.address_lists.len() - 1;
-                &mut self.address_lists[last]
-            }
-        };
+        if !self.address_lists.iter().any(|h| h.account == account) {
+            let server = server_of(&self.session, account);
+            self.address_lists.push(HeldList {
+                account,
+                server,
+                opening,
+                list: None,
+                keys: Vec::new(),
+                error: None,
+                pending: None,
+                at_ms: now,
+                version: 0,
+            });
+        }
+        let Some(held) = self.address_lists.iter_mut().find(|h| h.account == account) else { return };
         held.at_ms = now;
         match started {
             Ok(pending) => held.pending = Some(pending),

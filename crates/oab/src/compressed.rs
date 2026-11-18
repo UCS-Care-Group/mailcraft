@@ -52,8 +52,9 @@ pub fn decompress(file: &[u8], limits: &Limits) -> Result<Vec<u8>, Error> {
         return Err(Error::Cap(Cap::BlockSize));
     }
     let largest = window_bits(block_max)?;
-    // Never more than the file could unpack to at the best ratio LZXD has, nor what it says.
-    let mut out = Vec::with_capacity(target.min(file.len().saturating_mul(64)));
+    // Room is made as blocks come, never past what the file says it unpacks to: a header alone
+    // reserves nothing.
+    let mut out: Vec<u8> = Vec::new();
     let mut at = HEADER;
     while out.len() < target {
         let [flags, packed, unpacked, crc] = words(file, at, "LZX_BLK")?;
@@ -66,19 +67,32 @@ pub fn decompress(file: &[u8], limits: &Limits) -> Result<Vec<u8>, Error> {
         }
         let from = at.saturating_add(BLOCK_HEADER);
         let data = file.get(from..from.saturating_add(packed)).ok_or(Error::Truncated("LZX_BLK data"))?;
-        let block = match flags {
-            0 if packed == unpacked => data.to_vec(),
+        grow(&mut out, unpacked, target);
+        match flags {
+            0 if packed == unpacked => {
+                if crc32(data) != crc {
+                    return Err(Error::BadChecksum("LZX_BLK"));
+                }
+                out.extend_from_slice(data);
+            }
             0 => return Err(Error::Corrupt("a stored LZX_BLK of two sizes")),
-            1 => unpack(data, unpacked, crc, largest)?,
+            // Its CRC is checked there, for each window tried.
+            1 => out.extend_from_slice(&unpack(data, unpacked, crc, largest)?),
             _ => return Err(Error::Corrupt("LZX_BLK flags")),
-        };
-        if crc32(&block) != crc {
-            return Err(Error::BadChecksum("LZX_BLK"));
         }
-        out.extend_from_slice(&block);
         at = from.saturating_add(packed);
     }
     Ok(out)
+}
+
+/// Room in `out` for `more` bytes: twice what it holds, as a `Vec` grows, but never past `target`
+/// (what the file unpacks to), so that the last block doesn't double a large output.
+fn grow(out: &mut Vec<u8>, more: usize, target: usize) {
+    let need = out.len().saturating_add(more);
+    if out.capacity() < need {
+        let room = out.capacity().saturating_mul(2).max(need).min(target.max(need));
+        out.reserve_exact(room.saturating_sub(out.len()));
+    }
 }
 
 /// A packed block: with the window that holds it, and, should that fail, with each other window

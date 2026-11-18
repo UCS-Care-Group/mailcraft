@@ -9,7 +9,15 @@ use mailcraft_oab::{Limits, crc32, decompress, lzxd, read, read_details};
 
 libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     // Small caps, so that one input stays quick.
-    let limits = Limits { max_output: 1 << 20, max_block: 1 << 18, max_records: 10_000, max_record: 1 << 16, max_properties: 512, max_values: 200_000 };
+    let limits = Limits {
+        max_output: 1 << 20,
+        max_block: 1 << 18,
+        max_records: 10_000,
+        max_record: 1 << 16,
+        max_properties: 512,
+        max_values: 200_000,
+        max_kept_bytes: 1 << 20,
+    };
     let (len, window) = match data {
         [a, b, c, ..] => (usize::from(u16::from_le_bytes([*a, *b])), 17 + u32::from(*c % 9)),
         _ => (0, 17),

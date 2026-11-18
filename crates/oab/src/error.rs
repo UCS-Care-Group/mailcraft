@@ -38,6 +38,8 @@ pub enum Cap {
     Properties,
     /// [`Limits::max_values`]: the values kept of the whole file.
     Values,
+    /// [`Limits::max_kept_bytes`]: the bytes of the values kept of the whole file.
+    KeptBytes,
 }
 
 impl fmt::Display for Error {
@@ -72,10 +74,21 @@ pub struct Limits {
     /// The most values kept of a whole file, the header's and the entries' together; each of a
     /// multi-valued property's values counts, and one with none counts one.
     pub max_values: usize,
+    /// The most bytes of text and binary data kept of a whole file, the header's and the
+    /// entries' together: a file of few values can still hold large ones.
+    pub max_kept_bytes: usize,
 }
 
 impl Default for Limits {
     fn default() -> Self {
-        Limits { max_output: 1 << 30, max_block: 1 << 24, max_records: 4_000_000, max_record: 1 << 20, max_properties: 4096, max_values: 16_000_000 }
+        Limits {
+            max_output: 1 << 30,
+            max_block: 1 << 24,
+            max_records: 4_000_000,
+            max_record: 1 << 20,
+            max_properties: 4096,
+            max_values: 16_000_000,
+            max_kept_bytes: 1 << 29,
+        }
     }
 }

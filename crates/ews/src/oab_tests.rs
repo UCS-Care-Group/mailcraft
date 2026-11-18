@@ -7,7 +7,7 @@ use std::sync::atomic::AtomicBool;
 use mailcraft_model::sync::DirectoryKind;
 
 use crate::http::HttpResponse;
-use crate::oab::{FullFile, OabError, fetch, full_file, judged, oab_url, origin};
+use crate::oab::{FullFile, MAX_UNPACKED, OabError, address_list, fetch, full_file, judged, oab_url, origin};
 use crate::standin::{AUTHORIZATION, StandIn, block_on};
 use crate::standin_directory::Person;
 use crate::standin_oab::{FILE, PATH};
@@ -64,6 +64,17 @@ fn the_whole_list_comes_from_the_accounts_own_server_in_three_reads() {
     assert!(list.people.iter().all(|p| !format!("{}{}", p.phone, p.mobile).contains("0123")));
     assert_eq!(operations(&standin), ["Autodiscover", "oab.xml", "OAB file"]);
     assert!(standin.state().writes.is_empty());
+}
+
+/// A file that says it unpacks to more than a full file of the address book can need is refused
+/// from its header, before anything is unpacked or held.
+#[test]
+fn a_file_that_unpacks_past_the_cap_is_refused_from_its_header() {
+    let mut file = Vec::new();
+    for word in [3u32, 1, 0x40000, MAX_UNPACKED as u32 + 1] {
+        file.extend_from_slice(&word.to_le_bytes());
+    }
+    assert_eq!(address_list(&file).err(), Some(mailcraft_oab::Error::Cap(mailcraft_oab::Cap::OutputSize)));
 }
 
 #[test]

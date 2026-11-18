@@ -11,7 +11,15 @@ use crate::test_writer::spec_sample;
 use crate::{Error, Limits, crc32, decompress, read, read_details};
 
 fn small() -> Limits {
-    Limits { max_output: 1 << 20, max_block: 1 << 18, max_records: 10_000, max_record: 1 << 16, max_properties: 256, max_values: 100_000 }
+    Limits {
+        max_output: 1 << 20,
+        max_block: 1 << 18,
+        max_records: 10_000,
+        max_record: 1 << 16,
+        max_properties: 256,
+        max_values: 100_000,
+        max_kept_bytes: 1 << 20,
+    }
 }
 
 fn text(len: usize) -> Vec<u8> {

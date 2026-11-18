@@ -54,6 +54,20 @@ pub enum Value {
 }
 
 impl Value {
+    /// The bytes of text and binary data this holds (an integer's four, a boolean's one).
+    pub fn bytes(&self) -> usize {
+        let sum = |sizes: &mut dyn Iterator<Item = usize>| sizes.fold(0usize, usize::saturating_add);
+        match self {
+            Value::Integer(_) => 4,
+            Value::Boolean(_) => 1,
+            Value::Text(t) => t.len(),
+            Value::Binary(b) => b.len(),
+            Value::Integers(v) => v.len().saturating_mul(4),
+            Value::Texts(v) => sum(&mut v.iter().map(String::len)),
+            Value::Binaries(v) => sum(&mut v.iter().map(Vec::len)),
+        }
+    }
+
     /// How many values this is: those of a multi-valued property, else one.
     pub fn count(&self) -> usize {
         match self {
@@ -170,7 +184,7 @@ pub fn read_details_keeping(file: &[u8], limits: &Limits, keep: impl Fn(u32) -> 
     let (header_schema, used) = prop_table(meta, 4, limits)?;
     let (schema, _) = prop_table(meta, used, limits)?;
     let mut at = meta_size;
-    let mut kept = 0usize;
+    let mut kept = Kept::default();
     let header = record(rest, &mut at, &header_schema, limits, &|_| true, &mut kept)?;
     // Each record is at least its size and its presence bits.
     let smallest = 4usize.saturating_add(schema.len().div_ceil(8));
@@ -211,9 +225,17 @@ fn prop_table(meta: &[u8], at: usize, limits: &Limits) -> Result<(Vec<PropDef>, 
     Ok((props, from.saturating_add(bytes.len())))
 }
 
+/// What has been kept of a file so far, against [`Limits::max_values`] and
+/// [`Limits::max_kept_bytes`].
+#[derive(Default)]
+struct Kept {
+    values: usize,
+    bytes: usize,
+}
+
 /// An `OAB_V4_REC` at `*at`, which is moved past it, with the values `keep` wants, counted in
 /// `kept`.
-fn record(rest: &[u8], at: &mut usize, schema: &[PropDef], limits: &Limits, keep: &dyn Fn(u32) -> bool, kept: &mut usize) -> Result<Record, Error> {
+fn record(rest: &[u8], at: &mut usize, schema: &[PropDef], limits: &Limits, keep: &dyn Fn(u32) -> bool, kept: &mut Kept) -> Result<Record, Error> {
     let size = u32_at(rest, *at, "OAB_V4_REC")? as usize;
     if size > limits.max_record {
         return Err(Error::Cap(Cap::RecordSize));
@@ -231,10 +253,16 @@ fn record(rest: &[u8], at: &mut usize, schema: &[PropDef], limits: &Limits, keep
         let value = data.value(prop.tag as u16)?;
         if keep(prop.tag) {
             // Each of a multi-valued property's values counts, so that many can't pile up under
-            // one count, and a property with none counts one, as every property kept does.
-            *kept = kept.saturating_add(value.count().max(1));
-            if *kept > limits.max_values {
+            // one count, and a property with none counts one, as every property kept does. Its
+            // bytes count too, before it is kept: what is read of one record and not kept is let go
+            // of with it (at most `max_record`).
+            kept.values = kept.values.saturating_add(value.count().max(1));
+            if kept.values > limits.max_values {
                 return Err(Error::Cap(Cap::Values));
+            }
+            kept.bytes = kept.bytes.saturating_add(value.bytes());
+            if kept.bytes > limits.max_kept_bytes {
+                return Err(Error::Cap(Cap::KeptBytes));
             }
             values.push((prop.tag, value));
         }

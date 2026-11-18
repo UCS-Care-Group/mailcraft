@@ -37,6 +37,13 @@ const MAX_ANSWER: usize = 256 * 1024;
 const MAX_MANIFEST: usize = 2 * 1024 * 1024;
 /// The largest address book file downloaded: larger ones are not read.
 pub const MAX_FILE: usize = RESPONSE_LIMIT;
+/// The most the file may unpack to: many times what a full file of [`MAX_FILE`] packs into,
+/// and far less than the reader's own cap, so that one answer can't make the program hold
+/// gigabytes.
+pub const MAX_UNPACKED: usize = 256 * 1024 * 1024;
+/// The most bytes of the values kept while the file is read (the names, addresses, numbers and
+/// certificates, before the certificates are cut down to [`MAX_CERTIFICATE_BYTES`]).
+pub const MAX_KEPT_BYTES: usize = 128 * 1024 * 1024;
 /// The most bytes of certificates held for a whole address list.
 pub const MAX_CERTIFICATE_BYTES: usize = 64 * 1024 * 1024;
 /// The longest file name taken from the table of contents.
@@ -219,7 +226,8 @@ fn wanted(property: u32) -> bool {
 
 /// The address list of a compressed full file: its people, by name.
 pub fn address_list(file: &[u8]) -> Result<EwsAddressList, mailcraft_oab::Error> {
-    let limits = Limits { max_records: MAX_ADDRESS_LIST.saturating_mul(4), ..Limits::default() };
+    let limits =
+        Limits { max_records: MAX_ADDRESS_LIST.saturating_mul(4), max_output: MAX_UNPACKED, max_kept_bytes: MAX_KEPT_BYTES, ..Limits::default() };
     let details = mailcraft_oab::read_details_keeping(&mailcraft_oab::decompress(file, &limits)?, &limits, wanted)?;
     let mut people: Vec<DirectoryPerson> = details.records.iter().filter_map(person).collect();
     let more = people.len() > MAX_ADDRESS_LIST;

@@ -66,3 +66,28 @@ fn an_empty_multi_valued_property_counts_one() {
     assert!(read_details(&file, &Limits { max_values: 3, ..Limits::default() }).is_ok());
     assert_eq!(read_details(&file, &Limits { max_values: 2, ..Limits::default() }), Err(Error::Cap(Cap::Values)));
 }
+
+/// A small packed file of large values (here sixteen certificates of 64 KB, packed by the test
+/// encoder into a fraction of that) is held to `max_kept_bytes` as it is read, not after.
+#[test]
+fn a_small_file_of_large_values_is_held_to_the_bytes_kept() {
+    let certificates = PropDef { tag: 0x3A70_1102, primary_key: false, anr: false };
+    let entry = Record { values: vec![(certificates.tag, Value::Binaries(vec![vec![0x5A; 64 * 1024]]))] };
+    let unpacked = details(&[], &[certificates], &Record::default(), &vec![entry; 16]);
+    let file = compressed(&unpacked, 0x40000, 0, &Options::default());
+    assert!(file.len() * 16 < unpacked.len(), "{} packed of {}", file.len(), unpacked.len());
+    assert_eq!(crate::read(&file, &Limits::default()).unwrap().records.len(), 16);
+    let limits = Limits { max_kept_bytes: 15 * 64 * 1024, ..Limits::default() };
+    assert_eq!(crate::read(&file, &limits), Err(Error::Cap(Cap::KeptBytes)));
+}
+
+/// The output grows as blocks come, and never past what the file unpacks to: no doubling of a
+/// large output at its last block.
+#[test]
+fn the_output_is_never_given_more_room_than_the_file_unpacks_to() {
+    let data: Vec<u8> = (0..5 * 0x10000 + 123).map(|i| (i % 251) as u8).collect();
+    let file = crate::test_writer::stored(&data, 0x10000);
+    let out = crate::decompress(&file, &Limits::default()).unwrap();
+    assert_eq!(out, data);
+    assert_eq!(out.capacity(), out.len());
+}
