@@ -757,8 +757,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "Account Problems"
-msgstr ""
+msgstr "账户问题"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
@@ -7949,8 +7950,9 @@ msgstr "邮件会边读取边导入。取消时保留已导入的邮件；再次
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "Mail doesn't arrive for these accounts until you sign in again."
-msgstr ""
+msgstr "在您重新登录之前，这些账户收不到邮件。"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -17235,8 +17237,9 @@ msgstr "此账户未使用 Microsoft 登录"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
-msgstr ""
+msgstr "此账户需要重新登录：在您登录之前，它的邮件不会送达。点击以登录。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -23456,9 +23459,10 @@ msgstr[0] "{n} 个账户已设置"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "{n} account has to be signed in again"
 msgid_plural "{n} accounts have to be signed in again"
-msgstr[0] ""
+msgstr[0] "{n} 个账户需要重新登录"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt

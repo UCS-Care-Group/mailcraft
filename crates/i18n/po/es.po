@@ -756,8 +756,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "Account Problems"
-msgstr ""
+msgstr "Problemas de cuentas"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
@@ -7956,8 +7957,9 @@ msgstr "El correo entra a medida que se lee. Cancelar conserva lo ya importado; 
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "Mail doesn't arrive for these accounts until you sign in again."
-msgstr ""
+msgstr "El correo de estas cuentas no llega hasta que vuelva a iniciar sesión."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -17246,8 +17248,9 @@ msgstr "Esta cuenta no tiene inicio de sesión con Microsoft"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
-msgstr ""
+msgstr "Hay que volver a iniciar sesión en esta cuenta: su correo no llega hasta que lo haga. Haga clic para iniciar sesión."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -23477,10 +23480,11 @@ msgstr[1] "{n} cuentas tienen una"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "{n} account has to be signed in again"
 msgid_plural "{n} accounts have to be signed in again"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Hay que volver a iniciar sesión en {n} cuenta"
+msgstr[1] "Hay que volver a iniciar sesión en {n} cuentas"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt

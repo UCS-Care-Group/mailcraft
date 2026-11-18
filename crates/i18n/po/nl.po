@@ -744,8 +744,9 @@ msgstr "Accountinstellingen"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "Account Problems"
-msgstr ""
+msgstr "Accountproblemen"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
@@ -7641,8 +7642,9 @@ msgstr "E-mail wordt binnengehaald zoals die wordt gelezen. Annuleren behoudt wa
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "Mail doesn't arrive for these accounts until you sign in again."
-msgstr ""
+msgstr "Voor deze accounts komt geen e-mail binnen totdat u zich opnieuw aanmeldt."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -16669,8 +16671,9 @@ msgstr "Dit account heeft geen aanmelding bij Microsoft"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
-msgstr ""
+msgstr "Dit account moet opnieuw worden aangemeld: de e-mail ervan komt pas binnen als u dat doet. Klik om aan te melden."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -22845,10 +22848,11 @@ msgstr[1] "{n} accounts hebben er een"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "{n} account has to be signed in again"
 msgid_plural "{n} accounts have to be signed in again"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} account moet opnieuw worden aangemeld"
+msgstr[1] "{n} accounts moeten opnieuw worden aangemeld"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt

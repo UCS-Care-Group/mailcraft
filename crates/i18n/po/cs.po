@@ -756,8 +756,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "Account Problems"
-msgstr ""
+msgstr "Problémy s účty"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
@@ -7971,8 +7972,9 @@ msgstr "Pošta přibývá, jak se čte. Zrušit ponechá, co už je načteno; op
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "Mail doesn't arrive for these accounts until you sign in again."
-msgstr ""
+msgstr "Pošta pro tyto účty nepřichází, dokud se znovu nepřihlásíte."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -17266,8 +17268,9 @@ msgstr "Tento účet nemá přihlášení přes Microsoft"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
-msgstr ""
+msgstr "Tento účet je třeba znovu přihlásit: jeho pošta nepřichází, dokud to neuděláte. Klikněte pro přihlášení."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -23523,11 +23526,12 @@ msgstr[2] "{n} účtů ho má"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "{n} account has to be signed in again"
 msgid_plural "{n} accounts have to be signed in again"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} účet je třeba znovu přihlásit"
+msgstr[1] "{n} účty je třeba znovu přihlásit"
+msgstr[2] "{n} účtů je třeba znovu přihlásit"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt

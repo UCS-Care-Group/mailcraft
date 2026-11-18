@@ -757,8 +757,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "Account Problems"
-msgstr ""
+msgstr "Problemy z kontami"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
@@ -7986,8 +7987,9 @@ msgstr "Poczta jest importowana w miarę odczytu. Anulowanie zachowuje to, co ju
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "Mail doesn't arrive for these accounts until you sign in again."
-msgstr ""
+msgstr "Poczta tych kont nie dociera, dopóki nie zalogujesz się ponownie."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -17294,8 +17296,9 @@ msgstr "To konto nie ma logowania przez Microsoft"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
-msgstr ""
+msgstr "To konto wymaga ponownego zalogowania: jego poczta nie dociera, dopóki tego nie zrobisz. Kliknij, aby się zalogować."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -23555,11 +23558,12 @@ msgstr[2] "{n} kont ma podpis"
 
 #. interface
 #: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
 msgid "{n} account has to be signed in again"
 msgid_plural "{n} accounts have to be signed in again"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} konto wymaga ponownego zalogowania"
+msgstr[1] "{n} konta wymagają ponownego zalogowania"
+msgstr[2] "{n} kont wymaga ponownego zalogowania"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
