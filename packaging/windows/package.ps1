@@ -28,7 +28,9 @@ param(
   [switch] $SkipBuild,
   [switch] $BuildOnly,
   # Don't run the built CLI at the end (the job that signs never runs what was built).
-  [switch] $NoRun
+  [switch] $NoRun,
+  # Only build the portable zip, skipping WiX MSI packaging.
+  [switch] $PortableOnly
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -132,17 +134,19 @@ $rtf = '{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fswiss\fcharset0 Tahoma;}}\vi
   ($paragraphs -join "\par`r`n") + "\par`r`n}`r`n"
 [System.IO.File]::WriteAllText($LicenseRtf, $rtf, [System.Text.Encoding]::ASCII)
 
-$Msi = Join-Path $Dist "mailcraft-$Version-windows-$Arch.msi"
-Invoke-Native 'wix build' {
-  wix build (Join-Path $PSScriptRoot 'mailcraft.wxs') -arch $Arch `
-    -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext `
-    -d "Version=$MsiVersion" -d "BinDir=$Stage" -d "IconPath=$(Join-Path $Root 'assets\app-icon\mailcraft.ico')" `
-    -d "LicenseRtf=$LicenseRtf" `
-    -o $Msi
+if (-not $PortableOnly) {
+  $Msi = Join-Path $Dist "mailcraft-$Version-windows-$Arch.msi"
+  Invoke-Native 'wix build' {
+    wix build (Join-Path $PSScriptRoot 'mailcraft.wxs') -arch $Arch `
+      -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext `
+      -d "Version=$MsiVersion" -d "BinDir=$Stage" -d "IconPath=$(Join-Path $Root 'assets\app-icon\mailcraft.ico')" `
+      -d "LicenseRtf=$LicenseRtf" `
+      -o $Msi
+  }
+  # wix writes its debug symbols (.wixpdb) next to the MSI; keep them out of the release assets.
+  Remove-Item -Force -ErrorAction SilentlyContinue ([IO.Path]::ChangeExtension($Msi, '.wixpdb'))
+  & (Join-Path $PSScriptRoot 'sign.ps1') $Msi
 }
-# wix writes its debug symbols (.wixpdb) next to the MSI; keep them out of the release assets.
-Remove-Item -Force -ErrorAction SilentlyContinue ([IO.Path]::ChangeExtension($Msi, '.wixpdb'))
-& (Join-Path $PSScriptRoot 'sign.ps1') $Msi
 
 # ---- portable zip ------------------------------------------------------------------------------
 $Portable = Join-Path $TargetDir "windows-package\mailcraft-$Version-windows-$Arch-portable"
@@ -173,4 +177,8 @@ if ($NoRun) {
 } else {
   Write-Output "skipping mailcraft-cli --version: an $Arch build doesn't run on this $HostArch machine"
 }
-Get-Item $Msi, $Zip | Format-Table Name, Length
+if (-not $PortableOnly) {
+  Get-Item $Msi, $Zip | Format-Table Name, Length
+} else {
+  Get-Item $Zip | Format-Table Name, Length
+}

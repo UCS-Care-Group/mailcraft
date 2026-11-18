@@ -1,0 +1,35 @@
+name: Build Portable Windows x64
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'feature/i18n-portuguese-brazil'
+      - 'main'
+
+jobs:
+  build:
+    name: Build Portable Windows x64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Package Portable Windows x64
+        shell: pwsh
+        run: ./packaging/windows/package.ps1 -Arch x64 -PortableOnly -NoRun
+
+      - name: Upload Portable Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: mailcraft-windows-x64-portable
+          path: dist/release/*-portable.zip
+          if-no-files-found: error
