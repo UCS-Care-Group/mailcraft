@@ -240,20 +240,14 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         {
             let _ = app.run("account.remove", json!({"id": a.id}));
         }
-        // Whether the owner's permission for a shared mailbox's calendars was given, with a way to
-        // ask again (#70).
+        // Whether the owner's permission for a shared mailbox's calendars was given (#70); Ask
+        // again is on the line of the account it is opened through.
         if a.is_shared()
-            && let Some((line, again)) = app.shared_calendar_line(a.id)
+            && let Some(line) = app.shared_calendar_line(a.id)
         {
             ui.horizontal(|ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
-                let tip = tl!(
-                    "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-                );
-                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
-                    app.ask_shared_calendars_again(a.id);
-                }
             });
             ui.add_space(4.0);
         }
@@ -779,6 +773,25 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let _ = app.run("file.options", params);
     };
     section(ui, tl!("Mail"), t);
+    ui.label(tl!("Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."));
+    for (direction, label, current) in
+        [("left", tl!("Swipe to the left"), app.ui.swipe_left), ("right", tl!("Swipe to the right"), app.ui.swipe_right)]
+    {
+        row(ui, label, |ui| {
+            let combo = egui::ComboBox::from_id_salt(("opt_swipe", direction)).selected_text(current.label()).show_ui(ui, |ui| {
+                for action in crate::swipe::Action::ALL {
+                    if ui.selectable_label(action == current, action.label()).clicked() {
+                        let _ = app.run("ui.swipeAction", json!({"direction": direction, "action": action.code()}));
+                    }
+                }
+            });
+            combo.response.widget_info(|| {
+                let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, label);
+                info.current_text_value = Some(current.label().to_string());
+                info
+            });
+        });
+    }
     let mut mark = prefs.mark_read_on_open;
     if ui.checkbox(&mut mark, tl!("Mark a message as read when it is opened in the reading pane")).changed() {
         set(app, json!({"markReadOnOpen": mark}));

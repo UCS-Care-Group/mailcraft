@@ -210,7 +210,8 @@ fn pasted_html_is_reduced_to_the_set() {
         json!({"html": "<script>alert(1)</script><p style=\"color:red\"><b>Hi</b> <a href=\"javascript:x\">there</a></p><table><tr><td><i>cell</i></td></tr></table><img src=\"https://tracker.example/p.gif\">"}),
     );
     let t = compose(&s).body.text().clone();
-    assert!(t.text().starts_with("Hi there\n\ncell"), "{:?}", t.text());
+    assert!(t.to_plain().starts_with("Hi there\n\ncell"), "{:?}", t.to_plain());
+    assert!(t.paragraphs().iter().flat_map(|p| &p.runs).any(|r| r.table.is_some()));
     assert!(t.paragraphs().iter().flat_map(|p| &p.runs).all(|r| r.style.link.is_none()));
     assert!(t.all(0, 2, |st| st.bold).unwrap());
     // Plain text in a plain-text message, and nothing formatted can be asked for there.

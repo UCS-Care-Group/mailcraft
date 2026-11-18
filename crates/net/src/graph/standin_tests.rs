@@ -878,6 +878,62 @@ fn a_series_in_a_zone_of_its_own_keeps_its_hour_there_across_a_change_of_the_clo
 }
 
 #[test]
+fn an_event_that_happens_once_goes_by_the_clock_of_the_owners_zone() {
+    // #1130: Outlook shows an event in the zone it was told in, so an appointment made here in
+    // New York is told at nine by New York's clock, not at 13:00 UTC.
+    let server = StandIn::start().unwrap();
+    let made = done(&server, create(MARK, appointment("Dentist", at(2026, 10, 15, 13, 0), 45)), EASTERN);
+    assert_eq!(made.zone, EASTERN);
+    let sent = server.state().requests.last().unwrap().json();
+    assert_eq!(
+        (sent["start"].clone(), sent["end"].clone()),
+        (json!({"dateTime": "2026-10-15T09:00:00", "timeZone": EASTERN}), json!({"dateTime": "2026-10-15T09:45:00", "timeZone": EASTERN}))
+    );
+    let have = server.state().event("Dentist").cloned().unwrap();
+    assert_eq!((have.start, have.end, have.zone.as_str(), have.end_zone()), (at(2026, 10, 15, 13, 0), at(2026, 10, 15, 13, 45), EASTERN, EASTERN));
+    // Read back: the same moments, in the zone it was made in, which is the calendar's own (so
+    // the mailbox gives it no zone of its own).
+    let down = october(&server, "");
+    let dentist = down.events.iter().find(|event| event.title == "Dentist").unwrap();
+    assert_eq!((dentist.start, dentist.end, dentist.start_zone.as_str()), (at(2026, 10, 15, 13, 0), at(2026, 10, 15, 13, 45), EASTERN));
+
+    // Moved over the night the clocks go back: by the clock, from half past eleven to half past
+    // two, which is four hours; the service has the moments that were meant.
+    let night = EventFields { time: timed(at(2026, 11, 1, 3, 30), 240), ..Default::default() };
+    done(&server, update(&made.remote, night), EASTERN);
+    let sent = server.state().requests.last().unwrap().json();
+    assert_eq!(
+        (sent["start"].clone(), sent["end"].clone()),
+        (json!({"dateTime": "2026-10-31T23:30:00", "timeZone": EASTERN}), json!({"dateTime": "2026-11-01T02:30:00", "timeZone": EASTERN}))
+    );
+    let have = server.state().event("Dentist").cloned().unwrap();
+    assert_eq!((have.start, have.end, have.zone.as_str()), (at(2026, 11, 1, 3, 30), at(2026, 11, 1, 7, 30), EASTERN));
+    // Ending in the hour that comes twice: as the moments, in UTC, which the service takes too.
+    let repeated = EventFields { time: timed(at(2026, 11, 1, 4, 0), 150), ..Default::default() };
+    assert_eq!(done(&server, update(&made.remote, repeated), EASTERN).zone, "UTC");
+    let have = server.state().event("Dentist").cloned().unwrap();
+    assert_eq!((have.start, have.end, have.zone.as_str()), (at(2026, 11, 1, 4, 0), at(2026, 11, 1, 6, 30), "UTC"));
+
+    // Made a whole-day event and timed again: days in the owner's zone, then its clock.
+    let day =
+        EventFields { time: Some(EventTime { start: at(2026, 10, 20, 0, 0), end: at(2026, 10, 21, 0, 0), all_day: true }), ..Default::default() };
+    done(&server, update(&made.remote, day), EASTERN);
+    assert_eq!(
+        server.state().event("Dentist").map(|e| (e.all_day, e.start, e.zone.clone())),
+        Some((true, at(2026, 10, 20, 4, 0), EASTERN.to_string()))
+    );
+    done(&server, update(&made.remote, EventFields { time: timed(at(2026, 10, 20, 14, 0), 30), ..Default::default() }), EASTERN);
+    let sent = server.state().requests.last().unwrap().json();
+    assert_eq!((sent["start"].clone(), sent["isAllDay"].clone()), (json!({"dateTime": "2026-10-20T10:00:00", "timeZone": EASTERN}), json!(false)));
+
+    // No zone known here: the moments in UTC, as before.
+    let made = done(&server, create("22222222-d9cb-469f-a165-70867728950e", appointment("Nowhere", at(2026, 10, 16, 8, 0), 60)), "");
+    assert_eq!(made.zone, "UTC");
+    assert_eq!(server.state().event("Nowhere").map(|e| (e.start, e.zone.clone())), Some((at(2026, 10, 16, 8, 0), "UTC".to_string())));
+    assert_eq!(refusals(&server), []);
+}
+
+#[test]
 fn a_zone_the_service_has_no_name_for_costs_the_name_and_never_the_moment() {
     let server = StandIn::start().unwrap();
     // Amsterdam has no name of Windows' own and is not among the additional ones: the service
@@ -888,11 +944,12 @@ fn a_zone_the_service_has_no_name_for_costs_the_name_and_never_the_moment() {
     let have = server.state().event("Visit").cloned().unwrap();
     assert_eq!((have.start, have.end, have.zone.as_str()), (at(2026, 10, 15, 8, 0), at(2026, 10, 15, 9, 0), "UTC"));
     assert_eq!(refusals(&server).iter().map(|(method, _, status)| (method.as_str(), *status)).collect::<Vec<_>>(), [("POST", 400)]);
-    // A zone that is no zone at all, and an offset: never asked about by name.
+    // A zone that is no zone at all, and an offset: never asked about by name; the moment goes
+    // by the clock of the owner's zone, as an event without a zone of its own does.
     for (mark, zone) in [("22222222-d9cb-469f-a165-70867728950e", "Mars/Olympus"), ("33333333-d9cb-469f-a165-70867728950e", "UTC+05:30")] {
         let odd = in_zones(appointment(zone, at(2026, 10, 16, 8, 0), 60), zone, "");
-        assert_eq!(done(&server, create(mark, odd), EASTERN).zone, "UTC");
-        assert_eq!(server.state().event(zone).map(|e| (e.start, e.zone.clone())), Some((at(2026, 10, 16, 8, 0), "UTC".to_string())));
+        assert_eq!(done(&server, create(mark, odd), EASTERN).zone, EASTERN);
+        assert_eq!(server.state().event(zone).map(|e| (e.start, e.zone.clone())), Some((at(2026, 10, 16, 8, 0), EASTERN.to_string())));
     }
     assert_eq!(refusals(&server).len(), 1);
     // A series by that zone's clock is not sent by another clock: in UTC it would be another
