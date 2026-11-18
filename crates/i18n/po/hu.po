@@ -18336,6 +18336,12 @@ msgid "This item has changes that aren't saved. Save them?"
 msgstr "Ez az elem mentetlen módosításokat tartalmaz. Menti őket?"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
+msgstr "Ehhez a tételhez fájlok vannak csatolva, amelyeket csak a kiszolgáló őriz, és amelyek egy másolatból hiányoznának: innen nem másolható."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This item has files attached, which only the server keeps and which would be lost: it can't be moved to another calendar from here."

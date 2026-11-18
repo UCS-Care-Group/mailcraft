@@ -17765,6 +17765,12 @@ msgid "This item has changes that aren't saved. Save them?"
 msgstr "Dit item heeft wijzigingen die niet zijn opgeslagen. Deze opslaan?"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
+msgstr "Dit item heeft bestanden als bijlage die alleen de server bewaart en die een kopie niet zou hebben: het kan van hieruit niet worden gekopieerd."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This item has files attached, which only the server keeps and which would be lost: it can't be moved to another calendar from here."
