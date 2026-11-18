@@ -523,3 +523,13 @@ fn typing_after_a_search_goes_on_at_the_end() {
     testing::text(&mut w, "x");
     assert_eq!(search(&w), format!("{searched}x"));
 }
+
+/// A category typed in other letters is the one on the list, in any alphabet (#788): the list
+/// offers it once, not a second time as typed.
+#[test]
+fn a_typed_category_in_other_letters_is_the_listed_one() {
+    let names = vec!["Ärger".to_string(), "Red".to_string()];
+    assert_eq!(listed(&names, "ärger"), Some(&names[0]));
+    assert_eq!(listed(&names, "red"), Some(&names[1]));
+    assert_eq!(listed(&names, "Ärgerlich"), None);
+}

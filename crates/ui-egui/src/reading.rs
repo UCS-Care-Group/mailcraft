@@ -23,6 +23,9 @@
 //! answer) says so in a bar between its header and its body, with the ways to answer it
 //! ([`invitation`]).
 
+mod backdrop;
+#[cfg(test)]
+mod backdrop_tests;
 pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
