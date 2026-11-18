@@ -75,7 +75,7 @@ jobs:
               [ -n "$hit" ] && picked="$picked $t"
             done
           fi
-          echo "targets=$(printf '%s' "$picked" | tr ' ' '\n' | jq -Rnc '[inputs | select(length > 0)]')" >> "$GITHUB_OUTPUT"
+          echo "targets=$(tr ' ' '\n' <<< "$picked" | jq -Rnc '[inputs | select(length > 0)]')" >> "$GITHUB_OUTPUT"
           echo "Fuzzing:${picked:- nothing}"
 
   fuzz:

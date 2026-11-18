@@ -58,7 +58,11 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
   checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
-  placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
+  placeholder; a `data:` address is never a link (`crates/html/src/data.rs`). A picture behind a
+  table, a cell, a block or the body is shown only when it is attached (`cid:`) or written into the
+  message (`data:`, within the same caps; none for a box that is hidden or 2 px or less across,
+  #601); an address on the web is never one: `crates/html/src/bg.rs` keeps none, so nothing asks for
+  it, in Junk E-mail or out of it, whatever the owner allows.
   Under a reply or forward, each one the reading pane would show goes as a part of its own beside
   the HTML, which refers to it by a Content-ID naming nothing of the owner (#602,
   `mailcraft_html::quotable_with_pictures`); one refused, hidden or past the caps is left out, and
