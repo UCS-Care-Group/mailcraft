@@ -128,13 +128,17 @@ fn an_address_on_a_microsoft_host_is_refused_and_a_lookalike_is_not() {
 #[test]
 fn the_fingerprint_of_the_signature_taken_in_is_kept_with_the_server_and_opens_as_nothing_from_an_older_file() {
     let mut server = EwsServer { url: "https://mail.example.org/EWS/Exchange.asmx".into(), ..Default::default() };
-    assert!(!serde_json::to_string(&server).unwrap().contains("signatureSeen"), "nothing seen, nothing written");
-    server.signature_seen = 0xfeed_beef;
     let json = serde_json::to_string(&server).unwrap();
-    assert!(json.contains(r#""signatureSeen":4276993775"#), "{json}");
+    assert!(!json.contains("signatureSeen") && !json.contains("signatureName"), "nothing seen, nothing written");
+    server.signature_seen = 0xfeed_beef;
+    server.signature_name = "ada@example.org (Exchange)".into();
+    let json = serde_json::to_string(&server).unwrap();
+    assert!(json.contains(r#""signatureSeen":4276993775"#) && json.contains(r#""signatureName":"ada@example.org (Exchange)""#), "{json}");
     assert_eq!(serde_json::from_str::<EwsServer>(&json).unwrap(), server);
-    assert_eq!(serde_json::from_str::<EwsServer>(r#"{"url":"https://mail.example.org/EWS/Exchange.asmx"}"#).unwrap().signature_seen, 0);
-    assert!(!format!("{server:?}").contains("4276993775"), "a fingerprint of somebody's text is not shown");
+    let old = serde_json::from_str::<EwsServer>(r#"{"url":"https://mail.example.org/EWS/Exchange.asmx"}"#).unwrap();
+    assert_eq!((old.signature_seen, old.signature_name.as_str()), (0, ""));
+    let shown = format!("{server:?}");
+    assert!(!shown.contains("4276993775") && !shown.contains("ada@"), "a fingerprint of somebody's text, and their address, are not shown");
 }
 
 #[test]

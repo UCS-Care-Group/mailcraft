@@ -153,3 +153,114 @@ fn what_was_seen_survives_a_save_and_a_reopen_so_an_unchanged_signature_is_not_t
     let old: mailcraft_model::EwsServer = serde_json::from_str(r#"{"url":"https://exchange.example.org/EWS/Exchange.asmx"}"#).unwrap();
     assert_eq!(old.signature_seen, 0);
 }
+
+#[test]
+fn a_change_of_only_when_the_server_adds_it_keeps_what_the_owner_changed_here() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, result(account, Some(server_signature()))).unwrap();
+    s.run("signature.set", &json!({"name": NAME, "text": "Ada, edited here"})).unwrap();
+    let before = s.mailbox.signature(NAME).unwrap().clone();
+    // The owner ticks "add to replies" in Outlook on the web, and nothing else.
+    let flags = EwsSignature { on_new: false, on_reply: true, ..server_signature() };
+    apply_ews_mail(&mut s, result(account, Some(flags))).unwrap();
+    assert_eq!(s.mailbox.signature(NAME), Some(&before), "the same words: the owner's edit stays");
+    let a = s.mailbox.account(account).unwrap();
+    assert_eq!((a.signature.as_str(), a.reply_signature()), (NAME, ""), "the defaults were the first import's");
+}
+
+#[test]
+fn an_open_copy_with_no_changes_shows_what_came_in_and_saving_it_keeps_the_servers() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, result(account, Some(server_signature()))).unwrap();
+    s.run("signature.open", &json!({"name": NAME})).unwrap();
+    let changed = EwsSignature { html: "<p>Ada L.</p>".into(), text: "Ada L.".into(), ..server_signature() };
+    apply_ews_mail(&mut s, result(account, Some(changed))).unwrap();
+    let open = s.signature_edit.as_ref().expect("still open");
+    assert_eq!(open.body.plain().trim(), "Ada L.", "the editor shows the server's new one");
+    s.run("signature.save", &json!({})).unwrap();
+    assert_eq!(s.mailbox.signature(NAME).unwrap().plain().trim(), "Ada L.", "saving puts nothing old back");
+}
+
+#[test]
+fn an_open_copy_with_changes_is_the_owners_to_save() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, result(account, Some(server_signature()))).unwrap();
+    s.run("signature.open", &json!({"name": NAME})).unwrap();
+    s.run("compose.type", &json!({"text": " (mine)"})).unwrap();
+    let typed = s.signature_edit.as_ref().unwrap().body.plain();
+    let changed = EwsSignature { html: "<p>Ada L.</p>".into(), text: "Ada L.".into(), ..server_signature() };
+    apply_ews_mail(&mut s, result(account, Some(changed))).unwrap();
+    let open = s.signature_edit.as_ref().unwrap();
+    assert!(open.dirty && open.body.plain() == typed, "what the owner is typing is not taken away");
+    assert_eq!(s.mailbox.signature(NAME).unwrap().plain().trim(), "Ada L.", "the kept one is the server's until the owner saves");
+}
+
+#[test]
+fn a_signature_of_the_owners_with_that_name_is_never_written_over() {
+    let (mut s, account) = session();
+    s.run("signature.set", &json!({"name": NAME, "text": "My own"})).unwrap();
+    apply_ews_mail(&mut s, result(account, Some(server_signature()))).unwrap();
+    assert_eq!(s.mailbox.signature(NAME).unwrap().plain().trim(), "My own");
+    let second = "ada@example.org (Exchange 2)";
+    assert!(s.mailbox.signature(second).unwrap().plain().contains("Ada Lovelace"), "the server's is beside it");
+    // And a later change of the server's is that one's.
+    let changed = EwsSignature { html: "<p>Ada L.</p>".into(), text: "Ada L.".into(), ..server_signature() };
+    apply_ews_mail(&mut s, result(account, Some(changed))).unwrap();
+    assert_eq!(s.mailbox.signature(NAME).unwrap().plain().trim(), "My own");
+    assert_eq!(s.mailbox.signature(second).unwrap().plain().trim(), "Ada L.");
+    assert_eq!(s.mailbox.signatures.len(), 2);
+}
+
+#[test]
+fn a_renamed_signature_is_followed_and_a_removed_one_comes_back_only_with_a_change_of_the_servers() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, result(account, Some(server_signature()))).unwrap();
+    s.run("signature.rename", &json!({"name": NAME, "to": "Work"})).unwrap();
+    let changed = EwsSignature { html: "<p>Ada L.</p>".into(), text: "Ada L.".into(), ..server_signature() };
+    apply_ews_mail(&mut s, result(account, Some(changed.clone()))).unwrap();
+    assert_eq!(s.mailbox.signature("Work").unwrap().plain().trim(), "Ada L.", "renamed, it is still the server's");
+    assert!(s.mailbox.signature(NAME).is_none() && s.mailbox.signatures.len() == 1);
+    s.run("signature.remove", &json!({"name": "Work"})).unwrap();
+    apply_ews_mail(&mut s, result(account, Some(changed))).unwrap();
+    assert!(s.mailbox.signatures.is_empty(), "removed, and the server has nothing new");
+    apply_ews_mail(&mut s, result(account, Some(server_signature()))).unwrap();
+    assert!(s.mailbox.signature(NAME).is_some_and(|x| x.plain().contains("Ada Lovelace")), "the server's change is a new one");
+}
+
+#[test]
+fn html_with_a_picture_the_server_keeps_apart_is_kept_as_rich_text_not_sent_as_written() {
+    let (mut s, account) = session();
+    let logo = EwsSignature {
+        html: "<p><b>Ada Lovelace</b></p><p><img src=\"cid:image001.png@01DB0000.00000000\" alt=\"Logo\"></p>".into(),
+        text: "Ada Lovelace".into(),
+        on_new: true,
+        on_reply: true,
+    };
+    apply_ews_mail(&mut s, result(account, Some(logo))).unwrap();
+    let signature = s.mailbox.signature(NAME).unwrap();
+    assert!(signature.html().is_none(), "no HTML that would go out with a broken picture");
+    assert_eq!(signature.plain().trim(), "Ada Lovelace");
+    assert!(signature.body().paragraphs().iter().flat_map(|p| &p.runs).any(|r| r.style.bold), "its look is kept");
+    // A picture from the web is the HTML's own, as for a pasted signature.
+    let web = EwsSignature { html: "<p>Ada <img src=\"https://example.org/logo.png\" alt=\"Logo\"></p>".into(), ..server_signature() };
+    apply_ews_mail(&mut s, result(account, Some(web))).unwrap();
+    assert!(s.mailbox.signature(NAME).unwrap().html().is_some_and(|h| h.contains("https://example.org/logo.png")));
+}
+
+#[test]
+fn another_mailbox_starts_again_and_the_old_ones_signature_stays_the_owners() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, result(account, Some(server_signature()))).unwrap();
+    // Another server is another mailbox: what the old one's server gave is forgotten with its states.
+    let other = "https://other.example.org/EWS/Exchange.asmx";
+    s.run("account.edit", &json!({"id": account, "ews": {"url": other}})).unwrap();
+    let server = s.mailbox.account(account).unwrap().ews.clone().unwrap();
+    assert_eq!((server.signature_seen, server.signature_name.as_str()), (0, ""));
+    // So the same signature on the other server is taken in, beside the old one, which is not written.
+    let mut again = result(account, Some(EwsSignature { html: "<p>Ada at the other</p>".into(), text: String::new(), ..server_signature() }));
+    again.url = other.into();
+    apply_ews_mail(&mut s, again).unwrap();
+    assert!(s.mailbox.signature(NAME).unwrap().plain().contains("Analytical Engines"), "the old mailbox's stays as it was");
+    assert_eq!(s.mailbox.signature("ada@example.org (Exchange 2)").unwrap().plain().trim(), "Ada at the other");
+    assert_ne!(seen(&s, account), 0);
+}

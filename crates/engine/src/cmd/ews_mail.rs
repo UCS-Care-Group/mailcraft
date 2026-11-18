@@ -449,8 +449,12 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
     // The signature the server keeps for the owner (#484).
-    let signed = result.signature.as_ref().is_some_and(|found| super::ews_signature::take(&mut s.mailbox, account, found));
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded || signed {
+    let signed = result.signature.as_ref().and_then(|found| super::ews_signature::take(&mut s.mailbox, account, found));
+    if let Some(name) = &signed {
+        // An open copy with no changes shows it, so that saving it doesn't put the old one back.
+        super::signature::follow_unedited(s, name);
+    }
+    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded || signed.is_some() {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.
