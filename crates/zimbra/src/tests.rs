@@ -155,16 +155,95 @@ fn a_folder_made_while_the_run_goes_on_keeps_its_message() {
 }
 
 #[test]
-fn an_id_the_delta_names_that_is_gone_is_dropped_by_name() {
+fn an_id_the_search_cant_return_fails_the_run_without_its_token() {
     let server = StandIn::new();
     let gone = server.deliver(2, "Vanishing", "");
     let token = whole(&run(&server, &request(""), PASSWORD)).token;
     server.change(gone, |m| m.flags = "u".into());
     server.hide(gone);
     let all = whole(&run(&server, &request(&token), PASSWORD));
+    // The delta names it and no message came back: whether it is really gone can't be told — an
+    // index that hasn't caught up looks the same. The run fails instead of removing it here, and
+    // no token moves on: the next run asks for the same delta, where a message that really was
+    // deleted turns up in `deleted` — so nothing is lost by waiting.
+    assert!(!all.errors.is_empty());
+    assert!(!all.whole && all.token.is_empty());
+    assert!(!all.pages.iter().any(|p| p.removed.contains(&gone.to_string())));
+}
+
+#[test]
+fn folders_made_between_delta_pages_are_each_listed_and_kept() {
+    let server = StandIn::new();
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    // Two folders made in webmail while the delta is being read: the first lands on this round's
+    // page, the second on the next.
+    let first_folder = server.add_folder_later(2, "Mid-run one");
+    let second_folder = server.add_folder_later(2, "Mid-run two");
+    let in_first = server.deliver(first_folder, "Into one", "u");
+    // Enough changes for a second round (the delta page is 500).
+    for n in 0..510 {
+        server.deliver(2, &format!("Filler {n}"), "");
+    }
+    let in_second = server.deliver(second_folder, "Into two", "");
+    let all = whole(&run(&server, &request(&token), PASSWORD));
     assert_eq!(all.errors, Vec::<String>::new());
-    let page = all.pages.iter().find(|p| p.folder.is_empty()).unwrap();
-    assert!(page.messages.is_empty() && page.removed.contains(&gone.to_string()));
+    assert!(all.whole && !all.token.is_empty());
+    let ids: Vec<&str> = all.pages.iter().flat_map(|p| p.messages.iter().map(|m| m.server.id.as_str())).collect();
+    assert!(ids.contains(&in_first.to_string().as_str()) && ids.contains(&in_second.to_string().as_str()));
+    assert!(!all.pages.iter().any(|p| p.removed.contains(&in_first.to_string()) || p.removed.contains(&in_second.to_string())));
+}
+
+#[test]
+fn a_folder_too_large_for_one_run_leaves_where_it_stopped() {
+    let server = StandIn::new();
+    // More than MAX_FOLDER_PAGES pages (4 pages of 250 in tests): the read stops with a cursor to
+    // go on from, and the run after it finishes the folder rather than failing from its start.
+    for n in 0..1_100 {
+        server.deliver(2, &format!("Message {n}"), "");
+    }
+    let first = whole(&run(&server, &request(""), PASSWORD));
+    assert_eq!(first.errors, Vec::<String>::new());
+    let resume = first.resume.clone().unwrap_or_default();
+    // The folder's own entry, and one for every folder the run never reached.
+    let stopped = resume.iter().filter(|e| !e.cursor.is_empty()).collect::<Vec<_>>();
+    assert_eq!(stopped.len(), 1);
+    assert_eq!(stopped[0].folder, "2");
+    assert_eq!(first.pages.iter().filter(|p| p.folder == "2").count(), 4);
+    // The run after goes on from the cursor: the folder's end comes without another fresh read.
+    let mut again = request(&first.token);
+    again.resume = resume;
+    let second = whole(&run(&server, &again, PASSWORD));
+    assert_eq!(second.errors, Vec::<String>::new());
+    assert_eq!(second.resume, Some(Vec::new()));
+    let pages: Vec<_> = second.pages.iter().filter(|p| p.folder == "2").collect();
+    assert!(pages.last().unwrap().last);
+    let read: std::collections::HashSet<&str> = first
+        .pages
+        .iter()
+        .chain(second.pages.iter())
+        .filter(|p| p.folder == "2")
+        .flat_map(|p| p.messages.iter().map(|m| m.server.id.as_str()))
+        .collect();
+    assert_eq!(read.len(), 1_100);
+}
+
+#[test]
+fn a_delta_longer_than_a_run_goes_on_from_the_last_whole_page() {
+    let server = StandIn::new();
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    // More than MAX_ROUNDS delta pages (3 of 500 in tests): the run keeps the token of the last
+    // whole page instead of ending nowhere.
+    for n in 0..1_600 {
+        server.deliver(2, &format!("Message {n}"), "");
+    }
+    let first = whole(&run(&server, &request(&token), PASSWORD));
+    assert_eq!(first.errors, Vec::<String>::new());
+    assert!(first.whole && !first.token.is_empty() && first.token != token);
+    let seen = first.pages.iter().map(|p| p.messages.len()).sum::<usize>();
+    assert_eq!(seen, 1_500);
+    let second = whole(&run(&server, &request(&first.token), PASSWORD));
+    assert_eq!(second.errors, Vec::<String>::new());
+    assert_eq!(second.pages.iter().map(|p| p.messages.len()).sum::<usize>(), 100);
 }
 
 #[test]
