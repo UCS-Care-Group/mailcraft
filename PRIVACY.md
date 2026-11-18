@@ -136,9 +136,12 @@ computer, for you, and for nothing else:
 - keeping you signed in (a refresh token, stored as described above).
 
 All of these but the Favorites are on the page of a sign-in, so that you are asked once. When
-Microsoft's page won't have them all (a personal account has no shared mailboxes; an organisation may
-make an administrator approve some), it is asked again without the shared mailboxes' and calendars',
-then without the to-dos' and the settings' too, so that signing in for mail never waits on them.
+Microsoft's page won't have them all, it is asked again: a personal account is never asked for the
+shared mailboxes and calendars (it has none); a page that won't have some of the permissions is asked
+again without the shared mailboxes' and calendars', then without the to-dos' and the settings' too; an
+organisation that makes an administrator approve some, or an owner who says no on the page, is not
+asked again for a bit less, only (for an administrator's approval) once more for what mail alone needs,
+so that signing in for mail never waits on the rest.
 The Favorites' two (`MailboxConfigItem.Read`, `Mail.ReadBasic`) are asked for by themselves, only
 when you ask for them, because an organisation may need an administrator to approve them.
 

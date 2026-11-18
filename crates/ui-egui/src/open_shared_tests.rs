@@ -313,3 +313,23 @@ fn a_shared_mailboxs_calendar_the_server_lists_too_is_offered_to_be_hidden_once(
     list_again(&mut app, owner, &answers, vec![main_calendar(), ops_copy()]);
     assert!(app.dialog.is_none());
 }
+
+/// The owner signs in as somebody else on the page while a calendar opened by address waits: the
+/// request is answered (the dialog says why, and opening it again asks again), not left waiting
+/// for ever.
+#[test]
+fn a_page_that_signs_in_somebody_else_answers_a_calendar_opened_by_address() {
+    let other = Tokens { email: "someone.else@example.org".into(), ..tokens("x", "y") };
+    let (mut app, owner, answers, _, _) = window(Ok(other));
+    answers.lock().unwrap().push_back(GraphResult { shared_calendars_consent_needed: true, ..Default::default() });
+    app.begin_open_shared(owner, CY).unwrap();
+    job(&mut app);
+    app.dialog = None;
+    app.run("ui.allowSharedCalendars", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    assert!(app.open_shared.waiting.is_none(), "not left waiting");
+    let Some(Err(said)) = app.open_shared.outcome.clone() else { panic!("the dialog says why") };
+    assert!(said.contains("someone.else@example.org"), "{said}");
+    assert!(app.session.mailbox.account(owner).unwrap().opened_calendars.is_empty(), "nothing was read, nothing is kept");
+    assert!(!app.sync_asking.contains(&owner));
+}

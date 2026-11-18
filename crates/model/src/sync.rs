@@ -247,6 +247,11 @@ pub struct Tokens {
     /// without them): the tokens are good for everything else, and nobody may take them for
     /// allowed to read or send from a shared mailbox.
     pub shared_not_given: bool,
+    /// Set by the one page for an older sign-in when the provider had no To Do lists or mailbox
+    /// settings to give (the page was asked again for the shared mailboxes' permissions alone):
+    /// the tokens are good for the rest, and nobody may take them for allowed to keep the tasks,
+    /// rules, automatic replies and categories in step.
+    pub sync_not_given: bool,
 }
 
 /// How long before an access token runs out it is renewed rather than used (seconds).

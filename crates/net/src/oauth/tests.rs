@@ -342,6 +342,11 @@ fn microsoft_endpoints() {
     assert_eq!(common.consent, format!("{GRAPH_SCOPES} {TASKS_SCOPE} {SETTINGS_WRITE} {SHARED_ALL}"));
     assert_eq!(common.fewer, format!("{GRAPH_SCOPES} {TASKS_SCOPE} {SETTINGS_WRITE}"));
     assert_eq!(Endpoints::for_resource(&oauth(), Resource::Mail), common);
+    // A personal account has no shared mailboxes nor calendars: its first page doesn't ask for
+    // them, so it is one page and not two.
+    let personal = Endpoints::for_resource(&OAuth { tenant: "consumers".into(), ..oauth() }, Resource::Mail);
+    assert_eq!(personal.consent, format!("{GRAPH_SCOPES} {TASKS_SCOPE} {SETTINGS_WRITE}"));
+    assert!(!personal.consent.contains("Shared") && personal.fewer == personal.consent);
     // Graph's own: the same addresses, its own scopes, and the optional extras for the owner to
     // agree to on the page (a page that won't have them all is asked again for the first alone).
     let graph = Endpoints::for_resource(&OAuth { tenant: " consumers ".into(), ..oauth() }, Resource::Graph);
@@ -349,14 +354,17 @@ fn microsoft_endpoints() {
     assert_eq!(graph.token, "https://login.microsoftonline.com/consumers/oauth2/v2.0/token");
     assert_eq!(graph.scope, format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email"));
     assert_eq!(graph.lesser, "https://graph.microsoft.com/MailboxSettings.Read");
-    assert_eq!(graph.consent, format!("https://graph.microsoft.com/MailboxSettings.Read {TASKS_SCOPE} {SETTINGS_WRITE} {SHARED_ALL}"));
+    // (This is the directory of personal accounts: its one page doesn't ask for the shared ones.)
+    assert_eq!(graph.consent, format!("https://graph.microsoft.com/MailboxSettings.Read {TASKS_SCOPE} {SETTINGS_WRITE}"));
+    let graph_org = Endpoints::for_resource(&oauth(), Resource::Graph);
+    assert_eq!(graph_org.consent, format!("https://graph.microsoft.com/MailboxSettings.Read {TASKS_SCOPE} {SETTINGS_WRITE} {SHARED_ALL}"));
     // A request for tokens names one resource: neither asks for a scope of the other's.
     assert!(!common.scope.contains("graph.microsoft.com") && !graph.scope.contains("outlook.office.com"));
     // Reading and changing mail through Graph is asked for only for an account kept in step that
     // way (R3): never by a sign-in to mail, nor by Graph's own.
     let mail = Endpoints::for_resource(&oauth(), Resource::GraphMail);
     assert_eq!(mail.scope, format!("{GRAPH_SCOPES_BEFORE} https://graph.microsoft.com/Mail.ReadWrite offline_access openid profile email"));
-    assert_eq!((mail.authorize.as_str(), mail.consent.as_str()), (common.authorize.as_str(), graph.consent.as_str()));
+    assert_eq!((mail.authorize.as_str(), mail.consent.as_str()), (common.authorize.as_str(), graph_org.consent.as_str()));
     for other in [&common, &graph] {
         // (Its shared twin, `Mail.ReadWrite.Shared`, is another permission: on every page.)
         let own = |scope: &str| scope.split(' ').any(|s| s == "https://graph.microsoft.com/Mail.ReadWrite");
@@ -953,7 +961,6 @@ fn a_page_that_will_not_have_everything_is_asked_for_what_was_asked_before() {
     for refusal in [
         "error=invalid_scope&error_description=AADSTS70011%3A+No+such+scope.",
         "error=access_denied&error_description=AADSTS90094%3A+The+grant+requires+admin+permission.",
-        "error=access_denied&error_description=AADSTS65004%3A+User+declined+to+consent+to+access+the+app.",
         // An administrator has to approve what is asked for beyond it (#661: keeping the to-dos and
         // the settings in step), in each of Microsoft's words for that: a mail sign-in must not
         // stop there.
@@ -968,6 +975,13 @@ fn a_page_that_will_not_have_everything_is_asked_for_what_was_asked_before() {
         assert_eq!(visit_asked(&visits, 0)["scope"], "mail.read mail.send offline_access graph.send graph.more");
         assert_eq!(visit_asked(&visits, 1)["scope"], "mail.read mail.send offline_access graph.send");
     }
+    // The owner's own no (Cancel on the page) is not asked about again.
+    let (open, visits) = browser_answering(&[
+        "GET /?error=access_denied&error_description=AADSTS65004%3A+User+declined+to+consent+to+access+the+app.&state={state}",
+        "GET /?code=second-code&state={state}",
+    ]);
+    assert!(sign_in_to(&wide(&server), "ada@example.org", &open).is_err());
+    assert_eq!(visited(&visits), 1);
     // Refused for its scopes again: for mail alone, as before. Three pages at most.
     let again = "GET /?error=invalid_scope&state={state}";
     let (open, visits) = browser_answering(&[again, again, "GET /?code=third-code&state={state}"]);

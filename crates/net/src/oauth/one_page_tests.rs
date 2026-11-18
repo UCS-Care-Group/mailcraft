@@ -129,7 +129,7 @@ fn one_approval_is_exactly_what_the_pages_ask_and_the_favorites() {
 
 #[test]
 fn a_page_that_wont_have_the_shared_permissions_is_asked_again_without_them_and_keeps_the_rest() {
-    // A personal account: Microsoft has no shared mailboxes for it.
+    // An account whose directory isn't known yet (its tenant is `common`).
     let server = FakeHttp::answering(json_answer("200 OK", TOKENS));
     let (back, open, pages) = answering(&[NO_SUCH_SCOPE, YES]);
     let page = at(&server, Endpoints::for_resource(&oauth(), Resource::Mail));
@@ -142,22 +142,43 @@ fn a_page_that_wont_have_the_shared_permissions_is_asked_again_without_them_and_
 }
 
 #[test]
-fn an_organisation_that_wants_an_administrator_for_the_new_permissions_still_signs_in_with_what_it_had() {
-    // Each page short of what was asked before is refused for an administrator: the sign-in falls
-    // back to what was asked before #661, which an administrator approved long ago.
+fn a_personal_accounts_first_page_has_no_shared_permissions_and_is_the_only_one() {
+    // Microsoft has no shared mailboxes for a personal account: it is not asked for them, and a
+    // page that is given is not shown a second time.
+    let personal = OAuth { tenant: "consumers".into(), ..oauth() };
     let server = FakeHttp::answering(json_answer("200 OK", TOKENS));
-    let (back, open, pages) = answering(&[ADMIN_ONLY, ADMIN_ONLY, YES]);
+    let (back, open, pages) = answering(&[YES]);
+    let page = at(&server, Endpoints::for_resource(&personal, Resource::Mail));
+    let got = sign_in_refused_via(&page, &personal, "ada@example.org", &*open, &AtomicBool::new(false), PATIENCE, &via(&*back));
+    assert!(got.is_ok(), "{got:?}");
+    let pages = pages.lock().unwrap().clone();
+    assert_eq!(pages.len(), 1, "{pages:?}");
+    assert!(!pages[0].contains("Shared") && has(&pages[0], TASKS) && has(&pages[0], SETTINGS_WRITE), "{}", pages[0]);
+}
+
+#[test]
+fn an_organisation_that_wants_an_administrator_for_the_new_permissions_still_signs_in_with_what_it_had() {
+    // The page with everything is refused for an administrator: there is no asking again for a bit
+    // less in between, only once more for what was asked before #661, which an administrator
+    // approved long ago, so that signing in to mail never waits on the rest.
+    let server = FakeHttp::answering(json_answer("200 OK", TOKENS));
+    let (back, open, pages) = answering(&[ADMIN_ONLY, YES]);
     let page = at(&server, Endpoints::for_resource(&oauth(), Resource::GraphMail));
     let got = sign_in_refused_via(&page, &oauth(), "ada@example.org", &*open, &AtomicBool::new(false), PATIENCE, &via(&*back));
     assert!(got.is_ok(), "{got:?}");
     let pages = pages.lock().unwrap().clone();
-    assert_eq!(pages.len(), 3, "{pages:?}");
-    assert!(has(&pages[0], SHARED_SEND) && !has(&pages[1], SHARED_SEND) && has(&pages[1], TASKS) && !has(&pages[2], TASKS), "{pages:?}");
+    assert_eq!(pages.len(), 2, "{pages:?}");
+    assert!(has(&pages[0], SHARED_SEND) && has(&pages[0], TASKS) && !has(&pages[1], SHARED_SEND) && !has(&pages[1], TASKS), "{pages:?}");
     // An administrator even for that: the sign-in says so (the approval help comes up).
     let (back, open, pages) = answering(&[ADMIN_ONLY]);
     let got = sign_in_refused_via(&page, &oauth(), "ada@example.org", &*open, &AtomicBool::new(false), PATIENCE, &via(&*back));
     assert_eq!(got.map_err(|refused| refused.policy).err(), Some(Policy::Approval));
-    assert_eq!(pages.lock().unwrap().len(), 3);
+    assert_eq!(pages.lock().unwrap().len(), 2);
+    // The owner's own no on the page (Cancel) is one page, and no more.
+    let (back, open, pages) = answering(&["error=access_denied&error_description=AADSTS65004%3A+User+declined+to+consent.", YES]);
+    let got = sign_in_refused_via(&page, &oauth(), "ada@example.org", &*open, &AtomicBool::new(false), PATIENCE, &via(&*back));
+    assert!(got.is_err());
+    assert_eq!(pages.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -202,6 +223,15 @@ fn the_one_page_is_asked_again_without_the_shared_permissions_only_when_they_can
     let (back, open, _) = answering(&[YES]);
     let got = sync_page_within(&page(&server), &oauth(), "ada@example.org", &*open, &AtomicBool::new(false), PATIENCE, &via(&*back));
     assert!(got.as_ref().is_ok_and(|tokens| !tokens.shared_not_given), "{got:?}");
+    // The organisation has no To Do lists or settings to give (refused for its scopes both with the
+    // shared permissions and without): the shared ones are had without those, and the tokens say so.
+    let server = FakeHttp::answering(json_answer("200 OK", TOKENS));
+    let (back, open, pages) = answering(&[NO_SUCH_SCOPE, NO_SUCH_SCOPE, YES]);
+    let got = sync_page_within(&page(&server), &oauth(), "ada@example.org", &*open, &AtomicBool::new(false), PATIENCE, &via(&*back));
+    assert!(got.as_ref().is_ok_and(|tokens| tokens.sync_not_given && !tokens.shared_not_given), "{got:?}");
+    let pages = pages.lock().unwrap().clone();
+    assert_eq!(pages.len(), 3, "{pages:?}");
+    assert!(has(&pages[2], SHARED_MAIL) && has(&pages[2], SHARED_SEND) && !has(&pages[2], TASKS) && !has(&pages[2], SETTINGS_WRITE), "{}", pages[2]);
     // An administrator has to approve: said as such, and not asked again without them (the
     // owner is told what to do next; an approval covers all of it).
     let server = FakeHttp::answering(json_answer("200 OK", TOKENS));

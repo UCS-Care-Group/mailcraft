@@ -65,8 +65,13 @@ impl MailApp {
         }
     }
 
-    /// The page signed in somebody else: what waited waits as it did.
-    pub(crate) fn shared_sync_waits_again(&mut self, owner: Id) {
+    /// The page signed in somebody else: what waited waits as it did, except a calendar the owner
+    /// just opened by address, which is answered (with `said`) instead of being left waiting for
+    /// ever: opening it again asks again.
+    pub(crate) fn shared_sync_waits_again(&mut self, owner: Id, said: &str) {
+        if self.opened_waiting_for(owner) {
+            self.opened_not_allowed(owner, said.to_string());
+        }
         for shared in self.shared_of(owner) {
             let perm = &mut self.session.driver.calendar.shared_perm;
             if perm.get(&shared) == Some(&Permission::Asking) {
@@ -81,7 +86,10 @@ impl MailApp {
     pub(crate) fn shared_sync_refused(&mut self, owner: Id, why: &str, kind: &str) {
         for shared in self.shared_of(owner) {
             let perm = &mut self.session.driver.calendar.shared_perm;
-            if matches!(perm.get(&shared), Some(Permission::Needed | Permission::Asking | Permission::Declined)) {
+            // (A meeting's answer that waits to go from it has no entry of its own: its reason is
+            // kept here, and it goes on waiting, not asked for again, until the owner says so.)
+            let answer_waits = self.session.driver.calendar.send_waits.contains(&shared) && !perm.contains_key(&shared);
+            if answer_waits || matches!(perm.get(&shared), Some(Permission::Needed | Permission::Asking | Permission::Declined)) {
                 perm.insert(shared, Permission::Refused(why.to_string()));
             }
             if self.session.shared_send_waits(shared) {
@@ -123,6 +131,27 @@ impl MailApp {
         }
         self.opened_allowed(owner);
         let run = read.filter(|r| self.session.mailbox.account(*r).is_some()).or(to_send)?;
+        self.start_shared_run(run)
+    }
+
+    /// The run of the shared mailbox `run`, which the owner's yes lets go on: now, or when the run
+    /// under way (the owner's own Send/Receive, say) has ended, which it is not called off for,
+    /// except for a mailbox being added, whose first read is waited for in the dialog (the same
+    /// way as when it is added). Says why when it couldn't start.
+    fn start_shared_run(&mut self, run: Id) -> Option<String> {
+        let busy = self.sync_rx.is_some() || self.graph_rx.is_some();
+        if self.shared_checking.contains(&run) && (busy || self.signing_in.is_some()) {
+            self.shared_check_next = Some(run);
+            return None;
+        }
+        if busy {
+            // (In line, as an account waiting its turn is: it starts when the other has ended.)
+            let queue = &mut self.session.driver.round.queue;
+            if !queue.iter().any(|(account, _)| *account == run) {
+                queue.push_back((run, false));
+            }
+            return None;
+        }
         self.start_sync(&json!({"account": run})).err()
     }
 

@@ -124,3 +124,102 @@ fn the_shared_mailboxes_alone_waiting_put_a_question_of_their_own_words() {
     app.sync_signed_in(owner, Err(crate::favorites_sync::NEEDS_APPROVAL.into()), None);
     assert!(app.status_msg.as_ref().is_some_and(|(said, _)| said.contains("reading shared mailboxes and calendars")), "{:?}", app.status_msg);
 }
+
+/// A shared mailbox's calendar the owner did not answer for ends in Declined; Ask again and a
+/// page that is given lets it through.
+#[test]
+fn ask_again_and_a_given_page_unblock_a_declined_shared_calendar_and_keep_the_line_for_it() {
+    use mailcraft_engine::sync_driver::SharedPermission as Permission;
+    let (mut app, owner, shared) = window(Directory::Organisation);
+    app.session.driver.calendar.shared_perm.insert(shared, Permission::Declined);
+    assert!(Permission::blocks(app.session.driver.calendar.shared_perm.get(&shared)));
+    // File › Info still offers Ask again, with the tasks and settings working (nothing else waits).
+    let (_, _, again) = app.sync_line(owner).unwrap();
+    assert!(again);
+    assert!(app.ask_sync_again(owner));
+    assert_eq!(app.session.driver.calendar.shared_perm.get(&shared), Some(&Permission::Asking));
+    app.dialog = None;
+    app.sync_asking.remove(&owner);
+    app.sync_signed_in(owner, Ok(mailcraft_model::sync::Tokens { access: "a".into(), refresh: "r".into(), ..Default::default() }), None);
+    assert_eq!(app.session.driver.calendar.shared_perm.get(&shared), Some(&Permission::Allowed));
+    assert!(!Permission::blocks(app.session.driver.calendar.shared_perm.get(&shared)));
+}
+
+/// A page answered with the shared permissions does not open again by itself when a job still finds
+/// them missing; Ask again and the owner's own command still do.
+#[test]
+fn a_page_already_given_is_not_opened_again_by_itself() {
+    let (mut app, owner, shared) = window(Directory::Organisation);
+    app.sync_signed_in(owner, Ok(mailcraft_model::sync::Tokens { access: "a".into(), refresh: "r".into(), ..Default::default() }), None);
+    assert!(app.shared_page_given.contains(&owner));
+    let result = crate::GraphResult { account: shared, consent_needed: true, ..Default::default() };
+    app.finish_shared_mail(shared, false, result);
+    assert!(app.signing_in.is_none() && app.dialog.is_none(), "nothing opened by itself");
+    assert!(app.status_msg.as_ref().is_none_or(|(said, _)| !said.contains("opened in your browser")));
+    assert!(app.ask_sync_again(owner), "Ask again still works");
+    assert!(!app.shared_page_given.contains(&owner));
+}
+
+/// A meeting's answer that waits to go from a shared mailbox when the page is refused: kept with
+/// the reason, and not asked for again by itself.
+#[test]
+fn a_refusal_keeps_a_waiting_meeting_answer_with_its_reason() {
+    let (mut app, owner, shared) = window(Directory::Organisation);
+    app.session.driver.calendar.send_waits.insert(shared);
+    assert!(app.shared_sync_part(owner).is_some());
+    app.sync_signed_in(owner, Err("access_denied".into()), None);
+    let (line, again, _) = app.shared_sync_part(owner).unwrap();
+    assert!(line.contains("not allowed") && again, "{line}");
+    assert!(app.session.driver.calendar.send_waits.contains(&shared), "still waiting, nothing goes");
+    // (Send/Receive by hand is the retry: it takes the wait off.)
+    app.session.driver.calendar.after_round(shared);
+    assert!(!app.session.driver.calendar.send_waits.contains(&shared));
+}
+
+/// A mailbox being added whose page is cancelled is taken off again, with the reason.
+#[test]
+fn cancelling_the_page_for_a_shared_mailbox_being_added_ends_the_check() {
+    let (mut app, owner, shared) = window(Directory::Organisation);
+    app.shared_checking.insert(shared);
+    app.session.driver.calendar.shared_perm.insert(shared, mailcraft_engine::sync_driver::SharedPermission::Needed);
+    app.services.sign_in = Some(Box::new(|_: crate::SignInRequest| mpsc::channel().1));
+    app.shared_next = Some(shared);
+    app.begin_sync_sign_in(owner).unwrap();
+    assert!(app.run("ui.cancelSignIn", json!({})).is_ok());
+    assert!(!app.shared_checking.contains(&shared), "no longer checking");
+    assert!(app.session.mailbox.account(shared).is_none(), "taken off again");
+    assert!(app.signing_in.is_none() && !app.sync_asking.contains(&owner));
+}
+
+/// The owner's yes while another run is under way: the shared mailbox's run is put in line, not
+/// dropped with a busy error.
+#[test]
+fn a_yes_while_a_run_is_under_way_puts_the_shared_run_in_line() {
+    let (mut app, owner, shared) = window(Directory::Organisation);
+    app.graph_rx = Some((owner, false, false, app.session.openings(), mpsc::channel().1));
+    app.shared_checking.insert(shared);
+    assert_eq!(app.shared_sync_allowed(owner, Some(shared)), None);
+    assert_eq!(app.shared_check_next, Some(shared), "a mailbox being added waits for the run to end");
+    app.shared_checking.remove(&shared);
+    app.shared_check_next = None;
+    assert_eq!(app.shared_sync_allowed(owner, Some(shared)), None);
+    assert!(app.session.driver.round.is_queued(shared), "in line behind the run");
+}
+
+/// What waited in a shared mailbox's Outbox when the page was refused is held with the reason,
+/// not sent again by itself; Send Again lets it go.
+#[test]
+fn a_refused_page_holds_the_outbox_of_the_shared_mailbox_until_send_again() {
+    let (mut app, owner, shared) = window(Directory::Organisation);
+    app.session.view.folder = app.session.mailbox.folder_of_kind(shared, mailcraft_model::FolderKind::Inbox).unwrap();
+    app.execute("mail.new", json!({"to": "bob@example.org", "subject": "One"})).unwrap();
+    let id = app.execute("compose.send", json!({})).unwrap()["id"].as_u64().unwrap();
+    app.session.shared_send_missing(shared);
+    app.sync_signed_in(owner, Err("access_denied".into()), None);
+    assert!(!app.session.shared_send_waits(shared));
+    let held = app.session.mailbox.message(id).unwrap().held.clone();
+    assert!(!held.is_empty() && held.contains("wasn't allowed"), "{held}");
+    assert!(mailcraft_engine::cmd::graph_mail::graph_mail_request(&app.session, shared).unwrap().sends.is_empty());
+    app.execute("mail.sendAgain", json!({"id": id})).unwrap();
+    assert_eq!(mailcraft_engine::cmd::graph_mail::graph_mail_request(&app.session, shared).unwrap().sends.len(), 1);
+}

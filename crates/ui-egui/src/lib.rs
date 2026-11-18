@@ -1639,6 +1639,9 @@ pub struct MailApp {
     /// whose question went away unanswered in this session (not put again by itself).
     pub(crate) sync_asking: std::collections::HashSet<Id>,
     pub(crate) sync_declined: std::collections::HashSet<Id>,
+    /// The accounts whose page was answered with the shared mailboxes' permissions in this session:
+    /// a job that still finds them missing doesn't open it again by itself.
+    pub(crate) shared_page_given: std::collections::HashSet<Id>,
     pub(crate) tasks: task_sync::TaskSync,
     pub(crate) rules: rule_sync::RuleSync,
     /// The categories' jobs ([`category_sync`]).
@@ -1934,6 +1937,7 @@ impl MailApp {
             sync_next: false,
             sync_asking: Default::default(),
             sync_declined: Default::default(),
+            shared_page_given: Default::default(),
             tasks: Default::default(),
             rules: Default::default(),
             category_sync: Default::default(),
@@ -2835,6 +2839,7 @@ impl MailApp {
                 }
                 let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
                 let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
+                self.shared_page_given.remove(&account);
                 self.begin_sync_sign_in(account)
             }
             "ui.moreResultsOnServer" => {
@@ -2884,6 +2889,16 @@ impl MailApp {
                 Some(s) => {
                     s.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                     self.session.sync_status = tl!("Sign-in cancelled").to_string();
+                    // The one page for an older sign-in: what waited for it takes it as a no (not
+                    // put again by itself), and a shared mailbox being added is taken off again
+                    // with the reason, not left checking.
+                    if s.sync {
+                        self.sync_asking.remove(&s.account);
+                        self.sync_not_now(s.account);
+                        if let Some(shared) = s.shared.filter(|shared| self.shared_checking.contains(shared)) {
+                            self.finish_shared_check(shared, Err(tl!("Sign-in cancelled").to_string()));
+                        }
+                    }
                     Ok(json!({"cancelled": s.account}))
                 }
                 // (An administrator's approval that is waited for is called off the same way.)
@@ -3811,6 +3826,7 @@ impl MailApp {
             // mailbox's accounts, goes too: its account ids may name others here (#661).
             self.sync_asking.clear();
             self.sync_declined.clear();
+            self.shared_page_given.clear();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
             self.shared_address_judged = Some(opening);

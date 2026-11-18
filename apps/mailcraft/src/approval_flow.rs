@@ -308,18 +308,17 @@ fn an_account_refused_for_approval_is_told_what_to_do_and_signs_in_once_an_admin
     assert_eq!(app.status_msg.as_ref().map(|(text, _)| text.as_str()), Some(NEEDS_APPROVAL));
     assert_eq!(app.dialog.as_ref().map(|dialog| dialog.name()), Some("account"));
     {
-        // The one page with everything on it, then without the shared mailboxes' and calendars',
-        // then without the to-dos' and the settings' too (#661): an organisation may let its
-        // people allow the rest by themselves.
+        // The one page with everything on it, then (no asking for a bit less in between: an
+        // administrator's approval is not had that way) what mail alone needs, so that signing
+        // in never waits on the rest.
         let microsoft = microsoft.lock().unwrap();
         let opened = microsoft.opened.lock().unwrap();
-        assert_eq!(opened.len(), 3);
-        let (wide, fewer, narrow) = (asked(&opened[0])["scope"].clone(), asked(&opened[1])["scope"].clone(), asked(&opened[2])["scope"].clone());
+        assert_eq!(opened.len(), 2);
+        let (wide, narrow) = (asked(&opened[0])["scope"].clone(), asked(&opened[1])["scope"].clone());
         for shared in ["Mail.ReadWrite.Shared", "Mail.Send.Shared", "Calendars.ReadWrite.Shared"] {
-            assert!(wide.contains(shared) && !fewer.contains(shared) && !narrow.contains(shared), "{shared}");
+            assert!(wide.contains(shared) && !narrow.contains(shared), "{shared}");
         }
         assert!(wide.contains("Tasks.ReadWrite") && wide.contains("MailboxSettings.ReadWrite"), "{wide}");
-        assert!(fewer.contains("Tasks.ReadWrite") && fewer.contains("MailboxSettings.ReadWrite"), "{fewer}");
         assert!(!narrow.contains("Tasks.ReadWrite") && !narrow.contains("MailboxSettings.ReadWrite"), "{narrow}");
         assert!(narrow.contains("IMAP.AccessAsUser.All"), "{narrow}");
     }
@@ -338,7 +337,7 @@ fn an_account_refused_for_approval_is_told_what_to_do_and_signs_in_once_an_admin
     for never in ["avery", "Avery", "lumen", "@"] {
         assert!(!text.contains(never), "{never}: {text}");
     }
-    assert_eq!(microsoft.lock().unwrap().opened.lock().unwrap().len(), 3);
+    assert_eq!(microsoft.lock().unwrap().opened.lock().unwrap().len(), 2);
     // (The bare address, for a script that wants only that, is the same one.)
     assert_eq!(app.execute("ui.copyAdminConsentLink", json!({"account": account})).unwrap()["url"], link);
 
@@ -351,10 +350,10 @@ fn an_account_refused_for_approval_is_told_what_to_do_and_signs_in_once_an_admin
     {
         let microsoft = microsoft.lock().unwrap();
         let opened = microsoft.opened.lock().unwrap();
-        assert_eq!(opened.len(), 4);
-        assert!(opened[3].starts_with("https://login.microsoftonline.com/organizations/v2.0/adminconsent?"), "{}", opened[3]);
+        assert_eq!(opened.len(), 3);
+        assert!(opened[2].starts_with("https://login.microsoftonline.com/organizations/v2.0/adminconsent?"), "{}", opened[2]);
         // The same permissions as in the message, and the way back to this machine.
-        let page = asked(&opened[3]);
+        let page = asked(&opened[2]);
         assert_eq!((page["client_id"].as_str(), page["scope"].as_str()), (APPLICATION, sent["scope"].as_str()));
         assert!(page["redirect_uri"].starts_with("http://localhost:") && page["state"].len() >= 32);
         assert!(microsoft.approved);

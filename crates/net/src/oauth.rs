@@ -319,7 +319,9 @@ impl Endpoints {
                 } else {
                     (plain.clone(), MICROSOFT_GRAPH_SHARED_PHONE)
                 };
-                let consent = format!("{fewer} {shared}");
+                // (Microsoft has no shared mailboxes nor calendars for a personal account: its
+                // page is not asked for them, so it is one page and not two.)
+                let consent = if oauth.is_personal("") { fewer.clone() } else { format!("{fewer} {shared}") };
                 // (With the Favorites' permissions on the same page, were that wanted.)
                 let consent = if FAVORITES_AT_SIGN_IN { format!("{consent} {MICROSOFT_GRAPH_FAVORITES}") } else { consent };
                 // (Nothing in between for a page whose only extras are the shared ones.)
@@ -387,7 +389,17 @@ pub fn sign_in_for(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel:
     if oauth.provider == OAuthProvider::Google && resource != Resource::Mail {
         return Err(NetError::Config("Google sign-in supports mail only, not Microsoft Graph".into()));
     }
-    sign_in_at(&Endpoints::for_resource(oauth, resource), oauth, login_hint, open, cancel)
+    let mut endpoints = Endpoints::for_resource(oauth, resource);
+    // (An Outlook.com address is a personal account whatever the settings know yet.)
+    if resource != Resource::Mail && oauth.is_personal(login_hint) {
+        endpoints.consent = without_shared(&endpoints.consent);
+    }
+    sign_in_at(&endpoints, oauth, login_hint, open, cancel)
+}
+
+/// `consent` without the shared mailboxes' and calendars' permissions.
+fn without_shared(consent: &str) -> String {
+    consent.split(' ').filter(|scope| !MICROSOFT_GRAPH_SHARED_ALL.split(' ').any(|shared| shared == *scope)).collect::<Vec<_>>().join(" ")
 }
 
 /// [`sign_in`] at endpoints other than the provider's usual ones, or asking for something else
@@ -488,11 +500,20 @@ fn sign_in_refused_via(
     // The page won't have all it was asked for (the provider has no such permission for this
     // kind of account, or it is not the owner's to give, or an administrator has to approve it),
     // and there is less that is known to be had: once more for that, and once more for less.
-    let unwilling =
-        |refused: &Refused| matches!(refused.about, About::Scope | About::Consent) || matches!(refused.policy, Policy::Approval | Policy::Account);
-    for less in [endpoints.fewer.trim(), endpoints.lesser.trim()] {
+    // An administrator's approval is not had by asking for a bit less: an organisation that wants
+    // one for the extras is asked once more for what mail alone needs (so that signing in to mail
+    // never waits on them), and not in between; nor is the owner's own no turned into a yes by
+    // asking again.
+    let retry = |refused: &Refused, in_between: bool| {
+        if refused.policy == Policy::Approval {
+            !in_between
+        } else {
+            !refused.declined && (matches!(refused.about, About::Scope | About::Consent) || refused.policy == Policy::Account)
+        }
+    };
+    for (less, in_between) in [(endpoints.fewer.trim(), true), (endpoints.lesser.trim(), false)] {
         // (Nothing is less than nothing: a page that asked for the tokens alone is the answer.)
-        if consent.is_empty() || less.is_empty() || less == consent || !outcome.as_ref().is_err_and(unwilling) {
+        if consent.is_empty() || less.is_empty() || less == consent || !outcome.as_ref().is_err_and(|refused| retry(refused, in_between)) {
             continue;
         }
         log::debug!("the sign-in was refused for what it asked for; asking again for less");
@@ -1014,6 +1035,12 @@ fn sync_endpoints(oauth: &OAuth, email: &str, mail_write: bool) -> Endpoints {
     Endpoints { scope: sync_scope(mail_write), consent, fewer: String::new(), lesser: String::new(), ..plain }
 }
 
+/// `scope` without what keeping the to-dos and the settings in step takes.
+fn without_sync_scopes(scope: &str) -> String {
+    let own = |word: &&str| ![MICROSOFT_GRAPH_TASKS, MICROSOFT_GRAPH_SETTINGS_WRITE].contains(word);
+    scope.split(' ').filter(own).collect::<Vec<_>>().join(" ")
+}
+
 /// [`sign_in_for_sync`] at `endpoints`, waiting no longer than `patience`, coming back the way
 /// `via` says: the page, and once more without what it put to the owner beside the tokens' scopes
 /// when the provider has no such permissions for the account. Nothing else is tried again.
@@ -1028,20 +1055,30 @@ fn sync_page_within(
 ) -> Result<Tokens, FavoritesRefusal> {
     let consent = endpoints.consent.trim();
     let mut without_shared = consent.is_empty();
-    let outcome = match attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via) {
-        // (No such permissions for this kind of account, in either of Microsoft's ways of saying so.)
-        Err(refused)
-            if !consent.is_empty() && (refused.policy == Policy::Account || (refused.about == About::Scope && refused.policy == Policy::None)) =>
-        {
-            log::debug!("the one page was refused for what it asked for; asking again without the shared mailboxes' permissions");
-            without_shared = true;
-            attempt_via(endpoints, "", oauth, login_hint, open, cancel, patience, via)
-        }
-        outcome => outcome,
-    };
+    let mut reduced = false;
+    // (No such permissions for this kind of account, in either of Microsoft's ways of saying so.)
+    let no_such = |refused: &Refused| refused.policy == Policy::Account || (refused.about == About::Scope && refused.policy == Policy::None);
+    let mut outcome = attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via);
+    if !consent.is_empty() && outcome.as_ref().is_err_and(no_such) {
+        log::debug!("the one page was refused for what it asked for; asking again without the shared mailboxes' permissions");
+        without_shared = true;
+        outcome = attempt_via(endpoints, "", oauth, login_hint, open, cancel, patience, via);
+    }
+    // Still not had for its scopes, and there are shared ones to be had: the organisation has no
+    // such To Do lists or settings for this person, and shared mailboxes are not to wait on that
+    // (an administrator's approval is another matter: nothing is asked again for less). Once
+    // more, for the shared ones beside the tokens' own, without those.
+    if !consent.is_empty() && outcome.as_ref().is_err_and(|refused| refused.about == About::Scope && refused.policy != Policy::Approval) {
+        log::debug!("the one page was refused for its scopes; asking again for the shared mailboxes' permissions alone");
+        let alone = Endpoints { scope: without_sync_scopes(&endpoints.scope), ..endpoints.clone() };
+        reduced = true;
+        without_shared = false;
+        outcome = attempt_via(&alone, consent, oauth, login_hint, open, cancel, patience, via);
+    }
     // (Tokens of a page that was not given the shared permissions say so, so that nobody takes
-    // them for allowed to use a shared mailbox: that would only ask for the page again.)
-    let outcome = outcome.map(|tokens| Tokens { shared_not_given: without_shared, ..tokens });
+    // them for allowed to use a shared mailbox: that would only ask for the page again. Nor are
+    // those of a page without the to-dos' and the settings' taken for allowed to keep them.)
+    let outcome = outcome.map(|tokens| Tokens { shared_not_given: without_shared, sync_not_given: reduced, ..tokens });
     outcome.map_err(|refused| match (refused.policy, refused.about) {
         (Policy::Approval, _) => FavoritesRefusal::Approval,
         (Policy::Blocked, _) => FavoritesRefusal::Organisation,

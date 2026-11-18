@@ -76,6 +76,7 @@ impl MailApp {
             return false;
         }
         self.sync_declined.remove(&account);
+        self.shared_page_given.remove(&account);
         self.put_sync_question(account)
     }
 
@@ -259,9 +260,10 @@ impl MailApp {
         let refusal = match answer {
             // (Somebody else's tokens are neither used nor remembered, #103.)
             Ok(tokens) if self.signed_in_as_other(account, &tokens) => {
-                self.sync_waits_again(account);
+                // (What `signed_in_as_other` said is said to whoever waited for the answer.)
+                let said = self.status_msg.as_ref().map(|(said, _)| said.clone()).unwrap_or_default();
+                self.sync_waits_again(account, &said);
                 if let Some(shared) = read.filter(|r| self.shared_checking.contains(r)) {
-                    let said = self.status_msg.as_ref().map(|(said, _)| said.clone()).unwrap_or_default();
                     self.finish_shared_check(shared, Err(said));
                 }
                 return;
@@ -274,13 +276,31 @@ impl MailApp {
                     }
                 }
                 log::info!("sync: the owner allowed what his older sign-in lacked; the next jobs find out");
-                self.tasks_allowed(account);
-                self.rules_allowed(account);
-                self.auto_replies_allowed(account);
-                self.categories_allowed(account);
+                if tokens.sync_not_given {
+                    // (Its page was asked again for the shared mailboxes' permissions alone: the
+                    // organisation has no To Do lists or settings for this account to give, and
+                    // that is not put again by itself.)
+                    let said = tl!("Your organisation doesn't let MailCraft keep this mailbox in step with Outlook");
+                    self.sync_declined.insert(account);
+                    self.tasks_sync_refused(account, said);
+                    self.rules_sync_refused(account, said);
+                    self.auto_replies_sync_refused(account, said);
+                    self.categories_sync_refused(account, said);
+                } else {
+                    self.tasks_allowed(account);
+                    self.rules_allowed(account);
+                    self.auto_replies_allowed(account);
+                    self.categories_allowed(account);
+                }
                 // (A page that came back without the shared permissions didn't have them for this
                 // account: they are not allowed, and it is not put again for them by itself.)
-                let said = if tokens.shared_not_given { self.shared_sync_not_given(account, read) } else { self.shared_sync_allowed(account, read) };
+                let said = if tokens.shared_not_given {
+                    self.shared_sync_not_given(account, read)
+                } else {
+                    // (Noted, so that a job that still finds them missing doesn't open it again.)
+                    self.shared_page_given.insert(account);
+                    self.shared_sync_allowed(account, read)
+                };
                 if let Some(said) = said {
                     not_read(self, said);
                 }
@@ -343,12 +363,12 @@ impl MailApp {
     }
 
     /// The page signed in somebody else: what waited waits as it did.
-    fn sync_waits_again(&mut self, account: Id) {
+    fn sync_waits_again(&mut self, account: Id, said: &str) {
         self.tasks_sync_waits(account);
         self.rules_sync_waits(account);
         self.auto_replies_sync_waits(account);
         self.categories_sync_waits(account);
-        self.shared_sync_waits_again(account);
+        self.shared_sync_waits_again(account, said);
     }
 
     /// What File › Info says under a Microsoft account's card: one line for the four, what each

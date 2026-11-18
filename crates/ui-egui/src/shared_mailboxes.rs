@@ -198,8 +198,14 @@ impl MailApp {
         let mut asking = false;
         if result.consent_needed {
             self.session.sync_status.clear();
+            let given = owner.as_ref().map(|(owner, _)| *owner).filter(|owner| self.shared_page_given.contains(owner));
             if quiet {
                 errors.push(tl!("Reading shared mailboxes needs your permission: use Send/Receive").to_string());
+            } else if let Some(owner) = given {
+                // The page was answered with the shared permissions already in this session and
+                // Microsoft still says they are missing: not put again by itself (File › Info's
+                // Ask again is the owner's way), and what waited is held with why.
+                errors.extend(self.shared_sync_not_given(owner, None));
             } else {
                 match self.begin_shared_sign_in(account) {
                     Ok(()) => asking = true,
