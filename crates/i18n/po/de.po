@@ -1261,6 +1261,16 @@ msgstr "Bereits in Ihren Kontakten"
 msgid "Also Hotmail, Live and MSN"
 msgstr "Auch Hotmail, Live und MSN"
 
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Also keep this account's calendar, over CalDAV at this server"
+msgstr "Auch den Kalender dieses Kontos auf dem Server bereithalten (CalDAV)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Also keep this account's contacts, over CardDAV at this server"
+msgstr "Auch die Kontakte dieses Kontos auf dem Server bereithalten (CardDAV)"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy

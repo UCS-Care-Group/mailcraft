@@ -71,6 +71,34 @@ fn a_zimbra_server_found_beside_settings_it_knows_is_offered_there() {
 }
 
 #[test]
+fn calendar_and_contacts_at_the_same_address_are_asked_for_and_kept() {
+    // The DAV way of keeping them is on for testing: both are asked for on the page, on, and a
+    // Connect keeps the server's own `/dav/<address>` as their home.
+    let mut a = app(true);
+    a.session.dav_enabled = true;
+    let mut w = AccountSetup::open(&a, &json!({})).unwrap();
+    w.email = ME.into();
+    w.pick(&mut a, Kind::Zimbra);
+    assert!(w.zimbra.calendar && w.zimbra.contacts);
+    assert_eq!(w.dav_home().as_deref(), Some("https://mail.example.org/dav/ada@example.org"));
+    w.password = Secret("not-a-real-password".into());
+    w.zimbra.contacts = false;
+    w.zimbra_connect(&mut a);
+    let account = a.session.mailbox.accounts.iter().find(|x| x.email == ME).unwrap();
+    let dav = account.dav.as_ref().unwrap();
+    assert_eq!(dav.calendar_homes, vec!["https://mail.example.org/dav/ada@example.org".to_string()]);
+    assert!(dav.contact_homes.is_empty());
+    // Without DAV for testing, none of it is kept.
+    let mut a = app(true);
+    let mut w = AccountSetup::open(&a, &json!({})).unwrap();
+    w.email = ME.into();
+    w.pick(&mut a, Kind::Zimbra);
+    w.password = Secret("not-a-real-password".into());
+    w.zimbra_connect(&mut a);
+    assert!(a.session.mailbox.accounts.iter().find(|x| x.email == ME).unwrap().dav.is_none());
+}
+
+#[test]
 fn account_settings_of_a_zimbra_account_change_its_server_and_nothing_of_imap() {
     let mut a = app(true);
     let id = a.execute("account.add", json!({"email": ME, "kind": "zimbra", "zimbra": {"url": "https://mail.example.org"}})).unwrap()["id"]

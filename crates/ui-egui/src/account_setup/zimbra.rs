@@ -19,10 +19,19 @@ use super::*;
 const URL: usize = ZimbraServer::MAX_URL;
 
 /// What the Zimbra page keeps.
-#[derive(Default)]
 pub(super) struct Zimbra {
     /// The address of the server's web client, as typed.
     pub(super) url: String,
+    /// Its calendars and contacts over CalDAV/CardDAV at the same address are wanted, offered only
+    /// while that way of keeping them is being tested (`MAILCRAFT_DAV=1`). On while offered.
+    pub(super) calendar: bool,
+    pub(super) contacts: bool,
+}
+
+impl Default for Zimbra {
+    fn default() -> Self {
+        Self { url: String::new(), calendar: true, contacts: true }
+    }
 }
 
 /// The address as it is typed, made one MailCraft takes: `https://` in front of a bare host name.
@@ -73,6 +82,14 @@ impl AccountSetup {
         None
     }
 
+    /// The principal the server keeps the account's calendars and contacts under
+    /// (`/dav/<address>` on the web client's origin): `None` when either can't be made.
+    fn dav_home(&self) -> Option<String> {
+        let (email, _) = address(&self.email)?;
+        let origin = typed_url(&self.zimbra.url).trim_end_matches('/').to_string();
+        (!email.is_empty() && ZimbraServer::check_url(&origin).is_ok()).then(|| format!("{origin}/dav/{email}"))
+    }
+
     /// `account.add` for the Zimbra account the page describes.
     pub(super) fn zimbra_command(&self) -> Option<(&'static str, Value)> {
         let (email, _) = address(&self.email)?;
@@ -99,6 +116,19 @@ impl AccountSetup {
                 if !password.is_empty() {
                     app.adopt_password(id, password);
                 }
+                // Calendars and contacts over DAV at the server's own address, asked for on the
+                // page (`/dav/<address>` is Zimbra's principal): kept with the account before its
+                // first run, so the run can keep to them too.
+                if app.session.dav_enabled
+                    && (self.zimbra.calendar || self.zimbra.contacts)
+                    && let Some(home) = self.dav_home()
+                {
+                    let homes = |on: bool| if on { vec![home.clone()] } else { Vec::new() };
+                    let _ = app.execute(
+                        "account.davSet",
+                        json!({"id": id, "calendarHomes": homes(self.zimbra.calendar), "contactHomes": homes(self.zimbra.contacts)}),
+                    );
+                }
                 self.finish(app, id);
             }
             Ok(None) => self.error = tl!("The account couldn't be added").to_string(),
@@ -121,6 +151,12 @@ impl AccountSetup {
                 t.text_dim,
             );
             self.zimbra_fields(ui, pass);
+            // The same address serves calendars and contacts over DAV, while that way of keeping
+            // them is being tested: asked for on the page they belong to, not in the mail's.
+            if app.session.dav_enabled {
+                ui.checkbox(&mut self.zimbra.calendar, tl!("Also keep this account's calendar, over CalDAV at this server"));
+                ui.checkbox(&mut self.zimbra.contacts, tl!("Also keep this account's contacts, over CardDAV at this server"));
+            }
         });
         problem(ui, &self.error);
         let ready = !self.password.0.is_empty() && self.zimbra_problem().is_none();
