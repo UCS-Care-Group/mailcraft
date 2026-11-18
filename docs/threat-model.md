@@ -197,6 +197,7 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
   only between names one character apart in length). An agent gets the warnings with `mail.get`
   as data, their details framed as message content. The owner can dismiss the banner (the cross at its right, `mail.dismissWarnings`, kept with the message as the kinds it held): a caution goes, a warning stays as a slim bar that opens again, and a kind that was not there brings the banner back. The command needs the owner (`Class::Settings`), so an agent cannot hide a warning.
+- **The signer's domain is the sender's choice** (#1472). `authentication.dkimDomain` in `mail.get` and `read_message` is the `header.d` of a passing DKIM signature, which whoever signs the mail picks; for an agent it is framed as untrusted, data and never instructions (`TEXT_KEYS`). The `spf`, `dkim` and `dmarc` words are short plain words read from the account's own server's topmost header.
 - **Send warnings are the owner's to answer** (#509). Before a message goes, `compose.send` looks
   for a recipient whose domain is a lookalike sender's would be (above), or whose part before the
   @ is one edit or one skeleton from a known address at the same domain (five characters or

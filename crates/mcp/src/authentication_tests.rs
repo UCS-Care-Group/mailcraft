@@ -56,6 +56,9 @@ fn the_signers_domain_is_framed_as_untrusted() {
     let v = read(&mut h, id);
     assert_eq!(v["authentication"]["dkimDomain"], format!("{UNTRUSTED_OPEN}{hostile}{UNTRUSTED_CLOSE}"));
     assert_eq!(v["authentication"]["dkim"], "pass");
+    // The same through `execute mail.get`.
+    let r = call_tool(&mut h, &Policy::default(), "execute", &json!({"command": "mail.get", "params": {"id": id}}));
+    assert!(r.content[0]["text"].as_str().unwrap().contains(&format!("{UNTRUSTED_OPEN}{hostile}{UNTRUSTED_CLOSE}")));
 }
 
 #[test]
