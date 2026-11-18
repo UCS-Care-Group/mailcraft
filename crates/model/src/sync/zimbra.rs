@@ -255,6 +255,11 @@ pub struct ZimbraMailResult {
     /// repeated by itself.
     #[serde(skip_serializing_if = "is_false")]
     pub auth_refused: bool,
+    /// The account signs in with a second step and the sign-in went without a code, or with one the
+    /// server turned down: the owner is asked for the code of their authenticator app, and the run
+    /// is not repeated by itself.
+    #[serde(skip_serializing_if = "is_false")]
+    pub code_needed: bool,
     /// The SHA-256 fingerprint (64 hexadecimal digits) of a certificate the system doesn't trust
     /// and the account doesn't either: the run stopped there, and the owner is asked whether to
     /// trust it for this account.
@@ -469,6 +474,7 @@ impl ZimbraMailResult {
             self.progress = piece.progress;
         }
         self.auth_refused |= piece.auth_refused;
+        self.code_needed |= piece.code_needed;
         if !piece.untrusted.is_empty() {
             self.untrusted = piece.untrusted;
         }
@@ -539,6 +545,7 @@ impl std::fmt::Debug for ZimbraMailResult {
             .field("stopped", &self.stopped)
             .field("progress", &self.progress.is_some())
             .field("auth_refused", &self.auth_refused)
+            .field("code_needed", &self.code_needed)
             .field("untrusted", &!self.untrusted.is_empty())
             .field("timings", &self.timings)
             .finish()

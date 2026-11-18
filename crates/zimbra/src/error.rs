@@ -38,7 +38,8 @@ pub enum Error {
     Transport(TransportError),
     /// The server turned the sign-in down: a wrong password, or a token it no longer takes.
     AuthRefused,
-    /// The account signs in with a second step, which this program can't take yet.
+    /// The account signs in with a second step, and no code went with the sign-in, or the server
+    /// turned the code down: the owner is asked for one.
     TwoFactor,
     /// The change token is too old for the server to go on from (`mail.MUST_RESYNC`): the mailbox
     /// is read afresh.
@@ -82,7 +83,7 @@ impl fmt::Display for Error {
             Error::Endpoint(e) => e.fmt(f),
             Error::Transport(e) => e.fmt(f),
             Error::AuthRefused => f.write_str("the Zimbra server turned the sign-in down: check the user name and the password"),
-            Error::TwoFactor => f.write_str("this Zimbra account signs in with a second step, which MailCraft can't take yet"),
+            Error::TwoFactor => f.write_str("this Zimbra account wants the code from your authenticator app"),
             Error::MustResync => f.write_str("the Zimbra server can no longer say what changed since the last Send/Receive"),
             Error::NoSuchItem => f.write_str("the Zimbra server no longer has it"),
             Error::Busy(_) => f.write_str("the Zimbra server is busy and asked to be left alone for a while"),
@@ -105,7 +106,7 @@ impl std::error::Error for Error {}
 pub(crate) fn from_code(code: &str) -> Error {
     match code {
         "account.AUTH_FAILED" | "service.AUTH_REQUIRED" | "service.AUTH_EXPIRED" => Error::AuthRefused,
-        "account.TWO_FACTOR_AUTH_REQUIRED" | "account.TWO_FACTOR_SETUP_REQUIRED" => Error::TwoFactor,
+        "account.TWO_FACTOR_AUTH_REQUIRED" | "account.TWO_FACTOR_AUTH_FAILED" | "account.TWO_FACTOR_SETUP_REQUIRED" => Error::TwoFactor,
         "mail.MUST_RESYNC" => Error::MustResync,
         "service.PERM_DENIED" => Error::Fault(Fault::PermissionDenied),
         "mail.ALREADY_EXISTS" => Error::Fault(Fault::AlreadyExists),

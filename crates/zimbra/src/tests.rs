@@ -8,9 +8,10 @@ use std::sync::atomic::AtomicBool;
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{ZimbraFetchRequest, ZimbraMailRequest, ZimbraMailResult};
 
+use crate::auth::Credentials;
 use crate::http::Secret;
-use crate::standin::{PASSWORD, StandIn, TOKEN, USER, block_on};
-use crate::{fetch_messages, sync_mail};
+use crate::standin::{CODE, DEVICE, PASSWORD, StandIn, TOKEN, TRUSTED, USER, block_on};
+use crate::{Trust, fetch_messages, sync_mail};
 
 const URL: &str = "http://127.0.0.1:7070";
 
@@ -19,9 +20,13 @@ fn request(token: &str) -> ZimbraMailRequest {
 }
 
 fn run(server: &StandIn, request: &ZimbraMailRequest, password: &str) -> Vec<ZimbraMailResult> {
+    run_with(server, request, &Credentials::password(password)).0
+}
+
+fn run_with(server: &StandIn, request: &ZimbraMailRequest, credentials: &Credentials) -> (Vec<ZimbraMailResult>, Trust) {
     let mut pieces = Vec::new();
-    block_on(sync_mail(server, request, &Secret::new(password), &AtomicBool::new(false), &mut |piece| pieces.push(piece))).unwrap();
-    pieces
+    let trust = block_on(sync_mail(server, request, credentials, &AtomicBool::new(false), &mut |_| {}, &mut |piece| pieces.push(piece))).unwrap();
+    (pieces, trust)
 }
 
 fn whole(pieces: &[ZimbraMailResult]) -> ZimbraMailResult {
@@ -417,7 +422,8 @@ fn a_refused_sign_in_is_said_and_nothing_else_is_asked() {
 fn a_run_called_off_says_so_and_keeps_no_token() {
     let server = StandIn::new();
     let mut pieces = Vec::new();
-    block_on(sync_mail(&server, &request(""), &Secret::new(PASSWORD), &AtomicBool::new(true), &mut |p| pieces.push(p))).unwrap();
+    block_on(sync_mail(&server, &request(""), &Credentials::password(PASSWORD), &AtomicBool::new(true), &mut |_| {}, &mut |p| pieces.push(p)))
+        .unwrap();
     assert_eq!(pieces.len(), 1);
     assert!(pieces[0].stopped && pieces[0].token.is_empty() && pieces[0].errors.is_empty());
 }
@@ -433,7 +439,7 @@ fn messages_are_fetched_whole_with_the_token_in_a_cookie() {
         ids: vec![one.to_string(), "999".into(), "x1".into()],
         ..Default::default()
     };
-    let got = block_on(fetch_messages(&server, &fetch, &Secret::new(PASSWORD), &AtomicBool::new(false))).unwrap();
+    let got = block_on(fetch_messages(&server, &fetch, &Credentials::password(PASSWORD), &AtomicBool::new(false))).unwrap();
     assert_eq!(got.errors, Vec::<String>::new());
     assert_eq!(got.fetched.len(), 1);
     assert!(String::from_utf8_lossy(&got.fetched[0].mime).contains("Subject: Whole"));
@@ -455,10 +461,36 @@ fn the_token_goes_in_the_header_or_a_cookie_and_never_in_an_address() {
         assert!(in_body != in_cookie, "one place only: {request:?}");
         assert!(!format!("{request:?}").contains(TOKEN));
     }
-    let auth = crate::auth::request(URL, "ada\r\nX: y", &Secret::new(PASSWORD)).unwrap();
+    let auth = crate::auth::request(URL, "ada\r\nX: y", &Credentials::password(PASSWORD)).unwrap();
     assert!(!String::from_utf8_lossy(auth.body()).contains('\r'));
-    assert!(crate::auth::request("http://zimbra.example.org", "ada", &Secret::new(PASSWORD)).is_err());
+    assert!(crate::auth::request("http://zimbra.example.org", "ada", &Credentials::password(PASSWORD)).is_err());
     assert!(crate::fetch::request(URL, &token, "1&zauthtoken=x").is_err());
+}
+
+#[test]
+fn a_second_step_asks_for_the_code_and_then_trusts_this_computer() {
+    let server = StandIn::new();
+    server.state.borrow_mut().two_factor = true;
+    server.deliver(2, "Behind two factors", "");
+    // The password alone: the run asks for the code, and nothing of the mailbox was read.
+    let (pieces, trust) = run_with(&server, &request(""), &Credentials::password(PASSWORD));
+    let last = pieces.last().unwrap();
+    assert!(last.code_needed && !last.auth_refused && !last.whole && last.listing.is_none());
+    assert!(last.errors[0].contains("authenticator app") && trust.token.is_none());
+    // A wrong code is turned down as wanting the code again.
+    let wrong = Credentials { code: Some(Secret::new("000000")), ..Credentials::password(PASSWORD) };
+    assert!(run_with(&server, &request(""), &wrong).0.last().unwrap().code_needed);
+    // The right one signs in, and the server trusts this computer from now on.
+    let typed = Credentials { code: Some(Secret::new(CODE)), ..Credentials::password(PASSWORD) };
+    let (pieces, trust) = run_with(&server, &request(""), &typed);
+    assert!(whole(&pieces).whole);
+    assert_eq!((trust.token.as_ref().map(Secret::expose), trust.device.as_str()), (Some(TRUSTED), DEVICE));
+    // The next run goes with the trusted-device token instead of a code.
+    let trusted = Credentials { trusted: Some((Secret::new(TRUSTED), DEVICE.into())), ..Credentials::password(PASSWORD) };
+    let (pieces, _) = run_with(&server, &request(""), &trusted);
+    assert!(whole(&pieces).whole);
+    // Neither the code nor the trusted token reaches a piece.
+    assert!(!format!("{pieces:?}").contains(TRUSTED) && !format!("{pieces:?}").contains(CODE));
 }
 
 #[test]
@@ -468,7 +500,7 @@ fn a_server_that_answers_the_same_page_for_ever_is_cut_off() {
     let server = StandIn::new();
     server.deliver(2, "One", "");
     server.stuck.set(true);
-    let all = whole(&run(&server, &request(""), PASSWORD));
+    let all = whole(&run_with(&server, &request(""), &Credentials::password(PASSWORD)).0);
     assert!(!all.whole && !all.errors.is_empty() && all.token.is_empty());
 }
 
