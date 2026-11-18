@@ -60,21 +60,23 @@ pub fn by_id(base: &str, token: &Secret, ids: &[String]) -> Result<HttpRequest, 
     soap::request(base, "SearchRequest", soap::MAIL, body, Some(token))
 }
 
-/// One message `id` asks for again when the batch search faults: `GetMsgRequest` names the item
-/// itself wherever it lies — Trash and Junk included, which a search without `is:anywhere`
-/// leaves out — and its `mail.NO_SUCH_MSG` is the server's own word that it is gone.
+/// One message `id` asks for again when the batch search faults or leaves it out: `GetMsgRequest`
+/// names the item itself wherever it lies — Trash and Junk included, which a search without
+/// `is:anywhere` leaves out — and its `mail.NO_SUCH_MSG` is the server's own word that it is gone.
+/// `max` keeps the answer to the headers it is read for, not the whole body inlined.
 pub fn probe(base: &str, token: &Secret, id: &str) -> Result<HttpRequest, Error> {
     let id: String = id.chars().filter(|c| c.is_ascii_digit()).collect();
-    soap::request(base, "GetMsgRequest", soap::MAIL, json!({"m": {"id": id}}), Some(token))
+    soap::request(base, "GetMsgRequest", soap::MAIL, json!({"m": {"id": id, "max": 51200}}), Some(token))
 }
 
-/// What [`probe`] asked: the message it found, `None` for the server's own `mail.NO_SUCH_MSG`,
-/// and an error for anything else — a fault a deletion can't have written keeps the run from
-/// moving past the id.
+/// What [`probe`] asked: the message it found, `None` for the server's own `mail.NO_SUCH_MSG`
+/// (every other fault a deletion can't have written keeps the run from moving past the id — one
+/// more `mail.NO_SUCH_*` can be a folder's word, not the message's), and an error for anything
+/// else.
 pub fn probe_answer(response: &HttpResponse) -> Result<Option<GraphMessage>, Error> {
     let answer = match soap::answer("GetMsgRequest", response) {
         Ok(answer) => answer,
-        Err(Error::NoSuchItem) => return Ok(None),
+        Err(Error::NoSuchItem) if soap::fault_code(response).as_deref() == Some("mail.NO_SUCH_MSG") => return Ok(None),
         Err(e) => return Err(e),
     };
     if json::bad_list(answer.get("m")) {

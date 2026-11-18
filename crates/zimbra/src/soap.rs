@@ -45,6 +45,13 @@ pub fn request(base: &str, name: &str, ns: &str, body: Value, token: Option<&Sec
     Ok(HttpRequest::new(Method::Post, &url, &fields, envelope(name, ns, body, token).into_bytes())?.with_response_limit(SOAP_LIMIT))
 }
 
+/// The code of the fault `response` carries, when it is one — the server's word, read and never
+/// kept, for a caller one fault's kind apart matters to.
+pub(crate) fn fault_code(response: &HttpResponse) -> Option<String> {
+    let parsed: Value = serde_json::from_slice(response.body()).ok()?;
+    parsed.pointer("/Body/Fault/Detail/Error/Code")?.as_str().map(str::to_string)
+}
+
 /// The `<Name>Response` element of the answer to `name`, or what went wrong. A fault is read for
 /// its code alone; an answer that is not JSON, or has no body, or not the response asked for, is
 /// [`Error::Unreadable`]; a busy server's answer (429, 503) is [`Error::Busy`].
