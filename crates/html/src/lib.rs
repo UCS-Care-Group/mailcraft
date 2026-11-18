@@ -45,7 +45,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 pub use bg::{BgOffset, BgPicture, BgRepeat, BgSize, MAX_BG_OFFSET_PX, MAX_BG_SIZE_PX};
-pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own};
+pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own, parse_text_with_tables};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
 pub use media::{Env, MAX_ENVS as MAX_MEDIA_ENVS, envs as media_envs, verdicts as media_verdicts};
@@ -437,6 +437,9 @@ impl Block {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Table {
     pub rows: Vec<Row>,
+    /// The composer requested that empty rows and columns be preserved.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub compose_grid: bool,
     /// The widest row, in columns (at most [`MAX_TABLE_COLUMNS`]).
     pub columns: u16,
     pub layout: bool,

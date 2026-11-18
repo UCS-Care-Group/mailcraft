@@ -1,0 +1,1 @@
+| 2026-11-17 | Desktop message-list swipes: choose Delete, Archive, Mark as Read, Flag or None for each direction in File › Options; both start off. A row follows the gesture, reveals the action and settles back or slides away before the command runs. It acts on the messages the row held at the start; on Windows horizontal mouse-wheel scrolling can trigger it too |
