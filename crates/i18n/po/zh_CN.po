@@ -15538,6 +15538,7 @@ msgstr "周日"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Swipe Action"
 msgstr "滑动操作"
 
@@ -15549,8 +15550,9 @@ msgstr "滑动操作"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
-msgstr "在邮件上水平滑动可执行选定的操作。在 Windows 上，水平滚动鼠标滚轮也可能触发该操作。"
+msgstr "在邮件上水平滑动即可执行所选操作。在 Windows 上，水平鼠标滚轮也可触发。"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs

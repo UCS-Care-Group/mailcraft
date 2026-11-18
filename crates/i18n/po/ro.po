@@ -15591,8 +15591,9 @@ msgstr "duminică"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Swipe Action"
-msgstr "Acțiune de glisare"
+msgstr "Acțiune prin glisare"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
@@ -15602,8 +15603,9 @@ msgstr "Acțiuni prin glisare"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
-msgstr "Glisați orizontal peste un mesaj pentru a efectua acțiunea aleasă. În Windows, și derularea orizontală cu rotița mouse-ului poate declanșa acțiunea."
+msgstr "Glisați orizontal peste un mesaj pentru a rula acțiunea aleasă. În Windows, o poate declanșa și rotița orizontală a mausului."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs

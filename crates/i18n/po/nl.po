@@ -14992,6 +14992,7 @@ msgstr "zondag"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Swipe Action"
 msgstr "Veegactie"
 
@@ -15003,8 +15004,9 @@ msgstr "Veegacties"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
-msgstr "Veeg horizontaal over een bericht om de gekozen actie uit te voeren. In Windows kan ook een horizontaal muiswiel de actie activeren."
+msgstr "Veeg horizontaal over een bericht om de gekozen actie uit te voeren. In Windows kan ook een horizontaal muiswiel de actie starten."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs

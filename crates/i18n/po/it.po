@@ -15529,8 +15529,9 @@ msgstr "domenica"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Swipe Action"
-msgstr ""
+msgstr "Azione di scorrimento"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
@@ -15540,8 +15541,9 @@ msgstr "Azioni di scorrimento"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
-msgstr ""
+msgstr "Scorri in orizzontale su un messaggio per eseguire l'azione scelta. In Windows può attivarla anche la rotellina orizzontale del mouse."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs

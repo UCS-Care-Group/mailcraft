@@ -15595,6 +15595,7 @@ msgstr "niedziela"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Swipe Action"
 msgstr "Akcja przesunięcia"
 
@@ -15606,8 +15607,9 @@ msgstr "Akcje przesunięcia"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
-msgstr "Przesuń poziomo po wiadomości, aby wykonać wybraną akcję. W systemie Windows może ją również uruchomić poziome przewijanie kółkiem myszy."
+msgstr "Przesuń poziomo po wiadomości, aby wykonać wybraną akcję. W systemie Windows może ją wywołać także poziome kółko myszy."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
