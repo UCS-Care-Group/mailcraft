@@ -48,9 +48,11 @@ pub const MAX_MIME_TEXT: usize = 16 * 1024 * 1024;
 /// has, which grows with the folder (a compressed list of the items it has told of): a large
 /// folder's runs to some tens of kilobytes.
 pub const MAX_SYNC_STATE: usize = 1024 * 1024;
-/// Longest text kept of a `Value` inside a `DictionaryValue` (bytes): a user configuration's entry,
-/// among them the HTML signature of Outlook on the web, which the reader of it holds to its own
-/// size ([`mailcraft_model::sync::MAX_SIGNATURE_HTML`], with room for what XML escapes add).
+/// Longest text kept of a `Value` inside a `DictionaryValue` (bytes, counted as it reads once its
+/// references are resolved, like any text): a user configuration's entry, among them the HTML
+/// signature of Outlook on the web. That reader holds it to a smaller size of its own
+/// ([`mailcraft_model::sync::MAX_SIGNATURE_HTML`]), so a signature somewhat past that is still
+/// read whole and refused by it; a text past this one is empty and [`Node::cut`].
 pub const MAX_DICTIONARY_TEXT: usize = 96 * 1024;
 /// What an element costs besides its name, attributes and text: the size of a node and the
 /// allocator's share of the block that holds it in its parent's `children`. (The vectors of a
@@ -96,6 +98,9 @@ pub struct Node {
     /// The text directly inside it; empty when there is none, or it is longer than is kept, or
     /// it holds a reference to who knows what.
     pub text: String,
+    /// Its text was longer than is kept, and so is empty: for a reader to whom that is not the
+    /// same as no text.
+    pub cut: bool,
     /// The elements inside it.
     pub children: Vec<Node>,
 }
@@ -301,6 +306,7 @@ impl Walk {
         };
         if open.node.text.len().saturating_add(text.len()) > cap {
             open.spoiled = true;
+            open.node.cut = true;
         } else if !open.spoiled {
             let before = heap(open.node.text.len());
             open.node.text.push_str(&text);

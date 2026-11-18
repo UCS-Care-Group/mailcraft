@@ -191,3 +191,30 @@ fn the_names_are_matched_whatever_their_case() {
     let found = read(&odd).unwrap().unwrap();
     assert_eq!((found.text.as_str(), found.on_new, found.on_reply), ("Ada", true, false));
 }
+
+#[test]
+fn an_html_signature_past_what_the_reader_keeps_is_no_signature_not_its_text_alone() {
+    // A signature with a logo written into it runs past the XML reader's cap for one value, which
+    // keeps none of it: the text beside it is not taken for the owner's signature.
+    let logo = format!("<img src=\"data:image/png;base64,{}\">", "A".repeat(crate::xml::MAX_DICTIONARY_TEXT));
+    let standin = StandIn::new();
+    standin.state().user_options = Some(vec![
+        entry("signaturehtml", "String", &[&logo]),
+        entry("signaturetext", "String", &["Ada Lovelace"]),
+        entry("autoaddsignature", "Boolean", &["true"]),
+    ]);
+    assert_eq!(asked(&standin), Ok(None));
+    // Nor the HTML alone when the text is the one past it.
+    let long = "y".repeat(crate::xml::MAX_DICTIONARY_TEXT + 1);
+    standin.state().user_options = Some(vec![entry("signaturehtml", "String", &["<p>Ada</p>"]), entry("signaturetext", "String", &[&long])]);
+    assert_eq!(asked(&standin), Ok(None));
+}
+
+#[test]
+fn the_cap_of_a_value_is_on_its_text_once_escapes_are_read() {
+    // 64,000 bytes of HTML, written in the answer as some 160,000 (every `<` and `>` escaped): read whole.
+    let html = "<br>".repeat(16_000);
+    let standin = StandIn::new();
+    standin.state().user_options = Some(vec![entry("signaturehtml", "String", &[&html])]);
+    assert_eq!(asked(&standin).unwrap().map(|s| s.html.len()), Some(html.len()));
+}

@@ -744,7 +744,11 @@ fn a_get_item_answer_with_ten_megabytes_of_mime_fits() {
     assert_eq!(message.child("MimeContent").unwrap().text.len(), mime.len());
     // Another element's text is still capped.
     let other = format!("<a><b>{}</b></a>", "x".repeat(xml::MAX_TEXT + 1));
-    assert_eq!(xml::parse(other.as_bytes()).unwrap().children[0].text, "");
+    let cut = &xml::parse(other.as_bytes()).unwrap().children[0];
+    assert!(cut.text.is_empty() && cut.cut, "empty, and said to be cut");
+    // (A reference to who knows what empties a text too, but it was not cut.)
+    let spoiled = &xml::parse(b"<a><b>x&bogus;y</b></a>").unwrap().children[0];
+    assert!(spoiled.text.is_empty() && !spoiled.cut);
     // ... and the room for a message has an end.
     let huge = format!("<a><MimeContent>{}</MimeContent></a>", "x".repeat(xml::MAX_MIME_TEXT + 1));
     assert_eq!(xml::parse(huge.as_bytes()).unwrap().children[0].text, "");
