@@ -104,8 +104,8 @@ pub(crate) struct EventDrag {
     pub day: Date,
 }
 
-/// Contacts dragged out of the People list (or the bar's favourites), for the tasks of the To-Do
-/// Bar: each becomes a task (`tasks.fromContact`).
+/// Contacts dragged out of the People list (or the bar's favourites), for the tasks of the Tasks and
+/// Calendar Bar: each becomes a task (`tasks.fromContact`).
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ContactDrag(pub Vec<Id>);
 
