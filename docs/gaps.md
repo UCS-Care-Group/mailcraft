@@ -1,6 +1,6 @@
 # Where MailCraft falls short of Outlook
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-17 · **Change:** patch
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-14 · **Change:** minor
 
 The ranked list of shortfalls and rough edges. The direction is in [`ROADMAP.md`](../ROADMAP.md):
 where MailCraft stands, the beta checklist and the steps to it, and what comes after beta; the order

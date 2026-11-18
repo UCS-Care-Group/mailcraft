@@ -1,6 +1,6 @@
 # File formats and protocols
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-17 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 What MailCraft reads, writes and speaks, and how far each goes. Everything is implemented from the
 public specifications; every reader is fed arbitrary bytes by property tests and must never panic.
