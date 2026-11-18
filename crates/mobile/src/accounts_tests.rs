@@ -266,11 +266,14 @@ fn a_sign_in_adds_the_account_and_keeps_only_the_refresh_token_in_the_secure_sto
     assert!(!text.contains("refresh-token-1") && !text.contains("the-access-token"));
     assert!(!rig.phone.secrets.kept.lock().unwrap().iter().any(|(_, v)| v.contains("the-access-token")));
     // The page was sent where the system brings the app back to, for what a Graph account takes
-    // and nothing that is asked for by itself.
+    // and, so that the owner is asked once, the shared mailboxes' two the phone uses; not the
+    // to-dos', nor the shared calendars', which the phone doesn't read.
     let page = query_of(&rig.phone.pages.lock().unwrap()[0]);
     assert_eq!(page["redirect_uri"], format!("{SCHEME}://oauth2redirect"));
     assert_eq!(page["login_hint"], ADA);
-    assert!(page["scope"].contains("Mail.ReadWrite") && !page["scope"].contains("Tasks") && !page["scope"].contains("Shared"));
+    let scope = &page["scope"];
+    assert!(scope.contains("Mail.ReadWrite.Shared") && scope.contains("Mail.Send.Shared"), "{scope}");
+    assert!(!scope.contains("Tasks") && !scope.contains("Calendars.ReadWrite.Shared"), "{scope}");
     // (Nor what keeping the rules, the automatic replies and the categories in step takes, #661:
     // the mailbox's settings are only read.)
     assert!(page["scope"].contains("MailboxSettings.Read") && !page["scope"].contains("MailboxSettings.ReadWrite"), "{}", page["scope"]);
