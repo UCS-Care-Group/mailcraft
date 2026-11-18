@@ -173,7 +173,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.connectMicrosoft", "{}", Setup::None),
     ("ui.automaticRepliesSignIn", r#"{"account": $account}"#, Setup::None),
     ("ui.connectFavorites", "{}", Setup::None),
-    ("ui.allowSharedSend", r#"{"account": $account}"#, Setup::None),
+    ("ui.allowSharedSend", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowSharedCalendars", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowTasks", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowRules", r#"{"account": $account, "confirmed": true}"#, Setup::None),

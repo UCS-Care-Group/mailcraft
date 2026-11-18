@@ -836,6 +836,22 @@ pub enum OAuthProvider {
     Google,
 }
 
+impl OAuth {
+    /// Whether the Microsoft account at `email` signing in with these settings is a personal one
+    /// (Outlook.com): its directory says so, or the directory its sign-in names does, or, when
+    /// nothing says, its address is Outlook.com's own. Microsoft has no shared mailboxes, nor
+    /// other people's calendars, for those.
+    pub fn is_personal(&self, email: &str) -> bool {
+        match (self.directory, Directory::of_tenant(&self.tenant)) {
+            (Directory::Personal, _) | (_, Directory::Personal) => true,
+            (Directory::Organisation, _) | (_, Directory::Organisation) => false,
+            // Nothing else says: the address does.
+            _ => crate::provider::by_domain(email.rsplit_once('@').map_or("", |(_, domain)| domain))
+                .is_some_and(|preset| preset.service == "Outlook.com"),
+        }
+    }
+}
+
 impl OAuthProvider {
     pub fn parse(s: &str) -> Option<OAuthProvider> {
         match s.trim().to_ascii_lowercase().as_str() {
@@ -1710,7 +1726,7 @@ impl Mailbox {
         if o.kind != AccountKind::Microsoft {
             return Err(invalid("shared mailboxes open under an account that is kept in step through Microsoft Graph"));
         }
-        if o.oauth.as_ref().is_some_and(|oauth| oauth.directory == Directory::Personal) {
+        if o.oauth.as_ref().is_some_and(|oauth| oauth.is_personal(&o.email)) {
             return Err(invalid("a personal Microsoft account (Outlook.com) has no shared mailboxes: they are Microsoft 365's"));
         }
         if o.email.trim().eq_ignore_ascii_case(&address) {
