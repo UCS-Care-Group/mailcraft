@@ -537,6 +537,8 @@ pub struct AccountSetup {
     ask_conversation: Option<(bool, bool)>,
     /// For the settings of an account: its colour as it was and as the swatch has it now (#893).
     color: Option<(Option<Rgb>, Option<Rgb>)>,
+    /// Default signatures selected in this dialog, applied only on Save.
+    signature_changes: [Option<String>; 2],
     /// For the settings of a Gmail account: whether Gmail's categories are shown under its Inbox,
     /// and whether desktop alerts are for Primary alone (#911), each as it was and as its box has
     /// it now.
@@ -674,6 +676,7 @@ impl AccountSetup {
             keep_offline: None,
             ask_conversation: None,
             color: None,
+            signature_changes: Default::default(),
             gmail: None,
             graph: false,
             shared: None,
@@ -1652,12 +1655,13 @@ impl AccountSetup {
         self.go(Page::Done);
     }
 
-    /// Whether Account Settings has nothing unsaved: its fields, a new password and the colour
+    /// Whether Account Settings has nothing unsaved: its fields, a new password, signatures and colour
     /// as they were. A Google switch or reconnect closes the dialog without saving, so it waits
     /// until this holds.
     fn unchanged(&self) -> bool {
         self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
             && self.password.0.is_empty()
+            && self.signature_changes.iter().all(Option::is_none)
             && self.color.is_none_or(|(was, color)| was == color)
     }
 
@@ -1673,6 +1677,14 @@ impl AccountSetup {
         {
             self.error = e;
             return false;
+        }
+        let [new, reply] = &self.signature_changes;
+        if new.is_some() || reply.is_some() {
+            if let Err(e) = app.execute("signature.defaults", json!({"account": id, "new": new, "reply": reply})) {
+                self.error = e;
+                return false;
+            }
+            self.signature_changes = Default::default();
         }
         if let Some((_, ask)) = self.ask_conversation.filter(|(was, ask)| was != ask) {
             if let Err(e) = app.execute("account.edit", json!({"id": id, "askBeforeDeletingConversation": ask})) {
@@ -1932,10 +1944,6 @@ impl AccountSetup {
 
     /// Lay out the page in view. Returns `true` when the dialog should close.
     pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
-        if self.edit.as_ref().and_then(|e| app.session.mailbox.account(e.id)).is_some_and(|a| a.goa.is_some()) {
-            ui.label(tl!("This account is managed by GNOME Online Accounts. Change its settings or repair its sign-in there. Removing it from MailCraft leaves it in GNOME."));
-            return ui.button(tl!("Close")).clicked();
-        }
         if self.ctx.is_none() {
             self.ctx = Some(ui.ctx().clone());
             self.sweep(app);
@@ -2388,7 +2396,10 @@ impl AccountSetup {
         }
         let t = pass.t;
         let exchange = self.ews.is_some();
-        let asks = self.oauth.is_none()
+        let managed_account = self.edit.as_ref().and_then(|e| app.session.mailbox.account(e.id)).filter(|a| a.goa.is_some());
+        let managed = managed_account.is_some();
+        let asks = !managed
+            && self.oauth.is_none()
             && if exchange {
                 app.services.ews_setup.is_some() || app.services.ews.is_some()
             } else {
@@ -2399,13 +2410,16 @@ impl AccountSetup {
                 && account.kind == AccountKind::Imap
                 && account.incoming.as_ref().is_some_and(|server| server.host.trim().eq_ignore_ascii_case("imap.gmail.com"))
         });
-        let can_convert = saved_google.is_some() && self.oauth.is_none() && app.services.sign_in.is_some();
-        let can_reconnect =
-            self.edit.is_some() && self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) && app.services.sign_in.is_some();
+        let can_convert = !managed && saved_google.is_some() && self.oauth.is_none() && app.services.sign_in.is_some();
+        let can_reconnect = !managed
+            && self.edit.is_some()
+            && self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google)
+            && app.services.sign_in.is_some();
         let compatible = saved_google.is_some_and(google_conversion_ready);
         let unchanged = self.unchanged();
         let configured = app.google_registration_ready();
         let how = match &self.oauth {
+            _ if managed => tl!("This account is managed by GNOME Online Accounts. Change its connection or repair its sign-in there. Removing it from MailCraft leaves it in GNOME.").to_string(),
             None if exchange => tl!("Signs in to an Exchange server with a user name and password").to_string(),
             Some(oauth) => fmt(tl!("Signs in on the {provider} page in your browser"), &[("provider", oauth.provider.label())]),
             None if self.incoming.host.trim().is_empty() && self.outgoing.host.trim().is_empty() => {
@@ -2464,20 +2478,38 @@ impl AccountSetup {
             field(ui, pass, "accountName", tl!("Account name"), &mut self.account_name, &address, LINE);
             note(ui, tl!("Shown in the folder pane, such as Work or Home. Leave it empty to show the address."), t.text_dim);
             field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("As the people you write to see it"), LINE);
+            if let Some(account) = managed_account {
+                caption(ui, tl!("Signatures"), &t);
+                let fields = [(tl!("New messages"), account.signature.as_str()), (tl!("Replies and forwards"), account.reply_signature())];
+                for ((label, current), change) in fields.into_iter().zip(&mut self.signature_changes) {
+                    let selected = change.as_deref().unwrap_or(current);
+                    let shown = if selected.is_empty() { tl!("(none)") } else { selected };
+                    egui::ComboBox::from_label(label).selected_text(shown).show_ui(ui, |ui| {
+                        for name in std::iter::once("").chain(app.session.mailbox.signatures.iter().map(|s| s.name.as_str())) {
+                            let label = if name.is_empty() { tl!("(none)") } else { name };
+                            if ui.selectable_label(change.as_deref().unwrap_or(current).eq_ignore_ascii_case(name), label).clicked() {
+                                *change = (!current.eq_ignore_ascii_case(name)).then(|| name.to_owned());
+                            }
+                        }
+                    });
+                }
+            }
             if asks {
                 self.password_field(ui, pass, app.secret_watch(), tl!("Leave empty to keep the one in use"));
             }
             // (An account still on IMAP that signs in with Microsoft keeps them: it uses them.)
-            if exchange {
-                let server = self.ews.clone();
-                self.exchange_settings(ui, &t, server.as_ref());
-            } else if !self.graph {
-                self.settings(ui, pass);
-            }
-            if let Some(oauth) = &self.oauth {
-                field(ui, pass, "clientId", tl!("Application (client) ID"), &mut self.client_id, tl!("The one in File › Options"), 200);
-                if oauth.provider == OAuthProvider::Microsoft {
-                    field(ui, pass, "tenant", tl!("Tenant"), &mut self.tenant, "common", 64);
+            if !managed {
+                if exchange {
+                    let server = self.ews.clone();
+                    self.exchange_settings(ui, &t, server.as_ref());
+                } else if !self.graph {
+                    self.settings(ui, pass);
+                }
+                if let Some(oauth) = &self.oauth {
+                    field(ui, pass, "clientId", tl!("Application (client) ID"), &mut self.client_id, tl!("The one in File › Options"), 200);
+                    if oauth.provider == OAuthProvider::Microsoft {
+                        field(ui, pass, "tenant", tl!("Tenant"), &mut self.tenant, "common", 64);
+                    }
                 }
             }
             if let Some((_, keep)) = self.keep_offline.as_mut() {
@@ -2995,6 +3027,7 @@ mod tests {
             name: name.into(),
             email: "noor@example.org".into(),
             tenant: String::new(),
+            ..Default::default()
         }
     }
 

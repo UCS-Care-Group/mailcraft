@@ -120,8 +120,7 @@ pub fn refresh_google_at(endpoints: &Endpoints, oauth: &OAuth, client_secret: &s
 /// On initial sign-in we require the identity token's email so that a browser choosing a
 /// different account cannot be silently treated as the requested one.
 fn exchange(endpoint: &Url, fields: &[(&str, &str)], previous: &str, secrets: &[&str], identify: bool) -> Result<Tokens, Refused> {
-    let answer =
-        http::post_form(endpoint, fields, TOKEN_TIMEOUT).map_err(|error| secrets.iter().fold(error, |error, secret| error.without(secret)))?;
+    let answer = http::post_form(endpoint, fields, TOKEN_TIMEOUT).map_err(|error| error.without_secrets(secrets))?;
     let parsed = serde_json::from_slice::<Value>(&answer.body).ok();
     // An OAuth invalid_grant on refresh means the old credential is no longer usable.
     // Identify it from the machine-readable error code, not the untrusted provider

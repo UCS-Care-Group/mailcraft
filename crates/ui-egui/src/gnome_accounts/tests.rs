@@ -107,8 +107,14 @@ fn a_failed_goa_graph_run_clears_the_sync_status_and_directs_repair_to_gnome() {
             sign_in: Some(Box::new(|_| panic!("GOA repair must not open MailCraft sign-in"))),
             graph: Some(Box::new(move |request| {
                 let (tx, rx) = channel();
-                tx.send(crate::GraphResult { account: request.account.id, sign_in_refused: !consent, consent_needed: consent, ..Default::default() })
-                    .unwrap();
+                tx.send(crate::GraphResult {
+                    account: request.account.id,
+                    sign_in_refused: !consent,
+                    consent_needed: consent,
+                    errors: if consent { vec![] } else { vec!["Synthetic provider refusal".into()] },
+                    ..Default::default()
+                })
+                .unwrap();
                 rx
             })),
             ..Default::default()
@@ -121,6 +127,8 @@ fn a_failed_goa_graph_run_clears_the_sync_status_and_directs_repair_to_gnome() {
         assert!(app.session.sync_status.is_empty());
         assert!(!app.syncing());
         assert!(app.status_msg.as_ref().is_some_and(|(text, _)| text.contains("GNOME Online Accounts")));
+        let expected = if consent { "GNOME Online Accounts" } else { "Synthetic provider refusal" };
+        assert!(app.account_problem_lines(id).iter().any(|line| line.contains(expected)));
     }
 }
 
@@ -218,6 +226,12 @@ fn import_dialog_light_and_dark() {
         harness.get_by_label("work@example.org — Microsoft 365").click();
         harness.run_steps(3);
         harness.render().unwrap().save(std::path::Path::new(&dir).join(format!("gnome-import-{theme}-selected.png"))).unwrap();
+        let app = harness.state_mut();
+        let form = Import { rx: None, accounts: vec![graph_linkable()], error: None, selected: Some(0), link_error: None };
+        let id = form.link(app).unwrap();
+        app.execute("ui.dialog", json!({"name": "account", "id": id})).unwrap();
+        harness.run_steps(3);
+        harness.render().unwrap().save(std::path::Path::new(&dir).join(format!("gnome-settings-{theme}.png"))).unwrap();
     }
 }
 
@@ -381,6 +395,11 @@ fn graph_link_uses_the_graph_host_without_local_sign_in_or_cached_tokens() {
     assert!(app.graph_tokens.is_empty() && app.tokens.is_empty() && app.passwords.is_empty());
     assert!(app.session.mailbox.account(id).unwrap().oauth.is_none());
     assert!(app.can_sync_quietly(id));
+    app.services.gnome_service_available = Some(Arc::new(std::sync::atomic::AtomicBool::new(false)));
+    assert!(!app.can_sync_quietly(id));
+    assert!(Import::open(&app).is_none());
+    assert!(app.start_inbox_pass(id, false, true).is_none());
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
     assert!(app.execute("account.edit", json!({"id": id, "auth": "oauth2"})).is_err());
 }
 

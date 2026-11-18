@@ -53,7 +53,7 @@ pub struct Import {
 
 impl Import {
     pub(crate) fn open(app: &MailApp) -> Option<Self> {
-        let discover = app.services.gnome_accounts.as_ref()?;
+        let discover = app.services.gnome_discovery()?;
         Some(Self { rx: Some(discover()), accounts: Vec::new(), error: None, selected: None, link_error: None })
     }
 
@@ -166,8 +166,9 @@ impl Import {
             ui.add_space(6.0);
             ui.label(RichText::new(tl!("How would you like to add it?")).font(semibold(14.0)).color(t.text));
             ui.columns(2, |columns| {
+                let [gnome, separate_setup] = columns else { return };
                 if option_card(
-                    &mut columns[0],
+                    gnome,
                     &t,
                     tl!("Managed by GNOME"),
                     tl!("Keep your existing sign-in. GNOME manages the account connection."),
@@ -186,7 +187,7 @@ impl Import {
                     }
                 }
                 if option_card(
-                    &mut columns[1],
+                    separate_setup,
                     &t,
                     tl!("Managed by MailCraft"),
                     tl!("Sign in again to create a separate account in MailCraft."),

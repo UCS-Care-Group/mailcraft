@@ -73,3 +73,12 @@ fn goa_unresolved_accounts_never_connect_or_accept_an_injected_password() {
     assert_eq!(incoming.world().connections, 0);
     assert_eq!(outgoing.world().connections, 0);
 }
+
+#[test]
+fn overlapping_credentials_are_redacted_in_the_original_text() {
+    for secrets in [["αβ", "αβγ", "γδ"], ["γδ", "αβγ", "αβ"]] {
+        assert_eq!(crate::scrub_secrets("before αβγδ after αβγ", &secrets), "before *** after ***");
+    }
+    assert_eq!(crate::scrub_secrets("ababa", &["aba", "", "b"]), "***");
+    assert_eq!(crate::scrub_secrets("abc abc", &["", "b", "abc"]), "*** ***");
+}

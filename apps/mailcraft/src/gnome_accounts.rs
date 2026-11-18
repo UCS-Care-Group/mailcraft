@@ -23,6 +23,16 @@ const MAIL: &str = "org.gnome.OnlineAccounts.Mail";
 type Properties = HashMap<String, OwnedValue>;
 mod metadata;
 
+/// Ask the session bus about the service, without activating GOA or reading any accounts.
+pub fn available() -> bool {
+    let probe = || -> Option<bool> {
+        let bus = zbus::blocking::connection::Builder::session().ok()?.method_timeout(Duration::from_secs(1)).build().ok()?;
+        let dbus = zbus::blocking::fdo::DBusProxy::new(&bus).ok()?;
+        Some(dbus.name_has_owner(SERVICE.try_into().ok()?).ok()? || dbus.list_activatable_names().ok()?.iter().any(|name| name.as_str() == SERVICE))
+    };
+    probe().unwrap_or(false)
+}
+
 pub fn discover() -> Discovery {
     let bus = zbus::blocking::connection::Builder::session()
         .map_err(|_| DiscoveryError::Unavailable)?
@@ -55,6 +65,10 @@ fn email_valid(value: &str) -> bool {
 }
 
 fn parse(objects: zbus::fdo::ManagedObjects) -> Discovery {
+    parse_for(objects, None)
+}
+
+fn parse_for(objects: zbus::fdo::ManagedObjects, link: Option<&GoaAccount>) -> Discovery {
     if objects.len() > 256 {
         return Err(DiscoveryError::TooManyAccounts);
     }
@@ -77,23 +91,29 @@ fn parse(objects: zbus::fdo::ManagedObjects) -> Discovery {
             Some("windows_live") => Provider::OutlookCom,
             _ => Provider::Unsupported,
         };
+        let raw_provider = text(account, "ProviderType").filter(|v| clean(v)).unwrap_or_default();
+        if link.is_some_and(|g| text(account, "Id") != Some(g.id.as_str()) || g.provider != raw_provider) {
+            continue;
+        }
         let linked = configuration(account, mail, &interfaces, email, &name);
-        accounts.push(Account { email: email.to_owned(), name, provider_name, provider, linked });
+        accounts.push((raw_provider.to_owned(), Account { email: email.to_owned(), name, provider_name, provider, linked }));
     }
     if accounts.len() > 128 {
         return Err(DiscoveryError::TooManyAccounts);
     }
-    accounts.sort_by_key(|a| {
+    accounts.sort_by_key(|(raw_provider, a)| {
         (
             a.email.to_ascii_lowercase(),
-            a.provider,
+            raw_provider.clone(),
             a.linked.is_none(),
             a.linked.as_ref().and_then(|a| a.goa.as_ref()).map(|g| g.id.clone()),
             a.provider_name.clone(),
         )
     });
-    accounts.dedup_by(|a, b| a.email.eq_ignore_ascii_case(&b.email) && a.provider == b.provider);
-    Ok(accounts)
+    if link.is_none() {
+        accounts.dedup_by(|(p, a), (q, b)| p == q && a.email.eq_ignore_ascii_case(&b.email));
+    }
+    Ok(accounts.into_iter().map(|(_, account)| account).collect())
 }
 
 fn flag(props: &Properties, key: &str) -> bool {
@@ -218,7 +238,9 @@ struct Checked {
 
 fn checked(bus: &zbus::blocking::Connection, account: &MailAccount, cancel: &AtomicBool) -> Result<Checked, Text> {
     let linked = account.goa.as_ref().ok_or_else(|| said!("This account is not linked to GNOME."))?;
-    let accounts = read(bus).map_err(|_| said!("GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try Send/Receive again."))?;
+    let accounts = metadata::snapshot(bus)
+        .and_then(|objects| parse_for(objects, Some(linked)))
+        .map_err(|_| said!("GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try Send/Receive again."))?;
     let current =
         accounts.iter().filter_map(|a| a.linked.as_ref()).find(|a| a.goa.as_ref() == Some(linked)).ok_or_else(|| {
             said!("This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts.")
@@ -289,7 +311,6 @@ fn resolve(bus: &zbus::blocking::Connection, request: &SyncRequest, cancel: &Ato
     resolved.account.goa = None;
     resolved.account.oauth = None;
     resolved.account.outgoing_without_sign_in = false;
-    resolved.account.display_name = current.display_name.clone();
     resolved.password.clear();
     resolved.access_token.clear();
     resolved.smtp_password = None;

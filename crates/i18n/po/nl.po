@@ -177,7 +177,7 @@ msgid "(no title)"
 msgstr "(geen titel)"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "(none)"
 msgstr "(geen)"
@@ -589,6 +589,12 @@ msgid "A port is a number from 1 to 65535"
 msgstr "Een poort is een getal van 1 tot en met 65535"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "A preview may omit some content from the original file."
+msgstr "Een voorbeeld bevat mogelijk niet alle inhoud van het oorspronkelijke bestand."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "A report is written beside your mailbox."
@@ -662,8 +668,9 @@ msgstr "Een webadres, een e-mailadres, een telefoonnummer (tel:) of een ander ad
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "ACCOUNTS ON THIS COMPUTER"
-msgstr ""
+msgstr "REKENINGEN OP DEZE COMPUTER"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -1242,28 +1249,10 @@ msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page tha
 msgstr "Sta MailCraft op de pagina die in uw browser is geopend toe dit postvak gelijk te houden met Outlook…"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr "Sta MailCraft toe de agenda's van anderen te lezen op de pagina die in uw browser is geopend…"
-
-#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Allow MailCraft to read shared mailboxes on the page that opened in your browser…"
 msgstr "MailCraft toestaan gedeelde postvakken te lezen op de pagina die in uw browser is geopend…"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr "Sta MailCraft toe de agenda's van gedeelde postvakken te lezen op de pagina die in uw browser is geopend…"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
-msgstr "MailCraft toestaan te verzenden vanuit gedeelde postvakken op de pagina die in uw browser is geopend…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1289,8 +1278,9 @@ msgstr "Toegestaan"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Already added"
-msgstr ""
+msgstr "Al toegevoegd"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -1718,7 +1708,7 @@ msgid "Aqua"
 msgstr "Aquamarijn"
 
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs
 msgid "Archive"
 msgstr "Archiveren"
 
@@ -1810,6 +1800,12 @@ msgstr "Opnieuw vragen voordat afbeeldingen van afzenders van dit domein worden 
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Opnieuw vragen voordat afbeeldingen van deze afzender worden gedownload"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Ask before previewing this type of file"
+msgstr "Vragen voordat een voorbeeld van dit bestandstype wordt getoond"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -1847,10 +1843,10 @@ msgid "Ask for permission to read and change your To Do lists and tasks: Microso
 msgstr "Vraag toestemming om uw To Do-lijsten en taken te lezen en te wijzigen: de pagina van Microsoft opent in uw browser. Zonder die toestemming blijven taken op deze computer."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-msgstr "Vraag toestemming om de agenda's van gedeelde postvakken te lezen: de pagina van Microsoft opent in uw browser. Zonder die toestemming wordt niets van de agenda's van dit postvak gelezen."
+msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
+msgstr "Toestemming vragen om gedeelde postvakken te lezen en eruit te verzenden en de met u gedeelde agenda's te lezen: de pagina van Microsoft wordt in uw browser geopend. Zonder deze toestemming wordt er niets van gelezen of verzonden."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2389,8 +2385,9 @@ msgstr "Inlezen"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Bring mail from your GNOME accounts into MailCraft."
-msgstr ""
+msgstr "Breng e-mail van uw GNOME-accounts over naar MailCraft."
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
@@ -3121,8 +3118,9 @@ msgstr "Een map kiezen"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Choose an account first."
-msgstr ""
+msgstr "Kies eerst een account."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3156,8 +3154,9 @@ msgstr "Kies van wie dit wordt verzonden"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Choose your account"
-msgstr ""
+msgstr "Kies uw rekening"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3240,8 +3239,8 @@ msgstr "Zoekopdracht wissen (Esc)"
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "Klik om {name} te bekijken; dubbelklik om het te openen"
+msgid "Click to select {name}; double-click to open it"
+msgstr "Klik om {name} te selecteren; dubbelklik om het te openen"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -3481,7 +3480,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr "Contactpersonen gaan niet naar Verwijderde items."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "Doorgaan"
@@ -3630,8 +3629,9 @@ msgstr "Kopiëren naar map"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Could not link this account."
-msgstr ""
+msgstr "Kan dit account niet koppelen."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -3641,13 +3641,15 @@ msgstr "Kan de aanmelding met Google niet openen"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "Could not read GNOME accounts."
-msgstr ""
+msgstr "Kon GNOME-accounts niet lezen."
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Could not read GNOME accounts. Check access to GNOME Online Accounts and try again."
-msgstr ""
+msgstr "Kon GNOME-accounts niet lezen. Controleer de toegang tot GNOME Online Accounts en probeer het opnieuw."
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -4097,7 +4099,7 @@ msgid "Delayed until {when}"
 msgstr "Uitgesteld tot {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 msgid "Delete"
 msgstr "Verwijderen"
 
@@ -4542,12 +4544,6 @@ msgstr "Gereed: bijgewerkt"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "Gereed: {n} nieuw"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "Dubbelklik om {name} te openen; klik met de rechtermuisknop om het op te slaan"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -5513,8 +5509,8 @@ msgstr "Voornaam"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "Sla eerst de standaardinstellingen van Google voor IMAP en SMTP op en een gebruikersnaam die bij het e-mailadres past, voordat u van aanmeldingsmethode wisselt."
 
-#. android, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Flag"
 msgstr "Markering"
@@ -5687,6 +5683,12 @@ msgstr "Voor een relay die e-mail zonder wachtwoord aanneemt: uw wachtwoord word
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
 msgstr "Voor een account dat zich aanmeldt met Microsoft: de mappen die u onder favorieten in Outlook bewaart, in dezelfde volgorde. Ze worden van de server gelezen en daar nooit gewijzigd. Zonder dit worden de favorieten getoond die u in MailCraft markeert."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, nothing of shared mailboxes is read or sent: {error}"
+msgstr "Voorlopig wordt er niets van gedeelde postvakken gelezen of verzonden: {error}"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -5918,48 +5920,57 @@ msgstr "Volledige berichten: {done} van {total}"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try Send/Receive again."
-msgstr ""
+msgstr "GNOME Online-accounts zijn niet beschikbaar. Open GNOME Online Accounts en probeer Verzenden/ontvangen opnieuw."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try again."
-msgstr ""
+msgstr "GNOME Online-accounts zijn niet beschikbaar. Open GNOME Online Accounts en probeer het opnieuw."
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME Online Accounts is unavailable. You can still use Add Account."
-msgstr ""
+msgstr "GNOME Online-accounts zijn niet beschikbaar. U kunt nog steeds Account toevoegen gebruiken."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME account request cancelled."
-msgstr ""
+msgstr "GNOME-accountverzoek geannuleerd."
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs
+#, fuzzy
 msgid "GNOME requires SMTP authentication, but this server does not offer a supported sign-in."
-msgstr ""
+msgstr "GNOME vereist SMTP-authenticatie, maar deze server biedt geen ondersteunde aanmelding."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME returned an invalid mail credential."
-msgstr ""
+msgstr "GNOME heeft een ongeldige e-mailreferentie geretourneerd."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME returned an invalid outgoing credential."
-msgstr ""
+msgstr "GNOME heeft ongeldige aanmeldgegevens voor uitgaande e-mail geretourneerd."
 
 #. interface, why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME returned too many accounts. Use Add Account instead."
-msgstr ""
+msgstr "GNOME heeft te veel accounts geretourneerd. Gebruik in plaats daarvan Account toevoegen."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME sign-in is unavailable."
-msgstr ""
+msgstr "GNOME-aanmelding is niet beschikbaar."
 
 #. interface, name, ribbon location
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
@@ -6590,8 +6601,9 @@ msgstr "Hoeveel berichten elke map bevat en hoeveel ruimte ze innemen"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "How would you like to add it?"
-msgstr ""
+msgstr "Hoe zou je het willen toevoegen?"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -6763,8 +6775,9 @@ msgstr "Een certificaat (.p12) importeren…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Import accounts from GNOME…"
-msgstr ""
+msgstr "Accounts importeren uit GNOME…"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -7574,8 +7587,9 @@ msgstr "Uw To Do-taken gelijk houden?"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Keep your existing sign-in. GNOME manages the account connection."
-msgstr ""
+msgstr "Behoud uw bestaande aanmeldingsgegevens. GNOME beheert de accountverbinding."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7832,13 +7846,15 @@ msgstr "Koppeling"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Link an existing GNOME mail account or set it up separately"
-msgstr ""
+msgstr "Koppel een bestaand GNOME-mailaccount of stel het afzonderlijk in"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Link with GNOME"
-msgstr ""
+msgstr "Koppeling met GNOME"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8075,12 +8091,6 @@ msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive 
 msgstr "E-mail uit een ander postvak kan niet in een Postvak UIT worden gezet: bij het volgende Verzenden/ontvangen zou die worden verzonden"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Mail from the shared mailbox waits: {error}"
-msgstr "E-mail uit het gedeelde postvak wacht: {error}"
-
-#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
@@ -8094,8 +8104,9 @@ msgstr "E-mail in het Postvak UIT van dit gedeelde postvak wacht: verzenden vanu
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "Mail is disabled in GNOME Online Accounts."
-msgstr ""
+msgstr "E-mail is uitgeschakeld in GNOME Online Accounts."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -8270,7 +8281,7 @@ msgid "MailCraft is up to date ({version})."
 msgstr "MailCraft is actueel ({version})."
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr "MailCraft mag de agenda's van anderen nog niet lezen."
@@ -8519,23 +8530,27 @@ msgstr "Taak beheren"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Managed by GNOME"
-msgstr ""
+msgstr "Beheerd door GNOME"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
-msgstr ""
+msgstr "Beheerd door GNOME Online-accounts · IMAP en SMTP"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
-msgstr ""
+msgstr "Beheerd door GNOME Online Accounts · Microsoft Graph mail"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Managed by MailCraft"
-msgstr ""
+msgstr "Beheerd door MailCraft"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -8612,7 +8627,7 @@ msgid "Mark as Unread"
 msgstr "Als ongelezen markeren"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Als gelezen markeren"
@@ -8698,8 +8713,8 @@ msgstr[1] "{n} contactpersonen samenvoegen…"
 msgid "Merged PRs"
 msgstr "Samengevoegde PR's"
 
-#. android, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "Message"
 msgstr "Bericht"
 
@@ -9543,7 +9558,7 @@ msgid "New message"
 msgstr "Nieuw bericht"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "New messages"
 msgstr "Nieuwe berichten"
@@ -9896,8 +9911,9 @@ msgstr "Geen hier geïmporteerde sleutel heeft die vingerafdruk"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "No mail accounts enabled in GNOME were found."
-msgstr ""
+msgstr "Er zijn geen e-mailaccounts gevonden die zijn ingeschakeld in GNOME."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -9946,6 +9962,12 @@ msgstr "Geen personen gevonden."
 #, fuzzy
 msgid "No preview helper is available for this attachment."
 msgstr "Er is geen voorbeeldhulpprogramma beschikbaar voor deze bijlage."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "No preview is available for this attachment."
+msgstr "Er is geen voorbeeld beschikbaar voor deze bijlage."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
@@ -10127,8 +10149,8 @@ msgstr "Niemand met een adres is uitgenodigd"
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "Niemand, of meer dan één van uw contactpersonen, komt overeen: {names}"
 
-#. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "Geen"
@@ -10301,8 +10323,9 @@ msgstr "Niet opgeslagen"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Not supported yet"
-msgstr ""
+msgstr "Nog niet ondersteund"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -10715,8 +10738,9 @@ msgstr "Alleen een vergadering die u organiseert, heeft Een tijd zoeken"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Only accounts you choose are added."
-msgstr ""
+msgstr "Alleen accounts die u kiest, worden toegevoegd."
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
@@ -10947,7 +10971,7 @@ msgid "Open Result from the Server"
 msgstr "Resultaat van de server openen"
 
 #. command label, interface
-#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Open Shared Calendar"
 msgstr "Gedeelde agenda openen"
 
@@ -11223,12 +11247,6 @@ msgstr "Andere accounts en Op deze computer"
 #, fuzzy
 msgid "Other people's calendars can be opened under a Microsoft work or school account"
 msgstr "Agenda's van anderen kunnen worden geopend onder een werk- of schoolaccount van Microsoft"
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Other people's calendars weren't allowed: {error}"
-msgstr "Agenda's van anderen waren niet toegestaan: {error}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -11698,6 +11716,12 @@ msgstr "Voorbeeld van bijlage"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
+msgid "Preview File"
+msgstr "Voorbeeld bekijken"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview attachments with local PdfCraft"
 msgstr "Voorbeeld van bijlagen bekijken met lokale PdfCraft"
 
@@ -11712,6 +11736,12 @@ msgstr "Voorbeeld van bijlagen bekijken met lokale PdfCraft en PhotoCraft"
 #, fuzzy
 msgid "Preview attachments with local PhotoCraft"
 msgstr "Voorbeeld van bijlagen bekijken met lokale PhotoCraft"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview files only when you trust the sender."
+msgstr "Bekijk alleen voorbeelden van bestanden als u de afzender vertrouwt."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11990,8 +12020,9 @@ msgstr "Leesvenster"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Reading accounts from GNOME…"
-msgstr ""
+msgstr "Accounts lezen van GNOME…"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -12043,8 +12074,9 @@ msgstr "Bezig met lezen van uw automatische antwoorden van de server…"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Ready to link"
-msgstr ""
+msgstr "Klaar om te koppelen"
 
 #. name
 #: crates/ui-egui/src/credits.rs
@@ -12233,6 +12265,16 @@ msgstr "Herinneringenvenster"
 msgid "Remove"
 msgstr "Verwijderen"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+"Bijlage\n"
+"verwijderen"
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 msgid "Remove Account"
@@ -12248,6 +12290,16 @@ msgstr "Bijlage verwijderen"
 #, fuzzy
 msgid "Remove Everything"
 msgstr "Alles verwijderen"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Geïmporteerde\n"
+"duplicaten verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
@@ -12487,18 +12539,21 @@ msgstr "Bezig met vernieuwen van de aanmelding…"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "Repair this account's outgoing sign-in in GNOME Online Accounts."
-msgstr ""
+msgstr "Herstel de aanmeldgegevens voor uitgaande e-mail van dit account in GNOME Online Accounts."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "Repair this account's sign-in in GNOME Online Accounts."
-msgstr ""
+msgstr "Herstel de aanmelding van dit account in GNOME Online Accounts."
 
 #. interface, why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
-msgstr ""
+msgstr "Herstel de aanmeldings- of e-mailrechten van dit account in GNOME Online Accounts en probeer vervolgens opnieuw Verzenden/ontvangen."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -12530,7 +12585,7 @@ msgid "Replace with"
 msgstr "Vervangen door"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Replies and forwards"
 msgstr "Antwoorden en doorsturen"
@@ -12645,8 +12700,9 @@ msgstr "Weergave herstellen"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Resolve this account through GNOME Online Accounts before connecting."
-msgstr ""
+msgstr "Haal de aanmeldgegevens voor dit account op via GNOME Online Accounts voordat u verbinding maakt."
 
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -12692,6 +12748,12 @@ msgstr "Opnieuw starten om bij te werken"
 #, fuzzy
 msgid "Restart to update is the owner's click."
 msgstr "Opnieuw starten om bij te werken is de klik van de eigenaar."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Restore attachment preview warnings"
+msgstr "Waarschuwingen voor bijlagevoorbeelden herstellen"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -12970,6 +13032,16 @@ msgstr ""
 msgid "Save & Close"
 msgstr "Opslaan & sluiten"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+"Alle bijlagen\n"
+"opslaan"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Save All Attachments"
@@ -12981,8 +13053,8 @@ msgstr "Alle bijlagen opslaan"
 msgid "Save All Attachments…"
 msgstr "Alle bijlagen opslaan…"
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 msgid "Save As"
 msgstr "Opslaan als"
 
@@ -13080,6 +13152,12 @@ msgstr "Sla de wijzigingen aan dit account op, of verwerp ze, voordat u overscha
 msgid "Save out"
 msgstr "Wegschrijven"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Save to Computer"
+msgstr "Opslaan op computer"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
 #, fuzzy
@@ -13105,8 +13183,9 @@ msgstr "Het bericht is opgeslagen in {name}"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
-msgstr ""
+msgstr "Het bericht is opgeslagen in {name}, geschreven van wat deze computer ervan bewaart: niet byte voor byte zoals het binnenkwam"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
@@ -13600,12 +13679,6 @@ msgstr "Automatisch verzenden en ontvangen"
 msgid "Send automatic replies"
 msgstr "Automatische antwoorden verzenden"
 
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Send from a Shared Mailbox"
-msgstr "Verzenden vanuit een gedeeld postvak"
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -13952,8 +14025,9 @@ msgstr "sep"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Separate setup"
-msgstr ""
+msgstr "Aparte opstelling"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -13999,8 +14073,9 @@ msgstr "Handmatig instellen"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Set up separately"
-msgstr ""
+msgstr "Apart op te zetten"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14037,6 +14112,12 @@ msgid "Shared Calendars"
 msgstr "Gedeelde agenda's"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Shared Mailboxes and Calendars"
+msgstr "Gedeelde postvakken en agenda's"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Shared mailbox · No access: Microsoft won't open it for you. Send/Receive tries again"
@@ -14061,16 +14142,28 @@ msgid "Shared mailboxes"
 msgstr "Gedeelde postbussen"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Shared mailboxes weren't allowed: {error}"
-msgstr "Gedeelde postvakken waren niet toegestaan: {error}"
+msgid "Shared mailboxes and calendars weren't allowed: {error}"
+msgstr "Gedeelde postvakken en agenda's zijn niet toegestaan: {error}"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
+#: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
-msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr "Agenda's van gedeelde postvakken waren niet toegestaan: {error}"
+msgid "Shared mailboxes and calendars: asking for your permission…"
+msgstr "Gedeelde postvakken en agenda's: uw toestemming wordt gevraagd…"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: not allowed ({why})"
+msgstr "Gedeelde postvakken en agenda's: niet toegestaan ({why})"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: waiting for your permission"
+msgstr "Gedeelde postvakken en agenda's: wachten op uw toestemming"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
@@ -14079,6 +14172,16 @@ msgstr "Weergeven"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Show\n"
+"Message"
+msgstr ""
+"Bericht\n"
+"weergeven"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Show\n"
 "Progress"
@@ -14127,6 +14230,12 @@ msgstr "De categorieën van Gmail onder het Postvak IN tonen"
 msgid "Show MailCraft"
 msgstr "MailCraft tonen"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Message"
+msgstr "Bericht weergeven"
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
 msgid "Show Only This Calendar"
@@ -14167,12 +14276,6 @@ msgstr "Taken tonen van"
 #: crates/engine/src/cmd/help.rs
 msgid "Show Training"
 msgstr "Training weergeven"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Show a Shared Mailbox's Calendars"
-msgstr "Agenda's van een gedeeld postvak tonen"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -14446,8 +14549,9 @@ msgstr "Meld u eerst opnieuw aan"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Sign in again to create a separate account in MailCraft."
-msgstr ""
+msgstr "Meld u opnieuw aan om een afzonderlijk account aan te maken in MailCraft."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -14581,7 +14685,7 @@ msgid "Signature file:"
 msgstr "Ondertekingsbestand:"
 
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 msgid "Signatures"
 msgstr "Handtekeningen"
 
@@ -15120,20 +15224,32 @@ msgstr "zo"
 msgid "Sunday"
 msgstr "zondag"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Swipe Action"
+msgstr "Veegactie"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Swipe actions"
 msgstr "Veegacties"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
+msgstr "Veeg horizontaal over een bericht om de gekozen actie uit te voeren. In Windows kan ook een horizontaal muiswiel de actie starten."
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the left"
 msgstr "Naar links vegen"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the right"
 msgstr "Naar rechts vegen"
@@ -15592,12 +15708,6 @@ msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at m
 msgstr "Dat is geen GitHub-gebruikersnaam: letters, cijfers en enkele koppeltekens, maximaal 39. Laat het vak leeg als u er geen hebt."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "That isn't a shared mailbox"
-msgstr "Dat is geen gedeeld postvak"
-
-#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "That isn't the password of this file."
@@ -15659,18 +15769,21 @@ msgstr "De hele reeks"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "The GNOME account changed. Try again."
-msgstr ""
+msgstr "Het GNOME-account is gewijzigd. Probeer het opnieuw."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "The GNOME account connection changed. Remove it from MailCraft and link it again to keep mail from different servers separate."
-msgstr ""
+msgstr "De GNOME-accountverbinding is gewijzigd. Verwijder het uit MailCraft en koppel het opnieuw om e-mail van verschillende servers gescheiden te houden."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "The GNOME account is unavailable."
-msgstr ""
+msgstr "Het GNOME-account is niet beschikbaar."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -15716,8 +15829,9 @@ msgstr "Het account is verdwenen"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "The account needs attention. Repair its sign-in in GNOME Online Accounts and try again."
-msgstr ""
+msgstr "De rekening heeft aandacht nodig. Herstel de aanmelding in GNOME Online Accounts en probeer het opnieuw."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -15970,12 +16084,6 @@ msgstr ""
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
 msgstr "De agenda {name} en de afspraken die op deze computer zijn bewaard worden verwijderd, evenals het adres dat ervoor is bewaard. Er wordt niets verzonden; u kunt opnieuw abonneren met het adres."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "The calendars of the shared mailbox wait: {error}"
-msgstr "De agenda's van het gedeelde postvak wachten: {error}"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -16333,8 +16441,9 @@ msgstr "De koppeling staat op het klembord: stuur deze naar de beheerder van uw 
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "The linked GNOME account is no longer available."
-msgstr ""
+msgstr "Het gekoppelde GNOME-account is niet langer beschikbaar."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -16713,6 +16822,12 @@ msgstr "De regels op de server konden niet worden overgenomen: {error}"
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "De verzonden regels konden niet worden vastgelegd: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
+msgstr "Dezelfde pagina vraagt om de gedeelde postvakken waartoe u toegang hebt te lezen en eruit te verzenden en de met u gedeelde agenda's te lezen, zodat MailCraft het niet opnieuw hoeft te vragen."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17366,23 +17481,27 @@ msgstr "Ze delen {what}."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME account does not expose Microsoft Graph mail access."
-msgstr ""
+msgstr "Dit GNOME-account biedt geen toegang tot e-mail via Microsoft Graph."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
-msgstr ""
+msgstr "Dit GNOME-account ontbreekt, is uitgeschakeld of biedt niet langer ondersteunde e-mailtoegang. Controleer GNOME Online-accounts."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
-msgstr ""
+msgstr "Dit GNOME-account gebruikt Microsoft Graph, niet IMAP of SMTP."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME connection supports only the selected account's mail."
-msgstr ""
+msgstr "Deze GNOME-verbinding ondersteunt alleen de e-mail van het geselecteerde account."
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -17391,8 +17510,9 @@ msgstr "Deze week"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "This account cannot be linked through GNOME."
-msgstr ""
+msgstr "Dit account kan niet via GNOME worden gekoppeld."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17418,20 +17538,22 @@ msgid "This account has no mail server to send the answer through."
 msgstr "Dit account heeft geen e-mailserver om het antwoord door te verzenden."
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Dit account heeft geen aanmelding bij Microsoft"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "This account is managed by GNOME Online Accounts. Change its settings or repair its sign-in there. Removing it from MailCraft leaves it in GNOME."
-msgstr ""
+#, fuzzy
+msgid "This account is managed by GNOME Online Accounts. Change its connection or repair its sign-in there. Removing it from MailCraft leaves it in GNOME."
+msgstr "Dit account wordt beheerd door GNOME Online Accounts. Wijzig de verbinding of repareer de aanmelding daar. Als u het uit MailCraft verwijdert, blijft het in GNOME staan."
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "This account is managed by GNOME Online Accounts. Use a GOA-capable MailCraft desktop on Linux."
-msgstr ""
+msgstr "Dit account wordt beheerd door GNOME Online Accounts. Gebruik een GOA-compatibele MailCraft-desktop op Linux."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17441,8 +17563,9 @@ msgstr "Dit account staat niet meer in het postvak."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This account is not linked to GNOME."
-msgstr ""
+msgstr "Dit account is niet gekoppeld aan GNOME."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -17470,8 +17593,9 @@ msgstr "Dit account mag de agenda „{name}” van het gedeelde postvak alleen l
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "This account needs separate setup in this version of MailCraft."
-msgstr ""
+msgstr "Dit account heeft een aparte configuratie nodig in deze versie van MailCraft."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18261,7 +18385,7 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "Deze reeks is nog onderweg naar de server van het account. Wijzig een van de dagen zodra deze daar is (zo meteen)."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
 msgstr "Het account van dit gedeelde postvak is verdwenen"
@@ -18447,18 +18571,6 @@ msgid "To add another Google address, go back and start a new account setup."
 msgstr "Om een ander adres van Google toe te voegen, gaat u terug en zet u een afzonderlijk account op."
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
-msgstr ""
-"Om vergaderingen te beantwoorden of te verzenden vanuit {address}, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-"\n"
-"Of het antwoord als {address} of namens dat adres gaat, is de keuze van uw organisatie. Totdat u het toestaat, wacht het antwoord op deze computer, en er wordt niets verzonden vanaf uw eigen adres."
-
-#. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
@@ -18525,40 +18637,16 @@ msgid "To me"
 msgstr "Aan mij"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+"To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"
 "\n"
-"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+"Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr ""
-"Om agenda's van anderen te openen, heeft MailCraft uw toestemming nodig om de agenda's te lezen die personen met u delen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+"Om de gedeelde postvakken die u met {address} opent te lezen en eruit te verzenden, en om de met u gedeelde agenda's te tonen, heeft MailCraft uw toestemming nodig. De pagina van Microsoft wordt in uw browser geopend om u één keer te vragen naar alles wat MailCraft gebruikt en wat u nog niet hebt toegestaan.\n"
 "\n"
-"Wat u opent, wordt alleen op deze computer bewaard: het verschijnt niet in Outlook of op uw andere apparaten."
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr ""
-"Om vanaf {address} te verzenden, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft wordt eenmalig in uw browser geopend om het u te vragen.\n"
-"\n"
-"Of uw e-mail als {address} of namens dat adres wordt verzonden, bepaalt uw organisatie. Tot u dit toestaat, wacht de e-mail in het Postvak UIT en wordt er niets vanaf uw eigen adres verzonden."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid ""
-"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-msgstr ""
-"Om de agenda's van {address} te tonen, heeft MailCraft uw toestemming nodig om de agenda's van gedeelde postvakken te lezen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-"\n"
-"Wat u van een agenda mag zien, bepalen de eigenaar en uw organisatie: dit verandert daar niets aan. Totdat u het toestaat, wordt niets van de agenda's van {address} gelezen."
+"Totdat u het toestaat, wordt er niets van die postvakken en agenda's gelezen, wachten e-mail en antwoorden op vergaderingen uit een gedeeld postvak op deze computer, en wordt er in hun plaats niets vanaf uw eigen adres verzonden."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19933,12 +20021,6 @@ msgid "Your organisation doesn't allow Exchange Web Services for this account. A
 msgstr "Uw organisatie staat Exchange Web Services voor dit account niet toe. Vraag het uw beheerder."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr "Uw organisatie staat MailCraft niet toe de agenda's van gedeelde postvakken te lezen"
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
@@ -19949,6 +20031,12 @@ msgstr "Uw organisatie staat MailCraft niet toe uw automatische antwoorden te wi
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
 msgstr "Uw organisatie staat MailCraft niet toe dit postvak gelijk te houden met Outlook"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
+msgstr "Uw organisatie staat niet toe dat MailCraft gedeelde postvakken en de met u gedeelde agenda's leest"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -20017,22 +20105,10 @@ msgid "Your organisation's administrator has to approve MailCraft keeping this m
 msgstr "De beheerder van uw organisatie moet eenmalig goedkeuren dat MailCraft dit postvak gelijk houdt met Outlook: Bestand › Info"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr "De beheerder van uw organisatie moet het lezen van agenda's van anderen één keer goedkeuren: Bestand › Info"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-msgstr "De beheerder van uw organisatie moet het lezen van gedeelde postvakken eenmalig goedkeuren: Bestand › Info"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr "De beheerder van uw organisatie moet het lezen van agenda's van gedeelde postvakken één keer goedkeuren: Bestand › Info"
+msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
+msgstr "De beheerder van uw organisatie moet één keer goedkeuren dat MailCraft gedeelde postvakken en agenda's leest: Bestand › Info"
 
 #. interface
 #: crates/ui-egui/src
@@ -20920,8 +20996,9 @@ msgstr "groter dan {mb} MB: haal het binnen via Bestand › Importeren"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "link a GNOME account through Import accounts from GNOME"
-msgstr ""
+msgstr "koppel een GNOME-account via Importeer accounts uit GNOME"
 
 #. what a command says
 #: crates/engine/src/session.rs
@@ -21224,6 +21301,11 @@ msgid "no such paragraph"
 msgstr "geen dergelijke alinea"
 
 #. what a command says
+#: crates/model/src/rich.rs
+msgid "no such signature"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
 msgid "no task with id {id}"
@@ -21381,8 +21463,9 @@ msgstr "alleen de kopteksten van „{subject}” zijn hier, dus het kan niet als
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
-msgstr ""
+msgstr "alleen de kopteksten van „{subject}” zijn hier, dus het kan niet als bericht worden opgeslagen"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -21509,6 +21592,12 @@ msgstr "gedeelde postvakken worden geopend onder een via Microsoft Graph bijgeho
 #, fuzzy
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
 msgstr "gedeelde postvakken worden geopend onder een account dat via Microsoft Graph wordt bijgehouden"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "shared mailboxes require a separate Microsoft sign-in in MailCraft"
+msgstr "Voor gedeelde postvakken is een aparte Microsoft-aanmelding in MailCraft vereist"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -22507,8 +22596,9 @@ msgstr "de tekst van „{subject}” kan op deze computer niet worden gelezen, d
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
-msgstr ""
+msgstr "de tekst van „{subject}” kan op deze computer niet worden gelezen, dus het kan niet als bericht worden opgeslagen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -22710,8 +22800,9 @@ msgstr "dit account heeft geen map {folder}"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "this account is managed by GNOME Online Accounts; remove it and link it again to change its connection"
-msgstr ""
+msgstr "dit account wordt beheerd door GNOME Online Accounts; verwijder het en koppel het opnieuw om de verbinding te wijzigen"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -22739,8 +22830,9 @@ msgstr "de categorieën van dit account worden niet gelijk gehouden met zijn ser
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "this account's sign-in is managed by GNOME Online Accounts"
-msgstr ""
+msgstr "De aanmelding van dit account wordt beheerd door GNOME Online Accounts"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -24840,8 +24932,9 @@ msgstr "„{subject}” is nog niet gedownload: open het zodra u online bent en 
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "„{subject}” is nog niet gedownload: open het zodra u online bent en sla het daarna op"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24851,8 +24944,9 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
-msgstr ""
+msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hier, dus het kan niet als bericht worden opgeslagen"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24873,6 +24967,109 @@ msgid "−Lines"
 msgstr "−Regels"
 
 #, fuzzy
+#~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
+#~ msgstr "Sta MailCraft toe de agenda's van anderen te lezen op de pagina die in uw browser is geopend…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
+#~ msgstr "Sta MailCraft toe de agenda's van gedeelde postvakken te lezen op de pagina die in uw browser is geopend…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
+#~ msgstr "MailCraft toestaan te verzenden vanuit gedeelde postvakken op de pagina die in uw browser is geopend…"
+
+#, fuzzy
+#~ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
+#~ msgstr "Vraag toestemming om de agenda's van gedeelde postvakken te lezen: de pagina van Microsoft opent in uw browser. Zonder die toestemming wordt niets van de agenda's van dit postvak gelezen."
+
+#, fuzzy
+#~ msgid "Mail from the shared mailbox waits: {error}"
+#~ msgstr "E-mail uit het gedeelde postvak wacht: {error}"
+
+#, fuzzy
+#~ msgid "Other people's calendars weren't allowed: {error}"
+#~ msgstr "Agenda's van anderen waren niet toegestaan: {error}"
+
+#, fuzzy
+#~ msgid "Send from a Shared Mailbox"
+#~ msgstr "Verzenden vanuit een gedeeld postvak"
+
+#, fuzzy
+#~ msgid "Shared mailboxes weren't allowed: {error}"
+#~ msgstr "Gedeelde postvakken waren niet toegestaan: {error}"
+
+#, fuzzy
+#~ msgid "Shared mailboxes' calendars weren't allowed: {error}"
+#~ msgstr "Agenda's van gedeelde postvakken waren niet toegestaan: {error}"
+
+#, fuzzy
+#~ msgid "Show a Shared Mailbox's Calendars"
+#~ msgstr "Agenda's van een gedeeld postvak tonen"
+
+#, fuzzy
+#~ msgid "That isn't a shared mailbox"
+#~ msgstr "Dat is geen gedeeld postvak"
+
+#, fuzzy
+#~ msgid "The calendars of the shared mailbox wait: {error}"
+#~ msgstr "De agenda's van het gedeelde postvak wachten: {error}"
+
+#, fuzzy
+#~ msgid ""
+#~ "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "Om vergaderingen te beantwoorden of te verzenden vanuit {address}, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+#~ "\n"
+#~ "Of het antwoord als {address} of namens dat adres gaat, is de keuze van uw organisatie. Totdat u het toestaat, wacht het antwoord op deze computer, en er wordt niets verzonden vanaf uw eigen adres."
+
+#, fuzzy
+#~ msgid ""
+#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+#~ msgstr ""
+#~ "Om agenda's van anderen te openen, heeft MailCraft uw toestemming nodig om de agenda's te lezen die personen met u delen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+#~ "\n"
+#~ "Wat u opent, wordt alleen op deze computer bewaard: het verschijnt niet in Outlook of op uw andere apparaten."
+
+#, fuzzy
+#~ msgid ""
+#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "Om vanaf {address} te verzenden, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft wordt eenmalig in uw browser geopend om het u te vragen.\n"
+#~ "\n"
+#~ "Of uw e-mail als {address} of namens dat adres wordt verzonden, bepaalt uw organisatie. Tot u dit toestaat, wacht de e-mail in het Postvak UIT en wordt er niets vanaf uw eigen adres verzonden."
+
+#, fuzzy
+#~ msgid ""
+#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
+#~ msgstr ""
+#~ "Om de agenda's van {address} te tonen, heeft MailCraft uw toestemming nodig om de agenda's van gedeelde postvakken te lezen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+#~ "\n"
+#~ "Wat u van een agenda mag zien, bepalen de eigenaar en uw organisatie: dit verandert daar niets aan. Totdat u het toestaat, wordt niets van de agenda's van {address} gelezen."
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+#~ msgstr "Uw organisatie staat MailCraft niet toe de agenda's van gedeelde postvakken te lezen"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
+#~ msgstr "De beheerder van uw organisatie moet het lezen van agenda's van anderen één keer goedkeuren: Bestand › Info"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
+#~ msgstr "De beheerder van uw organisatie moet het lezen van gedeelde postvakken eenmalig goedkeuren: Bestand › Info"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
+#~ msgstr "De beheerder van uw organisatie moet het lezen van agenda's van gedeelde postvakken één keer goedkeuren: Bestand › Info"
+
 #~ msgid "The colour is set in Outlook"
 #~ msgstr "De kleur wordt in Outlook ingesteld"
 

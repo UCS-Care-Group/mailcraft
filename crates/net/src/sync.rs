@@ -30,7 +30,7 @@ use mailcraft_time::{Date, DateTime, Timestamp};
 use crate::push::push;
 use crate::send::{Envelope, dated, deliver, open_smtp_configured, relay_hint};
 use crate::transport::{self, Patience, Service, Stream};
-use crate::{NetError, kinds, not_signed_in, scrub};
+use crate::{NetError, kinds, not_signed_in, scrub_secrets};
 use mailcraft_i18n::{Arg, Text, said};
 
 /// Most mailboxes read in one run (#991): as many as a listing of a Microsoft account's folders
@@ -265,18 +265,11 @@ impl Run<'_> {
     fn send(&mut self, mut piece: SyncResult) {
         // Whatever a server wrote back, the password or the token doesn't leave in an error line,
         // in English or in the texts the window says it with.
-        let (password, token) = (&self.request.password, &self.request.access_token);
+        let secrets = [self.request.password.as_str(), self.request.access_token.as_str(), self.request.smtp_password.as_deref().unwrap_or_default()];
         for line in &mut piece.errors {
-            *line = scrub(&scrub(&scrub(line, password), token), self.request.smtp_password.as_deref().unwrap_or_default());
+            *line = scrub_secrets(line, &secrets);
         }
-        piece.said = std::mem::take(&mut piece.said)
-            .into_iter()
-            .map(|said| {
-                said.map_plain(&|text: String| {
-                    scrub(&scrub(&scrub(&text, password), token), self.request.smtp_password.as_deref().unwrap_or_default())
-                })
-            })
-            .collect();
+        piece.said = std::mem::take(&mut piece.said).into_iter().map(|said| said.map_plain(&|text| scrub_secrets(&text, &secrets))).collect();
         (self.emit)(piece);
         self.handed_over = Instant::now();
     }
@@ -358,7 +351,7 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
     let mut smtp = match open_smtp_configured(&smtp_account, smtp_secret, &run.limits.patience, Some(run.cancel), request.smtp_password.is_some()) {
         Ok(smtp) => smtp,
         Err(e) => {
-            run.failed(said!("Couldn't send mail"), &e.without(smtp_secret));
+            run.failed(said!("Couldn't send mail"), &e);
             return sent;
         }
     };

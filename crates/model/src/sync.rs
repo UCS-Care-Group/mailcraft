@@ -258,6 +258,19 @@ pub struct Tokens {
     /// identity token says it, and it tells an organisation's account from a personal one
     /// ([`crate::Directory::of_tenant`]). An identifier, not a secret; kept in memory like the rest.
     pub tenant: String,
+    /// Set by the one page for an older sign-in when it came back without the shared mailboxes'
+    /// and calendars' permissions (the account can't have them, so the page was asked again
+    /// without them): the tokens are good for everything else, and nobody may take them for
+    /// allowed to read or send from a shared mailbox.
+    pub shared_not_given: bool,
+    /// Set by the one page for an older sign-in when the provider had no To Do lists or mailbox
+    /// settings to give (the page was asked again for the shared mailboxes' permissions alone):
+    /// the tokens are good for the rest, and nobody may take them for allowed to keep the tasks,
+    /// rules, automatic replies and categories in step.
+    pub sync_not_given: bool,
+    /// The `scope` the token endpoint's answer states (RFC 6749 §5.1), empty when it said none:
+    /// the answer then matches what was asked. Names of permissions, not secrets.
+    pub granted_scope: String,
 }
 
 /// How long before an access token runs out it is renewed rather than used (seconds).

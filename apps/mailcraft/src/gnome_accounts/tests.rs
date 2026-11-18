@@ -120,6 +120,7 @@ fn private_bus_discovery_reads_only_public_metadata() {
         Default::default(),
         "synthetic-mail-token",
     );
+    assert!(available());
     let accounts = discover().unwrap();
     assert_eq!(accounts.len(), 1);
     assert_eq!(accounts[0].email, "owner@example.org");
@@ -493,12 +494,14 @@ fn private_bus_linked_credentials_refresh_without_local_login_or_storage() {
         let bus = zbus::blocking::connection::Builder::session().unwrap().method_timeout(Duration::from_secs(2)).build().unwrap();
         let accounts = read(&bus).unwrap();
         let mut request = SyncRequest { account: accounts[0].linked.clone().unwrap(), outbox: vec![Default::default()], ..Default::default() };
+        request.account.display_name = "Local sender".into();
         assert!(calls.lock().unwrap().is_empty(), "discovery does not read credentials");
         let cancelled = AtomicBool::new(false);
         for _ in 0..2 {
             let (resolved, outgoing_error) = resolve(&bus, &request, &cancelled).unwrap();
             assert!(outgoing_error.is_none());
             assert!(resolved.account.goa.is_none());
+            assert_eq!(resolved.account.display_name, "Local sender");
             assert!(resolved.gmail_moves.is_empty());
             assert_eq!(resolved.smtp_username.as_deref(), Some("outgoing@example.org"));
             if oauth {
@@ -711,4 +714,18 @@ fn private_bus_graph_mail_uses_goa_for_sync_fetch_search_and_repairs() {
     assert!(!result.errors.is_empty());
     assert_eq!(server.state().requests.len(), before, "a refused GOA sign-in reaches no Graph endpoint");
     assert!(result.errors.iter().all(|s| !s.contains("synthetic-private-error")));
+}
+
+#[test]
+fn persisted_link_is_matched_before_card_deduplication() {
+    let objects = || {
+        let mut objects = linked_fixture("imap_smtp", false);
+        let mut duplicate = linked_fixture("imap_smtp", false).into_values().next().unwrap();
+        duplicate.get_mut(ACCOUNT).unwrap().insert("Id".into(), string("second"));
+        objects.insert(OwnedObjectPath::try_from("/org/gnome/OnlineAccounts/Accounts/second").unwrap(), duplicate);
+        objects
+    };
+    assert_eq!(parse(objects()).unwrap().len(), 1);
+    let link = GoaAccount { id: "second".into(), provider: "imap_smtp".into() };
+    assert_eq!(parse_for(objects(), Some(&link)).unwrap()[0].linked.as_ref().unwrap().goa.as_ref(), Some(&link));
 }

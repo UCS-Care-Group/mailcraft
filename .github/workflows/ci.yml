@@ -8,7 +8,7 @@
 # them (`cargo xtask affected`, a nextest filter); a translation runs on Linux alone, the Android
 # app's own files and documentation run no Rust tests. A push to main, the merge queue, a run by
 # hand, and a pull request labelled `full-ci` or changing what every package is built from run the
-# whole suite on every system.
+# whole suite on every system; the merge queue runs it on Linux alone.
 name: CI
 
 on:
@@ -139,6 +139,10 @@ jobs:
         env:
           XTASK_CI_SKIP: ${{ runner.os != 'Linux' && 'clippy,wasm,deny' || 'deny' }}
           XTASK_TEST_FILTER: ${{ needs.changes.outputs.filter }}
+
+      - name: Test GNOME account linking on an isolated session bus
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- env MAILCRAFT_TEST_PRIVATE_BUS=1 cargo test --locked -p mailcraft --bin mailcraft private_bus_ -- --ignored --test-threads=1
 
   # cargo-deny (deny.toml): RustSec advisories, licences, duplicate crates, sources. Its own job,
   # since it needs no build; `ci` skips the step it would otherwise run.

@@ -210,9 +210,13 @@ mod native {
 
         /// The same error with `secret` (a password, a token) blanked out, should a server have written it back.
         pub(crate) fn without(self, secret: &str) -> NetError {
+            self.without_secrets(&[secret])
+        }
+
+        pub(crate) fn without_secrets(self, secrets: &[&str]) -> NetError {
             use mailcraft_proto::ProtoError as P;
-            let clean = |text: String| scrub(&text, secret);
-            let blank = |text: Text| text.map_plain(&|said: String| scrub(&said, secret));
+            let clean = |text: String| scrub_secrets(&text, secrets);
+            let blank = |text: Text| text.map_plain(&clean);
             match self {
                 NetError::Connect { host, reason } => NetError::Connect { host, reason: blank(reason) },
                 NetError::Tls { host, reason } => NetError::Tls { host, reason: blank(reason) },
@@ -263,9 +267,32 @@ mod native {
         }
     }
 
-    /// `text` with `secret` blanked out.
-    pub(crate) fn scrub(text: &str, secret: &str) -> String {
-        if secret.is_empty() || !text.contains(secret) { text.to_string() } else { text.replace(secret, "***") }
+    /// Match against the original line so overlapping credentials are hidden in full.
+    pub(crate) fn scrub_secrets(text: &str, secrets: &[&str]) -> String {
+        if !secrets.iter().any(|s| !s.is_empty() && text.contains(*s)) {
+            return text.to_owned();
+        }
+        // A hostile reply can repeat a long credential at almost every offset. In that case
+        // hide the whole line instead of spending unbounded work comparing overlapping matches.
+        let comparison_bytes = secrets.iter().fold(0usize, |total, s| total.saturating_add(s.len()));
+        if text.len().saturating_mul(comparison_bytes) > 32 * 1024 * 1024 {
+            return "***".to_owned();
+        }
+        let mut clean = String::with_capacity(text.len());
+        let mut hidden_until = 0;
+        for (offset, character) in text.char_indices() {
+            let rest = text.get(offset..).unwrap_or_default();
+            let longest = secrets.iter().filter(|s| !s.is_empty() && rest.starts_with(**s)).map(|s| s.len()).max().unwrap_or(0);
+            if longest > 0 {
+                if offset >= hidden_until {
+                    clean.push_str("***");
+                }
+                hidden_until = hidden_until.max(offset.saturating_add(longest));
+            } else if offset >= hidden_until {
+                clean.push(character);
+            }
+        }
+        clean
     }
 
     /// What an account that signs in with OAuth is told while there is no token for it.

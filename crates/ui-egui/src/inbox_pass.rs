@@ -193,16 +193,18 @@ impl MailApp {
             return None;
         }
         let managed = owner.goa.as_ref().is_some_and(|g| g.provider == "ms_graph");
-        let oauth = if managed { mailcraft_model::OAuth::default() } else { owner.oauth.clone()? };
-        let kept = self.tokens.get(&owner.id).or(self.graph_tokens.get(&owner.id)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).unwrap_or_default();
-        if refresh.is_empty() && !managed {
-            return None;
-        }
+        let (oauth, refresh) = if managed {
+            self.services.gnome_discovery()?;
+            (mailcraft_model::OAuth::default(), String::new())
+        } else {
+            let kept = self.tokens.get(&owner.id).or(self.graph_tokens.get(&owner.id)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
+            let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).filter(|r| !r.is_empty())?;
+            (self.effective_oauth(owner.oauth.clone()?), refresh)
+        };
         let mail = mailcraft_engine::cmd::graph_mail::graph_inbox_request(&self.session, account)?;
         // A check every minute goes with the token it had a minute ago while that is still good,
         // as the calendar's job does: one request, not two.
-        let access = if check {
+        let access = if check && !managed {
             self.graph_tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now() + 60)).map(|t| t.access.clone()).unwrap_or_default()
         } else {
             String::new()
@@ -211,7 +213,7 @@ impl MailApp {
         let (pieces, taken) = std::sync::mpsc::sync_channel(8);
         let ask = GraphRequest {
             account: mailbox,
-            oauth: if managed { oauth } else { self.effective_oauth(oauth) },
+            oauth,
             refresh,
             // (A round's is renewed for the job, as the run's own is.)
             access,

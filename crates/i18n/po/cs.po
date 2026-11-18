@@ -88,8 +88,9 @@ msgstr "„{name}“ je součástí řady. Myslíte jen výskyt z {day}, nebo ce
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
+#, fuzzy
 msgid "\"{name}\" isn't a category kept on this computer only"
-msgstr ""
+msgstr "„{name}“ není kategorie uchovávaná jen v tomto počítači"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -176,7 +177,7 @@ msgid "(no title)"
 msgstr "(bez názvu)"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "(none)"
 msgstr "(žádné)"
@@ -590,6 +591,12 @@ msgid "A port is a number from 1 to 65535"
 msgstr "Port je číslo od 1 do 65535"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "A preview may omit some content from the original file."
+msgstr "Náhled nemusí zobrazit veškerý obsah původního souboru."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "A report is written beside your mailbox."
@@ -663,8 +670,9 @@ msgstr "Webová adresa, e-mailová adresa, telefonní číslo (tel:) nebo jiná 
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "ACCOUNTS ON THIS COMPUTER"
-msgstr ""
+msgstr "ÚČTY NA TOMTO POČÍTAČI"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -1022,8 +1030,9 @@ msgstr "Přidejte někoho, komu to má jít."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Add this category to Outlook's list, in the nearest of Outlook's colours"
-msgstr ""
+msgstr "Přidat tuto kategorii do seznamu Outlooku v nejbližší z barev Outlooku"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -1049,8 +1058,9 @@ msgstr "Přidat do oblíbených"
 
 #. command label, interface
 #: crates/engine/src/cmd/category.rs crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Add to Outlook"
-msgstr ""
+msgstr "Přidat do Outlooku"
 
 #. command label
 #: crates/engine/src/cmd/junk.rs
@@ -1260,32 +1270,15 @@ msgstr "Povolit synchronizaci úkolů s Microsoft To Do"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page that opened in your browser…"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
 #, fuzzy
-msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr "Povolte MailCraftu číst kalendáře jiných lidí na stránce, která se otevřela v prohlížeči…"
+msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page that opened in your browser…"
+msgstr "Povolit MailCraftu synchronizovat tuto schránku s Outlookem na stránce otevřené ve vašem prohlížeči…"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Allow MailCraft to read shared mailboxes on the page that opened in your browser…"
 msgstr "Povolte MailCraftu číst sdílené poštovní schránky na stránce, která se otevřela v prohlížeči…"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr "Povolte MailCraftu číst kalendáře sdílených poštovních schránek na stránce, která se otevřela v prohlížeči…"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
-msgstr "Povolte MailCraftu odesílat ze sdílených poštovních schránek na stránce, která se otevřela v prohlížeči…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1313,8 +1306,9 @@ msgstr "Povoleno"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Already added"
-msgstr ""
+msgstr "Již přidáno"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -1693,8 +1687,9 @@ msgstr "Použít odeslané změny kalendáře"
 
 #. command label
 #: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
 msgid "Apply Sent Category Changes"
-msgstr ""
+msgstr "Použít odeslané změny kategorií"
 
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
@@ -1769,7 +1764,7 @@ msgid "Aqua"
 msgstr "Akvamarín"
 
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Archive"
 msgstr "Archivovat"
@@ -1868,6 +1863,12 @@ msgstr "Před stažením obrázků od odesílatelů z této domény se znovu pt�
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Před stažením obrázků od tohoto odesílatele se znovu ptát"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Ask before previewing this type of file"
+msgstr "Před zobrazením náhledu tohoto typu souboru se zeptat"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -1876,23 +1877,27 @@ msgstr "Znovu se nejdřív ptát"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Ask for permission to keep your automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, your automatic replies aren't changed."
-msgstr ""
+msgstr "Požádejte o oprávnění synchronizovat vaše automatické odpovědi s Outlookem: v prohlížeči se otevře stránka Microsoftu. Bez něj se vaše automatické odpovědi nezmění."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Ask for permission to keep your rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, rules stay on this computer and the categories can't be changed here."
-msgstr ""
+msgstr "Požádejte o oprávnění synchronizovat vaše pravidla, automatické odpovědi a kategorie s Outlookem: v prohlížeči se otevře stránka Microsoftu. Bez něj pravidla zůstanou v tomto počítači a kategorie zde nelze měnit."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Ask for permission to keep your tasks and automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
-msgstr ""
+msgstr "Požádejte o oprávnění synchronizovat vaše úkoly a automatické odpovědi s Outlookem: v prohlížeči se otevře stránka Microsoftu. Bez něj úkoly zůstanou v tomto počítači."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
-msgstr ""
+msgstr "Požádejte o oprávnění synchronizovat vaše úkoly, pravidla, automatické odpovědi a kategorie s Outlookem: v prohlížeči se otevře stránka Microsoftu. Bez něj úkoly a pravidla zůstanou v tomto počítači a kategorie zde nelze měnit."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -1901,10 +1906,10 @@ msgid "Ask for permission to read and change your To Do lists and tasks: Microso
 msgstr "Požádejte o oprávnění číst a měnit seznamy a úkoly To Do: v prohlížeči se otevře stránka Microsoftu. Bez něj úkoly zůstanou v tomto počítači."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-msgstr "Požádejte o oprávnění číst kalendáře sdílených poštovních schránek: v prohlížeči se otevře stránka Microsoftu. Bez něj se z kalendářů této poštovní schránky nic nenačte."
+msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
+msgstr "Požádejte o oprávnění číst a odesílat ze sdílených poštovních schránek a číst kalendáře, které s vámi sdílejí: v prohlížeči se otevře stránka Microsoftu. Bez něj se z nich nic nečte ani neodesílá."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2203,8 +2208,9 @@ msgstr "Automatické odpovědi jsou nastaveny na zvolené období"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies: MailCraft may change them"
-msgstr ""
+msgstr "Automatické odpovědi: MailCraft je smí měnit"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -2460,8 +2466,9 @@ msgstr "Načíst"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Bring mail from your GNOME accounts into MailCraft."
-msgstr ""
+msgstr "Přeneste poštu ze svých účtů GNOME do MailCraftu."
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
@@ -2751,33 +2758,39 @@ msgstr "Kategorie"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories from {address}'s server. Asking for your permission to change them…"
-msgstr ""
+msgstr "Kategorie ze serveru účtu {address}. Žádám o vaše oprávnění je měnit…"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories from {address}'s server. Checking whether MailCraft may change them…"
-msgstr ""
+msgstr "Kategorie ze serveru účtu {address}. Zjišťuji, zda je MailCraft smí měnit…"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories from {address}'s server. Microsoft no longer takes the sign-in, so they can't be changed"
-msgstr ""
+msgstr "Kategorie ze serveru účtu {address}. Microsoft už přihlášení nepřijímá, proto je nelze měnit"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories from {address}'s server. No permission to change them"
-msgstr ""
+msgstr "Kategorie ze serveru účtu {address}. Bez oprávnění je měnit"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories from {address}'s server. No permission to change them ({why})"
-msgstr ""
+msgstr "Kategorie ze serveru účtu {address}. Bez oprávnění je měnit ({why})"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories from {address}'s server. Read-only here until MailCraft can check whether it may change them"
-msgstr ""
+msgstr "Kategorie ze serveru účtu {address}. Zde jen ke čtení, dokud MailCraft nezjistí, zda je smí měnit"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
@@ -2787,38 +2800,45 @@ msgstr "Kategorie:"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories: Microsoft no longer takes the sign-in"
-msgstr ""
+msgstr "Kategorie: Microsoft už přihlášení nepřijímá"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories: asking for your permission…"
-msgstr ""
+msgstr "Kategorie: žádám o vaše oprávnění…"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories: checking…"
-msgstr ""
+msgstr "Kategorie: zjišťuji…"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories: kept in step with Outlook"
-msgstr ""
+msgstr "Kategorie: synchronizované s Outlookem"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories: read-only here (MailCraft may not change them)"
-msgstr ""
+msgstr "Kategorie: zde jen ke čtení (MailCraft je nesmí měnit)"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories: read-only here ({why})"
-msgstr ""
+msgstr "Kategorie: zde jen ke čtení ({why})"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "Categories: read-only here until MailCraft can check whether it may change them"
-msgstr ""
+msgstr "Kategorie: zde jen ke čtení, dokud MailCraft nezjistí, zda je smí měnit"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
@@ -2834,13 +2854,15 @@ msgstr "Zařadit do kategorie"
 
 #. command label
 #: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
 msgid "Category Changes Allowed"
-msgstr ""
+msgstr "Změny kategorií povoleny"
 
 #. command label
 #: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
 msgid "Category Changes to Send"
-msgstr ""
+msgstr "Změny kategorií k odeslání"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
@@ -3200,8 +3222,9 @@ msgstr "Zvolte složku"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Choose an account first."
-msgstr ""
+msgstr "Nejprve vyberte účet."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3235,8 +3258,9 @@ msgstr "Zvolte, od koho se to odešle"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Choose your account"
-msgstr ""
+msgstr "Vyberte svůj účet"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3325,8 +3349,8 @@ msgstr "Vymazat hledání (Esc)"
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "Kliknutím zobrazíte náhled {name}; poklepáním ho otevřete"
+msgid "Click to select {name}; double-click to open it"
+msgstr "Kliknutím vyberete {name}; dvojitým kliknutím jej otevřete"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -3584,7 +3608,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr "Kontakty se nepřesouvají do Odstraněné pošty."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "Pokračovat"
@@ -3745,8 +3769,9 @@ msgstr "Kopírovat do složky"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Could not link this account."
-msgstr ""
+msgstr "Tento účet se nepodařilo propojit."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -3756,13 +3781,15 @@ msgstr "Přihlášení přes Google nešlo otevřít"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "Could not read GNOME accounts."
-msgstr ""
+msgstr "Nelze číst účty GNOME."
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Could not read GNOME accounts. Check access to GNOME Online Accounts and try again."
-msgstr ""
+msgstr "Nelze číst účty GNOME. Zkontrolujte přístup k online účtům GNOME a zkuste to znovu."
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -4222,7 +4249,7 @@ msgid "Delayed until {when}"
 msgstr "Zpožděno do {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Delete"
 msgstr "Odstranit"
@@ -4685,12 +4712,6 @@ msgstr "Hotovo: aktuální"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "Hotovo: {n} nových"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "Poklepáním otevřete {name}; kliknutím pravým tlačítkem ho uložíte"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -5716,8 +5737,8 @@ msgstr "Jméno"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "Před změnou způsobu přihlášení nejprve uložte standardní nastavení IMAP a SMTP od Googlu a odpovídající e-mailové uživatelské jméno."
 
-#. android, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Flag"
 msgstr "Příznak"
@@ -5898,8 +5919,9 @@ msgstr "Pro poštovní server, který provozuje vaše organizace. MailCraft najd
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "For a relay that takes mail without a password: it is never sent yours."
-msgstr ""
+msgstr "Pro relay, který přijímá poštu bez hesla: vaše heslo se mu nikdy neodešle."
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -5909,23 +5931,33 @@ msgstr "Pro účet, který se přihlašuje přes Microsoft: složky, které mát
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, nothing of shared mailboxes is read or sent: {error}"
+msgstr "Zatím se ze sdílených poštovních schránek nic nečte ani neodesílá: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "For now, rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
-msgstr ""
+msgstr "Zatím pravidla zůstávají v tomto počítači, vaše automatické odpovědi se nemění a kategorie zde nelze měnit: {error}"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
-msgstr ""
+msgstr "Zatím úkoly a pravidla zůstávají v tomto počítači, vaše automatické odpovědi se nemění a kategorie zde nelze měnit: {error}"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "For now, tasks stay on this computer and your automatic replies aren't changed: {error}"
-msgstr ""
+msgstr "Zatím úkoly zůstávají v tomto počítači a vaše automatické odpovědi se nemění: {error}"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "For now, your automatic replies aren't changed: {error}"
-msgstr ""
+msgstr "Zatím se vaše automatické odpovědi nemění: {error}"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -6148,48 +6180,57 @@ msgstr "Celé zprávy: {done} z {total}"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try Send/Receive again."
-msgstr ""
+msgstr "Online účty GNOME jsou nedostupné. Otevřete GNOME Online účty a zkuste znovu odeslat/přijmout."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try again."
-msgstr ""
+msgstr "Online účty GNOME jsou nedostupné. Otevřete GNOME Online účty a zkuste to znovu."
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME Online Accounts is unavailable. You can still use Add Account."
-msgstr ""
+msgstr "Online účty GNOME jsou nedostupné. Stále můžete použít Přidat účet."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME account request cancelled."
-msgstr ""
+msgstr "Žádost o účet GNOME byla zrušena."
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs
+#, fuzzy
 msgid "GNOME requires SMTP authentication, but this server does not offer a supported sign-in."
-msgstr ""
+msgstr "GNOME vyžaduje ověření SMTP, ale tento server nenabízí podporované přihlášení."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME returned an invalid mail credential."
-msgstr ""
+msgstr "GNOME vrátilo neplatné poštovní pověření."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME returned an invalid outgoing credential."
-msgstr ""
+msgstr "GNOME vrátilo neplatné údaje pro odesílání pošty."
 
 #. interface, why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME returned too many accounts. Use Add Account instead."
-msgstr ""
+msgstr "GNOME vrátilo příliš mnoho účtů. Místo toho použijte Přidat účet."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "GNOME sign-in is unavailable."
-msgstr ""
+msgstr "Přihlášení do GNOME není dostupné."
 
 #. interface, name, ribbon location
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
@@ -6848,8 +6889,9 @@ msgstr "Kolik zpráv obsahuje každá složka a kolik místa zabírají"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "How would you like to add it?"
-msgstr ""
+msgstr "Jak to chcete přidat?"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -7027,8 +7069,9 @@ msgstr "Importovat certifikát (.p12)…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Import accounts from GNOME…"
-msgstr ""
+msgstr "Importovat účty z GNOME…"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -7794,8 +7837,9 @@ msgstr "Ponechat data"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Keep in Step with Outlook"
-msgstr ""
+msgstr "Synchronizovat s Outlookem"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -7859,8 +7903,9 @@ msgstr "Synchronizovat úkoly To Do?"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Keep your existing sign-in. GNOME manages the account connection."
-msgstr ""
+msgstr "Ponechte své stávající přihlášení. GNOME spravuje připojení k účtu."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7906,8 +7951,9 @@ msgstr "Uchováváno v {path}, ukládá se průběžně."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Kept on this computer only"
-msgstr ""
+msgstr "Uchováváno jen v tomto počítači"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8121,13 +8167,15 @@ msgstr "Odkaz"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Link an existing GNOME mail account or set it up separately"
-msgstr ""
+msgstr "Propojte stávající poštovní účet GNOME nebo jej nastavte samostatně"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Link with GNOME"
-msgstr ""
+msgstr "Propojení s GNOME"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8374,12 +8422,6 @@ msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive 
 msgstr "Pošta z jiné poštovní schránky nemůže jít do složky Pošta k odeslání: další Odeslat/přijmout by ji odeslalo"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Mail from the shared mailbox waits: {error}"
-msgstr "Pošta ze sdílené poštovní schránky čeká: {error}"
-
-#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
@@ -8393,8 +8435,9 @@ msgstr "Pošta ve složce Pošta k odeslání této sdílené poštovní schrán
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "Mail is disabled in GNOME Online Accounts."
-msgstr ""
+msgstr "Pošta je v Online účtech GNOME zakázána."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -8571,7 +8614,7 @@ msgid "MailCraft is up to date ({version})."
 msgstr "MailCraft je aktuální ({version})."
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr "MailCraft zatím nesmí číst kalendáře jiných lidí."
@@ -8683,8 +8726,9 @@ msgstr[2] "MailCraft byl spuštěn s {n} položkami, které nejsou poštovní od
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "MailCraft wasn't allowed to keep this mailbox in step with Outlook: {error}"
-msgstr ""
+msgstr "MailCraft nesměl synchronizovat tuto schránku s Outlookem: {error}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8826,23 +8870,27 @@ msgstr "Správa úkolu"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Managed by GNOME"
-msgstr ""
+msgstr "Spravováno GNOME"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
-msgstr ""
+msgstr "Spravováno online účty GNOME · IMAP a SMTP"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
-msgstr ""
+msgstr "Spravováno online účty GNOME · Pošta Microsoft Graph"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Managed by MailCraft"
-msgstr ""
+msgstr "Spravuje MailCraft"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -8925,7 +8973,7 @@ msgid "Mark as Unread"
 msgstr "Označit jako nepřečtené"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Označit jako přečtené"
@@ -9015,8 +9063,8 @@ msgstr[2] "Sloučit {n} kontaktů…"
 msgid "Merged PRs"
 msgstr "Sloučené PR"
 
-#. android, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Zpráva"
@@ -9255,8 +9303,9 @@ msgstr "Stránka Microsoftu se vrátila bez schválení: bylo tam odmítnuto, ne
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Microsoft's page opens in your browser to ask for your permission, once."
-msgstr ""
+msgstr "V prohlížeči se otevře stránka Microsoftu, která vás jednou požádá o oprávnění."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9575,8 +9624,9 @@ msgstr "Moje organizace musí MailCraft nejprve schválit: co dělat"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "My outgoing server needs no sign-in"
-msgstr ""
+msgstr "Můj odchozí server nevyžaduje přihlášení"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -9905,7 +9955,7 @@ msgid "New message"
 msgstr "Nová zpráva"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "New messages"
 msgstr "Nové zprávy"
@@ -10264,8 +10314,9 @@ msgstr "Žádný sem importovaný klíč nemá tento otisk"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "No mail accounts enabled in GNOME were found."
-msgstr ""
+msgstr "Nebyly nalezeny žádné poštovní účty povolené v GNOME."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -10314,6 +10365,12 @@ msgstr "Nikdo nenalezen."
 #, fuzzy
 msgid "No preview helper is available for this attachment."
 msgstr "Pro tuto přílohu není k dispozici žádný pomocník náhledu."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "No preview is available for this attachment."
+msgstr "Pro tuto přílohu není náhled k dispozici."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
@@ -10493,8 +10550,8 @@ msgstr "Není pozván nikdo s adresou"
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "Neodpovídá nikdo, nebo více vašich kontaktů: {names}"
 
-#. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "Žádné"
@@ -10650,8 +10707,9 @@ msgstr "Teď ne: nainstaluje se, až MailCraft ukončíte."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour"
-msgstr ""
+msgstr "Není v seznamu Outlooku: pošta, události a úkoly, které jí přiřadíte, nesou její název na server účtu, kde nemá barvu"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10667,8 +10725,9 @@ msgstr "Neuloženo"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Not supported yet"
-msgstr ""
+msgstr "Zatím není podporováno"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -11086,8 +11145,9 @@ msgstr "Najít čas má jen schůzka, kterou organizujete"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Only accounts you choose are added."
-msgstr ""
+msgstr "Jsou přidány pouze vybrané účty."
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
@@ -11327,7 +11387,7 @@ msgid "Open Result from the Server"
 msgstr "Otevřít výsledek ze serveru"
 
 #. command label, interface
-#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Open Shared Calendar"
 msgstr "Otevřít sdílený kalendář"
@@ -11607,12 +11667,6 @@ msgstr "Další účty a V tomto počítači"
 #, fuzzy
 msgid "Other people's calendars can be opened under a Microsoft work or school account"
 msgstr "Kalendáře jiných lidí lze otevřít pod pracovním nebo školním účtem Microsoft"
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Other people's calendars weren't allowed: {error}"
-msgstr "Kalendáře jiných lidí nebyly povoleny: {error}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -12098,6 +12152,12 @@ msgstr "Náhled přílohy"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
+msgid "Preview File"
+msgstr "Zobrazit náhled souboru"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview attachments with local PdfCraft"
 msgstr "Zobrazovat náhledy příloh pomocí místního PdfCraftu"
 
@@ -12112,6 +12172,12 @@ msgstr "Zobrazovat náhledy příloh pomocí místního PdfCraftu a PhotoCraftu"
 #, fuzzy
 msgid "Preview attachments with local PhotoCraft"
 msgstr "Zobrazovat náhledy příloh pomocí místního PhotoCraftu"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview files only when you trust the sender."
+msgstr "Náhledy souborů zobrazujte pouze tehdy, pokud důvěřujete odesílateli."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12400,8 +12466,9 @@ msgstr "Podokno čtení"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Reading accounts from GNOME…"
-msgstr ""
+msgstr "Čtení účtů z GNOME…"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -12453,8 +12520,9 @@ msgstr "Načítám vaše automatické odpovědi ze serveru…"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Ready to link"
-msgstr ""
+msgstr "Připraveno k propojení"
 
 #. name
 #: crates/ui-egui/src/credits.rs
@@ -12656,6 +12724,16 @@ msgstr "Okno připomenutí"
 msgid "Remove"
 msgstr "Odebrat"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+"Odstranit\n"
+"přílohu"
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -12673,6 +12751,16 @@ msgstr "Odebrat přílohu"
 #, fuzzy
 msgid "Remove Everything"
 msgstr "Odstranit vše"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Odebrat importované\n"
+"duplicity"
 
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
@@ -12924,18 +13012,21 @@ msgstr "Obnovuji přihlášení…"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "Repair this account's outgoing sign-in in GNOME Online Accounts."
-msgstr ""
+msgstr "Opravte přihlašovací údaje pro odesílání pošty tohoto účtu v GNOME Online Accounts."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "Repair this account's sign-in in GNOME Online Accounts."
-msgstr ""
+msgstr "Opravte přihlášení k tomuto účtu v online účtech GNOME."
 
 #. interface, why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
-msgstr ""
+msgstr "Opravte přihlašovací nebo poštovní oprávnění tohoto účtu v online účtech GNOME a zkuste znovu odeslat/přijmout."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -12968,7 +13059,7 @@ msgid "Replace with"
 msgstr "Nahradit čím"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Replies and forwards"
 msgstr "Odpovědi a přeposlání"
@@ -13095,8 +13186,9 @@ msgstr "Obnovit zobrazení"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Resolve this account through GNOME Online Accounts before connecting."
-msgstr ""
+msgstr "Před připojením načtěte údaje k tomuto účtu prostřednictvím GNOME Online Accounts."
 
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -13145,6 +13237,12 @@ msgstr "Restartovat a aktualizovat"
 #, fuzzy
 msgid "Restart to update is the owner's click."
 msgstr "Restartovat a aktualizovat musí kliknout vlastník."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Restore attachment preview warnings"
+msgstr "Obnovit upozornění před zobrazením náhledu příloh"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -13436,6 +13534,16 @@ msgstr ""
 msgid "Save & Close"
 msgstr "Uložit a zavřít"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+"Uložit všechny\n"
+"přílohy"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -13448,8 +13556,8 @@ msgstr "Uložit všechny přílohy"
 msgid "Save All Attachments…"
 msgstr "Uložit všechny přílohy…"
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Save As"
 msgstr "Uložit jako"
@@ -13555,6 +13663,12 @@ msgstr "Před přechodem na přihlášení přes Google změny tohoto účtu ulo
 #, fuzzy
 msgid "Save out"
 msgstr "Uložit ven"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Save to Computer"
+msgstr "Uložit do počítače"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -14097,12 +14211,6 @@ msgstr "Odesílat a přijímat automaticky"
 msgid "Send automatic replies"
 msgstr "Odesílat automatické odpovědi"
 
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Send from a Shared Mailbox"
-msgstr "Odeslat ze sdílené poštovní schránky"
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -14457,8 +14565,9 @@ msgstr "zář"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Separate setup"
-msgstr ""
+msgstr "Samostatné nastavení"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -14504,8 +14613,9 @@ msgstr "Nastavit ručně"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Set up separately"
-msgstr ""
+msgstr "Nastavit samostatně"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14544,6 +14654,12 @@ msgid "Shared Calendars"
 msgstr "Sdílené kalendáře"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Shared Mailboxes and Calendars"
+msgstr "Sdílené poštovní schránky a kalendáře"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Shared mailbox · No access: Microsoft won't open it for you. Send/Receive tries again"
@@ -14568,22 +14684,44 @@ msgid "Shared mailboxes"
 msgstr "Sdílené poštovní schránky"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Shared mailboxes weren't allowed: {error}"
-msgstr "Sdílené poštovní schránky nebyly povoleny: {error}"
+msgid "Shared mailboxes and calendars weren't allowed: {error}"
+msgstr "Sdílené poštovní schránky a kalendáře nebyly povoleny: {error}"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
+#: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
-msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr "Kalendáře sdílených poštovních schránek nebyly povoleny: {error}"
+msgid "Shared mailboxes and calendars: asking for your permission…"
+msgstr "Sdílené poštovní schránky a kalendáře: žádám o vaše oprávnění…"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: not allowed ({why})"
+msgstr "Sdílené poštovní schránky a kalendáře: nepovoleno ({why})"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: waiting for your permission"
+msgstr "Sdílené poštovní schránky a kalendáře: čeká na vaše oprávnění"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
 #, fuzzy
 msgid "Show"
 msgstr "Zobrazit"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Show\n"
+"Message"
+msgstr ""
+"Zobrazit\n"
+"zprávu"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14641,6 +14779,12 @@ msgstr "Zobrazovat kategorie Gmailu pod Doručenou poštou"
 msgid "Show MailCraft"
 msgstr "Zobrazit MailCraft"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Message"
+msgstr "Zobrazit zprávu"
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -14688,12 +14832,6 @@ msgstr "Zobrazit úkoly z"
 #, fuzzy
 msgid "Show Training"
 msgstr "Zobrazit školení"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Show a Shared Mailbox's Calendars"
-msgstr "Zobrazit kalendáře sdílené poštovní schránky"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -14975,8 +15113,9 @@ msgstr "Nejprve se znovu přihlaste"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "Sign in again to create a separate account in MailCraft."
-msgstr ""
+msgstr "Znovu se přihlaste a vytvořte si samostatný účet v MailCraftu."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -15111,7 +15250,7 @@ msgid "Signature file:"
 msgstr "Soubor podpisu:"
 
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Signatures"
 msgstr "Podpisy"
@@ -15662,20 +15801,32 @@ msgstr "ne"
 msgid "Sunday"
 msgstr "neděle"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Swipe Action"
+msgstr "Akce přejetí prstem"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Swipe actions"
 msgstr "Akce přejetí prstem"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
+msgstr "Přejeďte vodorovně po zprávě a spustíte zvolenou akci. Ve Windows ji může spustit i vodorovné kolečko myši."
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the left"
 msgstr "Přejetí doleva"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the right"
 msgstr "Přejetí doprava"
@@ -15730,23 +15881,27 @@ msgstr "Přesto synchronizovat"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Sync with Outlook: asking for your permission…"
-msgstr ""
+msgstr "Synchronizace s Outlookem: žádám o vaše oprávnění…"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Sync with Outlook: off"
-msgstr ""
+msgstr "Synchronizace s Outlookem: vypnuta"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Sync with Outlook: on"
-msgstr ""
+msgstr "Synchronizace s Outlookem: zapnuta"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Sync with Outlook: partly on"
-msgstr ""
+msgstr "Synchronizace s Outlookem: částečně zapnuta"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -16145,12 +16300,6 @@ msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at m
 msgstr "To není uživatelské jméno na GitHubu: písmena, číslice a jednotlivé pomlčky, nejvýše 39. Pokud žádné nemáte, nechte pole prázdné."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "That isn't a shared mailbox"
-msgstr "To není sdílená poštovní schránka"
-
-#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "That isn't the password of this file."
@@ -16212,18 +16361,21 @@ msgstr "Celou řadu"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "The GNOME account changed. Try again."
-msgstr ""
+msgstr "Účet GNOME se změnil. Zkuste to znovu."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "The GNOME account connection changed. Remove it from MailCraft and link it again to keep mail from different servers separate."
-msgstr ""
+msgstr "Připojení účtu GNOME se změnilo. Odeberte jej z MailCraftu a znovu jej propojte, aby pošta z různých serverů zůstala oddělená."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "The GNOME account is unavailable."
-msgstr ""
+msgstr "Účet GNOME je nedostupný."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -16269,8 +16421,9 @@ msgstr "Účet už neexistuje"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "The account needs attention. Repair its sign-in in GNOME Online Accounts and try again."
-msgstr ""
+msgstr "Účet vyžaduje pozornost. Opravte jeho přihlášení v online účtech GNOME a zkuste to znovu."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -16523,15 +16676,10 @@ msgid "The calendar {name} and its events kept on this computer will be removed,
 msgstr "Kalendář {name} a jeho události uchovávané v tomto počítači budou odstraněny, stejně jako adresa, která se pro něj uchovává. Nikam se nic neodešle; k odběru se můžete znovu přihlásit pomocí adresy."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "The calendars of the shared mailbox wait: {error}"
-msgstr "Kalendáře sdílené poštovní schránky čekají: {error}"
-
-#. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "The categories couldn't be kept in step: the job stopped unexpectedly"
-msgstr ""
+msgstr "Kategorie se nepodařilo synchronizovat: úloha se neočekávaně zastavila"
 
 #. interface, what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/category_sync.rs
@@ -16541,13 +16689,15 @@ msgstr "Kategorie nešlo převzít: {error}"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "The categories sent couldn't be noted: {error}"
-msgstr ""
+msgstr "Odeslané kategorie se nepodařilo zaznamenat: {error}"
 
 #. what a command says
 #: crates/engine/src/undo.rs
+#, fuzzy
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
-msgstr ""
+msgstr "Kategorii „{name}“ se nepodařilo vrátit: seznam kategorií je plný."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -16593,8 +16743,9 @@ msgstr "Certifikát nevydala certifikační autorita, které tento počítač d�
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
-msgstr ""
+msgstr "Test připojení jen ověřuje, že tento server odpovídá. Pokud přihlášení vyžaduje, řekne vám to první odeslaná zpráva."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -16883,8 +17034,9 @@ msgstr "Odkaz je ve schránce: pošlete ho správci vaší organizace"
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "The linked GNOME account is no longer available."
-msgstr ""
+msgstr "Propojený účet GNOME již není dostupný."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -17263,6 +17415,12 @@ msgstr "Pravidla na serveru nešlo převzít: {error}"
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "Odeslaná pravidla nešlo zaznamenat: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
+msgstr "Stejná stránka žádá také o čtení a odesílání ze sdílených poštovních schránek, ke kterým máte přístup, a o čtení kalendářů, které s vámi sdílejí, aby se vás MailCraft nemusel ptát znovu."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17920,23 +18078,27 @@ msgstr "Sdílejí: {what}."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME account does not expose Microsoft Graph mail access."
-msgstr ""
+msgstr "Tento účet GNOME neposkytuje přístup k poště přes Microsoft Graph."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
-msgstr ""
+msgstr "Tento účet GNOME chybí, je zakázaný nebo již neposkytuje podporovaný přístup k poště. Zkontrolujte online účty GNOME."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
-msgstr ""
+msgstr "Tento účet GNOME používá Microsoft Graph, nikoli IMAP nebo SMTP."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME connection supports only the selected account's mail."
-msgstr ""
+msgstr "Toto připojení GNOME podporuje pouze poštu vybraného účtu."
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -17946,8 +18108,9 @@ msgstr "Tento týden"
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "This account cannot be linked through GNOME."
-msgstr ""
+msgstr "Tento účet nelze propojit prostřednictvím GNOME."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17974,20 +18137,22 @@ msgid "This account has no mail server to send the answer through."
 msgstr "Tento účet nemá poštovní server, přes který by odpověď odeslal."
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Tento účet nemá přihlášení přes Microsoft"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "This account is managed by GNOME Online Accounts. Change its settings or repair its sign-in there. Removing it from MailCraft leaves it in GNOME."
-msgstr ""
+#, fuzzy
+msgid "This account is managed by GNOME Online Accounts. Change its connection or repair its sign-in there. Removing it from MailCraft leaves it in GNOME."
+msgstr "Tento účet je spravován online účty GNOME. Zde změňte jeho připojení nebo opravte jeho přihlášení. Odstraněním z MailCraftu zůstane v GNOME."
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "This account is managed by GNOME Online Accounts. Use a GOA-capable MailCraft desktop on Linux."
-msgstr ""
+msgstr "Tento účet je spravován online účty GNOME. Použijte desktop MailCraft podporující GOA na Linuxu."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17997,13 +18162,15 @@ msgstr "Tento účet už v poštovní schránce není."
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This account is not linked to GNOME."
-msgstr ""
+msgstr "Tento účet není propojen s GNOME."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
+#, fuzzy
 msgid "This account may not change its categories through Microsoft Graph"
-msgstr ""
+msgstr "Tento účet nesmí měnit své kategorie přes Microsoft Graph"
 
 #. what a command says
 #: crates/engine/src/sync_driver/rules.rs
@@ -18025,8 +18192,9 @@ msgstr "Tento účet smí kalendář sdílené poštovní schránky „{name}“
 
 #. interface
 #: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
 msgid "This account needs separate setup in this version of MailCraft."
-msgstr ""
+msgstr "Tento účet vyžaduje samostatné nastavení v této verzi MailCraftu."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18216,8 +18384,9 @@ msgstr "Tento kalendář zatím není připojen k vašemu účtu. Co se změní 
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
+#, fuzzy
 msgid "This category is on more events of calendars kept on a server than can wait to be sent at once: nothing was changed."
-msgstr ""
+msgstr "Tato kategorie je u více událostí kalendářů na serveru, než kolik jich může najednou čekat na odeslání: nic se nezměnilo."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -18823,7 +18992,7 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "Tato řada je stále na cestě na server účtu. Některý z jejích dnů změňte, až tam bude (za chvíli)."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
 msgstr "Účet této sdílené poštovní schránky už neexistuje"
@@ -19016,40 +19185,40 @@ msgid "To add another Google address, go back and start a new account setup."
 msgstr "Chcete-li přidat další adresu Google, vraťte se a začněte nové nastavení účtu."
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
-msgstr ""
-"Aby mohl odpovídat na schůzky nebo je odesílat z {address}, potřebuje MailCraft vaše oprávnění k odesílání ze sdílených poštovních schránek. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-"\n"
-"Zda odpověď odejde jako {address}, nebo jejím jménem, rozhoduje vaše organizace. Dokud to nepovolíte, odpověď čeká v tomto počítači a z vaší vlastní adresy se nic neodešle."
-
-#. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid ""
 "To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, your automatic replies aren't changed."
 msgstr ""
+"Aby MailCraft mohl synchronizovat automatické odpovědi účtu {address} s Outlookem, potřebuje vaše oprávnění měnit nastavení vaší schránky. V prohlížeči se otevře stránka Microsoftu, která vás jednou požádá.\n"
+"\n"
+"Dokud to nepovolíte, vaše automatické odpovědi se nemění."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid ""
 "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
+"Aby MailCraft mohl synchronizovat pravidla, automatické odpovědi a kategorie účtu {address} s Outlookem, potřebuje vaše oprávnění měnit nastavení vaší schránky. V prohlížeči se otevře stránka Microsoftu, která vás jednou požádá.\n"
+"\n"
+"Dokud to nepovolíte, pravidla zůstanou v tomto počítači a nic z nich se Microsoftu neodešle, vaše automatické odpovědi se nemění a kategorie této schránky zde nelze měnit."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid ""
 "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
 msgstr ""
+"Aby MailCraft mohl synchronizovat úkoly a automatické odpovědi účtu {address} s Outlookem, potřebuje vaše oprávnění měnit vaše seznamy To Do a nastavení schránky. V prohlížeči se otevře stránka Microsoftu, která vás jednou požádá.\n"
+"\n"
+"Dokud to nepovolíte, úkoly zůstanou v tomto počítači a nic z nich se Microsoftu neodešle a vaše automatické odpovědi se nemění."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -19065,11 +19234,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid ""
 "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
+"Aby MailCraft mohl synchronizovat úkoly, pravidla, automatické odpovědi a kategorie účtu {address} s Outlookem, potřebuje vaše oprávnění měnit vaše seznamy To Do a nastavení schránky. V prohlížeči se otevře stránka Microsoftu, která vás jednou požádá.\n"
+"\n"
+"Dokud to nepovolíte, úkoly a pravidla zůstanou v tomto počítači a nic z nich se Microsoftu neodešle, vaše automatické odpovědi se nemění a kategorie této schránky zde nelze měnit."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
@@ -19078,40 +19251,16 @@ msgid "To me"
 msgstr "Mně"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+"To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"
 "\n"
-"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+"Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr ""
-"Aby mohl otevírat kalendáře jiných lidí, potřebuje MailCraft vaše oprávnění číst kalendáře, které s vámi lidé sdílejí. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
+"Aby MailCraft mohl číst a odesílat ze sdílených poštovních schránek, které otevíráte přes {address}, a zobrazovat kalendáře, které s vámi sdílejí, potřebuje vaše oprávnění. V prohlížeči se otevře stránka Microsoftu, která vás jednou požádá o vše, co MailCraft používá a co jste zatím nepovolili.\n"
 "\n"
-"Co otevřete, se uchovává jen v tomto počítači: nezobrazí se v Outlooku ani na vašich dalších zařízeních."
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr ""
-"Aby mohl odesílat z {address}, potřebuje MailCraft vaše oprávnění k odesílání ze sdílených poštovních schránek. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-"\n"
-"Zda pošta odejde jako {address}, nebo jejím jménem, rozhoduje vaše organizace. Dokud to nepovolíte, pošta čeká ve své složce Pošta k odeslání a z vaší vlastní adresy se nic neodešle."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid ""
-"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-msgstr ""
-"Aby mohl zobrazit kalendáře {address}, potřebuje MailCraft vaše oprávnění číst kalendáře sdílených poštovních schránek. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-"\n"
-"Co z kalendáře smíte vidět, rozhoduje jeho vlastník a vaše organizace: na tom se nic nemění. Dokud to nepovolíte, z kalendářů {address} se nic nečte."
+"Dokud to nepovolíte, nic z těchto schránek a kalendářů se nečte, pošta a odpovědi na schůzky ze sdílené schránky čekají v tomto počítači a nic se místo nich neodešle z vaší vlastní adresy."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -20527,12 +20676,6 @@ msgid "Your organisation doesn't allow Exchange Web Services for this account. A
 msgstr "Vaše organizace pro tento účet nepovoluje Exchange Web Services. Obraťte se na správce."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr "Vaše organizace MailCraftu nepovoluje číst kalendáře sdílených poštovních schránek"
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
@@ -20540,8 +20683,15 @@ msgstr "Vaše organizace MailCraftu nedovoluje měnit vaše automatické odpově
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
-msgstr ""
+msgstr "Vaše organizace MailCraftu nedovoluje synchronizovat tuto schránku s Outlookem"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
+msgstr "Vaše organizace MailCraftu nedovoluje číst sdílené poštovní schránky a kalendáře, které s vámi sdílejí"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -20605,26 +20755,15 @@ msgstr "Vaše organizace pak dovoluje schválit nový program jen správci. S va
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Your organisation's administrator has to approve MailCraft keeping this mailbox in step with Outlook once: File › Info"
-msgstr ""
+msgstr "Správce vaší organizace musí jednou schválit, aby MailCraft synchronizoval tuto schránku s Outlookem: Soubor › Informace"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr "Správce vaší organizace musí jednou schválit čtení kalendářů jiných lidí: Soubor › Informace"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-msgstr "Správce vaší organizace musí jednou schválit čtení sdílených poštovních schránek: Soubor › Informace"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr "Správce vaší organizace musí jednou schválit čtení kalendářů sdílených poštovních schránek: Soubor › Informace"
+msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
+msgstr "Správce vaší organizace musí jednou schválit, aby MailCraft četl sdílené poštovní schránky a kalendáře: Soubor › Informace"
 
 #. interface
 #: crates/ui-egui/src
@@ -21520,8 +21659,9 @@ msgstr "větší než {mb} MB: přeneste ho pomocí Soubor › Import"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "link a GNOME account through Import accounts from GNOME"
-msgstr ""
+msgstr "propojit účet GNOME pomocí importu účtů z GNOME"
 
 #. what a command says
 #: crates/engine/src/session.rs
@@ -21824,6 +21964,11 @@ msgid "no such paragraph"
 msgstr "takový odstavec neexistuje"
 
 #. what a command says
+#: crates/model/src/rich.rs
+msgid "no such signature"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
 msgid "no task with id {id}"
@@ -22109,6 +22254,12 @@ msgstr "sdílené poštovní schránky se otevírají pod účtem synchronizovan
 #, fuzzy
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
 msgstr "sdílené poštovní schránky se otevírají pod účtem, který se synchronizuje přes Microsoft Graph"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "shared mailboxes require a separate Microsoft sign-in in MailCraft"
+msgstr "sdílené poštovní schránky vyžadují samostatné přihlášení od Microsoftu v MailCraftu"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -23317,8 +23468,9 @@ msgstr "tento účet nemá složku {folder}"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "this account is managed by GNOME Online Accounts; remove it and link it again to change its connection"
-msgstr ""
+msgstr "tento účet je spravován online účty GNOME; odeberte jej a znovu propojte, abyste změnili jeho připojení"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -23334,18 +23486,21 @@ msgstr "tento účet neodesílá poštu, takže zpráva nemůže čekat na urči
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
+#, fuzzy
 msgid "this account's categories aren't kept in step with a server"
-msgstr ""
+msgstr "tento účet nemá kategorie synchronizované se serverem"
 
 #. what a command says
 #: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
 msgid "this account's categories aren't kept in step with its server"
-msgstr ""
+msgstr "kategorie tohoto účtu nejsou synchronizované s jeho serverem"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "this account's sign-in is managed by GNOME Online Accounts"
-msgstr ""
+msgstr "přihlášení k tomuto účtu je spravováno online účty GNOME"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -25447,8 +25602,9 @@ msgstr[2] "Odesláno {sent} zpráv"
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs
+#, fuzzy
 msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
-msgstr ""
+msgstr "{server} (Tento server vyžaduje přihlášení: v nastavení účtu zrušte zaškrtnutí „Můj odchozí server nevyžaduje přihlášení“.)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -25594,6 +25750,110 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
+#~ msgstr "Povolte MailCraftu číst kalendáře jiných lidí na stránce, která se otevřela v prohlížeči…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
+#~ msgstr "Povolte MailCraftu číst kalendáře sdílených poštovních schránek na stránce, která se otevřela v prohlížeči…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
+#~ msgstr "Povolte MailCraftu odesílat ze sdílených poštovních schránek na stránce, která se otevřela v prohlížeči…"
+
+#, fuzzy
+#~ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
+#~ msgstr "Požádejte o oprávnění číst kalendáře sdílených poštovních schránek: v prohlížeči se otevře stránka Microsoftu. Bez něj se z kalendářů této poštovní schránky nic nenačte."
+
+#, fuzzy
+#~ msgid "Mail from the shared mailbox waits: {error}"
+#~ msgstr "Pošta ze sdílené poštovní schránky čeká: {error}"
+
+#, fuzzy
+#~ msgid "Other people's calendars weren't allowed: {error}"
+#~ msgstr "Kalendáře jiných lidí nebyly povoleny: {error}"
+
+#, fuzzy
+#~ msgid "Send from a Shared Mailbox"
+#~ msgstr "Odeslat ze sdílené poštovní schránky"
+
+#, fuzzy
+#~ msgid "Shared mailboxes weren't allowed: {error}"
+#~ msgstr "Sdílené poštovní schránky nebyly povoleny: {error}"
+
+#, fuzzy
+#~ msgid "Shared mailboxes' calendars weren't allowed: {error}"
+#~ msgstr "Kalendáře sdílených poštovních schránek nebyly povoleny: {error}"
+
+#, fuzzy
+#~ msgid "Show a Shared Mailbox's Calendars"
+#~ msgstr "Zobrazit kalendáře sdílené poštovní schránky"
+
+#, fuzzy
+#~ msgid "That isn't a shared mailbox"
+#~ msgstr "To není sdílená poštovní schránka"
+
+#, fuzzy
+#~ msgid "The calendars of the shared mailbox wait: {error}"
+#~ msgstr "Kalendáře sdílené poštovní schránky čekají: {error}"
+
+#, fuzzy
+#~ msgid ""
+#~ "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "Aby mohl odpovídat na schůzky nebo je odesílat z {address}, potřebuje MailCraft vaše oprávnění k odesílání ze sdílených poštovních schránek. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
+#~ "\n"
+#~ "Zda odpověď odejde jako {address}, nebo jejím jménem, rozhoduje vaše organizace. Dokud to nepovolíte, odpověď čeká v tomto počítači a z vaší vlastní adresy se nic neodešle."
+
+#, fuzzy
+#~ msgid ""
+#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+#~ msgstr ""
+#~ "Aby mohl otevírat kalendáře jiných lidí, potřebuje MailCraft vaše oprávnění číst kalendáře, které s vámi lidé sdílejí. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
+#~ "\n"
+#~ "Co otevřete, se uchovává jen v tomto počítači: nezobrazí se v Outlooku ani na vašich dalších zařízeních."
+
+#, fuzzy
+#~ msgid ""
+#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "Aby mohl odesílat z {address}, potřebuje MailCraft vaše oprávnění k odesílání ze sdílených poštovních schránek. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
+#~ "\n"
+#~ "Zda pošta odejde jako {address}, nebo jejím jménem, rozhoduje vaše organizace. Dokud to nepovolíte, pošta čeká ve své složce Pošta k odeslání a z vaší vlastní adresy se nic neodešle."
+
+#, fuzzy
+#~ msgid ""
+#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
+#~ msgstr ""
+#~ "Aby mohl zobrazit kalendáře {address}, potřebuje MailCraft vaše oprávnění číst kalendáře sdílených poštovních schránek. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
+#~ "\n"
+#~ "Co z kalendáře smíte vidět, rozhoduje jeho vlastník a vaše organizace: na tom se nic nemění. Dokud to nepovolíte, z kalendářů {address} se nic nečte."
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+#~ msgstr "Vaše organizace MailCraftu nepovoluje číst kalendáře sdílených poštovních schránek"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
+#~ msgstr "Správce vaší organizace musí jednou schválit čtení kalendářů jiných lidí: Soubor › Informace"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
+#~ msgstr "Správce vaší organizace musí jednou schválit čtení sdílených poštovních schránek: Soubor › Informace"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
+#~ msgstr "Správce vaší organizace musí jednou schválit čtení kalendářů sdílených poštovních schránek: Soubor › Informace"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"

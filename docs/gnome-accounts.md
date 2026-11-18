@@ -70,7 +70,11 @@ has been obtained. Separate setup continues to use MailCraft's identity.
 File › Info identifies linked accounts as managed by GNOME. Connection settings and sign-in
 cannot be changed in MailCraft. Removing a GOA account, disabling mail or losing its credentials
 stops new operations and directs you to GNOME Online Accounts. Other MailCraft accounts remain
-usable. New GOA accounts are never added automatically.
+usable. You can change the local account name, sender display name, colour and signature.
+Microsoft accounts linked through GNOME keep rules locally. Opening shared mailboxes requires
+a separate Microsoft sign-in in MailCraft. The import tile checks for a running or activatable
+GOA service without listing accounts. An authorised MCP or control-channel caller can also
+select a link explicitly through `account.add`. New GOA accounts are never added automatically.
 
 A change of address, incoming login, protocol or mail servers requires removing the account
 from MailCraft and linking it again: existing server ids must not become associated with a
@@ -105,7 +109,7 @@ dbus-run-session -- env MAILCRAFT_TEST_PRIVATE_BUS=1 cargo test --locked -p mail
 The three tests use invented identities and a synthetic GOA service. The Graph flow also uses
 the in-process Microsoft Graph stand-in: reading, downloading, searching, sending, changes,
 401 renewal and refusal/disabled/cancelled states never leave this computer. Scope checks
-prevent calendar or other extra operations from requesting credentials. Own-mail search
+prevent calendar or other extra operations from requesting credentials. For all Microsoft accounts, own-mail search
 continuations reject other mailboxes and non-mail endpoints before sending a network request. No test requires a
 real account. Live provider and packaged Flatpak acceptance remain separate checks.
 

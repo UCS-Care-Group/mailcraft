@@ -84,7 +84,7 @@ impl Fetching {
 /// A Graph token of this session for `account` that is still good.
 fn access(app: &MailApp, account: Id) -> Option<String> {
     if app.session.mailbox.account(account).is_some_and(|a| a.goa.is_some()) {
-        return app.services.gnome_accounts.is_some().then(String::new);
+        return app.services.gnome_discovery().is_some().then(String::new);
     }
     app.graph_tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone())
 }
