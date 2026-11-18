@@ -198,6 +198,8 @@ mod reminder_dialog;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
+#[cfg(test)]
+mod ribbon_field_tests;
 pub mod rule_sync;
 #[cfg(test)]
 mod rule_sync_tests;
@@ -3957,6 +3959,12 @@ impl MailApp {
             }
         }
         if !self.session.driver.round.round_due(self.session.driver.auto_sync(), minutes, now) {
+            return;
+        }
+        // The first round comes with the window, while the background read of the credential store
+        // is still out: starting it now would leave out every account whose password is only there
+        // (#1468), and the next round is minutes away. It waits for the answer.
+        if self.secret_read.is_some() {
             return;
         }
         let round = self.server_accounts();
