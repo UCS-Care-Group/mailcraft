@@ -2729,13 +2729,15 @@ msgstr "გაუქმებულია"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Capitalize the first word of sentences"
-msgstr ""
+msgstr "წინადადების პირველი სიტყვის დიდი ასოთი დაწყება"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-msgstr ""
+msgstr "სიტყვის აკრეფის შემდეგ მის პირველ ასოს ადიდებს. გაუქმება აღადგენს აკრეფილ ტექსტს."
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
@@ -3107,8 +3109,9 @@ msgstr "ახალი ვერსიების შემოწმება"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Check spelling with a local dictionary"
-msgstr ""
+msgstr "მართლწერის შემოწმება ადგილობრივი ლექსიკონით"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5611,8 +5614,9 @@ msgstr "დროის ძებნა"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Find next spelling error"
-msgstr ""
+msgstr "მართლწერის შემდეგი შეცდომის პოვნა"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -10266,18 +10270,21 @@ msgstr "ხელმოწერები ჯერ არ არის"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "No spelling errors found"
-msgstr ""
+msgstr "მართლწერის შეცდომები ვერ მოიძებნა"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "No spelling errors in the part checked"
-msgstr ""
+msgstr "შემოწმებულ ნაწილში მართლწერის შეცდომები არ არის"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "No spelling suggestions"
-msgstr ""
+msgstr "მართლწერის ვარიანტები არ არის"
 
 #. interface
 #: crates/ui-egui/src/keep_offline.rs
@@ -12816,8 +12823,9 @@ msgstr "ყველას ჩანაცვლება"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
+#, fuzzy
 msgid "Replace Text at Position"
-msgstr ""
+msgstr "ტექსტის ჩანაცვლება მითითებულ პოზიციაზე"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15251,23 +15259,27 @@ msgstr "ფოსტისთვის მაქსიმალური ად�
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Spelling"
-msgstr ""
+msgstr "მართლწერა"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Spelling is unavailable on this platform"
-msgstr ""
+msgstr "ამ პლატფორმაზე მართლწერის შემოწმება მიუწვდომელია"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Spelling language"
-msgstr ""
+msgstr "მართლწერის ენა"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Spelling suggestions"
-msgstr ""
+msgstr "მართლწერის ვარიანტები"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17534,8 +17546,9 @@ msgstr "ადგილი, რომელსაც საქაღალდი
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "The spelling dictionary is unavailable"
-msgstr ""
+msgstr "მართლწერის ლექსიკონი მიუწვდომელია"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20976,8 +20989,9 @@ msgstr "ყველა დომენიდან @{domain}"
 
 #. what a command says
 #: crates/model/src/rich/body.rs
+#, fuzzy
 msgid "expected and replacement must be on one line"
-msgstr ""
+msgstr "მოსალოდნელი და ჩამნაცვლებელი ტექსტი ერთ ხაზზე უნდა იყოს"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -22887,8 +22901,9 @@ msgstr "ტექსტში ისეთი სიმბოლოა, რო�
 
 #. what a command says
 #: crates/model/src/rich/body.rs
+#, fuzzy
 msgid "the text has changed at the place to replace"
-msgstr ""
+msgstr "ჩასანაცვლებელ ადგილას ტექსტი შეიცვალა"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
