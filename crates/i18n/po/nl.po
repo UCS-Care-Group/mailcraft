@@ -19718,12 +19718,6 @@ msgstr "vouw eerst een gesprek samen: in elk van de 1.000 uitgevouwen gesprekken
 msgid "collected from mail"
 msgstr "verzameld uit e-mail"
 
-#. why a command can't run
-#: crates/engine/src/gmail.rs
-#, fuzzy
-msgid "comes once Google has reviewed MailCraft"
-msgstr "komt zodra Google MailCraft heeft beoordeeld"
-
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
@@ -19922,6 +19916,12 @@ msgstr "ligt buiten de map die wordt leeggemaakt: ongemoeid gelaten"
 #, fuzzy
 msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
 msgstr "maakt deel uit van een postvak dat u buiten de eigen map van MailCraft hebt geopend: het is van u en is niet aangeraakt"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+#, fuzzy
+msgid "is switched off in this build"
+msgstr "is uitgeschakeld in deze versie"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

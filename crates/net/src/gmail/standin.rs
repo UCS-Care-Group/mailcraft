@@ -42,10 +42,10 @@ pub(crate) fn routed() -> Option<String> {
     ROUTE.with(|route| route.borrow().as_ref().map(|(base, _)| base.clone()))
 }
 
-/// Whether a test on this thread has moves switched on, whatever the build's switch says
-/// ([`route`]).
-pub(crate) fn switched_on() -> bool {
-    ROUTE.with(|route| route.borrow().as_ref().is_some_and(|(_, on)| *on))
+/// What a test on this thread says of the moves' switch, whatever the build's says
+/// ([`route`] on, [`route_switched_off`] off); `None`: no test routes, the build decides.
+pub(crate) fn switched_on() -> Option<bool> {
+    ROUTE.with(|route| route.borrow().as_ref().map(|(_, on)| *on))
 }
 
 /// A stand-in is being spoken to in Gmail's API's place on this thread, for as long as this lives.
@@ -55,6 +55,11 @@ pub struct Routed(Option<(String, bool)>);
 /// switched on, until the guard is dropped.
 pub fn route(base: &str) -> Routed {
     Routed(ROUTE.with(|route| route.borrow_mut().replace((base.to_string(), true))))
+}
+
+/// [`route`] with moves switched off, as the build can have them.
+pub fn route_switched_off(base: &str) -> Routed {
+    Routed(ROUTE.with(|route| route.borrow_mut().replace((base.to_string(), false))))
 }
 
 impl Drop for Routed {
@@ -100,6 +105,8 @@ pub struct State {
     pub echo: bool,
     /// Ids that have a whole batch naming them refused (400), as one Gmail no longer has may.
     pub refused: Vec<u64>,
+    /// The `reason` a faulted answer gives (Gmail's `errors[].reason`), when set.
+    pub reason: String,
 }
 
 impl State {
@@ -114,7 +121,9 @@ impl State {
     }
 
     fn answer(&mut self, asked: &Asked) -> (u16, Value) {
-        let refuse = |status: u16, why: &str| (status, json!({"error": {"code": status, "message": why, "status": "FAILED"}}));
+        let reason = self.reason.clone();
+        let refuse =
+            |status: u16, why: &str| (status, json!({"error": {"code": status, "message": why, "status": "FAILED", "errors": [{"reason": reason}]}}));
         // (0: this one is answered as it would be.)
         if let Some(status) = self.faults.pop_front().filter(|status| *status != 0) {
             return refuse(status, "As the test asked.");
@@ -260,5 +269,10 @@ impl StandIn {
     /// Have this thread's calls to Gmail's API come here until the guard is dropped ([`route`]).
     pub fn route(&self) -> Routed {
         route(&self.url())
+    }
+
+    /// [`StandIn::route`] with moves switched off ([`route_switched_off`]).
+    pub fn route_switched_off(&self) -> Routed {
+        route_switched_off(&self.url())
     }
 }

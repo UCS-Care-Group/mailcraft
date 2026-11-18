@@ -116,6 +116,34 @@ fn nothing_goes_without_ids_a_token_or_room() {
 }
 
 #[test]
+fn switched_off_nothing_goes() {
+    let standin = standin();
+    let _routed = standin.route_switched_off();
+    assert!(matches!(batch_modify(TOKEN, &[ID], GmailCategory::Social), Err(NetError::Config(_))));
+    assert!(standin.requests().is_empty());
+}
+
+#[test]
+fn a_403_about_speed_is_busy_and_any_other_is_lasting() {
+    let standin = standin();
+    let _routed = standin.route();
+    for (reason, lasting) in [
+        ("rateLimitExceeded", false),
+        ("userRateLimitExceeded", false),
+        ("quotaExceeded", false),
+        ("accessNotConfigured", true),
+        ("insufficientPermissions", true),
+        ("", true),
+    ] {
+        standin.state().reason = reason.into();
+        standin.state().faults.push_back(403);
+        let e = batch_modify(TOKEN, &[ID], GmailCategory::Forums).unwrap_err();
+        assert_eq!(matches!(e, NetError::Forbidden(_)), lasting, "{reason}: {e:?}");
+        assert_eq!(matches!(e, NetError::Busy { .. }), !lasting, "{reason}: {e:?}");
+    }
+}
+
+#[test]
 fn a_google_token_goes_to_gmails_api_and_nowhere_else() {
     let ok = |text: &str| may_go_to(&Url::parse(text).unwrap()).is_ok();
     assert!(ok("https://gmail.googleapis.com"));

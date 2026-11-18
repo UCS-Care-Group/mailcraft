@@ -20324,12 +20324,6 @@ msgstr "请先关闭一个会话：已打开的 1,000 个会话都选中了邮�
 msgid "collected from mail"
 msgstr "从邮件收集"
 
-#. why a command can't run
-#: crates/engine/src/gmail.rs
-#, fuzzy
-msgid "comes once Google has reviewed MailCraft"
-msgstr "Google 审查 MailCraft 后就会出现"
-
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
@@ -20529,6 +20523,12 @@ msgstr "位于待清理的文件夹之外：未作处理"
 #, fuzzy
 msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
 msgstr "它属于您从 MailCraft 数据文件夹之外打开的邮箱，已保留原样"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+#, fuzzy
+msgid "is switched off in this build"
+msgstr "在此版本中已关闭"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

@@ -20242,12 +20242,6 @@ msgstr "fermez d'abord une conversation : chacune des 1 000 ouvertes a un messag
 msgid "collected from mail"
 msgstr "collecté à partir du courrier"
 
-#. why a command can't run
-#: crates/engine/src/gmail.rs
-#, fuzzy
-msgid "comes once Google has reviewed MailCraft"
-msgstr "viendra une fois que Google aura examiné MailCraft"
-
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
@@ -20446,6 +20440,12 @@ msgstr "est en dehors du dossier en cours de nettoyage : laissé tel quel"
 #, fuzzy
 msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
 msgstr "fait partie d'une boîte aux lettres ouverte depuis l'extérieur du dossier propre à MailCraft : elle vous appartient et n'a pas été touchée"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+#, fuzzy
+msgid "is switched off in this build"
+msgstr "est désactivé dans cette version"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
