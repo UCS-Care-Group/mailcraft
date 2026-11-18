@@ -7217,6 +7217,12 @@ msgstr "Cursief"
 msgid "Item"
 msgstr "Item"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
+msgid "Item from Message"
+msgstr "Item uit bericht"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -8375,6 +8381,12 @@ msgstr "Postvak"
 msgid "Make a signature with New."
 msgstr "Maak een handtekening met Nieuw."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Make an Item from a Message"
+msgstr "Een item maken van een bericht"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8840,6 +8852,12 @@ msgstr "Minimaliseer"
 msgid "Mobile"
 msgstr "Mobiel"
 
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Module bar"
+msgstr "Modulebalk"
+
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
 #, fuzzy
@@ -9170,7 +9188,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "Namen of adressen, gescheiden door ;"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 msgid "Navigation"
 msgstr "Navigatie"
 
@@ -10010,6 +10028,12 @@ msgstr "Niemand, of meer dan één van uw contactpersonen, komt overeen: {names}
 #, fuzzy
 msgid "None"
 msgstr "Geen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "None of those messages is in this mailbox any more."
+msgstr "Geen van deze berichten staat nog in dit postvak."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11103,6 +11127,12 @@ msgstr "Agenda's van anderen kunnen worden geopend onder een werk- of schoolacco
 #, fuzzy
 msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
 msgstr "Anders toont een melding de afzender en het onderwerp, nooit de berichttekst of de afbeeldingen. Wat op het vergrendelscherm staat, volgt de privacy-instelling van de telefoon zelf."
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Anders worden ze met hun naam weergegeven. In Ongewenste e-mail worden ze altijd met hun naam weergegeven."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -14067,6 +14097,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Favorieten van Outlook weergeven"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Afbeeldingsbijlagen als afbeeldingen weergeven"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 msgid "Show Progress"
 msgstr "Voortgang weergeven"
@@ -14180,6 +14216,12 @@ msgstr "Meer taken weergeven"
 #, fuzzy
 msgid "Show password"
 msgstr "Wachtwoord tonen"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Afbeeldingsbijlagen als afbeeldingen weergeven"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -20965,7 +21007,7 @@ msgid "no message is being written"
 msgstr "er wordt geen bericht geschreven"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "geen bericht met id {id}"
@@ -21312,7 +21354,7 @@ msgid "select a conversation in conversation view first"
 msgstr "selecteer eerst een gesprek in de gespreksweergave"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "selecteer eerst een bericht"
@@ -21978,7 +22020,7 @@ msgid "the sender has no address to put on the list"
 msgstr "de afzender heeft geen adres om op de lijst te zetten"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "de afzender heeft geen bruikbaar e-mailadres"
@@ -24045,6 +24087,14 @@ msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "{n} bericht was er al"
 msgstr[1] "{n} berichten waren er al"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] "{n} bericht is gesleept: alleen het eerste is geopend."
+msgstr[1] "{n} berichten zijn gesleept: alleen het eerste is geopend."
 
 #. interface
 #: crates/ui-egui/src/left_out.rs

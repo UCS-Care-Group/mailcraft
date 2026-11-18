@@ -7504,6 +7504,12 @@ msgstr "斜体"
 msgid "Item"
 msgstr "项目"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
+msgid "Item from Message"
+msgstr "从邮件创建项目"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -8688,6 +8694,12 @@ msgstr "邮箱"
 msgid "Make a signature with New."
 msgstr "使用“新建”创建签名。"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Make an Item from a Message"
+msgstr "从邮件创建项目"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -9173,6 +9185,12 @@ msgstr "最小化"
 msgid "Mobile"
 msgstr "手机"
 
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Module bar"
+msgstr "模块栏"
+
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
 #, fuzzy
@@ -9520,7 +9538,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "姓名或地址，用 ; 分隔"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Navigation"
 msgstr "导航"
@@ -10386,6 +10404,12 @@ msgstr "没有匹配的联系人，或者有多个联系人匹配：{names}"
 #, fuzzy
 msgid "None"
 msgstr "无"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "None of those messages is in this mailbox any more."
+msgstr "这些邮件已不在此邮箱中。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11500,6 +11524,12 @@ msgstr "可以在 Microsoft 工作或学校账户下打开其他人的日历"
 #, fuzzy
 msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
 msgstr "否则，通知会显示发件人和主题，但绝不显示邮件正文或图片。锁屏上显示的内容遵循手机自身的隐私设置。"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "否则将按名称显示。在垃圾邮件中始终按名称显示。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -14589,6 +14619,12 @@ msgid "Show Outlook's Favorites"
 msgstr "显示 Outlook 的收藏夹"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "将图片附件显示为图片"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -14711,6 +14747,12 @@ msgstr "显示更多任务"
 #, fuzzy
 msgid "Show password"
 msgstr "显示密码"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "将图片附件显示为图片"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -21575,7 +21617,7 @@ msgid "no message is being written"
 msgstr "没有正在撰写的邮件"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "没有 ID 为 {id} 的邮件"
@@ -21921,7 +21963,7 @@ msgid "select a conversation in conversation view first"
 msgstr "首先在对话视图中选择一个对话"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "请先选择一封邮件"
@@ -22593,7 +22635,7 @@ msgid "the sender has no address to put on the list"
 msgstr "发件人没有可添加到列表中的地址"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "发件人没有可用的电子邮件地址"
@@ -24595,6 +24637,13 @@ msgstr[0] "有 {n} 封邮件在删除被拒绝后返回了空内容，正在重�
 msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "已有 {n} 封邮件在此"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] "已拖动 {n} 封邮件：只打开了第一封。"
 
 #. interface
 #: crates/ui-egui/src/left_out.rs

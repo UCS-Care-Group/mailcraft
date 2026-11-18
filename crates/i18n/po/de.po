@@ -7022,6 +7022,12 @@ msgstr "Kursiv"
 msgid "Item"
 msgstr "Element"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
+msgid "Item from Message"
+msgstr "Element aus Nachricht"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -8131,6 +8137,12 @@ msgstr "Postfach"
 msgid "Make a signature with New."
 msgstr "Erstellen Sie eine Signatur mit „Neu“."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Make an Item from a Message"
+msgstr "Ein Element aus einer Nachricht erstellen"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8593,6 +8605,12 @@ msgstr "Im Dock ablegen"
 msgid "Mobile"
 msgstr "Mobiltelefon"
 
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Module bar"
+msgstr "Modulleiste"
+
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
 #, fuzzy
@@ -8933,7 +8951,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "Namen oder Adressen, getrennt durch ;"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Navigation"
 msgstr "Navigation"
@@ -9735,6 +9753,12 @@ msgstr "Keiner oder mehrere Ihrer Kontakte passen: {names}"
 #, fuzzy
 msgid "None"
 msgstr "Keine"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "None of those messages is in this mailbox any more."
+msgstr "Keine dieser Nachrichten ist noch in diesem Postfach."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10761,6 +10785,12 @@ msgstr "Kalender anderer Personen können mit einem Microsoft-Geschäfts- oder S
 #, fuzzy
 msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
 msgstr "Andernfalls zeigt eine Benachrichtigung den Absender und den Betreff, nie den Nachrichtentext oder seine Bilder. Was auf dem Sperrbildschirm erscheint, richtet sich nach der Datenschutzeinstellung des Telefons."
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Sonst werden sie mit ihren Namen angezeigt. In Junk werden sie immer mit ihren Namen angezeigt."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13679,6 +13709,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Favoriten von Outlook anzeigen"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Bildanlagen als Bilder anzeigen"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -13797,6 +13833,12 @@ msgstr "Mehr Aufgaben anzeigen"
 #: crates/ui-egui/src/secret_field.rs
 msgid "Show password"
 msgstr "Passwort anzeigen"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Bildanlagen als Bilder anzeigen"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -20232,7 +20274,7 @@ msgid "no message is being written"
 msgstr "es wird keine Nachricht geschrieben"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "keine Nachricht mit der ID {id}"
@@ -20563,7 +20605,7 @@ msgid "select a conversation in conversation view first"
 msgstr "wählen Sie zuerst eine Unterhaltung in der Unterhaltungsansicht aus"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "wählen Sie zuerst eine Nachricht aus"
@@ -21191,7 +21233,7 @@ msgid "the sender has no address to put on the list"
 msgstr "der Absender hat keine Adresse, die auf die Liste gesetzt werden kann"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "der Absender hat keine verwendbare E-Mail-Adresse"
@@ -23151,6 +23193,14 @@ msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "{n} Nachricht war bereits hier"
 msgstr[1] "{n} Nachrichten waren bereits hier"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] "{n} Nachricht wurde gezogen: nur die erste wurde geöffnet."
+msgstr[1] "{n} Nachrichten wurden gezogen: nur die erste wurde geöffnet."
 
 #. interface
 #: crates/ui-egui/src/left_out.rs
