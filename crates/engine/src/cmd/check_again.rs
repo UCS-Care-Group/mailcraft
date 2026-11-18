@@ -48,7 +48,7 @@ pub(crate) fn why_not(mb: &Mailbox, m: &Message) -> Option<&'static str> {
 fn on_server(kind: Option<AccountKind>, m: &Message) -> bool {
     let there = match kind {
         Some(AccountKind::Imap) => m.uid != 0 && m.not_downloaded == 0,
-        Some(AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange) => {
+        Some(AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange | AccountKind::Zimbra) => {
             m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty()) && m.server_draft.is_none()
         }
         _ => false,
@@ -143,7 +143,7 @@ fn stale(mb: &Mailbox, m: &Message) -> bool {
 fn asked_of_own(kind: Option<AccountKind>, m: &Message) -> bool {
     match kind {
         Some(AccountKind::Imap) => m.refetch && m.uid != 0,
-        Some(AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange) => {
+        Some(AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange | AccountKind::Zimbra) => {
             m.unfetched && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty())
         }
         _ => false,

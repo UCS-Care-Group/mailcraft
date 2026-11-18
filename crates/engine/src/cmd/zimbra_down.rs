@@ -91,6 +91,7 @@ fn bounded_folder(f: &mut GraphFolder) -> bool {
 /// cut. A piece is the end of a run that went well (`whole`) only if it is the last, came whole,
 /// and tells of no trouble; a cut one keeps no token.
 pub(crate) fn bounded(mut result: ZimbraMailResult) -> (ZimbraMailResult, bool) {
+    bounded_up(&mut result);
     let reported_errors = !result.errors.is_empty();
     let mut cut = reported_errors;
     if let Some(listing) = result.listing.as_mut() {
@@ -123,6 +124,38 @@ pub(crate) fn bounded(mut result: ZimbraMailResult) -> (ZimbraMailResult, bool) 
         result.resume = None;
     }
     (result, cut)
+}
+
+/// The answers to what went up, held to sizes: what can't be taken in is left out (and worked out
+/// again for the next run), as an Exchange server account's are. A send whose answer can't be taken
+/// in was handed to the server all the same: it is held as one that may have gone.
+fn bounded_up(result: &mut ZimbraMailResult) {
+    use mailcraft_model::sync::{ChangeOutcome, MessageChange, MessageOutcome, SendDone, SendOutcome};
+    let ok = |id: &str| id.is_empty() || zimbra_id_ok(id);
+    result.changes.retain(|done| match &done.outcome {
+        ChangeOutcome::Done { folder } => ok(&folder.id) && ok(&folder.parent) && folder.name.len() <= 4096,
+        ChangeOutcome::Refused { why } | ChangeOutcome::OwnFolder { why } => why.len() <= 4096,
+        ChangeOutcome::Gone | ChangeOutcome::NotShown { .. } => true,
+    });
+    result.messages.retain(|done| {
+        let change = match &done.change {
+            MessageChange::Update { id, .. } | MessageChange::Delete { id } | MessageChange::MovedOut { id, .. } => zimbra_id_ok(id),
+            MessageChange::Move { id, to, .. } | MessageChange::Copy { id, to, .. } => zimbra_id_ok(id) && ok(to),
+        };
+        let outcome = match &done.outcome {
+            MessageOutcome::Done { folder, id, categories, .. } => {
+                ok(folder) && ok(id) && categories.as_ref().is_none_or(|c| c.len() <= 200 && c.iter().all(|c| c.len() <= 4096))
+            }
+            _ => true,
+        };
+        change && outcome && done.there.is_none()
+    });
+    // (A Zimbra account keeps no draft of this program's on its server yet.)
+    result.drafts.clear();
+    for done in result.sent.iter_mut().filter(|d| d.draft.is_some() || !d.draft_left.is_empty()) {
+        *done =
+            SendDone { message: done.message, outcome: SendOutcome::Held { lost: true, why: String::new() }, draft: None, draft_left: String::new() };
+    }
 }
 
 /// Take in the listing of a run: every folder of mail the server has, by server id, the server's

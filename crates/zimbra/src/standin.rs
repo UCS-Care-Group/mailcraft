@@ -69,6 +69,11 @@ pub struct State {
     pub log: Vec<String>,
     /// The account signs in with a second step.
     pub two_factor: bool,
+    /// What was uploaded, by upload id.
+    pub uploads: BTreeMap<String, Vec<u8>>,
+    /// The texts of the messages sent, in order, and the send ids already sent.
+    pub sent: Vec<Vec<u8>>,
+    pub suids: Vec<String>,
     next: u32,
 }
 
@@ -203,6 +208,17 @@ impl StandIn {
         if path.contains("zauthtoken") || path.contains(TOKEN) {
             return fault("service.INVALID_REQUEST");
         }
+        if path == "/service/upload?fmt=raw" {
+            self.state.borrow_mut().log.push("upload".into());
+            let cookie = format!("ZM_AUTH_TOKEN={TOKEN}");
+            if request.method() != Method::Post || request.field("Cookie") != Some(cookie.as_str()) {
+                return HttpResponse::new(401, Vec::new());
+            }
+            let mut s = self.state.borrow_mut();
+            let id = format!("up-{}", s.uploads.len() + 1);
+            s.uploads.insert(id.clone(), request.body().to_vec());
+            return HttpResponse::new(200, format!("200,'null','{id}'").into_bytes());
+        }
         if let Some(query) = path.strip_prefix("/service/home/~/?") {
             self.state.borrow_mut().log.push("REST".into());
             return self.rest(request, query);
@@ -228,6 +244,10 @@ impl StandIn {
             ("SyncRequest", "urn:zimbraMail") => self.sync(body),
             ("SearchRequest", "urn:zimbraMail") => self.search(body),
             ("GetMsgRequest", "urn:zimbraMail") => self.get_msg(body),
+            ("CreateFolderRequest", "urn:zimbraMail") => self.create_folder(body),
+            ("FolderActionRequest", "urn:zimbraMail") => self.folder_action(body),
+            ("MsgActionRequest", "urn:zimbraMail") => self.msg_action(body),
+            ("SendMsgRequest", "urn:zimbraMail") => self.send_msg(body),
             _ => fault("service.UNKNOWN_DOCUMENT"),
         }
     }
@@ -264,6 +284,96 @@ impl StandIn {
                 soap("AuthResponse", json!({"authToken": [{"_content": PENDING}], "twoFactorAuthRequired": {"_content": true}, "lifetime": 300_000}))
             }
         }
+    }
+
+    fn create_folder(&self, body: &Value) -> HttpResponse {
+        let name = body.pointer("/folder/name").and_then(Value::as_str).unwrap_or("");
+        let parent = body.pointer("/folder/l").and_then(Value::as_str).and_then(|l| l.parse::<u32>().ok()).unwrap_or(0);
+        let taken = self.state.borrow().folders.values().any(|(p, n, _)| *p == parent && n.eq_ignore_ascii_case(name));
+        if name.is_empty() || (parent != 1 && !self.state.borrow().folders.contains_key(&parent)) {
+            return fault("service.INVALID_REQUEST");
+        }
+        if taken {
+            return fault("mail.ALREADY_EXISTS");
+        }
+        let id = self.add_folder(parent, name);
+        soap("CreateFolderResponse", json!({"folder": [{"id": id.to_string(), "name": name, "l": parent.to_string()}]}))
+    }
+
+    fn folder_action(&self, body: &Value) -> HttpResponse {
+        let op = body.pointer("/action/op").and_then(Value::as_str).unwrap_or("");
+        let Some(id) = body.pointer("/action/id").and_then(Value::as_str).and_then(|id| id.parse::<u32>().ok()) else {
+            return fault("service.INVALID_REQUEST");
+        };
+        let mut s = self.state.borrow_mut();
+        let Some(folder) = s.folders.get_mut(&id) else { return fault("mail.NO_SUCH_FOLDER") };
+        match op {
+            "rename" => folder.1 = body.pointer("/action/name").and_then(Value::as_str).unwrap_or("").to_string(),
+            "move" => folder.0 = body.pointer("/action/l").and_then(Value::as_str).and_then(|l| l.parse().ok()).unwrap_or(1),
+            "trash" if id < 256 => return fault("service.PERM_DENIED"),
+            "trash" => folder.0 = 3,
+            _ => return fault("service.INVALID_REQUEST"),
+        }
+        soap("FolderActionResponse", json!({"action": {"op": op, "id": id.to_string()}}))
+    }
+
+    fn msg_action(&self, body: &Value) -> HttpResponse {
+        let op = body.pointer("/action/op").and_then(Value::as_str).unwrap_or("").to_string();
+        let Some(id) = body.pointer("/action/id").and_then(Value::as_str).and_then(|id| id.parse::<u32>().ok()) else {
+            return fault("service.INVALID_REQUEST");
+        };
+        if !self.state.borrow().items.contains_key(&id) {
+            return fault("mail.NO_SUCH_MSG");
+        }
+        let to = body.pointer("/action/l").and_then(Value::as_str).and_then(|l| l.parse::<u32>().ok());
+        match op.as_str() {
+            "delete" => self.delete(id),
+            "copy" => {
+                let Some(mut item) = self.state.borrow().items.get(&id).cloned() else { return fault("mail.NO_SUCH_MSG") };
+                item.folder = to.unwrap_or(item.folder);
+                let mut s = self.state.borrow_mut();
+                s.next += 1;
+                let new = s.next;
+                s.items.insert(new, item);
+                s.change += 1;
+                let at = s.change;
+                s.touched.insert(new, at);
+            }
+            "read" | "!read" | "flag" | "!flag" | "move" | "update" => {
+                let tags = body
+                    .pointer("/action/tn")
+                    .and_then(Value::as_str)
+                    .map(|t| t.split(',').filter(|t| !t.is_empty()).map(String::from).collect::<Vec<_>>());
+                self.change(id, |m| match op.as_str() {
+                    "read" => m.flags = m.flags.replace('u', ""),
+                    "!read" if !m.flags.contains('u') => m.flags.push('u'),
+                    "flag" if !m.flags.contains('f') => m.flags.push('f'),
+                    "!flag" => m.flags = m.flags.replace('f', ""),
+                    "move" => m.folder = to.unwrap_or(m.folder),
+                    "update" => m.tags = tags.unwrap_or_default(),
+                    _ => {}
+                });
+            }
+            _ => return fault("service.INVALID_REQUEST"),
+        }
+        soap("MsgActionResponse", json!({"action": {"op": op, "id": id.to_string()}}))
+    }
+
+    fn send_msg(&self, body: &Value) -> HttpResponse {
+        let Some(aid) = body.pointer("/m/aid").and_then(Value::as_str) else { return fault("service.INVALID_REQUEST") };
+        let suid = body.get("suid").and_then(Value::as_str).unwrap_or("").to_string();
+        let Some(text) = self.state.borrow().uploads.get(aid).cloned() else { return fault("mail.NO_SUCH_UPLOAD") };
+        if !suid.is_empty() && self.state.borrow().suids.contains(&suid) {
+            return soap("SendMsgResponse", json!({"m": [{}]}));
+        }
+        let subject = String::from_utf8_lossy(&text).lines().find_map(|l| l.strip_prefix("Subject: ").map(String::from)).unwrap_or_default();
+        {
+            let mut s = self.state.borrow_mut();
+            s.sent.push(text);
+            s.suids.push(suid);
+        }
+        let id = self.deliver(5, &subject, "");
+        soap("SendMsgResponse", json!({"m": [{"id": id.to_string()}]}))
     }
 
     fn tree(&self, id: u32) -> Value {

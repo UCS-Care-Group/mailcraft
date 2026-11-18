@@ -36,9 +36,6 @@ pub const SWITCHED_OFF: &str = "Zimbra accounts are being tested: start MailCraf
 /// What a build says of a Zimbra account's Send/Receive where it can't run.
 pub const NOT_BUILT: &str = "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is";
 
-/// What a build says of sending from a Zimbra account until sending is built.
-pub const SENDING_NOT_BUILT: &str = "Zimbra accounts can't send mail yet: that part is not built";
-
 /// Why a Zimbra account is not kept in step as an IMAP account is, in words for a log or a
 /// command's error.
 pub fn refusal_text(s: &Session) -> &'static str {
@@ -112,6 +109,11 @@ pub fn zimbra_mail_request(s: &Session, account: Id) -> Result<ZimbraMailRequest
         trusted: server.trusted.clone(),
         token,
         resume,
+        // What was done here goes up first, as a Microsoft account's does: folders, messages, and
+        // what waits in the Outbox. (Drafts stay here: a Zimbra account keeps none on its server yet.)
+        changes: graph_mail::folder_changes(&s.mailbox, account, mailcraft_model::sync::MAX_FOLDER_CHANGES).0,
+        messages: super::graph_up::message_changes(s, account, mailcraft_model::sync::MAX_MESSAGE_CHANGES).0,
+        sends: super::graph_send::sends(s, account),
         ..ZimbraMailRequest::default()
     })
 }
@@ -121,6 +123,9 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail(SWITCHED_OFF));
     }
     let account = named_account(s, v)?;
+    // A message never dated is dated now, so that it is the same text at every run.
+    let now = s.now();
+    super::graph_send::date_undated(&mut s.mailbox, account, now);
     let mut request = zimbra_mail_request(s, account)?;
     request.background = p::bool(v, "background").unwrap_or(false);
     // A run begins: nothing lost in an earlier one is held against it.
@@ -232,6 +237,35 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     }
     let mut taken = Taken::default();
     let mut down = Down::default();
+    // What became of what went up, as for a Microsoft account: the folders, the messages (a refusal
+    // is said once per kind and reason), and what was sent.
+    let mut errors = result.errors.clone();
+    for done in &result.changes {
+        if let Some(said) = graph_mail::change_done(&mut s.mailbox, account, &done.change, &done.outcome, s.interface_language, &mut taken) {
+            errors.push(said);
+        }
+    }
+    let mut refusals = super::graph_up::Refusals::default();
+    for done in &result.messages {
+        if super::graph_up::message_done(&mut s.mailbox, account, done, &mut refusals) {
+            match done.outcome {
+                mailcraft_model::sync::MessageOutcome::Done { .. } => taken.pushed += 1,
+                _ => taken.updated += 1,
+            }
+            s.graph_index = Default::default();
+        }
+    }
+    let mut refused = refusals.lines();
+    let mut sent = 0usize;
+    for done in &result.sent {
+        let sent_at = s.now();
+        if super::graph_send::send_done_at(&mut s.mailbox, account, done, s.interface_language, &mut refused, Some(sent_at)) {
+            sent += usize::from(matches!(done.outcome, mailcraft_model::sync::SendOutcome::Sent));
+            taken.updated += 1;
+            s.graph_index = Default::default();
+        }
+    }
+    errors.extend(refused.iter().cloned());
     if let Some(listing) = &result.listing {
         down.removed = zimbra_down::take_folders(&mut s.mailbox, account, listing, &result.well_known, &mut taken);
     }
@@ -276,7 +310,6 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
         s.sel.messages.clear();
     }
     let lang = s.interface_language;
-    let mut errors = result.errors.clone();
     if result.auth_refused {
         errors.insert(0, mailcraft_i18n::fmt(lang.t("The server turned down the sign-in for {name}: sign in again"), &[("name", &name)]));
     }
@@ -291,6 +324,8 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     }
     let summary = errors.first().cloned().unwrap_or_else(|| "Up to date".to_string());
     Ok(json!({
+        "pushed": taken.pushed,
+        "sent": sent,
         "added": taken.added,
         "updated": taken.updated,
         "removed": taken.removed,

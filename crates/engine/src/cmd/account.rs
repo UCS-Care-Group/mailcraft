@@ -1182,16 +1182,12 @@ fn gmail_refused(mb: &mut Mailbox, account: Id, (refused, unsent): (&[GmailMove]
 pub fn unpushed(s: &Session, account: Id) -> usize {
     // An Exchange server account's changes are counted as a Microsoft account's (#252): folders,
     // messages, drafts.
-    if s.mailbox.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange)) {
+    if s.mailbox.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange | AccountKind::Zimbra)) {
         return super::graph_mail::unpushed(s, account);
     }
     // A JMAP account's are the changes of its messages (its folders' don't go up yet).
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Jmap) {
         return super::jmap_up::unpushed(&s.mailbox, account);
-    }
-    // (Nothing of a Zimbra account goes up yet.)
-    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Zimbra) {
-        return 0;
     }
     remote_ops(s, account, 0).1 + place_ops(s, account, 0).1
 }
