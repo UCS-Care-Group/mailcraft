@@ -155,6 +155,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     }
     let panel = app.advanced_search.is_some();
     let hint = match app.session.view.module {
+        Module::People if app.address_book_shown().is_some() => tl!("Search the address list"),
         Module::People => tl!("Search people"),
         // Calendar and Tasks have no search of their own yet: what is typed looks in the mail.
         Module::Calendar | Module::Tasks => tl!("Search mail"),
@@ -214,7 +215,11 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     }
     if resp.changed() {
         let text = app.search_text.clone();
-        let _ = app.execute(if mail_search { "view.search" } else { "people.search" }, json!({"query": text}));
+        if mail_search {
+            let _ = app.execute("view.search", json!({"query": text}));
+        } else {
+            app.type_people_search(&text);
+        }
     }
     // Escape is the box's while it has the keyboard and nothing is over it, the list under it
     // either (#406), so nothing drawn after it does something with the same key (a selection in
@@ -484,6 +489,10 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         let count = mailcraft_engine::cmd::calendar::occurrences(&app.session, from, to).len();
                         st(ui, &tln!(count, "{n} event in view", "{n} events in view"), t.text_dim);
                     }
+                    Module::People if app.address_book_shown().is_some() => {
+                        let found = app.address_book.as_ref().map_or(0, |b| b.people.len());
+                        st(ui, &tln!(found, "{n} found in the address list", "{n} found in the address list"), t.text_dim);
+                    }
                     Module::People => {
                         let shown = crate::people_view::shown_total(app, ui.ctx());
                         st(ui, &tln!(shown, "{n} contact", "{n} contacts"), t.text_dim);
@@ -507,9 +516,9 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     if app.session.view.module == Module::Mail {
                         let pane = app.session.view.reading_pane;
                         for (icon, value, on, tip) in [
-                            ("list", "off", pane == Pane::Off, "Reading pane off"),
-                            ("previewLines", "bottom", pane == Pane::Bottom, "Reading pane at the bottom"),
-                            ("readingPane", "right", pane == Pane::Right, "Reading pane on the right"),
+                            ("list", "off", pane == Pane::Off, tl_later!("Reading pane off")),
+                            ("previewLines", "bottom", pane == Pane::Bottom, tl_later!("Reading pane at the bottom")),
+                            ("readingPane", "right", pane == Pane::Right, tl_later!("Reading pane on the right")),
                         ] {
                             let (r, resp) = ui.allocate_exact_size(vec2(22.0, 20.0), Sense::click());
                             if on {

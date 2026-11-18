@@ -4,6 +4,7 @@
 //! takes, and undo inside the message.
 
 use serde::{Deserialize, Deserializer, Serialize};
+use std::{collections::HashMap, sync::Arc};
 
 use super::find::{Place, moved};
 use super::{Format, ListKind, MAX_CHARS, RichText, Style};
@@ -198,9 +199,26 @@ impl RichBody {
         self.undo.push(Step { text: self.text.clone(), selection: self.selection });
         self.redo.clear();
         let mut kept: usize = self.undo.iter().map(|s| s.text.len()).sum();
+        // Snapshots share a table's immutable allocation, so charge it once across the history.
+        let mut tables = HashMap::<_, usize>::new();
+        for table in self.undo.iter().flat_map(|step| step.text.pasted_tables()) {
+            let count = tables.entry(Arc::as_ptr(table)).or_default();
+            if *count == 0 {
+                kept = kept.saturating_add(table.size);
+            }
+            *count += 1;
+        }
         while self.undo.len() > MAX_UNDO || (kept > MAX_UNDO_CHARS && self.undo.len() > 1) {
             let gone = self.undo.remove(0);
             kept = kept.saturating_sub(gone.text.len());
+            for table in gone.text.pasted_tables() {
+                if let Some(count) = tables.get_mut(&Arc::as_ptr(table)) {
+                    *count -= 1;
+                    if *count == 0 {
+                        kept = kept.saturating_sub(table.size);
+                    }
+                }
+            }
         }
     }
 

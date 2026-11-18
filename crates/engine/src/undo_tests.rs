@@ -145,3 +145,33 @@ fn undo_with_the_account_gone_or_the_folders_gone_never_panics() {
         s.run("edit.redo", &json!({})).unwrap();
     }
 }
+
+/// An undo puts back each category of a full list kept in step with its server, keyed once: a
+/// key worked out for each comparison would be millions of them, and an agent's question about
+/// an undo works it out several times (#661). (A key for each comparison took about 9 s here,
+/// keying once about 0.05 s.)
+#[test]
+fn an_undo_of_a_full_list_kept_in_step_is_worked_out_in_one_pass() {
+    use mailcraft_model::{Category, MAX_CATEGORIES, Rgb};
+    let account: Id = 7;
+    let name = |i: usize| format!("A category with a long name shared by many, number {i:04}");
+    let list = |color: Rgb| (0..MAX_CATEGORIES).map(|i| Category { name: name(i), color }).collect::<Vec<_>>();
+    let (was, is) = (Rgb(0xD1, 0x3B, 0x3B), Rgb(0x2E, 0x8B, 0x57));
+    let mut now = Mailbox::default();
+    now.account_categories.insert(account, list(is));
+    now.synced_categories.insert(account, list(is));
+    let mut then = Mailbox::default();
+    then.account_categories.insert(account, list(was));
+    then.synced_categories.insert(account, list(is));
+    // The step recoloured every one.
+    let left = list(is).into_iter().map(|c| (category_key(&c.name), Some((c, false)))).collect();
+    let step = CategoryStep { left, stamp: 0 };
+    let started = std::time::Instant::now();
+    for _ in 0..4 {
+        let mut out = then.clone();
+        in_step(&mut out, account, &now, Some(&step), &mut Said::default());
+        assert_eq!(out.account_categories[&account], list(was), "each put back as it was");
+        assert_eq!(out.synced_categories[&account], list(is), "the server's as it is now");
+    }
+    assert!(started.elapsed().as_millis() < 2000, "{:?}", started.elapsed());
+}

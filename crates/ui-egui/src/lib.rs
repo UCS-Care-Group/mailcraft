@@ -36,7 +36,18 @@ macro_rules! tln {
     };
 }
 
+/// An English UI string that reaches `tl!` later, through a variable: a label in a table, a
+/// constant, the reason a check gives. It is the literal itself; the mark is for `cargo xtask
+/// i18n`, which finds it as it finds `tl!("…")` (a bare literal there would never be translated).
+#[macro_export]
+macro_rules! tl_later {
+    ($s:literal) => {
+        $s
+    };
+}
+
 mod account_setup;
+pub mod address_book;
 mod advanced_search;
 pub mod agent_gate;
 #[cfg(test)]
@@ -61,6 +72,12 @@ mod auto_replies_tests;
 pub mod backstage;
 mod calendar_sync;
 pub mod calendar_view;
+pub mod category_sync;
+#[cfg(test)]
+mod category_sync_tests;
+pub mod check_names;
+#[cfg(test)]
+mod check_names_tests;
 pub mod chrome;
 mod clicks;
 #[cfg(test)]
@@ -85,6 +102,8 @@ mod dialog_scrim_tests;
 pub mod dialogs;
 #[cfg(test)]
 mod draft_continue_tests;
+#[cfg(test)]
+mod draft_selection_tests;
 mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;
@@ -100,6 +119,8 @@ mod find_replace;
 mod folder_properties;
 mod follow_up_tick;
 mod font_index;
+#[cfg(test)]
+mod foreign_sign_in_tests;
 pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
@@ -140,6 +161,9 @@ pub mod keys;
 mod late_work_tests;
 #[cfg(test)]
 mod leave_message_tests;
+mod left_out;
+#[cfg(test)]
+mod left_out_tests;
 #[cfg(test)]
 mod list_keys_tests;
 #[cfg(test)]
@@ -187,6 +211,8 @@ mod reminder_dialog;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
+#[cfg(test)]
+mod ribbon_field_tests;
 pub mod rule_sync;
 #[cfg(test)]
 mod rule_sync_tests;
@@ -226,11 +252,19 @@ mod send_warnings_tests;
 mod sender_images;
 mod sending;
 pub mod server_search;
+pub mod server_sync;
+#[cfg(test)]
+mod server_sync_tests;
 pub mod settings_notice;
 mod shared_calendars;
 #[cfg(test)]
 mod shared_calendars_tests;
 mod shared_mailboxes;
+mod shared_permission;
+#[cfg(test)]
+mod shared_permission_tests;
+#[cfg(test)]
+mod signature_link_tests;
 #[cfg(test)]
 mod signature_rename_tests;
 mod signatures;
@@ -241,6 +275,7 @@ pub mod software;
 mod subscribed;
 #[cfg(test)]
 mod subscribed_tests;
+pub mod swipe;
 mod symbol;
 mod sync_panel;
 pub mod task_sync;
@@ -358,6 +393,9 @@ pub struct Services {
     pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
     /// Keep a Microsoft account's rules on its server (#566; [`rule_sync`]).
     pub graph_rules: Option<Box<dyn Fn(rule_sync::RulesJob) -> Receiver<rule_sync::RulesResult>>>,
+    /// Keep a Microsoft account's list of categories in step with its server (#661;
+    /// [`category_sync`]).
+    pub graph_categories: Option<Box<dyn Fn(category_sync::CategoriesJob) -> Receiver<category_sync::CategoriesResult>>>,
     /// Read and change the automatic replies of a Microsoft account on its server
     /// ([`auto_replies`]): a token of its own, then Graph's mailbox settings. Absent in the
     /// browser: File › Info then has no Automatic Replies.
@@ -382,6 +420,11 @@ pub struct Services {
     /// The same host: fetch messages of an Exchange server account whole
     /// (`mailcraft_ews::fetch_messages`), as `graph_fetch` does for a Microsoft account.
     pub ews_fetch: Option<Box<dyn Fn(ews_mail::EwsFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    /// The same host: look names up in an Exchange server account's address list (#1262,
+    /// `mailcraft_ews::Client::resolve_names`, one `ResolveNames` for each name), on a background
+    /// thread, waking the UI with the answer. Absent where no host does (the browser): Check
+    /// Names then matches the contacts alone ([`check_names`]).
+    pub ews_resolve: Option<Box<dyn Fn(check_names::EwsResolveJob) -> Receiver<mailcraft_model::sync::EwsResolveResult>>>,
     /// Desktop: set an Exchange server account up on a background thread (#252, E7), once the owner
     /// has pressed Connect and not before: find the server unless its address is given, ask the
     /// owner (through the job's answers) before the sign-in goes to a host outside the domain, and
@@ -780,32 +823,16 @@ pub struct SignInRequest {
     /// With `graph`: ask also for reading and changing mail (`Mail.ReadWrite`), for an account kept
     /// in step through Microsoft Graph (R3).
     pub mail_write: bool,
-    /// With `graph`: ask for reading the shared mailboxes the owner was given Full Access to
-    /// (`Mail.ReadWrite.Shared`, #70) as well, by itself: the owner opened one and it is to be
-    /// read. Never with a sign-in of any other kind. A no that is not the owner's to change is
-    /// answered as for the Favorites ([`favorites_sync::NEEDS_APPROVAL`]…).
-    pub shared: bool,
-    /// With `shared`: ask for sending from shared mailboxes (`Mail.Send.Shared`, #70) as well,
-    /// by itself: the owner is sending from one for the first time, and said go ahead. Never
-    /// with a sign-in of any other kind.
-    pub shared_send: bool,
-    /// Ask for reading other people's calendars (`Calendars.ReadWrite.Shared`, #70) as well, by
-    /// itself, never with a sign-in of any other kind: with `shared`, the owner ticked a shared
-    /// mailbox's calendar and said go ahead; with `graph` alone, the owner opened a calendar by
-    /// address and it is to be read (Open Shared Calendar). One permission, one question.
-    pub shared_calendars: bool,
-    /// With `graph`: ask for reading and changing the owner's To Do lists and tasks
-    /// (`Tasks.ReadWrite`, #248) by itself, never with a sign-in of any other kind: a job found
-    /// the sign-in doesn't cover it, and the owner said go ahead.
-    pub tasks: bool,
-    /// With `graph`: ask for changing the rules the account's server keeps
-    /// (`MailboxSettings.ReadWrite`, #566) by itself, never with a sign-in of any other kind: a
-    /// rule is to go to the server, the sign-in doesn't cover it, and the owner said go ahead.
-    pub rules: bool,
-    /// With `graph`: ask for changing the mailbox's settings (`MailboxSettings.ReadWrite`), for
-    /// its automatic replies, by itself, never with a sign-in of any other kind: a change found
-    /// the sign-in doesn't cover it, and the owner said go ahead.
-    pub replies: bool,
+    /// With `graph`: the one page for an account that signed in before a sign-in's page asked for
+    /// everything (`mailcraft_net::oauth::sign_in_for_sync`): what keeping the owner's to-dos,
+    /// rules, automatic replies and categories in step with the server takes (`Tasks.ReadWrite`,
+    /// `MailboxSettings.ReadWrite`, #661) and, for an account that isn't a personal one, what
+    /// reading and sending from shared mailboxes and reading the calendars shared with him take
+    /// (`Mail.ReadWrite.Shared`, `Mail.Send.Shared`, `Calendars.ReadWrite.Shared`, #70). Something
+    /// found the sign-in doesn't cover it, and the owner said go ahead (or asked for a shared
+    /// mailbox to be read). A no that is not the owner's to change is answered as for the Favorites
+    /// ([`favorites_sync::NEEDS_APPROVAL`]…).
+    pub sync: bool,
 }
 
 pub use mailcraft_host::calendar::{CalendarCheckRequest, CalendarCheckResult, CalendarCheckStep};
@@ -823,19 +850,11 @@ struct SigningIn {
     /// The saved account at the start of the request. Its credential identity must still match
     /// when the answer arrives; unrelated account preferences may have changed meanwhile.
     snapshot: Option<mailcraft_model::Account>,
-    /// For reading this shared mailbox, which is read once it is had (#70).
+    /// With `sync`: the shared mailbox that is read once it is had (#70: the owner asked for it to
+    /// be read, or is adding it).
     shared: Option<Id>,
-    /// And for sending from it: what waits in its Outbox goes once it is had, or is held.
-    shared_send: bool,
-    /// And for reading other people's calendars (one permission): a shared mailbox's (with
-    /// `shared`) or those opened by address (without); read once it is had (#70).
-    shared_calendars: bool,
-    /// And for the To Do lists (#248).
-    tasks: bool,
-    /// And for changing the rules on the server (#566).
-    rules: bool,
-    /// And for changing the automatic replies.
-    replies: bool,
+    /// The one page for an older sign-in ([`server_sync`]).
+    sync: bool,
     /// The owner signs in on a page in the browser (no kept token to renew it with).
     browser: bool,
     /// The mailbox opening it was started under ([`Session::openings`]): an answer that comes
@@ -879,6 +898,9 @@ pub struct UiState {
     /// New Email, a reply or a forward the owner starts opens in a window of its own rather than
     /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
     pub replies_in_window: bool,
+    /// Actions for horizontal gestures on a message row.
+    pub swipe_left: swipe::Action,
+    pub swipe_right: swipe::Action,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
@@ -946,6 +968,9 @@ pub struct UiState {
     /// asking tells those services whose pictures are looked at.
     pub sender_images: bool,
     pub attachment_previews: bool,
+    /// Attachment formats the owner chose to preview without a separate confirmation.
+    #[serde(deserialize_with = "read_attachment_preview_without_warning", skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    pub attachment_preview_without_warning: std::collections::BTreeSet<attachment_preview::Format>,
     /// The groups of the calendar list that are folded away under their headings.
     pub collapsed_calendar_groups: Vec<String>,
     /// Whether MailCraft looks for new versions once a day ([`updates`]): off until the owner says.
@@ -979,6 +1004,14 @@ pub struct UiState {
     pub imported_keys: Vec<own_keys::ImportedKey>,
 }
 
+/// A format from a newer version must not discard the rest of the owner's settings.
+fn read_attachment_preview_without_warning<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<std::collections::BTreeSet<attachment_preview::Format>, D::Error> {
+    let saved = Value::deserialize(deserializer)?;
+    Ok(saved.as_array().into_iter().flatten().filter_map(|value| serde_json::from_value(value.clone()).ok()).collect())
+}
+
 impl Default for UiState {
     fn default() -> Self {
         UiState {
@@ -996,6 +1029,8 @@ impl Default for UiState {
             dark_style: theme::DarkStyle::default(),
             light_messages: false,
             replies_in_window: false,
+            swipe_left: swipe::Action::None,
+            swipe_right: swipe::Action::None,
             interface_size: theme::InterfaceSize::default(),
             window: None,
             window_places: Default::default(),
@@ -1024,6 +1059,7 @@ impl Default for UiState {
             picture_domains: Vec::new(),
             sender_images: false,
             attachment_previews: false,
+            attachment_preview_without_warning: Default::default(),
             collapsed_calendar_groups: Vec::new(),
             update_check: updates::UpdateCheck::default(),
             update_asked: 0,
@@ -1093,7 +1129,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"zh_CN"|"pseudo"}"#),
+    ("ui.swipeAction", "Swipe Action", "File › Options", r#"{"direction": "left"|"right", "action": "none"|"delete"|"archive"|"read"|"flag"}"#),
+    (
+        "ui.language",
+        "Interface Language",
+        "File › Options",
+        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"cs"|"zh_CN"|"ka"|"pseudo"}"#,
+    ),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
         "ui.previewAttachment",
@@ -1101,6 +1143,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Message › Attachments",
         r#"{"id"?: number (the selected message), "index": number (zero-based attachment index)} — preview the file using an installed helper, if supported"#,
     ),
+    ("ui.showAttachmentMessage", "Show Message", "Attachments › Message", "{} — return from the attachment view to its message"),
     ("ui.focusSearch", "Search", "Search", "{}"),
     (
         "ui.advancedSearch",
@@ -1173,25 +1216,31 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.allowSharedCalendars",
         "Allow Reading Other People's Calendars",
         "File › Info and File › Open & Export",
-        r#"{"account": number (a shared mailbox, or a Microsoft account that opens calendars by address), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft read the calendars of the shared mailboxes he was given access to, and the calendars people share with him that he opens by address (Calendars.ReadWrite.Shared, one permission for both), by itself and never with a sign-in. The window asks first, when the owner ticks a shared mailbox's calendar for the first time, and File › Info and File › Open & Export has "Ask again". Allowed, the calendars of that shared mailbox are read with the next look at the calendar; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": the account it is opened through}"#,
+        r#"{"account": number (a shared mailbox, or a Microsoft account), "confirmed": true} — the same as `ui.allowSync`, for the account a shared mailbox is opened through (a sign-in's page asks for Calendars.ReadWrite.Shared with everything else; this is for an account that signed in before). Answers {"pending": "signIn", "account": number}"#,
+    ),
+    (
+        "ui.allowSync",
+        "Keep in Step with Outlook",
+        "File › Info",
+        r#"{"account": number (a Microsoft account, not a shared mailbox), "confirmed": true} — asks the owner, on Microsoft's page in the browser, for everything a sign-in's page asks for today that the account's older sign-in doesn't cover (Microsoft shows only what wasn't given yet): keeping its to-dos, the rules of its server, its automatic replies and its list of categories in step with Outlook (Tasks.ReadWrite, MailboxSettings.ReadWrite) and, for an account that isn't a personal one, reading and sending from the shared mailboxes the owner was given access to and reading the calendars shared with him (Mail.ReadWrite.Shared, Mail.Send.Shared, Calendars.ReadWrite.Shared). One page for all of it; a page that can't have the shared ones is asked again without them. Only an account kept in step through Microsoft Graph (kind microsoft) has its rules and categories kept so: a Microsoft account still on IMAP keeps only its to-dos and its automatic replies in step, and the question names only those. The window asks first, when something finds the sign-in doesn't cover it (the first of the four; a send or a meeting answer from a shared mailbox; a shared mailbox's calendar ticked; a calendar opened by address), and File › Info has "Ask again" (the Categories window "Allow"); a shared mailbox the owner asked to be read opens the page without a question. Until it is allowed, tasks and rules stay on this computer, a change of the automatic replies waits for the answer, the account's categories are read-only here, nothing of a shared mailbox it lacks is read, mail and meeting answers from a shared mailbox wait (nothing goes from the owner's own address instead), and calendars shared with him aren't read. Allowed, all of it goes on at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.allowTasks",
         "Allow Keeping Tasks in Step with Microsoft To Do",
         "File › Info",
-        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft read and change the To Do lists and tasks (Tasks.ReadWrite), by itself: an account that signed in before this was asked is not asked with a sign-in. The window asks first, when a tasks run finds the sign-in doesn't cover it, and File › Info has "Ask again". Allowed, the tasks are kept in step at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
+        r#"{"account": number (a Microsoft account), "confirmed": true} — the same as `ui.allowSync` (#661: one page for the to-dos, the rules, the automatic replies and the categories). Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.allowRules",
         "Allow Keeping Rules on the Server",
         "File › Info",
-        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft change the rules the account's server keeps (MailboxSettings.ReadWrite), by itself and never with a sign-in. The window asks first, the first time a rule is to go to the server and the sign-in doesn't cover it, and File › Info has "Ask again". Until it is allowed the account's rules stay on this computer and nothing of them is sent. Allowed, the rules waiting go at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
+        r#"{"account": number (a Microsoft account), "confirmed": true} — the same as `ui.allowSync` (#661: one page for the to-dos, the rules, the automatic replies and the categories). Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.allowSharedSend",
         "Allow Sending from Shared Mailboxes",
         "Send / Receive",
-        r#"{"account": number (a shared mailbox)} — asks the owner, on Microsoft's page in the browser, to let MailCraft send from the shared mailboxes he may send as or on behalf of (Mail.Send.Shared), by itself and never with a sign-in. The window asks first, at the first send from a shared mailbox. Allowed, what waits in its Outbox goes through its own address with the next Send/Receive; refused, it is held there with why, and nothing is sent from another address. Answers {"pending": "signIn", "account": the account it is opened through}"#,
+        r#"{"account": number (a shared mailbox, or a Microsoft account), "confirmed": true} — the same as `ui.allowSync`, for the account a shared mailbox is opened through (a sign-in's page asks for Mail.Send.Shared with everything else; this is for an account that signed in before). Until it is allowed, what waits in a shared mailbox's Outbox stays there, and nothing is sent from another address. Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.keepOffline",
@@ -1215,7 +1264,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.allowAutomaticReplies",
         "Allow Changing Automatic Replies",
         "File › Info",
-        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft change the mailbox's settings (MailboxSettings.ReadWrite) for its automatic replies, by itself: never with a sign-in. The window asks first, when a change finds the sign-in doesn't cover it, and File › Info has "Ask again". Allowed, the change that waited goes; refused, or when an administrator has to approve first, it is dropped and the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
+        r#"{"account": number (a Microsoft account), "confirmed": true} — the same as `ui.allowSync` (#661: one page for the to-dos, the rules, the automatic replies and the categories). Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.checkCalendar",
@@ -1496,6 +1545,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
 
 /// The application.
 pub struct MailApp {
+    attachment_selection: Option<attachment_preview::Selection>,
     attachment_preview: Option<attachment_preview::Preview>,
     pending_attachment_preview: Option<attachment_preview::Click>,
     pub session: Session,
@@ -1530,6 +1580,9 @@ pub struct MailApp {
     /// The message being written whose body takes the keyboard back at its next frame (after a
     /// ribbon button or a dialog changed its text), by its id (#286).
     pub(crate) body_focus_wanted: Option<u64>,
+    /// The signature open in File › Signatures is to take the keyboard back at its next frame,
+    /// after its formatting bar or the Link dialog changed its text (#1552).
+    pub(crate) signature_focus_wanted: bool,
     /// File › Signatures was on screen in the last frame: leaving it saves and closes the open
     /// signature.
     signatures_shown: bool,
@@ -1630,20 +1683,25 @@ pub struct MailApp {
     calendar: calendar_sync::CalendarSync,
     /// The next sign-in for Microsoft Graph also asks for the Favorites' permissions.
     favorites_next: bool,
-    /// The next sign-in for Microsoft Graph asks for reading shared mailboxes too, for this
-    /// shared mailbox, which is read once it is had ([`shared_mailboxes`], #70).
+    /// With `sync_next`: the shared mailbox that is read once the page is answered
+    /// ([`shared_mailboxes`], #70).
     shared_next: Option<Id>,
-    /// With `shared_next`: that sign-in asks for sending from shared mailboxes too (#70).
-    shared_send_next: bool,
-    /// With `shared_next`: that sign-in asks for reading the calendars of shared mailboxes too;
-    /// without it, for reading the calendars opened by address (#70).
-    shared_calendars_next: bool,
-    tasks_next: bool,
-    /// The next sign-in asks for changing the automatic replies ([`auto_replies`]).
-    replies_next: bool,
+    /// The next sign-in is the one page for an older sign-in ([`server_sync`]).
+    sync_next: bool,
+    /// The accounts whose one question about that is on screen or on Microsoft's page, and those
+    /// whose question went away unanswered in this session (not put again by itself).
+    pub(crate) sync_asking: std::collections::HashSet<Id>,
+    pub(crate) sync_declined: std::collections::HashSet<Id>,
+    /// The accounts whose page was answered with the shared mailboxes' permissions in this session:
+    /// a job that still finds them missing doesn't open it again by itself.
+    pub(crate) shared_page_given: std::collections::HashSet<Id>,
+    /// Why mail waiting in one of an account's shared mailboxes was held when its page was
+    /// refused: File › Info keeps saying so, with Ask again, until the owner allows it.
+    pub(crate) shared_send_refused: std::collections::HashMap<Id, String>,
     pub(crate) tasks: task_sync::TaskSync,
-    rules_next: bool,
     pub(crate) rules: rule_sync::RuleSync,
+    /// The categories' jobs ([`category_sync`]).
+    pub(crate) category_sync: category_sync::CategorySync,
     /// The automatic replies' jobs, and what is said of them ([`auto_replies`]).
     pub(crate) auto_replies: auto_replies::AutoRepliesSync,
     /// Opening other people's calendars by address (#70).
@@ -1836,6 +1894,10 @@ pub struct MailApp {
     pub(crate) ran: (u64, String, Result<Value, String>),
     /// When people are free and busy, as Find a Time found out ([`scheduling`]).
     pub(crate) free_busy: scheduling::Store,
+    /// Names of the message being written looked up in an address list ([`check_names`]).
+    pub(crate) resolving: Option<check_names::Resolving>,
+    /// People's Address Book while it is shown: who the search found, kept nowhere else (#1262).
+    pub(crate) address_book: Option<address_book::AddressBook>,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
@@ -1876,6 +1938,7 @@ impl MailApp {
             row_checks_wanted: false,
             security: security::State::default(),
             ui: UiState::default(),
+            attachment_selection: None,
             attachment_preview: None,
             pending_attachment_preview: None,
             services,
@@ -1889,6 +1952,7 @@ impl MailApp {
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
+            signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
@@ -1927,13 +1991,14 @@ impl MailApp {
             calendar: Default::default(),
             favorites_next: false,
             shared_next: None,
-            shared_send_next: false,
-            shared_calendars_next: false,
-            tasks_next: false,
-            rules_next: false,
-            replies_next: false,
+            sync_next: false,
+            sync_asking: Default::default(),
+            sync_declined: Default::default(),
+            shared_page_given: Default::default(),
+            shared_send_refused: Default::default(),
             tasks: Default::default(),
             rules: Default::default(),
+            category_sync: Default::default(),
             auto_replies: Default::default(),
             open_shared: Default::default(),
             subscribed: Default::default(),
@@ -2015,6 +2080,8 @@ impl MailApp {
             text_selection: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
+            resolving: None,
+            address_book: None,
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,
@@ -2137,6 +2204,7 @@ impl MailApp {
                 matches!(self.server_link(), server_search::Link::Ask | server_search::Link::NotConnected { retry: true })
             }
             None if id == "ui.copySelection" => self.text_selection.any(),
+            None if id == "ui.showAttachmentMessage" => attachment_preview::can_show_message(self),
             None if id == "ui.openDataFolder" => self.services.data_folder.is_some() && !self.data_removed,
             None => UI_COMMANDS.iter().any(|c| c.0 == id),
         }
@@ -2164,6 +2232,12 @@ impl MailApp {
         if dialogs::leaves_message(self, id, &params) {
             self.dialog = Some(dialogs::leaving(id, params));
             return Ok(json!({"pending": "discardDraft"}));
+        }
+        // What is selected is what the reading pane shows (#727): the message being written there
+        // goes to Drafts first, as leaving it does.
+        if let Err(e) = windows::compose_window::leave_for_selection(self, id, &params) {
+            self.say_refused(id, &e);
+            return Err(e);
         }
         if let Some(name) = dialogs::input_dialog(id, &params)
             && self.enabled(id)
@@ -2234,6 +2308,9 @@ impl MailApp {
             self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
             return Ok(json!({"pending": "confirm"}));
         }
+        // Check Names pressed by the owner looks names up in the address list too ([`check_names`]).
+        // (Not for keys a script put in through the control channel: nothing is looked up for it.)
+        let checking_names = !self.driven && id == "compose.checkNames" && params.get("found").is_none() && params.get("pick").is_none();
         let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
         // Where a message it opens goes (#286): the reading pane, or a window of its own when File ›
         // Options says so or the caller asked for one.
@@ -2273,6 +2350,9 @@ impl MailApp {
             // From a JMAP account whose secret isn't at hand: it is asked for (M6).
             self.jmap_send_pressed(sent);
         }
+        if checking_names && let Ok(v) = &r {
+            self.check_names_pressed(v);
+        }
         if id.starts_with("calendar.") {
             self.ran = (self.ran.0.wrapping_add(1), id.to_string(), r.clone());
         }
@@ -2307,14 +2387,21 @@ impl MailApp {
         r
     }
 
-    /// The body of the current message being written takes the keyboard back at its next frame.
+    /// The text being edited takes the keyboard back at its next frame: the body of the message
+    /// being written, or the signature open in File › Signatures.
     pub(crate) fn want_body_focus(&mut self) {
         self.body_focus_wanted = self.session.compose_id();
+        self.signature_focus_wanted = self.session.signature_edit.is_some();
     }
 
     /// Whether the body of the current message being written is to take the keyboard back now; asked once.
     pub(crate) fn take_body_focus(&mut self) -> bool {
         self.body_focus_wanted.take().is_some_and(|id| Some(id) == self.session.compose_id())
+    }
+
+    /// Whether the signature open in File › Signatures is to take the keyboard back now; asked once.
+    pub(crate) fn take_signature_focus(&mut self) -> bool {
+        std::mem::take(&mut self.signature_focus_wanted) && self.session.signature_edit.is_some()
     }
 
     /// Whether the Bcc line of the current message being written is shown.
@@ -2517,8 +2604,12 @@ impl MailApp {
     /// Open a message from outside the message list (a task, a contact's recent mail): in Mail, in
     /// its folder's All tab with no search, the list scrolled to it (#485).
     pub(crate) fn open_in_mail(&mut self, id: Id) {
+        // A selection that is refused (the message being written in the reading pane can't be
+        // saved, #727) leaves everything as it was: nothing is switched to, nothing scrolled to.
+        if self.run("mail.select", json!({"id": id, "elsewhere": true})).is_err() {
+            return;
+        }
         self.ui.backstage = false;
-        let _ = self.run("mail.select", json!({"id": id, "elsewhere": true}));
         let _ = self.run("view.mail", json!({}));
         self.reveal_selection = true;
     }
@@ -2565,6 +2656,17 @@ impl MailApp {
                     self.ui.backstage_page = page.to_string();
                 }
                 Ok(json!({"value": self.ui.backstage, "page": self.ui.backstage_page}))
+            }
+            "ui.swipeAction" => {
+                let Some(action) = s("action").and_then(swipe::Action::from_code) else {
+                    return Some(Err("`action` must be none, delete, archive, read or flag".into()));
+                };
+                match s("direction") {
+                    Some("left") => self.ui.swipe_left = action,
+                    Some("right") => self.ui.swipe_right = action,
+                    _ => return Some(Err("`direction` must be left or right".into())),
+                }
+                Ok(json!({"action": action.code()}))
             }
             "ui.repliesInWindow" => {
                 let value = match p.get("value").filter(|v| !v.is_null()) {
@@ -2679,6 +2781,10 @@ impl MailApp {
             },
             "ui.advancedSearch" => advanced_search::command(self, p),
             "ui.previewAttachment" => attachment_preview::command(self, p),
+            "ui.showAttachmentMessage" => {
+                attachment_preview::close(self);
+                Ok(json!({}))
+            }
             "ui.focusSearch" => {
                 self.search_focus = true;
                 self.ui.backstage = false;
@@ -2794,17 +2900,6 @@ impl MailApp {
                 self.begin_sign_in(account.id, oauth, &account.email, String::new(), false, true)
                     .map(|()| json!({"pending": "signIn", "account": account.id}))
             }
-            "ui.allowSharedCalendars" => {
-                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
-                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
-                }
-                let Some(shared) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
-                if self.session.mailbox.account(shared).is_some_and(mailcraft_model::Account::is_shared) {
-                    self.begin_shared_calendars_sign_in(shared)
-                } else {
-                    self.begin_opened_calendars_sign_in(shared)
-                }
-            }
             "ui.automaticRepliesSignIn" => {
                 let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
                 if let Err(e) = mailcraft_engine::cmd::auto_replies::can_reply(&self.session.mailbox, account) {
@@ -2812,30 +2907,19 @@ impl MailApp {
                 }
                 self.auto_replies_sign_in(account)
             }
-            "ui.allowAutomaticReplies" => {
+            // (One page for everything an older sign-in lacks: the older ids ask for all of it too,
+            // for the account a shared mailbox is opened through.)
+            "ui.allowSync" | "ui.allowTasks" | "ui.allowRules" | "ui.allowAutomaticReplies" | "ui.allowSharedSend" | "ui.allowSharedCalendars" => {
                 if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
                     return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
                 }
                 let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
-                self.begin_replies_sign_in(account)
-            }
-            "ui.allowTasks" => {
-                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
-                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
+                let begun = self.begin_sync_sign_in(account);
+                if begun.is_ok() {
+                    self.shared_page_given.remove(&account);
                 }
-                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
-                self.begin_tasks_sign_in(account)
-            }
-            "ui.allowRules" => {
-                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
-                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
-                }
-                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
-                self.begin_rules_sign_in(account)
-            }
-            "ui.allowSharedSend" => {
-                let Some(shared) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
-                self.begin_shared_send_sign_in(shared)
+                begun
             }
             "ui.moreResultsOnServer" => {
                 if !self.enabled("ui.moreResultsOnServer") {
@@ -2884,6 +2968,16 @@ impl MailApp {
                 Some(s) => {
                     s.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                     self.session.sync_status = tl!("Sign-in cancelled").to_string();
+                    // The one page for an older sign-in: what waited for it takes it as a no (not
+                    // put again by itself), and a shared mailbox being added is taken off again
+                    // with the reason, not left checking.
+                    if s.sync {
+                        self.sync_asking.remove(&s.account);
+                        self.sync_not_now(s.account);
+                        if let Some(shared) = s.shared.filter(|shared| self.shared_checking.contains(shared)) {
+                            self.finish_shared_check(shared, Err(tl!("Sign-in cancelled").to_string()));
+                        }
+                    }
                     Ok(json!({"cancelled": s.account}))
                 }
                 // (An administrator's approval that is waited for is called off the same way.)
@@ -3346,13 +3440,8 @@ impl MailApp {
     ) -> Result<(), String> {
         let mail_only = std::mem::take(&mut self.mail_only_next);
         let favorites = std::mem::take(&mut self.favorites_next) && graph;
-        let shared = self.shared_next.take().filter(|_| graph);
-        let shared_send = std::mem::take(&mut self.shared_send_next) && shared.is_some();
-        // (Alone with `graph`: for the calendars opened by address; with a shared mailbox: for its.)
-        let shared_calendars = std::mem::take(&mut self.shared_calendars_next) && graph;
-        let tasks = std::mem::take(&mut self.tasks_next) && graph && shared.is_none();
-        let rules = std::mem::take(&mut self.rules_next) && graph && shared.is_none() && !tasks;
-        let replies = std::mem::take(&mut self.replies_next) && graph && shared.is_none() && !tasks && !rules;
+        let sync = std::mem::take(&mut self.sync_next) && graph;
+        let shared = self.shared_next.take().filter(|_| sync);
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
@@ -3381,33 +3470,12 @@ impl MailApp {
             // An account kept in step through Graph needs its mail read and changed there too.
             mail_write: graph
                 && (account == 0 || self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft)),
-            shared: shared.is_some(),
-            shared_send,
-            shared_calendars,
-            tasks,
-            rules,
-            replies,
+            sync,
         };
         let snapshot = self.session.mailbox.account(account).cloned();
         let rx = sign_in(request);
         let opening = self.session.openings();
-        self.signing_in = Some(SigningIn {
-            graph,
-            favorites,
-            quiet,
-            account,
-            snapshot,
-            shared,
-            shared_send,
-            shared_calendars,
-            tasks,
-            rules,
-            replies,
-            browser,
-            opening,
-            rx,
-            cancel,
-        });
+        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, snapshot, shared, sync, browser, opening, rx, cancel });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -3454,15 +3522,25 @@ impl MailApp {
         if !mailcraft_engine::sync_driver::signed_in_as_other(a, tokens) {
             return false;
         }
-        let who = tokens.email.trim();
-        // (Said on screen; never written to the log, which names nobody.)
+        // (The sign-in's own progress words go: what is said now takes their place.)
+        self.session.sync_status.clear();
+        self.say_signed_in_as_other(account, tokens.email.trim());
+        true
+    }
+
+    /// Tell the owner that a sign-in for `account` came back as `who`, somebody else, and who to
+    /// sign in as instead: in the status bar, where any sign-in of somebody else's is said (#103).
+    /// The words said come back, for the account's problems report too. (Said on screen; never
+    /// written to the log, which names nobody.)
+    pub(crate) fn say_signed_in_as_other(&mut self, account: Id, who: &str) -> String {
+        let email = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
         let said = i18n::fmt(
             tl!("You signed in as {signedIn}, but this account is {account}. Sign in again as {account}."),
-            &[("signedIn", &forms::kit::shown(who, 120)), ("account", &forms::kit::shown(a.email.trim(), 120))],
+            &[("signedIn", &forms::kit::shown(who.trim(), 120)), ("account", &forms::kit::shown(&email, 120))],
         );
-        self.session.sync_status.clear();
-        self.status(said);
-        true
+        // (The Send/Receive progress is left as it is: a background job's refusal is not its end.)
+        self.status(said.clone());
+        said
     }
 
     /// Account setup: the password that was just shown to work, for this session's Send/Receive
@@ -3618,6 +3696,9 @@ impl MailApp {
                     mail: None,
                     mail_pieces: None,
                     cancel: Default::default(),
+                    // A renewed sign-in that isn't the account's own stops the run before the
+                    // Outbox goes.
+                    signer: Some(request.account.clone()),
                 };
                 self.session.sync_status = tl!("Sending…").to_string();
                 self.session.sync_progress.phase(account, SyncPhase::Sending);
@@ -3696,6 +3777,7 @@ impl MailApp {
             Err(MailRefusal::NotGraph(why)) => return Err(why),
         };
         let (owner, oauth, refresh, mail) = (plan.owner, plan.oauth, plan.refresh, plan.mail);
+        let signer = owner.clone();
         // The Outbox goes with the mail run itself (R3.4.2): sent as drafts or with `sendMail`,
         // and a message held there is not sent again by itself.
         let outbox: Vec<mailcraft_model::Message> = Vec::new();
@@ -3722,6 +3804,9 @@ impl MailApp {
             mail: Some(mail),
             mail_pieces: Some(pieces),
             cancel: self.services.sync_cancel.clone(),
+            // A renewed sign-in that isn't the account's own stops the run before the Outbox or
+            // anything of the mail goes.
+            signer: Some(signer),
         };
         self.resume_fetch();
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -3816,6 +3901,12 @@ impl MailApp {
             self.fetching.forget();
             self.session.driver.fetch.forget();
             self.forget_graph_switch();
+            // The one question of keeping in step with Outlook, put or turned down for the old
+            // mailbox's accounts, goes too: its account ids may name others here (#661).
+            self.sync_asking.clear();
+            self.sync_declined.clear();
+            self.shared_page_given.clear();
+            self.shared_send_refused.clear();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
             self.shared_address_judged = Some(opening);
@@ -3925,6 +4016,12 @@ impl MailApp {
             }
         }
         if !self.session.driver.round.round_due(self.session.driver.auto_sync(), minutes, now) {
+            return;
+        }
+        // The first round comes with the window, while the background read of the credential store
+        // is still out: starting it now would leave out every account whose password is only there
+        // (#1468), and the next round is minutes away. It waits for the answer.
+        if self.secret_read.is_some() {
             return;
         }
         let round = self.server_accounts();
@@ -4277,10 +4374,7 @@ impl MailApp {
         let (account, for_graph, for_favorites) = (waiting.account, waiting.graph, waiting.favorites);
         let snapshot = waiting.snapshot.clone();
         let asked_for = !waiting.quiet;
-        let (for_shared, for_shared_send, for_shared_calendars) = (waiting.shared, waiting.shared_send, waiting.shared_calendars);
-        let for_tasks = waiting.tasks;
-        let for_rules = waiting.rules;
-        let for_replies = waiting.replies;
+        let (for_shared, for_sync) = (waiting.shared, waiting.sync);
         let started_under = waiting.opening;
         let on_the_page = waiting.browser;
         self.signing_in = None;
@@ -4317,33 +4411,10 @@ impl MailApp {
         if on_the_page && answer.is_ok() {
             self.auto_replies_signed_in_on_page(account);
         }
-        // For reading a shared mailbox (#70): it is read now, or why not is said.
-        if let Some(shared) = for_shared {
-            // (And for reading its calendars: they are read now, or why not is said.)
-            if for_shared_calendars {
-                return self.shared_calendars_signed_in(shared, account, answer);
-            }
-            // (And for sending from it: what waits in its Outbox goes now, or is held.)
-            if for_shared_send {
-                return self.shared_send_signed_in(shared, account, answer);
-            }
-            return self.shared_signed_in(shared, account, answer);
-        }
-        // For keeping the tasks in step with Microsoft To Do (#248): they are, now, or why not is said.
-        if for_tasks {
-            return self.tasks_signed_in(account, answer);
-        }
-        // For keeping rules on the server (#566): those waiting go now, or why not is said.
-        if for_rules {
-            return self.rules_signed_in(account, answer);
-        }
-        // For changing the automatic replies: the change that waited goes now, or why not is said.
-        if for_replies {
-            return self.replies_signed_in(account, answer);
-        }
-        // For reading the calendars opened by address (#70): they are read now, or why not is said.
-        if for_shared_calendars {
-            return self.opened_calendars_signed_in(account, answer);
+        // The one page for an older sign-in: everything that waited for it goes on now (a shared
+        // mailbox that was to be read is read), or why not is said.
+        if for_sync {
+            return self.sync_signed_in(account, answer, for_shared);
         }
         // The owner picks who signs in on the page: it has to be this account. Somebody else's
         // tokens are neither used nor remembered, mail's or Graph's (#103).
@@ -4481,7 +4552,7 @@ impl MailApp {
         self.note_problems_from("mail", account, errors, None, finished);
     }
 
-    /// [`MailApp::note_sync_problems`] for a job of its own (`source`: calendar, tasks, rules, shared
+    /// [`MailApp::note_sync_problems`] for a job of its own (`source`: calendar, tasks, rules, categories, shared
     /// mailboxes): each keeps its own memory of what the log has said. `logged` is what goes in the
     /// log for `errors`, line for line: only texts told as [`mailcraft_i18n::Text`] have any (with
     /// their values put aside); a free text names subjects and folders in quotes that nothing
@@ -4864,6 +4935,7 @@ impl MailApp {
     /// Per-frame logic before layout: control requests, screenshots, background results, file
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
+        swipe::observe_cancelled(ctx);
         attachment_preview::poll(self, ctx);
         self.apply_language();
         // The system's authorities for mail, once the host has read them: what was checked
@@ -4976,12 +5048,12 @@ impl MailApp {
         if self.graph_pieces.is_some() {
             crate::software::repaint_after(ctx, std::time::Duration::from_millis(150));
         }
-        self.poll_calendar();
-        self.poll_tasks();
-        self.poll_rules();
+        self.take_in_sync_answers(now_ms());
         self.poll_auto_replies();
         self.poll_calendar_check();
         self.poll_free_busy();
+        self.poll_resolving();
+        self.poll_address_book(ctx);
         self.poll_sync();
         // (Before any other run can start: a shared mailbox being added goes first.)
         // Once MailCraft's data is removed nothing starts by itself any more: no Send/Receive,
@@ -5013,6 +5085,8 @@ impl MailApp {
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
             self.rules_tick(ctx);
+            // The categories' changes, after the rules ([`category_sync`]).
+            self.categories_tick(ctx);
             // The automatic replies, read now and then so that the status bar can say they are on.
             self.auto_replies_tick(ctx);
         }
@@ -5480,7 +5554,10 @@ impl MailApp {
         }
         windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);
-        dialogs::show(self, &ctx);
+        // (Unless a window of the system has drawn it over itself.)
+        if !std::mem::take(&mut self.windows.dialog_shown) {
+            dialogs::show(self, &ctx);
+        }
         close_to_tray::show(&ctx, self);
         reminders::show(self, &ctx);
         // What was chosen in a text's menu, once everything that has one is drawn.
@@ -5949,5 +6026,7 @@ mod privacy_tests;
 mod problem_log_tests;
 #[cfg(test)]
 mod product_names_tests;
+#[cfg(test)]
+mod shift_delete_tests;
 #[cfg(test)]
 mod tests;

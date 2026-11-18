@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use super::{bad, deliver, fail, source};
 use crate::io::{Format, MAILBOX_EXT};
 use crate::opening::{export_name, export_name_or};
+use crate::sync_driver::as_received;
 use crate::{CmdResult, CommandSpec, Session, p};
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -310,8 +311,8 @@ fn save_as(s: &mut Session, v: &Value) -> CmdResult {
     #[cfg(not(target_arch = "wasm32"))]
     let r = {
         refuse_while_importing(s)?;
-        check_single_file(s)?;
-        let bytes = crate::store::save_single(std::path::Path::new(&path), &s.loaded_mailbox()?).map_err(fail)?;
+        let bytes = crate::store::save_single_with(std::path::Path::new(&path), &s.mailbox, |id| s.loaded_message(id).map_err(|e| e.to_string()))
+            .map_err(fail)?;
         json!({"path": path, "bytes": bytes})
     };
     #[cfg(target_arch = "wasm32")]
@@ -348,20 +349,49 @@ fn import_pst(s: &mut Session, v: &Value) -> CmdResult {
     crate::import_pst::run(s, v)
 }
 
+/// Save Message As: the message as it was received (#1561, [`as_received`]), byte for byte, when
+/// those bytes can be had: the server's copy the window asked for for this save, or the bytes the
+/// mailbox keeps of a Digitally signed or Encrypted message. Anything else is written from what
+/// this computer keeps of it, and the answer says so (`asReceived`, and `why`). A message only part
+/// of which is here is not saved at all.
 fn export_message(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    if s.mailbox.message(id).is_none() {
-        return Err(failed!("no message with id {id}", id));
+    let Some(m) = s.mailbox.message(id) else { return Err(failed!("no message with id {id}", id)) };
+    let (name, kind) = (eml_name(m), s.mailbox.account(m.account).map(|a| a.kind));
+    let copy = s.take_for_save(id);
+    if let Some(as_received::ServerCopy::Came(bytes)) = copy {
+        return saved_as_received(v, &name, bytes, "server");
+    }
+    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
+    if let Some(e) = as_received::partial(m) {
+        return Err(e);
+    }
+    let why = as_received::rebuilt_why(kind, m, copy.as_ref());
+    if m.has_original() && !m.parts_removed {
+        let bytes = s.content(id, crate::Part::Original)?;
+        return saved_as_received(v, &name, std::sync::Arc::unwrap_or_clone(bytes), "kept");
     }
     // Whole: what the mailbox keeps outside memory goes into the file.
     let m = s.loaded_message(id)?;
+    // (A message kept from before #30 had only a note of it kept when it was too large.)
+    if super::compose::not_downloaded(&m) {
+        let subject = super::compose::subject_of(&m);
+        return Err(failed!("“{subject}” was too large to download: only its header is here, so it can't be saved as a message", subject));
+    }
     // A draft keeps its Bcc line; a sent or received message never had one to show.
     let opts = mailcraft_mime_model::WriteOptions { include_bcc: m.draft, offset_minutes: s.offset_at(m.date) };
-    let name = eml_name(&m);
     let r = deliver(v, &name, mailcraft_mime_model::write(&m, &opts))?;
     // What went out, for the log: never the file's path or name, the subject or an address (#1401).
-    log::info!("export: eml, 1 message");
-    Ok(r)
+    log::info!("export: eml, 1 message, written from its parts ({})", why.code());
+    Ok(with(with(r, "asReceived", json!(false)), "why", json!(why.code())))
+}
+
+/// The message as it was received, written as it is: `from` says where the bytes were
+/// (`server`: its server's copy, fetched for the save; `kept`: what the mailbox keeps).
+fn saved_as_received(v: &Value, name: &str, bytes: Vec<u8>, from: &str) -> CmdResult {
+    let r = deliver(v, name, bytes)?;
+    log::info!("export: eml, 1 message, as received ({from})");
+    Ok(with(with(r, "asReceived", json!(true)), "from", json!(from)))
 }
 
 /// The name of a message as a file of its own: its subject, fit for a file name, as `.eml`;

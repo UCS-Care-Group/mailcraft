@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use egui::{Align2, Color32, CornerRadius, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::Module;
 use mailcraft_engine::cmd::folder::sort_as_listed;
-use mailcraft_model::{Folder, FolderKind, GmailCategory, Id, Mailbox};
+use mailcraft_model::{Account, Folder, FolderKind, GmailCategory, Id, Mailbox};
 use serde_json::json;
 
 use crate::favorites_sync::Note;
@@ -576,27 +576,34 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
                 ui.close();
             }
         };
-        item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), takes_folders);
+        item(ui, app, tl_later!("New Folder…"), "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), takes_folders);
         // (Not one that is or holds what a JMAP account's server has, which stays for now.)
         let renamable = custom && !app.session.mailbox.renaming_stays_on_server(id);
-        item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
+        item(ui, app, tl_later!("Rename Folder…"), "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
         let deletable = custom && !app.session.mailbox.folder_stays_on_server(id);
-        item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), deletable);
+        item(ui, app, tl_later!("Delete Folder"), "folder.delete", json!({"id": id}), deletable);
         ui.separator();
-        item(ui, app, "Mark All as Read", "mail.markAllRead", json!({"folder": id}), true);
-        item(ui, app, "Run Rules Now", "rules.run", json!({"folder": id}), true);
+        item(ui, app, tl_later!("Mark All as Read"), "mail.markAllRead", json!({"folder": id}), true);
+        item(ui, app, tl_later!("Run Rules Now"), "rules.run", json!({"folder": id}), true);
         if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
             let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
-            item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), emptiable);
+            item(ui, app, tl_later!("Empty Folder"), "folder.empty", json!({"id": id}), emptiable);
         }
         ui.separator();
         if from_outlook {
-            item(ui, app, "Favorites Are Set in Outlook", "folder.favorite", json!({"id": id}), false);
+            item(ui, app, tl_later!("Favorites Are Set in Outlook"), "folder.favorite", json!({"id": id}), false);
         } else {
-            item(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "folder.favorite", json!({"id": id}), true);
+            item(
+                ui,
+                app,
+                if favorite { tl_later!("Remove from Favorites") } else { tl_later!("Add to Favorites") },
+                "folder.favorite",
+                json!({"id": id}),
+                true,
+            );
         }
         ui.separator();
-        item(ui, app, "Properties…", "folder.properties", json!({"id": id}), true);
+        item(ui, app, tl_later!("Properties…"), "folder.properties", json!({"id": id}), true);
     });
 }
 
@@ -1010,6 +1017,20 @@ pub(crate) fn folder_path(mb: &Mailbox, id: Id) -> String {
     }
     parts.reverse();
     parts.join("/")
+}
+
+/// What the folder pane calls an account: its name (Account Settings › Account name), and its
+/// address while none is (#1017).
+pub(crate) fn account_label(a: &Account) -> String {
+    if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() }
+}
+
+/// The account as a folder row away from the pane names it: [`account_label`], and its address
+/// too when the owner named it, so that two mailboxes are told apart.
+pub(crate) fn account_name(a: &Account) -> String {
+    let label = account_label(a);
+    let email = a.email.trim();
+    if email.is_empty() || email == label { label } else { format!("{label} ({email})") }
 }
 
 /// What a folder is called where it is listed away from its own account's tree (under Favorites,
