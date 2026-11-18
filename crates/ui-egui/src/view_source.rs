@@ -54,7 +54,7 @@ fn notice(ui: &mut Ui, rtl: bool, label: egui::RichText) {
 /// The dialog's content; whether Close was pressed.
 pub(crate) fn show(ui: &mut Ui, source: &Source, t: &Tokens) -> bool {
     let mut close = false;
-    let rtl = crate::i18n::current() == crate::i18n::Lang::Hebrew;
+    let rtl = crate::i18n::current().code() == "he";
     notice(
         ui,
         rtl,
