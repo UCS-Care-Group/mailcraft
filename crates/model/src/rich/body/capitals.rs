@@ -57,7 +57,8 @@ pub(super) fn find(text: &RichText, typed_from: usize, caret: usize, language: &
     let before = context.get(..split)?.trim_end();
     let starts_paragraph = start == 0 && before.trim_start_matches(|c: char| c.is_whitespace() || opening(c)).is_empty();
     let before_sentence = before.trim_end_matches(|c: char| c.is_whitespace() || opening(c));
-    if !starts_paragraph && !sentence_ends(before_sentence, start == 0) {
+    let language = language.split(['-', '_']).next().unwrap_or_default();
+    if !starts_paragraph && !sentence_ends(before_sentence, start == 0, language) {
         return None;
     }
     let position = split + token.len() - word.len();
@@ -65,7 +66,6 @@ pub(super) fn find(text: &RichText, typed_from: usize, caret: usize, language: &
     if at < typed_from || text.style_at(at + 1).link.is_some() {
         return None;
     }
-    let language = language.split(['-', '_']).next().unwrap_or_default();
     let dutch_ij = language.eq_ignore_ascii_case("nl") && body.starts_with("ij") && text.style_at(at + 2).link.is_none();
     let dotted_i = first == 'i' && (language.eq_ignore_ascii_case("tr") || language.eq_ignore_ascii_case("az"));
     let uppercase = if dotted_i { "İ".to_string() } else { first.to_uppercase().collect() };
@@ -88,7 +88,7 @@ fn sentence_punctuation(c: char) -> bool {
     matches!(c, '.' | '!' | '?' | '。' | '！' | '？')
 }
 
-fn sentence_ends(before: &str, starts_at_paragraph: bool) -> bool {
+fn sentence_ends(before: &str, starts_at_paragraph: bool, language: &str) -> bool {
     let before = before.trim_end_matches(|c: char| c.is_whitespace() || closing(c));
     if before.ends_with(|c| c != '.' && sentence_punctuation(c)) {
         return true;
@@ -107,15 +107,17 @@ fn sentence_ends(before: &str, starts_at_paragraph: bool) -> bool {
     {
         return false;
     }
-    // A bare number at the start of the paragraph is a list marker. A number at
-    // the end of a sentence, like "I ordered 2.", still marks a sentence boundary.
-    if starts_at_paragraph && stem.trim_start() == last && last.chars().all(|c| c.is_ascii_digit()) {
+    // A bare number at the start of a paragraph can be a list marker. Czech,
+    // German, Hungarian and Polish also put a dot after ordinal numbers in prose.
+    if last.chars().all(|c| c.is_ascii_digit())
+        && ((starts_at_paragraph && stem.trim_start() == last) || ["cs", "de", "hu", "pl"].iter().any(|tag| language.eq_ignore_ascii_case(tag)))
+    {
         return false;
     }
     let abbreviations = [
-        "approx", "art", "avv", "bijv", "bzw", "cf", "dhr", "dott", "dott.ssa", "dr", "dra", "ecc", "ej", "es", "etc", "fig", "hr", "ing", "mevr",
-        "mlle", "mme", "mr", "mrs", "ms", "nr", "núm", "pag", "pág", "prof", "rif", "sig", "sig.na", "sig.ra", "sr", "sra", "srta", "st", "tel",
-        "ud", "uds", "vol",
+        "approx", "art", "avv", "bijv", "bzw", "ca", "cf", "dhr", "dott", "dott.ssa", "dr", "dra", "ecc", "ej", "es", "etc", "evtl", "fig", "ggf",
+        "hr", "inc", "ing", "mevr", "mlle", "mme", "mr", "mrs", "ms", "no", "nr", "núm", "pag", "pág", "prof", "rif", "sig", "sig.na", "sig.ra",
+        "sr", "sra", "srta", "st", "tel", "ud", "uds", "vol", "vs",
     ];
     !abbreviations.contains(&last.to_lowercase().as_str())
 }

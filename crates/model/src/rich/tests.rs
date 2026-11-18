@@ -280,6 +280,17 @@ fn auto_capitalization_respects_sentence_endings_and_existing_word_case() {
         ("I ordered 2. please confirm", " ", "en", "I ordered 2. please confirm "),
         ("I ordered 2. please", " ", "en", "I ordered 2. Please "),
         ("2. item", " ", "en", "2. item "),
+        ("Sejdeme se 18. listopadu", " ", "cs-CZ", "Sejdeme se 18. listopadu "),
+        ("2026. november", " ", "hu_HU", "2026. november "),
+        ("Spotkajmy się 18. listopada", " ", "pl", "Spotkajmy się 18. listopada "),
+        ("Er kam am 18. des Monats", " ", "de", "Er kam am 18. des Monats "),
+        ("We met on Tuesday. please", " ", "cs", "We met on Tuesday. Please "),
+        ("Home vs. away", " ", "en", "Home vs. away "),
+        ("Acme Inc. reported", " ", "en", "Acme Inc. reported "),
+        ("See no. three", " ", "en", "See no. three "),
+        ("Wir warten ca. drei", " ", "de", "Wir warten ca. drei "),
+        ("Bitte ggf. nachfragen", " ", "de", "Bitte ggf. nachfragen "),
+        ("Die Anlage evtl. nachreichen", " ", "de", "Die Anlage evtl. nachreichen "),
         ("J. user", " ", "en", "J. user "),
     ] {
         let mut body = RichBody::default();
