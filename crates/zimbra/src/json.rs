@@ -160,13 +160,11 @@ pub(crate) fn ids(value: Option<&Value>, most: usize) -> Option<Vec<String>> {
     }
     let mut out = Vec::new();
     for id in raw.split(',') {
-        let value = Value::String(id.to_string());
-        // An id of another mailbox's item (`<zid>:<rid>`) is passed over; anything else is
-        // no id at all — dropping it while the page's token is kept would lose a deletion
-        // the server did send.
-        match own_id(Some(&value)) {
+        // A mounted share's item is deleted under its `<zid>:<rid>` id too, so [`item_id`] is
+        // the shape asked for here; what is no id at all would be dropped while the page's
+        // token is kept — a deletion the server did send, lost.
+        match item_id(Some(&Value::String(id.to_string()))) {
             Some(id) => out.push(id),
-            None if foreign_id(Some(&value)) => {}
             None => return None,
         }
         if out.len() >= most {

@@ -64,13 +64,11 @@ pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
     }
     let mut changed_ids = Vec::with_capacity(changed.len());
     for m in changed.iter() {
-        let id = m.get("id");
-        match json::own_id(id) {
+        // A mounted share's item changes under its `<zid>:<rid>` id, so [`item_id`] is the
+        // shape asked for here; what is no id at all can't be told from one the page dropped
+        // — the token it comes with must never be kept, or the change is gone for good.
+        match json::item_id(m.get("id")) {
             Some(id) => changed_ids.push(id),
-            // A change of another mailbox's item is passed over; an id that is no id at all
-            // can't be told from one the page dropped — the token it comes with must never
-            // be kept, or the change is gone for good.
-            None if json::foreign_id(id) => {}
             None => return Err(Error::Unreadable),
         }
     }

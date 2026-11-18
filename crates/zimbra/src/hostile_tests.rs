@@ -203,11 +203,11 @@ fn ids_of_other_mailboxes_and_odd_ids_are_passed_over() {
         (page.messages[1].server.id.as_str(), page.messages[1].server.folder.as_str(), page.messages[1].subject.as_str()),
         ("300", "2", "ok  yes")
     );
-    // An id of another mailbox's item in a deletion list is passed over; an entry that is no
-    // id at all would have the page's token kept while a deletion is lost — so the answer is
-    // refused.
+    // A mounted share's item is deleted under its `<zid>:<rid>` id and stays in the list; an
+    // entry that is no id at all would have the page's token kept while a deletion is lost —
+    // so the answer is refused.
     let deleted = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "deleted": [{"m": {"ids": "1,a:3,2,4"}}]}}}));
-    assert_eq!(delta::answer(&deleted, false).unwrap().deleted, ["1", "2", "4"]);
+    assert_eq!(delta::answer(&deleted, false).unwrap().deleted, ["1", "a:3", "2", "4"]);
     let deleted = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "deleted": [{"m": {"ids": "1,x,2"}}]}}}));
     assert_eq!(delta::answer(&deleted, false), Err(Error::Unreadable));
 }
