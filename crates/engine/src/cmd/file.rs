@@ -311,8 +311,8 @@ fn save_as(s: &mut Session, v: &Value) -> CmdResult {
     #[cfg(not(target_arch = "wasm32"))]
     let r = {
         refuse_while_importing(s)?;
-        check_single_file(s)?;
-        let bytes = crate::store::save_single(std::path::Path::new(&path), &s.loaded_mailbox()?).map_err(fail)?;
+        let bytes = crate::store::save_single_with(std::path::Path::new(&path), &s.mailbox, |id| s.loaded_message(id).map_err(|e| e.to_string()))
+            .map_err(fail)?;
         json!({"path": path, "bytes": bytes})
     };
     #[cfg(target_arch = "wasm32")]
