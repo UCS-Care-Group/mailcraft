@@ -54,6 +54,7 @@ fn a_permission_that_waits_or_was_refused_blocks_a_shared_mailboxs_calendars() {
         (Some(SharedPermission::Allowed), false),
         (Some(SharedPermission::Needed), true),
         (Some(SharedPermission::Asking), true),
+        (Some(SharedPermission::Declined), true),
         (Some(SharedPermission::Refused("no".into())), true),
     ] {
         assert_eq!(SharedPermission::blocks(perm.as_ref()), blocks, "{perm:?}");
@@ -148,6 +149,12 @@ fn a_shared_mailboxs_calendar_permission_follows_what_its_jobs_say() {
     s.driver.calendar.shared_perm.insert(shared, SharedPermission::Asking);
     said(&mut s, CalendarCame { consent_needed: true, ..Default::default() });
     assert_eq!(s.driver.calendar.shared_perm.get(&shared), Some(&SharedPermission::Asking), "the question is not undone");
+    // Nor is a question that went away unanswered: it isn't put again by itself.
+    s.driver.calendar.shared_perm.insert(shared, SharedPermission::Declined);
+    said(&mut s, CalendarCame { consent_needed: true, ..Default::default() });
+    assert_eq!(s.driver.calendar.shared_perm.get(&shared), Some(&SharedPermission::Declined));
+    assert_eq!(s.shared_calendar_to_ask(), None);
+    s.driver.calendar.shared_perm.insert(shared, SharedPermission::Asking);
     let out = said(&mut s, CalendarCame { sign_in_refused: true, ..Default::default() });
     assert_eq!(out.errors.len(), 1);
     said(&mut s, CalendarCame { token_refused: true, ..Default::default() });

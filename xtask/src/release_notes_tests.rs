@@ -95,3 +95,12 @@ fn no_fragment_folder_is_nothing_to_join() {
     assert_eq!(gather(&root).unwrap(), vec![Vec::new(), Vec::new()]);
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_platform_marker_in_the_name_labels_the_lines() {
+    let lines = vec!["- One.".to_string(), "- Two.".to_string()];
+    assert_eq!(mark(Path::new("new/7.md"), lines.clone()).unwrap(), lines);
+    assert_eq!(mark(Path::new("new/7.android.md"), lines.clone()).unwrap(), vec!["- **Android:** One.", "- **Android:** Two."]);
+    assert_eq!(mark(Path::new("new/7.ios.md"), lines.clone()).unwrap()[0], "- **iOS:** One.");
+    assert!(mark(Path::new("new/7.andriod.md"), lines).unwrap_err().contains("platform marker"));
+}

@@ -8,7 +8,7 @@
 # them (`cargo xtask affected`, a nextest filter); a translation runs on Linux alone, the Android
 # app's own files and documentation run no Rust tests. A push to main, the merge queue, a run by
 # hand, and a pull request labelled `full-ci` or changing what every package is built from run the
-# whole suite on every system.
+# whole suite on every system; the merge queue runs it on Linux alone.
 name: CI
 
 on:
