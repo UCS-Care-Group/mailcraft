@@ -1260,9 +1260,11 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         let _ = app.run("ui.openWindow", json!({"message": id}));
     }
     // A right click on a row outside the selection acts on that row (a conversation's row and
-    // its newest message's own row under it are two rows, #503).
-    if resp.secondary_clicked() && !selected {
-        let _ = app.execute("mail.select", json!({"id": id, "copy": copy}));
+    // its newest message's own row under it are two rows, #503), shown as a click shows it (#727).
+    // When the row can't be selected (the message being written can't be saved), no menu opens:
+    // its Delete would act on the selection as it was.
+    if resp.secondary_clicked() && !selected && app.run("mail.select", json!({"id": id, "copy": copy})).is_err() {
+        return;
     }
     let (read, flagged, pinned) = (m.read, m.flag == FlagStatus::Flagged, m.pinned);
     let sent = app.session.mailbox.folder(m.folder).is_some_and(|f| f.kind == mailcraft_model::FolderKind::Sent);
@@ -1285,10 +1287,22 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, "Forward", "mail.forward", json!({}));
         mi(ui, app, "Forward as Attachment", "mail.forwardAsAttachment", json!({}));
         ui.separator();
-        mi(ui, app, if read { "Mark as Unread" } else { "Mark as Read" }, if read { "mail.markUnread" } else { "mail.markRead" }, json!({}));
-        mi(ui, app, if flagged { "Clear Flag" } else { "Follow Up" }, if flagged { "mail.clearFlag" } else { "mail.flag" }, json!({}));
+        mi(
+            ui,
+            app,
+            if read { tl_later!("Mark as Unread") } else { tl_later!("Mark as Read") },
+            if read { "mail.markUnread" } else { "mail.markRead" },
+            json!({}),
+        );
+        mi(
+            ui,
+            app,
+            if flagged { tl_later!("Clear Flag") } else { tl_later!("Follow Up") },
+            if flagged { "mail.clearFlag" } else { "mail.flag" },
+            json!({}),
+        );
         crate::ribbon::follow_up_items(ui, app);
-        mi(ui, app, if pinned { "Unpin" } else { "Pin" }, "mail.pin", json!({}));
+        mi(ui, app, if pinned { tl_later!("Unpin") } else { tl_later!("Pin") }, "mail.pin", json!({}));
         ui.menu_button(tl!("Categorize"), |ui| {
             let ids = app.session.sel.messages.clone();
             let accounts = crate::ribbon::selected_accounts(app);
@@ -1308,7 +1322,7 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         let movable = app.session.enabled("mail.move");
         ui.add_enabled_ui(movable, |ui| {
             ui.menu_button(tl!("Move"), |ui| {
-                crate::ribbon::folder_menu(ui, app, |app, folder| {
+                crate::ribbon::folder_menu_all(ui, app, |app, folder| {
                     let _ = app.run("mail.move", json!({"folder": folder}));
                 });
             });
