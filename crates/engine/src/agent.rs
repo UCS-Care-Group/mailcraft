@@ -638,6 +638,7 @@ const NEVER: &[&str] = &[
     "sync.zimbraRequest",
     "sync.applyZimbra",
     "sync.zimbraFetchRequest",
+    "sync.applyZimbraFetch",
     // A search of the server goes only on the owner's own click (R6.2).
     "sync.graphSearchRequest",
     "sync.applyGraphSearch",
