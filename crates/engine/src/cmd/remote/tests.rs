@@ -85,7 +85,7 @@ fn person(id: &str, first: &str, email: &str) -> RemoteContact {
 }
 
 fn everybody(account: Id, contacts: Vec<RemoteContact>) -> ContactsDownload {
-    ContactsDownload { account, email: "ada@example.org".into(), complete: true, contacts }
+    ContactsDownload { account, email: "ada@example.org".into(), complete: true, books: Vec::new(), contacts }
 }
 
 /// The events that came from `account`'s server, by start.
@@ -465,6 +465,19 @@ fn times_become_the_wall_clock_times_of_their_own_moment() {
     // day the clocks go back is twenty-five hours long there.
     assert_eq!(days(at(2026, 11, 1, 4, 0), at(2026, 11, 2, 5, 0), &new_york), november_first);
     assert_eq!(days(at(2026, 10, 31, 22, 0), at(2026, 11, 1, 22, 0), &|_| 120), november_first);
+    // An all-day event whose midnight is the evening before in UTC (`2026-11-22T23:00Z` for the
+    // 23rd in Europe): its own zone names the day, wherever this computer is.
+    let evening = RemoteEvent {
+        start: at(2026, 11, 22, 23, 0),
+        end: at(2026, 11, 23, 23, 0),
+        all_day: true,
+        start_zone: "W. Europe Standard Time".into(),
+        ..remote("e", "x", 0, 0)
+    };
+    for offset_at in [&new_york as &dyn Fn(Timestamp) -> i32, &utc, &far_east, &far_west] {
+        let event = event_from_remote(&evening, "", offset_at);
+        assert_eq!((event.start, event.end), (clock(2026, 11, 23, 0, 0), clock(2026, 11, 24, 0, 0)));
+    }
     // Nothing overflows at the ends of time.
     for instant in [i64::MIN, -1, 0, i64::MAX] {
         for offset in [i32::MIN, 0, i32::MAX] {

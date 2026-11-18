@@ -33,7 +33,7 @@ fn from_server(s: &mut Session, account: Id, id: &str, name: &str) -> Id {
         emails: vec![Labeled::new("work", format!("{id}@example.org"))],
         ..Default::default()
     };
-    merge_contacts(&mut s.mailbox, &ContactsDownload { account, email, complete: true, contacts: vec![contact] }).unwrap();
+    merge_contacts(&mut s.mailbox, &ContactsDownload { account, email, complete: true, books: Vec::new(), contacts: vec![contact] }).unwrap();
     s.mailbox.contacts.values().find(|c| c.display_name == name).unwrap().id
 }
 
