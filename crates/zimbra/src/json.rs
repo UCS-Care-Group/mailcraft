@@ -9,12 +9,13 @@
 
 use serde_json::Value;
 
-/// Longest text taken from an answer, in characters, before its caller cuts it further.
+/// Longest text taken from an answer, in bytes: the unit the model's own check counts, so a
+/// text of many-byte characters can't pass here and be refused there.
 pub(crate) const MAX_TEXT: usize = 16 * 1024;
 
 /// The text of a value as Zimbra writes it: a string, a number, `{"_content": …}`, or a list of
 /// those (the first). Control characters but tab and line breaks are taken out, and it is held to
-/// [`MAX_TEXT`] characters.
+/// [`MAX_TEXT`] bytes, whole characters only.
 pub(crate) fn text(value: Option<&Value>) -> Option<String> {
     fn raw(value: &Value, depth: u8) -> Option<String> {
         if depth > 4 {
@@ -30,7 +31,16 @@ pub(crate) fn text(value: Option<&Value>) -> Option<String> {
         }
     }
     let text = raw(value?, 0)?;
-    Some(text.chars().filter(|c| !c.is_control() || matches!(c, '\t' | '\n' | '\r')).take(MAX_TEXT).collect())
+    let mut bytes = 0;
+    Some(
+        text.chars()
+            .filter(|c| !c.is_control() || matches!(c, '\t' | '\n' | '\r'))
+            .take_while(|c| {
+                bytes += c.len_utf8();
+                bytes <= MAX_TEXT
+            })
+            .collect(),
+    )
 }
 
 /// A text for one line (a name, a subject): control characters made spaces, trimmed.

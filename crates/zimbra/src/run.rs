@@ -257,6 +257,11 @@ async fn folder_tail<E: HttpExchange>(
         if page.more && (page.messages.is_empty() || page.cursor.is_none()) {
             return Err(Stop::Failed(Error::Unreadable));
         }
+        // A page that says more but hands back the cursor it was asked from is no page to go on
+        // from either: asking it again would read the same items every run, for ever.
+        if page.more && page.cursor == cursor {
+            return Err(Stop::Failed(Error::Unreadable));
+        }
         let last = !page.more;
         cursor = page.cursor;
         let mut piece = blank(request);
@@ -317,26 +322,19 @@ async fn afresh<E: HttpExchange>(
     let listing = folder_listing(run, request, emit).await?;
     let mut order: Vec<&mailcraft_model::sync::GraphFolder> = listing.folders.iter().collect();
     order.sort_by_key(|f| turn(f.kind));
-    // Where a run before this one stopped inside a folder: go on from there. An entry whose
-    // folder is no longer listed answers for nothing.
-    let mut pending: std::collections::HashMap<String, ZimbraResume> = request
-        .resume
-        .iter()
-        .take(MAX_LISTED_FOLDERS)
-        .filter(|e| listing.folders.iter().any(|f| f.id == e.folder))
-        .map(|e| (e.folder.clone(), e.clone()))
-        .collect();
+    // Every folder read from its beginning: a fresh read is taken only when the token `request`
+    // named can't be used, and the saved cursors were made under it, so going on from one would
+    // leave what changed before it unread for good. `resume_folders` goes on from them on the
+    // runs whose token still stands.
     let mut left: Vec<ZimbraResume> = Vec::new();
     let mut capped = false;
     for folder in order {
         if capped {
-            // A folder this run never reached goes on from where the run before left it, or from
-            // its beginning when no run ever started it.
-            left.push(pending.remove(&folder.id).unwrap_or_else(|| ZimbraResume { folder: folder.id.clone(), ..ZimbraResume::default() }));
+            // A folder this run never reached starts over on the next one.
+            left.push(ZimbraResume { folder: folder.id.clone(), ..ZimbraResume::default() });
             continue;
         }
-        let start = pending.remove(&folder.id).and_then(|e| if e.cursor.is_empty() { None } else { Some((e.cursor, e.sort)) });
-        if let Some(again) = folder_tail(run, request, &folder.id, start, emit).await? {
+        if let Some(again) = folder_tail(run, request, &folder.id, None, emit).await? {
             left.push(again);
             capped = true;
         }
