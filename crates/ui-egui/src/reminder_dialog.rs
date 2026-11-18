@@ -45,6 +45,16 @@ pub enum Outcome {
     Close,
 }
 
+/// Place the Date label and field at the Hebrew reading edge, leaving their stored ISO
+/// date and time values untouched. English keeps the original left-to-right row.
+fn date_time_row_layout(lang: crate::i18n::Lang) -> egui::Layout {
+    if lang == crate::i18n::Lang::Hebrew {
+        egui::Layout::right_to_left(egui::Align::Center)
+    } else {
+        egui::Layout::left_to_right(egui::Align::Center)
+    }
+}
+
 impl AddReminder {
     /// For the messages selected (`None` when none is), or for the message being written.
     pub fn open(app: &MailApp, target: Target) -> Option<AddReminder> {
@@ -136,7 +146,7 @@ impl AddReminder {
         }
         let mut submitted = false;
         if !self.no_reply || self.days == 0 {
-            ui.horizontal(|ui| {
+            ui.with_layout(date_time_row_layout(crate::i18n::current()), |ui| {
                 ui.label(tl!("Date"));
                 let date = ui.add(egui::TextEdit::singleline(&mut self.date).hint_text("YYYY-MM-DD").char_limit(FIELD_MAX).desired_width(110.0));
                 let date = crate::text_menu::field(date);
@@ -165,6 +175,13 @@ impl AddReminder {
         }
         Outcome::Open
     }
+}
+
+#[cfg(test)]
+#[test]
+fn reminder_date_and_time_read_from_the_hebrew_edge() {
+    assert_eq!(date_time_row_layout(crate::i18n::Lang::Hebrew).main_dir, egui::Direction::RightToLeft);
+    assert_eq!(date_time_row_layout(crate::i18n::Lang::English).main_dir, egui::Direction::LeftToRight);
 }
 
 #[cfg(test)]
