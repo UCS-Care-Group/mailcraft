@@ -1102,7 +1102,8 @@ fn services(
     let check_ctx = ctx.clone();
     let approval_ctx = ctx.clone();
     let fetch_ctx = ctx.clone();
-    let (ews_ctx, ews_fetch_ctx, ews_setup_ctx, ews_resolve_ctx, ews_calendar_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone());
+    let (ews_ctx, ews_fetch_ctx, ews_setup_ctx, ews_resolve_ctx, ews_calendar_ctx) =
+        (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone());
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
     let rules_ctx = ctx.clone();

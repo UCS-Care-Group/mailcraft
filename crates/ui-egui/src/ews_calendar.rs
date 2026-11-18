@@ -109,7 +109,7 @@ impl MailApp {
 
     /// [`ews_calendar_tick`](Self::ews_calendar_tick) at `now` (milliseconds). Whether a job was started.
     pub(crate) fn ews_calendar_tick_at(&mut self, now: f64) -> bool {
-        if !self.auto_sync || self.services.ews_calendar.is_none() || self.ews_calendar.job.is_some() || self.offline() {
+        if !self.session.driver.auto_sync() || self.services.ews_calendar.is_none() || self.ews_calendar.job.is_some() || self.offline() {
             return false;
         }
         if self.session.view.module != Module::Calendar || self.ui.backstage {
@@ -119,11 +119,11 @@ impl MailApp {
         if matches!(self.sync_rx, Some(MailRun::Ews { .. })) {
             return false;
         }
-        let window = self.calendar_window();
+        let window = self.session.calendar_window();
         let accounts: Vec<Id> = self.ews_calendar_accounts().collect();
         for account in accounts {
             // About to have its Send/Receive: that reads the calendar.
-            if self.sync_queue.iter().any(|(queued, _)| *queued == account) {
+            if self.session.driver.round.is_queued(account) {
                 continue;
             }
             if self.ews_calendar_read_lately(account, window, now) {
