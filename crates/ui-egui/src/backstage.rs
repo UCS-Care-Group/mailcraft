@@ -156,14 +156,13 @@ pub(crate) fn jmap_line(a: &mailcraft_model::Account) -> String {
     }
 }
 
-/// A Zimbra account's line: the name of its server alone, and why it isn't kept in step, which is
-/// the switch while Zimbra accounts are being tested, and then that the part that does it is not
-/// built.
+/// A Zimbra account's line: the name of its server alone, and, while Zimbra accounts are switched
+/// off, why it isn't kept in step.
 pub(crate) fn zimbra_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
     let host = a.zimbra.as_ref().and_then(mailcraft_model::ZimbraServer::host);
     let Some(host) = host else { return tl!("Zimbra · no usable server address").to_string() };
     if app.session.zimbra {
-        crate::i18n::fmt(tl!("Zimbra {host} · not kept in step yet: this part is not built"), &[("host", host)])
+        crate::i18n::fmt(tl!("Zimbra {host}"), &[("host", host)])
     } else {
         crate::i18n::fmt(
             tl!("Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"),
@@ -206,8 +205,16 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         // be removed too, leaving an empty mailbox (#313); the empty mailbox's own placeholder
         // can't. (A shared mailbox has both: its settings are its name and colour, #1385.)
         let removable = a.is_shared() || app.session.mailbox.placeholder() != Some(a.id);
-        let buttons = usize::from(!a.email.is_empty()) + usize::from(removable);
-        let text_w = r.width() - 70.0 - 82.0 * buttons as f32;
+        // A button's width is its words' own, at least 74 — a translation longer than English
+        // must not wrap or clip; the text keeps out of the buttons.
+        let button_w = |ui: &Ui, text: &str| {
+            (ui.painter().layout_no_wrap(text.to_string(), egui::FontId::default(), egui::Color32::WHITE).size().x + 24.0).max(74.0)
+        };
+        let settings_w = button_w(ui, tl!("Settings"));
+        let remove_w = button_w(ui, tl!("Remove"));
+        let settings_at = if removable { 20.0 + remove_w + settings_w } else { 12.0 + settings_w };
+        let left_of_buttons = if !a.email.is_empty() { settings_at } else { 12.0 + remove_w };
+        let text_w = (r.width() - 58.0 - left_of_buttons - 8.0).max(0.0);
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), text_w, &title, semibold(13.0), t.text);
         let detail = account_detail(app, a);
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 39.0), text_w, &detail, regular(11.5), t.text_dim);
@@ -228,18 +235,13 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         }
         // The buttons sit on the card: placed without moving the page's layout on (`ui.put` would
-        // take it back up into the card, and what follows was drawn over it). Their width is the
-        // words' own, at least 74 — a translation longer than English must not wrap or clip.
-        let button_w = |ui: &Ui, text: &str| {
-            (ui.painter().layout_no_wrap(text.to_string(), egui::FontId::default(), egui::Color32::WHITE).size().x + 24.0).max(74.0)
-        };
+        // take it back up into the card, and what follows was drawn over it).
         let on_card = |ui: &mut Ui, right: f32, width: f32, button: egui::Button<'_>| {
             let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(width, 26.0));
             ui.new_child(egui::UiBuilder::new().max_rect(br)).add_sized(br.size(), button)
         };
-        let settings_w = button_w(ui, tl!("Settings"));
-        let remove_w = button_w(ui, tl!("Remove"));
-        let settings_at = if removable { 94.0 + remove_w } else { 12.0 + settings_w };
+        // `right` is the gap between the card's right edge and the button's left: Remove's own,
+        // the gap between the buttons, and Settings' width.
         // (An account kept in step through Graph has no servers to change, #312.)
         let settings_tip = if a.is_shared() {
             // (Its sign-in is its owner's, #70: only its name and colour are its own, #1385.)
