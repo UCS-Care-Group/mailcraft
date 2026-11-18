@@ -12,10 +12,12 @@
 //! | Read | From |
 //! |---|---|
 //! | text colour | `color` |
-//! | background colour | `background-color`, the colour in `background` (a `url()` there is never used) |
+//! | background colour | `background-color`, the colour in `background` (also in one too long for the picture written into it) |
+//! | a picture behind a box | `background-image`, `background-repeat`, `background-position`, `background-size` and the picture in `background` (`bg.rs`): only one that is attached to the message or written into it, never one on the web |
 //! | bold, italic | `font-weight`, `font-style`, the same words in `font` |
 //! | underline, strike | `text-decoration`, `text-decoration-line` |
-//! | alignment | `text-align` |
+//! | alignment | `text-align`; `start`, `end` and `justify` follow the paragraph's direction, the sides don't |
+//! | direction | `direction` (`ltr`, `rtl`) and the `dir` attribute (`ltr`, `rtl`, `auto`): a paragraph that reads from the right stands at the right; one with none reads left to right, as in a browser, and only `dir=auto` takes it from its first letter that has a direction (`bidi.rs`) |
 //! | font size | `font-size`, the size in `font` |
 //! | font family | `font-family`, `<font face>`, the families after the size in `font`: the list of names (at most [`MAX_FAMILIES`]), for the reading pane to draw in the first that is installed on this computer and for pasting into the composer; a font is never fetched (`@font-face` is ignored) |
 //! | hidden | `display:none`, `visibility:hidden`, `opacity:0`, `max-height:0`, `max-width:0`, a zero `height` or `width` with `overflow:hidden` |
@@ -28,7 +30,8 @@
 //! | Outlook's lists | `mso-list` (the level, and the marker text to replace) |
 //! | a table's or cell's width | `width` (pixels or a percentage, clamped like the attribute, which it beats), `max-width` (clamped; a zero one hides) |
 //! | centring | `margin: auto`, `margin: 0 auto`, or `margin-left` and `margin-right` both `auto`: like `align=center` on a table, or on a block with a `max-width` |
-//! | boxes on a line | `display: inline-block` |
+//! | boxes on a line | `display: inline-block`, and `display: table` (a box as wide as what is in it; centred by automatic margins) read as it on anything but a `<table>`, whose display that is anyway |
+//! | a link or a span as a box of its own | `display: block` on an `<a>` or a `<span>` that has a background, a frame, padding or a width: a block as wide as its line, as a button written so is (no other `display` value says anything but `none` and the table parts below) |
 //! | table parts | `display: table-row` and `display: table-cell` on ordinary blocks and spans |
 //! | where a cell's content sits | `vertical-align`: `top`, `middle`, `bottom` (`text-top` and `baseline` as `top`, `text-bottom` as `bottom`) |
 //! | gaps between cells | `border-spacing`: its first length, 0 to 16 pixels |
@@ -50,6 +53,8 @@
 //! none, or none that could be read), an element with a `class` or an `id` is not held to the
 //! nothing around it (without that, such a message showed no text at all).
 
+use crate::bg::{BgCss, is_bg_property, without_urls};
+use crate::bidi::{AlignFrom, Dir};
 use crate::{
     Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX, MIN_FONT_PX,
     MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
@@ -127,6 +132,10 @@ pub(crate) struct Css {
     pub underline: Option<bool>,
     pub strike: Option<bool>,
     pub align: Option<Align>,
+    /// Whether that alignment names a side or follows the direction.
+    pub align_from: AlignFrom,
+    /// `direction`, and the `dir` attribute where it gives none ([`crate::blocks::css_of`]).
+    pub direction: Option<Dir>,
     pub size: Option<Size>,
     /// The families of `font-family`, as [`family`] gives them.
     pub font: Option<String>,
@@ -163,10 +172,17 @@ pub(crate) struct Css {
     pub valign: Option<VAlign>,
     /// `display: inline-block`.
     pub inline_block: bool,
+    /// `display: table`: a box as wide as what is in it on anything but a `<table>`, whose display
+    /// that is anyway ([`crate::blocks::asks_box`]).
+    pub table: bool,
+    /// `display: block`: read for a link or a span with a look of its own alone.
+    pub block: bool,
     /// A row or cell role on an ordinary element in a block context.
     pub table_display: Option<TableDisplay>,
     /// `border-spacing`, in pixels.
     pub spacing: Option<u8>,
+    /// A picture behind the box (`bg.rs`, #601).
+    pub bg: BgCss,
 }
 
 impl Css {
@@ -188,10 +204,27 @@ impl Css {
         let (mut clip_x, mut clip_y) = (false, false);
         let mut raw = [RawLine::default(); 4];
         for (property, value) in declarations(truncate(style, max_bytes)).take(max_declarations) {
-            if value.len() > MAX_VALUE || property.len() > 32 {
+            if property.len() > 32 {
                 continue;
             }
             let property = property.to_ascii_lowercase();
+            // (A picture behind a box may be written into the value: it is as long as the caps
+            // on the whole text allow, and keeps its letter case.)
+            if is_bg_property(&property) {
+                css.bg.read(&property, strip_important(value).0);
+            }
+            // (A `background` that is long for the picture written into it keeps its colour: the
+            // pictures are taken out of it before its length is held to the cap.)
+            let shorn;
+            let value = if property == "background" && value.len() > MAX_VALUE {
+                shorn = without_urls(value);
+                shorn.as_str()
+            } else {
+                value
+            };
+            if value.len() > MAX_VALUE {
+                continue;
+            }
             let value = value.to_ascii_lowercase();
             let value = strip_important(&value).0;
             match property.as_str() {
@@ -234,12 +267,22 @@ impl Css {
                         css.strike = Some(true);
                     }
                 }
-                "text-align" => css.align = align(value).or(css.align),
+                "text-align" => {
+                    if let Some(side) = align(value) {
+                        css.align = Some(side);
+                        css.align_from = if matches!(value, "start" | "end" | "justify") { AlignFrom::Flow } else { AlignFrom::Side };
+                    }
+                }
+                "direction" => css.direction = Dir::css(value).or(css.direction),
                 "font-size" => css.size = font_size(value).or(css.size),
                 "font-family" => css.font = family(value).or(css.font.take()),
                 "display" => {
                     display_none = value == "none";
                     css.inline_block = value == "inline-block";
+                    // (`display: table` is a box as wide as what is in it, as a box on a line is:
+                    // a label or a badge written so. On a `<table>` it says nothing: `asks_box`.)
+                    css.table = value == "table";
+                    css.block = value == "block";
                     css.table_display = match value {
                         "table-row" => Some(TableDisplay::Row),
                         "table-cell" => Some(TableDisplay::Cell),
@@ -768,7 +811,7 @@ fn number(text: &str) -> Option<f32> {
 }
 
 /// A number and its unit (lower case; empty when there is none).
-fn dimension(value: &str) -> Option<(f32, &str)> {
+pub(crate) fn dimension(value: &str) -> Option<(f32, &str)> {
     let value = value.trim();
     let split = value.find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | '-' | '+'))).unwrap_or(value.len());
     let n = number(value.get(..split)?)?;
@@ -776,7 +819,7 @@ fn dimension(value: &str) -> Option<(f32, &str)> {
 }
 
 /// A length in absolute units, in CSS pixels. Relative lengths (`em`, `%`) give nothing.
-fn length_px(value: &str) -> Option<f32> {
+pub(crate) fn length_px(value: &str) -> Option<f32> {
     let (n, unit) = dimension(value)?;
     let px = match unit {
         "px" => n,
@@ -1010,6 +1053,11 @@ pub(crate) fn attr_align(value: &str) -> Option<Align> {
         "middle" => Some(Align::Center),
         other => align(other),
     }
+}
+
+/// Whether an `align` attribute says `justify`, which names no side.
+pub(crate) fn attr_justify(value: &str) -> bool {
+    value.trim().eq_ignore_ascii_case("justify")
 }
 
 /// A `<font size>`: 1 to 7, or a step up or down from 3 (`+1`, `-2`).
@@ -1318,7 +1366,7 @@ mod tests {
     fn everything_else_is_ignored() {
         let css = Css::parse(
             "position:absolute; left:-9999px; float:left; line-height:0; \
-             background-image:url(https://tracker.example/p.gif); content:'x'; behavior:url(x.htc); min-width:50%; z-index:9; \
+             content:'x'; behavior:url(x.htc); min-width:50%; z-index:9; \
              transform:scale(9); animation:spin 1s; letter-spacing:4em; text-transform:uppercase",
         );
         assert_eq!(css, Css::default());

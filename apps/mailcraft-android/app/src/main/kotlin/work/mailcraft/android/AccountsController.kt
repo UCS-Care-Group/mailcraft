@@ -15,7 +15,9 @@ import kotlinx.coroutines.launch
  *
  * [accounts] is the list as the app has it now, [changed] is called after the mailbox's accounts
  * changed (to keep the mailbox and read the list again), [copy] puts text on the clipboard, and
- * [texts] says the words of a notice.
+ * [texts] says the words of a notice. [signedIn] is told of every sign-in that worked, after the
+ * screen has moved on: the account, what the phone keeps of its mail, and whether it is new (not in
+ * [accounts] before), so that its first Send/Receive starts at once.
  */
 @Suppress("TooManyFunctions", "LongParameterList")
 internal class AccountsController(
@@ -26,6 +28,7 @@ internal class AccountsController(
     private val changed: suspend () -> Unit,
     private val copy: (String) -> Unit,
     private val retrySave: suspend () -> Unit = {},
+    private val signedIn: suspend (account: ULong, keep: KeepChoice, added: Boolean) -> Unit = { _, _, _ -> },
 ) {
     val ui = MutableStateFlow(AccountsUi())
 
@@ -149,8 +152,12 @@ internal class AccountsController(
             }
             // (Called off, or left for a newer one, while it waited: it never opens its page.)
             if (operation != signInOperation) return@launch
+            // (The accounts before the sign-in: the list may be read again before it returns.)
+            val before = accounts().map { it.id }.toSet()
             val result = api.signIn(email, keep)
             val link = if (result is SignInResult.NeedsApproval) api.approvalLink(email) else null
+            // (Whether the account was there before: a new one has its first sync go through the room gate.)
+            val added = result is SignInResult.SignedIn && result.account !in before
             if (result is SignInResult.SignedIn) {
                 // The sign-in is new: where this account's permissions stand is asked again, now (the
                 // Accounts page may stay on screen with the same list, which asks nothing by itself).
@@ -162,6 +169,10 @@ internal class AccountsController(
                 val current = operation == signInOperation && state.add is AddAccountState.Waiting
                 if (current) state.copy(add = afterSignIn(email, result, link, keep)) else state
             }
+            // Mail starts to come at once (a new account, or one signed in again), not at the next
+            // periodic run: the screen has closed by now, and the list shows the round under way.
+            // (Apart from this sign-in's job, so that a room question left open never holds up the next.)
+            if (result is SignInResult.SignedIn) scope.launch { signedIn(result.account, keep, added) }
         }
     }
 

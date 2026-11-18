@@ -18,17 +18,19 @@ use std::sync::{Arc, Mutex};
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::graph_mail::apply_graph_mail;
 use mailcraft_engine::cmd::graph_send::MAY_HAVE_GONE;
-use mailcraft_model::remote::EventsDownload;
+use mailcraft_model::outlook_colors::OUTLOOK_COLORS;
+use mailcraft_model::remote::{CategoriesDownload, EventsDownload};
 use mailcraft_model::remote_rules::RulesDownload;
 use mailcraft_model::remote_tasks::{RemoteTask, RemoteTaskList, TasksDownload};
 use mailcraft_model::sync::{
     EwsMailResult, FolderListing, GraphFolder, GraphMailResult, GraphMessage, JmapMailResult, MessagePage, SendDone, SendOutcome, ServerMessage,
     SyncRequest, SyncResult, Tokens,
 };
-use mailcraft_model::{Address, FolderKind, Id, Mailbox, Message};
+use mailcraft_model::{Address, Category, FolderKind, Id, Mailbox, Message};
 use serde_json::json;
 
 use crate::auto_replies::{AutoRepliesJob, AutoRepliesResult};
+use crate::category_sync::{CategoriesJob, CategoriesResult};
 use crate::ews_mail::EwsJob;
 use crate::jmap_mail::JmapJob;
 use crate::jobs::JobKind;
@@ -56,6 +58,7 @@ struct Hosts {
     jmap: Kept<JmapJob, JmapMailResult>,
     tasks: Kept<TasksJob, TasksResult>,
     rules: Kept<RulesJob, RulesResult>,
+    categories: Kept<CategoriesJob, CategoriesResult>,
     replies: Kept<AutoRepliesJob, AutoRepliesResult>,
     free_busy: Kept<FreeBusyRequest, FreeBusyResult>,
     check: Kept<CalendarCheckRequest, CalendarCheckResult>,
@@ -169,6 +172,7 @@ fn hosted(mailbox: Mailbox) -> (MailApp, Hosts, Store) {
     keep!(app.services.jmap, hosts.jmap);
     keep!(app.services.graph_tasks, hosts.tasks);
     keep!(app.services.graph_rules, hosts.rules);
+    keep!(app.services.graph_categories, hosts.categories);
     keep!(app.services.graph_auto_replies, hosts.replies);
     keep!(app.services.free_busy, hosts.free_busy);
     keep!(app.services.check_calendar, hosts.check);
@@ -252,6 +256,9 @@ fn row(kind: JobKind, way: Way) {
     if kind == JobKind::FreeBusy {
         calendar = free_busy_calendar(&mut app, ids.microsoft);
     }
+    if kind == JobKind::Categories {
+        categories_read(&mut app, ids.microsoft, "Red category");
+    }
     if kind == JobKind::SignIn {
         app.tokens.remove(&ids.oauth);
         app.graph_tokens.remove(&ids.oauth);
@@ -275,6 +282,7 @@ fn row(kind: JobKind, way: Way) {
         }
         JobKind::Tasks => assert!(app.tasks_tick_at(0.0)),
         JobKind::Rules => assert!(app.rules_tick_at(0.0)),
+        JobKind::Categories => assert!(app.categories_tick_at(0.0)),
         JobKind::AutoReplies => assert!(app.auto_replies_tick_at(0.0)),
         JobKind::SignIn => assert_eq!(app.run("ui.sync", json!({"account": ids.oauth, "secretsAsked": true})).unwrap()["pending"], "signIn"),
         JobKind::AccountSetup => {
@@ -371,6 +379,19 @@ fn row(kind: JobKind, way: Way) {
             let _ = tx.send(RulesResult { account: job.account.id, tokens: Some(stale), download: Some(download), ..Default::default() });
             app.poll_rules();
         }
+        JobKind::Categories => {
+            let (job, tx) = take(&hosts.categories);
+            let categories = vec![Category { name: "From the closed mailbox".into(), color: OUTLOOK_COLORS[0] }];
+            let download = CategoriesDownload { account: job.account.id, email: job.account.email.clone(), categories, complete: true };
+            let _ = tx.send(CategoriesResult {
+                account: job.account.id,
+                tokens: Some(stale),
+                covered: Some(true),
+                download: Some(download),
+                ..Default::default()
+            });
+            app.poll_categories();
+        }
         JobKind::AutoReplies => {
             let (job, tx) = take(&hosts.replies);
             let _ = tx.send(AutoRepliesResult { account: job.account.id, tokens: Some(stale), ..Default::default() });
@@ -396,6 +417,14 @@ fn row(kind: JobKind, way: Way) {
     assert_eq!(store.writes(), writes, "{kind:?} ({way:?}): nothing of A's answer is remembered");
     let kept_stale = app.tokens.values().chain(app.graph_tokens.values()).any(|t| t.access == STALE);
     assert!(!kept_stale, "{kind:?} ({way:?}): A's sign-in is not kept for B's accounts");
+}
+
+/// `account`'s list of categories, as its server's was read once.
+fn categories_read(app: &mut MailApp, account: Id, name: &str) {
+    let email = app.session.mailbox.account(account).unwrap().email.clone();
+    let categories = vec![Category { name: name.into(), color: OUTLOOK_COLORS[0] }];
+    let download = CategoriesDownload { account, email, categories, complete: true };
+    mailcraft_engine::cmd::remote::apply_categories(&mut app.session, &download).unwrap();
 }
 
 /// A calendar of `account`'s server, as its first job brought it.
@@ -433,6 +462,7 @@ fn ways(kind: JobKind) -> &'static [Way] {
         | JobKind::FreeBusy
         | JobKind::Tasks
         | JobKind::Rules
+        | JobKind::Categories
         | JobKind::AutoReplies
         | JobKind::SignIn
         | JobKind::AdminConsent => &[Way::Poll, Way::Frame],
@@ -474,6 +504,7 @@ rows! {
     a_free_busy_answer_for_a_replaced_mailbox_is_let_go => FreeBusy,
     a_tasks_answer_for_a_replaced_mailbox_is_let_go => Tasks,
     a_rules_answer_for_a_replaced_mailbox_is_let_go => Rules,
+    a_categories_answer_for_a_replaced_mailbox_is_let_go => Categories,
     an_auto_replies_answer_for_a_replaced_mailbox_is_let_go => AutoReplies,
     a_sign_in_answer_for_a_replaced_mailbox_is_let_go => SignIn,
     the_add_account_dialog_goes_with_a_replaced_mailbox => AccountSetup,

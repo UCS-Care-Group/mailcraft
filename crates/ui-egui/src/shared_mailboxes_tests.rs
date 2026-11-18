@@ -50,6 +50,8 @@ fn window() -> (MailApp, Id, Answers, Jobs, SignIns) {
     let (answers, jobs, sign_ins): (Answers, Jobs, SignIns) = Default::default();
     let (to_answer, log) = (answers.clone(), jobs.clone());
     app.services.graph = Some(Box::new(move |req: GraphRequest| {
+        // The owner's runs and the shared mailbox's: checked against the owner's sign-in.
+        assert_eq!(req.signer.as_ref().map(|a| a.email.as_str()), Some(OWNER));
         log.lock().unwrap().push((req.account.id, req.refresh.clone(), req.mail.clone(), req.outbox.len(), req.directory));
         let (tx, rx) = mpsc::channel();
         let (answer, pieces) = to_answer.lock().unwrap().pop_front().unwrap_or_default();
@@ -564,9 +566,7 @@ fn add_shared_mailbox_waits_for_a_sign_in_being_renewed() {
         shared: None,
         shared_send: false,
         shared_calendars: false,
-        tasks: false,
-        rules: false,
-        replies: false,
+        sync: false,
         browser: false,
         opening: app.session.openings(),
         rx,
