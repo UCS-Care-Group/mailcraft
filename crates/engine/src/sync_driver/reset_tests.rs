@@ -56,7 +56,7 @@ fn busy_for(driver: &mut Driver, account: Id) {
     driver.rules.book.started(account, 5.0);
     driver.auto_replies.asking(account);
     driver.auto_replies.hold(account, Default::default());
-    driver.auto_replies.waiting = Some((account, Default::default()));
+    driver.auto_replies.waiting.insert(account, Default::default());
     driver.auto_replies.trouble.insert(account, Trouble::SignInToRead);
     driver.auto_replies.started(account, 5.0);
     driver.free_busy.note(
@@ -117,5 +117,5 @@ fn removing_an_account_forgets_what_the_driver_remembered_of_it() {
     assert!(s.driver.tasks.perm.is_empty() && s.driver.rules.perm.is_empty() && s.driver.auto_replies.perm.is_empty());
     assert!(s.driver.calendar.shared_perm.is_empty() && s.driver.calendar.checked.is_empty() && s.driver.favorites.notes.is_empty());
     assert!(s.driver.free_busy.known.is_empty() && s.driver.sending.waits.is_empty() && s.driver.fetch.stuck.is_empty());
-    assert!(s.driver.auto_replies.waiting.is_none() && s.driver.auto_replies.held.is_empty());
+    assert!(s.driver.auto_replies.waiting.is_empty() && s.driver.auto_replies.held.is_empty());
 }
