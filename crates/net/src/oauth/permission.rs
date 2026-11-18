@@ -7,15 +7,17 @@
 //! desktop's (PKCE, the state, the trade of the code): a sign-in that says how it ended
 //! ([`Ending`], which tells Conditional Access's no from an administrator's), and the sign-ins
 //! for the permissions that are asked for by themselves and never with a sign-in
-//! ([`Permission`]): the To Do lists, reading shared mailboxes and sending from them.
+//! ([`Permission`]): the To Do lists, reading shared mailboxes and sending from them. A sign-in's
+//! page asks for all of those now; these pages are for an older sign-in that doesn't cover one.
 
 use super::{
     AtomicBool, Duration, Endpoints, FavoritesRefusal, NetError, OAuth, OAuthProvider, Policy, RedirectStrategy, Refused, Resource, SIGN_IN_TIMEOUT,
     Tokens, attempt_via, shared_scope, shared_send_scope, sign_in_refused_via, tasks_scope,
 };
 
-/// A permission that is asked for by itself, after the program has asked the owner, and never on
-/// the page of a sign-in (so that a sign-in never waits on an administrator).
+/// A permission an older sign-in may not cover, asked for by itself after the program has asked
+/// the owner. A sign-in's page asks for all of them beside the rest, and is asked again with less
+/// when it won't have them, so that a sign-in never waits on an administrator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Permission {
     /// Reading and changing the owner's Microsoft To Do lists and tasks (`Tasks.ReadWrite`).
@@ -36,7 +38,7 @@ pub fn permission_endpoints(oauth: &OAuth, permission: Permission) -> Endpoints 
         Permission::SharedMail => (Resource::GraphMail, shared_scope()),
         Permission::SharedSend => (Resource::GraphMail, shared_send_scope()),
     };
-    Endpoints { scope, consent: String::new(), lesser: String::new(), ..Endpoints::for_resource(oauth, resource) }
+    Endpoints { scope, consent: String::new(), fewer: String::new(), lesser: String::new(), ..Endpoints::for_resource(oauth, resource) }
 }
 
 /// Ask the owner, on the provider's page at `endpoints` (see [`permission_endpoints`]), for one

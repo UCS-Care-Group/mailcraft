@@ -770,7 +770,7 @@ fn too_large_to_download(m: &Message) -> CmdError {
 }
 
 /// A message as a refusal names it: its subject on one line, at most 80 characters of it.
-fn subject_of(m: &Message) -> mailcraft_i18n::Arg {
+pub(crate) fn subject_of(m: &Message) -> mailcraft_i18n::Arg {
     let line = m.subject.split(char::is_control).flat_map(str::split_whitespace).collect::<Vec<_>>().join(" ");
     if line.is_empty() {
         return mailcraft_i18n::Arg::words("(no subject)");
@@ -834,7 +834,7 @@ mod check_names_tests;
 /// place of its text, a note that says so, with the mark `mailcraft-net` gives it. A sender can
 /// write that mark into a message of their own; only plain text that opens as the note does,
 /// with no file, is taken for it.
-fn not_downloaded(m: &Message) -> bool {
+pub(crate) fn not_downloaded(m: &Message) -> bool {
     m.body.html.is_none() && m.attachments.is_empty() && m.body.text.starts_with(NOT_DOWNLOADED_NOTE) && m.has_header(NOT_DOWNLOADED)
 }
 

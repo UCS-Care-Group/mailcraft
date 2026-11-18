@@ -2871,3 +2871,17 @@ fn a_reply_quotes_only_the_first_names_of_a_long_list() {
     let body = c.quote.as_ref().map_or_else(|| c.body.plain(), |q| q.text.clone());
     assert!(body.contains("(+4900)") && !body.contains("u4999@"), "{}", body.len());
 }
+
+/// The window runs a command it asked about first with `"confirmed": true` added (the owner's
+/// yes): no command refuses that note as a parameter it doesn't take. Remove Imported Duplicates
+/// did, so its question's yes could never go ahead.
+#[test]
+fn no_command_refuses_the_windows_yes() {
+    let mut s = session();
+    let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
+    for id in ids {
+        if let Err(e) = s.run(id, &json!({"confirmed": true})) {
+            assert!(!e.to_string().contains("`confirmed` isn't a parameter"), "{id}: {e}");
+        }
+    }
+}

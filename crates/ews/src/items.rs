@@ -35,6 +35,14 @@ const MAX_PEOPLE: usize = 200;
 const MAX_CATEGORIES: usize = 50;
 const MAX_CATEGORY: usize = 255;
 
+/// What a list shows of an item that the `Default` shape doesn't give of every kind of item,
+/// asked for by name in every shape (#1457). Of a meeting request, response or cancellation
+/// (`MeetingRequest`, `MeetingResponse`, `MeetingCancellation`: [MS-OXWSMTGS]) Exchange Server
+/// 2019 gives no time, size, sender, importance or `Message-ID` in that shape, and of a message
+/// not the time it arrived or its importance; without them a meeting request was listed as sent
+/// and received at no time, by nobody, at the bottom of the Inbox and the last to be fetched.
+const LISTED: [&str; 6] = ["item:DateTimeReceived", "item:DateTimeSent", "item:Size", "item:Importance", "message:From", "message:InternetMessageId"];
+
 /// Which properties `SyncFolderItems` asks for besides the default ones.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Shape {
@@ -103,11 +111,12 @@ impl SyncFolderItems {
         Self { folder: folder.to_owned(), state: state.to_owned(), max: max.clamp(1, MAX_CHANGES), shape }
     }
 
-    /// The operation as the schema has it: `ItemShape`, `SyncFolderId`, `SyncState`,
-    /// `MaxChangesReturned`, `SyncScope`.
+    /// The operation as the schema has it: `ItemShape` (the `Default` shape and what a list
+    /// shows that it may lack, [`LISTED`]), `SyncFolderId`, `SyncState`, `MaxChangesReturned`,
+    /// `SyncScope`.
     pub fn element(&self) -> Element {
         let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
-        let mut extra = Element::new("t:AdditionalProperties");
+        let mut extra = LISTED.iter().fold(Element::new("t:AdditionalProperties"), |all, name| all.child(uri(name)));
         if self.shape != Shape::Bare {
             extra = extra.child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
         }

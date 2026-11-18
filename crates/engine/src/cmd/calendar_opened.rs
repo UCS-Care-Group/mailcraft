@@ -20,7 +20,7 @@
 //! [`apply_calendars`]: super::remote::apply_calendars
 
 use mailcraft_model::remote::{OpenedRefusal, OpenedWhy, opened_address, opened_id};
-use mailcraft_model::{Account, Calendar, Directory, Id, MAX_OPENED_CALENDARS, OAuthProvider, OpenedCalendar};
+use mailcraft_model::{Account, Calendar, Id, MAX_OPENED_CALENDARS, OAuthProvider, OpenedCalendar};
 use serde_json::{Value, json};
 
 use super::{bad, fail};
@@ -116,12 +116,7 @@ pub fn eligible(account: &Account) -> Result<(), &'static str> {
     if !microsoft || account.is_shared() {
         return Err("Other people's calendars can be opened under an account that signs in with Microsoft");
     }
-    let personal = account
-        .oauth
-        .as_ref()
-        .is_some_and(|oauth| oauth.directory == Directory::Personal || Directory::of_tenant(&oauth.tenant) == Directory::Personal)
-        || mailcraft_model::provider::by_domain(account.email.rsplit_once('@').map_or("", |(_, domain)| domain))
-            .is_some_and(|preset| preset.service == "Outlook.com");
+    let personal = account.oauth.as_ref().is_some_and(|oauth| oauth.is_personal(&account.email));
     if personal {
         return Err("Other people's calendars can only be opened under a Microsoft work or school account, not a personal one (Outlook.com)");
     }
