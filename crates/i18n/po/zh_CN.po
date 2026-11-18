@@ -1644,8 +1644,9 @@ msgstr "应用下载的待办事项"
 
 #. command label
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "Apply IMAP Fetch"
-msgstr ""
+msgstr "应用 IMAP 获取"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
@@ -3940,8 +3941,9 @@ msgstr "无法保存邮箱：{error}"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
-msgstr ""
+msgstr "无法发送“{subject}”：它尚未下载"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -6789,8 +6791,9 @@ msgstr "我是管理员：为我的组织批准"
 
 #. command label
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "IMAP Fetch Request"
-msgstr ""
+msgstr "IMAP 获取请求"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -21357,8 +21360,9 @@ msgstr "从不"
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "no IMAP account with id {id}"
-msgstr ""
+msgstr "没有 ID 为 {id} 的 IMAP 账户"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
@@ -21404,8 +21408,9 @@ msgstr "没有账户连接到邮件服务器（文件 › 添加账户）"
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "no account is connected to an IMAP server"
-msgstr ""
+msgstr "没有账户连接到 IMAP 服务器"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
@@ -21421,8 +21426,9 @@ msgstr "没有账户通过 Microsoft Graph 同步"
 
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
+#, fuzzy
 msgid "no account keeps a window of mail on this computer"
-msgstr ""
+msgstr "没有账户在此计算机上保留一段时间范围内的邮件"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -23211,13 +23217,15 @@ msgstr "此邮件已在“已暂缓”文件夹中"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
-msgstr ""
+msgstr "此邮件尚未下载：请联网后打开，再回复或转发"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "this message isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "此邮件尚未下载：请联网后打开，再保存"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23947,8 +23955,9 @@ msgstr "{name} 未连接到邮件服务器"
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "{name} isn't connected to an IMAP server"
-msgstr ""
+msgstr "{name} 未连接到 IMAP 服务器"
 
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
@@ -23970,8 +23979,9 @@ msgstr "{name} 不在发送/接收队列中"
 
 #. what a command says
 #: crates/engine/src/cmd/offline.rs
+#, fuzzy
 msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
-msgstr ""
+msgstr "{name} 将其所有邮件保存在此计算机上：只有 Microsoft、Exchange 服务器或 IMAP 账户才会保留一段时间范围内的邮件"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -24664,8 +24674,9 @@ msgstr[0] "{n} 条便笺"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr ""
+msgstr "“{folder}”中有 {n} 封邮件尚未下载，因此无法完整导出：请联网后打开它们（或在账户设置中将所有邮件保留为离线），然后重新导出"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -25139,8 +25150,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it, then send it again"
-msgstr ""
+msgstr "“{subject}”尚未下载：请先打开，然后再次发送"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

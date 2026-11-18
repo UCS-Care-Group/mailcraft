@@ -1648,8 +1648,9 @@ msgstr "Zastosuj pobrane zadania do wykonania"
 
 #. command label
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "Apply IMAP Fetch"
-msgstr ""
+msgstr "Zastosuj pobieranie IMAP"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
@@ -3946,8 +3947,9 @@ msgstr "Nie udało się zapisać skrzynki pocztowej: {error}"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
-msgstr ""
+msgstr "Nie udało się wysłać „{subject}”: wiadomość nie została jeszcze pobrana"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -6822,8 +6824,9 @@ msgstr "Jestem administratorem: zatwierdź go dla mojej organizacji"
 
 #. command label
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "IMAP Fetch Request"
-msgstr ""
+msgstr "Żądanie pobrania IMAP"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -21442,8 +21445,9 @@ msgstr "nigdy"
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "no IMAP account with id {id}"
-msgstr ""
+msgstr "brak konta IMAP o identyfikatorze {id}"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
@@ -21489,8 +21493,9 @@ msgstr "żadne konto nie jest połączone z serwerem poczty (Plik › Dodaj kont
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "no account is connected to an IMAP server"
-msgstr ""
+msgstr "żadne konto nie jest połączone z serwerem IMAP"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
@@ -21506,8 +21511,9 @@ msgstr "żadne konto nie jest synchronizowane przez Microsoft Graph"
 
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
+#, fuzzy
 msgid "no account keeps a window of mail on this computer"
-msgstr ""
+msgstr "żadne konto nie przechowuje okna poczty na tym komputerze"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -23296,13 +23302,15 @@ msgstr "ta wiadomość jest już w folderze Odłożone"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
-msgstr ""
+msgstr "ta wiadomość nie została jeszcze pobrana: otwórz ją, gdy będziesz online, a potem odpowiedz na nią lub przekaż ją dalej"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "this message isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "ta wiadomość nie została jeszcze pobrana: otwórz ją, gdy będziesz online, a potem zapisz"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24036,8 +24044,9 @@ msgstr "{name} nie jest połączony z serwerem poczty"
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "{name} isn't connected to an IMAP server"
-msgstr ""
+msgstr "{name} nie jest połączone z serwerem IMAP"
 
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
@@ -24059,8 +24068,9 @@ msgstr "{name} nie czeka na swoją kolej w Wyślij/Odbierz"
 
 #. what a command says
 #: crates/engine/src/cmd/offline.rs
+#, fuzzy
 msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
-msgstr ""
+msgstr "{name} przechowuje całą pocztę na tym komputerze: okno poczty przechowuje tylko konto Microsoft, serwera Exchange lub IMAP"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -24919,8 +24929,9 @@ msgstr[2] "{n} notatek"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr ""
+msgstr "„{folder}”: liczba niepobranych jeszcze wiadomości to {n}, więc folderu nie można wyeksportować w całości: otwórz je, gdy będziesz online (lub zachowaj całą pocztę offline w ustawieniach konta), a potem wyeksportuj ponownie"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -25460,8 +25471,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it, then send it again"
-msgstr ""
+msgstr "„{subject}” nie została jeszcze pobrana: otwórz ją, a potem wyślij ponownie"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

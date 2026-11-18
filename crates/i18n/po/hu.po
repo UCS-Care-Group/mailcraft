@@ -1648,8 +1648,9 @@ msgstr "Letöltött feladatok alkalmazása"
 
 #. command label
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "Apply IMAP Fetch"
-msgstr ""
+msgstr "IMAP-letöltés alkalmazása"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
@@ -3939,8 +3940,9 @@ msgstr "Nem menthette meg a postafiókát: {error}"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
-msgstr ""
+msgstr "Nem sikerült elküldeni: „{subject}”, mert még nincs letöltve"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -6788,8 +6790,9 @@ msgstr "Ügyvezető vagyok: hagyja jóvá a szervezetem számára."
 
 #. command label
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "IMAP Fetch Request"
-msgstr ""
+msgstr "IMAP-letöltési kérés"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -21364,8 +21367,9 @@ msgstr "Soha"
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "no IMAP account with id {id}"
-msgstr ""
+msgstr "nincs {id} azonosítójú IMAP-fiók"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
@@ -21411,8 +21415,9 @@ msgstr "egyetlen fiók sem kapcsolódik levelezési kiszolgálóhoz (Fájl › F
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "no account is connected to an IMAP server"
-msgstr ""
+msgstr "egyetlen fiók sincs IMAP-kiszolgálóhoz csatlakoztatva"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
@@ -21428,8 +21433,9 @@ msgstr "nincs fiókot lépésben tartani a Microsoft Graph"
 
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
+#, fuzzy
 msgid "no account keeps a window of mail on this computer"
-msgstr ""
+msgstr "egyetlen fiók sem tart levélablakot ezen a számítógépen"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -23218,13 +23224,15 @@ msgstr "Ez az üzenet már a Snoozed mappában van."
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
-msgstr ""
+msgstr "ez az üzenet még nincs letöltve: nyissa meg, ha online van, majd válaszoljon rá vagy továbbítsa"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "this message isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "ez az üzenet még nincs letöltve: nyissa meg, ha online van, majd mentse el"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23956,8 +23964,9 @@ msgstr "{name} nincs kapcsolatban a postaszerverrel."
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "{name} isn't connected to an IMAP server"
-msgstr ""
+msgstr "{name} nincs IMAP-kiszolgálóhoz csatlakoztatva"
 
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
@@ -23979,8 +23988,9 @@ msgstr "{name} nem várja, hogy a Send/Receive"
 
 #. what a command says
 #: crates/engine/src/cmd/offline.rs
+#, fuzzy
 msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
-msgstr ""
+msgstr "{name} minden levelét ezen a számítógépen tartja: csak a Microsoft-, az Exchange-kiszolgáló- vagy az IMAP-fiók tart belőlük ablakot"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -24756,8 +24766,9 @@ msgstr[1] "{n} jegyzet"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr ""
+msgstr "„{folder}” mappában {n} üzenet még nincs letöltve, ezért a mappa nem exportálható teljesen: nyissa meg őket, ha online van (vagy tartsa offline az összes levelet a fiók beállításaiban), majd exportáljon újra"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -25264,8 +25275,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it, then send it again"
-msgstr ""
+msgstr "„{subject}” még nincs letöltve: nyissa meg, majd küldje el újra"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

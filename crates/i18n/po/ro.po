@@ -1646,8 +1646,9 @@ msgstr "Aplicare sarcini descărcate"
 
 #. command label
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "Apply IMAP Fetch"
-msgstr ""
+msgstr "Aplicare preluare IMAP"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
@@ -3944,8 +3945,9 @@ msgstr "Cutia poștală nu a putut fi salvată: {error}"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
-msgstr ""
+msgstr "Nu s-a putut trimite „{subject}”: nu este încă descărcat"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -6818,8 +6820,9 @@ msgstr "Sunt administrator: îl aprob pentru organizația mea"
 
 #. command label
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "IMAP Fetch Request"
-msgstr ""
+msgstr "Cerere de preluare IMAP"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -21435,8 +21438,9 @@ msgstr "niciodată"
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "no IMAP account with id {id}"
-msgstr ""
+msgstr "nu există niciun cont IMAP cu identificatorul {id}"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
@@ -21482,8 +21486,9 @@ msgstr "niciun cont nu este conectat la un server de e-mail (Fișier › Adăuga
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "no account is connected to an IMAP server"
-msgstr ""
+msgstr "niciun cont nu este conectat la un server IMAP"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
@@ -21499,8 +21504,9 @@ msgstr "niciun cont nu este sincronizat prin Microsoft Graph"
 
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
+#, fuzzy
 msgid "no account keeps a window of mail on this computer"
-msgstr ""
+msgstr "niciun cont nu păstrează o fereastră de e-mailuri pe acest computer"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -23289,13 +23295,15 @@ msgstr "acest mesaj este deja în folderul Amânate"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
-msgstr ""
+msgstr "acest mesaj nu este încă descărcat: deschideți-l când sunteți online, apoi răspundeți la el sau redirecționați-l"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "this message isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "acest mesaj nu este încă descărcat: deschideți-l când sunteți online, apoi salvați-l"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24029,8 +24037,9 @@ msgstr "{name} nu este conectat la un server de e-mail"
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "{name} isn't connected to an IMAP server"
-msgstr ""
+msgstr "{name} nu este conectat la un server IMAP"
 
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
@@ -24052,8 +24061,9 @@ msgstr "{name} nu își așteaptă rândul într-o Trimitere/primire"
 
 #. what a command says
 #: crates/engine/src/cmd/offline.rs
+#, fuzzy
 msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
-msgstr ""
+msgstr "{name} păstrează tot e-mailul pe acest computer: doar un cont Microsoft, Exchange sau IMAP păstrează o fereastră din el"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -24912,8 +24922,9 @@ msgstr[2] "{n} de note"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr ""
+msgstr "{n} dintre mesajele din „{folder}” nu sunt încă descărcate, deci dosarul nu poate fi exportat integral: deschideți-le când sunteți online (sau păstrați tot e-mailul offline în setările contului), apoi exportați din nou"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -25453,8 +25464,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it, then send it again"
-msgstr ""
+msgstr "„{subject}” nu este încă descărcat: deschideți-l, apoi trimiteți-l din nou"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

@@ -1639,8 +1639,9 @@ msgstr "Použít stažené úkoly"
 
 #. command label
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "Apply IMAP Fetch"
-msgstr ""
+msgstr "Použít stažení IMAP"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
@@ -3936,8 +3937,9 @@ msgstr "Poštovní schránku se nepodařilo uložit: {error}"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
-msgstr ""
+msgstr "Nepodařilo se odeslat „{subject}“: ještě není stažená"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -6809,8 +6811,9 @@ msgstr "Jsem správce: schválit ho pro mou organizaci"
 
 #. command label
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "IMAP Fetch Request"
-msgstr ""
+msgstr "Požadavek na stažení IMAP"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -21410,8 +21413,9 @@ msgstr "nikdy"
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "no IMAP account with id {id}"
-msgstr ""
+msgstr "neexistuje žádný účet IMAP s ID {id}"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
@@ -21457,8 +21461,9 @@ msgstr "žádný účet není připojen k poštovnímu serveru (Soubor › Přid
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "no account is connected to an IMAP server"
-msgstr ""
+msgstr "žádný účet není připojen k serveru IMAP"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
@@ -21474,8 +21479,9 @@ msgstr "žádný účet se nesynchronizuje přes Microsoft Graph"
 
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
+#, fuzzy
 msgid "no account keeps a window of mail on this computer"
-msgstr ""
+msgstr "žádný účet v tomto počítači neuchovává okno pošty"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -23264,13 +23270,15 @@ msgstr "tato zpráva už je ve složce Odložené"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
-msgstr ""
+msgstr "tato zpráva ještě není stažená: otevřete ji, až budete online, a pak na ni odpovězte nebo ji přepošlete"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "this message isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "tato zpráva ještě není stažená: otevřete ji, až budete online, a pak ji uložte"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24004,8 +24012,9 @@ msgstr "{name} není připojen k poštovnímu serveru"
 
 #. what a command says
 #: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
 msgid "{name} isn't connected to an IMAP server"
-msgstr ""
+msgstr "{name} není připojen k serveru IMAP"
 
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
@@ -24027,8 +24036,9 @@ msgstr "{name} nečeká na řadu v Odeslat/přijmout"
 
 #. what a command says
 #: crates/engine/src/cmd/offline.rs
+#, fuzzy
 msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
-msgstr ""
+msgstr "{name} uchovává všechnu poštu v tomto počítači: okno pošty uchovává jen účet Microsoft, serveru Exchange nebo IMAP"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -24884,8 +24894,9 @@ msgstr[2] "{n} poznámek"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr ""
+msgstr "Ve složce „{folder}“ ještě nejsou stažené zprávy (počet: {n}), takže ji nelze exportovat celou: otevřete je, až budete online (nebo v nastavení účtu ponechte všechnu poštu offline), a pak exportujte znovu"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -25425,8 +25436,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it, then send it again"
-msgstr ""
+msgstr "„{subject}“ ještě není stažená: otevřete ji a pak ji odešlete znovu"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
