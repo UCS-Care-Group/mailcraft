@@ -34,7 +34,16 @@ impl Core {
     /// accounts of a kind that isn't sent and received here yet.
     pub async fn sync_now(&self) -> Result<SyncAnswer, CoreError> {
         let sync = self.sync.clone();
-        self.call(move |session| Ok(sync.ask(session, None))).await
+        self.call(move |session| Ok(sync.ask(session, None, true))).await
+    }
+
+    /// Send and receive now without letting go of the accounts held back
+    /// ([`Core::hold_background_sync`]): for a round the app starts by itself and not on the
+    /// owner's word, such as a new account's first one (which the owner's yes let go already).
+    /// Otherwise as [`Core::sync_now`]: it returns at once, and says why when it didn't start.
+    pub async fn sync_keeping_holds(&self) -> Result<SyncAnswer, CoreError> {
+        let sync = self.sync.clone();
+        self.call(move |session| Ok(sync.ask(session, None, false))).await
     }
 
     /// Hold `account` back from Send/Receive, the calendar's, the to-dos' and the background's
@@ -46,6 +55,8 @@ impl Core {
         let sync = self.sync.clone();
         self.call(move |session| {
             if session.mailbox.account(account).is_none() {
+                // (Held from the core's opening, when the app's list named it, and gone since.)
+                sync.hold(account, false);
                 return Err(CoreError::BadRequest { reason: "there is no such account".to_string() });
             }
             sync.hold(account, held);
@@ -238,7 +249,7 @@ struct StopOnDrop<'a> {
 /// then call off in its place.
 pub(crate) fn start_attached(sync: &SyncHost, session: &mut Session, waiter: Arc<Queue<Wake>>, shared: &Started) -> SyncAnswer {
     let round = sync.round();
-    let answer = sync.ask(session, Some(waiter));
+    let answer = sync.ask(session, Some(waiter), false);
     if answer.started {
         shared.round.store(round.saturating_add(1), Ordering::SeqCst);
         // Dropped while this ran: the drop may not have seen the round, so it is called off here.
