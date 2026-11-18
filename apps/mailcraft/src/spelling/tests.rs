@@ -26,5 +26,5 @@ fn a_bare_locale_prefers_the_exact_dictionary_when_the_platform_picks_a_region_f
     assert_eq!(found, "en");
     assert_eq!(prefer_bare_locale("en", "en-GB".to_owned(), String::as_str, tags, |_| Some("en-US".to_owned())), "en-GB");
     assert_eq!(prefer_bare_locale("en", "en-GB".to_owned(), String::as_str, || vec!["en-GB".into()], |_| panic!("no bare locale")), "en-GB");
-    assert_eq!(prefer_bare_locale("en-GB", "en-GB".to_owned(), String::as_str, || panic!("regional locale"), |_| panic!("already exact")), "en-GB");
+    assert_eq!(prefer_bare_locale("en-GB", "en_GB".to_owned(), String::as_str, || panic!("regional locale"), |_| panic!("already exact")), "en_GB");
 }
