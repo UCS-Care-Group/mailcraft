@@ -56,8 +56,13 @@ fn pill(ui: &mut Ui, app: &mut MailApp, h: f32, icon: &str, label: &str, tip: &s
         t.title_bar
     };
     ui.painter().rect(r, h / 2.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 15.0, r.center().y), vec2(16.0, 16.0)), icon, t.icon, t.accent);
-    ui.painter().text(pos2(r.min.x + 26.0, r.center().y), Align2::LEFT_CENTER, label, font, t.text);
+    // In Hebrew the icon leads from the right reading edge; keep the whole
+    // clickable pill and its command unchanged in both interface directions.
+    let rtl = crate::i18n::current() == crate::i18n::Lang::Hebrew;
+    let icon_x = if rtl { r.max.x - 15.0 } else { r.min.x + 15.0 };
+    let (label_x, label_align) = if rtl { (r.max.x - 26.0, Align2::RIGHT_CENTER) } else { (r.min.x + 26.0, Align2::LEFT_CENTER) };
+    icons::paint(ui.painter(), Rect::from_center_size(pos2(icon_x, r.center().y), vec2(16.0, 16.0)), icon, t.icon, t.accent);
+    ui.painter().text(pos2(label_x, r.center().y), label_align, label, font, t.text);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
     if resp.on_hover_text(tip).clicked() {
         let _ = app.run(id, json!({}));
