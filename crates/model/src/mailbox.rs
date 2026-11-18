@@ -19,7 +19,7 @@ mod snooze;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
-    ThreadIndex, clean_name,
+    ThreadIndex, ZimbraServer, clean_name,
 };
 #[cfg(test)]
 pub(crate) use bulk::MOVE_EACH_CALLS;
@@ -369,6 +369,13 @@ pub enum AccountKind {
     /// Its server is [`Account::ews`]; the password is given by whoever holds the connection and
     /// is never written anywhere.
     Exchange,
+    /// A mailbox on a Zimbra Collaboration server, kept in step through Zimbra's own web service
+    /// (its SOAP API in JSON, and its REST addresses for whole messages) over HTTPS alone, never by
+    /// IMAP or SMTP. Its server is [`Account::zimbra`]; the password is given by whoever holds the
+    /// connection and is never written anywhere. Works only while its switch is on
+    /// ([`AccountKind::needs_switch`]): switched off, an account of this kind in a mailbox opens
+    /// and shows its mail, but is not kept in step.
+    Zimbra,
     /// A kind this version doesn't know: an account that a newer MailCraft added, in a file that
     /// one wrote (or one whose kind can't be read at all). Only what says which account it is
     /// is read of it; the whole of it is kept as the file had it and written back so
@@ -383,26 +390,37 @@ impl AccountKind {
     /// Not an account of a kind this version doesn't know: whatever server it has, this version
     /// can't use it.
     pub fn has_server(self) -> bool {
-        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
+        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange | AccountKind::Zimbra)
     }
 
     /// Whether the account keeps its mail in full only within its mail to keep offline (#143),
-    /// and older mail as headers and a preview: a Microsoft account and an Exchange server account
-    /// (#966), which both bring every message's headers and fetch the whole messages afterwards.
+    /// and older mail as headers and a preview: a Microsoft account, an Exchange server account
+    /// (#966) and a Zimbra account, which all bring every message's headers and fetch the whole
+    /// messages afterwards.
     pub fn has_offline_window(self) -> bool {
-        matches!(self, AccountKind::Microsoft | AccountKind::Exchange)
+        matches!(self, AccountKind::Microsoft | AccountKind::Exchange | AccountKind::Zimbra)
     }
 
     /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP,
-    /// through Microsoft Graph, through Exchange Web Services, or over JMAP).
+    /// through Microsoft Graph, through Exchange Web Services, or over JMAP). Not yet for a Zimbra
+    /// account: its sending comes after its reading, and until then no mail is put in its Outbox,
+    /// where it would wait for ever.
     pub fn sends_mail(self) -> bool {
         matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
 
+    /// Whether the kind is kept in step only while its feature switch is on (`MAILCRAFT_ZIMBRA=1`:
+    /// `Session::zimbra` in the engine). Switched off, an account of the kind opens and shows its
+    /// mail, and nothing is synchronised or sent for it.
+    pub fn needs_switch(self) -> bool {
+        matches!(self, AccountKind::Zimbra)
+    }
+
     /// Whether the account's folders and messages are known to its server by the ids the server
-    /// hands out (Microsoft Graph, JMAP), rather than by IMAP's paths and UIDs.
+    /// hands out (Microsoft Graph, JMAP, Exchange Web Services, Zimbra), rather than by IMAP's
+    /// paths and UIDs.
     pub fn server_ids(self) -> bool {
-        matches!(self, AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
+        matches!(self, AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange | AccountKind::Zimbra)
     }
 }
 
@@ -502,6 +520,12 @@ pub struct Account {
     /// account has none, and in a file from before there were any.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::dav_server::lenient_repaired")]
     pub dav: Option<DavServer>,
+    /// For an [`AccountKind::Zimbra`] account: where its server's web client is, the user name it
+    /// signs in with, the certificate it trusts and where its changes go on from
+    /// ([`ZimbraServer`]). Plain settings: the password is never kept here. `None` for every other
+    /// account, and in a file from before there were any.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub zimbra: Option<ZimbraServer>,
     /// Delete on a whole conversation of more than one message goes ahead without asking first
     /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
     /// for a new account and in a file from before there was one: the question is asked. A

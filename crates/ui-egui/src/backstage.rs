@@ -128,6 +128,8 @@ pub(crate) fn account_detail(app: &MailApp, a: &mailcraft_model::Account) -> Str
         AccountKind::Jmap => jmap_line(a),
         // An Exchange server account names its server, and says why it isn't kept in step.
         AccountKind::Exchange => ews_line(app, a),
+        // A Zimbra account names its server, and says why it isn't kept in step.
+        AccountKind::Zimbra => zimbra_line(app, a),
         // Kept as its file has it: this version neither sends nor receives with it.
         AccountKind::Unknown => tl!("Added by a newer version of MailCraft: send and receive with it there").to_string(),
         AccountKind::Imap => {
@@ -151,6 +153,22 @@ pub(crate) fn jmap_line(a: &mailcraft_model::Account) -> String {
     match a.jmap.as_ref().and_then(mailcraft_model::JmapServer::host) {
         Some(host) => crate::i18n::fmt(tl!("JMAP {host}"), &[("host", host)]),
         None => tl!("JMAP · no usable server address").to_string(),
+    }
+}
+
+/// A Zimbra account's line: the name of its server alone, and why it isn't kept in step, which is
+/// the switch while Zimbra accounts are being tested, and then that the part that does it is not
+/// built.
+pub(crate) fn zimbra_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
+    let host = a.zimbra.as_ref().and_then(mailcraft_model::ZimbraServer::host);
+    let Some(host) = host else { return tl!("Zimbra · no usable server address").to_string() };
+    if app.session.zimbra {
+        crate::i18n::fmt(tl!("Zimbra {host} · not kept in step yet: this part is not built"), &[("host", host)])
+    } else {
+        crate::i18n::fmt(
+            tl!("Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"),
+            &[("host", host)],
+        )
     }
 }
 

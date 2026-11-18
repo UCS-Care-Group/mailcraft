@@ -1,0 +1,1 @@
+| 2026-11-16 | minor | Zimbra accounts, first step (Z1): `AccountKind::Zimbra`, `Account::zimbra`, the request and result shapes in `sync::zimbra`, three registered commands, the `MAILCRAFT_ZIMBRA` switch in the data flow |

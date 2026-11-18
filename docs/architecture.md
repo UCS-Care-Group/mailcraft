@@ -96,7 +96,16 @@ can be avoided, no `TODO`); each file carries the SPDX lines (`cargo xtask spdx`
    (`ui-egui`'s `ews_setup`), never in a server's words; `account.add` with `kind: "exchange"` then
    adds it. A certificate the system doesn't trust is shown and trusted by fingerprint only on the
    owner's tick; File › Info shows the server, the user name, the sign-in and that certificate, with
-   Forget (`account.forgetEwsCertificate`).
+   Forget (`account.forgetEwsCertificate`). A Zimbra account (Zimbra Collaboration, through
+   the server's own web service: its SOAP API in JSON and its REST addresses for whole messages)
+   is to go the same way, and is being built behind the switch `MAILCRAFT_ZIMBRA=1`
+   (`Session::zimbra`, set by the host): `AccountKind::Zimbra`, `Account::zimbra` (the web
+   client's address, the user name, a trusted certificate's fingerprint and the change token its
+   `SyncRequest` goes on from), the request and result shapes in `model`'s `sync::zimbra` (one
+   token for the whole mailbox, a complete folder listing, pages of changes or of a folder read
+   afresh), and `sync.zimbraRequest`, `sync.applyZimbra` and `sync.zimbraFetchRequest`, which
+   refuse with the switch off and say they are not built with it on. Off, a Zimbra account in a
+   mailbox opens and shows its mail, and nothing is sent or received for it.
 5. **Save:** the desktop app writes the mailbox file a few seconds after each change and on
    exit; the browser writes to its storage; File › Save As and the exports write other files (a
    download in the browser).

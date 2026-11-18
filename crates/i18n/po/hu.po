@@ -1,7 +1,7 @@
 # MailCraft's interface in Hungarian. Kept up to date by cargo xtask i18n.
 # The catalogue is a draft for native-speaker review.
 msgid ""
-msgstr ""
+msgstr "Munkahét"
 "Project-Id-Version: MailCraft\n"
 "PO-Revision-Date: 2026-11-14 21:30+0100\n"
 "Last-Translator: MailCraft contributors\n"
@@ -690,7 +690,7 @@ msgstr "Névjegy"
 msgid ""
 "About\n"
 "MailCraft"
-msgstr ""
+msgstr "Munkahét"
 "A MailCraft\n"
 "névjegye"
 
@@ -784,7 +784,7 @@ msgstr "Fiók"
 msgid ""
 "Account\n"
 "Settings"
-msgstr ""
+msgstr "Munkahét"
 "Fiók-\n"
 "beállítások"
 
@@ -842,7 +842,7 @@ msgstr "Hozzáadás"
 msgid ""
 "Add\n"
 "Account"
-msgstr ""
+msgstr "Munkahét"
 "Fiók\n"
 "hozzáadása"
 
@@ -1050,7 +1050,7 @@ msgstr "A kategória felvétele az Outlook listájára, az Outlook legközelebbi
 msgid ""
 "Add to\n"
 "Favorites"
-msgstr ""
+msgstr "Munkahét"
 "Hozzáadás a\n"
 "Kedvencekhez"
 
@@ -1701,6 +1701,11 @@ msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "Küldés/fogadás alkalmazása a Microsoft Graph-al"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Apply Send/Receive with Zimbra"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "Apply Sent Calendar Changes"
@@ -2056,7 +2061,7 @@ msgstr "Csatolás"
 msgid ""
 "Attach\n"
 "File"
-msgstr ""
+msgstr "Munkahét"
 "Fájl\n"
 "csatolása"
 
@@ -2698,7 +2703,7 @@ msgstr "Mégse"
 msgid ""
 "Cancel\n"
 "All"
-msgstr ""
+msgstr "Munkahét"
 "Összes\n"
 "megszakítása"
 
@@ -3058,7 +3063,7 @@ msgstr "Diagram"
 msgid ""
 "Check\n"
 "Names"
-msgstr ""
+msgstr "Munkahét"
 "Nevek\n"
 "ellenőrzése"
 
@@ -3670,7 +3675,7 @@ msgstr "Másolás"
 msgid ""
 "Copy\n"
 "Diagnostics"
-msgstr ""
+msgstr "Munkahét"
 "Diagnosztikai adatok\n"
 "másolása"
 
@@ -4730,6 +4735,11 @@ msgstr "Képek letöltése az All Mail-ben"
 msgid "Download Pictures in Mail Automatically"
 msgstr "Képek automatikus letöltése a Mail-ben"
 
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Download Zimbra Messages in Full"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -4966,7 +4976,7 @@ msgstr "Szerkesztés"
 msgid ""
 "Edit\n"
 "Contact"
-msgstr ""
+msgstr "Munkahét"
 "Névjegy\n"
 "szerkesztése"
 
@@ -4976,7 +4986,7 @@ msgstr ""
 msgid ""
 "Edit\n"
 "Task"
-msgstr ""
+msgstr "Munkahét"
 "Feladat\n"
 "szerkesztése"
 
@@ -5064,7 +5074,7 @@ msgstr "E-mail"
 msgid ""
 "Email\n"
 "Calendar"
-msgstr ""
+msgstr "Munkahét"
 "Naptár küldése\n"
 "e-mailben"
 
@@ -5438,7 +5448,7 @@ msgstr "Exportálás"
 msgid ""
 "Export\n"
 "Contacts"
-msgstr ""
+msgstr "Munkahét"
 "Névjegyek\n"
 "exportálása"
 
@@ -5576,7 +5586,7 @@ msgstr "Szűrő"
 msgid ""
 "Filter\n"
 "Email"
-msgstr ""
+msgstr "Munkahét"
 "Üzenetek\n"
 "szűrése"
 
@@ -5748,7 +5758,7 @@ msgstr "Mappa"
 msgid ""
 "Folder\n"
 "Pane"
-msgstr ""
+msgstr "Munkahét"
 "Mappa-\n"
 "ablak"
 
@@ -5990,7 +6000,7 @@ msgstr "Továbbítás"
 msgid ""
 "Forward\n"
 "Contact"
-msgstr ""
+msgstr "Munkahét"
 "Névjegy\n"
 "továbbítása"
 
@@ -6258,7 +6268,7 @@ msgstr "Adj a jelentés egy címet, egy sorban és legfeljebb 200 karakterben."
 msgid ""
 "Gmail\n"
 "Categories"
-msgstr ""
+msgstr "Munkahét"
 "Gmail-\n"
 "kategóriák"
 
@@ -6597,7 +6607,7 @@ msgid ""
 "After you approve, your browser may show a page that can't be reached. That is expected: it is an address on your own computer, where nothing is listening, and the approval has been given by then.\n"
 "\n"
 "Thank you"
-msgstr ""
+msgstr "Munkahét"
 "Üdvözlöm!\n"
 "\n"
 "Szeretném a munkahelyi fiókommal használni a MailCraft nyílt forráskódú levelező- és naptáralkalmazást, amely a saját számítógépemen fut. A szervezetünkben új alkalmazást csak rendszergazda hagyhat jóvá. A jóváhagyást egyszer kell megadni, az egész szervezet számára. A Microsoft jóváhagyási oldala:\n"
@@ -6621,7 +6631,7 @@ msgid ""
 "After you approve, your browser may show a page that can't be reached. That is expected: it is an address on your own computer, where nothing is listening, and the approval has been given by then.\n"
 "\n"
 "Thank you"
-msgstr ""
+msgstr "Munkahét"
 "Tisztelt Rendszergazda!\n"
 "\n"
 "Szeretném a MailCraftot használni a munkahelyi fiókommal. A MailCraft egy nyílt forráskódú levelező- és naptárprogram, amely a saját telefonomon fut. A szervezetünkben új programot csak rendszergazda hagyhat jóvá, ezért az Ön jóváhagyására van szükség, egyszer, az egész szervezet számára. A Microsoft erre szolgáló oldala itt található:\n"
@@ -8786,7 +8796,7 @@ msgstr "március"
 msgid ""
 "Mark\n"
 "Complete"
-msgstr ""
+msgstr "Munkahét"
 "Megjelölés\n"
 "befejezettként"
 
@@ -8796,7 +8806,7 @@ msgstr ""
 msgid ""
 "Mark All\n"
 "as Read"
-msgstr ""
+msgstr "Munkahét"
 "Összes megjelölése\n"
 "olvasottként"
 
@@ -8896,7 +8906,7 @@ msgstr "Összeolvadás"
 msgid ""
 "Merge\n"
 "Duplicates"
-msgstr ""
+msgstr "Munkahét"
 "Ismétlődő névjegyek\n"
 "egyesítése"
 
@@ -8944,7 +8954,7 @@ msgstr "Üzenet"
 msgid ""
 "Message\n"
 "Preview"
-msgstr ""
+msgstr "Munkahét"
 "Üzenetek\n"
 "előnézete"
 
@@ -9648,7 +9658,7 @@ msgstr "Új"
 msgid ""
 "New\n"
 "Appointment"
-msgstr ""
+msgstr "Munkahét"
 "Új\n"
 "találkozó"
 
@@ -9658,7 +9668,7 @@ msgstr ""
 msgid ""
 "New\n"
 "Contact"
-msgstr ""
+msgstr "Munkahét"
 "Új\n"
 "névjegy"
 
@@ -9668,7 +9678,7 @@ msgstr ""
 msgid ""
 "New\n"
 "Email"
-msgstr ""
+msgstr "Munkahét"
 "Új\n"
 "e-mail"
 
@@ -9678,7 +9688,7 @@ msgstr ""
 msgid ""
 "New\n"
 "Folder"
-msgstr ""
+msgstr "Munkahét"
 "Új\n"
 "mappa"
 
@@ -9688,7 +9698,7 @@ msgstr ""
 msgid ""
 "New\n"
 "Items"
-msgstr ""
+msgstr "Munkahét"
 "Új\n"
 "elemek"
 
@@ -9698,7 +9708,7 @@ msgstr ""
 msgid ""
 "New\n"
 "Meeting"
-msgstr ""
+msgstr "Munkahét"
 "Új\n"
 "értekezlet"
 
@@ -9708,7 +9718,7 @@ msgstr ""
 msgid ""
 "New\n"
 "Task"
-msgstr ""
+msgstr "Munkahét"
 "Új\n"
 "feladat"
 
@@ -9862,7 +9872,7 @@ msgstr "Következő"
 msgid ""
 "Next 7\n"
 "Days"
-msgstr ""
+msgstr "Munkahét"
 "Következő\n"
 "7 nap"
 
@@ -11174,7 +11184,7 @@ msgstr "Megnyitás"
 msgid ""
 "Open\n"
 "Calendar"
-msgstr ""
+msgstr "Munkahét"
 "Naptár\n"
 "megnyitása"
 
@@ -11940,7 +11950,7 @@ msgstr "Rögzített"
 msgid ""
 "Plain\n"
 "Text"
-msgstr ""
+msgstr "Munkahét"
 "Egyszerű\n"
 "szöveg"
 
@@ -11980,7 +11990,7 @@ msgstr "Szakpolitika"
 msgid ""
 "Pop\n"
 "Out"
-msgstr ""
+msgstr "Munkahét"
 "Külön\n"
 "ablakban"
 
@@ -12424,7 +12434,7 @@ msgstr "Nemrég"
 msgid ""
 "Recent\n"
 "Searches"
-msgstr ""
+msgstr "Munkahét"
 "Legutóbbi\n"
 "keresések"
 
@@ -12598,7 +12608,7 @@ msgstr "Eltávolítás"
 msgid ""
 "Remove\n"
 "Attachment"
-msgstr ""
+msgstr "Munkahét"
 "Melléklet\n"
 "eltávolítása"
 
@@ -12626,7 +12636,7 @@ msgstr "Minden eltávolítása"
 msgid ""
 "Remove Imported\n"
 "Duplicates"
-msgstr ""
+msgstr "Munkahét"
 "Az importált\n"
 "duplikátumok eltávolítása"
 
@@ -12744,7 +12754,7 @@ msgstr "Szűrő eltávolítása"
 msgid ""
 "Remove from\n"
 "Favorites"
-msgstr ""
+msgstr "Munkahét"
 "Eltávolítás a\n"
 "Kedvencekből"
 
@@ -12930,7 +12940,7 @@ msgstr "Válasz"
 msgid ""
 "Reply\n"
 "All"
-msgstr ""
+msgstr "Munkahét"
 "Válasz\n"
 "mindenkinek"
 
@@ -12982,7 +12992,7 @@ msgstr "Válasz értekezlettel"
 msgid ""
 "Report a\n"
 "Problem"
-msgstr ""
+msgstr "Munkahét"
 "Hiba\n"
 "bejelentése"
 
@@ -13028,7 +13038,7 @@ msgstr "Üzenet újraküldése"
 msgid ""
 "Reset\n"
 "View"
-msgstr ""
+msgstr "Munkahét"
 "Nézet\n"
 "alaphelyzetbe"
 
@@ -13122,7 +13132,7 @@ msgstr "Visszaküldöm a Snoozed Mailt"
 msgid ""
 "Reverse\n"
 "Sort"
-msgstr ""
+msgstr "Munkahét"
 "Fordított\n"
 "sorrend"
 
@@ -13174,7 +13184,7 @@ msgstr "Menüszalag"
 msgid ""
 "Ribbon\n"
 "Layout"
-msgstr ""
+msgstr "Munkahét"
 "A menüszalag\n"
 "elrendezése"
 
@@ -13286,7 +13296,7 @@ msgstr "Szabályok: az engedélyére várva, hogy a szerveren tartsa őket"
 msgid ""
 "Run Rules\n"
 "Now"
-msgstr ""
+msgstr "Munkahét"
 "Szabályok\n"
 "futtatása"
 
@@ -13368,7 +13378,7 @@ msgstr "Mentés"
 msgid ""
 "Save\n"
 "Calendar"
-msgstr ""
+msgstr "Munkahét"
 "Naptár\n"
 "mentése"
 
@@ -13378,7 +13388,7 @@ msgstr ""
 msgid ""
 "Save\n"
 "Draft"
-msgstr ""
+msgstr "Munkahét"
 "Piszkozat\n"
 "mentése"
 
@@ -13394,7 +13404,7 @@ msgstr "Mentés és bezárás"
 msgid ""
 "Save All\n"
 "Attachments"
-msgstr ""
+msgstr "Munkahét"
 "Az összes\n"
 "melléklet mentése"
 
@@ -13707,7 +13717,7 @@ msgstr "Keresés"
 msgid ""
 "Search\n"
 "Calendar"
-msgstr ""
+msgstr "Munkahét"
 "Keresés a\n"
 "naptárban"
 
@@ -13717,7 +13727,7 @@ msgstr ""
 msgid ""
 "Search\n"
 "Commands"
-msgstr ""
+msgstr "Munkahét"
 "Parancsok\n"
 "keresése"
 
@@ -13962,7 +13972,7 @@ msgid "Send & Receive"
 msgstr "Küldés/fogadás"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Küldés/fogadás"
@@ -14211,7 +14221,7 @@ msgstr "Küldés/fogadás"
 msgid ""
 "Send/Receive\n"
 "All Folders"
-msgstr ""
+msgstr "Munkahét"
 "Küldés/fogadás\n"
 "minden mappában"
 
@@ -14280,6 +14290,11 @@ msgstr "Küldés/fogadás JMAP-pal"
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Microsoft Graph- pel történő üzenetküldés/ fogadás"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Send/Receive with Zimbra"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -14571,7 +14586,7 @@ msgstr "Megjelenítés"
 msgid ""
 "Show\n"
 "Message"
-msgstr ""
+msgstr "Munkahét"
 "Üzenet\n"
 "megjelenítése"
 
@@ -14581,7 +14596,7 @@ msgstr ""
 msgid ""
 "Show\n"
 "Progress"
-msgstr ""
+msgstr "Munkahét"
 "Folyamat\n"
 "megtekintése"
 
@@ -14719,7 +14734,7 @@ msgstr "Megjelenítés"
 msgid ""
 "Show as\n"
 "Conversations"
-msgstr ""
+msgstr "Munkahét"
 "Megjelenítés\n"
 "beszélgetésként"
 
@@ -14921,7 +14936,7 @@ msgstr "Megmutatja {path}, amely tartja a postafiókát nyitva most, a fájlkeze
 msgid ""
 "Side-by-\n"
 "Side"
-msgstr ""
+msgstr "Munkahét"
 "Egymás\n"
 "mellett"
 
@@ -16468,7 +16483,7 @@ msgid ""
 "The calendar of the shared mailbox {address} is shown twice: under My Calendars with the shared mailbox, and under Shared Calendars as \"{name}\", because it was also shared with you and accepted.\n"
 "\n"
 "Hide the copy under Shared Calendars? The shared mailbox's own calendar stays, and lets you change events, answer meeting requests and send from the mailbox where you may. Nothing on the server changes: right-click the shared mailbox's calendar to show the copy again."
-msgstr ""
+msgstr "Munkahét"
 "A megosztott postafiók naptára {address} kétszer jelenik meg: a Megosztott postafiókban az Én naptáram alatt, a Megosztott naptárak alatt pedig \"{name}\" néven, mert azt is megosztották és elfogadták.\n"
 "\n"
 "A másolat elrejtése Shared Naptár alatt? A megosztott postafiók saját naptára szerint, és lehetővé teszi, hogy az események megváltoztassa, a találka kéréseket válaszoljon, és küldjön a postafiókból, ahol csak tud. A kiszolgálón semmi sem változik: kattintson a megosztott postafiók naptárára, hogy a másolatot újra megmutassa."
@@ -16504,7 +16519,7 @@ msgid ""
 "The calendar of {name} is in your calendar list now, because it was shared with you and accepted. You also opened it by address, so it is there twice.\n"
 "\n"
 "Remove the copy opened by address? The other one stays, and nothing on the server changes."
-msgstr ""
+msgstr "Munkahét"
 "A {name} naptára most már a naptárlistádban van, mert azt megosztották veled és elfogadták.\n"
 "\n"
 "Címre is megnyitottad, így kétszer is ott van. A másik a címre nyitott másolatot távolítsd el? A másik marad, és a szerveren semmi változás."
@@ -18877,7 +18892,7 @@ msgstr "A postafiók tartalommappájának rendezése…"
 msgid ""
 "Tighter\n"
 "Spacing"
-msgstr ""
+msgstr "Munkahét"
 "Sűrűbb\n"
 "elrendezés"
 
@@ -18980,7 +18995,7 @@ msgid ""
 "To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, your automatic replies aren't changed."
-msgstr ""
+msgstr "Munkahét"
 "Ahhoz, hogy a(z) {address} automatikus válaszait szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
 "\n"
 "Amíg nem engedélyezi, az automatikus válaszok nem módosulnak."
@@ -18992,7 +19007,7 @@ msgid ""
 "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
-msgstr ""
+msgstr "Munkahét"
 "Ahhoz, hogy a(z) {address} szabályait, automatikus válaszait és kategóriáit szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
 "\n"
 "Amíg nem engedélyezi, a szabályok ezen a számítógépen maradnak, és semmi sem jut el belőlük a Microsofthoz, az automatikus válaszok nem módosulnak, és a postafiók kategóriái itt nem módosíthatók."
@@ -19004,7 +19019,7 @@ msgid ""
 "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
-msgstr ""
+msgstr "Munkahét"
 "Ahhoz, hogy a(z) {address} feladatait és automatikus válaszait szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a To Do listák és a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
 "\n"
 "Amíg nem engedélyezi, a feladatok ezen a számítógépen maradnak, és semmi sem jut el belőlük a Microsofthoz, az automatikus válaszok pedig nem módosulnak."
@@ -19016,7 +19031,7 @@ msgid ""
 "To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
-msgstr ""
+msgstr "Munkahét"
 "Ahhoz, hogy a {address} feladatait lépést tarthasson a Microsoft To Do-val, a MailCraft-nak szüksége van az engedélyére, hogy elolvassa és megváltoztassa a To Do listáit és feladatait.\n"
 "\n"
 "A Microsoft oldala egyszer megnyílik a böngészőjében, hogy kérje Önt. Amíg nem engedi, a feladatok ezen a számítógépen maradnak, és semmi sem kerül a Microsoftba."
@@ -19028,7 +19043,7 @@ msgid ""
 "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
-msgstr ""
+msgstr "Munkahét"
 "Ahhoz, hogy a(z) {address} feladatait, szabályait, automatikus válaszait és kategóriáit szinkronban tartsa az Outlookkal, a MailCraftnak engedélyre van szüksége a To Do listák és a postafiók beállításainak módosításához. A Microsoft oldala megnyílik a böngészőben, hogy egyszer megkérdezze Önt.\n"
 "\n"
 "Amíg nem engedélyezi, a feladatok és a szabályok ezen a számítógépen maradnak, és semmi sem jut el belőlük a Microsofthoz, az automatikus válaszok nem módosulnak, és a postafiók kategóriái itt nem módosíthatók."
@@ -19046,7 +19061,7 @@ msgid ""
 "To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"
 "\n"
 "Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
-msgstr ""
+msgstr "Munkahét"
 "A(z) {address} címmel megnyitott megosztott postafiókok olvasásához és az azokból való küldéshez, valamint az Önnel megosztott naptárak megjelenítéséhez a MailCraftnak szüksége van az Ön engedélyére. A Microsoft oldala megnyílik a böngészőben, és egyszer rákérdez mindenre, amit a MailCraft használ, és Ön még nem engedélyezett.\n"
 "\n"
 "Amíg nem engedélyezi, semmi sem olvasható ezekből a postafiókokból és naptárakból, a megosztott postafiókból küldendő levelek és értekezlet-válaszok ezen a számítógépen várnak, és semmi sem megy el helyettük az Ön saját címéről."
@@ -19351,7 +19366,7 @@ msgstr "Az üzenetek olvasása a mappában"
 msgid ""
 "Unread/\n"
 "Read"
-msgstr ""
+msgstr "Munkahét"
 "Olvasatlan/\n"
 "olvasott"
 
@@ -20049,7 +20064,7 @@ msgstr "Munka"
 msgid ""
 "Work\n"
 "Offline"
-msgstr ""
+msgstr "Munkahét"
 "Kapcsolat nélküli\n"
 "munka"
 
@@ -20589,6 +20604,31 @@ msgstr "A saját neved."
 msgid "Z on top"
 msgstr "Z felül"
 
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Zimbra {host} · not kept in step yet: this part is not built"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Zimbra · no usable server address"
+msgstr ""
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -20714,6 +20754,11 @@ msgstr "A Microsoft- vagy Exchange-fiók csak annyi más címről küldhet, amen
 #, fuzzy
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "a Microsoft-bejelentkezés csak a Microsoft saját levelezőszervereivel használható: ez a fiók egy másik kiszolgálót nevez meg"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21002,6 +21047,11 @@ msgstr "a S/MIME tanúsítvány megbízható a hitelesítési hatóság és ninc
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
 msgstr "a JMAP használatára vagy a JMAP-ról csak a fiók eltávolításával és újbóli hozzáadásával lehet váltani"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21564,6 +21614,11 @@ msgid "no account here keeps its rules on its server"
 msgstr "nincs fiókja, ami a szerverén tartja a szabályait."
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "no account is a Zimbra account"
+msgstr ""
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -21600,7 +21655,7 @@ msgid "no account with id {account}"
 msgstr "nincs ilyen azonosítójú fiók: {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nincs ilyen azonosítójú fiók: {id}"
@@ -22678,13 +22733,18 @@ msgid "the request was lost"
 msgstr "a kérés elveszett"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "the result is for another account"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result would make this account keep more sync state than is taken in"
 msgstr "az eredmény miatt a fiók a megengedettnél több szinkronizálási adatot tárolna"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "az eredmény {why}"
@@ -24053,6 +24113,11 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name} nem rendelkezik JMAP kiszolgálóval, ami használható"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "{name} has no Zimbra server address that can be used"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -24123,6 +24188,11 @@ msgstr "A {name} nem Microsoft-fiók, amit IMAP vezetett."
 #, fuzzy
 msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "A {name} nem Microsoft vagy Exchange szerver fiók"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "{name} isn't a Zimbra account"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -25437,6 +25507,11 @@ msgstr "{why}, tehát a beiratkozás nem jut eszembe: MailCraft minden egyes alk
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}, a {n} változtatásai itt várnak a gépen."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "{why}: send this message from another account, or save it as a draft"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
