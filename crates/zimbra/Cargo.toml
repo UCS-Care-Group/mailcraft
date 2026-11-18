@@ -10,6 +10,7 @@ description = "MailCraft's Zimbra Collaboration client without sockets or browse
 workspace = true
 
 [dependencies]
+mailcraft-ews = { workspace = true }
 # What a run brings back is the model's own sync data (a lower layer, wasm-ready).
 mailcraft-model = { workspace = true }
 log = { workspace = true }

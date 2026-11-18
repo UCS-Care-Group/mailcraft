@@ -26,7 +26,7 @@ pub fn answer(response: &HttpResponse) -> Result<Vec<u8>, Error> {
         200 => Err(Error::Unreadable),
         401 | 403 => Err(Error::AuthRefused),
         404 => Err(Error::NoSuchItem),
-        429 | 503 => Err(Error::Busy(response.retry_after().unwrap_or(30).clamp(1, 3600))),
+        429 | 503 => Err(Error::Busy(response.retry_after_seconds().unwrap_or(30).clamp(1, 3600))),
         status => Err(Error::Status(status)),
     }
 }

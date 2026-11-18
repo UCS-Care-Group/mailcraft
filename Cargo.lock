@@ -3125,6 +3125,7 @@ dependencies = [
  "mailcraft-proto",
  "mailcraft-time",
  "mailcraft-ui-egui",
+ "mailcraft-zimbra",
  "muda",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
@@ -3584,6 +3585,8 @@ name = "mailcraft-zimbra"
 version = "0.13.0"
 dependencies = [
  "log",
+ "mailcraft-ews",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "proptest",
  "serde_json",
