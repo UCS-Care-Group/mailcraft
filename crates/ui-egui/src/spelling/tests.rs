@@ -148,3 +148,13 @@ fn spelling_correction_preserves_the_formatting_of_unchanged_text() {
     assert_eq!(body.plain(), "sopratutto");
     assert!(body.text().all(7, 10, |style| style.bold).unwrap());
 }
+
+#[test]
+fn typo_beside_a_link_is_still_marked() {
+    let mut link = Run::plain("https://example.org");
+    link.style.link = Some("https://example.org".into());
+    let paragraph = Paragraph::new(vec![Run::plain("sopratutto—"), link], ListKind::None);
+    let report = check(&Italian, "it-IT", &paragraph);
+    assert_eq!(report.issues.len(), 1);
+    assert_eq!(report.issues[0].span, 0..10);
+}

@@ -644,6 +644,7 @@ pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
 #[derive(Clone, Default)]
 struct State {
     spelling_menu: Option<spelling::Suggestions>,
+    spelling_typed_until: f64,
     /// Where the caret goes up and down from (the column it was in before it went up or down).
     column: Option<f32>,
     /// What the pointer took where it went down, for dragging a selection from there.
@@ -769,9 +770,6 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     }
     let mut reveal = ctx.data_mut(|d| d.remove_temp::<bool>(id.with("reveal-spelling")).unwrap_or_default());
     let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
-    if which == Which::Message {
-        spelling::advance_review(app, &ctx, spelling_locale.as_deref());
-    }
     let spelling_time = ctx.input(|input| input.time);
     let capital_language = spelling::writing_locale(app, &ctx).or_else(|| spelling_locale.clone()).filter(|locale| !locale.is_empty());
 
@@ -1037,6 +1035,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 {
                     let _ = app.run(command, params);
                 }
+                st.spelling_typed_until = if command == "compose.type" { spelling_time + 0.6 } else { 0.0 };
                 own(app, which, &mut st, Some(command));
             }
         }
@@ -1045,6 +1044,13 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         st.preedit.clear();
     }
 
+    if which == Which::Message {
+        spelling::advance_review(app, &ctx, spelling_locale.as_deref());
+    }
+    let typing = focused && spelling_time < st.spelling_typed_until;
+    if typing {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(st.spelling_typed_until - spelling_time));
+    }
     // Paint what is in view.
     let Some((sel, _)) = now(app, which) else { return };
     let painter = ui.painter();
@@ -1077,7 +1083,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 }
                 let mut row_cursor = (0, 0);
                 for issue in &checked.issues {
-                    let is_typing = focused && sel.is_empty() && sel.head > p.start + issue.span.start && sel.head <= p.start + issue.span.end;
+                    let is_typing = typing && sel.is_empty() && sel.head > p.start + issue.span.start && sel.head <= p.start + issue.span.end;
                     if !is_typing {
                         paint_spelling(painter, p, at, issue.span.clone(), t.icon_red, &mut row_cursor);
                     }

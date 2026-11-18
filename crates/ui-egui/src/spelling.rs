@@ -115,8 +115,8 @@ pub(crate) fn check(host: &dyn HostChecker, locale: &str, paragraph: &Paragraph)
         if range.start < last || input.get(range.clone()) != Some(word) || word.contains(OBJECT) {
             continue;
         }
-        let left = text.get(..range.start).unwrap_or_default().rsplit(char::is_whitespace).next().unwrap_or_default();
-        let right = text.get(range.end..).unwrap_or_default().split(char::is_whitespace).next().unwrap_or_default();
+        let left = input.get(..range.start).unwrap_or_default().rsplit(char::is_whitespace).next().unwrap_or_default();
+        let right = input.get(range.end..).unwrap_or_default().split(char::is_whitespace).next().unwrap_or_default();
         let token = format!("{left}{word}{right}");
         if token.contains('@') || token.contains("://") || token.get(..4).is_some_and(|start| start.eq_ignore_ascii_case("www.")) {
             continue;
@@ -205,16 +205,18 @@ pub(crate) fn review(ui: &mut Ui, app: &mut MailApp) {
             ui.menu_button(tl!("Spelling suggestions"), |ui| {
                 let Some(host) = app.services.spelling.as_deref() else { return };
                 let key = editor::id(app).with("review-suggestions");
-                let cached: Option<(String, usize, Issue, Suggestions)> = ui.ctx().data(|d| d.get_temp(key));
-                let suggestions = if let Some((tag, offset, checked, suggestions)) = cached
+                let now = ui.input(|input| input.time);
+                let cached: Option<(String, usize, Issue, Suggestions, f64)> = ui.ctx().data(|d| d.get_temp(key));
+                let suggestions = if let Some((tag, offset, checked, suggestions, retry_at)) = cached
                     && tag == locale
                     && offset == start
                     && checked == issue
+                    && (!suggestions.words.is_empty() || now < retry_at)
                 {
                     suggestions
                 } else {
                     let suggestions = Suggestions::new(host, &locale, issue.clone(), start);
-                    ui.ctx().data_mut(|d| d.insert_temp(key, (locale, start, issue, suggestions.clone())));
+                    ui.ctx().data_mut(|d| d.insert_temp(key, (locale, start, issue, suggestions.clone(), now + 2.0)));
                     suggestions
                 };
                 let mut chosen = None;
