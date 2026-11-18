@@ -540,60 +540,76 @@ async fn folder_tail<E: HttpExchange>(
     Ok(None)
 }
 
-/// A folder mounted from another mailbox (`<zid>:<rid>`), read whole into memory first and handed
-/// over in one piece at its end. Its items are another mailbox's: a read that can't be had, or one
-/// that stops in the middle, leaves the folder as it was rather than half-swapped or empty — and
-/// keeps the run's own mail out of it. The mailbox's own delta never names them (their changes are
-/// the other mailbox's journal's), so a mounted folder is read this way on every run.
-async fn mounted_tail<E: HttpExchange>(
-    run: &Run<'_, E>,
-    request: &ZimbraMailRequest,
-    folder: &str,
-    emit: &mut dyn FnMut(ZimbraMailResult),
-) -> Result<(), Stop> {
+/// A mounted folder's pages under `queried`, whole in memory or not at all (`None`).
+async fn read_mount<E: HttpExchange>(run: &Run<'_, E>, queried: &str) -> Result<Option<Vec<items::Page>>, Stop> {
     let mut pages = Vec::new();
     let mut cursor: Option<(String, u64)> = None;
-    for page_number in 0..MAX_FOLDER_PAGES {
-        let answered = match run.ask(items::folder_page(&run.base, &run.token, folder, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort)))).await
+    for _ in 0..MAX_FOLDER_PAGES {
+        let answered = match run.ask(items::folder_page(&run.base, &run.token, queried, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort)))).await
         {
             Ok(answered) => answered,
             Err(Stop::Cancelled) => return Err(Stop::Cancelled),
-            Err(Stop::Failed(_)) => return Ok(()),
+            Err(Stop::Failed(_)) => return Ok(None),
         };
         let page = match items::answer(&answered) {
             Ok(page) => page,
-            Err(_) => return Ok(()),
+            Err(_) => return Ok(None),
         };
         // The same sense a folder's own read asks for: a page that says more without a way on, or
         // that hands the cursor it was asked from back, is no read at all.
         if page.more && (page.messages.is_empty() || page.cursor.is_none() || page.cursor == cursor) {
-            return Ok(());
+            return Ok(None);
         }
         let last = !page.more;
-        cursor = page.cursor;
-        pages.push(ZimbraMessagePage {
-            folder: folder.to_string(),
-            messages: page.messages,
-            afresh: page_number == 0,
-            last,
-            ..ZimbraMessagePage::default()
-        });
+        cursor = page.cursor.clone();
+        pages.push(page);
         if last {
-            let mut piece = blank(request);
-            piece.pages = pages;
-            piece.partial = true;
-            emit(piece);
-            return Ok(());
+            return Ok(Some(pages));
         }
     }
     // More than one run's worth of pages: none of it goes out, the folder stays as it was.
+    Ok(None)
+}
+
+/// A folder mounted from another mailbox (`<zid>:<rid>`), read whole and handed over in one piece
+/// at its end. Its items are another mailbox's: a read that can't be had, or one that stops in the
+/// middle, leaves the folder as it was rather than half-swapped or empty — and keeps the run's own
+/// mail out of it. The mailbox's own delta never names them (their changes are the other
+/// mailbox's journal's), so a mounted folder is read this way on every run.
+///
+/// The qualified id is what its items' `l` names — and what the pages go out under. A server that
+/// won't take it in `inid:` is asked under the mountpoint's own local id instead, when the entry
+/// named one.
+async fn mounted_tail<E: HttpExchange>(
+    run: &Run<'_, E>,
+    request: &ZimbraMailRequest,
+    mount: &folders::Mountpoint,
+    emit: &mut dyn FnMut(ZimbraMailResult),
+) -> Result<(), Stop> {
+    for queried in [mount.id.as_str(), mount.local.as_str()].into_iter().filter(|q| !q.is_empty()) {
+        let Some(pages) = read_mount(run, queried).await? else { continue };
+        let mut piece = blank(request);
+        piece.pages = pages
+            .into_iter()
+            .enumerate()
+            .map(|(n, page)| ZimbraMessagePage {
+                folder: mount.id.clone(),
+                messages: page.messages,
+                afresh: n == 0,
+                last: !page.more,
+                ..ZimbraMessagePage::default()
+            })
+            .collect();
+        piece.partial = true;
+        emit(piece);
+        return Ok(());
+    }
     Ok(())
 }
 
-/// Whether `folder` is one mounted from another mailbox (`<zid>:<rid>`), rather than one of this
-/// mailbox's own.
-fn mounted(folder: &str) -> bool {
-    folder.contains(':')
+/// The mountpoint `folder` names, when the listing has one for it.
+fn mountpoint<'a>(listing: &'a folders::Listing, folder: &str) -> Option<&'a folders::Mountpoint> {
+    listing.mounted.iter().find(|m| m.id == folder)
 }
 
 /// Every mounted folder of the listing read whole again: the run's delta is the mailbox's own
@@ -605,8 +621,8 @@ async fn refresh_mounted<E: HttpExchange>(
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) -> Result<(), Stop> {
     for folder in listing.folders.iter().take(MAX_LISTED_FOLDERS) {
-        if mounted(&folder.id) {
-            mounted_tail(run, request, &folder.id, emit).await?;
+        if let Some(mount) = mountpoint(listing, &folder.id) {
+            mounted_tail(run, request, mount, emit).await?;
         }
     }
     Ok(())
@@ -626,8 +642,8 @@ async fn resume_folders<E: HttpExchange>(
         if !listing.folders.iter().any(|f| f.id == entry.folder) {
             continue;
         }
-        if mounted(&entry.folder) {
-            mounted_tail(run, request, &entry.folder, emit).await?;
+        if let Some(mount) = mountpoint(listing, &entry.folder) {
+            mounted_tail(run, request, mount, emit).await?;
             continue;
         }
         let start = if entry.cursor.is_empty() { None } else { Some((entry.cursor.clone(), entry.sort)) };
@@ -663,8 +679,8 @@ async fn afresh<E: HttpExchange>(
             left.push(ZimbraResume { folder: folder.id.clone(), ..ZimbraResume::default() });
             continue;
         }
-        if mounted(&folder.id) {
-            mounted_tail(run, request, &folder.id, emit).await?;
+        if let Some(mount) = mountpoint(&listing, &folder.id) {
+            mounted_tail(run, request, mount, emit).await?;
             continue;
         }
         if let Some(again) = folder_tail(run, request, &folder.id, None, emit).await? {

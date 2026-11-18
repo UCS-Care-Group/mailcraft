@@ -30,8 +30,11 @@ const MAX_NAME: usize = 255;
 /// what the server shows it as and whose it is, as far as the answer names it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Mountpoint {
-    /// Its id in this mailbox (`<zid>:<rid>`), the one to search under.
+    /// Its qualified id (`<zid>:<rid>`), the one its items' `l` names.
     pub id: String,
+    /// Its own id in this mailbox's tree, when the entry names one (`id`): what `inid:` asks it
+    /// under on a server that doesn't take the qualified form there.
+    pub local: String,
     /// The name it is mounted under.
     pub name: String,
     /// The owner's address, when the server names it (`owner`).
@@ -102,19 +105,28 @@ pub fn answer(response: &HttpResponse) -> Result<Listing, Error> {
     Ok(out)
 }
 
-/// One `link` of a folder: a mountpoint of another mailbox's folder, with `zid` and `rid` naming
-/// it in the owner's. One that can't be told whose it is or what it is isn't mounted at all —
+/// One `link` of a folder: a mountpoint of another mailbox's folder. Its `zid` and `rid` name it
+/// in the owner's (`zid` the mailbox, `rid` the folder there); some servers write that pair as
+/// the entry's `id` itself (`<zid>:<rid>`), others give it a local id of this mailbox's tree and
+/// the pair beside it. One that can't be told whose it is or what it is isn't mounted at all —
 /// another mailbox's mail is never lost from a listing of this one.
 fn mount(link: &Value, parent: &str, out: &mut Listing) {
     if out.mounted.len() >= MAX_LISTED_FOLDERS {
         return;
     }
-    let id = json::line(link.get("id"));
-    let Some((zid, rid)) = id.split_once(':') else { return };
-    let (zid, rid) = (zid.trim().to_string(), rid.trim().to_string());
-    if zid.is_empty() || !rid.bytes().all(|b| b.is_ascii_digit()) {
+    let id_text = json::line(link.get("id"));
+    let (zid, rid) = match (json::line(link.get("zid")), json::own_id(link.get("rid"))) {
+        (zid, Some(rid)) if !zid.is_empty() => (zid, rid),
+        _ => match id_text.split_once(':') {
+            Some((zid, rid)) if !zid.is_empty() => (zid.to_string(), rid.to_string()),
+            _ => return,
+        },
+    };
+    if zid.len() > 64 || !zid.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b)) {
         return;
     }
+    let local = json::own_id(link.get("id")).unwrap_or_default();
+    let id = format!("{zid}:{rid}");
     let name: String = json::line(link.get("name")).chars().take(MAX_NAME).collect();
     if name.is_empty() {
         return;
@@ -125,6 +137,7 @@ fn mount(link: &Value, parent: &str, out: &mut Listing) {
     let view = json::line(link.get("view"));
     out.mounted.push(Mountpoint {
         id: id.clone(),
+        local,
         name: name.clone(),
         owner: json::line(link.get("owner")).chars().take(MAX_NAME).collect(),
         zid,

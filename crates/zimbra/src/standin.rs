@@ -47,6 +47,8 @@ pub struct Item {
 /// A folder of another mailbox mounted into this one's tree (a `link`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Mount {
+    /// Its own id in this mailbox's tree (a local one, as the server gives a mountpoint's).
+    pub local: u32,
     /// Its parent in this mailbox's tree (a local id).
     pub parent: u32,
     pub name: String,
@@ -56,6 +58,9 @@ pub struct Mount {
     pub view: String,
     /// The mailbox it is shared from can't be reached for it now: reads of it fault.
     pub broken: bool,
+    /// `inid:` takes the qualified `<zid>:<rid>` here; a server that doesn't is told by clearing
+    /// it, so that the local id is what reads it.
+    pub qualified_inid: bool,
 }
 
 /// What the stand-in holds.
@@ -220,8 +225,12 @@ impl StandIn {
         s.next += 1;
         let rid = s.next;
         s.next += 1;
-        let qualified = format!("zzz{}:{rid}", s.next);
-        s.mounts.insert(qualified.clone(), Mount { parent, name: name.into(), owner: owner.into(), view: "message".into(), ..Mount::default() });
+        let local = s.next;
+        let qualified = format!("zzz{rid}:{rid}");
+        s.mounts.insert(
+            qualified.clone(),
+            Mount { local, parent, name: name.into(), owner: owner.into(), view: "message".into(), qualified_inid: true, ..Mount::default() },
+        );
         qualified
     }
 
@@ -512,7 +521,7 @@ impl StandIn {
                 let (zid, rid) = qualified.split_once(':').unwrap_or((qualified.as_str(), ""));
                 let count = s.shared.values().filter(|(folder, _)| folder == qualified).count();
                 let unread = s.shared.values().filter(|(folder, i)| folder == qualified && i.flags.contains('u')).count();
-                json!({"id": qualified, "name": m.name, "owner": m.owner, "view": m.view, "zid": zid, "rid": rid, "n": count, "u": unread})
+                json!({"id": m.local.to_string(), "name": m.name, "owner": m.owner, "view": m.view, "zid": zid, "rid": rid, "n": count, "u": unread})
             })
             .collect();
         drop(s);
@@ -581,11 +590,18 @@ impl StandIn {
         let limit = body.get("limit").and_then(Value::as_u64).unwrap_or(10).min(1000) as usize;
         let offset = body.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
         let mut found: Vec<(String, String, &Item)> = if let Some(folder) = query.strip_prefix("inid:\"").and_then(|q| q.strip_suffix('"')) {
-            if let Some(mount) = s.mounts.get(folder) {
+            // A mountpoint is found by its qualified id — or by the local id the entry carries,
+            // on a server that takes only that in `inid:`.
+            let mount = s.mounts.get(folder).filter(|m| m.qualified_inid).map(|m| (folder, m)).or_else(|| {
+                folder.parse::<u32>().ok().and_then(|local| s.mounts.iter().find(|(_, m)| m.local == local).map(|(qid, m)| (qid.as_str(), m)))
+            });
+            if let Some((qualified, mount)) = mount {
                 if mount.broken {
                     return fault("mail.NO_SUCH_FOLDER");
                 }
-                s.shared.iter().filter(|(_, (f, _))| f == folder).map(|(id, (f, i))| (id.clone(), f.clone(), i)).collect()
+                s.shared.iter().filter(|(_, (f, _))| f == qualified).map(|(id, (f, i))| (id.clone(), f.clone(), i)).collect()
+            } else if s.mounts.contains_key(folder) || s.mounts.values().any(|m| m.local.to_string() == folder) {
+                return fault("mail.NO_SUCH_FOLDER");
             } else {
                 let Ok(folder) = folder.parse::<u32>() else { return fault("service.INVALID_REQUEST") };
                 s.items
