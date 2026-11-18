@@ -34,7 +34,7 @@ fn replace_letter(text: &mut RichText, at: usize, replacement: &str) -> Result<(
     Ok(())
 }
 
-pub(super) fn find(text: &RichText, caret: usize, language: &str) -> Option<Initial> {
+pub(super) fn find(text: &RichText, typed_from: usize, caret: usize, language: &str) -> Option<Initial> {
     let (index, offset) = text.locate(caret).ok()?;
     let paragraph = text.paragraphs().get(index)?;
     if paragraph.signature {
@@ -62,7 +62,7 @@ pub(super) fn find(text: &RichText, caret: usize, language: &str) -> Option<Init
     }
     let position = split + token.len() - word.len();
     let at = caret - offset + start + context.get(..position)?.chars().count();
-    if text.style_at(at + 1).link.is_some() {
+    if at < typed_from || text.style_at(at + 1).link.is_some() {
         return None;
     }
     let language = language.split(['-', '_']).next().unwrap_or_default();

@@ -290,6 +290,41 @@ fn auto_capitalization_respects_sentence_endings_and_existing_word_case() {
 }
 
 #[test]
+fn auto_capitalization_keeps_a_pasted_word_when_followed_by_typed_punctuation() {
+    let mut body = RichBody::default();
+    body.paste(&RichText::from_plain("ready")).unwrap();
+    body.type_with_auto_capitalization("!", "en").unwrap();
+    body.type_with_auto_capitalization("\n", "en").unwrap();
+    assert_eq!(body.plain(), "ready!\n");
+
+    body.type_with_auto_capitalization("ready", "en").unwrap();
+    body.type_with_auto_capitalization("!", "en").unwrap();
+    body.type_with_auto_capitalization("\n", "en").unwrap();
+    assert_eq!(body.plain(), "ready!\nReady!\n");
+}
+
+#[test]
+fn auto_capitalization_keeps_the_delimiter_when_the_table_uses_the_rest_of_storage() {
+    let cell = TableCell {
+        lines: vec![vec![CellText { text: "x".repeat(MAX_CHARS - 11), style: Style::default() }]],
+        header: false,
+        colspan: 1,
+        rowspan: 1,
+        background: None,
+        alignment: CellAlignment::Left,
+    };
+    let table = std::sync::Arc::new(PastedTable::new(1, vec![vec![cell]]).unwrap());
+    let text = RichText::from_paragraphs(vec![Paragraph::new(vec![Run::table(table)], ListKind::None), Paragraph::default()]);
+    let mut body = RichBody::new(text);
+    body.select(2, 2).unwrap();
+    body.type_with_auto_capitalization("ßeta", "de").unwrap();
+    assert_eq!(body.text().storage_len(), MAX_CHARS - 1);
+    body.type_with_auto_capitalization(" ", "de").unwrap();
+    assert_eq!(body.text().storage_len(), MAX_CHARS);
+    assert_eq!(body.text().paragraphs()[1].text(), "ßeta ");
+}
+
+#[test]
 fn a_body_saved_as_plain_text_still_opens() {
     let b: RichBody = serde_json::from_str(r#""Dear Ada,\n\nThanks.""#).unwrap();
     assert_eq!(b.plain(), "Dear Ada,\n\nThanks.");
