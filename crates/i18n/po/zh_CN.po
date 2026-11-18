@@ -1863,6 +1863,12 @@ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's
 msgstr "请求读取共享邮箱日历的权限：Microsoft 页面将在浏览器中打开。未获授权时，不会读取此邮箱的任何日历。"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr "在下次发送/接收时再次请求这些邮件。服务器上的邮件不受影响，即使再次失败也不会丢失任何内容。"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask once more for the pictures that couldn't be downloaded."
@@ -18463,7 +18469,7 @@ msgid "Try Signing In Again"
 msgstr "尝试重新登录"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "重试"
@@ -23900,6 +23906,13 @@ msgstr[0] "有 {n} 封邮件在删除被拒绝后返回了空内容，正在重�
 msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "已有 {n} 封邮件在此"
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "有 {n} 封邮件因下载失败而被跳过。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

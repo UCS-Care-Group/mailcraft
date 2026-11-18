@@ -1865,6 +1865,12 @@ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's
 msgstr "Kérjen engedélyt a megosztott postafiókok naptárainak elolvasására: A Microsoft oldala a böngészőjében nyílik meg. Enélkül a postafiók naptárából semmi sem olvasható."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr "Ezeknek az üzeneteknek az újbóli kérése a következő Küldés/fogadáskor. A kiszolgálón lévő levelek érintetlenek maradnak, és semmi sem vész el, ha újra nem sikerülnek."
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask once more for the pictures that couldn't be downloaded."
@@ -18470,7 +18476,7 @@ msgid "Try Signing In Again"
 msgstr "Próbáljon újra bejelentkezni!"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Próbáld újra."
@@ -23974,6 +23980,14 @@ msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "{n} üzenet már itt volt"
 msgstr[1] "{n} üzenet már itt volt"
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "{n} üzenet ki lett hagyva, mert a letöltése nem sikerült."
+msgstr[1] "{n} üzenet ki lett hagyva, mert a letöltésük nem sikerült."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

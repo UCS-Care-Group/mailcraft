@@ -1780,6 +1780,13 @@ impl Mailbox {
         self.folders.iter_mut().find(|f| f.id == id).ok_or(not_found("folder", id))
     }
 
+    /// How many messages of the account the mailbox leaves out for failing to download in
+    /// [`MAX_TRIES`](crate::sync::MAX_TRIES) runs, until the owner asks for them again (#1581).
+    pub fn left_out(&self, account: Id) -> usize {
+        let given_up = |tries: &&u8| **tries >= crate::sync::MAX_TRIES;
+        self.folders.iter().filter(|f| f.account == account).map(|f| f.failing.values().filter(given_up).count()).sum()
+    }
+
     /// An account's standard folder of `kind`.
     pub fn folder_of_kind(&self, account: Id, kind: FolderKind) -> Option<Id> {
         self.folders.iter().find(|f| f.account == account && f.kind == kind && f.parent.is_none()).map(|f| f.id)

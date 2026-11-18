@@ -1865,6 +1865,12 @@ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's
 msgstr "Cereți permisiunea de a citi calendarele cutiilor poștale partajate: pagina Microsoft se deschide în browser. Fără ea, nu se citește nimic din calendarele acestei cutii poștale."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr "Cere din nou aceste mesaje la următoarea Trimitere / Primire. Poșta de pe server rămâne neatinsă și nu se pierde nimic dacă eșuează din nou."
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask once more for the pictures that couldn't be downloaded."
@@ -18532,7 +18538,7 @@ msgid "Try Signing In Again"
 msgstr "Încercați din nou conectarea"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Încercați din nou"
@@ -24112,6 +24118,15 @@ msgid_plural "{n} messages were already here"
 msgstr[0] "{n} mesaj era deja aici"
 msgstr[1] "{n} mesaje erau deja aici"
 msgstr[2] "{n} de mesaje erau deja aici"
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "{n} mesaj a fost omis deoarece descărcarea a eșuat."
+msgstr[1] "{n} mesaje au fost omise deoarece descărcarea a eșuat."
+msgstr[2] "{n} de mesaje au fost omise deoarece descărcarea a eșuat."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
