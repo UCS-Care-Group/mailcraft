@@ -595,6 +595,12 @@ msgid "A port is a number from 1 to 65535"
 msgstr "A kikötő 1-65535"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "A preview may omit some content from the original file."
+msgstr "Az előnézetben előfordulhat, hogy az eredeti fájl egyes részei nem jelennek meg."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "A report is written beside your mailbox."
@@ -1869,6 +1875,12 @@ msgstr "Kérdezd meg, mielőtt letöltené a képeket a domain feladóiról"
 #, fuzzy
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Kérje meg, mielőtt letöltené a feladó képeit."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Ask before previewing this type of file"
+msgstr "Mindig kérdezzen rá az ilyen típusú fájlok előnézete előtt"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
@@ -3329,8 +3341,8 @@ msgstr "Keresés törlése (Esc)"
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "Kattintson ide a {name} előnézetéhez; kattintson duplán a megnyitásához"
+msgid "Click to select {name}; double-click to open it"
+msgstr "Kattintson a kijelöléshez, vagy kattintson duplán a megnyitáshoz: {name}"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -4669,12 +4681,6 @@ msgstr "Kész: naprakész"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "Kész: {n} új"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "Dupla kattintással nyitható meg a {name}; jobb kattintással menthető"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -8890,8 +8896,8 @@ msgstr[1] "{n} névjegy egyesítése…"
 msgid "Merged PRs"
 msgstr "Egyesített PR-ek"
 
-#. android, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Üzenet"
@@ -10183,6 +10189,12 @@ msgstr "Nem található névjegy."
 #, fuzzy
 msgid "No preview helper is available for this attachment."
 msgstr "Ehhez a melléklethoz nem áll rendelkezésre előzetes segítő."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "No preview is available for this attachment."
+msgstr "Ehhez a melléklethez nem érhető el előnézet."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
@@ -11963,6 +11975,12 @@ msgstr "Melléklet előnézete"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
+msgid "Preview File"
+msgstr "Fájl előnézete"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview attachments with local PdfCraft"
 msgstr "Előnézeti mellékletok helyi PdfCraft"
 
@@ -11977,6 +11995,12 @@ msgstr "Előnézeti mellékletok helyi PdfCraft és PhotoCraft"
 #, fuzzy
 msgid "Preview attachments with local PhotoCraft"
 msgstr "Előnézeti mellékletok helyi PhotoCraft"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview files only when you trust the sender."
+msgstr "Csak megbízható feladótól érkező fájl előnézetét nyissa meg."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12508,6 +12532,16 @@ msgstr "Emlékeztető ablak"
 msgid "Remove"
 msgstr "Eltávolítás"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+"Melléklet\n"
+"eltávolítása"
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -12976,6 +13010,12 @@ msgstr "Frissítés újraindítása"
 msgid "Restart to update is the owner's click."
 msgstr "A frissítés újrakezdése a tulajdonos kattintása."
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Restore attachment preview warnings"
+msgstr "Előnézeti figyelmeztetések visszaállítása"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -13266,6 +13306,16 @@ msgstr ""
 msgid "Save & Close"
 msgstr "Mentés és bezárás"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+"Az összes\n"
+"melléklet mentése"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -13278,8 +13328,8 @@ msgstr "Minden melléklet mentése"
 msgid "Save All Attachments…"
 msgstr "Összes melléklet mentése…"
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Save As"
 msgstr "Mentés"
@@ -13385,6 +13435,12 @@ msgstr "Mielőtt Google-bejelentkezésre vált, mentse vagy vesse el a fiók mó
 #, fuzzy
 msgid "Save out"
 msgstr "Mentés"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Save to Computer"
+msgstr "Mentés a számítógépre"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -14408,6 +14464,16 @@ msgstr "Megjelenítés"
 #, fuzzy
 msgid ""
 "Show\n"
+"Message"
+msgstr ""
+"Üzenet\n"
+"megjelenítése"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Show\n"
 "Progress"
 msgstr ""
 "Folyamat\n"
@@ -14456,6 +14522,12 @@ msgstr "A Gmail kategóriák megjelenítése a bekeretezett részben"
 #, fuzzy
 msgid "Show MailCraft"
 msgstr "MailCraft megjelenítése"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Message"
+msgstr "Üzenet megjelenítése"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs

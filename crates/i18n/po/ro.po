@@ -592,6 +592,12 @@ msgid "A port is a number from 1 to 65535"
 msgstr "Un port este un număr de la 1 la 65535"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "A preview may omit some content from the original file."
+msgstr "Previzualizarea poate omite o parte din conținutul fișierului original."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "A report is written beside your mailbox."
@@ -1869,6 +1875,12 @@ msgstr "Întreabă din nou înainte de a descărca imaginile expeditorilor din a
 #, fuzzy
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Întreabă din nou înainte de a descărca imaginile acestui expeditor"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Ask before previewing this type of file"
+msgstr "Întreabă înainte de previzualizarea acestui tip de fișier"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
@@ -3332,8 +3344,8 @@ msgstr "Ștergere căutare (Esc)"
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "Clic pentru previzualizarea {name}; dublu clic pentru deschidere"
+msgid "Click to select {name}; double-click to open it"
+msgstr "Faceți clic pentru a selecta {name}; faceți dublu clic pentru a-l deschide"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -4679,12 +4691,6 @@ msgstr "Gata: la zi"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "Gata: {n} noi"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "Dublu clic pentru a deschide {name}; clic dreapta pentru a-l salva"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -8924,8 +8930,8 @@ msgstr[2] "Îmbinare {n} de contacte…"
 msgid "Merged PRs"
 msgstr "PR-uri îmbinate"
 
-#. android, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Mesaj"
@@ -10221,6 +10227,12 @@ msgstr "Nu s-au găsit persoane."
 #, fuzzy
 msgid "No preview helper is available for this attachment."
 msgstr "Pentru acest atașament nu există un ajutor de previzualizare."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "No preview is available for this attachment."
+msgstr "Nu este disponibilă o previzualizare pentru acest atașament."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
@@ -12001,6 +12013,12 @@ msgstr "Previzualizare atașament"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
+msgid "Preview File"
+msgstr "Previzualizare fișier"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview attachments with local PdfCraft"
 msgstr "Previzualizare atașamente cu PdfCraft local"
 
@@ -12015,6 +12033,12 @@ msgstr "Previzualizare atașamente cu PdfCraft și PhotoCraft locale"
 #, fuzzy
 msgid "Preview attachments with local PhotoCraft"
 msgstr "Previzualizare atașamente cu PhotoCraft local"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview files only when you trust the sender."
+msgstr "Previzualizați fișierele numai dacă aveți încredere în expeditor."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12550,6 +12574,16 @@ msgstr "Fereastră mementouri"
 msgid "Remove"
 msgstr "Eliminare"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+"Eliminare\n"
+"atașament"
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -13020,6 +13054,12 @@ msgstr "Repornire pentru actualizare"
 msgid "Restart to update is the owner's click."
 msgstr "Repornirea pentru actualizare e decizia proprietarului."
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Restore attachment preview warnings"
+msgstr "Restabilire avertismente de previzualizare a atașamentelor"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -13310,6 +13350,16 @@ msgstr ""
 msgid "Save & Close"
 msgstr "Salvare și închidere"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+"Salvare toate\n"
+"atașamentele"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -13322,8 +13372,8 @@ msgstr "Salvare toate atașamentele"
 msgid "Save All Attachments…"
 msgstr "Salvare toate atașamentele…"
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Save As"
 msgstr "Salvare ca"
@@ -13429,6 +13479,12 @@ msgstr "Salvați sau renunțați la modificările acestui cont înainte de a tre
 #, fuzzy
 msgid "Save out"
 msgstr "Salvare în afară"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Save to Computer"
+msgstr "Salvare pe computer"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -14458,6 +14514,16 @@ msgstr "Afișare"
 #, fuzzy
 msgid ""
 "Show\n"
+"Message"
+msgstr ""
+"Afișare\n"
+"mesaj"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Show\n"
 "Progress"
 msgstr ""
 "Afișare\n"
@@ -14508,6 +14574,12 @@ msgstr "Afișați categoriile Gmail sub Mesaje primite"
 #, fuzzy
 msgid "Show MailCraft"
 msgstr "Afișare MailCraft"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Message"
+msgstr "Afișare mesaj"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs

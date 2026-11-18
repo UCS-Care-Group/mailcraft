@@ -406,6 +406,7 @@ const SAFE: &[&str] = &[
     "file.account",
     // The window's own.
     "ui.tab",
+    "ui.showAttachmentMessage",
     "ui.backstage",
     "ui.collapseRibbon",
     "ui.ribbonMode",

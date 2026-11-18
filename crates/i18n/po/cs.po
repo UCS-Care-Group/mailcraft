@@ -590,6 +590,12 @@ msgid "A port is a number from 1 to 65535"
 msgstr "Port je číslo od 1 do 65535"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "A preview may omit some content from the original file."
+msgstr "Náhled nemusí zobrazit veškerý obsah původního souboru."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "A report is written beside your mailbox."
@@ -1857,6 +1863,12 @@ msgstr "Před stažením obrázků od odesílatelů z této domény se znovu pt�
 #, fuzzy
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Před stažením obrázků od tohoto odesílatele se znovu ptát"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Ask before previewing this type of file"
+msgstr "Před zobrazením náhledu tohoto typu souboru se zeptat"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
@@ -3300,8 +3312,8 @@ msgstr "Vymazat hledání (Esc)"
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "Kliknutím zobrazíte náhled {name}; poklepáním ho otevřete"
+msgid "Click to select {name}; double-click to open it"
+msgstr "Kliknutím vyberete {name}; dvojitým kliknutím jej otevřete"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -4645,12 +4657,6 @@ msgstr "Hotovo: aktuální"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "Hotovo: {n} nových"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "Poklepáním otevřete {name}; kliknutím pravým tlačítkem ho uložíte"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -8880,8 +8886,8 @@ msgstr[2] "Sloučit {n} kontaktů…"
 msgid "Merged PRs"
 msgstr "Sloučené PR"
 
-#. android, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Zpráva"
@@ -10174,6 +10180,12 @@ msgstr "Nikdo nenalezen."
 #, fuzzy
 msgid "No preview helper is available for this attachment."
 msgstr "Pro tuto přílohu není k dispozici žádný pomocník náhledu."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "No preview is available for this attachment."
+msgstr "Pro tuto přílohu není náhled k dispozici."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
@@ -11948,6 +11960,12 @@ msgstr "Náhled přílohy"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
+msgid "Preview File"
+msgstr "Zobrazit náhled souboru"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview attachments with local PdfCraft"
 msgstr "Zobrazovat náhledy příloh pomocí místního PdfCraftu"
 
@@ -11962,6 +11980,12 @@ msgstr "Zobrazovat náhledy příloh pomocí místního PdfCraftu a PhotoCraftu"
 #, fuzzy
 msgid "Preview attachments with local PhotoCraft"
 msgstr "Zobrazovat náhledy příloh pomocí místního PhotoCraftu"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview files only when you trust the sender."
+msgstr "Náhledy souborů zobrazujte pouze tehdy, pokud důvěřujete odesílateli."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12496,6 +12520,16 @@ msgstr "Okno připomenutí"
 msgid "Remove"
 msgstr "Odebrat"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+"Odstranit\n"
+"přílohu"
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -12966,6 +13000,12 @@ msgstr "Restartovat a aktualizovat"
 msgid "Restart to update is the owner's click."
 msgstr "Restartovat a aktualizovat musí kliknout vlastník."
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Restore attachment preview warnings"
+msgstr "Obnovit upozornění před zobrazením náhledu příloh"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -13256,6 +13296,16 @@ msgstr ""
 msgid "Save & Close"
 msgstr "Uložit a zavřít"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+"Uložit všechny\n"
+"přílohy"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -13268,8 +13318,8 @@ msgstr "Uložit všechny přílohy"
 msgid "Save All Attachments…"
 msgstr "Uložit všechny přílohy…"
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Save As"
 msgstr "Uložit jako"
@@ -13375,6 +13425,12 @@ msgstr "Před přechodem na přihlášení přes Google změny tohoto účtu ulo
 #, fuzzy
 msgid "Save out"
 msgstr "Uložit ven"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Save to Computer"
+msgstr "Uložit do počítače"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -14400,6 +14456,16 @@ msgstr "Zobrazit"
 #, fuzzy
 msgid ""
 "Show\n"
+"Message"
+msgstr ""
+"Zobrazit\n"
+"zprávu"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Show\n"
 "Progress"
 msgstr ""
 "Zobrazit\n"
@@ -14450,6 +14516,12 @@ msgstr "Zobrazovat kategorie Gmailu pod Doručenou poštou"
 #, fuzzy
 msgid "Show MailCraft"
 msgstr "Zobrazit MailCraft"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Message"
+msgstr "Zobrazit zprávu"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
