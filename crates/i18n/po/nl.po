@@ -12637,8 +12637,9 @@ msgstr "Het bericht is opgeslagen in {name}"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
-msgstr ""
+msgstr "Het bericht is opgeslagen in {name}, geschreven van wat deze computer ervan bewaart: niet byte voor byte zoals het binnenkwam"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
@@ -20739,8 +20740,9 @@ msgstr "alleen de kopteksten van „{subject}” zijn hier, dus het kan niet als
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
-msgstr ""
+msgstr "alleen de kopteksten van „{subject}” zijn hier, dus het kan niet als bericht worden opgeslagen"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -21853,8 +21855,9 @@ msgstr "de tekst van „{subject}” kan op deze computer niet worden gelezen, d
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
-msgstr ""
+msgstr "de tekst van „{subject}” kan op deze computer niet worden gelezen, dus het kan niet als bericht worden opgeslagen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -24162,8 +24165,9 @@ msgstr "„{subject}” is nog niet gedownload: open het zodra u online bent en 
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "„{subject}” is nog niet gedownload: open het zodra u online bent en sla het daarna op"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24173,8 +24177,9 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
-msgstr ""
+msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hier, dus het kan niet als bericht worden opgeslagen"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
