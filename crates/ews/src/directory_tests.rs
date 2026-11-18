@@ -103,3 +103,21 @@ fn an_empty_answer_has_no_items() {
     assert!(page.items.is_empty());
     assert!(page.last);
 }
+
+/// A whole-day event at midnight in its own zone is the evening before in UTC; the instant is
+/// kept as it came and the day is read in that zone, not by UTC's date.
+#[test]
+fn an_all_day_event_keeps_the_instant_and_the_day_of_its_zone() {
+    let page = find_items(
+        "<t:CalendarItem><t:ItemId Id=\"event-2\" ChangeKey=\"key-2\"/><t:Subject>Holiday</t:Subject>\
+         <t:Start>2026-11-22T23:00:00Z</t:Start><t:End>2026-11-23T23:00:00Z</t:End>\
+         <t:IsAllDayEvent>true</t:IsAllDayEvent><t:CalendarItemType>Single</t:CalendarItemType><t:UID>uid-2</t:UID>\
+         <t:StartTimeZone Id=\"W. Europe Standard Time\" Name=\"W. Europe Standard Time\"/></t:CalendarItem>",
+    );
+    let Some(Item::Event(event)) = page.items.first() else { panic!("an event") };
+    assert!(event.all_day);
+    assert_eq!(event.start_zone, "W. Europe Standard Time");
+    assert_eq!((event.start, event.end), (1_795_388_400, 1_795_474_800), "the instants the server gave");
+    let day = all_day_day("2026-11-22T23:00:00Z", "W. Europe Standard Time");
+    assert_eq!(day.map(|day| (day.year, day.month, day.day)), Some((2026, 11, 23)), "midnight there, not UTC's date");
+}

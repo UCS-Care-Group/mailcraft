@@ -311,7 +311,13 @@ fn local_times(start: Timestamp, end: Timestamp, all_day: bool, offset_at: &dyn 
             }
             // A server that names a midnight somewhere instead: the midnight nearest to it here.
             let here = local(instant);
-            if here.hour >= 12 { here.date.add_days(1) } else { here.date }
+            if here.seconds_of_day() == 0 {
+                here.date
+            } else if here.hour >= 12 {
+                here.date.add_days(1)
+            } else {
+                here.date
+            }
         };
         let first = day(start);
         // At least one day; the end is the midnight after the last.

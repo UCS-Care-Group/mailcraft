@@ -287,6 +287,21 @@ fn day_of(text: &str) -> Option<Date> {
     Date::new(year, month, day)
 }
 
+/// The day of an all-day event whose `Start` is an instant: the day it is in its own zone when
+/// its midnight is that instant there (`2026-11-22T23:00Z` for the 23rd in Europe), else the
+/// nearest midnight; without a zone, the day the mailbox's own clock makes of it.
+fn all_day_day(text: &str, zone: &str) -> Option<Date> {
+    let instant = mailcraft_time::iso_to_timestamp(text, 0)?;
+    if let Some(zone) = mailcraft_time::Zone::named(zone) {
+        let wall = zone.wall(instant);
+        if wall.seconds_of_day() == 0 {
+            return Some(wall.date);
+        }
+        return Some(if wall.hour >= 12 { wall.date.add_days(1) } else { wall.date });
+    }
+    Some(DateTime::from_timestamp(instant, 0).date)
+}
+
 /// A child's day.
 fn child_day(node: &Node, name: &str) -> Option<Date> {
     node.child_in(TYPES, name).and_then(|child| day_of(&child.text))
@@ -393,9 +408,12 @@ fn read_calendar(node: &Node) -> Option<RemoteEvent> {
         .unwrap_or("")
         .to_owned();
     let (start, end) = if all_day {
-        let first = day_of(start_text)?;
-        let after = day_of(end_text).unwrap_or(first.add_days(1));
-        (DateTime::at_midnight(first).to_timestamp(0), DateTime::at_midnight(after).to_timestamp(0))
+        // The instants as the server gives them: an all-day event at midnight in its own zone is
+        // often the evening before in UTC (`2026-11-22T23:00Z` for the 23rd), and which day it is
+        // is read in its own zone (or here) by the mailbox (`whole_day`), never by UTC's date.
+        let start = mailcraft_time::iso_to_timestamp(start_text, 0)?;
+        let end = mailcraft_time::iso_to_timestamp(end_text, 0).unwrap_or(start);
+        (start, end.max(start))
     } else {
         let start = mailcraft_time::iso_to_timestamp(start_text, 0)?;
         let end = mailcraft_time::iso_to_timestamp(end_text, 0).unwrap_or(start);
@@ -449,7 +467,7 @@ fn read_calendar(node: &Node) -> Option<RemoteEvent> {
         modified: child_time(node, "LastModifiedTime").unwrap_or(0),
         is_organizer: Some(child_text(node, "MyResponseType") == "Organizer"),
         recurrence,
-        series_day: child_day(node, "Start"),
+        series_day: if all_day { all_day_day(start_text, &start_zone) } else { child_day(node, "Start") },
         original: child_time(node, "OriginalStart"),
         categories: categories(node),
         importance: importance(node),
