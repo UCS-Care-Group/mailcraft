@@ -828,7 +828,7 @@ mod check_names_tests;
 /// place of its text, a note that says so, with the mark `mailcraft-net` gives it. A sender can
 /// write that mark into a message of their own; only plain text that opens as the note does,
 /// with no file, is taken for it.
-fn not_downloaded(m: &Message) -> bool {
+pub(crate) fn not_downloaded(m: &Message) -> bool {
     m.body.html.is_none() && m.attachments.is_empty() && m.body.text.starts_with(NOT_DOWNLOADED_NOTE) && m.has_header(NOT_DOWNLOADED)
 }
 
