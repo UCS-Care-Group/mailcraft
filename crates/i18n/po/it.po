@@ -3191,8 +3191,9 @@ msgstr "Città"
 
 #. name
 #: crates/ui-egui/src/theme.rs
+#, fuzzy
 msgid "Classic Light"
-msgstr ""
+msgstr "Chiaro classico"
 
 #. name
 #: crates/ui-egui/src/ribbon.rs

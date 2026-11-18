@@ -2512,6 +2512,7 @@ fn strip(app: &mut MailApp, ui: &mut Ui, tabs: &[&'static str], current: &str, i
                 ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
                 for tab in tabs {
                     // Named in capitals, a little smaller, where the theme has it so (#1203).
+                    // (Unicode's capitals, not a locale's: right for every catalogue shipped, not for Turkish's dotted i.)
                     let (shown, size) = if t.tab_caps { (tl!(tab).to_uppercase(), TAB_SIZE - 1.5) } else { (tl!(tab).to_string(), TAB_SIZE) };
                     let active = current == *tab;
                     // As wide as its name in the heavier weight, so a tab keeps its place when chosen.
