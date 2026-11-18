@@ -79,6 +79,26 @@ impl MailApp {
         self.session.mailbox.ews_owner_of(account).map_or(account, |owner| owner.id)
     }
 
+    /// The owner has had their say on the certificate of `account`'s server (it is trusted now, or
+    /// the server shows one that needs no say): nothing waits on it any more, for the account and
+    /// for the shared mailboxes opened through it (#482), which are reached with its settings. The
+    /// run that stopped at the question goes on at once (the first, when more than one did: the
+    /// others go with the next round); the account's own when none did.
+    pub(crate) fn ews_certificate_settled(&mut self, account: Id) {
+        let mailbox = &self.session.mailbox;
+        let reached: Vec<Id> = std::iter::once(account)
+            .chain(mailbox.accounts.iter().filter(|a| mailbox.ews_owner_of(a.id).is_some_and(|o| o.id == account)).map(|a| a.id))
+            .collect();
+        let mut waited = None;
+        for id in reached {
+            self.jmap_refused.remove(&id);
+            if self.ews_certificate.remove(&id).is_some() {
+                waited = waited.or(Some(id));
+            }
+        }
+        let _ = self.execute("ui.sync", json!({"account": waited.unwrap_or(account)}));
+    }
+
     /// The server of `account` turned its password down: the next Send/Receive asks for it again,
     /// and no round by itself goes back until then. What the system remembered is no good either.
     /// For a shared mailbox (#482) that is its owner's password, and neither goes back by itself.

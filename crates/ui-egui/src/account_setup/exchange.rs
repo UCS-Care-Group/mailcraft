@@ -335,12 +335,14 @@ impl AccountSetup {
     }
 
     /// File › Info asks again about a certificate of this account's server that changed: look at
-    /// the certificate alone (no sign-in is sent) and ask.
+    /// the certificate alone (no sign-in is sent) and ask. For a shared mailbox (#482) that is its
+    /// owner's server, and the answer is the owner's settings': those are what its runs go with.
     pub(super) fn review_certificate(app: &MailApp, id: Id) -> Option<AccountSetup> {
         // (Not for a mailbox whose servers nobody has confirmed: the look connects to its server.)
         if app.unconfirmed {
             return None;
         }
+        let id = app.ews_sign_in_of(id);
         let a = app.session.mailbox.account(id).filter(|a| a.kind == AccountKind::Exchange && !a.email.is_empty())?;
         let mut w = AccountSetup::blank(Page::ExchangeChecking);
         w.email = line(&a.email, LINE);
@@ -455,10 +457,7 @@ impl AccountSetup {
             let kept = app.execute("account.edit", json!({"id": id, "ews": {"trusted": certificate.fingerprint}}));
             match kept {
                 Ok(_) => {
-                    app.ews_certificate.remove(&id);
-                    app.jmap_refused.remove(&id);
-                    // The run that stopped at the certificate goes on at once.
-                    let _ = app.execute("ui.sync", json!({"account": id}));
+                    app.ews_certificate_settled(id);
                     self.done = true;
                 }
                 Err(e) => self.error = e,
@@ -532,10 +531,7 @@ impl AccountSetup {
             EwsSetupEnd::CertificateFine => {
                 // Nothing needs the owner's say now (the system trusts it, or the account does).
                 if self.exchange.review != 0 {
-                    let id = self.exchange.review;
-                    app.ews_certificate.remove(&id);
-                    app.jmap_refused.remove(&id);
-                    let _ = app.execute("ui.sync", json!({"account": id}));
+                    app.ews_certificate_settled(self.exchange.review);
                 }
                 self.done = true;
             }

@@ -157,7 +157,9 @@ pub(crate) fn jmap_line(a: &mailcraft_model::Account) -> String {
 /// An Exchange server account's line (#252): the name of its server alone. Where it connects, as
 /// whom and the certificate it trusts are under its card ([`crate::ews_setup::info_rows`]).
 pub(crate) fn ews_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
-    let host = a.ews.as_ref().and_then(mailcraft_model::EwsServer::host);
+    // (A shared mailbox, #482, is reached with its owner's server.)
+    let settings = app.session.mailbox.ews_owner_of(a.id).unwrap_or(a);
+    let host = settings.ews.as_ref().and_then(mailcraft_model::EwsServer::host);
     let Some(host) = host else { return tl!("Exchange server · no usable server address").to_string() };
     let mut line = crate::i18n::fmt(tl!("Exchange server {host}"), &[("host", host)]);
     // A certificate the system doesn't trust, which only the owner can decide about.
