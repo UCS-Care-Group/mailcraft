@@ -11431,6 +11431,12 @@ msgid "Otherwise a notification shows the sender and the subject, never the mess
 msgstr "Sinon, une notification affiche l’expéditeur et l’objet, jamais le texte du message ni ses images. Ce qui s’affiche sur l’écran de verrouillage dépend du réglage de confidentialité du téléphone."
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Sinon, elles sont affichées par leur nom. Dans Indésirable, elles sont toujours affichées par leur nom."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
@@ -14477,6 +14483,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Afficher les favoris d'Outlook"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Afficher les pièces jointes image comme images"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -14598,6 +14610,12 @@ msgstr "Afficher plus de tâches"
 #, fuzzy
 msgid "Show password"
 msgstr "Afficher le mot de passe"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Afficher les pièces jointes image comme images"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs

@@ -11075,6 +11075,12 @@ msgid "Otherwise a notification shows the sender and the subject, never the mess
 msgstr "Anders toont een melding de afzender en het onderwerp, nooit de berichttekst of de afbeeldingen. Wat op het vergrendelscherm staat, volgt de privacy-instelling van de telefoon zelf."
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Anders worden ze met hun naam weergegeven. In Ongewenste e-mail worden ze altijd met hun naam weergegeven."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
@@ -14019,6 +14025,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Favorieten van Outlook weergeven"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Afbeeldingsbijlagen als afbeeldingen weergeven"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 msgid "Show Progress"
 msgstr "Voortgang weergeven"
@@ -14132,6 +14144,12 @@ msgstr "Meer taken weergeven"
 #, fuzzy
 msgid "Show password"
 msgstr "Wachtwoord tonen"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Afbeeldingsbijlagen als afbeeldingen weergeven"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs

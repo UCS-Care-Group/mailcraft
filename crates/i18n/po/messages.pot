@@ -9519,6 +9519,11 @@ msgid "Otherwise a notification shows the sender and the subject, never the mess
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
 msgstr ""
@@ -12052,6 +12057,11 @@ msgid "Show Outlook's Favorites"
 msgstr ""
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show Picture Attachments as Pictures"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 msgid "Show Progress"
 msgstr ""
@@ -12151,6 +12161,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/secret_field.rs
 msgid "Show password"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+msgid "Show picture attachments as pictures"
 msgstr ""
 
 #. android, interface

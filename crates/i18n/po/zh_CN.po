@@ -11472,6 +11472,12 @@ msgid "Otherwise a notification shows the sender and the subject, never the mess
 msgstr "否则，通知会显示发件人和主题，但绝不显示邮件正文或图片。锁屏上显示的内容遵循手机自身的隐私设置。"
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "否则将按名称显示。在垃圾邮件中始终按名称显示。"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
@@ -14541,6 +14547,12 @@ msgid "Show Outlook's Favorites"
 msgstr "显示 Outlook 的收藏夹"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "将图片附件显示为图片"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -14663,6 +14675,12 @@ msgstr "显示更多任务"
 #, fuzzy
 msgid "Show password"
 msgstr "显示密码"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "将图片附件显示为图片"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs

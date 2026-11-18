@@ -11473,6 +11473,12 @@ msgid "Otherwise a notification shows the sender and the subject, never the mess
 msgstr "Egyébként az értesítés a feladót és a tárgyat mutatja, az üzenet szövegét és képeit soha. A zárképernyőn megjelenő tartalmat a telefon saját adatvédelmi beállítása szabja meg."
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Egyébként a nevükkel jelennek meg. A Levélszemét mappában mindig a nevükkel jelennek meg."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
@@ -14540,6 +14546,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Az Outlook kedvencei"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Képmellékletek megjelenítése képként"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -14662,6 +14674,12 @@ msgstr "Több feladat megjelenítése"
 #, fuzzy
 msgid "Show password"
 msgstr "Jelszó megjelenítése"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Képmellékletek megjelenítése képként"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs

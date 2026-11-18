@@ -11495,6 +11495,12 @@ msgid "Otherwise a notification shows the sender and the subject, never the mess
 msgstr "Jinak oznámení ukazuje odesílatele a předmět, nikdy text zprávy ani její obrázky. Co se zobrazí na zamykací obrazovce, se řídí nastavením soukromí telefonu."
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Jinak se zobrazí pod svými názvy. V nevyžádané poště se vždy zobrazují pod svými názvy."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
@@ -14570,6 +14576,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Zobrazit oblíbené z Outlooku"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Zobrazit obrazové přílohy jako obrázky"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -14692,6 +14704,12 @@ msgstr "Zobrazit další úkoly"
 #, fuzzy
 msgid "Show password"
 msgstr "Zobrazit heslo"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Zobrazit obrazové přílohy jako obrázky"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs

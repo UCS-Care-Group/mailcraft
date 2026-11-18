@@ -11511,6 +11511,12 @@ msgid "Otherwise a notification shows the sender and the subject, never the mess
 msgstr "Altfel, o notificare arată expeditorul și subiectul, niciodată textul mesajului sau imaginile lui. Ce apare pe ecranul de blocare urmează setarea de confidențialitate a telefonului."
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "În caz contrar, sunt afișate cu numele lor. În Mesaje nedorite sunt afișate întotdeauna cu numele lor."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
@@ -14592,6 +14598,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Afișare Favorite Outlook"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Afișează atașamentele imagine ca imagini"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -14714,6 +14726,12 @@ msgstr "Afișează mai multe sarcini"
 #, fuzzy
 msgid "Show password"
 msgstr "Afișare parolă"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Afișează atașamentele imagine ca imagini"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs

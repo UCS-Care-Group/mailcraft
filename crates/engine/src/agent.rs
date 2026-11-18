@@ -590,6 +590,7 @@ const SETTINGS: &[&str] = &[
     "ui.desktopAlerts",
     "ui.closeToTray",
     "ui.repliesInWindow",
+    "ui.attachmentPictures",
     "ui.swipeAction",
     "ui.updateCheck",
     "ui.updateInstall",
