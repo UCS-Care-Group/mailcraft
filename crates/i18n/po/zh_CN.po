@@ -1667,6 +1667,11 @@ msgid "Apply Downloaded To-dos"
 msgstr "应用下载的待办事项"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Apply Downloaded Zimbra Messages"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -15549,7 +15554,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "操作在完成前停止。请再次导入文件以获取剩余内容。"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "已停止；下次从此处继续"
@@ -17458,7 +17463,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "服务器拒绝了此账户的登录请求。请使用“发送/接收”重新登录。"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "服务器拒绝了 {name} 的登录请求：请重新登录"
@@ -19451,7 +19456,7 @@ msgid "Up to 50 MB"
 msgstr "不超过 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "已是最新"
@@ -20611,9 +20616,8 @@ msgstr "Zimbra 账户正在测试中：使用 MAILCRAFT_ZIMBRA=1 启动 MailCraf
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
-#, fuzzy
-msgid "Zimbra accounts can't be sent and received yet: that part is not built"
-msgstr "Zimbra 账户尚不能收发邮件：该部分尚未构建"
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -21761,7 +21765,7 @@ msgid "no message with id {id}"
 msgstr "没有 ID 为 {id} 的邮件"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "{name} 中没有 ID 为 {id} 的邮件"
@@ -22737,12 +22741,6 @@ msgid "the request was lost"
 msgstr "请求已丢失"
 
 #. what a command says
-#: crates/engine/src/cmd/zimbra_mail.rs
-#, fuzzy
-msgid "the result is for another account"
-msgstr "该结果属于另一个账户"
-
-#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result would make this account keep more sync state than is taken in"
@@ -23306,16 +23304,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "此 Exchange 服务器账户没有服务器设置"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "此次发送/接收针对的是另一个账户，不是 {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "此次发送/接收针对的是之前指定的服务器 {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25452,6 +25455,14 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Zimbra 账户尚不能收发邮件：该部分尚未构建"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "该结果属于另一个账户"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"
