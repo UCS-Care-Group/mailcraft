@@ -15,11 +15,11 @@
 use serde::{Deserialize, Serialize};
 
 /// Whether mail can be moved between Gmail's categories in this build: the move goes through
-/// Gmail's API, which the justification Google is reviewing doesn't name yet. Off, the engine
+/// Gmail's API, named in the justification Google reviews (#911). Off, the engine
 /// disables `mail.setGmailCategory`, the window offers no menu or drop for it, and `mailcraft-net`
 /// sends nothing to Gmail's API whatever a request asks.
-// ponytail: on once Google has verified the app (#232).
-pub const GMAIL_CATEGORY_MOVES: bool = false;
+// ponytail: kept as a switch in case Google's review refuses the API call; set false to withdraw.
+pub const GMAIL_CATEGORY_MOVES: bool = true;
 
 /// After how many refusals by Gmail of a message's move on its own the move is given
 /// up, and the message stays where Gmail has it ([`crate::Message::gmail_refusals`]).
