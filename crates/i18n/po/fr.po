@@ -24043,10 +24043,11 @@ msgstr "{name} : ce n'est pas un fichier de message, de calendrier ou de conta
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "{name}: {n} item"
 msgid_plural "{name}: {n} items"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{name} : {n} élément"
+msgstr[1] "{name} : {n} éléments"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -24426,10 +24427,11 @@ msgstr[1] "{n} éléments sélectionnés"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} item, {left} more not listed"
 msgid_plural "{n} items, {left} more not listed"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} élément, {left} de plus non listés"
+msgstr[1] "{n} éléments, {left} de plus non listés"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

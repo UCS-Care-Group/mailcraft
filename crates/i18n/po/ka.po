@@ -1796,8 +1796,9 @@ msgstr "კონტაქტების დალაგების წეს�
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Arrange List By"
-msgstr ""
+msgstr "სიის დალაგების წესი"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -2080,8 +2081,9 @@ msgstr[1] "მიმაგრებულია {n} ფაილი"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Attachment"
-msgstr ""
+msgstr "დანართი"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4036,8 +4038,9 @@ msgstr "DOMAIN\\user ან you@example.org; თქვენი მისამ�
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "ყოველდღე"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -6788,8 +6791,9 @@ msgstr "ადმინისტრატორი ვარ: დამტკი
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Icon"
-msgstr ""
+msgstr "ხატულა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8041,8 +8045,9 @@ msgstr "ბმულები"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "List"
-msgstr ""
+msgstr "სია"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -8094,8 +8099,9 @@ msgstr "შენიშვნების ჩამოთვლა"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "List Rows"
-msgstr ""
+msgstr "სიის რიგები"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -9202,8 +9208,9 @@ msgstr "თვე"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Monthly"
-msgstr ""
+msgstr "ყოველთვე"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -12432,8 +12439,9 @@ msgstr "გამეორება"
 
 #. name
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "Recurrence Pattern"
-msgstr ""
+msgstr "განმეორების შაბლონი"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -15256,8 +15264,9 @@ msgstr "რაღაც ვერ გავიდა ან ისე არ მ
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Sort List"
-msgstr ""
+msgstr "სიის დახარისხება"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -16423,8 +16432,9 @@ msgstr "კალენდარი {name} და ამ კომპიუტ�
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "The calendars shown hold no items."
-msgstr ""
+msgstr "ნაჩვენებ კალენდრებში ელემენტები არ არის."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -19683,8 +19693,9 @@ msgstr "კვირის პირველი დღე"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Weekly"
-msgstr ""
+msgstr "ყოველკვირა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20069,8 +20080,9 @@ msgstr "Yahoo Mail"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Yearly"
-msgstr ""
+msgstr "ყოველწლიურად"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -24059,10 +24071,11 @@ msgstr "{name}: არ არის წერილის, კალენდრ
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "{name}: {n} item"
 msgid_plural "{name}: {n} items"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{name}: {n} ელემენტი"
+msgstr[1] "{name}: {n} ელემენტი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -24442,10 +24455,11 @@ msgstr[1] "მონიშნული ელემენტი: {n}"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} item, {left} more not listed"
 msgid_plural "{n} items, {left} more not listed"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} ელემენტი, კიდევ {left} არ არის ჩამოთვლილი"
+msgstr[1] "{n} ელემენტი, კიდევ {left} არ არის ჩამოთვლილი"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

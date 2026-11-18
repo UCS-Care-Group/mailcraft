@@ -1793,8 +1793,9 @@ msgstr "Uspořádat kontakty podle"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Arrange List By"
-msgstr ""
+msgstr "Seřadit seznam podle"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -2081,8 +2082,9 @@ msgstr[2] "Připojeno {n} souborů"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Attachment"
-msgstr ""
+msgstr "Příloha"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4043,8 +4045,9 @@ msgstr "DOMÉNA\\uživatel nebo vy@example.org; prázdné pro vaši adresu"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "Denně"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -6814,8 +6817,9 @@ msgstr "Jsem správce: schválit ho pro mou organizaci"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Icon"
-msgstr ""
+msgstr "Ikona"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8079,8 +8083,9 @@ msgstr "Odkazy"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "List"
-msgstr ""
+msgstr "Seznam"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -8132,8 +8137,9 @@ msgstr "Vypsat poznámky"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "List Rows"
-msgstr ""
+msgstr "Řádky seznamu"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -9243,8 +9249,9 @@ msgstr "Měsíc"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Monthly"
-msgstr ""
+msgstr "Měsíčně"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -12487,8 +12494,9 @@ msgstr "Opakování"
 
 #. name
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "Recurrence Pattern"
-msgstr ""
+msgstr "Vzorec opakování"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -15339,8 +15347,9 @@ msgstr "Něco neprošlo nebo nedorazilo tak, jak bylo odesláno. Níže uvedené
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Sort List"
-msgstr ""
+msgstr "Seřadit seznam"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -16506,8 +16515,9 @@ msgstr "Kalendář {name} a jeho události uchovávané v tomto počítači budo
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "The calendars shown hold no items."
-msgstr ""
+msgstr "Zobrazené kalendáře neobsahují žádné položky."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -19788,8 +19798,9 @@ msgstr "Týden začíná"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Weekly"
-msgstr ""
+msgstr "Týdně"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20174,8 +20185,9 @@ msgstr "Yahoo Mail"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Yearly"
-msgstr ""
+msgstr "Ročně"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -24174,11 +24186,12 @@ msgstr "{name}: není soubor zprávy, kalendáře ani kontaktu, který MailCraft
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "{name}: {n} item"
 msgid_plural "{name}: {n} items"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{name}: {n} položka"
+msgstr[1] "{name}: {n} položky"
+msgstr[2] "{name}: {n} položek"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -24599,11 +24612,12 @@ msgstr[2] "{n} vybraných položek"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} item, {left} more not listed"
 msgid_plural "{n} items, {left} more not listed"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} položka, dalších {left} není uvedeno"
+msgstr[1] "{n} položky, dalších {left} není uvedeno"
+msgstr[2] "{n} položek, dalších {left} není uvedeno"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

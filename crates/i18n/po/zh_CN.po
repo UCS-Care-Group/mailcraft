@@ -1798,8 +1798,9 @@ msgstr "联系人排列方式"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Arrange List By"
-msgstr ""
+msgstr "列表排列方式"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -2084,8 +2085,9 @@ msgstr[0] "已附加 {n} 个文件"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Attachment"
-msgstr ""
+msgstr "附件"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4047,8 +4049,9 @@ msgstr "DOMAIN\\user 或 you@example.org；留空则使用您的地址"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "每天"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -6794,8 +6797,9 @@ msgstr "我是管理员：为我的组织批准"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Icon"
-msgstr ""
+msgstr "图标"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8055,8 +8059,9 @@ msgstr "链接"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "List"
-msgstr ""
+msgstr "列表"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -8108,8 +8113,9 @@ msgstr "列出便笺"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "List Rows"
-msgstr ""
+msgstr "列表行"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -9217,8 +9223,9 @@ msgstr "月份"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Monthly"
-msgstr ""
+msgstr "每月"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -12464,8 +12471,9 @@ msgstr "重复"
 
 #. name
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "Recurrence Pattern"
-msgstr ""
+msgstr "重复模式"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -15308,8 +15316,9 @@ msgstr "某些操作未完成，或者收到的内容与发送的不一致。下
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Sort List"
-msgstr ""
+msgstr "排序列表"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -16477,8 +16486,9 @@ msgstr "日历 {name} 及其保存在此计算机上的事件将被删除，为�
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "The calendars shown hold no items."
-msgstr ""
+msgstr "所显示的日历中没有任何项目。"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -19739,8 +19749,9 @@ msgstr "一周的第一天"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Weekly"
-msgstr ""
+msgstr "每周"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20126,8 +20137,9 @@ msgstr "Yahoo Mail"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Yearly"
-msgstr ""
+msgstr "每年"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -24117,9 +24129,10 @@ msgstr "{name}：不是 MailCraft 可读取的邮件、日历或联系人文件"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "{name}: {n} item"
 msgid_plural "{name}: {n} items"
-msgstr[0] ""
+msgstr[0] "{name}: {n} 项"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -24455,9 +24468,10 @@ msgstr[0] "已选择 {n} 项"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} item, {left} more not listed"
 msgid_plural "{n} items, {left} more not listed"
-msgstr[0] ""
+msgstr[0] "{n} 项，另有 {left} 项未列出"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

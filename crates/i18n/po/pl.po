@@ -1802,8 +1802,9 @@ msgstr "Rozmieść kontakty według"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Arrange List By"
-msgstr ""
+msgstr "Uporządkuj listę według"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -2090,8 +2091,9 @@ msgstr[2] "Dołączono {n} plików"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Attachment"
-msgstr ""
+msgstr "Załącznik"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4053,8 +4055,9 @@ msgstr "DOMENA\\użytkownik lub ty@example.org; puste dla Twojego adresu"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "Codziennie"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -6827,8 +6830,9 @@ msgstr "Jestem administratorem: zatwierdź go dla mojej organizacji"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Icon"
-msgstr ""
+msgstr "Ikona"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8092,8 +8096,9 @@ msgstr "Łącza"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "List"
-msgstr ""
+msgstr "Lista"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -8145,8 +8150,9 @@ msgstr "Wyświetl notatki"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "List Rows"
-msgstr ""
+msgstr "Wiersze listy"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -9258,8 +9264,9 @@ msgstr "Miesiąc"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Monthly"
-msgstr ""
+msgstr "Co miesiąc"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -12509,8 +12516,9 @@ msgstr "Cykliczność"
 
 #. name
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "Recurrence Pattern"
-msgstr ""
+msgstr "Wzorzec powtarzania"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -15365,8 +15373,9 @@ msgstr "Coś nie zostało przesłane lub dotarło inaczej, niż wysłano. Kroki 
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Sort List"
-msgstr ""
+msgstr "Sortuj listę"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -16534,8 +16543,9 @@ msgstr "Kalendarz {name} i jego wydarzenia przechowywane na tym komputerze zosta
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "The calendars shown hold no items."
-msgstr ""
+msgstr "Wyświetlane kalendarze nie zawierają żadnych elementów."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -19818,8 +19828,9 @@ msgstr "Tydzień zaczyna się w"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Weekly"
-msgstr ""
+msgstr "Co tydzień"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20205,8 +20216,9 @@ msgstr "Yahoo Mail"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Yearly"
-msgstr ""
+msgstr "Co rok"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -24206,11 +24218,12 @@ msgstr "{name}: to nie jest plik wiadomości, kalendarza ani kontaktów, który 
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "{name}: {n} item"
 msgid_plural "{name}: {n} items"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{name}: {n} element"
+msgstr[1] "{name}: {n} elementy"
+msgstr[2] "{name}: {n} elementów"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -24634,11 +24647,12 @@ msgstr[2] "Zaznaczono {n} elementów"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} item, {left} more not listed"
 msgid_plural "{n} items, {left} more not listed"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} element, pozostałe niewyświetlone: {left}"
+msgstr[1] "{n} elementy, pozostałe niewyświetlone: {left}"
+msgstr[2] "{n} elementów, pozostałe niewyświetlone: {left}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

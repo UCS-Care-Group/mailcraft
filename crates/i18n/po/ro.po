@@ -1800,8 +1800,9 @@ msgstr "Aranjare contacte după"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Arrange List By"
-msgstr ""
+msgstr "Aranjează lista după"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -2088,8 +2089,9 @@ msgstr[2] "S-au atașat {n} de fișiere"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Attachment"
-msgstr ""
+msgstr "Atașament"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4051,8 +4053,9 @@ msgstr "DOMENIU\\utilizator sau dvs@example.org; gol pentru adresa dvs."
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "Zilnic"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -6823,8 +6826,9 @@ msgstr "Sunt administrator: îl aprob pentru organizația mea"
 
 #. interface, name
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Icon"
-msgstr ""
+msgstr "Pictogramă"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8088,8 +8092,9 @@ msgstr "Linkuri"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "List"
-msgstr ""
+msgstr "Listă"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -8141,8 +8146,9 @@ msgstr "Listare note"
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "List Rows"
-msgstr ""
+msgstr "Rânduri din listă"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -9254,8 +9260,9 @@ msgstr "Lună"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Monthly"
-msgstr ""
+msgstr "Lunar"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -12505,8 +12512,9 @@ msgstr "Recurență"
 
 #. name
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "Recurrence Pattern"
-msgstr ""
+msgstr "Model de repetare"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -15361,8 +15369,9 @@ msgstr "Ceva nu a trecut sau nu a ajuns așa cum a fost trimis. Pașii de mai jo
 
 #. command label
 #: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
 msgid "Sort List"
-msgstr ""
+msgstr "Sortează lista"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -16530,8 +16539,9 @@ msgstr "Calendarul {name} și evenimentele lui păstrate pe acest calculator vor
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "The calendars shown hold no items."
-msgstr ""
+msgstr "Calendarele afișate nu conțin niciun element."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -19814,8 +19824,9 @@ msgstr "Săptămâna începe"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Weekly"
-msgstr ""
+msgstr "Săptămânal"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20199,8 +20210,9 @@ msgstr "Yahoo Mail"
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "Yearly"
-msgstr ""
+msgstr "Anual"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -24199,11 +24211,12 @@ msgstr "{name}: nu este un fișier de mesaj, calendar sau contact pe care îl ci
 
 #. interface
 #: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
 msgid "{name}: {n} item"
 msgid_plural "{name}: {n} items"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{name}: {n} element"
+msgstr[1] "{name}: {n} elemente"
+msgstr[2] "{name}: {n} de elemente"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -24627,11 +24640,12 @@ msgstr[2] "{n} de elemente selectate"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} item, {left} more not listed"
 msgid_plural "{n} items, {left} more not listed"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} element, neafișate: {left}"
+msgstr[1] "{n} elemente, neafișate: {left}"
+msgstr[2] "{n} de elemente, neafișate: {left}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
