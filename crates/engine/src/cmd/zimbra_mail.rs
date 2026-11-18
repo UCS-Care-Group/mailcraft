@@ -21,12 +21,13 @@
 //! sizes ([`mailcraft_model::sync::ZimbraMailResult::check`]), then [`super::zimbra_down::bounded`]
 //! cuts its text to what is shown and passes over what has an id that is no id.
 
-use mailcraft_model::sync::{GraphFetchResult, ZimbraFetchRequest, ZimbraMailRequest, ZimbraMailResult};
+use mailcraft_model::sync::{GraphFetchResult, SyncPhase, ZimbraFetchRequest, ZimbraMailRequest, ZimbraMailResult};
 use mailcraft_model::{Account, AccountKind, FolderKind, Id, Mailbox, ZimbraServer};
 use serde_json::{Value, json};
 
 use super::graph_down::{self, Down};
 use super::graph_mail::{self, Taken};
+use super::sync_progress::{self, Piece};
 use super::{bad, fail, zimbra_down};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
@@ -117,6 +118,15 @@ pub fn zimbra_mail_request(s: &Session, account: Id) -> Result<ZimbraMailRequest
         // The account's categories, so a tag the run makes for a name the server doesn't have
         // gets the colour it has here.
         categories: s.mailbox.categories_of(account).to_vec(),
+        // The folder in view is read before the rest, so what the owner is looking at comes first.
+        first: s
+            .mailbox
+            .folder(s.view.folder)
+            .filter(|f| f.account == account)
+            .and_then(|f| f.server.as_ref())
+            .filter(|server| mailcraft_model::sync::zimbra_id_ok(&server.id))
+            .map(|server| server.id.clone())
+            .unwrap_or_default(),
         ..ZimbraMailRequest::default()
     })
 }
@@ -320,9 +330,26 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
         s.view.folder = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap_or(0);
         s.sel.messages.clear();
     }
+    // Send/Receive Progress: where the run is, what it brought, what went wrong — as a
+    // Microsoft account's pieces say it.
+    let step = match (&result.progress, &result.listing, result.sent.is_empty() && result.changes.is_empty() && result.messages.is_empty()) {
+        (Some(progress), ..) => {
+            let name = s.mailbox.folder_by_server(account, &progress.folder).and_then(|f| s.mailbox.folder(f)).map(|f| f.name.as_str());
+            Some((SyncPhase::NewMail, sync_progress::shown(name.unwrap_or_default()), progress.read.min(progress.total), progress.total))
+        }
+        (None, Some(_), _) => Some((SyncPhase::Folders, String::new(), 0, 0)),
+        (None, None, false) => Some((SyncPhase::Sending, String::new(), 0, 0)),
+        (None, None, true) => None,
+    };
+    let folders = result.progress.as_ref().map(|p| (p.number, p.folders));
+    let piece = Piece { step, folders, new: down.new, sent, problems: &errors, last: !result.partial, stopped: result.stopped, timings: None };
+    s.sync_progress.take(account, piece);
     let lang = s.interface_language;
     if result.auth_refused {
         errors.insert(0, mailcraft_i18n::fmt(lang.t("The server turned down the sign-in for {name}: sign in again"), &[("name", &name)]));
+    }
+    if let (Some(progress), true) = (&result.progress, result.partial) {
+        s.sync_status = graph_down::progress_words(&s.mailbox, account, progress, lang);
     }
     if !result.partial {
         let said = match errors.first() {

@@ -107,6 +107,10 @@ pub struct ZimbraMailRequest {
     /// server doesn't have gets the colour it has here.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<crate::Category>,
+    /// The folder in view, by server id, when the run is a fresh read: read first, so that what
+    /// the owner is looking at is there before the rest of the mailbox has been read (S15).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub first: String,
     /// Nobody is waiting for this run: it gets the share of requests background work has.
     #[serde(skip_serializing_if = "is_false")]
     pub background: bool,

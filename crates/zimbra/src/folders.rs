@@ -63,6 +63,9 @@ pub struct Listing {
     pub mounted: Vec<Mountpoint>,
     /// The tree was read to its end: a folder that isn't in it is one the server doesn't have.
     pub complete: bool,
+    /// Short notes on why it isn't complete, when it isn't — folder ids at most, never names:
+    /// for a log line, so that a listing the run can't trust says what stopped it.
+    pub notes: Vec<String>,
     /// Every own id named, for knowing one the server names twice.
     seen: std::collections::HashSet<String>,
 }
@@ -132,7 +135,12 @@ fn mount(link: &Value, parent: &str, out: &mut Listing) {
         return;
     }
     if !out.seen.insert(id.clone()) {
-        out.complete = false;
+        // The same remote folder mounted under another name as well: one listing entry answers
+        // for its items under the one id they carry — a mount twice over, not a listing's flaw.
+        if out.notes.len() < 20 {
+            out.notes.push(format!("mountpoint {id} mounted under two names"));
+        }
+        return;
     }
     let view = json::line(link.get("view"));
     out.mounted.push(Mountpoint {
@@ -151,7 +159,7 @@ fn mount(link: &Value, parent: &str, out: &mut Listing) {
     // `mounted` only.
     if matches!(view.as_str(), "" | "message" | "conversation") {
         if out.folders.len() >= MAX_LISTED_FOLDERS {
-            out.complete = false;
+            note(out, "more folders than the listing holds".into());
             return;
         }
         let (total, unread) = (json::number(link.get("n")), json::number(link.get("u")));
@@ -169,16 +177,25 @@ fn mount(link: &Value, parent: &str, out: &mut Listing) {
     }
 }
 
+/// Note why the listing can't be trusted, short and free of anything private (ids, a kind).
+fn note(out: &mut Listing, what: String) {
+    if out.notes.len() < 20 {
+        out.notes.push(what);
+    }
+    out.complete = false;
+}
+
 fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
     if depth > MAX_DEPTH || out.folders.len() >= MAX_LISTED_FOLDERS {
-        out.complete = false;
+        note(out, format!("too deep or too many folders (depth {depth}, {} folders)", out.folders.len()));
         return;
     }
     let Some(id) = json::own_id(folder.get("id")) else {
         // A folder shared from another mailbox is named by a foreign id (`<account>:<id>`): it
         // isn't one of this mailbox's, and leaving it out loses nothing of ours. An id of no
         // shape at all, or none, means a folder we can't account for: the listing isn't complete.
-        if !json::foreign_id(folder.get("id")) {
+        if json::item_id(folder.get("id")).is_none() {
+            note(out, format!("a folder id of no shape ({} bytes)", json::line(folder.get("id")).len()));
             out.complete = false;
         }
         return;
@@ -186,7 +203,7 @@ fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
     if !out.seen.insert(id.clone()) {
         // An id the server names twice names two folders, or one folder twice: the listing isn't
         // one that answers for what it lists.
-        out.complete = false;
+        note(out, format!("folder id {id} named twice"));
     }
     let view = json::raw(folder.get("view")).unwrap_or_default();
     let view = view.trim();
@@ -206,7 +223,7 @@ fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
         if name.is_empty() {
             // A folder of mail that can't be named, and all that lies in it, is left out: the
             // listing is not a complete one, and no token may be kept from a read on it.
-            out.complete = false;
+            note(out, format!("folder {id} has no name"));
             return;
         }
         let (total, unread) = (json::number(folder.get("n")), json::number(folder.get("u")));
