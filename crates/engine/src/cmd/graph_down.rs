@@ -449,6 +449,8 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
         thin_message(m, there.preview.clone());
         (m.subject, m.from, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.from.clone(), there.to.clone(), there.cc.clone(), true);
         (m.bcc, m.reply_to, m.headers, m.header_block) = (Vec::new(), Vec::new(), Vec::new(), Default::default());
+        // (Nor the header as it came, which a header rule reads.)
+        m.read_header = String::new();
         m.headers_cut = there.cut;
         m.attachments_on_server = there.has_attachments;
         if let Some(sd) = m.server_draft.as_mut() {

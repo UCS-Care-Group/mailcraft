@@ -1474,6 +1474,7 @@ fn a_downloaded_draft_relisted_is_read_by_the_rules_as_new_mail_listed_alike() {
         Condition::SizeBetween { min: 0, max: 100_000 },
         Condition::MeetingRequest,
         Condition::AutomaticReply,
+        Condition::HeaderContains(vec!["carl@example.org".into()]),
     ];
     for sent in [false, true] {
         let mut s = Session::empty();
@@ -1482,6 +1483,10 @@ fn a_downloaded_draft_relisted_is_read_by_the_rules_as_new_mail_listed_alike() {
         let rule = json!({"name": "Budget", "account": account, "server": false,
             "conditions": [{"type": "bodyContains", "value": "budget"}], "actions": [{"type": "delete"}]});
         s.run("rules.add", &rule).unwrap();
+        // (And one with words in the header, so that the header lines as they came are kept.)
+        let carl = json!({"name": "Carl", "account": account, "server": false,
+            "conditions": [{"type": "headerContains", "value": "carl@example.org"}], "actions": [{"type": "delete"}]});
+        s.run("rules.add", &carl).unwrap();
         let piece = || EwsMailResult { account, email: ME.into(), url: url.into(), partial: true, ..Default::default() };
         let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
         let folders = vec![
@@ -1513,7 +1518,7 @@ Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encod
         let whole = GraphFetched { id: "D1".into(), mime: mime.into_bytes() };
         ews_mail::apply_ews_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched: vec![whole], ..Default::default() }).unwrap();
         let m = here(&s, account, "D1");
-        assert!(!m.unfetched && m.body.text.contains("budget") && m.has_attachments() && !m.bcc.is_empty());
+        assert!(!m.unfetched && m.body.text.contains("budget") && m.has_attachments() && !m.bcc.is_empty() && m.read_header.contains("carl@"));
         // What it is now, as the server lists it: to me alone, no file.
         let (into, change_key) = if sent { ("F3", "CK1") } else { ("F2", "CK2") };
         let mut now = GraphMessage { draft: Some(!sent), from: Address::new("Ada", ME), ..listed("D1", into, "Plan") };
