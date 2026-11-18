@@ -406,6 +406,7 @@ const SAFE: &[&str] = &[
     "file.account",
     // The window's own.
     "ui.tab",
+    "ui.showAttachmentMessage",
     "ui.backstage",
     "ui.collapseRibbon",
     "ui.ribbonMode",
@@ -589,6 +590,7 @@ const SETTINGS: &[&str] = &[
     "ui.desktopAlerts",
     "ui.closeToTray",
     "ui.repliesInWindow",
+    "ui.swipeAction",
     "ui.updateCheck",
     "ui.updateInstall",
     "ui.dismissUpdateNotice",
@@ -2335,8 +2337,15 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         // The one question for keeping in step with Outlook (#661), which the older ids put too:
         // Microsoft's page, for everything it covers. (`account` read as the window reads it.)
-        "ui.allowSync" | "ui.allowTasks" | "ui.allowRules" | "ui.allowAutomaticReplies" => {
-            let Some(account) = params.get("account").and_then(Value::as_u64).and_then(|a| s.mailbox.account(a)) else {
+        // (The shared mailbox's and the shared calendars' ids put it too, for the account the mailbox
+        // is opened through: the page is that account's.)
+        "ui.allowSync" | "ui.allowTasks" | "ui.allowRules" | "ui.allowAutomaticReplies" | "ui.allowSharedSend" | "ui.allowSharedCalendars" => {
+            let Some(account) = params
+                .get("account")
+                .and_then(Value::as_u64)
+                .and_then(|a| s.mailbox.owner_of(a).map(|owner| owner.id).or(Some(a)))
+                .and_then(|a| s.mailbox.account(a))
+            else {
                 return "ask for permission to keep an account that isn't there in step with Outlook".to_string();
             };
             let what = if s.mailbox.keeps_rules(account.id) {
@@ -2345,7 +2354,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 "the tasks and automatic replies"
             };
             format!(
-                "open Microsoft's page in the browser to ask for permission to keep {what} of {} in step with Outlook: MailCraft may then change its To Do lists and its mailbox settings",
+                "open Microsoft's page in the browser to ask for permission to keep {what} of {} in step with Outlook: MailCraft may then change its To Do lists and its mailbox settings, read and send mail from the shared mailboxes and read the calendars shared with it, and change shared mail and calendars where the owner has write access",
                 clip(account.email.trim(), 80)
             )
         }

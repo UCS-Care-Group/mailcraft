@@ -494,6 +494,11 @@ msgid "A port is a number from 1 to 65535"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "A preview may omit some content from the original file."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "A report is written beside your mailbox."
 msgstr ""
@@ -1054,23 +1059,8 @@ msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page tha
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
-msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "Allow MailCraft to read shared mailboxes on the page that opened in your browser…"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
 msgstr ""
 
 #. interface
@@ -1471,7 +1461,7 @@ msgid "Aqua"
 msgstr ""
 
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs
 msgid "Archive"
 msgstr ""
 
@@ -1552,6 +1542,11 @@ msgstr ""
 msgid "Ask before downloading this sender's pictures again"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Ask before previewing this type of file"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 msgid "Ask first again"
@@ -1583,8 +1578,8 @@ msgid "Ask for permission to read and change your To Do lists and tasks: Microso
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
+#: crates/ui-egui/src/server_sync.rs
+msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
 msgstr ""
 
 #. interface
@@ -2764,7 +2759,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
-msgid "Click to preview {name}; double-click to open it"
+msgid "Click to select {name}; double-click to open it"
 msgstr ""
 
 #. ribbon, ribbon location
@@ -2980,7 +2975,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
 msgid "Continue"
 msgstr ""
 
@@ -3496,7 +3491,7 @@ msgid "Delayed until {when}"
 msgstr ""
 
 #. android, command label, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 msgid "Delete"
 msgstr ""
 
@@ -3880,11 +3875,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
 msgid "Done: {n} new"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-msgid "Double-click to open {name}; right-click to save it"
 msgstr ""
 
 #. ribbon location
@@ -4737,8 +4727,8 @@ msgstr ""
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr ""
 
-#. android, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
 msgid "Flag"
 msgstr ""
 
@@ -4891,6 +4881,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+msgid "For now, nothing of shared mailboxes is read or sent: {error}"
 msgstr ""
 
 #. interface
@@ -6890,11 +6885,6 @@ msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive 
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-msgid "Mail from the shared mailbox waits: {error}"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr ""
@@ -7050,7 +7040,7 @@ msgid "MailCraft is up to date ({version})."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_permission.rs
 msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr ""
 
@@ -7326,7 +7316,7 @@ msgid "Mark as Unread"
 msgstr ""
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 msgid "Mark as read"
 msgstr ""
 
@@ -7399,8 +7389,8 @@ msgstr[1] ""
 msgid "Merged PRs"
 msgstr ""
 
-#. android, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "Message"
 msgstr ""
 
@@ -8466,6 +8456,11 @@ msgstr ""
 msgid "No preview helper is available for this attachment."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview is available for this attachment."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
 msgid "No program can call this number."
@@ -8621,8 +8616,8 @@ msgstr ""
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr ""
 
-#. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 msgid "None"
 msgstr ""
 
@@ -9319,7 +9314,7 @@ msgid "Open Result from the Server"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Open Shared Calendar"
 msgstr ""
 
@@ -9551,11 +9546,6 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "Other people's calendars can be opened under a Microsoft work or school account"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-msgid "Other people's calendars weren't allowed: {error}"
 msgstr ""
 
 #. android
@@ -9959,6 +9949,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview File"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
 msgid "Preview attachments with local PdfCraft"
 msgstr ""
 
@@ -9970,6 +9965,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Preview attachments with local PhotoCraft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview files only when you trust the sender."
 msgstr ""
 
 #. interface
@@ -10413,6 +10413,13 @@ msgstr ""
 msgid "Remove"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 msgid "Remove Account"
@@ -10426,6 +10433,13 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "Remove Everything"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Remove Imported\n"
+"Duplicates"
 msgstr ""
 
 #. command label, interface
@@ -10798,6 +10812,11 @@ msgstr ""
 msgid "Restart to update is the owner's click."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Restore attachment preview warnings"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "Retry"
@@ -11033,6 +11052,13 @@ msgstr ""
 msgid "Save & Close"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Save All Attachments"
@@ -11043,8 +11069,8 @@ msgstr ""
 msgid "Save All Attachments…"
 msgstr ""
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 msgid "Save As"
 msgstr ""
 
@@ -11131,6 +11157,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Save out"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Save to Computer"
 msgstr ""
 
 #. android
@@ -11583,11 +11614,6 @@ msgstr ""
 msgid "Send automatic replies"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-msgid "Send from a Shared Mailbox"
-msgstr ""
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 msgid "Send from shared mailboxes?"
@@ -11945,6 +11971,11 @@ msgid "Shared Calendars"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+msgid "Shared Mailboxes and Calendars"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Shared mailbox · No access: Microsoft won't open it for you. Send/Receive tries again"
 msgstr ""
@@ -11965,18 +11996,35 @@ msgid "Shared mailboxes"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-msgid "Shared mailboxes weren't allowed: {error}"
+#: crates/ui-egui/src/server_sync.rs
+msgid "Shared mailboxes and calendars weren't allowed: {error}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
-msgid "Shared mailboxes' calendars weren't allowed: {error}"
+#: crates/ui-egui/src/shared_permission.rs
+msgid "Shared mailboxes and calendars: asking for your permission…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+msgid "Shared mailboxes and calendars: not allowed ({why})"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+msgid "Shared mailboxes and calendars: waiting for your permission"
 msgstr ""
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
 msgid "Show"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Show\n"
+"Message"
 msgstr ""
 
 #. ribbon
@@ -12023,6 +12071,11 @@ msgstr ""
 msgid "Show MailCraft"
 msgstr ""
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show Message"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
 msgid "Show Only This Calendar"
@@ -12061,11 +12114,6 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/help.rs
 msgid "Show Training"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-msgid "Show a Shared Mailbox's Calendars"
 msgstr ""
 
 #. interface
@@ -12867,18 +12915,28 @@ msgstr ""
 msgid "Sunday"
 msgstr ""
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Swipe Action"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 msgid "Swipe actions"
 msgstr ""
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
+msgstr ""
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 msgid "Swipe to the left"
 msgstr ""
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 msgid "Swipe to the right"
 msgstr ""
 
@@ -13273,11 +13331,6 @@ msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at m
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
-msgid "That isn't a shared mailbox"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "That isn't the password of this file."
 msgstr ""
@@ -13566,11 +13619,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-msgid "The calendars of the shared mailbox wait: {error}"
 msgstr ""
 
 #. interface
@@ -14191,6 +14239,11 @@ msgid "The rules sent couldn't be noted: {error}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The search for your Exchange server asks to start again with an address in another domain, {host}."
 msgstr ""
@@ -14766,7 +14819,7 @@ msgid "This account has no mail server to send the answer through."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_mailboxes.rs
 msgid "This account has no sign-in with Microsoft"
 msgstr ""
 
@@ -15455,7 +15508,7 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_mailboxes.rs
 msgid "This shared mailbox's account is gone"
 msgstr ""
 
@@ -15614,14 +15667,6 @@ msgid "To add another Google address, go back and start a new account setup."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-msgid ""
-"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/server_sync.rs
 msgid ""
 "To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
@@ -15667,27 +15712,11 @@ msgid "To me"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 msgid ""
-"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+"To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"
 "\n"
-"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-msgid ""
-"To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-msgid ""
-"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
+"Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr ""
 
 #. interface
@@ -16862,11 +16891,6 @@ msgid "Your organisation doesn't allow Exchange Web Services for this account. A
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
-msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
 msgstr ""
@@ -16874,6 +16898,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/server_sync.rs
 msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
+msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
 msgstr ""
 
 #. interface
@@ -16932,18 +16961,8 @@ msgid "Your organisation's administrator has to approve MailCraft keeping this m
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
-msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
+#: crates/ui-egui/src/server_sync.rs
+msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
 msgstr ""
 
 #. interface
@@ -17938,6 +17957,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/rich.rs
 msgid "no such paragraph"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rich.rs
+msgid "no such signature"
 msgstr ""
 
 #. what a command says
