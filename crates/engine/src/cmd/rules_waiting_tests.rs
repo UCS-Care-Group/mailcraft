@@ -1445,3 +1445,99 @@ Content-Type: application/octet-stream; name=\"big.bin\"\r\nContent-Disposition:
     let binned = s.mailbox.message(id).and_then(|m| s.mailbox.folder(m.folder)).is_some_and(|f| f.kind == FolderKind::Deleted);
     assert!(!binned, "deleted on the size of the draft before it was sent");
 }
+
+/// A draft here whole on an Exchange account, to Ben with Carl in Bcc, private, with "budget" in
+/// its text and a file, is changed on a phone, or sent from it. Until what it is now is
+/// downloaded, every condition reads it as it reads mail new to this mailbox listed the same way:
+/// nothing the download before brought decides a rule. Left out by name: the days it came by
+/// (the list's own Received, which no download changes either), its marks (the importance, the
+/// categories and the flag, kept in step both ways) and its conversation (Message-ID,
+/// In-Reply-To, References, which a change on a phone keeps).
+#[test]
+fn a_downloaded_draft_relisted_is_read_by_the_rules_as_new_mail_listed_alike() {
+    use mailcraft_model::{Condition, Matching, Sensitivity};
+    let conditions = [
+        Condition::FromContains(vec!["ada".into()]),
+        Condition::ToContains(vec!["ben".into()]),
+        Condition::SubjectContains(vec!["plan".into()]),
+        Condition::BodyContains(vec!["budget".into()]),
+        Condition::SubjectOrBodyContains(vec!["budget".into()]),
+        Condition::HasAttachment,
+        Condition::From(vec![ME.into()]),
+        Condition::SentTo(vec!["ben@example.org".into()]),
+        Condition::SentOnlyToMe,
+        Condition::ToMe,
+        Condition::CcMe,
+        Condition::ToOrCcMe,
+        Condition::NotToMe,
+        Condition::Sensitivity(Sensitivity::Private),
+        Condition::SizeBetween { min: 0, max: 100_000 },
+        Condition::MeetingRequest,
+        Condition::AutomaticReply,
+    ];
+    for sent in [false, true] {
+        let mut s = Session::empty();
+        let url = "https://exchange.example.org/EWS/Exchange.asmx";
+        let account = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": url}})).unwrap()["id"].as_u64().unwrap();
+        let rule = json!({"name": "Budget", "account": account, "server": false,
+            "conditions": [{"type": "bodyContains", "value": "budget"}], "actions": [{"type": "delete"}]});
+        s.run("rules.add", &rule).unwrap();
+        let piece = || EwsMailResult { account, email: ME.into(), url: url.into(), partial: true, ..Default::default() };
+        let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
+        let folders = vec![
+            folder("F1", "Inbox", FolderKind::Inbox),
+            folder("F2", "Drafts", FolderKind::Drafts),
+            folder("F3", "Sent Items", FolderKind::Sent),
+            folder("F4", "Deleted Items", FolderKind::Deleted),
+        ];
+        let deltas = EwsFolderDeltas { changed: folders, afresh: true, ..Default::default() };
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "HIER-1".into(), ..piece() }).unwrap();
+        let draft = GraphMessage { draft: Some(true), has_attachments: true, ..listed("D1", "F2", "Plan") };
+        let first = |folder: &str, messages: Vec<GraphMessage>| EwsMessagePage {
+            folder: folder.into(),
+            messages,
+            afresh: true,
+            last: true,
+            state: "S-1".into(),
+            ..Default::default()
+        };
+        let pages = vec![first("F1", Vec::new()), first("F2", vec![draft]), first("F3", Vec::new()), first("F4", Vec::new())];
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages, ..piece() }).unwrap();
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { whole: true, partial: false, ..piece() }).unwrap();
+        let mime = format!(
+            "From: Ada <{ME}>\r\nTo: Ben <ben@example.org>\r\nBcc: Carl <carl@example.org>\r\nSubject: Plan\r\nMessage-ID: <D1@example.org>\r\n\
+Sensitivity: Private\r\nAuto-Submitted: auto-replied\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+--b\r\nContent-Type: text/plain\r\n\r\nHi Ben. The budget is attached.\r\n--b\r\nContent-Type: application/pdf; name=\"plan.pdf\"\r\n\
+Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n--b--\r\n"
+        );
+        let whole = GraphFetched { id: "D1".into(), mime: mime.into_bytes() };
+        ews_mail::apply_ews_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched: vec![whole], ..Default::default() }).unwrap();
+        let m = here(&s, account, "D1");
+        assert!(!m.unfetched && m.body.text.contains("budget") && m.has_attachments() && !m.bcc.is_empty());
+        // What it is now, as the server lists it: to me alone, no file.
+        let (into, change_key) = if sent { ("F3", "CK1") } else { ("F2", "CK2") };
+        let mut now = GraphMessage { draft: Some(!sent), from: Address::new("Ada", ME), ..listed("D1", into, "Plan") };
+        now.server.change_key = change_key.into();
+        let delta = EwsMessagePage {
+            folder: into.into(),
+            messages: vec![now.clone()],
+            last: true,
+            from: "S-1".into(),
+            state: "S-2".into(),
+            ..Default::default()
+        };
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![delta], ..piece() }).unwrap();
+        let m = here(&s, account, "D1");
+        assert!(m.unfetched, "sent {sent}");
+        let fresh = Message { account, ..super::graph_down::new_message(m.folder, into, &now) };
+        let how = Matching { addresses_only: false, me: ME, zone: s.zone() };
+        for c in &conditions {
+            let read = |m: &Message| (c.holds_in(m, &how), c.unread_in(m));
+            assert_eq!(read(m), read(&fresh), "sent {sent}: {c:?}");
+        }
+        let (id, in_folder) = (m.id, m.folder);
+        s.run("rules.run", &json!({"folder": in_folder})).unwrap();
+        let binned = s.mailbox.message(id).and_then(|m| s.mailbox.folder(m.folder)).is_some_and(|f| f.kind == FolderKind::Deleted);
+        assert!(!binned, "sent {sent}: deleted for a word of the version downloaded before");
+    }
+}

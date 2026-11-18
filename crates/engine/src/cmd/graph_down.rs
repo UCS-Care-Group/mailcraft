@@ -441,10 +441,14 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
         m.draft = true;
     }
     if changed_there || sent || drafted {
-        // Changed elsewhere only: the server's version, fetched afresh.
-        // (Its recipients and subject are the listing's now, and so is whether it left some out:
-        // what the download before said of them is no word on these, #566.)
-        (m.subject, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.to.clone(), there.cc.clone(), true);
+        // Changed elsewhere only: the server's version, fetched afresh. Until it comes, what is
+        // here of it is what the listing says, as of mail new to this mailbox: what the download
+        // before brought (its text, its files, the people and lines of its header, and whether
+        // the listing left some out) is no word on what it is now, for the list or the rules
+        // (#566). The bytes it came as stay, as when it is thinned.
+        thin_message(m, there.preview.clone());
+        (m.subject, m.from, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.from.clone(), there.to.clone(), there.cc.clone(), true);
+        (m.bcc, m.reply_to, m.headers, m.header_block) = (Vec::new(), Vec::new(), Vec::new(), Default::default());
         m.headers_cut = there.cut;
         m.attachments_on_server = there.has_attachments;
         if let Some(sd) = m.server_draft.as_mut() {
@@ -454,8 +458,7 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // A delta never says a size (#300): the last one known, of the whole message when it was
     // fetched, stays; but not for a draft changed elsewhere, sent or a draft again, whose new
     // version is still to be fetched and may be smaller than the background fetch's limit, which
-    // its old size is held against, and is no size a rule may go by (#566). Until then the list
-    // says what is here, its old version.
+    // its old size is held against, and is no size a rule may go by (#566).
     let size = if now.size > 0 || changed_there || sent || drafted { now.size } else { last.size };
     // The conversation id, as the size: one a listing doesn't say (a JMAP server's marks alone)
     // is the last one known (#795).
