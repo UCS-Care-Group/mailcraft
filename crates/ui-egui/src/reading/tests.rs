@@ -4806,6 +4806,8 @@ fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
     // File › Options shows the switch, ticked; off there asks nothing, and the bar offers it again.
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail automatically").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Download pictures in mail automatically").click();
     harness.run_steps(3);
     assert!(harness.state().dialog.is_none());

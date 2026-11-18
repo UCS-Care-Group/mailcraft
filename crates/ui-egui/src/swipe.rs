@@ -266,7 +266,7 @@ pub(crate) fn input(ui: &egui::Ui, scope: Scope, key: (u64, u16), members: &[u64
         frame.offset = state.from + (target - state.from) * eased;
         if progress >= 1.0 {
             frame.completed = state.action.command().map(|_| (state.action, state.members.clone()));
-            state = Gesture { discarded: state.discarded, ..Default::default() };
+            state = Gesture { discarded: state.discarded, blocked_frame: Some(frame_nr), ..Default::default() };
         }
     }
     if state.active {

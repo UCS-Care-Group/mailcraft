@@ -152,6 +152,31 @@ fn terminal_event_does_not_let_another_row_replay_the_same_frames_movement() {
 }
 
 #[test]
+fn a_settled_gesture_cannot_replay_its_events_on_another_row() {
+    for phase in [TouchPhase::End, TouchPhase::Cancel] {
+        let ctx = egui::Context::default();
+        ctx.all_styles_mut(|style| style.animation_time = 0.0);
+        frame(&ctx, 1.0, 1, vec![wheel(-20.0, 0.0, TouchPhase::Start, MouseWheelSource::Trackpad)]);
+        let raw = egui::RawInput {
+            time: Some(1.1),
+            events: vec![wheel(-90.0, 0.0, TouchPhase::Move, MouseWheelSource::Trackpad), wheel(0.0, 0.0, phase, MouseWheelSource::Trackpad)],
+            ..Default::default()
+        };
+        let mut first = Frame::default();
+        let mut second = Frame::default();
+        let mut output = ctx.run_ui(raw, |ui| {
+            let scope = Scope { opening: 1, folder: 1, list: egui::Id::unique("test-list") };
+            first = super::input(ui, scope, (1, 0), &[1], false, 400.0, (Action::Delete, Action::Archive));
+            second = super::input(ui, scope, (2, 0), &[2], true, 400.0, (Action::Delete, Action::Archive));
+        });
+        output.textures_delta.clear();
+        assert_eq!(first.completed, if phase == TouchPhase::End { Some((Action::Delete, vec![1])) } else { None });
+        assert_eq!(second.offset, 0.0);
+        assert_eq!(second.completed, None);
+    }
+}
+
+#[test]
 fn a_cancelled_stream_can_end_while_the_list_is_hidden() {
     let ctx = egui::Context::default();
     let old = Scope { opening: 1, folder: 1, list: egui::Id::unique("list") };
