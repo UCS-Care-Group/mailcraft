@@ -89,7 +89,7 @@ MailCraft connects only to these, over encrypted connections:
 | GitHub's release downloads (`github.com`, and `objects.githubusercontent.com` or `release-assets.githubusercontent.com`, where GitHub sends those), to download a new version | Only for a copy installed from the Windows `.msi`, the macOS app or a Linux AppImage, while the daily check is on and File › About › Install updates automatically is on (as it is unless you, or your organisation, turn it off); when a check finds a newer release | Requests for three files of that release: its list of checksums, the signature over it, and the package for your kind of computer. Nothing about you, your accounts, your mail or the version you run. The package is kept in the program's own folder, installed only when MailCraft's release signature says it is the project's own (when you press Restart to update, or when you quit), and deleted otherwise. Installing it connects to nothing |
 | The project's report relay (`mailcraft.work/api/report`), in the desktop app | Only when you press Send report (or Try again) in Help › Report a Problem; never by itself, never again by itself, and never for a script or an agent | One request, over HTTPS, with what the window showed you: the title, what you wrote, MailCraft's version and your platform, the GitHub username if you gave one, and the diagnostics if you left them ticked. No account, address, mailbox name, computer name or identifier, no cookie, no sign-in. The relay sees your IP address, as any web server does ([Problem reports](#problem-reports)) |
 
-Nothing in a message runs, and nothing in a message is fetched unless you ask for its pictures, or ask to unsubscribe from a list in one click (then only the list's address is told, as above). A message's own style sheet is read for how the message looks (colours, sizes, spacing, what the sender hid), but nothing in it is ever fetched: a sheet's `@import`, its fonts and its pictures are ignored, and a link it styles is never shown as visited. Its `@media` rules are tested against two things on your own computer and nothing else: how wide the message is laid out in the reading pane, and whether your window is dark; the program sends neither to anyone. One consequence to know: once you allow pictures, a message can show a different picture in a dark window, or at each of several widths, and the picture for the look on screen is fetched, so its server can tell from which address was asked for that your window is dark and how wide the message is laid out, to within a few pixels (it is told nothing else, and nothing is fetched until you allow pictures). What a sender hid in a message (a line of preview text, the other copy of a desktop and mobile pair) is not shown to you and is not quoted in your replies, but it is kept with the message on your computer, so that your search and your rules can find it, and it is what an agent you have allowed to read your mail is given as the message's text. The one other thing fetched for your mail is a sender's picture, and only once you turn sender images on.
+Nothing in a message runs, and nothing in a message is fetched unless you ask for its pictures, or ask to unsubscribe from a list in one click (then only the list's address is told, as above). A message's own style sheet is read for how the message looks (colours, sizes, spacing, what the sender hid), but nothing in it is ever fetched: a sheet's `@import`, its fonts and its pictures are ignored, and a link it styles is never shown as visited. A picture a message puts behind part of itself (a banner, a paper texture) is shown only when it is attached to the message or written into it; one on the web is never fetched for that, even when you allow the message's pictures. Its `@media` rules are tested against two things on your own computer and nothing else: how wide the message is laid out in the reading pane, and whether your window is dark; the program sends neither to anyone. One consequence to know: once you allow pictures, a message can show a different picture in a dark window, or at each of several widths, and the picture for the look on screen is fetched, so its server can tell from which address was asked for that your window is dark and how wide the message is laid out, to within a few pixels (it is told nothing else, and nothing is fetched until you allow pictures). What a sender hid in a message (a line of preview text, the other copy of a desktop and mobile pair) is not shown to you and is not quoted in your replies, but it is kept with the message on your computer, so that your search and your rules can find it, and it is what an agent you have allowed to read your mail is given as the message's text. The one other thing fetched for your mail is a sender's picture, and only once you turn sender images on.
 
 On a phone (the Android app) the same rules hold, and what it connects to is the same short list: the web address of a picture in a message, only when you ask for that message's pictures (or for a sender, a domain or all mail, as you chose in Settings › Pictures; never by itself for mail in Junk E-mail), through the one downloader that sends the address alone, with no cookies, no referrer and no sign-in, to public hosts only; nothing is fetched while the phone's Data Saver is on until you tap Download pictures; and the pictures are kept in the app's own cache folder, which Clear in Settings › Pictures empties. Sender images are off until you turn them on in Settings › Sender images: then, for the rows on screen, only for the people you know and the mail whose pictures you allow, never for Junk E-mail, and only for mail your server says really came from them, Gravatar is told the SHA-256 of the address, and favicon.im and Google's favicon service the domain of the sender's site alone. Whether a row shows a sender's picture is decided for that row's own message each time, so a message that only claims to be from someone never wears their picture.
 
@@ -122,35 +122,45 @@ computer, for you, and for nothing else:
 - changing the rules your mailbox keeps on Microsoft's servers (with `MailboxSettings.ReadWrite`), so that
   a rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
   phone: the rule's name, the words it looks for and what it does go to your own Microsoft account and
-  nowhere else.
-
-  These two permissions are on the page of a new sign-in, beside the rest; when Microsoft's page won't have them
-  (an organisation may make an administrator approve them), it is asked again without them, so that
-  signing in for mail never waits on them. An account that signed in before is asked by the
-  program for those of them its sign-in doesn't cover yet, in one question for both ("Keep in Step
-  with Outlook"), and then on one page of Microsoft's (one that allowed changing its automatic
-  replies or rules before has `MailboxSettings.ReadWrite` already, and its categories are kept in
-  step without a new question); a question you close is not put again by itself while MailCraft stays open (it comes
-  back when you change your automatic replies or press Allow in the Categories window, the next time
-  MailCraft starts, or when you open another mailbox), and File › Info has one line
-  for each Microsoft account (Sync with Outlook: on, partly on or off) with Ask again. Until they are
-  given, nothing of your tasks and rules is sent and they stay on this computer, a change of your
-  automatic replies waits for your answer (a no, or the question closed, drops it and says so), the rules already on the server are read with
-  your mailbox settings and shown, and your categories are shown as Outlook has them and can't be changed
-  here;
+  nowhere else;
 - reading the list of folders you keep under Favorites in Outlook, if you ask for it;
-- reading and changing the mail of shared mailboxes you have been given access to, if you open one;
-- sending from a shared mailbox, asked for by itself the first time you send from one (an
-  answer to a meeting or an invitation from a shared mailbox's calendar is sending from it);
-- reading and changing the calendars of shared mailboxes you have been given access to, asked for by itself the
-  first time you tick one in the calendar's folder list (nothing of a shared mailbox's calendar is
-  read before that, and it comes from your own Microsoft servers with your own sign-in; what you
-  may see of it is up to its owner and your organisation);
-- the same permission is asked for by itself the first time you open somebody's calendar by their address
-  (Open Shared Calendar), without the permissions that reading a shared mailbox's mail takes; the
-  address you type goes only to your own Microsoft servers, the calendar is read with your own sign-in
-  and kept on this computer only, and what you may see of it is up to its owner and your organisation;
+- reading and changing the mail of shared mailboxes you have been given access to (`Mail.ReadWrite.Shared`);
+  nothing of a shared mailbox is read until you open it;
+- sending from a shared mailbox (`Mail.Send.Shared`; an answer to a meeting or an invitation from a shared
+  mailbox's calendar is sending from it);
+- reading and changing the calendars of shared mailboxes you have been given access to, and the calendars
+  you open by somebody's address (Open Shared Calendar) (`Calendars.ReadWrite.Shared`): nothing of a shared
+  mailbox's calendar is read before you tick it in the calendar's folder list; the address you type goes only
+  to your own Microsoft servers; either is read with your own sign-in, a calendar opened by address is kept on
+  this computer only, and what you may see of it is up to its owner and your organisation;
 - keeping you signed in (a refresh token, stored as described above).
+
+All of these but the Favorites are on the page of a sign-in, so that you are asked once. When
+Microsoft's page won't have them all, it is asked again: a personal account is never asked for the
+shared mailboxes and calendars (it has none); a page that won't have some of the permissions is asked
+again without the shared mailboxes' and calendars', then without the to-dos' and the settings' too; an
+organisation that makes an administrator approve some, or an owner who says no on the page, is not
+asked again for a bit less, only (for an administrator's approval) once more for what mail alone needs,
+so that signing in for mail never waits on the rest.
+The Favorites' two (`MailboxConfigItem.Read`, `Mail.ReadBasic`) are asked for by themselves, only
+when you ask for them, because an organisation may need an administrator to approve them.
+
+An account that signed in before MailCraft asked for all of this on one page is asked by the
+program, when it first needs one it doesn't have, in one question ("Keep in Step with Outlook", or
+"Shared Mailboxes and Calendars" when only those wait), and then on one page of Microsoft's for
+everything it lacks (Microsoft shows only what you haven't allowed yet; one that allowed changing its
+automatic replies or rules before has `MailboxSettings.ReadWrite` already, and its categories are
+kept in step without a new question). A shared mailbox you open, or ask to be read, opens that page
+at once. A question you close is not put again by itself while MailCraft stays open (it comes back
+when you change your automatic replies, press Allow in the Categories window, send from a shared
+mailbox or open a calendar by address, the next time MailCraft starts, or when you open another
+mailbox), and File › Info has one line for each Microsoft account (Sync with Outlook: on, partly on
+or off) with Ask again. Until they are given, nothing of your tasks and rules is sent and they stay
+on this computer, a change of your automatic replies waits for your answer (a no, or the question
+closed, drops it and says so), the rules already on the server are read with your mailbox settings
+and shown, your categories are shown as Outlook has them and can't be changed here, nothing of a
+shared mailbox or a calendar shared with you is read, and mail from a shared mailbox waits in its
+Outbox (a no holds it there) and is never sent from your own address instead.
 
 An administrator who approves MailCraft for an organisation is asked, in advance, for all of
 these, so that one approval covers what is asked later.

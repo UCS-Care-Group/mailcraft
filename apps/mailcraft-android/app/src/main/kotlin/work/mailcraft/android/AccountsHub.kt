@@ -63,7 +63,8 @@ internal class EventDispatcher {
  *
  * A sign-in that worked starts a Send/Receive the same way ([firstSync]), so that a new account's
  * mail comes at once; a new account's first one waits for [roomFor] (the room gate, told the space
- * the owner chose for its mail in Add Account) and doesn't start on a no.
+ * the owner chose for its mail in Add Account) and doesn't start on a no: the account is then held
+ * back from the background's runs too ([holds]) until the owner says yes or pulls to refresh.
  */
 @Suppress("LongParameterList")
 internal class AccountsHub(
@@ -75,7 +76,9 @@ internal class AccountsHub(
     private val retryAfter: List<Long> = DEFAULT_RETRY,
     private val pause: suspend (Long) -> Unit = { delay(it) },
     private val sync: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
+    private val firstRound: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
     private val roomFor: suspend (account: ULong, storageMb: Long) -> Boolean = { _, _ -> true },
+    private val holds: FirstSyncHolds? = null,
 ) {
     private val syncingNow = MutableStateFlow(false)
     private val notice = MutableStateFlow<String?>(null)
@@ -125,12 +128,22 @@ internal class AccountsHub(
      * Send/Receive now, the owner having asked (pull to refresh). A second ask while one is under way
      * changes nothing; the round's end comes as the core's `SyncFinished`.
      */
-    fun syncNow() {
+    fun syncNow() = start(owner = true)
+
+    /**
+     * A round the owner asked for ([owner]) lets go of every account held back (the core does as it
+     * begins), and the holds kept here go in the same step ([FirstSyncHolds.ownerRound]). A new
+     * account's first round ([firstRound]) is the app's, not the owner's: the accounts held back
+     * stay held, in the core and here (that account's own hold the owner's yes let go already).
+     */
+    private fun start(owner: Boolean) {
         if (!syncingNow.compareAndSet(expect = false, update = true)) return
         notice.value = null
         scope.launch {
             val answer = try {
-                sync()
+                // (The app's round waits for every hold kept to be said again, as the background's
+                // does: one the core didn't hear when it was answered must not be fetched.)
+                if (owner) holds?.ownerRound(sync) ?: sync() else afterHolds(holds, firstRound)
             } catch (_: CoreException) {
                 SyncAnswer(started = false, message = texts.t("Send/Receive couldn't start. Try again."))
             }
@@ -150,7 +163,13 @@ internal class AccountsHub(
      * this one stays asked for and starts when that round ends, however long it takes.
      */
     suspend fun firstSync(account: ULong, keep: KeepChoice, added: Boolean): Boolean {
-        if (added && !roomFor(account, keep.storageMb)) return false
+        if (added) {
+            val yes = roomFor(account, keep.storageMb)
+            // A "Not now" holds the account back from every sync that starts by itself, kept over a
+            // restart; a yes lets it go ([holds]).
+            holds?.answered(account, yes)
+            if (!yes) return false
+        }
         followUp.set(true)
         startFollowUp()
         return true
@@ -158,7 +177,7 @@ internal class AccountsHub(
 
     /** Starts the first sync that waits, once no round the owner asked for is under way. */
     private fun startFollowUp() {
-        if (!syncingNow.value && followUp.getAndSet(false)) syncNow()
+        if (!syncingNow.value && followUp.getAndSet(false)) start(owner = false)
     }
 
     /** The owner has read why Send/Receive didn't start. */

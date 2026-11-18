@@ -120,13 +120,22 @@ fn a_missing_or_empty_diff_runs_everything() {
 fn the_label_and_every_other_event_run_everything() {
     let p = plan("pull_request", true, Some(&files(&["crates/ui-egui/src/a.rs"])), &workspace());
     assert!(p.full.as_deref().is_some_and(|r| r.contains("full-ci")));
-    for event in ["push", "merge_group", "schedule", "workflow_dispatch"] {
+    for event in ["push", "schedule", "workflow_dispatch"] {
         let p = plan(event, false, None, &workspace());
         assert!(p.full.as_deref().is_some_and(|r| r.contains(event)), "{event}");
         assert_eq!(p.filter(), "");
         assert_eq!(p.matrix(), ALL_OS);
         assert!(p.rust && p.android_app && p.android_rust, "{event}");
     }
+}
+
+#[test]
+fn the_merge_queue_runs_everything_on_linux_alone() {
+    let p = plan("merge_group", false, None, &workspace());
+    assert!(p.full.is_some());
+    assert_eq!(p.filter(), "");
+    assert_eq!(p.matrix(), LINUX_ONLY);
+    assert!(p.rust && p.android_app && p.android_rust);
 }
 
 #[test]
