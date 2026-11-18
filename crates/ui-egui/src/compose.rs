@@ -174,6 +174,7 @@ fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text:
 /// What the window shows of the message being written besides its body (copied out of the
 /// session once a frame, so the commands it runs can change the message meanwhile).
 struct Shown {
+    id: u64,
     mode: ComposeMode,
     dirty: bool,
     draft: bool,
@@ -194,6 +195,7 @@ impl Shown {
     fn of(app: &MailApp) -> Option<Shown> {
         let c = app.session.compose.as_ref()?;
         Some(Shown {
+            id: c.id,
             mode: c.mode,
             send_at: c.send_at,
             dirty: c.dirty,
@@ -249,7 +251,7 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
         header(app, ui, &c, focus_to);
     }
 
-    // Attachments, each with a way to take it off again.
+    // Attachments, each with a way to open it or take it off again.
     if !c.attachments.is_empty() {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 16, right: 12, top: 6, bottom: 6 }).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
@@ -258,7 +260,12 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
                     let label = format!("{name}  ({size})");
                     let w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(label.clone(), regular(12.0), t.text).size().x).min(260.0);
                     let (r, _) = ui.allocate_exact_size(vec2(w + 52.0, 26.0), Sense::hover());
-                    ui.painter().rect(r, 5.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+                    let x = Rect::from_center_size(pos2(r.max.x - 12.0, r.center().y), vec2(18.0, 18.0));
+                    let chip = Rect::from_min_max(r.min, pos2(x.min.x, r.max.y));
+                    let open = ui.interact(chip, ui.scope_id().with(("openAttachment", c.id, i)), Sense::click());
+                    app.hit.add("composeAttachment", crate::reading::attachment_key(c.id, i), chip);
+                    let fill = if open.hovered() || open.has_focus() { t.hover } else { t.panel };
+                    ui.painter().rect(r, 5.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
                     icons::paint(
                         ui.painter(),
                         Rect::from_center_size(pos2(r.min.x + 13.0, r.center().y), vec2(16.0, 16.0)),
@@ -267,7 +274,12 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
                         t.accent,
                     );
                     paint_clipped(ui.painter(), pos2(r.min.x + 26.0, r.center().y), w, &label, regular(12.0), t.text);
-                    let x = Rect::from_center_size(pos2(r.max.x - 12.0, r.center().y), vec2(18.0, 18.0));
+                    open.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, name));
+                    let params = json!({"compose": c.id, "index": i});
+                    if open.double_clicked() || (open.clicked() && !open.clicked_by(egui::PointerButton::Primary)) {
+                        let _ = app.run(crate::attachment_open::OPEN_COMPOSE, params.clone());
+                    }
+                    open.context_menu(|ui| crate::widgets::mi(ui, app, "Open", crate::attachment_open::OPEN_COMPOSE, params));
                     let xr = ui.interact(x, ui.scope_id().with(("unattach", i)), Sense::click());
                     if xr.hovered() {
                         ui.painter().rect_filled(x, 3.0, t.hover);

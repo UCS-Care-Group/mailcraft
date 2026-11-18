@@ -963,3 +963,48 @@ fn an_html_signature_is_shown_as_it_goes_out_until_edited_as_text() {
     // Edited, it is the copy that goes out: there is no way back to the HTML.
     assert!(h.state().hit.rect("composeSignatureAsHtml", 0).is_none());
 }
+
+#[test]
+fn a_forward_opens_its_file_by_double_click_and_from_the_menu() {
+    use egui::PointerButton;
+    use egui_kittest::kittest::{NodeT as _, Queryable as _};
+    use std::sync::{Arc, Mutex};
+
+    for separate_window in [false, true] {
+        let mut app = app();
+        let id = app.session.rows().first().unwrap().id;
+        app.session.mailbox.message_mut(id).unwrap().attachments =
+            vec![mailcraft_model::Attachment::new("report.pdf", "application/pdf", b"report".to_vec())];
+        let opened = Arc::new(Mutex::new(Vec::new()));
+        let sink = opened.clone();
+        app.services.open_file = Some(Box::new(move |name, bytes| {
+            sink.lock().unwrap().push((name.to_string(), bytes.to_vec()));
+            Ok(())
+        }));
+        app.execute("mail.select", json!({"ids": []})).unwrap();
+        let mut h = window(app);
+        h.ctx.options_mut(|o| o.input_options.max_double_click_delay = 1.0);
+        h.state_mut().ui.replies_in_window = separate_window;
+        h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+        let compose = h.state_mut().run("mail.forward", json!({"id": id})).unwrap()["compose"].as_u64().unwrap();
+        assert_eq!(h.state().windows.of_compose(compose).is_some(), separate_window);
+        h.run_steps(45);
+        let window = h.state().windows.of_compose(compose).unwrap_or(0);
+        let key = crate::reading::attachment_key(compose, 0);
+        let chip = h.state().hit.rect_in(window, "composeAttachment", key).unwrap().center();
+        crate::people_view::testing::click(&mut h, chip, PointerButton::Primary, 2);
+        assert_eq!(
+            *opened.lock().unwrap(),
+            vec![("report.pdf".to_string(), b"report".to_vec())],
+            "{separate_window}: {chip:?}, {:?}",
+            h.state().status_msg
+        );
+
+        crate::people_view::testing::click(&mut h, chip, PointerButton::Secondary, 1);
+        let menu =
+            h.query_all_by_label_contains("Open").find(|node| node.accesskit_node().label().is_some_and(|label| label.trim() == "Open")).unwrap();
+        let button = menu.rect().center();
+        crate::people_view::testing::click(&mut h, button, PointerButton::Primary, 1);
+        assert_eq!(*opened.lock().unwrap(), vec![("report.pdf".to_string(), b"report".to_vec()); 2]);
+    }
+}
