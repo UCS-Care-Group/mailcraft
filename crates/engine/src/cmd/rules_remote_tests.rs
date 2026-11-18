@@ -2842,3 +2842,19 @@ fn a_category_in_the_servers_capitals_finds_the_rule_again() {
         s.mailbox.rules.iter().map(|r| (&r.name, &r.actions, r.on_server())).collect::<Vec<_>>()
     );
 }
+
+/// A change to the Safe or Blocked Senders asked as a send for a rule beside it that puts mail
+/// onto another server is still a change of settings (#566), as a rule call is (#661): `send`
+/// alone doesn't run it.
+#[test]
+fn a_junk_change_asked_as_a_send_needs_settings_too() {
+    use crate::agent::{Class, Verdict, check};
+    let (mut s, account, _, _) = session();
+    let elsewhere = elsewhere(&mut s);
+    add(&mut s, account, "Away", json!([{"type": "fromContains", "value": "zoe"}]), json!([{"type": "moveTo", "value": elsewhere}]));
+    run(&mut s, "junk.add", json!({"list": "blocked", "entry": "zoe@example.org", "account": account}));
+    let params = json!({"list": "blocked", "entry": "zoe@example.org", "account": account});
+    assert!(matches!(check(&s, "junk.remove", &params, &[]), Verdict::Ask(Class::Send, _)));
+    assert!(matches!(check(&s, "junk.remove", &params, &[Class::Send]), Verdict::Ask(Class::Settings, _)));
+    assert_eq!(check(&s, "junk.remove", &params, &[Class::Send, Class::Settings]), Verdict::Run);
+}
