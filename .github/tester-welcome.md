@@ -20,6 +20,6 @@ Welcome, and thank you for signing up to test MailCraft.
 
 New releases are announced in #11. **Watch → Custom → Releases** on the repository gets you a notification.
 
-Thanks again! A maintainer will add you to the roster in #11.
+Thanks again! A maintainer will add you to the roster in #11. This issue is closed now to keep the issue list tidy; you can still reply here, and problems go in new issues.
 
 <sub>This reply is posted automatically for every tester sign-up.</sub>

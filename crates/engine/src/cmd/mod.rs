@@ -99,6 +99,9 @@ mod imap_outbox_tests;
 pub mod imported_dupes;
 #[cfg(test)]
 mod imported_dupes_tests;
+pub mod item_from_message;
+#[cfg(test)]
+mod item_from_message_tests;
 mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
@@ -233,6 +236,7 @@ pub fn registry() -> Registry {
     v.extend(people_merge::specs());
     v.extend(imported_dupes::specs());
     v.extend(tasks::specs());
+    v.extend(item_from_message::specs());
     v.extend(notes::specs());
     v.extend(rules::specs());
     v.extend(rules_remote::specs());

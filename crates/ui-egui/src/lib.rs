@@ -857,6 +857,15 @@ struct SigningIn {
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
+/// A switch's new state from a command's params: `value` when it is given (true or false), or
+/// else `now` turned over.
+fn switched(p: &serde_json::Value, now: bool) -> Result<bool, String> {
+    match p.get("value").filter(|v| !v.is_null()) {
+        None => Ok(!now),
+        Some(v) => v.as_bool().ok_or_else(|| "`value` is true or false".to_string()),
+    }
+}
+
 /// UI state that persists between runs (and that agents can read and set).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -891,6 +900,11 @@ pub struct UiState {
     /// New Email, a reply or a forward the owner starts opens in a window of its own rather than
     /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
     pub replies_in_window: bool,
+    /// A picture that comes as an attachment is shown as a small picture rather than as a chip
+    /// with its name (#834), in every message; the choice is a checkbox in File › Options.
+    /// On unless the owner turns it off (classic Outlook shows chips; the issue asks for
+    /// pictures); kept as `attachmentPictures`.
+    pub attachment_pictures: bool,
     /// Actions for horizontal gestures on a message row.
     pub swipe_left: swipe::Action,
     pub swipe_right: swipe::Action,
@@ -1022,6 +1036,7 @@ impl Default for UiState {
             dark_style: theme::DarkStyle::default(),
             light_messages: false,
             replies_in_window: false,
+            attachment_pictures: true,
             swipe_left: swipe::Action::None,
             swipe_right: swipe::Action::None,
             interface_size: theme::InterfaceSize::default(),
@@ -1123,6 +1138,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
     ("ui.swipeAction", "Swipe Action", "File › Options", r#"{"direction": "left"|"right", "action": "none"|"delete"|"archive"|"read"|"flag"}"#),
+    (
+        "ui.attachmentPictures",
+        "Show Picture Attachments as Pictures",
+        "Message",
+        r#"{"value"?: bool (default: toggle)} — whether a PNG, JPEG, GIF or WebP that comes as an attachment is shown as a small picture rather than as a chip with its name, in every message (on unless turned off). Answers the switch"#,
+    ),
     (
         "ui.language",
         "Interface Language",
@@ -1503,6 +1524,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Dismiss Update Notice",
         "Above the status bar",
         r#"{"notice": "installsItself" | "didntStart"} — puts away the line that says MailCraft now installs its updates itself (said once), or the offer to go back to the previous version (kept for this run)"#,
+    ),
+    (
+        "ui.dropOnModule",
+        "Make an Item from a Message",
+        "Module bar",
+        r#"{"module": "calendar"|"tasks"|"people", "ids": [number] (messages let go over its icon; the first that is still there is used)} — opens a new appointment, task or contact filled in from the message, as `mail.itemFromMessage` fills it in, in the window; nothing is made until it is saved there. A message of which only the server's short preview is here is downloaded first. Answers {"opened": "event"|"task"|"contact", "message"}"#,
     ),
     (
         "ui.toggleCalendarGroup",
@@ -2653,14 +2680,19 @@ impl MailApp {
                 Ok(json!({"action": action.code()}))
             }
             "ui.repliesInWindow" => {
-                let value = match p.get("value").filter(|v| !v.is_null()) {
-                    None => !self.ui.replies_in_window,
-                    Some(v) => match v.as_bool() {
-                        Some(value) => value,
-                        None => return Some(Err("`value` is true or false".into())),
-                    },
+                let value = match switched(p, self.ui.replies_in_window) {
+                    Ok(value) => value,
+                    Err(e) => return Some(Err(e)),
                 };
                 self.ui.replies_in_window = value;
+                Ok(json!({"value": value}))
+            }
+            "ui.attachmentPictures" => {
+                let value = match switched(p, self.ui.attachment_pictures) {
+                    Ok(value) => value,
+                    Err(e) => return Some(Err(e)),
+                };
+                self.ui.attachment_pictures = value;
                 Ok(json!({"value": value}))
             }
             "ui.lightMessages" => {
@@ -3008,6 +3040,7 @@ impl MailApp {
                     .or_else(|| graph_switch::ui_command(self, id, p))
                     .or_else(|| updates::ui_command(self, id, p))
                     .or_else(|| attachment_open::ui_command(self, id, p))
+                    .or_else(|| nav::ui_command(self, id, p))
                     .or_else(|| report_problem::ui_command(self, id, p))
                     .or_else(|| sender_images::ui_command(self, id, p));
             }
