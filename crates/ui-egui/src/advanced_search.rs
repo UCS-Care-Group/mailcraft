@@ -282,16 +282,30 @@ fn listed<'a>(names: &'a [String], typed: &str) -> Option<&'a String> {
 }
 
 fn row(ui: &mut Ui, label_w: Option<f32>, label: &str, add: impl FnOnce(&mut Ui, egui::Id)) {
+    let hebrew = crate::i18n::current() == crate::i18n::Lang::Hebrew;
     let Some(label_w) = label_w else {
-        let id = ui.label(label).id;
+        // Narrow panels stack the field below its label; mirror only the label's reading edge.
+        let id = if hebrew {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| ui.label(label).id).inner
+        } else {
+            ui.label(label).id
+        };
         add(ui, id);
         ui.add_space(4.0);
         return;
     };
-    ui.horizontal(|ui| {
-        let id = ui.add_sized(vec2(label_w, 22.0), egui::Label::new(label).halign(egui::Align::LEFT)).id;
-        add(ui, id);
-    });
+    if hebrew {
+        // Keep the field's labelled_by ID while placing the label at the right reading edge.
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let id = ui.add_sized(vec2(label_w, 22.0), egui::Label::new(label).halign(egui::Align::RIGHT)).id;
+            add(ui, id);
+        });
+    } else {
+        ui.horizontal(|ui| {
+            let id = ui.add_sized(vec2(label_w, 22.0), egui::Label::new(label).halign(egui::Align::LEFT)).id;
+            add(ui, id);
+        });
+    }
     ui.add_space(4.0);
 }
 
