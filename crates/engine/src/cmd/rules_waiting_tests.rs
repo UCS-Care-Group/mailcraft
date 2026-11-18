@@ -1345,3 +1345,103 @@ fn a_downloaded_draft_relisted_without_its_recipients_isnt_deleted_by_a_rule_abo
         assert!(!binned, "sent {sent}: deleted on recipients the listing didn't give");
     }
 }
+
+/// A draft with a file is here whole on an Exchange 2010 account; on a phone
+/// the file is taken out and the draft changed or sent. The server lists what it is now, with no
+/// attachment. A rule deletes mail with an attachment: Run Rules Now goes by the server's word, not
+/// by the file the old download had.
+#[test]
+fn a_downloaded_draft_relisted_without_its_file_isnt_deleted_by_a_rule_about_files() {
+    for sent in [true, false] {
+        let mut s = Session::empty();
+        let url = "https://exchange.example.org/EWS/Exchange.asmx";
+        let account = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": url}})).unwrap()["id"].as_u64().unwrap();
+        let rule = json!({"name": "Files", "account": account, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "delete"}]});
+        s.run("rules.add", &rule).unwrap();
+        let piece = || EwsMailResult { account, email: ME.into(), url: url.into(), partial: true, ..Default::default() };
+        let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
+        let folders = vec![
+            folder("F1", "Inbox", FolderKind::Inbox),
+            folder("F2", "Drafts", FolderKind::Drafts),
+            folder("F3", "Sent Items", FolderKind::Sent),
+            folder("F4", "Deleted Items", FolderKind::Deleted),
+        ];
+        let deltas = EwsFolderDeltas { changed: folders, afresh: true, ..Default::default() };
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "HIER-1".into(), ..piece() }).unwrap();
+        let draft = GraphMessage { has_attachments: true, draft: Some(true), ..listed("D1", "F2", "Plan") };
+        let first = |folder: &str, messages: Vec<GraphMessage>| EwsMessagePage {
+            folder: folder.into(),
+            messages,
+            afresh: true,
+            last: true,
+            state: "S-1".into(),
+            ..Default::default()
+        };
+        let pages = vec![first("F1", Vec::new()), first("F2", vec![draft]), first("F3", Vec::new()), first("F4", Vec::new())];
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages, ..piece() }).unwrap();
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { whole: true, partial: false, ..piece() }).unwrap();
+        let mime = "From: Ada <ada@example.org>\r\nTo: Ada <ada@example.org>\r\nSubject: Plan\r\nMessage-ID: <D1@example.org>\r\n\
+MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n--b\r\nContent-Type: text/plain\r\n\r\nHi.\r\n\
+--b\r\nContent-Type: application/pdf; name=\"plan.pdf\"\r\nContent-Disposition: attachment; filename=\"plan.pdf\"\r\n\
+Content-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n--b--\r\n";
+        let with_file = GraphFetched { id: "D1".into(), mime: mime.as_bytes().to_vec() };
+        ews_mail::apply_ews_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched: vec![with_file], ..Default::default() }).unwrap();
+        assert!(!here(&s, account, "D1").unfetched && here(&s, account, "D1").has_attachments());
+        // What it is now, as the server lists it: no attachment.
+        let (into, change_key) = if sent { ("F3", "CK1") } else { ("F2", "CK2") };
+        let mut now = GraphMessage { has_attachments: false, draft: Some(!sent), ..listed("D1", into, "Plan") };
+        now.server.change_key = change_key.into();
+        let delta =
+            EwsMessagePage { folder: into.into(), messages: vec![now], last: true, from: "S-1".into(), state: "S-2".into(), ..Default::default() };
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![delta], ..piece() }).unwrap();
+        let m = here(&s, account, "D1");
+        assert!(m.unfetched && !m.attachments_on_server, "sent {sent}: {m:?}");
+        let (id, in_folder) = (m.id, m.folder);
+        s.run("rules.run", &json!({"folder": in_folder})).unwrap();
+        let binned = s.mailbox.message(id).and_then(|m| s.mailbox.folder(m.folder)).is_some_and(|f| f.kind == FolderKind::Deleted);
+        assert!(!binned, "sent {sent}: deleted for the file the server says it no longer has");
+    }
+}
+
+/// A draft with a large file is here whole on a Microsoft account; on a phone
+/// the file is taken out and the draft sent. Graph lists the sent message under the draft's id,
+/// with no size (a delta never says one). A rule deletes mail of 64 KB or more: Run Rules Now
+/// doesn't decide on the size of the draft as it was, but waits for the download.
+#[test]
+fn a_downloaded_draft_sent_elsewhere_isnt_judged_by_its_old_size() {
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    for (kind, id) in [(FolderKind::Drafts, "F2"), (FolderKind::Sent, "F3")] {
+        let f = s.mailbox.folder_of_kind(account, kind).unwrap();
+        s.mailbox.folder_mut(f).unwrap().server = Some(ServerFolder { id: id.into(), caught_up: true, ..Default::default() });
+    }
+    let big = json!({"name": "Big", "account": account, "server": false,
+        "conditions": [{"type": "sizeBetween", "value": {"min": 64, "max": 100000}}], "actions": [{"type": "delete"}]});
+    s.run("rules.add", &big).unwrap();
+    let mut draft = GraphMessage { draft: Some(true), has_attachments: true, ..listed("D1", "F2", "Plan") };
+    draft.server.size = 0;
+    let page = MessagePage { folder: "F2".into(), messages: vec![draft], ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    let file = "A".repeat(200 * 1024);
+    let mime = format!(
+        "From: Ada <ada@example.org>\r\nTo: Ben <ben@example.org>\r\nSubject: Plan\r\nMessage-ID: <D1@example.org>\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n--b\r\nContent-Type: text/plain\r\n\r\nHi.\r\n--b\r\n\
+Content-Type: application/octet-stream; name=\"big.bin\"\r\nContent-Disposition: attachment; filename=\"big.bin\"\r\n\r\n{file}\r\n--b--\r\n"
+    );
+    let fetched = vec![GraphFetched { id: "D1".into(), mime: mime.into_bytes() }];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    assert!(!here(&s, account, "D1").unfetched && here(&s, account, "D1").draft);
+    // Sent from the phone without the file: filed in Sent Items under its id, no size said.
+    let mut now = GraphMessage { draft: Some(false), has_attachments: false, ..listed("D1", "F3", "Plan") };
+    now.server.size = 0;
+    let page = MessagePage { folder: "F3".into(), messages: vec![now], ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    let m = here(&s, account, "D1");
+    assert!(m.unfetched && !m.draft, "{m:?}");
+    let (id, in_folder) = (m.id, m.folder);
+    s.run("rules.run", &json!({"folder": in_folder})).unwrap();
+    let binned = s.mailbox.message(id).and_then(|m| s.mailbox.folder(m.folder)).is_some_and(|f| f.kind == FolderKind::Deleted);
+    assert!(!binned, "deleted on the size of the draft before it was sent");
+}

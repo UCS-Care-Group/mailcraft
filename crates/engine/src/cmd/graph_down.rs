@@ -452,10 +452,11 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
         }
     }
     // A delta never says a size (#300): the last one known, of the whole message when it was
-    // fetched, stays; but not for a draft changed elsewhere, whose new version is still to be
-    // fetched and may be smaller than the background fetch's limit, which its old size is held
-    // against. Until then the list says what is here, its old version.
-    let size = if now.size > 0 || changed_there { now.size } else { last.size };
+    // fetched, stays; but not for a draft changed elsewhere, sent or a draft again, whose new
+    // version is still to be fetched and may be smaller than the background fetch's limit, which
+    // its old size is held against, and is no size a rule may go by (#566). Until then the list
+    // says what is here, its old version.
+    let size = if now.size > 0 || changed_there || sent || drafted { now.size } else { last.size };
     // The conversation id, as the size: one a listing doesn't say (a JMAP server's marks alone)
     // is the last one known (#795).
     let (thread, thread_asked, thread_tries) =
