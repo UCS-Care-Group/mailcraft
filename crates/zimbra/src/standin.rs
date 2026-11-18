@@ -52,6 +52,8 @@ pub struct State {
     pub oldest: u64,
     /// Items a delta names but a search doesn't find (`hide`): gone between the two answers.
     pub hidden: std::collections::BTreeSet<u32>,
+    /// Items a delta still names that no search returns — deleted between the two.
+    pub vanished: std::collections::BTreeSet<u32>,
     /// Every request that came, as its path and SOAP operation (no secret is kept).
     pub log: Vec<String>,
     next: u32,
@@ -138,6 +140,12 @@ impl StandIn {
         s.change += 1;
         let at = s.change;
         s.deleted.push((id, at));
+    }
+
+    /// The item is simply gone — as a deletion between the delta that named it and the read, too
+    /// late for the delta's own `deleted` list: the delta names it still, no search finds it.
+    pub fn vanish(&self, id: u32) {
+        self.state.borrow_mut().vanished.insert(id);
     }
 
     /// A delta still names the message, but a search for it comes back empty: it went between the
@@ -274,10 +282,25 @@ impl StandIn {
         let offset = body.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
         let mut found: Vec<(&u32, &Item)> = if let Some(folder) = query.strip_prefix("inid:\"").and_then(|q| q.strip_suffix('"')) {
             let Ok(folder) = folder.parse::<u32>() else { return fault("service.INVALID_REQUEST") };
-            s.items.iter().filter(|(_, i)| i.folder == folder).collect()
-        } else if let Some(ids) = query.strip_prefix("in:anywhere item:{").and_then(|q| q.strip_suffix('}')) {
+            s.items.iter().filter(|(id, i)| i.folder == folder && !s.vanished.contains(id)).collect()
+        } else if let Some(ids) = query
+            .strip_prefix("in:anywhere item:{")
+            .and_then(|q| q.strip_suffix('}'))
+            .or_else(|| query.strip_prefix("item:{").and_then(|q| q.strip_suffix('}')))
+        {
             let ids: Vec<u32> = ids.split(',').filter_map(|id| id.parse().ok()).collect();
-            s.items.iter().filter(|(id, _)| ids.contains(id) && !s.hidden.contains(id)).collect()
+            // As the real server: `in:anywhere` makes it walk every folder, and an id it no longer
+            // has faults the whole request there. `item:{id}` by itself names the item wherever
+            // it lies: an id it no longer has comes back as an empty page, while one it can't
+            // see (a hidden item stands for an index behind) still faults.
+            if query.starts_with("in:anywhere") && ids.iter().any(|id| !s.items.contains_key(id) || s.hidden.contains(id) || s.vanished.contains(id))
+            {
+                return fault("mail.NO_SUCH_MSG");
+            }
+            if ids.iter().any(|id| s.hidden.contains(id)) {
+                return fault("mail.NO_SUCH_MSG");
+            }
+            s.items.iter().filter(|(id, _)| ids.contains(id) && !s.vanished.contains(id)).collect()
         } else {
             return fault("service.INVALID_REQUEST");
         };

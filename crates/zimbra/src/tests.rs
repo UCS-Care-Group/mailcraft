@@ -172,6 +172,22 @@ fn an_id_the_search_cant_return_fails_the_run_without_its_token() {
 }
 
 #[test]
+fn an_id_the_server_answers_gone_counts_as_removed() {
+    let server = StandIn::new();
+    let gone = server.deliver(2, "Vanishing", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    // Changed in the delta, deleted before the read — too late for the delta's `deleted` list.
+    // The `item:{id}` probe comes back empty: the server's own word that it is gone. The run
+    // counts it removed and moves its token on; failing here would ask the same page for ever.
+    server.change(gone, |m| m.flags = "u".into());
+    server.vanish(gone);
+    let all = whole(&run(&server, &request(&token), PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    assert!(all.whole && !all.token.is_empty());
+    assert!(all.pages.iter().any(|p| p.removed.contains(&gone.to_string())));
+}
+
+#[test]
 fn folders_made_between_delta_pages_are_each_listed_and_kept() {
     let server = StandIn::new();
     let token = whole(&run(&server, &request(""), PASSWORD)).token;

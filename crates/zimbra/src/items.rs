@@ -52,10 +52,23 @@ pub fn folder_page(base: &str, token: &Secret, folder: &str, cursor: Option<(&st
 
 /// The messages `ids` (own ids, at most [`BY_ID`]), wherever they are.
 pub fn by_id(base: &str, token: &Secret, ids: &[String]) -> Result<HttpRequest, Error> {
+    by_id_in(base, token, ids, true)
+}
+
+/// One message `id` asks for again, this time by its own name: `in:anywhere` makes the server walk
+/// every folder to scope the search, and a folder it walks that is already gone faults the request
+/// no matter which id it names — while `item:{id}` alone resolves the id itself.
+pub fn by_id_alone(base: &str, token: &Secret, id: &str) -> Result<HttpRequest, Error> {
+    by_id_in(base, token, &[id.to_string()], false)
+}
+
+/// The messages `ids` (own ids, at most [`BY_ID`]), scoped `anywhere` or asked for by name alone.
+fn by_id_in(base: &str, token: &Secret, ids: &[String], anywhere: bool) -> Result<HttpRequest, Error> {
     let ids: Vec<&str> = ids.iter().map(String::as_str).filter(|id| id.bytes().all(|b| b.is_ascii_digit())).take(BY_ID).collect();
     // `in:anywhere`: a search without it leaves Trash and Junk out, and an id a delta named that
     // doesn't come back would be dropped while the run's token moves on.
-    let body = json!({"query": format!("in:anywhere item:{{{}}}", ids.join(",")), "types": "message", "limit": BY_ID, "recip": "2"});
+    let query = format!("{}item:{{{}}}", if anywhere { "in:anywhere " } else { "" }, ids.join(","));
+    let body = json!({"query": query, "types": "message", "limit": BY_ID, "recip": "2"});
     soap::request(base, "SearchRequest", soap::MAIL, body, Some(token))
 }
 
