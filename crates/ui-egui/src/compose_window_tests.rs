@@ -564,6 +564,34 @@ fn a_picked_file_is_attached_to_the_message_that_asked_for_it() {
 }
 
 #[test]
+fn the_window_that_asked_for_a_file_dialog_comes_forward_when_it_is_answered() {
+    let senders: std::sync::Arc<std::sync::Mutex<Vec<std::sync::mpsc::Sender<Option<Vec<String>>>>>> = std::sync::Arc::default();
+    let mut a = app();
+    let keep = senders.clone();
+    a.services.file_dialog = Some(Box::new(move |_| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        keep.lock().unwrap().push(tx);
+        rx
+    }));
+    let mut h = window(a);
+    let asking = new_window(&mut h);
+    let win = h.state().windows.of_compose(asking).unwrap();
+    // The pop-out has the keyboard when Attach File is pressed in it.
+    h.state_mut().windows.focused = Some(win);
+    owner(&mut h, "compose.attach", json!({}));
+    h.state_mut().windows.focused = None;
+    // (The dialog's parent is the main window, which the system brings forward on its close.)
+    senders.lock().unwrap()[0].send(None).unwrap();
+    let _ = crate::files::poll(h.state_mut());
+    assert_eq!(h.state().windows.refocus, Some(win));
+    let (viewport, command) = crate::windows::refocus_command(h.state(), win).unwrap();
+    assert_eq!(viewport, egui::ViewportId::from_hash_of(("mailcraft-window", win)));
+    assert!(matches!(command, egui::ViewportCommand::Focus));
+    // A window that closed meanwhile has nothing to come forward.
+    assert!(crate::windows::refocus_command(h.state(), win + 1000).is_none());
+}
+
+#[test]
 fn an_agents_discard_of_every_window_asks_once_naming_the_message_and_counting_the_form() {
     let mut h = window(app());
     let mine = new_window(&mut h);
