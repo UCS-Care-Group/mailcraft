@@ -194,6 +194,39 @@ fn folders_made_between_delta_pages_are_each_listed_and_kept() {
 }
 
 #[test]
+fn folders_made_faster_than_relists_keep_the_last_whole_pages_token() {
+    let server = StandIn::new();
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    // Three folders made in webmail while the delta is being read, a message moved into each —
+    // one on every page. A run asks for the listing again at most MAX_RELISTS times (2 in tests):
+    // past it the run keeps the token of the last whole page instead of failing from the start,
+    // and the run after finishes the delta.
+    let one = server.add_folder_later(2, "Mid-run 1");
+    let two = server.add_folder_later(2, "Mid-run 2");
+    let three = server.add_folder_later(2, "Mid-run 3");
+    let in_one = server.deliver(one, "Into 1", "");
+    for n in 0..505 {
+        server.deliver(2, &format!("Filler {n}"), "");
+    }
+    let in_two = server.deliver(two, "Into 2", "");
+    for n in 0..505 {
+        server.deliver(2, &format!("Filler b {n}"), "");
+    }
+    let in_three = server.deliver(three, "Into 3", "");
+    let first = whole(&run(&server, &request(&token), PASSWORD));
+    assert_eq!(first.errors, Vec::<String>::new());
+    assert!(first.whole && !first.token.is_empty() && first.token != token);
+    let ids: Vec<String> = first.pages.iter().flat_map(|p| p.messages.iter().map(|m| m.server.id.clone())).collect();
+    assert!(ids.contains(&in_one.to_string()) && ids.contains(&in_two.to_string()));
+    assert!(!ids.contains(&in_three.to_string()));
+    let second = whole(&run(&server, &request(&first.token), PASSWORD));
+    assert_eq!(second.errors, Vec::<String>::new());
+    assert!(second.whole && second.token != first.token);
+    let ids: Vec<String> = second.pages.iter().flat_map(|p| p.messages.iter().map(|m| m.server.id.clone())).collect();
+    assert!(ids.contains(&in_three.to_string()));
+}
+
+#[test]
 fn a_folder_too_large_for_one_run_leaves_where_it_stopped() {
     let server = StandIn::new();
     // More than MAX_FOLDER_PAGES pages (4 pages of 250 in tests): the read stops with a cursor to
