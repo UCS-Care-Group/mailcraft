@@ -49,11 +49,37 @@ impl<T> ActiveChecker<T> {
 impl NativeChecker {
     fn with_checker<T>(&self, locale: &str, use_checker: impl FnOnce(&Checker) -> T) -> Option<T> {
         let mut active = self.active.try_borrow_mut().ok()?;
-        ActiveChecker::open_if_needed(&mut active, locale, Instant::now(), || {
-            if locale.is_empty() { Checker::new().ok() } else { Checker::with_locale(locale).ok() }
-        })
-        .map(use_checker)
+        ActiveChecker::open_if_needed(&mut active, locale, Instant::now(), || self.open_checker(locale)).map(use_checker)
     }
+
+    fn open_checker(&self, locale: &str) -> Option<Checker> {
+        if locale.is_empty() {
+            return Checker::new().ok();
+        }
+        let checker = Checker::with_locale(locale).ok()?;
+        #[cfg(target_os = "macos")]
+        let checker = prefer_bare_locale(locale, checker, Checker::locale, || self.locales(), |tag| Checker::with_locale(tag).ok());
+        Some(checker)
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn prefer_bare_locale<T>(
+    requested: &str,
+    current: T,
+    locale_of: impl Fn(&T) -> &str,
+    installed: impl FnOnce() -> Vec<String>,
+    open: impl FnOnce(&str) -> Option<T>,
+) -> T {
+    if requested.contains(['-', '_']) || locale_of(&current).eq_ignore_ascii_case(requested) {
+        return current;
+    }
+    if !installed().iter().any(|tag| tag.eq_ignore_ascii_case(requested)) {
+        return current;
+    }
+    // Spellkit 0.4.2 checks exact tags and their prefixes in one pass on macOS. A private-use
+    // suffix bypasses the earlier regional match and reaches its language-only fallback.
+    open(&format!("{requested}-x-mailcrft")).filter(|checker| locale_of(checker).eq_ignore_ascii_case(requested)).unwrap_or(current)
 }
 
 impl HostChecker for NativeChecker {
