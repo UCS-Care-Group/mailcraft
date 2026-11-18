@@ -141,6 +141,19 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     super::graph_send::date_undated(&mut s.mailbox, account, now);
     let mut request = zimbra_mail_request(s, account)?;
     request.background = p::bool(v, "background").unwrap_or(false);
+    // A `folder` the owner just opened: a peek reads its newest pages beside the run under way.
+    if let Some(folder) = p::id(v, "folder")
+        && let Some(id) = s
+            .mailbox
+            .folder(folder)
+            .filter(|f| f.account == account)
+            .and_then(|f| f.server.as_ref())
+            .filter(|server| mailcraft_model::sync::zimbra_id_ok(&server.id))
+            .map(|server| server.id.clone())
+    {
+        request.one = id;
+        request.background = true;
+    }
     // A run begins: nothing lost in an earlier one is held against it.
     s.ews_run_cut.remove(&account);
     serde_json::to_value(request).map_err(|e| fail(e.to_string()))
@@ -339,7 +352,10 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
         }
         (None, Some(_), _) => Some((SyncPhase::Folders, String::new(), 0, 0)),
         (None, None, false) => Some((SyncPhase::Sending, String::new(), 0, 0)),
-        (None, None, true) => None,
+        (None, None, true) => result.pages.last().and_then(|p| {
+            let name = s.mailbox.folder_by_server(account, &p.folder).and_then(|f| s.mailbox.folder(f)).map(|f| f.name.as_str());
+            (!p.folder.is_empty()).then(|| (SyncPhase::NewMail, sync_progress::shown(name.unwrap_or_default()), 0, 0))
+        }),
     };
     let folders = result.progress.as_ref().map(|p| (p.number, p.folders));
     let piece = Piece { step, folders, new: down.new, sent, problems: &errors, last: !result.partial, stopped: result.stopped, timings: None };
@@ -351,7 +367,8 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     if let (Some(progress), true) = (&result.progress, result.partial) {
         s.sync_status = graph_down::progress_words(&s.mailbox, account, progress, lang);
     }
-    if !result.partial {
+    // A peek's last piece (`one`) is no run's end: it leaves the run's own words in place.
+    if !result.partial && (result.whole || result.stopped || !errors.is_empty()) {
         let said = match errors.first() {
             Some(first) => first.clone(),
             None if result.stopped => lang.t("Stopped; carries on from here next time").to_string(),
