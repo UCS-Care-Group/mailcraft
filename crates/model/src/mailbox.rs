@@ -1713,9 +1713,10 @@ impl Mailbox {
     /// Open the shared mailbox at `address` under the account `owner`: a Microsoft account kept in
     /// step through Graph, or an Exchange server account (#482). An account of its own, of its
     /// owner's kind, with its standard folders, read with the owner's sign-in
-    /// ([`Account::shared_of`]). Over Exchange Web Services it is the owner's server, the owner's
-    /// user name and trusted certificate (copied, and kept in step when the owner's are edited:
-    /// `account.edit`), and the owner's password, with this mailbox's address named in each request.
+    /// ([`Account::shared_of`]). Over Exchange Web Services it is reached with the owner's server,
+    /// user name, trusted certificate and password, and with no others (its own copy of the
+    /// settings is for showing, and is kept in step when the owner's are edited: `account.edit`),
+    /// with this mailbox's address named in each request.
     /// Nothing is asked of any server here: whether the owner may open it is found at its first
     /// Send/Receive. Its id.
     pub fn add_shared_mailbox(&mut self, owner: Id, address: &str) -> Result<Id, ModelError> {
@@ -1745,10 +1746,12 @@ impl Mailbox {
             return Err(invalid(format!("an account opens {MAX_SHARED} shared mailboxes at most")));
         }
         let download_in_full = o.download_in_full;
-        // (Over Exchange Web Services: the owner's server and the name the owner signs in with. The
-        // folder list's sync state is this mailbox's own and starts empty.)
+        // (Over Exchange Web Services: a copy of the owner's server settings and of the name the owner
+        // signs in with, for what is shown; the requests go with the owner's own, as they are then.
+        // What is not a setting, the folder list's sync state and the like, is this mailbox's own
+        // and starts empty.)
         let ews = (o.kind == AccountKind::Exchange)
-            .then(|| o.ews.as_ref().map(|server| crate::EwsServer { hierarchy: String::new(), username: o.sign_in_name(), ..server.clone() }))
+            .then(|| o.ews.as_ref().map(|server| crate::EwsServer::copy_for_shared(server, o.sign_in_name())))
             .flatten();
         let shared = Account {
             name: address.clone(),

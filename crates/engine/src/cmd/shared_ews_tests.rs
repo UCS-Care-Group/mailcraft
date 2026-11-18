@@ -9,7 +9,7 @@ use mailcraft_model::{AccountKind, Address, FolderKind, Id};
 use serde_json::json;
 
 use crate::Session;
-use crate::cmd::ews_mail::{apply_ews_mail, ews_fetch_request, ews_mail_request};
+use crate::cmd::ews_mail::{apply_ews_mail, ews_fetch_request, ews_mail_request, ews_resolve_request_for};
 
 const OWNER: &str = "ada@example.org";
 const SHARED: &str = "support@example.org";
@@ -169,4 +169,80 @@ fn a_shared_mailbox_survives_a_save_and_a_reopen() {
     let back: mailcraft_model::Account = serde_json::from_str(&json).unwrap();
     assert_eq!(&back, s.mailbox.account(id).unwrap());
     assert_eq!((back.kind, back.shared_of), (AccountKind::Exchange, Some(owner)));
+}
+
+/// A server the owner never chose.
+const ELSEWHERE: &str = "https://elsewhere.example.com/EWS/Exchange.asmx";
+
+/// The owner's password goes only to the server the owner chose: the shared mailbox's own copy of
+/// the settings can't be edited by itself, is never where a request goes, and while the owner's
+/// settings can't be used (as a mailbox file can bring) the shared mailbox isn't asked for at all.
+#[test]
+fn the_owners_password_never_goes_where_the_shared_mailboxs_own_settings_say() {
+    let (mut s, owner) = session();
+    let id = add(&mut s, owner, SHARED);
+    // Not through account.edit: neither its server nor its certificate.
+    let why = s.run("account.edit", &json!({"id": id, "ews": {"url": ELSEWHERE}})).unwrap_err().to_string();
+    assert!(why.contains("server settings of the account it is opened through"), "{why}");
+    assert!(s.run("account.edit", &json!({"id": id, "ews": {"trusted": "ab".repeat(32)}})).is_err());
+    assert!(s.run("account.forgetEwsCertificate", &json!({"id": id})).is_err());
+    let copy = s.mailbox.account(id).unwrap().ews.clone().unwrap();
+    assert_eq!((copy.url.as_str(), copy.trusted.as_str()), (URL, ""));
+    // A mailbox file can say anything: its copy names another server, and trusts another
+    // certificate. Every request still goes to the owner's, trusting what the owner trusts.
+    {
+        let copy = s.mailbox.account_mut(id).unwrap().ews.as_mut().unwrap();
+        (copy.url, copy.trusted) = (ELSEWHERE.into(), "ef".repeat(32));
+    }
+    let run = ews_mail_request(&s, id, false).unwrap();
+    let fetch = ews_fetch_request(&s, id, None, 10).unwrap();
+    let names = ews_resolve_request_for(&s, id, &["Zoe".into()]).unwrap();
+    for (url, username, trusted) in
+        [(&run.url, &run.username, &run.trusted), (&fetch.url, &fetch.username, &fetch.trusted), (&names.url, &names.username, &names.trusted)]
+    {
+        assert_eq!((url.as_str(), username.as_str(), trusted.as_str()), (URL, "CORP\\ada", ""));
+    }
+    // And the owner's can't be used: refused, whatever the copy says.
+    s.mailbox.account_mut(owner).unwrap().ews.as_mut().unwrap().url = "http://exchange.example.org/EWS".into();
+    let why = ews_mail_request(&s, id, false).unwrap_err().to_string();
+    assert!(why.contains(OWNER) && why.contains("server address that can be used"), "{why}");
+    assert!(ews_fetch_request(&s, id, None, 10).is_err());
+    assert!(ews_resolve_request_for(&s, id, &["Zoe".into()]).is_err());
+    assert!(s.run("sync.ewsRequest", &json!({"account": id})).is_err());
+    // An answer that says it came from the copy's server is not taken in either.
+    let answer = EwsMailResult { url: ELSEWHERE.into(), ..result(id, SHARED, EwsFolderDeltas::default()) };
+    assert!(apply_ews_mail(&mut s, answer).is_err());
+    // Nor with its owner gone (a file can say that too).
+    s.mailbox.account_mut(id).unwrap().shared_of = Some(999_999);
+    let why = ews_mail_request(&s, id, false).unwrap_err().to_string();
+    assert!(why.contains("whose account is gone"), "{why}");
+}
+
+/// The copy follows what the owner changes while nothing of the shared mailbox is here; once its
+/// mail is, the owner's server and user name stay (its ids are that server's, for that user), and
+/// what makes no other mailbox (a certificate to trust) still follows.
+#[test]
+fn the_shared_mailbox_follows_its_owners_server_until_its_mail_is_here() {
+    const MOVED: &str = "https://mail2.example.org/EWS/Exchange.asmx";
+    let (mut s, owner) = session();
+    let id = add(&mut s, owner, SHARED);
+    s.mailbox.account_mut(id).unwrap().ews.as_mut().unwrap().hierarchy = "H0".into();
+    s.run("account.edit", &json!({"id": owner, "ews": {"url": MOVED, "username": "CORP\\ada2"}})).unwrap();
+    let copy = s.mailbox.account(id).unwrap().ews.clone().unwrap();
+    assert_eq!(
+        (copy.url.as_str(), copy.username.as_str(), copy.hierarchy.as_str()),
+        (MOVED, "CORP\\ada2", ""),
+        "another mailbox's state is forgotten"
+    );
+    assert_eq!(ews_mail_request(&s, id, false).unwrap().url, MOVED);
+    let inbox = EwsFolderDeltas { changed: vec![folder("F1", "Inbox", FolderKind::Inbox)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { url: MOVED.into(), ..result(id, SHARED, inbox) }).unwrap();
+    for change in [json!({"url": URL}), json!({"username": "CORP\\zoe"})] {
+        let why = s.run("account.edit", &json!({"id": owner, "ews": change})).unwrap_err().to_string();
+        assert!(why.contains("a shared mailbox opened through it has mail here"), "{why}");
+    }
+    assert_eq!(s.mailbox.account(owner).unwrap().ews.as_ref().unwrap().url, MOVED);
+    s.run("account.edit", &json!({"id": owner, "ews": {"trusted": "cd".repeat(32)}})).unwrap();
+    let copy = s.mailbox.account(id).unwrap().ews.clone().unwrap();
+    assert_eq!((copy.trusted, copy.hierarchy.as_str()), ("cd".repeat(32), "H1"), "the same mailbox: its state stays");
 }
