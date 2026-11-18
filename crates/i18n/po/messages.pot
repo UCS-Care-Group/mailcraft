@@ -174,6 +174,16 @@ msgid "+ condition"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/credits.rs
+msgid "+Bin"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "+Lines"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "+{n} more"
 msgstr ""
@@ -539,6 +549,11 @@ msgid "A shared mailbox, read with the sign-in of {account}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr ""
@@ -852,7 +867,7 @@ msgid "Add to Contacts"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 msgid "Add to Favorites"
 msgstr ""
 
@@ -1455,6 +1470,11 @@ msgstr ""
 msgid "April"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Aqua"
+msgstr ""
+
 #. android, command label, interface, name, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Archive"
@@ -1575,6 +1595,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
 msgstr ""
 
 #. interface
@@ -1962,8 +1987,23 @@ msgid "Before anything changes, a copy of your whole mailbox is saved next to it
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/credits.rs
+msgid "Binary assets added"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "Binary assets removed"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 msgid "Birthday"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Black"
 msgstr ""
 
 #. command label, interface
@@ -1971,8 +2011,13 @@ msgstr ""
 msgid "Block Sender"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms/junk.rs
+msgid "Blocked Senders"
+msgstr ""
+
 #. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/theme/accent.rs
 msgid "Blue"
 msgstr ""
 
@@ -2693,7 +2738,7 @@ msgid "Clear Downloaded Pictures"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Clear Flag"
 msgstr ""
 
@@ -2810,6 +2855,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
 msgid "Colour"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "Commits"
 msgstr ""
 
 #. ribbon, ribbon location
@@ -3216,6 +3266,11 @@ msgstr ""
 msgid "Couldn't read the list of folders"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 msgid "Couldn't save the draft '{subject}' on the server: the server says {why}."
@@ -3314,6 +3369,11 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/theme.rs
 msgid "Dark"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Dark Red"
 msgstr ""
 
 #. command label
@@ -3478,7 +3538,7 @@ msgid "Delete Conversation"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 msgid "Delete Folder"
 msgstr ""
 
@@ -4188,7 +4248,7 @@ msgid ""
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 msgid "Empty Folder"
 msgstr ""
 
@@ -4505,6 +4565,11 @@ msgstr ""
 msgid "Favorites"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Favorites Are Set in Outlook"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Favorites from Outlook"
@@ -4642,9 +4707,19 @@ msgstr ""
 msgid "Finish signing in on Microsoft's page in your browser. MailCraft is waiting."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "First"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "First Message"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "First commit"
 msgstr ""
 
 #. interface
@@ -4759,7 +4834,7 @@ msgid ""
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Follow Up"
 msgstr ""
 
@@ -5102,6 +5177,11 @@ msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Give it a title first"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Give the report a title, on one line and in 200 characters at most."
 msgstr ""
@@ -5212,6 +5292,11 @@ msgstr ""
 msgid "Going back to MailCraft {version} didn't happen: this version is still the one here."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Gold"
+msgstr ""
+
 #. name
 #: crates/model/src/mailbox.rs crates/ui-egui/src/account_setup.rs
 msgid "Google"
@@ -5315,6 +5400,16 @@ msgstr ""
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Green"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Grey"
 msgstr ""
 
 #. interface
@@ -5471,7 +5566,7 @@ msgid "High Contrast"
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "High Importance"
 msgstr ""
 
@@ -6434,6 +6529,11 @@ msgstr ""
 msgid "Largest on top"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "Last"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Last Message"
@@ -6450,6 +6550,11 @@ msgid "Last Week"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/credits.rs
+msgid "Last commit"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 msgid "Last name"
 msgstr ""
@@ -6462,6 +6567,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 msgid "Later keeps this account on IMAP for now. You can switch whenever you like: search the commands for \"Switch to Microsoft Graph\"."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Lavender"
 msgstr ""
 
 #. interface
@@ -6494,6 +6604,16 @@ msgstr ""
 msgid "Leave this account out of this Send/Receive"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Let me set up my account manually"
@@ -6515,6 +6635,11 @@ msgid "Light"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Lime"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Limited details: and the titles"
 msgstr ""
@@ -6522,6 +6647,21 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Line Spacing"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "Line delta"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "Lines added"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "Lines deleted"
 msgstr ""
 
 #. android, command label, interface, ribbon
@@ -6665,7 +6805,7 @@ msgid "Low"
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "Low Importance"
 msgstr ""
 
@@ -7135,8 +7275,8 @@ msgid ""
 "as Read"
 msgstr ""
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/nav.rs
 msgid "Mark All as Read"
 msgstr ""
 
@@ -7160,13 +7300,13 @@ msgstr ""
 msgid "Mark a message as read when it is opened in the reading pane"
 msgstr ""
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs
 msgid "Mark as Read"
 msgstr ""
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs
 msgid "Mark as Unread"
 msgstr ""
 
@@ -7238,6 +7378,11 @@ msgid "Merge {n} Contact…"
 msgid_plural "Merge {n} Contacts…"
 msgstr[0] ""
 msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "Merged PRs"
+msgstr ""
 
 #. android, interface, name, ribbon, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -7709,13 +7854,23 @@ msgid "My outgoing server needs no sign-in"
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Name"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "Name (A–Z)"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Name (optional)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Name somebody to invite first"
 msgstr ""
 
 #. interface
@@ -7758,6 +7913,11 @@ msgstr ""
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 msgid "Navigation Bar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Navy"
 msgstr ""
 
 #. interface
@@ -7887,6 +8047,11 @@ msgstr ""
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
 msgid "New Folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "New Folder…"
 msgstr ""
 
 #. ribbon
@@ -8077,6 +8242,11 @@ msgid "No account is connected to a mail server (File › Add Account)"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "No account is connected to a mail server yet."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
 msgid "No account signs in with Microsoft"
 msgstr ""
@@ -8184,6 +8354,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
 msgid "No date"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "No day fits this pattern"
 msgstr ""
 
 #. interface
@@ -8444,6 +8619,11 @@ msgstr ""
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 msgid "Normal"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+msgid "Normal Importance"
 msgstr ""
 
 #. command label, interface
@@ -9269,6 +9449,11 @@ msgid "Opens GitHub's page in your browser, filled in: you check it and submit i
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Opens Microsoft's approval page in your browser. Sign in there with an administrator account and accept; MailCraft carries on by itself."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/sharing.rs
 msgid "Opens it by their address, on this computer only: it won't appear in Outlook or on your other devices"
 msgstr ""
@@ -9286,6 +9471,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Or is it one of these?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Orange"
 msgstr ""
 
 #. android
@@ -9438,6 +9628,11 @@ msgstr ""
 msgid "PM"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "PRs"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Page Down"
@@ -9521,6 +9716,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Pattern"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Peach"
 msgstr ""
 
 #. android, interface
@@ -9638,14 +9838,19 @@ msgstr ""
 msgid "Pictures: {n} KB of {max} KB"
 msgstr ""
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Pin"
 msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Pin to the top of the list"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Pink"
 msgstr ""
 
 #. interface
@@ -9888,6 +10093,11 @@ msgid "Public keys of other people"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Purple"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "Put the calendar items"
 msgstr ""
@@ -9982,6 +10192,21 @@ msgstr ""
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 msgid "Reading Pane"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Reading pane at the bottom"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Reading pane off"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Reading pane on the right"
 msgstr ""
 
 #. interface
@@ -10298,7 +10523,7 @@ msgid "Remove from Calendar"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 msgid "Remove from Favorites"
 msgstr ""
 
@@ -10382,6 +10607,11 @@ msgstr ""
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
 msgid "Rename Folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Rename Folder…"
 msgstr ""
 
 #. command label
@@ -10571,6 +10801,11 @@ msgid "Retry"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/account.rs
+msgid "Retry Skipped Messages"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/snooze.rs
 msgid "Return Now"
 msgstr ""
@@ -10722,7 +10957,7 @@ msgid ""
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 msgid "Run Rules Now"
 msgstr ""
 
@@ -10749,6 +10984,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "SHA-256 fingerprint"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms/junk.rs
+msgid "Safe Senders"
 msgstr ""
 
 #. interface
@@ -12224,6 +12464,16 @@ msgid "Signing in brought nothing back"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Signing in didn't work"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "Signing in happens on Microsoft's page in a web browser, and none could be started on this computer. Check that it has a default browser, then try again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Signing in stopped unexpectedly"
 msgstr ""
@@ -12286,6 +12536,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
 msgid "Skipped"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Sky"
 msgstr ""
 
 #. name
@@ -12824,7 +13079,7 @@ msgid "Tasks: waiting for your permission"
 msgstr ""
 
 #. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/theme/accent.rs
 msgid "Teal"
 msgstr ""
 
@@ -13856,6 +14111,11 @@ msgstr ""
 msgid "The owner hasn't allowed update checks."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "The page was closed, or five minutes went by before the sign-in was finished."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 msgid "The people could not be read."
@@ -13879,6 +14139,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "The proposed end has to be after the proposed start."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "The range needs a day to end by"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "The range needs a day to start on"
 msgstr ""
 
 #. interface
@@ -13989,6 +14259,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "The sender's name shows {shown}, but the message came from {real}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "The series needs a day to end by"
 msgstr ""
 
 #. interface
@@ -14264,6 +14539,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "The space the folder's own messages take on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "The start and the end need a date and a time"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "The start and the end need a time"
 msgstr ""
 
 #. interface
@@ -14599,6 +14884,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "This build can't connect to mail servers. Use the desktop app to add an Exchange server account."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
 msgstr ""
 
 #. interface
@@ -15527,7 +15817,7 @@ msgid "Try Signing In Again"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 msgid "Try again"
 msgstr ""
 
@@ -15639,6 +15929,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Undo {what}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Unpin"
 msgstr ""
 
 #. android, interface, name
@@ -16302,6 +16597,11 @@ msgstr ""
 msgid "Write"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+msgid "Write a Note with the Response…"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Write to the organizer without answering"
@@ -16338,6 +16638,11 @@ msgid "Yahoo Mail"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Yellow"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
 msgid "Yes"
 msgstr ""
@@ -16360,6 +16665,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+msgid "You came back from Microsoft's page without having signed in: you said no there, or the page sent you back."
 msgstr ""
 
 #. interface
@@ -18156,6 +18466,11 @@ msgstr ""
 msgid "the download stopped before it was done"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
 msgid "the end is before the start"
@@ -18224,6 +18539,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
 msgid "the folder this message is in isn't on this computer any more"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the folder was numbered anew while it was being read"
 msgstr ""
 
 #. what a command says
@@ -20145,6 +20465,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/left_out.rs
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "{n} message will be permanently deleted."
 msgid_plural "{n} messages will be permanently deleted."
@@ -20665,6 +20992,11 @@ msgstr ""
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "ΔLines"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment"
@@ -20693,5 +21025,15 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "−Bin"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+msgid "−Lines"
 msgstr ""
 

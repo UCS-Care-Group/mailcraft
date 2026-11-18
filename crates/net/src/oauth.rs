@@ -1806,6 +1806,19 @@ impl Visitor {
     }
 }
 
+/// The ports browsers refuse to connect to ("bad ports" of the Fetch standard,
+/// <https://fetch.spec.whatwg.org/#port-blocking>), and 0, which is no port.
+const BLOCKED_PORTS: &[u16] = &[
+    0, 1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119,
+    123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993,
+    995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6679, 6697, 10080,
+];
+
+/// Whether a browser would refuse to go to `port`.
+fn blocked_port(port: u16) -> bool {
+    BLOCKED_PORTS.contains(&port)
+}
+
 /// The loopback port the browser is sent back to.
 struct Redirect {
     listeners: Vec<TcpListener>,
@@ -1816,10 +1829,19 @@ impl Redirect {
     /// Listen on a free port of 127.0.0.1 and, where there is IPv6, on the same port of `::1`:
     /// a browser may take `localhost` to be either.
     fn listen() -> Result<Redirect, NetError> {
+        Redirect::listen_avoiding(blocked_port)
+    }
+
+    /// [`listen`](Self::listen) with the test for a port a browser refuses given, so a test can drive it.
+    fn listen_avoiding(blocked: impl Fn(u16) -> bool) -> Result<Redirect, NetError> {
         let failed = || NetError::Config("couldn't open a port on this computer for the sign-in to come back to".into());
         for attempt in 1..=MAX_PORT_TRIES {
             let v4 = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|_| failed())?;
             let port = v4.local_addr().map_err(|_| failed())?.port();
+            // A browser would show ERR_UNSAFE_PORT and the sign-in would never come back: another port.
+            if blocked(port) {
+                continue;
+            }
             let mut listeners = vec![v4];
             match TcpListener::bind((Ipv6Addr::LOCALHOST, port)) {
                 Ok(v6) => listeners.push(v6),
