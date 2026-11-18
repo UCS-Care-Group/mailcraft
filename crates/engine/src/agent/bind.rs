@@ -117,6 +117,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "account.deviceLimits"
         | "account.trimDevice"
         | "ui.keepOffline"
+        | "ui.forgetZimbraTrust"
         | "ui.connectMicrosoft"
         | "ui.automaticRepliesSignIn"
         | "ui.connectFavorites"

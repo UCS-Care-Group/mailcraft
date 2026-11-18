@@ -87,6 +87,15 @@ impl<E: HttpExchange> Run<'_, E> {
 /// asks for a second step, the code typed for this sign-in. Answers the token and what trust the
 /// server gave.
 async fn sign_in<E: HttpExchange>(run: &Run<'_, E>, user: &str, credentials: &Credentials) -> Result<(Secret, Trust), Stop> {
+    // A kept sign-in token that is still good makes the sign-in needless: tried on a cheap
+    // request first, so that a dead one isn't taken for a refused password by the run.
+    if let Some(kept) = credentials.session.as_ref().filter(|t| !t.is_empty()) {
+        match run.ask(auth::verify(&run.base, kept)).await {
+            Err(Stop::Cancelled) => return Err(Stop::Cancelled),
+            Ok(answered) if auth::verified(&answered) => return Ok((kept.clone(), Trust::default())),
+            _ => {}
+        }
+    }
     let first = run.ask(auth::request(&run.base, user, credentials)).await?;
     match auth::answer(&first).map_err(Stop::Failed)? {
         Answer::Token(token, trust) => Ok((token, trust)),
@@ -142,7 +151,7 @@ pub async fn sync_mail<E: HttpExchange>(
     request: &ZimbraMailRequest,
     credentials: &Credentials,
     cancel: &AtomicBool,
-    keep: &mut dyn FnMut(&Trust),
+    keep: &mut dyn FnMut(&Secret, &Trust),
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) -> Trust {
     let mut last = blank(request);
@@ -173,13 +182,13 @@ async fn run<E: HttpExchange>(
     cancel: &AtomicBool,
     emit: &mut dyn FnMut(ZimbraMailResult),
     trust: &mut Trust,
-    keep: &mut dyn FnMut(&Trust),
+    keep: &mut dyn FnMut(&Secret, &Trust),
 ) -> Result<(String, Vec<ZimbraResume>), Stop> {
     let base = request.url.trim().trim_end_matches('/').to_string();
     let mut run = Run { exchange, cancel, base, token: Secret::new("") };
     let user = login(&request.username, &request.email);
     (run.token, *trust) = sign_in(&run, &user, credentials).await?;
-    keep(trust);
+    keep(&run.token, trust);
     // The server's tags as categories, before anything goes up: a tag a message change names and
     // the list doesn't have is made in the colour it has here, never twice in a run.
     let mut known: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -590,6 +599,7 @@ pub async fn fetch_messages<E: HttpExchange>(
     request: &ZimbraFetchRequest,
     credentials: &Credentials,
     cancel: &AtomicBool,
+    keep: &mut dyn FnMut(&Secret, &Trust),
 ) -> GraphFetchResult {
     let mut out = GraphFetchResult { account: request.account, email: request.email.clone(), ..GraphFetchResult::default() };
     let base = request.url.trim().trim_end_matches('/').to_string();
@@ -604,8 +614,12 @@ pub async fn fetch_messages<E: HttpExchange>(
         }
     };
     match sign_in(&run, &login(&request.username, &request.email), credentials).await {
-        Ok((token, _)) => run.token = token,
+        Ok((token, trust)) => {
+            run.token = token;
+            keep(&run.token, &trust);
+        }
         Err(e) => {
+            out.code_needed = matches!(e, Stop::Failed(Error::TwoFactor));
             stop(&mut out, e);
             return out;
         }

@@ -53,8 +53,39 @@ impl Transport {
             max_response: request.max_response_bytes(),
             trusted: &self.trusted,
         };
+        // Which request ran and how it was answered, by name only: no bodies, no headers — a
+        // request's body holds the sign-in's secrets and an answer's holds the mail itself.
+        let named = || request.url().split(['?', '#']).next().unwrap_or("").rsplit('/').next().unwrap_or("");
         match mailcraft_net::https::send(&ask) {
             Ok(answer) => {
+                // A refused request's fault code says which refusal it was (mail.NO_SUCH_ITEM,
+                // service.AUTH_EXPIRED): the code alone, never the reason's text.
+                let code = (answer.status >= 400)
+                    .then(|| serde_json::from_slice::<serde_json::Value>(&answer.body).ok())
+                    .flatten()
+                    .and_then(|v| v.pointer("/Body/Fault/Detail/Error/Code").and_then(|c| c.as_str().map(str::to_string)))
+                    .unwrap_or_default();
+                // A refused search's query is its own ids (`inid:"<folder>"`, `item:{<ids>}`):
+                // which of them the server no longer has. Held short, and of no other request.
+                let query = (answer.status >= 400 && named() == "SearchRequest")
+                    .then(|| serde_json::from_slice::<serde_json::Value>(request.body()).ok())
+                    .flatten()
+                    .and_then(|v| v.pointer("/Body/SearchRequest/query").and_then(|q| q.as_str().map(|s| s.chars().take(96).collect::<String>())))
+                    // (Unquoted, so the log's own privacy pass keeps it: the ids themselves.)
+                    .map(|q| format!(" query={}", q.replace('"', "")))
+                    .unwrap_or_default();
+                // A sign-in's own words: whether a trusted-device token was offered (a boolean,
+                // never the token), so a repeated code demand can be told apart from one not sent.
+                let trusted = (named() == "AuthRequest")
+                    .then(|| serde_json::from_slice::<serde_json::Value>(request.body()).ok())
+                    .flatten()
+                    .map(|v| format!(" trusted={}", v.pointer("/Body/AuthRequest/trustedToken").is_some()))
+                    .unwrap_or_default();
+                if code.is_empty() {
+                    log::debug!("zimbra {} {} -> {}{}{}", request.method().as_str(), named(), answer.status, query, trusted);
+                } else {
+                    log::debug!("zimbra {} {} -> {} ({code}){query}", request.method().as_str(), named(), answer.status);
+                }
                 let mut response = HttpResponse::new(answer.status, answer.body);
                 if let Some(location) = &answer.location {
                     response = response.with_field("Location", location);
@@ -65,6 +96,7 @@ impl Transport {
                 Ok(response)
             }
             Err(error) => {
+                log::debug!("zimbra {} {} -> transport error: {error}", request.method().as_str(), named());
                 let after_write = !request.is_repeatable()
                     && !matches!(error, NetError::Connect { .. } | NetError::Certificate(_) | NetError::Tls { .. } | NetError::Config(_));
                 let judged = match error {
@@ -103,11 +135,12 @@ fn settled(mut piece: ZimbraMailResult, problem: Option<&CertificateProblem>) ->
 }
 
 /// What a job signs in with.
-fn credentials(secret: &str, code: Option<&str>, trusted: Option<&(String, String)>) -> Credentials {
+fn credentials(secret: &str, code: Option<&str>, trusted: Option<&(String, String)>, session: Option<&String>) -> Credentials {
     Credentials {
         password: Secret::new(secret),
         code: code.map(Secret::new),
         trusted: trusted.map(|(token, device)| (Secret::new(token), device.clone())),
+        session: session.map(|s| Secret::new(s)),
     }
 }
 
@@ -116,7 +149,7 @@ pub(crate) fn run_mail(job: ZimbraJob, wake: &egui::Context) -> Receiver<ZimbraM
     let (tx, rx) = sync_channel(8);
     let wake = wake.clone();
     let spawned = std::thread::Builder::new().name("zimbra send/receive".into()).spawn(move || {
-        let ZimbraJob { request, secret, code, trusted, trust, cancel } = job;
+        let ZimbraJob { request, secret, code, trusted, session, session_back, trust, cancel } = job;
         // The address is checked again before a password is sent to it: the mailbox file that
         // carried it is hostile too.
         if let Err(why) = mailcraft_model::ZimbraServer::check_url(request.url.trim()) {
@@ -126,14 +159,25 @@ pub(crate) fn run_mail(job: ZimbraJob, wake: &egui::Context) -> Receiver<ZimbraM
             return;
         }
         let transport = Transport::new(&request.trusted);
-        let credentials = credentials(&secret, code.as_deref(), trusted.as_ref());
+        let credentials = credentials(&secret, code.as_deref(), trusted.as_ref(), session.as_ref());
         // The trust the sign-in brought is in the slot before any piece, so that the window finds it
         // with the last one.
-        let mut keep = |brought: &mailcraft_zimbra::Trust| {
-            if let Some(token) = &brought.token
+        let mut keep = |token: &Secret, brought: &mailcraft_zimbra::Trust| {
+            log::debug!(
+                "zimbra sign-in: trusted-device token brought: {}, device id: {}, token lifetime ms: {}",
+                brought.token.is_some(),
+                !brought.device.is_empty(),
+                brought.lifetime
+            );
+            if let Some(trusted) = &brought.token
                 && let Ok(mut slot) = trust.lock()
             {
-                *slot = Some((token.expose().to_string(), brought.device.clone()));
+                *slot = Some((trusted.expose().to_string(), brought.device.clone()));
+            }
+            if brought.lifetime > 0
+                && let Ok(mut slot) = session_back.lock()
+            {
+                *slot = Some((token.expose().to_string(), brought.lifetime));
             }
         };
         crate::block_on::block_on(mailcraft_zimbra::sync_mail(&transport, &request, &credentials, &cancel, &mut keep, &mut |piece| {
@@ -155,7 +199,7 @@ pub(crate) fn run_fetch(job: ZimbraFetchJob, wake: &egui::Context) -> Receiver<G
     let (tx, rx) = std::sync::mpsc::channel();
     let wake = wake.clone();
     let spawned = std::thread::Builder::new().name("zimbra message download".into()).spawn(move || {
-        let ZimbraFetchJob { request, secret, trusted, cancel } = job;
+        let ZimbraFetchJob { request, secret, trusted, session, session_back, cancel } = job;
         if let Err(why) = mailcraft_model::ZimbraServer::check_url(request.url.trim()) {
             let mut result = GraphFetchResult { account: request.account, ..GraphFetchResult::default() };
             result.errors.push(format!("The Zimbra server's address {why}"));
@@ -163,8 +207,15 @@ pub(crate) fn run_fetch(job: ZimbraFetchJob, wake: &egui::Context) -> Receiver<G
             return;
         }
         let transport = Transport::new(&request.trusted);
-        let credentials = credentials(&secret, None, trusted.as_ref());
-        let mut result = crate::block_on::block_on(mailcraft_zimbra::fetch_messages(&transport, &request, &credentials, &cancel));
+        let credentials = credentials(&secret, None, trusted.as_ref(), session.as_ref());
+        let mut keep = |token: &Secret, brought: &mailcraft_zimbra::Trust| {
+            if brought.lifetime > 0
+                && let Ok(mut slot) = session_back.lock()
+            {
+                *slot = Some((token.expose().to_string(), brought.lifetime));
+            }
+        };
+        let mut result = crate::block_on::block_on(mailcraft_zimbra::fetch_messages(&transport, &request, &credentials, &cancel, &mut keep));
         if let Some(problem) = transport.problem() {
             result.errors.insert(0, format!("Couldn't download the messages from the server: {problem}"));
         }

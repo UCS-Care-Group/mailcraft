@@ -33,6 +33,9 @@ pub struct Credentials {
     pub code: Option<Secret>,
     /// The trusted-device token an earlier sign-in with a code brought, with its device id.
     pub trusted: Option<(Secret, String)>,
+    /// A sign-in token of an earlier sign-in this session that may still be good: tried first, so
+    /// that a run after one the owner gave a code for asks for none again.
+    pub session: Option<Secret>,
 }
 
 impl Credentials {
@@ -48,6 +51,9 @@ impl Credentials {
 pub struct Trust {
     pub token: Option<Secret>,
     pub device: String,
+    /// How many milliseconds the sign-in token the server gave lives, when it said (`lifetime`).
+    /// 0 for a kept token that was reused: its time left isn't known here.
+    pub lifetime: u64,
 }
 
 /// What the server answered a sign-in with.
@@ -100,7 +106,7 @@ pub fn second(base: &str, user: &str, first: &Secret, code: &Secret) -> Result<H
 /// A token of the server's, when it is one: not empty, not too long, nothing a token hasn't.
 fn token(value: Option<&Value>) -> Option<Secret> {
     let token = json::raw(value).unwrap_or_default();
-    let fit = !token.is_empty() && token.len() <= MAX_TOKEN && token.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_.=".contains(&b));
+    let fit = !token.is_empty() && token.len() <= MAX_TOKEN && token.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_.=+/".contains(&b));
     fit.then(|| Secret::new(&token))
 }
 
@@ -114,6 +120,18 @@ pub fn answer(response: &HttpResponse) -> Result<Answer, Error> {
         return Ok(Answer::Code(signed));
     }
     let device = json::raw(answer.get("deviceId")).unwrap_or_default().trim().to_string();
-    let trust = Trust { token: token(answer.get("trustedToken")), device: if device.len() <= MAX_DEVICE { device } else { String::new() } };
+    let lifetime = answer.get("lifetime").and_then(|v| v.get("_content").unwrap_or(v).as_u64()).unwrap_or(0);
+    let trust = Trust { token: token(answer.get("trustedToken")), device: if device.len() <= MAX_DEVICE { device } else { String::new() }, lifetime };
     Ok(Answer::Token(signed, trust))
+}
+
+/// A cheap request a kept sign-in token is tried on (`GetInfoRequest`): a run that has one asks
+/// this before it signs in afresh, so a token that is still good makes the sign-in needless.
+pub fn verify(base: &str, token: &Secret) -> Result<HttpRequest, Error> {
+    soap::request(base, "GetInfoRequest", soap::ACCOUNT, json!({"sections": "mbox"}), Some(token))
+}
+
+/// Whether `response` means the token it was asked with is still good.
+pub fn verified(response: &HttpResponse) -> bool {
+    soap::answer("GetInfoRequest", response).is_ok()
 }

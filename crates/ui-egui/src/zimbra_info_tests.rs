@@ -37,6 +37,35 @@ fn file_info_names_a_zimbra_accounts_server_and_why_it_waits() {
 }
 
 #[test]
+fn forgetting_the_trusted_device_takes_the_kept_token_and_the_sessions_sign_in() {
+    let (mut a, imap, id) = app();
+    let account = a.session.mailbox.account(id).unwrap().clone();
+    // As a sign-in that brought a trusted-device token left it: kept under the account's own
+    // name (the token and the device id, a line each), and this session's sign-in token.
+    a.secret_cache.insert(MailApp::secret_key("trust", &account), "tok-1\ndevice-1".into());
+    a.zimbra_sessions.insert(id, ("sess-1".into(), mailcraft_time::now() as u64 + 3_600));
+    assert!(a.zimbra_trusted(id).is_some());
+
+    let said = a.execute("ui.forgetZimbraTrust", json!({"id": id})).unwrap();
+    assert_eq!(said, json!({"id": id, "forgotten": true}));
+    assert!(a.zimbra_trusted(id).is_none());
+    assert!(!a.zimbra_sessions.contains_key(&id));
+    // The password stays: only the trust was the owner's to take back.
+    a.passwords.insert(id, "kept".into());
+    assert_eq!(a.passwords.get(&id).map(String::as_str), Some("kept"));
+
+    // Once forgotten there is nothing to forget; a second ask answers so.
+    assert_eq!(a.execute("ui.forgetZimbraTrust", json!({"id": id})).unwrap()["forgotten"], json!(false));
+
+    // Only a Zimbra account's, and never an id that is none.
+    assert!(a.execute("ui.forgetZimbraTrust", json!({"id": imap})).is_err());
+    assert!(a.execute("ui.forgetZimbraTrust", json!({"id": 987_654})).is_err());
+    for junk in [json!(null), json!({}), json!({"id": "x"}), json!({"id": -1})] {
+        assert!(a.execute("ui.forgetZimbraTrust", junk).is_err());
+    }
+}
+
+#[test]
 fn a_zimbra_accounts_secret_is_kept_under_its_address_and_its_server() {
     let (a, imap, id) = app();
     let zimbra = a.session.mailbox.account(id).unwrap().clone();

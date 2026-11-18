@@ -511,6 +511,12 @@ pub struct AccountSetup {
     /// What the lookup found when it named no provider this program knows: kept while the
     /// Autodiscover answer is awaited, and for IMAP when the owner says it isn't Exchange.
     discovered: Option<Discovered>,
+    /// The hosts of the owner's domain asked whether a Zimbra server answers at their web
+    /// client's address, once the host was asked (only while Zimbra accounts are being tested).
+    zimbra_probe: Option<Receiver<Vec<String>>>,
+    /// The hosts that answered as a Zimbra server, so the page can offer the account kind with
+    /// its address filled in.
+    zimbra_found: Vec<String>,
     /// Whether the servers took the password, once the host knows.
     check: Option<Receiver<Result<(), mailcraft_i18n::Text>>>,
     /// The owner is in the browser, signing in for this wizard.
@@ -658,6 +664,8 @@ impl AccountSetup {
             lookup: None,
             autodiscover: None,
             discovered: None,
+            zimbra_probe: None,
+            zimbra_found: Vec::new(),
             check: None,
             waiting: false,
             reconnecting_google: false,
@@ -1763,6 +1771,7 @@ impl AccountSetup {
     fn poll(&mut self, app: &mut MailApp) {
         match self.page {
             Page::Detecting => self.poll_lookup(app),
+            Page::Password => self.poll_zimbra_probe(),
             Page::SignIn if self.waiting => self.poll_sign_in(app),
             // (A sign-in may still be waiting behind the approval page: the owner may sign in
             // with an administrator's account on Microsoft's page after all.)
@@ -1807,6 +1816,7 @@ impl AccountSetup {
                 return;
             }
             self.discovered = discovered;
+            self.probe_zimbra(app);
         }
         let hosts = match self.autodiscover.as_ref().map(Receiver::try_recv) {
             Some(Err(TryRecvError::Empty)) => return,
@@ -1823,10 +1833,51 @@ impl AccountSetup {
         }
     }
 
+    /// The hosts of the owner's domain asked whether a Zimbra server answers at their web
+    /// client's address, asked once and only while Zimbra accounts are being tested: the domain's
+    /// mail exchangers that lie in the domain first (a Zimbra server is often its own mail
+    /// exchanger), then the names a Zimbra web client is usually at. Nothing outside the owner's
+    /// domain is asked, and nothing is signed in with: a probe is one request that gets refused.
+    fn probe_zimbra(&mut self, app: &mut MailApp) {
+        if !app.session.zimbra || self.zimbra_probe.is_some() || !self.zimbra_found.is_empty() {
+            return;
+        }
+        let Some((_, domain)) = address(&self.email) else { return };
+        let domain = domain.to_ascii_lowercase();
+        let mut hosts: Vec<String> = Vec::new();
+        let mut add = |host: &str| {
+            let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+            if (host == domain || host.ends_with(&format!(".{domain}"))) && !hosts.contains(&host) {
+                hosts.push(host);
+            }
+        };
+        for host in self.discovered.iter().flat_map(|found| found.exchangers.iter()) {
+            add(host);
+        }
+        for sub in ["", "mail", "webmail", "zimbra"] {
+            add(&if sub.is_empty() { domain.clone() } else { format!("{sub}.{domain}") });
+        }
+        hosts.truncate(6);
+        self.zimbra_probe = app.services.zimbra_probe.as_ref().map(|probe| probe(hosts));
+    }
+
+    /// What the probe answered, when it did: the hosts that are Zimbra servers.
+    fn poll_zimbra_probe(&mut self) {
+        match self.zimbra_probe.as_ref().map(Receiver::try_recv) {
+            Some(Ok(hosts)) => {
+                self.zimbra_probe = None;
+                self.zimbra_found = hosts;
+            }
+            Some(Err(TryRecvError::Empty)) => {}
+            Some(Err(TryRecvError::Disconnected)) | None => self.zimbra_probe = None,
+        }
+    }
+
     /// IMAP at a domain whose exchangers name no provider this program knows: the servers its
     /// own records name (#1063), with a guess for what they don't, for the owner to check, with
     /// where they came from said; else the guess made from the domain.
     pub(super) fn imap_from_discovered(&mut self, app: &mut MailApp) {
+        self.probe_zimbra(app);
         let preset = self
             .preset_command(self.discovered.as_ref(), None)
             .and_then(|(command, params)| app.execute(command, params).ok())
@@ -2186,6 +2237,7 @@ impl AccountSetup {
             && self.incoming.host.trim().eq_ignore_ascii_case("imap.gmail.com")
             && app.services.sign_in.is_some();
         let configured = app.google_registration_ready();
+        let zimbra_on = app.session.zimbra;
         let oauth_first = self.google_oauth_first(app);
         let title = if self.service.is_empty() {
             tl!("Sign in to your account").to_string()
@@ -2244,15 +2296,26 @@ impl AccountSetup {
                 );
                 // It may be another kind of account: offered here, not only behind manual setup.
                 note(ui, tl!("Or is it one of these?"), t.text_dim);
+                // A Zimbra server the probe found says the address itself: its tile opens the
+                // Zimbra page with it filled in.
+                if let Some(host) = self.zimbra_found.first() {
+                    note(ui, &fmt(tl!("A Zimbra server answered at {host}: your account may be on it."), &[("host", host)]), t.text);
+                }
+                let mut kinds = vec![Kind::Microsoft365, Kind::Exchange];
+                if zimbra_on {
+                    kinds.push(Kind::Zimbra);
+                }
                 let gap = ui.spacing().item_spacing.x;
                 let half = ((ui.available_width() - gap) / 2.0).max(40.0);
-                ui.horizontal(|ui| {
-                    for kind in [Kind::Microsoft365, Kind::Exchange] {
-                        if tile(ui, kind, half, &t).clicked() {
-                            offered = Some(kind);
+                for pair in kinds.chunks(2) {
+                    ui.horizontal(|ui| {
+                        for kind in pair {
+                            if tile(ui, *kind, half, &t).clicked() {
+                                offered = Some(*kind);
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
             if !self.note.is_empty() && !oauth_first {
                 note(ui, tl!(&self.note), t.text);

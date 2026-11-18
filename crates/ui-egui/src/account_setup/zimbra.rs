@@ -43,12 +43,16 @@ pub(super) fn technology_note(ui: &mut Ui, t: &Tokens) {
 }
 
 impl AccountSetup {
-    /// Off to the Zimbra page, with the domain's `mail.` host as the guess for its address.
+    /// Off to the Zimbra page, with the address a probe found when there is one, else the
+    /// domain's `mail.` host as the guess.
     pub(super) fn zimbra_page_from(&mut self) {
-        if self.zimbra.url.trim().is_empty()
-            && let Some((_, domain)) = address(&self.email)
-        {
-            self.zimbra.url = format!("https://mail.{}", domain.to_ascii_lowercase());
+        if self.zimbra.url.trim().is_empty() {
+            self.zimbra.url = self
+                .zimbra_found
+                .first()
+                .map(|host| format!("https://{host}"))
+                .or_else(|| address(&self.email).map(|(_, domain)| format!("https://mail.{}", domain.to_ascii_lowercase())))
+                .unwrap_or_default();
         }
         self.settings_open = true;
         self.go(Page::Zimbra);

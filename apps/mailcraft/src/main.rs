@@ -1131,6 +1131,7 @@ fn services(
     let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
     let autodiscover_ctx = ctx.clone();
+    let probe_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
@@ -1256,6 +1257,30 @@ fn services(
         })),
         lookup_autodiscover: Some(Box::new(move |domain| {
             background(&autodiscover_ctx, "autodiscover records", move || mailcraft_net::autodiscover_hosts(&domain).map_err(|e| e.to_string()))
+        })),
+        // Whether a Zimbra server answers at each of the candidate hosts' web client address, for
+        // Add Account's detection: one refused AuthRequest apiece, never a credential.
+        zimbra_probe: Some(Box::new(move |hosts| {
+            background(&probe_ctx, "zimbra probe", move || {
+                hosts
+                    .into_iter()
+                    .take(6)
+                    .filter(|host| {
+                        let Some(request) = mailcraft_zimbra::probe::request(host) else { return false };
+                        let fields: Vec<(&str, &str)> = request.fields().collect();
+                        mailcraft_net::https::send(&mailcraft_net::https::Request {
+                            method: request.method().as_str(),
+                            url: request.url(),
+                            fields: &fields,
+                            body: request.body(),
+                            max_response: request.max_response_bytes(),
+                            trusted: "",
+                        })
+                        .map(|answer| mailcraft_zimbra::probe::is_zimbra(&mailcraft_zimbra::HttpResponse::new(answer.status, answer.body)))
+                        .unwrap_or(false)
+                    })
+                    .collect()
+            })
         })),
         test_account: Some(Box::new(move |account, secret| {
             // The window says why in its own language (#872).

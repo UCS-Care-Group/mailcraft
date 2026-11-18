@@ -37,6 +37,7 @@ pub mod folders;
 pub mod http;
 pub mod items;
 mod json;
+pub mod probe;
 pub mod run;
 pub mod soap;
 pub mod tags;

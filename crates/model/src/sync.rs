@@ -546,6 +546,10 @@ pub struct GraphFetchResult {
     pub offline: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub busy_for: Option<u32>,
+    /// A Zimbra account's sign-in wants the code of the owner's authenticator app: the fetch is
+    /// not retried by itself, the next Send/Receive asks for it.
+    #[serde(skip_serializing_if = "is_false")]
+    pub code_needed: bool,
 }
 
 /// One message fetched whole.

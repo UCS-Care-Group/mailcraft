@@ -9,9 +9,9 @@ use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{ZimbraFetchRequest, ZimbraMailRequest, ZimbraMailResult};
 
 use crate::auth::Credentials;
-use crate::http::Secret;
+use crate::http::{HttpResponse, Method, Secret};
 use crate::standin::{CODE, DEVICE, PASSWORD, StandIn, TOKEN, TRUSTED, USER, block_on};
-use crate::{Trust, fetch_messages, sync_mail};
+use crate::{Trust, fetch_messages, probe, sync_mail};
 
 const URL: &str = "http://127.0.0.1:7070";
 
@@ -25,7 +25,7 @@ fn run(server: &StandIn, request: &ZimbraMailRequest, password: &str) -> Vec<Zim
 
 fn run_with(server: &StandIn, request: &ZimbraMailRequest, credentials: &Credentials) -> (Vec<ZimbraMailResult>, Trust) {
     let mut pieces = Vec::new();
-    let trust = block_on(sync_mail(server, request, credentials, &AtomicBool::new(false), &mut |_| {}, &mut |piece| pieces.push(piece))).unwrap();
+    let trust = block_on(sync_mail(server, request, credentials, &AtomicBool::new(false), &mut |_, _| {}, &mut |piece| pieces.push(piece))).unwrap();
     (pieces, trust)
 }
 
@@ -340,6 +340,20 @@ fn a_delta_longer_than_a_run_goes_on_from_the_last_whole_page() {
 }
 
 #[test]
+fn an_id_in_anywhere_cant_reach_is_asked_for_by_name() {
+    let server = StandIn::new();
+    let moved = server.deliver(2, "Still there", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    server.change(moved, |m| m.folder = 3);
+    server.fault_anywhere.set(true);
+    let all = whole(&run(&server, &request(&token), PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    let page = all.pages.iter().find(|p| p.folder.is_empty()).unwrap();
+    assert!(page.messages.iter().any(|m| m.server.id == moved.to_string() && m.server.folder == "3"));
+    assert!(!page.removed.contains(&moved.to_string()));
+}
+
+#[test]
 fn a_folder_left_half_read_starts_over_without_a_token() {
     let server = StandIn::new();
     let older = server.deliver(2, "Older", "");
@@ -388,7 +402,7 @@ fn a_fetch_stops_taking_bodies_once_the_total_is_full() {
     }
     let fetch = ZimbraFetchRequest { account: 3, email: USER.into(), url: URL.into(), ids, ..Default::default() };
     let credentials = crate::Credentials { password: Secret::new(PASSWORD), ..Default::default() };
-    let got = block_on(fetch_messages(&server, &fetch, &credentials, &AtomicBool::new(false))).unwrap();
+    let got = block_on(fetch_messages(&server, &fetch, &credentials, &AtomicBool::new(false), &mut |_, _| {})).unwrap();
     assert_eq!(got.errors, Vec::<String>::new());
     // 16 MiB at a time: the fifth would take the run past 64 MiB and is left for the next fetch.
     assert_eq!(got.fetched.len(), 4);
@@ -424,7 +438,7 @@ fn a_refused_sign_in_is_said_and_nothing_else_is_asked() {
 fn a_run_called_off_says_so_and_keeps_no_token() {
     let server = StandIn::new();
     let mut pieces = Vec::new();
-    block_on(sync_mail(&server, &request(""), &Credentials::password(PASSWORD), &AtomicBool::new(true), &mut |_| {}, &mut |p| pieces.push(p)))
+    block_on(sync_mail(&server, &request(""), &Credentials::password(PASSWORD), &AtomicBool::new(true), &mut |_, _| {}, &mut |p| pieces.push(p)))
         .unwrap();
     assert_eq!(pieces.len(), 1);
     assert!(pieces[0].stopped && pieces[0].token.is_empty() && pieces[0].errors.is_empty());
@@ -441,7 +455,7 @@ fn messages_are_fetched_whole_with_the_token_in_a_cookie() {
         ids: vec![one.to_string(), "999".into(), "x1".into()],
         ..Default::default()
     };
-    let got = block_on(fetch_messages(&server, &fetch, &Credentials::password(PASSWORD), &AtomicBool::new(false))).unwrap();
+    let got = block_on(fetch_messages(&server, &fetch, &Credentials::password(PASSWORD), &AtomicBool::new(false), &mut |_, _| {})).unwrap();
     assert_eq!(got.errors, Vec::<String>::new());
     assert_eq!(got.fetched.len(), 1);
     assert!(String::from_utf8_lossy(&got.fetched[0].mime).contains("Subject: Whole"));
@@ -637,4 +651,31 @@ fn a_resume_survives_the_cursor_items_deletion() {
     assert_eq!(second.resume, Some(Vec::new()));
     let read: usize = second.pages.iter().filter(|p| p.folder == "2").map(|p| p.messages.len()).sum();
     assert_eq!(read, 100);
+}
+
+#[test]
+fn a_probe_asks_an_auth_request_and_reads_the_refusal_as_zimbras() {
+    // The request: an AuthRequest to the host's SOAP address, with nothing to sign in with.
+    let request = probe::request("mail.example.org.").unwrap();
+    assert_eq!(request.url(), "https://mail.example.org/service/soap/AuthRequest");
+    assert_eq!(request.method(), Method::Post);
+    assert!(request.max_response_bytes() <= 16 * 1024);
+    // A name that is no DNS name is never asked.
+    for bad in ["", "bad host", "-dash.example.org", "under_score.example.org", &"a".repeat(254)] {
+        assert!(probe::request(bad).is_none(), "{bad}");
+    }
+    // A Zimbra server's answer to an AuthRequest without a sign-in is a fault in its own
+    // envelope: the refusal itself is the fingerprint.
+    let fault = HttpResponse::new(500, br#"{"Body":{"Fault":{"Detail":{"Error":{"Code":"service.INVALID_REQUEST"}}}}}"#.to_vec());
+    assert!(probe::is_zimbra(&fault));
+    // What another server answers is never taken for one.
+    for (status, body) in [
+        (404, b"<html>not found</html>".as_slice()),
+        (200, b"{}".as_slice()),
+        (200, br#"{"Body":{}}"#.as_slice()),
+        (500, br#"{"Body":{"Fault":"text"}}"#.as_slice()),
+        (200, b"".as_slice()),
+    ] {
+        assert!(!probe::is_zimbra(&HttpResponse::new(status, body.to_vec())), "{status}");
+    }
 }

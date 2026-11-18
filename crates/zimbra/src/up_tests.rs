@@ -31,7 +31,7 @@ fn request() -> ZimbraMailRequest {
 
 fn run(server: &StandIn, request: &ZimbraMailRequest) -> ZimbraMailResult {
     let mut all = ZimbraMailResult::default();
-    block_on(sync_mail(server, request, &Credentials::password(PASSWORD), &AtomicBool::new(false), &mut |_| {}, &mut |piece| {
+    block_on(sync_mail(server, request, &Credentials::password(PASSWORD), &AtomicBool::new(false), &mut |_, _| {}, &mut |piece| {
         assert_eq!(piece.check(), Ok(()), "{piece:?}");
         all.absorb(piece);
     }))
