@@ -628,9 +628,25 @@ fn empty_list(app: &mut MailApp, ui: &mut Ui, searching: bool) {
         ui.label(RichText::new(text).font(regular(12.5)).color(t.text_dim));
         if !searching && !of_account {
             ui.add_space(14.0);
-            if widgets::primary_button(ui, tl!("New Contact"), true).clicked() {
-                let _ = app.run("people.new", json!({}));
-            }
+            ui.horizontal(|ui| {
+                ui.add_space((ui.available_width() - 320.0).max(0.0) / 2.0);
+                if widgets::primary_button(ui, tl!("New Contact"), true).clicked() {
+                    let _ = app.run("people.new", json!({}));
+                }
+                ui.add_space(8.0);
+                if ui.button(RichText::new("📥 Importar Contatos (.vcf)").size(13.0)).on_hover_text("Importar arquivo .vcf exportado do Google Contatos").clicked() {
+                    let _ = app.run("file.import", json!({}));
+                }
+            });
+            ui.add_space(16.0);
+            ui.label(RichText::new("Para trazer seus contatos da conta Google:").size(12.0).strong().color(t.text));
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.add_space((ui.available_width() - 320.0).max(0.0) / 2.0);
+                ui.label(RichText::new("1. Acesse:").size(11.5).color(t.text_dim));
+                ui.hyperlink_to(RichText::new("contacts.google.com ↗").color(Color32::from_rgb(66, 133, 244)), "https://contacts.google.com");
+            });
+            ui.label(RichText::new("2. Clique em 'Exportar' e escolha o formato 'vCard'\n3. Arraste o arquivo baixado para esta janela ou use o botão acima!").size(11.5).color(t.text_dim));
         }
     });
 }
