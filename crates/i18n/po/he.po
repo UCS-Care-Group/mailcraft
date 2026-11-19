@@ -9114,7 +9114,7 @@ msgstr "ההודעות הישנות ביותר בראש הרשימה"
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/forms.rs
 msgid "On"
-msgstr "בתאריך"
+msgstr "מופעל"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -20468,8 +20468,8 @@ msgstr[1] "{n} עותקים במחשב זה של דואר שהוסר מהשרת 
 #: crates/ui-egui/src/lib.rs
 msgid "{n} copy on this computer of mail its server has would be removed"
 msgid_plural "{n} copies on this computer of mail its server has would be removed"
-msgstr[0] "{n} עותק במחשב זה של דואר שהיה מוסר מהשרת שלו"
-msgstr[1] "{n} עותקים במחשב זה של דואר שהיה מוסר מהשרת שלו"
+msgstr[0] "יוסר {n} עותק במחשב זה של דואר שקיים בשרת"
+msgstr[1] "יוסרו {n} עותקים במחשב זה של דואר שקיים בשרת"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
