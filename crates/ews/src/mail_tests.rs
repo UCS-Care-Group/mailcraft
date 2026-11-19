@@ -721,3 +721,14 @@ fn the_callers_own_mailbox_names_no_mailbox_at_all() {
     assert!(other.is_empty());
     assert!(!standin.state().requests.last().is_some_and(|r| r.status == 200 && r.code == "NoError"), "named a mailbox the caller has none of");
 }
+
+#[test]
+fn a_shared_mailbox_whose_inbox_alone_is_refused_is_one_the_server_wont_open() {
+    // (The server answers the other folders, so nothing stops the run; the Inbox isn't among them.)
+    let standin = delegate_stand_in();
+    standin.state().folders.retain(|f| f.distinguished != "inbox");
+    let (pieces, _) = run_as(&client().with_mailbox(SHARED), &standin, &EwsMailRequest { mailbox: SHARED.into(), ..request() });
+    assert!(!last(&pieces).whole, "{:?}", last(&pieces));
+    assert!(last(&pieces).errors.iter().any(|e| e == crate::run::SHARED_NOT_OPENED), "{:?}", last(&pieces).errors);
+    assert!(last(&pieces).errors.iter().all(|e| e != "Couldn't find the Inbox on the server"), "{:?}", last(&pieces).errors);
+}

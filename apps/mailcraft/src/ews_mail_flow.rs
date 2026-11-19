@@ -373,8 +373,11 @@ fn a_shared_mailbox_is_read_through_the_owners_sign_in_and_names_itself_on_every
     assert!(folders > 0 && folders == named, "{folders} folders, {named} named");
     assert!(state.writes.is_empty());
     drop(state);
-    // The owner's own mailbox is another one: the owner's own run on this server finds nothing of it.
-    send_receive(&mut app, json!({"account": owner}));
+    // The owner's own mailbox is another one: the owner's own run on this server finds nothing of it,
+    // and it goes with the password already typed.
+    let again = send_receive(&mut app, json!({"account": owner}));
+    assert_eq!(again["started"], true, "{again}");
+    assert!(app.dialog.is_none(), "no second password");
     assert_eq!(app.session.mailbox.count(own), 0);
 }
 

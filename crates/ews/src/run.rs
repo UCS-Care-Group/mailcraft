@@ -570,7 +570,9 @@ impl<E: HttpExchange> Run<'_, E> {
         let specials = self.specials().await?;
         if specials.inbox.is_none() {
             out.incomplete = true;
-            out.line("Couldn't find the Inbox on the server");
+            // (A shared mailbox whose Inbox alone the server won't show is one it won't open, as
+            // when it refuses the whole request: said the same way.)
+            out.line(if request.mailbox.is_empty() { "Couldn't find the Inbox on the server" } else { SHARED_NOT_OPENED });
         }
         let mut order: Vec<String> = Vec::new();
         // (The server's Outbox, when the list leaves it out: there is nothing in it to read.)

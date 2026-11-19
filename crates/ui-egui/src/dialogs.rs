@@ -2019,13 +2019,15 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             });
             close |= !open;
             if submit {
-                let r = app.execute("ui.sync", json!({"account": account, "password": password}));
+                let r = app.sign_in_answered(*account, Some(password.as_str()));
                 // The typed password doesn't linger in the dialog's memory.
                 password.clear();
                 if let Err(e) = r {
                     app.status(e);
                 }
                 close = true;
+            } else if close {
+                let _ = app.sign_in_answered(*account, None);
             }
         }
         Dialog::Report { title, lines, .. } => {

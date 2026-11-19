@@ -137,3 +137,56 @@ fn an_exchange_account_whose_server_cannot_be_used_is_not_offered_a_shared_mailb
     a.session.mailbox.account_mut(owner).unwrap().ews.as_mut().unwrap().url = "http://exchange.example.org/EWS".into();
     assert!(!can(&a, owner));
 }
+
+#[test]
+fn a_shared_mailbox_being_added_is_read_once_its_owners_password_is_typed() {
+    let (mut a, owner, shared, jobs, _) = window();
+    a.begin_shared_check(shared).unwrap();
+    assert!(matches!(a.dialog, Some(Dialog::Password { account, .. }) if account == owner), "the owner's password is asked for");
+    assert!(jobs.lock().unwrap().is_empty());
+    // Typed in the Sign In dialog: the shared mailbox's run goes with it, not the owner's.
+    a.dialog = None;
+    let started = a.sign_in_answered(owner, Some(TYPED)).unwrap();
+    assert_eq!(started["started"], true, "{started}");
+    let jobs = jobs.lock().unwrap();
+    let (request, secret) = jobs.last().expect("the shared mailbox's run was handed to the host");
+    assert_eq!((request.account, request.mailbox.as_str(), secret.as_str()), (shared, SHARED, TYPED));
+    assert_eq!(a.passwords.get(&owner).map(String::as_str), Some(TYPED));
+    assert!(a.shared_checking.contains(&shared), "still being read");
+    assert!(a.ews_password_then.is_none());
+}
+
+#[test]
+fn a_shared_mailbox_being_added_whose_owner_gives_no_password_is_not_kept() {
+    let (mut a, owner, shared, jobs, _) = window();
+    a.begin_shared_check(shared).unwrap();
+    a.dialog = None;
+    a.sign_in_answered(owner, None).unwrap();
+    assert!(a.session.mailbox.account(shared).is_none(), "removed again");
+    assert!(!a.shared_checking.contains(&shared));
+    assert!(jobs.lock().unwrap().is_empty());
+    assert!(a.session.mailbox.account(owner).is_some(), "the owner is untouched");
+}
+
+#[test]
+fn a_shared_mailbox_being_added_whose_owners_password_is_refused_forgets_the_owners() {
+    let (mut a, owner, shared, _, feed) = window();
+    a.passwords.insert(owner, TYPED.into());
+    a.begin_shared_check(shared).unwrap();
+    send(&mut a, &feed, EwsMailResult { partial: false, auth_refused: true, ..piece(shared) });
+    assert!(a.session.mailbox.account(shared).is_none(), "removed again");
+    // (Though the shared mailbox is gone, the password was its owner's: forgotten, and asked for again.)
+    assert!(!a.passwords.contains_key(&owner), "the owner's password is forgotten");
+    assert!(a.jmap_refused.contains(&owner));
+}
+
+#[test]
+fn a_shared_mailbox_whose_run_stopped_at_the_certificate_waits_for_the_owner() {
+    let (mut a, owner, shared, _, _) = window();
+    a.passwords.insert(owner, TYPED.into());
+    assert!(a.can_sync_quietly(shared));
+    // Its own run stopped at the certificate question: no round reads it by itself until that is answered.
+    a.jmap_refused.insert(shared);
+    assert!(!a.can_sync_quietly(shared));
+    assert!(a.can_sync_quietly(owner), "the owner's own isn't held by it");
+}
