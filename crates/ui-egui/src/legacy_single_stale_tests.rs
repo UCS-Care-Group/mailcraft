@@ -13,11 +13,12 @@
 //! `Mailbox::add_event`), the clock is fixed, and every act is a pointer event, a key or the
 //! question's own button. No file, server, real account, native window or wall clock is used.
 //!
-//! WHAT IS HELD (source read 2026-11-15): a cut of one whole event goes by `paste_single`
-//! to the legacy `calendar.move`, whose question `bind_calendar` leaves unbound
-//! (`names_a_set` is false for the legacy single `id`). A Send/Receive may therefore replace the
-//! event (same id, new shared pointer, another UID and time) while the question is open, and the
-//! yes then moves the replacement. This test holds the required outcome: the yes must be refused,
+//! WHAT IS HELD: a cut of one whole event goes by `paste_single` to the legacy `calendar.move`.
+//! When this test was written (source read 2026-11-15) that question was left unbound
+//! (`names_a_set` is false for the legacy single `id`), so a Send/Receive that replaced the event
+//! (same id, new shared pointer, another UID and time) while the question was open had the yes
+//! move the replacement. The question is now held by the one-event binding; this test exercises
+//! that check with a replacement event under the same id. The required outcome: the yes is refused,
 //! the replacement must not move, no change may be queued, and the cut must stay on the
 //! clipboard.
 

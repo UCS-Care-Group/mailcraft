@@ -125,3 +125,110 @@ fn rebasing_clears_typed_keys_but_keeps_an_ordinary_focus_at_its_new_start() {
         "an ordinary event has stable identity; keep its legacy focus at the rebased start (contract E-7)"
     );
 }
+
+/// Appointments a typed set can be made of, each at its own time on 2026-11-04.
+fn several(s: &mut Session, n: usize) -> Vec<u64> {
+    let calendar = s.mailbox.default_calendar().unwrap();
+    let day = Date::new(2026, 11, 4).unwrap();
+    (0..n)
+        .map(|i| {
+            let start = DateTime::new(day, 0, 0, 0).unwrap().add_minutes(i64::try_from(i).unwrap());
+            s.mailbox
+                .add_event(Event { calendar, title: format!("Synthetic member {i}"), start, end: start.add_minutes(1), ..Default::default() })
+                .unwrap()
+        })
+        .collect()
+}
+
+/// A server that moves the focused member of a typed set to another day (outside a command, as
+/// a synchronisation does) moves its focus with it: the set the owner chose stays selected, and
+/// the date in focus is the one it is shown on now (CodeRabbit on #1665, session.rs:3205). A
+/// legacy producer that focuses another event still replaces the set.
+#[test]
+fn a_sync_that_moves_the_focused_member_to_another_day_keeps_the_typed_set() {
+    let mut s = session();
+    let first = add(&mut s, false);
+    let last = add(&mut s, false);
+    s.run("calendar.select", &json!({"items": [{"id": first}, {"id": last}]})).unwrap();
+    let event = s.mailbox.event_mut(last).unwrap();
+    event.start = event.start.add_minutes(24 * 60);
+    event.end = event.end.add_minutes(24 * 60);
+    let moved_to = event.start.date;
+    s.mailbox_changed();
+    assert_eq!(s.sel.events, vec![SelectedEvent { id: first, day: None }, SelectedEvent { id: last, day: None }], "the typed set stays");
+    assert_eq!((s.sel.event, s.sel.event_day), (Some(last), Some(moved_to)), "and its focus is on the day it is shown on now");
+
+    // A focus put on another event the older way is still a new selection.
+    s.sel.event = Some(first);
+    s.sel.event_day = s.mailbox.event(first).map(|e| e.start.date);
+    s.normalize();
+    assert!(s.sel.events.is_empty(), "a legacy focus elsewhere replaces the typed set");
+}
+
+/// A member a server marks cancelled leaves the typed set, as one that went does, so that the
+/// rest stays selected and usable: Delete of the set and a Command click on another item work
+/// (CodeRabbit on #1665, session.rs:3214).
+#[test]
+fn a_member_cancelled_by_a_sync_leaves_the_set_and_the_rest_stays_usable() {
+    let mut s = session();
+    let ids = several(&mut s, 3);
+    s.run("calendar.select", &json!({"items": [{"id": ids[0]}, {"id": ids[1]}]})).unwrap();
+    s.mailbox.event_mut(ids[1]).unwrap().cancelled = true;
+    s.mailbox_changed();
+    assert_eq!(s.sel.events, vec![SelectedEvent { id: ids[0], day: None }], "the cancelled member left the set");
+    assert_eq!(s.sel.event, Some(ids[0]), "and the focus is on what is left");
+    s.run("calendar.select", &json!({"items": [{"id": ids[2]}], "extend": true})).expect("a Command click adds to what is left");
+    assert_eq!(s.sel.events.len(), 2);
+}
+
+/// A toggle that adds one item and takes another away ends at the cap whichever order the two are
+/// named in; adding one more than the cap allows is still refused (CodeRabbit on #1665,
+/// selection.rs:284).
+#[test]
+fn an_extend_that_ends_at_the_cap_is_taken_in_either_order() {
+    let cap = mailcraft_engine::MAX_SELECTED_EVENTS;
+    let mut s = session();
+    let ids = several(&mut s, cap + 1);
+    let full: Vec<serde_json::Value> = ids.iter().take(cap).map(|id| json!({"id": id})).collect();
+    let (new, old) = (ids[cap], ids[0]);
+    for order in [[new, old], [old, new]] {
+        s.run("calendar.select", &json!({"items": full})).unwrap();
+        let toggles: Vec<serde_json::Value> = order.iter().map(|id| json!({"id": id})).collect();
+        s.run("calendar.select", &json!({"items": toggles, "extend": true})).unwrap_or_else(|e| panic!("{order:?}: {e}"));
+        assert_eq!(s.sel.events.len(), cap, "{order:?}");
+        assert!(s.sel.events.contains(&SelectedEvent { id: new, day: None }) && !s.sel.events.contains(&SelectedEvent { id: old, day: None }));
+    }
+    s.run("calendar.select", &json!({"items": full})).unwrap();
+    let before = s.sel.clone();
+    assert!(s.run("calendar.select", &json!({"items": [{"id": new}], "extend": true})).is_err(), "one more than the cap is refused");
+    assert_eq!(s.sel, before, "and changes nothing");
+}
+
+/// `{"id": null}` selects nothing, as it did before typed sets, also with the older `day` beside
+/// it; a top-level `day` beside a typed list is still refused (CodeRabbit on #1665,
+/// selection.rs:95).
+#[test]
+fn a_null_id_with_a_day_still_clears_the_selection() {
+    let mut s = session();
+    let first = add(&mut s, false);
+    s.run("calendar.select", &json!({"items": [{"id": first}]})).unwrap();
+    s.run("calendar.select", &json!({"id": null, "day": "2026-10-14"})).expect("null selects nothing, whatever day is beside it");
+    assert!(s.sel.events.is_empty() && s.sel.event.is_none() && s.sel.event_day.is_none());
+    assert!(s.run("calendar.select", &json!({"items": [{"id": first}], "day": "2026-10-14"})).is_err(), "a day beside a typed list is refused");
+}
+
+/// A day of a series that a server cancels (outside a command, as a synchronisation does) leaves
+/// the typed set, and another day of the same series stays selected, with the focus on it
+/// (review of #1665: the cancelled days `days_gone` reads).
+#[test]
+fn a_day_of_a_series_cancelled_by_a_sync_leaves_the_set_and_its_other_day_stays() {
+    let mut s = session();
+    let series = add(&mut s, true);
+    let (first, second) = (Date::new(2026, 11, 11).unwrap(), Date::new(2026, 11, 18).unwrap());
+    s.run("calendar.select", &json!({"items": [{"id": series, "day": first.iso()}, {"id": series, "day": second.iso()}]})).unwrap();
+    assert_eq!(s.sel.events.len(), 2, "fixture: two days of one series");
+    s.mailbox.event_mut(series).unwrap().exceptions.push(first);
+    s.mailbox_changed();
+    assert_eq!(s.sel.events, vec![SelectedEvent { id: series, day: Some(second) }], "the cancelled day left the set, the other stayed");
+    assert_eq!((s.sel.event, s.sel.event_day), (Some(series), Some(second)), "and the focus is on the day that stayed");
+}

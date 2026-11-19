@@ -221,6 +221,9 @@ pub struct Question {
     /// cancelled or refused one leaves it ([`crate::calendar_view::CutReceipt`]). `None` for
     /// every other question.
     pub(crate) cut: Option<crate::calendar_view::CutReceipt>,
+    /// What a batch of calendar items lists under its summary ([`Listing`]): drawn as a list, and
+    /// written out in full in `text`. `None` for every other question.
+    pub(crate) listing: Option<Listing>,
 }
 
 /// A box under a question's text (Don't ask again, #503): what it says, whether it is ticked,
@@ -245,6 +248,7 @@ impl Question {
             tick: None,
             calendar: None,
             cut: None,
+            listing: None,
         }
     }
 
@@ -972,7 +976,8 @@ pub(crate) fn pin_targets(app: &MailApp, id: &str, mut params: Value) -> Value {
     // reaching a smaller one. (A legacy focus with no typed set is never written in: its own
     // question answers with a scope, which a list beside it would make unreadable.)
     let unnamed = !["id", "ids", "items", "day", "occurrence"].iter().any(|k| named(k));
-    let counted_set = (id == "calendar.delete" && unnamed && !sel.events.is_empty())
+    let set = mailcraft_engine::cmd::calendar::delete_form(sel, &params).ok() == Some(mailcraft_engine::cmd::calendar::DeleteForm::Batch);
+    let counted_set = (id == "calendar.delete" && unnamed && set)
         .then(|| mailcraft_engine::cmd::calendar::selected_items(&app.session, &Value::Null))
         .and_then(Result::ok)
         .filter(|items| !items.is_empty())
@@ -1203,8 +1208,11 @@ fn binds_legacy(app: &MailApp, id: &str, params: &Value) -> bool {
 fn names_a_set(app: &MailApp, id: &str, params: &Value) -> bool {
     match id {
         "calendar.paste" => true,
-        // (`id` named at all, even `null`, is the one legacy target, read and refused as such.)
-        "calendar.delete" => params.get("items").is_some() || (params.get("id").is_none() && !app.session.sel.events.is_empty()),
+        // (As the command reads it: `id` named at all, even `null`, is the one legacy target; a
+        // payload it refuses for naming its target two ways is no one event either.)
+        "calendar.delete" => {
+            mailcraft_engine::cmd::calendar::delete_form(&app.session.sel, params).ok() != Some(mailcraft_engine::cmd::calendar::DeleteForm::One)
+        }
         _ => false,
     }
 }
@@ -1336,23 +1344,9 @@ fn batch_question(app: &MailApp, id: &str, params: &Value, items: &[mailcraft_en
     let mail = mail_of(&app.session, id, params);
     let mb = &app.session.mailbox;
     let cut = id == "calendar.paste";
-    // Each item as the question names it: its title, and the day the item is named by — the
-    // series' own day for an occurrence, and its start's for a whole appointment; never the date
-    // one happens to be shown on here.
-    let each: Vec<String> = items
-        .iter()
-        .filter_map(|item| {
-            let event = mb.event(item.id)?;
-            let name: String = event.title.chars().filter(|c| !c.is_control()).take(80).collect();
-            if id == "calendar.delete" && item.day.is_none() && event.recurrence.is_some() {
-                return Some(crate::i18n::fmt(tl!("the entire series \"{name}\""), &[("name", name.as_str())]));
-            }
-            let day = item.day.unwrap_or(event.start.date);
-            let long = crate::dates::long(day);
-            Some(crate::i18n::fmt(tl!("\"{name}\" on {day}"), &[("name", name.as_str()), ("day", long.as_str())]))
-        })
-        .collect();
-    if each.is_empty() {
+    // (An item that is gone is named by nothing: a set of nothing but those asks nothing.)
+    let n = items.iter().filter(|item| mb.event(item.id).is_some()).count();
+    if n == 0 {
         return None;
     }
     // The meetings of the set somebody else organizes, which the account's server keeps: deleting
@@ -1373,11 +1367,14 @@ fn batch_question(app: &MailApp, id: &str, params: &Value, items: &[mailcraft_en
     if mail.is_none() && guests == 0 {
         return None;
     }
-    let n = each.len();
-    let named = each.join("; ");
-    // The accounts of the calendars a cut takes them to: an appointment of this computer's that
-    // goes into one is a meeting its account's server sends the invitation for.
-    let mut by_destination: Vec<&str> = Vec::new();
+    // Who each item writes to, by which account's server: the command's own plan, which its
+    // count, the agent's question and this question all come from.
+    let plan = if cut {
+        mailcraft_engine::cmd::calendar::paste_notices(&app.session, params)
+    } else {
+        mailcraft_engine::cmd::calendar::delete_notices(&app.session, params)
+    };
+    let plan = plan.unwrap_or_default();
     let head = if cut {
         // Where a cut takes them: the time asked for, and the calendar (and account) that take them.
         let start = mailcraft_engine::p::datetime(params, "start").ok().flatten()?;
@@ -1395,11 +1392,6 @@ fn batch_question(app: &MailApp, id: &str, params: &Value, items: &[mailcraft_en
                 continue;
             };
             let account = mb.account(calendar.origin.account).map(|account| account.email.trim()).filter(|email| !email.is_empty());
-            if let Some(email) = account
-                && !by_destination.contains(&email)
-            {
-                by_destination.push(email);
-            }
             let name: String = calendar.name.chars().filter(|c| !c.is_control()).take(80).collect();
             let place = match account {
                 Some(email) => crate::i18n::fmt(tl!("the calendar \"{calendar}\" of {account}"), &[("calendar", &name), ("account", email)]),
@@ -1411,30 +1403,59 @@ fn batch_question(app: &MailApp, id: &str, params: &Value, items: &[mailcraft_en
         }
         let to = if places.is_empty() { tl!("their calendar").to_string() } else { places.join(", ") };
         crate::i18n::fmt(
-            &tln!(n, "This moves {n} appointment to {when}, in {to}:", "This moves {n} appointments to {when}, in {to}:"),
+            &tln!(
+                n,
+                "This moves {n} appointment to {when}, in {to}.",
+                "This moves {n} appointments, the earliest to {when} and the others by as much, in {to}."
+            ),
             &[("when", &when), ("to", &to)],
         )
     } else {
-        tln!(n, "This deletes {n} appointment from your calendar:", "This deletes {n} appointments from your calendar:")
+        tln!(n, "This deletes {n} appointment from your calendar.", "This deletes {n} appointments from your calendar.")
     };
-    // The accounts whose servers tell the people invited, named once each: the people the
-    // question is about, never a count alone. A meeting the owner was invited to is not one the
-    // owner's own server writes to anybody about.
-    let mut telling_to: Vec<&str> = Vec::new();
-    for event in items.iter().filter_map(|item| mb.event(item.id)).filter(|event| !event.origin.guest) {
-        if let Some(account) = mailcraft_engine::cmd::remote::keeper(mb, &event.origin) {
-            let email = account.email.trim();
-            if !email.is_empty() && !telling_to.contains(&email) {
-                telling_to.push(email);
-            }
+    // The accounts whose servers write to somebody, named once each: only those of the items the
+    // plan says write. A meeting the owner was invited to is not one the owner's own server writes
+    // to anybody about, an appointment with nobody invited tells nobody, and a cut into another
+    // calendar of the same account moves an appointment only.
+    let mut telling_to: Vec<String> = Vec::new();
+    for notice in &plan {
+        let email = account_text(mb, notice.account);
+        if !telling_to.contains(&email) {
+            telling_to.push(email);
         }
     }
-    if telling_to.is_empty() {
-        telling_to = by_destination;
-    }
-    let server = telling_to.join(", ");
+    let server = and_list(&telling_to);
     let telling = if server.is_empty() {
         String::new()
+    } else if telling_to.len() > 1 {
+        // (Two servers or more write: "servers … tell", once for all of them.)
+        match mail {
+            Some(Mail::Cancellation(k)) => crate::i18n::fmt(
+                &tln!(
+                    k,
+                    "The servers of {accounts} tell the {n} person invited, so that they know it is cancelled.",
+                    "The servers of {accounts} tell the {n} people invited, so that they know it is cancelled."
+                ),
+                &[("accounts", &server)],
+            ),
+            Some(Mail::Update(k)) => crate::i18n::fmt(
+                &tln!(
+                    k,
+                    "The servers of {accounts} tell the {n} person invited of the new time.",
+                    "The servers of {accounts} tell the {n} people invited of the new time."
+                ),
+                &[("accounts", &server)],
+            ),
+            Some(Mail::Invitation(k)) => crate::i18n::fmt(
+                &tln!(
+                    k,
+                    "The servers of {accounts} send the {n} person invited the invitation by mail.",
+                    "The servers of {accounts} send the {n} people invited the invitation by mail."
+                ),
+                &[("accounts", &server)],
+            ),
+            None => String::new(),
+        }
     } else {
         match mail {
             Some(Mail::Cancellation(k)) => crate::i18n::fmt(
@@ -1481,11 +1502,19 @@ fn batch_question(app: &MailApp, id: &str, params: &Value, items: &[mailcraft_en
             "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them: the cancellation that is sent is of the meeting you organize."
         )
     } else {
-        tl!("A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told.")
+        tl!(
+            "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them."
+        )
     };
-    let guest = if guest_note.is_empty() { String::new() } else { format!(" {guest_note}") };
-    let text = if telling.is_empty() { format!("{head} {named}.{guest}") } else { format!("{head} {named}. {telling}{guest}") };
-    let ask = if cut {
+    // What the batch does, in a sentence or two; then each item, under the account whose server
+    // writes about it with who it goes to (and for a cut where it goes), and what writes to
+    // nobody after them.
+    let summary: Vec<&str> = [head.as_str(), telling.as_str(), guest_note].into_iter().filter(|part| !part.is_empty()).collect();
+    let lands = if cut { mailcraft_engine::cmd::calendar::paste_places(&app.session, params).unwrap_or_default() } else { Vec::new() };
+    let places = Places { starts: mailcraft_engine::cmd::calendar::item_starts(&app.session, items), lands };
+    let listing = listing(&app.session, &plan, items, &places, !cut, summary.join(" "));
+    let text = listing.plain();
+    let mut ask = if cut {
         Question::new(tl!("Move These Appointments?"), text, tl!("Move and Send Updates"), json!({ "send": true }))
     } else if guests == n {
         // Somebody else's meetings alone, with the three choices one meeting gets: the owner's
@@ -1506,7 +1535,274 @@ fn batch_question(app: &MailApp, id: &str, params: &Value, items: &[mailcraft_en
         // (The note goes with the cancellation, as it does for one meeting: the engine sends it.)
         ask.noted("comment", tl!("A note to go with it (optional)"))
     };
+    ask.listing = Some(listing);
     Some(ask)
+}
+
+/// The most items of a batch whose people its question names, and the most people it names for
+/// each: the rest are counted.
+const NOTICES_SHOWN: usize = 12;
+const PEOPLE_SHOWN: usize = 6;
+/// About how many lines of a batch question's list show at once: the rest scroll.
+const LISTING_ROWS: f32 = 8.5;
+
+/// What a batch question says: what the batch does, then each item it names, grouped.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Listing {
+    /// What the batch does and whose servers write to how many people, in a sentence or two.
+    pub(crate) summary: String,
+    /// The items that write to people, under the account whose server sends the mail (one group
+    /// for each account and kind of mail); then those that write to nobody. Every item is listed.
+    pub(crate) groups: Vec<ListGroup>,
+}
+
+/// One heading of a batch question's list, and the items under it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ListGroup {
+    pub(crate) heading: String,
+    pub(crate) items: Vec<ListItem>,
+}
+
+/// One item of a batch question's list.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ListItem {
+    /// Its title and when it is, and for a cut where it goes.
+    pub(crate) what: String,
+    /// Who its mail goes to (or for a large set, past the first few, how many), when it writes
+    /// to anybody.
+    pub(crate) to: Option<String>,
+}
+
+impl Listing {
+    /// All of it as text, a line for each heading, item and list of people, indented as it is
+    /// drawn: the question's `text`, which the control channel reports.
+    pub(crate) fn plain(&self) -> String {
+        let mut out = self.summary.clone();
+        for group in &self.groups {
+            out.push_str("\n\n");
+            out.push_str(&group.heading);
+            for item in &group.items {
+                out.push_str("\n  ");
+                out.push_str(&item.what);
+                if let Some(to) = &item.to {
+                    out.push_str("\n      ");
+                    out.push_str(to);
+                }
+            }
+        }
+        out
+    }
+}
+
+/// `names` as a list in a sentence: "A", "A and B", "A, B and C".
+fn and_list(names: &[String]) -> String {
+    match names.split_last() {
+        None => String::new(),
+        Some((last, [])) => last.clone(),
+        Some((last, others)) => crate::i18n::fmt(tl!("{others} and {last}"), &[("others", &others.join(", ")), ("last", last)]),
+    }
+}
+
+/// How an account is named where its server is said to write to people: its address (its name
+/// when it has none), as one line of text.
+fn account_text(mb: &mailcraft_model::Mailbox, account: Id) -> String {
+    let named =
+        mb.account(account).map(|account| if account.email.trim().is_empty() { account.name.trim() } else { account.email.trim() }).unwrap_or("");
+    let named = one_line(named, 120);
+    if named.is_empty() { tl!("its account").to_string() } else { named }
+}
+
+/// `text` as one line, without control or format characters (a right-to-left override, a
+/// zero-width space), at most `most` characters, as names are shown elsewhere
+/// ([`mailcraft_names::shown`]): a title or an address from a server is shown, never obeyed.
+fn one_line(text: &str, most: usize) -> String {
+    mailcraft_names::shown(text, most)
+}
+
+/// The heading a batch question puts over the items of one account whose server sends `kind` of
+/// mail. (A decline is never in a question's plan: the window asks before `decline` is said, and
+/// asks nothing once it is.)
+fn mail_heading(kind: mailcraft_engine::cmd::calendar::NoticeKind) -> Option<&'static str> {
+    use mailcraft_engine::cmd::calendar::NoticeKind;
+    match kind {
+        NoticeKind::Cancellation => Some(tl!("Cancellations from the server of {account}:")),
+        NoticeKind::Update => Some(tl!("New times from the server of {account}:")),
+        NoticeKind::Invitation => Some(tl!("Invitations from the server of {account}:")),
+        NoticeKind::Decline => None,
+    }
+}
+
+/// When an item is, as a batch question says it: its day, and the time it starts unless it takes
+/// whole days.
+fn when_text(at: mailcraft_time::DateTime, all_day: bool, twelve_hour: bool) -> String {
+    let day = crate::dates::long(at.date);
+    if all_day {
+        return day;
+    }
+    crate::i18n::fmt(tl!("{day} at {time}"), &[("day", &day), ("time", &crate::dates::clock(at, twelve_hour))])
+}
+
+/// Where the items of a batch question are, as the engine places them: when each starts here
+/// ([`mailcraft_engine::cmd::calendar::item_starts`]) and, for a cut, where each one's start goes
+/// ([`mailcraft_engine::cmd::calendar::paste_places`]).
+struct Places {
+    starts: Vec<(mailcraft_engine::SelectedEvent, mailcraft_time::DateTime)>,
+    lands: Vec<(mailcraft_engine::SelectedEvent, mailcraft_time::DateTime)>,
+}
+
+/// One item as a batch question names it: its title and when it is — the date and time it starts
+/// here, as the calendar shows it (for a day of a series kept by another zone's clock, the engine's
+/// own placement of that day, which can be on the date before or after the series' own day) — and,
+/// when `places` puts it somewhere, where a cut puts it. A whole series named without a day is the
+/// entire series, when `series_whole` (a Delete takes it so). An item the engine can't place is
+/// named by its own day alone, never at a time it isn't.
+fn item_text(session: &mailcraft_engine::Session, item: &mailcraft_engine::SelectedEvent, places: &Places, series_whole: bool) -> Option<String> {
+    let event = session.mailbox.event(item.id)?;
+    let name = one_line(&event.title, 80);
+    if series_whole && item.day.is_none() && event.recurrence.is_some() {
+        return Some(crate::i18n::fmt(tl!("the entire series \"{name}\""), &[("name", name.as_str())]));
+    }
+    let twelve_hour = session.prefs.twelve_hour;
+    let when = match places.starts.iter().find(|(placed, _)| placed == item) {
+        Some((_, at)) => when_text(*at, event.all_day, twelve_hour),
+        None => crate::dates::long(item.day.unwrap_or(event.start.date)),
+    };
+    Some(match places.lands.iter().find(|(landed, _)| landed == item) {
+        Some((_, to)) => crate::i18n::fmt(
+            tl!("\"{name}\", {when}, moves to {to}"),
+            &[("name", name.as_str()), ("when", when.as_str()), ("to", when_text(*to, event.all_day, twelve_hour).as_str())],
+        ),
+        None => crate::i18n::fmt(tl!("\"{name}\", {when}"), &[("name", name.as_str()), ("when", when.as_str())]),
+    })
+}
+
+/// How many people one item's mail goes to, for an item past the first [`NOTICES_SHOWN`].
+fn notice_count(notice: &mailcraft_engine::cmd::calendar::Notice) -> String {
+    let people = notice.to.len().saturating_add(notice.unnamed);
+    tln!(people, "to {n} person", "to {n} people")
+}
+
+/// Who one item's mail goes to: the first [`PEOPLE_SHOWN`] addresses and how many more, those
+/// without an address counted with them.
+fn notice_people(notice: &mailcraft_engine::cmd::calendar::Notice) -> String {
+    let shown: Vec<String> = notice.to.iter().take(PEOPLE_SHOWN).map(|address| one_line(address, 120)).collect();
+    let people = shown.join(", ");
+    let hidden = notice.to.len().saturating_sub(PEOPLE_SHOWN);
+    let people = if hidden > 0 {
+        let more = hidden.saturating_add(notice.unnamed);
+        crate::i18n::fmt(&tln!(more, "{people} and {n} more", "{people} and {n} more"), &[("people", &people)])
+    } else if notice.unnamed > 0 {
+        let nameless = tln!(notice.unnamed, "{n} person without an address", "{n} people without an address");
+        if people.is_empty() { nameless } else { crate::i18n::fmt(tl!("{people} and {nameless}"), &[("people", &people), ("nameless", &nameless)]) }
+    } else {
+        people
+    };
+    crate::i18n::fmt(tl!("to {people}"), &[("people", &people)])
+}
+
+/// A batch question's list: the items `plan` says an account's server writes about, under one
+/// heading for each account and kind of mail, each with who it goes to (for the first
+/// [`NOTICES_SHOWN`] of them; how many, for the rest); then every other item of `items`, under a
+/// heading of its own. Every item is named, as the set it deletes or moves is what the owner
+/// answers for. `places` is when each item starts here and where a cut puts it.
+fn listing(
+    session: &mailcraft_engine::Session,
+    plan: &[mailcraft_engine::cmd::calendar::Notice],
+    items: &[mailcraft_engine::SelectedEvent],
+    places: &Places,
+    series_whole: bool,
+    summary: String,
+) -> Listing {
+    let mb = &session.mailbox;
+    let mailing: Vec<(&mailcraft_engine::cmd::calendar::Notice, &str)> =
+        plan.iter().filter_map(|notice| mail_heading(notice.kind).map(|heading| (notice, heading))).collect();
+    let mut keyed: Vec<(Id, &str, ListGroup)> = Vec::new();
+    for (n, &(notice, heading)) in mailing.iter().enumerate() {
+        let Some(what) = item_text(session, &notice.item, places, series_whole) else { continue };
+        // (The people of the first few; past those, how many, so that a large set stays a
+        // question that can be read.)
+        let to = if n < NOTICES_SHOWN { notice_people(notice) } else { notice_count(notice) };
+        let item = ListItem { what, to: Some(to) };
+        match keyed.iter_mut().find(|(account, said, _)| *account == notice.account && *said == heading) {
+            Some((.., group)) => group.items.push(item),
+            None => {
+                let title = crate::i18n::fmt(heading, &[("account", &account_text(mb, notice.account))]);
+                keyed.push((notice.account, heading, ListGroup { heading: title, items: vec![item] }));
+            }
+        }
+    }
+    let mut groups: Vec<ListGroup> = keyed.into_iter().map(|(.., group)| group).collect();
+    // Everything else of the set: what goes, or moves, without anybody being written to.
+    let quiet: Vec<ListItem> = items
+        .iter()
+        .filter(|item| !mailing.iter().any(|(notice, _)| notice.item == **item))
+        .filter_map(|item| item_text(session, item, places, series_whole).map(|what| ListItem { what, to: None }))
+        .collect();
+    if !quiet.is_empty() {
+        groups.push(ListGroup { heading: tl!("Nobody is written to about:").to_string(), items: quiet });
+    }
+    Listing { summary, groups }
+}
+
+/// A batch question's list ([`Listing`]): a heading line for each account whose server writes
+/// (and one for what writes to nobody), a line for each item under it, and who its mail goes to
+/// on a line indented under that. It scrolls in a box of its own about [`LISTING_ROWS`] lines
+/// high, whose bar shows whenever there is more than the box holds, so that a long list never
+/// looks complete when it isn't, and the owner's buttons stay in reach.
+fn listing_ui(ui: &mut Ui, t: &Tokens, listing: &Listing) {
+    if listing.groups.is_empty() {
+        return;
+    }
+    let gap = 2.0;
+    let line = ui.text_style_height(&egui::TextStyle::Body) + gap;
+    egui::Frame::new()
+        .fill(t.input)
+        .stroke(egui::Stroke::new(1.0, t.input_border))
+        .corner_radius(4.0)
+        .inner_margin(egui::Margin { left: 8, right: 2, top: 6, bottom: 6 })
+        .show(ui, |ui| {
+            // A bar beside the list, there whenever the list is longer than the box and not only
+            // under the pointer, in the ink of the window's other lists.
+            let style = ui.style_mut();
+            style.spacing.scroll = egui::style::ScrollStyle {
+                bar_width: 8.0,
+                dormant_handle_opacity: 1.0,
+                active_handle_opacity: 1.0,
+                interact_handle_opacity: 1.0,
+                ..egui::style::ScrollStyle::solid()
+            };
+            style.visuals.widgets.inactive.bg_fill = crate::widgets::scroll_ink(t);
+            style.visuals.widgets.hovered.bg_fill = t.text;
+            style.visuals.widgets.active.bg_fill = t.accent;
+            egui::ScrollArea::vertical()
+                .max_height(LISTING_ROWS * line)
+                .auto_shrink([false, true])
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = gap;
+                    for (i, group) in listing.groups.iter().enumerate() {
+                        if i > 0 {
+                            ui.add_space(6.0);
+                        }
+                        ui.add(egui::Label::new(egui::RichText::new(group.heading.as_str()).font(semibold(13.0)).color(t.text)).wrap());
+                        for item in &group.items {
+                            indented(ui, 12, |ui| {
+                                ui.add(egui::Label::new(egui::RichText::new(item.what.as_str()).color(t.text)).wrap());
+                            });
+                            if let Some(to) = &item.to {
+                                indented(ui, 28, |ui| {
+                                    ui.add(egui::Label::new(egui::RichText::new(to.as_str()).color(t.text_dim)).wrap());
+                                });
+                            }
+                        }
+                    }
+                });
+        });
+}
+
+/// `add`, `by` points in from the left.
+fn indented(ui: &mut Ui, by: i8, add: impl FnOnce(&mut Ui)) {
+    egui::Frame::NONE.inner_margin(egui::Margin { left: by, right: 0, top: 0, bottom: 0 }).show(ui, add);
 }
 
 /// What a calendar command the user ran is asked about first, as Outlook asks. A batch of
@@ -2504,10 +2800,17 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Confirm { command, params, ask } => {
             // The way of going ahead that was picked: what it adds to the parameters.
             let mut picked: Option<Value> = None;
-            let open = window(ctx, &ask.title, if ask.more.is_empty() { 420.0 } else { 480.0 }, |ui| {
-                if ask.calendar.is_some() {
-                    // A batch names every item it is about, which can be long: its text scrolls in
-                    // a box of its own, so that the owner's buttons stay in reach (U-2).
+            // (A batch's list is as wide as a question with more than one way ahead.)
+            let width = if ask.more.is_empty() && ask.listing.is_none() { 420.0 } else { 480.0 };
+            let open = window(ctx, &ask.title, width, |ui| {
+                if let Some(listing) = &ask.listing {
+                    // A batch: what it does, then each item it names, in a box of their own that
+                    // scrolls, so that the owner's buttons stay in reach (U-2).
+                    ui.label(listing.summary.as_str());
+                    listing_ui(ui, &t, listing);
+                } else if ask.calendar.is_some() {
+                    // The one event a legacy question names, whose text can still be long: it
+                    // scrolls in a box of its own, so that the owner's buttons stay in reach.
                     egui::ScrollArea::vertical().max_height(220.0).auto_shrink([false, true]).show(ui, |ui| {
                         ui.label(ask.text.as_str());
                     });
@@ -2812,7 +3115,14 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             "account.graphSwitch" => "ui.graphSwitch".to_string(),
             _ => id,
         };
-        let _ = app.run(&id, json!({}));
+        // The Calendar's Copy, Cut and Paste act on the Calendar with nothing over it, which the
+        // search window still is in this pass: they run once it has gone (`after_search`).
+        if crate::calendar_view::waits_for_the_calendar(&id) {
+            app.after_search = Some((id, crate::calendar_view::AFTER_SEARCH_PASSES));
+            ctx.request_repaint();
+        } else {
+            let _ = app.run(&id, json!({}));
+        }
     }
 }
 

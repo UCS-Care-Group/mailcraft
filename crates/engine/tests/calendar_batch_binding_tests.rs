@@ -233,3 +233,12 @@ mod legacy_clock_tests;
 
 #[path = "calendar_batch_binding_tests/anonymous_clock_tests.rs"]
 mod anonymous_clock_tests;
+
+#[path = "calendar_batch_binding_tests/coderabbit_tests.rs"]
+mod coderabbit_tests;
+
+#[path = "calendar_batch_binding_tests/notice_plan_tests.rs"]
+mod notice_plan_tests;
+
+#[path = "calendar_batch_binding_tests/review03_tests.rs"]
+mod review03_tests;

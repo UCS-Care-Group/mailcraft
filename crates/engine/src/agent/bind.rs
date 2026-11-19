@@ -233,7 +233,7 @@ struct Pinned {
 /// How the calendar items of a question are held: as the batch its `items` name (or the typed set
 /// a Delete stands for), or as the one event the older one-event commands name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Shape {
+pub(super) enum Shape {
     Batch,
     Legacy,
 }
@@ -288,9 +288,10 @@ impl Shown {
         let held = (object == Object::FolderContent).then(|| held(s, id, params)).flatten();
         let shape = shape(s, id, params);
         let pinned = shape.and_then(|shape| pinned(s, id, params, &keys, shape, planned));
-        // A question about the one event a legacy command names is refused when that event can't
-        // be read: nothing is asked about a yes that could not be held to it.
-        if shape == Some(Shape::Legacy) && pinned.is_none() {
+        // A question about calendar items is refused when what it names can't be read, a batch's
+        // items as much as the one event a legacy command names: nothing is asked about a yes that
+        // could not be held to it, and a batch is never left to the looser check of the window.
+        if shape.is_some() && pinned.is_none() {
             return None;
         }
         Some(Shown {
@@ -403,10 +404,11 @@ const LEGACY_EVENT: &[&str] = &["calendar.delete", "calendar.edit", "calendar.mo
 /// that names no `id`, by the owner's typed set) as a batch, or by the one event the older
 /// one-event commands name — the event `id` names, or, when it names none, the one in focus.
 /// `None` for a command that names neither, which has nothing to pin.
-fn shape(s: &Session, id: &str, params: &Value) -> Option<Shape> {
+pub(super) fn shape(s: &Session, id: &str, params: &Value) -> Option<Shape> {
     // A paste is pinned from its named `items` (which it can't be asked about without); a delete
     // from its named `items` or, without an `id`, from the owner's typed selection.
-    let batch = params.get("items").is_some() || (id == "calendar.delete" && super::is_batch(s, id, params));
+    // (Whether a delete is a set is the command's own reading, through `is_batch`.)
+    let batch = if id == "calendar.delete" { super::is_batch(s, id, params) } else { params.get("items").is_some() };
     if super::BATCH.contains(&id) && batch {
         Some(Shape::Batch)
     } else if legacy_event(s, id, params) {
@@ -441,12 +443,26 @@ fn state(keys: &RandomState, s: &Session, id: &str, params: &Value, shape: Shape
 fn batch_state(keys: &RandomState, s: &Session, id: &str, params: &Value) -> Option<u64> {
     let items = super::batch_items(s, id, params).ok()?;
     // (Read strictly, as the command reads it: a malformed destination never falls back to each
-    // item's own calendar in the binding either.)
-    let target = p::id_strict(params, "calendar").ok()?;
+    // item's own calendar in the binding either. Only a paste has a destination: a Delete reads
+    // no `calendar`, so what is written there is pinned with the raw parameters and nothing else.)
+    let target = if id == "calendar.paste" { p::id_strict(params, "calendar").ok()? } else { None };
+    // The clock the command reads a recurring item's times by, read once as the command does.
+    let here = crate::cmd::remote::offset_of(s);
     let mut out = Digest(keys.build_hasher());
     // Approval covers this operation and its exact placement/flags, not just these sources.
     written(&mut out, &(id, params))?;
     out.0.write_u64(s.openings());
+    if id == "calendar.delete" {
+        // How the Delete reads them, as the command does: a typed day of a series and the older
+        // focus on that day name the same item, but the one deletes that day and the other the
+        // whole series. (The counterpart of the byte `legacy_state` writes for a typed set beside
+        // the focus.)
+        out.0.write_u8(match crate::cmd::calendar::delete_form(&s.sel, params) {
+            Ok(crate::cmd::calendar::DeleteForm::Batch) => 1,
+            Ok(crate::cmd::calendar::DeleteForm::One) => 2,
+            Err(_) => 0,
+        });
+    }
     out.0.write_u64(u64::try_from(items.len()).unwrap_or(u64::MAX));
     // The accounts whose servers the change would reach: the one that keeps each source item and
     // its calendar, and the one that keeps where it goes. Only these are pinned; another
@@ -466,6 +482,12 @@ fn batch_state(keys: &RandomState, s: &Session, id: &str, params: &Value) -> Opt
             Some(event) => {
                 out.0.write_u8(1);
                 written(&mut out, event)?;
+                // When a recurring item happens here: a paste spaces its items by these times, and
+                // a host whose clock rules move shows them elsewhere without a byte of the event
+                // changing.
+                if let Some(day) = item.day.filter(|_| event.recurrence.is_some()) {
+                    written(&mut out, &event.occurrence_times(day, &here))?;
+                }
                 if event.origin.is_remote() {
                     touched.push(event.origin.account);
                 }
@@ -644,9 +666,10 @@ fn legacy_state(keys: &RandomState, s: &Session, id: &str, params: &Value, plann
 }
 
 /// The settings of an account that decide where a calendar change goes and which sign-in carries
-/// it: its identity, the kind of server, the login and the servers themselves. A colour, a name,
-/// a signature or how much mail is kept offline routes nothing, and hashing the account whole
-/// would retract the owner's yes for an edit that never reached a server.
+/// it: its identity, the kind of server, the login and the servers themselves (a calendar and
+/// contacts server's homes, user name, trusted certificate and password flag among them). A
+/// colour, a name, a signature or how much mail is kept offline routes nothing, and hashing the
+/// account whole would retract the owner's yes for an edit that never reached a server.
 fn routing(out: &mut Digest, account: &mailcraft_model::Account) -> Option<()> {
     written(out, &account.id)?;
     written(out, &account.email)?;
@@ -671,6 +694,15 @@ fn routing(out: &mut Digest, account: &mailcraft_model::Account) -> Option<()> {
         written(out, &server.url)?;
         written(out, &server.username)?;
         written(out, &server.trusted)?;
+    }
+    if let Some(dav) = &account.dav {
+        // Where a calendar and contacts server takes the change, and the sign-in that carries it.
+        // (What is known of each collection is a sync state, not a setting.)
+        written(out, &dav.calendar_homes)?;
+        written(out, &dav.contact_homes)?;
+        written(out, &dav.username)?;
+        written(out, &dav.trusted)?;
+        written(out, &dav.separate_password)?;
     }
     Some(())
 }

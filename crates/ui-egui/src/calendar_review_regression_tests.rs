@@ -496,6 +496,7 @@ fn a_guest_set_is_asked_about_with_three_choices_before_anything_is_removed() {
         "and neither answer is sent to the organizer: {:?}",
         queued.iter().map(|change| (change.send, change.response)).collect::<Vec<_>>()
     );
+    assert!(w.state().session.mailbox.event_changes.iter().all(|change| !change.send), "and nothing of any kind is queued to be sent");
 }
 
 /// One appointment the account's server keeps, with its organizer and one person invited: the
@@ -521,9 +522,9 @@ fn kept_single() -> (mailcraft_model::Mailbox, Event) {
 /// queues the one cancellation the question promised. It is not refused as unsent, and the
 /// keyboard's unnamed Delete is the same act as the item's own menu.
 ///
-/// The shared reader is checked first: `items_mail_of` returns `None` for a typed selection of
-/// one, so the question is never built. This is the named first failure; the window part after it
-/// is the behaviour that failure hides.
+/// The shared reader is checked first. When this test was written, `items_mail_of` returned `None`
+/// for a typed selection of one, so the question was never built; the window part after it is the
+/// behaviour that failure hid.
 #[test]
 fn a_single_typed_kept_meeting_is_asked_about_as_one_cancellation() {
     let (mailbox, meeting) = kept_single();
@@ -534,7 +535,7 @@ fn a_single_typed_kept_meeting_is_asked_about_as_one_cancellation() {
     assert_eq!(
         mail,
         Some(mailcraft_engine::cmd::calendar::Mail::Cancellation(1)),
-        "the shared reader must count one kept meeting selected as a typed item as one cancellation; it returns None for a selection of one, so no question is built and the Delete is refused as unsent"
+        "the shared reader must count one kept meeting selected as a typed item as one cancellation, so that the window asks about it rather than refusing the Delete as unsent"
     );
 
     // The same selection through the window, and the Delete key.

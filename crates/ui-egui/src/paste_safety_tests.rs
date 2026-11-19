@@ -121,7 +121,8 @@ fn ui_calendar_paste_of_a_cut_that_must_tell_people_is_refused_before_it_moves_a
         let event = session.mailbox.event_mut(id).expect("the event is there");
         event.origin = Origin { account, id: format!("server-{id}"), ..Origin::default() };
         event.organizer = Some(Address::new("Dev Example", "dev@example.org"));
-        event.attendees = vec![Attendee { address: Address::new("Bo Example", "bo@example.org"), ..Attendee::default() }];
+        // (Somebody else to each, so that the cut writes to two people: a batch counts each once.)
+        event.attendees = vec![Attendee { address: Address::new("Bo Example", format!("bo-{id}@example.org")), ..Attendee::default() }];
     }
     let mut w = window_on(session.mailbox, "view.calendar");
     w.state_mut().session.driver.set_auto_sync(false);

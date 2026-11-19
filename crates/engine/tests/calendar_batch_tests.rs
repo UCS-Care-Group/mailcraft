@@ -311,7 +311,8 @@ fn a_batch_delete_of_two_meetings_asks_about_both_at_once() {
                 start: start.add_days(n as i64),
                 end: start.add_minutes(60).add_days(n as i64),
                 organizer: Some(Address::new("Zoe Example", "zoe@example.org")),
-                attendees: vec![attendee()],
+                // (Somebody else to each: a batch counts each person once.)
+                attendees: vec![Attendee { address: Address::new("Bo Example", format!("bo{n}@example.org")), ..Default::default() }],
                 origin: Origin { account, id: remote.into(), ..Default::default() },
                 ..Default::default()
             },
@@ -398,5 +399,120 @@ fn no_batch_form_changes_a_subscribed_calendar() {
         assert!(error.to_string().contains("is a copy of one on the web"), "{name}: refused for what it is: {error}");
         assert!(s.mailbox == mailbox, "{name}: nothing was changed");
         assert!(s.mailbox.event(event).is_some() && s.mailbox.event(own).is_some(), "{name}: both are still there");
+    }
+}
+
+/// A cut pasted at the very time it is at, but into another calendar, is a move to that calendar,
+/// not a step that changes nothing (CodeRabbit on #1665, selection.rs:463); into its own calendar
+/// at its own time it still is nothing to do.
+#[test]
+fn a_cut_into_another_calendar_at_the_same_time_moves_it_there() {
+    let mut s = session();
+    let other = s.mailbox.alloc_id();
+    s.mailbox.calendars.push(Calendar { id: other, name: "Other".into(), color: Rgb(0x2E, 0x8B, 0x57), visible: true, ..Default::default() });
+    let start = at(d(2026, 11, 20), 10, 0);
+    let id = add_event(&mut s, Event { title: "Dentist".into(), start, end: start.add_minutes(30), ..Default::default() });
+    let home = s.mailbox.event(id).expect("the appointment").calendar;
+    let mailbox = s.mailbox.clone();
+    let same = json!({"items": [{"id": id}], "start": "2026-11-20T10:00", "cut": true});
+    assert!(s.run("calendar.paste", &same).is_err(), "a cut put back where it is moves nothing");
+    assert!(s.mailbox == mailbox, "and changes nothing");
+    let there = json!({"items": [{"id": id}], "start": "2026-11-20T10:00", "cut": true, "calendar": other});
+    let made = s.run("calendar.paste", &there).expect("a cut into another calendar at the same time is a move");
+    assert_eq!(made["ids"], json!([id]), "the appointment itself moved: {made}");
+    let moved = s.mailbox.event(id).expect("still one appointment");
+    assert_eq!((moved.calendar, moved.start, moved.end), (other, start, start.add_minutes(30)), "into the other calendar, at its own time");
+    assert_ne!(home, other);
+}
+
+/// A cut that names no `start` is refused by the command before anything is changed or sent, so
+/// no question about mail is asked for it (CodeRabbit on #1665, selection.rs:876).
+#[test]
+fn a_cut_without_a_start_asks_about_no_mail() {
+    let mut s = session();
+    let account = account(&mut s);
+    let calendar = server_calendar(&mut s, account);
+    let start = at(d(2026, 11, 12), 10, 0);
+    let meeting = s
+        .mailbox
+        .add_event(Event {
+            calendar,
+            title: "Kept meeting".into(),
+            start,
+            end: start.add_minutes(30),
+            attendees: vec![attendee()],
+            origin: Origin { account, id: "srv-meeting".into(), ..Default::default() },
+            ..Default::default()
+        })
+        .expect("a server calendar takes a meeting");
+    let with = json!({"items": [{"id": meeting}], "start": "2026-11-13T10:00", "cut": true});
+    assert!(mailcraft_engine::cmd::calendar::mail_of(&s, "calendar.paste", &with).is_some(), "fixture: a cut of the meeting tells its people");
+    for without in [json!({"items": [{"id": meeting}], "cut": true}), json!({"items": [{"id": meeting}], "cut": true, "start": "soon"})] {
+        let mut probe = Session::at(s.mailbox.clone(), NOW, 0);
+        assert!(probe.run("calendar.paste", &without).is_err(), "fixture: the command refuses {without}");
+        assert_eq!(mailcraft_engine::cmd::calendar::mail_of(&s, "calendar.paste", &without), None, "no mail is asked about for {without}");
+    }
+}
+
+/// A read-only calendar of a server (`Rights::Read`), and a shared mailbox's calendar the owner
+/// has no edit rights to (#70), are refused whole by every batch form, as by the single
+/// `calendar.delete {"id"}`, and nothing of the owner's is changed either (review-02 N2).
+#[test]
+fn no_batch_form_changes_a_read_only_or_shared_calendar() {
+    /// (session, the read-only calendar's event, the owner's own, the words of the refusal)
+    fn fixture(shared: bool) -> (Session, u64, u64, &'static str) {
+        let mut s = session();
+        let account = account(&mut s);
+        if shared {
+            let owner = s.mailbox.accounts.iter().find(|a| a.id != account).map(|a| a.id).expect("the sample's own account");
+            s.mailbox.account_mut(account).expect("the added account").shared_of = Some(owner);
+        }
+        let calendar = s.mailbox.alloc_id();
+        s.mailbox.calendars.push(Calendar {
+            id: calendar,
+            name: "Team".into(),
+            color: Rgb(0x2E, 0x8B, 0x57),
+            visible: true,
+            rights: Rights::Read,
+            origin: Origin { account, id: "team".into(), ..Default::default() },
+            ..Default::default()
+        });
+        let start = at(d(2026, 11, 12), 10, 0);
+        let read_only = s
+            .mailbox
+            .add_event(Event {
+                calendar,
+                title: "Board review".into(),
+                start,
+                end: start.add_minutes(60),
+                origin: Origin { account, id: "srv-1".into(), ..Default::default() },
+                ..Default::default()
+            })
+            .expect("the calendar holds the event it was given");
+        let own_start = at(d(2026, 11, 20), 10, 0);
+        let own = add_event(&mut s, Event { title: "Dentist".into(), start: own_start, end: own_start.add_minutes(60), ..Default::default() });
+        let words = if shared { "may only read the shared mailbox" } else { "can only be read" };
+        (s, read_only, own, words)
+    }
+    type Params = fn(u64, u64) -> serde_json::Value;
+    let forms: [(&str, &str, Params); 6] = [
+        ("one by id", "calendar.delete", |ro, _| json!({"id": ro})),
+        ("items", "calendar.delete", |ro, _| json!({"items": [{"id": ro}]})),
+        ("items, the owner's own first", "calendar.delete", |ro, own| json!({"items": [{"id": own}, {"id": ro}]})),
+        ("items, the owner's own last", "calendar.delete", |ro, own| json!({"items": [{"id": ro}, {"id": own}]})),
+        ("typed selection", "calendar.delete", |_, _| json!({})),
+        ("cut out of it", "calendar.paste", |ro, own| json!({"items": [{"id": own}, {"id": ro}], "start": "2026-11-21T10:00", "cut": true})),
+    ];
+    for shared in [false, true] {
+        for (name, command, params) in forms {
+            let (mut s, read_only, own, words) = fixture(shared);
+            if name == "typed selection" {
+                s.run("calendar.select", &json!({"items": [{"id": own}, {"id": read_only}]})).expect("both are selected");
+            }
+            let mailbox = s.mailbox.clone();
+            let error = s.run(command, &params(read_only, own)).expect_err(name);
+            assert!(error.to_string().contains(words), "shared={shared} {name}: refused for what it is: {error}");
+            assert!(s.mailbox == mailbox, "shared={shared} {name}: nothing was changed");
+        }
     }
 }

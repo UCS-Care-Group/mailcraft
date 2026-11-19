@@ -170,6 +170,14 @@ fn owner_question_text(window: &Window) -> String {
     }
 }
 
+/// The open question's list of items, as `Dialog::Confirm` holds it.
+fn owner_question_listing(window: &Window) -> crate::dialogs::Listing {
+    match &window.state().dialog {
+        Some(Dialog::Confirm { ask, .. }) => ask.listing.clone().expect("a batch question lists its items"),
+        _ => panic!("no question is open"),
+    }
+}
+
 /// The open question's own action button label, as `Dialog::Confirm` holds it: what the test
 /// presses without taking the question out of the window (the binding it carries stays with it).
 fn owner_question_action(window: &Window) -> String {
@@ -517,4 +525,434 @@ fn select_all_tells_the_owner_the_two_hundred_it_took_and_that_more_remain() {
         "and that the range holds more than the two hundred: {status:?}"
     );
     assert!(!lower.contains("all selected") && !lower.contains("selected all"), "never claims everything was selected: {status:?}");
+}
+
+/// The accounts a batch Delete's question names as telling people are those whose servers will
+/// write to somebody: an ordinary appointment another account's server keeps sends nothing, and
+/// that account is not named as telling anybody (CodeRabbit on #1665, dialogs.rs:1429).
+#[test]
+fn a_batch_question_names_only_the_accounts_whose_servers_tell_somebody() {
+    let (mailbox, kept) = kept_mailbox();
+    let mut session = Session::at(mailbox, NOW, 0);
+    let added = session
+        .run("account.add", &json!({"email": "yan@example.org", "name": "Yan", "incoming": {"host": "imap.example.net"}}))
+        .expect("a second account is added");
+    let account = added["id"].as_u64().expect("the account's id");
+    let calendar = session.mailbox.default_calendar().expect("the mailbox has a calendar");
+    let start = at(d(2026, 11, 12), 14, 0);
+    let plain = session
+        .mailbox
+        .add_event(Event {
+            title: "Plain appointment".into(),
+            start,
+            end: start.add_minutes(30),
+            calendar,
+            origin: Origin { account, id: "server-yan".into(), ..Default::default() },
+            ..Default::default()
+        })
+        .expect("the calendar takes an appointment");
+    assert!(
+        mailcraft_engine::cmd::remote::keeper(&session.mailbox, &session.mailbox.event(plain).expect("it").origin).is_some(),
+        "fixture: a server keeps it"
+    );
+    let mut window = window_on(session.mailbox, "view.calendar");
+    window.state_mut().session.driver.set_auto_sync(false);
+    let _ = window.state_mut().execute("ui.dismissReminder", json!({ "all": true }));
+    window.run_steps(3);
+    window.state_mut().execute("calendar.select", json!({ "items": [{ "id": kept.first }, { "id": plain }] })).expect("both are selected");
+    let said = window.state_mut().run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    window.run_steps(3);
+    let text = owner_question_text(&window);
+    assert!(text.contains(KEPT_ACCOUNT), "the account whose server sends the cancellation is named: {text}");
+    assert!(!text.contains("yan@example.org"), "an account whose server tells nobody is not named as telling: {text}");
+}
+
+/// The batch question names, for each item that writes to somebody, the account whose server sends
+/// it and the people it goes to, from the plan the command counts by (owner decision D1; CodeRabbit
+/// on #1665, dialogs.rs:1429): a count alone doesn't say who is written to. The items are grouped
+/// under the one account that writes, each with its day and time; somebody without an address is
+/// counted, and said to be one.
+#[test]
+fn a_batch_question_names_each_items_people_and_the_account_that_writes() {
+    use mailcraft_engine::cmd::calendar::{Mail, delete_notices, mail_of, recipients};
+    let (mut window, kept) = kept_window();
+    {
+        let review = window.state_mut().session.mailbox.event_mut(kept.second).expect("the review is there");
+        review.attendees.push(Attendee { address: Address::new("Cy Example", "cy@example.org"), ..Default::default() });
+        review.attendees.push(Attendee { address: Address::new("Room", ""), ..Default::default() });
+    }
+    window.run_steps(2);
+    window.state_mut().execute("calendar.select", json!({ "items": [{ "id": kept.first }, { "id": kept.second }] })).expect("both are selected");
+    let said = window.state_mut().run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    window.run_steps(3);
+    let text = owner_question_text(&window);
+    let listing = owner_question_listing(&window);
+    assert_eq!(listing.groups.len(), 1, "one account writes, and every item of the set writes to somebody: {text}");
+    let group = &listing.groups[0];
+    assert!(group.heading.contains(KEPT_ACCOUNT) && group.heading.contains("Cancellations"), "the account and what it sends: {}", group.heading);
+    let entry = |title: &str| {
+        group
+            .items
+            .iter()
+            .find(|item| item.what.contains(&format!("\"{title}\"")))
+            .cloned()
+            .unwrap_or_else(|| panic!("a line of its own for {title}: {text}"))
+    };
+    let kickoff = entry("Kickoff");
+    let clock = crate::dates::clock(at(d(2026, 11, 9), 9, 0), window.state().session.prefs.twelve_hour);
+    assert!(names_day(&kickoff.what, d(2026, 11, 9)) && kickoff.what.contains(clock.as_str()), "with its day and time: {}", kickoff.what);
+    let to = kickoff.to.unwrap_or_default();
+    assert!(to.contains("bo@example.org") && !to.contains("cy@example.org"), "Kickoff's person, and only Kickoff's: {to}");
+    let review = entry("Review");
+    let to = review.to.unwrap_or_default();
+    assert!(to.contains("bo@example.org") && to.contains("cy@example.org"), "Review's people: {to}");
+    assert!(to.contains("1 person without an address"), "and the room, which has none: {to}");
+    assert_eq!(text.matches(KEPT_ACCOUNT).count(), 2, "the account is named in the summary and its heading, not on every line: {text}");
+
+    let session = &window.state().session;
+    let plan = delete_notices(session, &json!({})).expect("the selected set is a set");
+    assert_eq!(recipients(&plan), ["bo@example.org", "cy@example.org"], "the plan writes to Bo and Cy by address, once each");
+    assert_eq!(mail_of(session, "calendar.delete", &json!({})), Some(Mail::Cancellation(3)), "and to the room: the command counts the plan's people");
+    assert!(text.contains("3 people invited"), "and the question says that count: {text}");
+}
+
+/// A large set's question stays one that can be read: every item is named, the first items that
+/// write to people with the first few people of each, and the rest with how many.
+#[test]
+fn a_large_batch_question_lists_the_first_few_and_counts_the_rest() {
+    let (mut mailbox, _) = kept_mailbox();
+    let account = mailbox.accounts.iter().find(|account| account.email == KEPT_ACCOUNT).map(|account| account.id).expect("the kept account");
+    let calendar = mailbox.default_calendar().expect("the mailbox has a calendar");
+    let mut items: Vec<Value> = Vec::new();
+    for n in 0..20i64 {
+        let start = at(d(2026, 11, 10), 8, 0).add_minutes(n * 20);
+        let attendees =
+            (0..10).map(|k| Attendee { address: Address::new("Guest", format!("guest{n}-{k}@example.org")), ..Default::default() }).collect();
+        let id = mailbox
+            .add_event(Event {
+                title: format!("Meeting {n}"),
+                start,
+                end: start.add_minutes(15),
+                calendar,
+                attendees,
+                origin: Origin { account, id: format!("server-many-{n}"), ..Default::default() },
+                ..Default::default()
+            })
+            .expect("the calendar takes a meeting");
+        items.push(json!({ "id": id }));
+    }
+    let mut window = window_on(mailbox, "view.calendar");
+    window.state_mut().session.driver.set_auto_sync(false);
+    let _ = window.state_mut().execute("ui.dismissReminder", json!({ "all": true }));
+    window.run_steps(3);
+    window.state_mut().execute("calendar.select", json!({ "items": items })).expect("the set is selected");
+    let said = window.state_mut().run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    window.run_steps(3);
+    let text = owner_question_text(&window);
+    let listing = owner_question_listing(&window);
+    assert_eq!(listing.groups.len(), 1, "under the one account that writes: {text}");
+    let items = &listing.groups[0].items;
+    assert_eq!(items.len(), 20, "every item is named: {text}");
+    let named = items.iter().filter(|item| item.to.as_deref().is_some_and(|to| to.contains('@'))).count();
+    assert_eq!(named, 12, "the first twelve with their people: {text}");
+    assert!(items.iter().skip(12).all(|item| item.to.as_deref() == Some("to 10 people")), "and the rest with how many: {text}");
+    assert!(text.contains("guest0-5@example.org") && !text.contains("guest0-6@example.org"), "six people of each are named: {text}");
+    assert!(text.contains("and 4 more"), "and the rest of them counted: {text}");
+    assert!(text.contains("200 people invited"), "the count is everybody: {text}");
+}
+
+/// Two days of one series are told apart in the question, each by its own day, and a cut says
+/// where each item goes (review of #1665: an item's line named its title alone).
+#[test]
+fn a_batch_question_tells_two_days_of_a_series_apart_and_says_where_a_cut_goes() {
+    let (mut window, kept) = kept_window();
+    window.state_mut().session.mailbox.event_mut(kept.first).expect("Kickoff is there").recurrence = Some(Recurrence::every(Freq::Weekly));
+    window.run_steps(2);
+    let (monday, next) = (d(2026, 11, 9), d(2026, 11, 16));
+    window
+        .state_mut()
+        .execute("calendar.select", json!({ "items": [{ "id": kept.first, "day": monday.iso() }, { "id": kept.first, "day": next.iso() }] }))
+        .expect("two days of the kept series are selected");
+    let said = window.state_mut().run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    window.run_steps(3);
+    let text = owner_question_text(&window);
+    let listing = owner_question_listing(&window);
+    let lines: Vec<&str> = listing.groups.iter().flat_map(|group| group.items.iter()).map(|item| item.what.as_str()).collect();
+    assert_eq!(lines.len(), 2, "a line for each day: {text}");
+    assert!(names_day(lines[0], monday) && names_day(lines[1], next), "each names its own day: {lines:?}");
+    assert_ne!(lines[0], lines[1], "so the two are told apart: {text}");
+    let _ = window.state_mut().execute("ui.closeDialog", json!({}));
+    window.run_steps(2);
+
+    // A cut of the two meetings: each line says where it goes.
+    let (mut window, kept) = kept_window();
+    let said = window
+        .state_mut()
+        .run("calendar.paste", json!({ "items": [{ "id": kept.first }, { "id": kept.second }], "start": START, "cut": true }))
+        .expect("a cut that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    window.run_steps(3);
+    let text = owner_question_text(&window);
+    let listing = owner_question_listing(&window);
+    let line = |title: &str| {
+        listing
+            .groups
+            .iter()
+            .flat_map(|group| group.items.iter())
+            .find(|item| item.what.contains(&format!("\"{title}\"")))
+            .map(|item| item.what.clone())
+            .unwrap_or_else(|| panic!("a line for {title}: {text}"))
+    };
+    // The earliest, Kickoff, lands at the time asked for; Review keeps its distance from it.
+    let kickoff = line("Kickoff");
+    assert!(names_day(&kickoff, d(2026, 11, 9)) && names_day(&kickoff, d(2026, 12, 2)), "where it is and where it goes: {kickoff}");
+    let review = line("Review");
+    assert!(names_day(&review, d(2026, 11, 11)) && names_day(&review, d(2026, 12, 4)), "and the same for Review: {review}");
+    let clock = crate::dates::clock(at(d(2026, 12, 4), 10, 15), window.state().session.prefs.twelve_hour);
+    assert!(review.contains(clock.as_str()), "with its new time: {review}");
+}
+
+/// A set of meetings whose people have no address is asked about in the window as one meeting is,
+/// and the owner's yes deletes them for good: the server is told, and nothing is held back to come
+/// back into the calendar (review of #1665: the batch asked nothing, and the host undid it).
+#[test]
+fn a_set_whose_people_have_no_address_is_asked_about_and_the_yes_goes_through() {
+    let (mut window, kept) = kept_window();
+    for id in [kept.first, kept.second] {
+        window.state_mut().session.mailbox.event_mut(id).expect("the meeting is there").attendees =
+            vec![Attendee { address: Address::new("Room four", ""), ..Default::default() }];
+    }
+    window.run_steps(2);
+    pending_delete_of_both(&mut window, &kept);
+    let text = owner_question_text(&window);
+    let listing = owner_question_listing(&window);
+    let people: Vec<&str> = listing.groups.iter().flat_map(|group| group.items.iter()).filter_map(|item| item.to.as_deref()).collect();
+    assert_eq!(people, ["to 1 person without an address", "to 1 person without an address"], "{text}");
+    assert!(text.contains("2 people invited"), "and the count: {text}");
+    answer_question(&mut window);
+    let session = &window.state().session;
+    assert!(session.mailbox.event(kept.first).is_none() && session.mailbox.event(kept.second).is_none(), "the yes deleted both");
+    let account = session.mailbox.accounts.iter().find(|account| account.email == KEPT_ACCOUNT).map(|account| account.id).expect("the kept account");
+    let upload = mailcraft_engine::cmd::remote::event_upload(session, account).expect("an upload can be built");
+    let mut cancels: Vec<&str> = upload.ops.iter().filter(|op| op.cancel).map(|op| op.remote.as_str()).collect();
+    cancels.sort_unstable();
+    assert_eq!(cancels, ["server-1", "server-2"], "and the server is told of both: nothing is held back");
+}
+
+/// The lines of the open question's list, in order, as `Dialog::Confirm` holds them in `app`.
+fn app_listing(app: &MailApp) -> crate::dialogs::Listing {
+    match &app.dialog {
+        Some(Dialog::Confirm { ask, .. }) => ask.listing.clone().expect("a batch question lists its items"),
+        _ => panic!("no question is open"),
+    }
+}
+
+/// Every item line of `listing`, in order.
+fn item_lines(listing: &crate::dialogs::Listing) -> Vec<String> {
+    listing.groups.iter().flat_map(|group| group.items.iter()).map(|item| item.what.clone()).collect()
+}
+
+/// A window shown by London's clock (`Session::in_zone`, as `calendar_multiselect_edge_tests`
+/// makes one) on [`kept_mailbox`], and a daily meeting its server keeps by `series_zone`'s clock,
+/// first at `start` by the clock here, with Bo invited.
+fn zoned_app(series_zone: &str, start: DateTime) -> (MailApp, Id) {
+    let (mailbox, _) = kept_mailbox();
+    let zone = mailcraft_time::Zone::named("Europe/London").expect("a zone of the bundled database");
+    let mut app = MailApp::new(Session::in_zone(mailbox, NOW, zone), Services::default());
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
+    // (The first command settles the mailbox into the window's zone; the series is written after
+    // it, by the clock here.)
+    app.execute("view.calendar", json!({})).expect("the calendar view opens");
+    let account =
+        app.session.mailbox.accounts.iter().find(|account| account.email == KEPT_ACCOUNT).map(|account| account.id).expect("the kept account");
+    let calendar = app.session.mailbox.default_calendar().expect("the mailbox has a calendar");
+    let series = app
+        .session
+        .mailbox
+        .add_event(Event {
+            title: "Stand-up".into(),
+            start,
+            end: start.add_minutes(30),
+            start_zone: series_zone.into(),
+            end_zone: series_zone.into(),
+            calendar,
+            recurrence: Some(Recurrence::every(Freq::Daily)),
+            organizer: Some(Address::new("Zoe Example", KEPT_ACCOUNT)),
+            attendees: vec![Attendee { address: Address::new("Bo Example", "bo@example.org"), ..Default::default() }],
+            origin: Origin { account, id: "server-zoned".into(), ..Default::default() },
+            ..Default::default()
+        })
+        .expect("the calendar takes a series");
+    (app, series)
+}
+
+/// When the series' own day `day` starts by the clock here, as the engine places it on the grid.
+fn starts_here(app: &MailApp, series: Id, day: Date) -> DateTime {
+    let event = app.session.mailbox.event(series).expect("the series is there");
+    event.occurrence_times(day, &|t| app.session.offset_at(t)).0
+}
+
+/// Whether `line` names `at` as a batch question says a time: its long day and its clock.
+fn names_time(app: &MailApp, line: &str, at: DateTime) -> bool {
+    line.contains(crate::dates::long(at.date).as_str()) && line.contains(crate::dates::clock(at, app.session.prefs.twelve_hour).as_str())
+}
+
+/// A day of a series that keeps another zone's clock is named in the question at the hour and on
+/// the date the calendar shows it here, for a Delete and for a cut alike (review of #1665: the line
+/// paired the series' day with its first start's clock, which named an hour, and a weekday, at
+/// which the item is not).
+#[test]
+fn a_batch_question_names_a_day_of_a_zoned_series_when_it_happens_here() {
+    // 00:00 in London on October 1 (summer time) is 08:00 in Tokyo, which keeps no summer time;
+    // after London's clocks go back on October 25, 08:00 in Tokyo is 23:00 the day before here.
+    let (mut app, series) = zoned_app("Asia/Tokyo", at(d(2026, 10, 1), 0, 0));
+    let (first, second) = (d(2026, 10, 27), d(2026, 10, 28));
+    let shown = [at(d(2026, 10, 26), 23, 0), at(d(2026, 10, 27), 23, 0)];
+    assert_eq!([starts_here(&app, series, first), starts_here(&app, series, second)], shown, "fixture: where the grid shows the two days");
+    let items = json!({ "items": [{ "id": series, "day": first.iso() }, { "id": series, "day": second.iso() }] });
+    app.execute("calendar.select", items.clone()).expect("two days of the series are selected");
+    let said = app.run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let lines = item_lines(&app_listing(&app));
+    assert_eq!(lines.len(), 2, "a line for each day: {lines:?}");
+    let first_clock = crate::dates::clock(at(d(2026, 10, 1), 0, 0), app.session.prefs.twelve_hour);
+    for (line, at) in lines.iter().zip(shown) {
+        assert!(names_time(&app, line, at), "names {at:?} as the grid shows it: {line}");
+        assert!(!line.contains(first_clock.as_str()), "and never the series' first clock: {line}");
+    }
+    assert!(!lines[0].contains(crate::dates::long(first).as_str()), "the first day is on the day before here: {}", lines[0]);
+
+    // A cut of the same two days says where each is now as the grid does, and where it goes.
+    app.dialog = None;
+    let mut cut = items;
+    cut["start"] = json!(START);
+    cut["cut"] = json!(true);
+    let said = app.run("calendar.paste", cut).expect("a cut that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let lines = item_lines(&app_listing(&app));
+    assert_eq!(lines.len(), 2, "a line for each day: {lines:?}");
+    assert!(names_time(&app, &lines[0], shown[0]) && names_time(&app, &lines[0], at(d(2026, 12, 2), 9, 0)), "from and to: {}", lines[0]);
+    assert!(names_time(&app, &lines[1], shown[1]), "from: {}", lines[1]);
+}
+
+/// A day of a series whose zone changes its clocks on another date than the window's is named at
+/// the hour it is here that day, not at the hour its first day was (review of #1665).
+#[test]
+fn a_batch_question_names_a_series_day_by_the_clock_here_across_a_change_of_the_clocks() {
+    // 14:00 in London on October 1 is 09:00 in New York; London's clocks go back on October 25 and
+    // New York's on November 1, so on October 27 09:00 there is 13:00 here.
+    let (mut app, series) = zoned_app("America/New_York", at(d(2026, 10, 1), 14, 0));
+    let (before, between) = (d(2026, 10, 2), d(2026, 10, 27));
+    let shown = [at(before, 14, 0), at(between, 13, 0)];
+    assert_eq!([starts_here(&app, series, before), starts_here(&app, series, between)], shown, "fixture: where the grid shows the two days");
+    app.execute("calendar.select", json!({ "items": [{ "id": series, "day": before.iso() }, { "id": series, "day": between.iso() }] }))
+        .expect("two days of the series are selected");
+    let said = app.run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let lines = item_lines(&app_listing(&app));
+    assert_eq!(lines.len(), 2, "a line for each day: {lines:?}");
+    assert!(names_time(&app, &lines[0], shown[0]), "{}", lines[0]);
+    assert!(names_time(&app, &lines[1], shown[1]), "at 13:00 here: {}", lines[1]);
+    assert!(!names_time(&app, &lines[1], at(between, 14, 0)), "never at the first day's 14:00: {}", lines[1]);
+}
+
+/// The second account whose server writes in [`two_accounts_app`].
+const OTHER_ACCOUNT: &str = "yan@example.net";
+
+/// [`kept_app`] with a second account whose server keeps a meeting of its own, "Planning" on
+/// 2026-11-10 at 11:00 with Cy invited: a set of the three asks about mail from two servers.
+fn two_accounts_app() -> (MailApp, Kept, Id) {
+    let (mut app, kept) = kept_app();
+    let added = app
+        .session
+        .run("account.add", &json!({"email": OTHER_ACCOUNT, "name": "Yan", "incoming": {"host": "imap.example.net"}}))
+        .expect("a second account is added");
+    let account = added["id"].as_u64().expect("the account's id");
+    let calendar = app.session.mailbox.default_calendar().expect("the mailbox has a calendar");
+    let start = at(d(2026, 11, 10), 11, 0);
+    let planning = app
+        .session
+        .mailbox
+        .add_event(Event {
+            title: "Planning".into(),
+            start,
+            end: start.add_minutes(30),
+            calendar,
+            organizer: Some(Address::new("Yan Example", OTHER_ACCOUNT)),
+            attendees: vec![Attendee { address: Address::new("Cy Example", "cy@example.net"), ..Default::default() }],
+            origin: Origin { account, id: "server-yan".into(), ..Default::default() },
+            ..Default::default()
+        })
+        .expect("the calendar takes a meeting");
+    app.execute("calendar.select", json!({ "items": [{ "id": kept.first }, { "id": planning }, { "id": kept.second }] }))
+        .expect("the three meetings are selected");
+    (app, kept, planning)
+}
+
+/// A set whose meetings two accounts' servers write about lists each item under its own account's
+/// heading, and no item under both (review of #1665).
+#[test]
+fn a_batch_question_with_two_writing_accounts_lists_each_item_under_its_own() {
+    let (mut app, _, _) = two_accounts_app();
+    let said = app.run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let listing = app_listing(&app);
+    assert_eq!(listing.groups.len(), 2, "one heading for each account that writes: {listing:?}");
+    let titles = |group: &crate::dialogs::ListGroup| -> Vec<String> {
+        group.items.iter().filter_map(|item| item.what.split('"').nth(1).map(str::to_string)).collect()
+    };
+    let zoe = listing.groups.iter().find(|group| group.heading.contains(KEPT_ACCOUNT)).expect("a heading for Zoe's server");
+    let yan = listing.groups.iter().find(|group| group.heading.contains(OTHER_ACCOUNT)).expect("a heading for Yan's server");
+    assert!(!zoe.heading.contains(OTHER_ACCOUNT) && !yan.heading.contains(KEPT_ACCOUNT), "each heading names its own account alone");
+    assert_eq!(titles(zoe), ["Kickoff", "Review"], "Zoe's server writes about Kickoff and Review: {zoe:?}");
+    assert_eq!(titles(yan), ["Planning"], "and Yan's about Planning: {yan:?}");
+    assert!(yan.items[0].to.as_deref().is_some_and(|to| to.contains("cy@example.net") && !to.contains("bo@")), "to Cy alone: {yan:?}");
+}
+
+/// With two accounts' servers writing, the question's first lines say "servers" and "tell", once
+/// for both, for a Delete and for a cut (review of #1665: "The server of A, B tells …").
+#[test]
+fn a_batch_summary_with_two_writing_accounts_names_both_servers_in_the_plural() {
+    let (mut app, kept, planning) = two_accounts_app();
+    let said = app.run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let summary = app_listing(&app).summary;
+    assert!(
+        summary.contains(&format!("The servers of {KEPT_ACCOUNT} and {OTHER_ACCOUNT} tell the 2 people invited, so that they know it is cancelled.")),
+        "{summary}"
+    );
+    assert!(!summary.contains("The server of"), "{summary}");
+
+    app.dialog = None;
+    let cut = json!({ "items": [{ "id": kept.first }, { "id": planning }, { "id": kept.second }], "start": START, "cut": true });
+    let said = app.run("calendar.paste", cut).expect("a cut that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let summary = app_listing(&app).summary;
+    assert!(summary.contains(&format!("The servers of {KEPT_ACCOUNT} and {OTHER_ACCOUNT} tell the 2 people invited of the new time.")), "{summary}");
+}
+
+/// A title, or an address, with format characters (a right-to-left override, a zero-width space)
+/// is shown without them in a batch question, as names are shown elsewhere (`mailcraft_names`;
+/// review of #1665).
+#[test]
+fn a_batch_question_shows_titles_and_people_without_format_characters() {
+    let (mut app, kept) = kept_app();
+    {
+        let kickoff = app.session.mailbox.event_mut(kept.first).expect("Kickoff is there");
+        kickoff.title = "Kick\u{202e}off\u{200b}".into();
+        kickoff.attendees.push(Attendee { address: Address::new("Dee", "dee\u{202e}@example.org"), ..Default::default() });
+    }
+    app.execute("calendar.select", json!({ "items": [{ "id": kept.first }, { "id": kept.second }] })).expect("both are selected");
+    let said = app.run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let listing = app_listing(&app);
+    let text = listing.plain();
+    assert!(!text.chars().any(mailcraft_names::is_format), "no format character is shown: {text:?}");
+    assert!(text.contains("\"Kickoff\""), "the title, as it reads: {text}");
+    assert!(text.contains("dee@example.org"), "and the address: {text}");
 }

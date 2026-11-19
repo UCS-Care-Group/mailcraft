@@ -14,6 +14,7 @@
 //! be done whole is refused whole, before anything of it is changed.
 
 use std::collections::{BinaryHeap, HashSet};
+use std::sync::Arc;
 
 use mailcraft_model::zoned::instant_at;
 use mailcraft_model::{Event, Id, Response, Rights};
@@ -46,7 +47,8 @@ enum Allow {
 struct Resolved {
     /// The item as it is stored in a selection: a whole event, or a day of a series.
     item: SelectedEvent,
-    event: Event,
+    /// The event as the mailbox holds it, shared rather than copied: nothing here changes it.
+    event: Arc<Event>,
     /// When that occurrence starts and ends here; the event's own times for one that doesn't
     /// repeat.
     start: DateTime,
@@ -208,7 +210,7 @@ fn resolve(s: &Session, items: &[SelectedEvent], allow: Allow) -> Result<Vec<Res
     let here = remote::offset_of(s);
     let mut out: Vec<Resolved> = Vec::with_capacity(items.len());
     for item in items {
-        let event = s.mailbox.event(item.id).cloned().ok_or_else(|| failed!("no event with id {id}", id = item.id))?;
+        let event = s.mailbox.events.get(&item.id).cloned().ok_or_else(|| failed!("no event with id {id}", id = item.id))?;
         if event.cancelled {
             return Err(failed!("\"{title}\" is cancelled, and can't be selected", title = event.title));
         }
@@ -236,13 +238,31 @@ fn resolve(s: &Session, items: &[SelectedEvent], allow: Allow) -> Result<Vec<Res
 /// or the series has ended. The day is the series' key, exactly as an occurrence carries it — it
 /// is never mapped through the date the occurrence is shown on, which can be its neighbour's.
 fn occurrence_times(event: &Event, day: Date, here: &dyn Fn(Timestamp) -> i32) -> Option<(DateTime, DateTime)> {
-    if event.exceptions.contains(&day) {
-        return None;
-    }
-    if !event.series_days(day, day, here).contains(&day) {
+    if event.exceptions.contains(&day) || !on_rule(event, day, here) {
         return None;
     }
     Some(event.occurrence_times(day, here))
+}
+
+/// Whether the series' rule gives its own day `day`, cancelled or not.
+fn on_rule(event: &Event, day: Date, here: &dyn Fn(Timestamp) -> i32) -> bool {
+    event.series_days(day, day, here).contains(&day)
+}
+
+/// Which of `days` (the series' own days, as the typed selection names them) the series `event`
+/// no longer has: cancelled, or no day of its rule. The same test as [`occurrence_times`], with the
+/// cancelled days read once for all of them rather than once per day.
+pub(crate) fn days_gone(event: &Event, days: &[Date], here: &dyn Fn(Timestamp) -> i32) -> HashSet<Date> {
+    let mut asked = days.to_vec();
+    asked.sort_unstable();
+    asked.dedup();
+    let mut gone: HashSet<Date> = event.exceptions.iter().copied().filter(|day| asked.binary_search(day).is_ok()).collect();
+    for day in asked {
+        if !gone.contains(&day) && !on_rule(event, day, here) {
+            gone.insert(day);
+        }
+    }
+    gone
 }
 
 /// Point the selection at the typed items, the last of them having the focus: its own day, and the
@@ -273,6 +293,14 @@ fn set_selection(s: &mut Session, items: &[SelectedEvent]) {
 /// `id`/`day` (`id: null` selects nothing). A legacy selection replaces the typed set.
 pub(super) fn select(s: &mut Session, v: &Value) -> CmdResult {
     let extend = p::opt_bool(v, "extend")?.unwrap_or(false);
+    // `id: null` selects nothing, as it always did, whatever older `day` is beside it (#553);
+    // beside a typed list it is refused by `named`, as any other id is.
+    if v.get("id").is_some_and(Value::is_null) && v.get("items").is_none() {
+        s.sel.event = None;
+        s.sel.event_day = None;
+        s.sel.events.clear();
+        return Ok(json!({}));
+    }
     match named(v)? {
         Named::Items(items) => {
             let resolved = resolve(s, &items, Allow::Occurrences)?;
@@ -281,11 +309,14 @@ pub(super) fn select(s: &mut Session, v: &Value) -> CmdResult {
                 if let Some(at) = chosen.iter().position(|other| *other == item.item) {
                     chosen.remove(at);
                 } else {
-                    if chosen.len() >= MAX_SELECTED_EVENTS {
-                        return Err(fail(format!("no more than {MAX_SELECTED_EVENTS} calendar items can be selected at once")));
-                    }
                     chosen.push(item.item);
                 }
+            }
+            // (The cap is the set's once every toggle is in: one taken away makes room for one
+            // added, whichever of the two is named first. The set held meanwhile is at most twice
+            // the cap, both lists being capped.)
+            if chosen.len() > MAX_SELECTED_EVENTS {
+                return Err(fail(format!("no more than {MAX_SELECTED_EVENTS} calendar items can be selected at once")));
             }
             set_selection(s, &chosen);
         }
@@ -394,26 +425,10 @@ impl MailSummary {
     }
 }
 
-/// What cutting each of these into `target` (when named) would make a server write.
-fn mail_summary(s: &Session, resolved: &[Resolved], target: Option<Id>) -> MailSummary {
-    let mut out = MailSummary::default();
-    for r in resolved {
-        let destination = target.unwrap_or(r.event.calendar);
-        if r.event.recurrence.is_some() {
-            // One occurrence of a series moves where it is: those invited hear of the new time.
-            out.updates = out.updates.saturating_add(super::invited(s, &r.event));
-        } else if super::kept_by(s, &r.event).is_some() {
-            // Another calendar of the same account takes an appointment only, which writes to
-            // nobody; moved in its own calendar, a meeting is an update like any other change.
-            if destination == r.event.calendar {
-                out.updates = out.updates.saturating_add(super::invited(s, &r.event));
-            }
-        } else if destination != r.event.calendar && super::served(s, destination) {
-            // An appointment of this computer's into a server's calendar: an invitation.
-            out.invitations = out.invitations.saturating_add(r.event.attendees.len());
-        }
-    }
-    out
+/// The people a cut's plan ([`cut_plan`]) writes to, by what they are told: each person once.
+fn mail_summary(plan: &[Notice]) -> MailSummary {
+    let of = |kind: NoticeKind| reached(plan.iter().filter(|notice| notice.kind == kind));
+    MailSummary { invitations: of(NoticeKind::Invitation), updates: of(NoticeKind::Update) }
 }
 
 /// `calendar.paste`: copies `items` to `start`, or with `cut` moves them there. A copy is a new
@@ -456,17 +471,18 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
                 // days, against the series as it stands — the limit is one per series, not one
                 // per item, so two cuts of a series with one place left are refused whole.
                 let taking = resolved.iter().filter(|other| other.event.id == r.event.id && other.item.day.is_some()).count();
-                if r.event.exceptions.len().saturating_add(taking) > 5000 {
+                if r.event.exceptions.len().saturating_add(taking) > super::MAX_SERIES_EXCEPTIONS {
                     return Err(fail("this series has too many changed days"));
                 }
             }
-            if (from, to) == (r.start, r.end) {
+            // (The same time in another calendar is a move into that calendar.)
+            if (from, to) == (r.start, r.end) && *destination == r.event.calendar {
                 return Err(fail("An item would land where it already is; nothing was moved."));
             }
         }
         super::writable(s, *destination)?;
     }
-    let mail = if cut { mail_summary(s, &resolved, target) } else { MailSummary::default() };
+    let mail = if cut { mail_summary(&cut_plan(s, &resolved, target)) } else { MailSummary::default() };
     if mail.invitations > 0 && mail.updates > 0 {
         return Err(fail(
             "Some of these invite the people to a new meeting and some tell them of a change: cut them one at a time, so that each is asked about on its own. Nothing was changed.",
@@ -562,7 +578,7 @@ fn on_day(base: Date, offset: i64) -> Result<Date, CmdError> {
 /// it is; an occurrence of a series is changed on its own day, with the series' existing update
 /// path. `send` is the owner's one yes for the whole batch.
 fn cut_one(s: &mut Session, source: &Resolved, calendar: Id, start: DateTime, end: DateTime, send: bool) -> Result<Id, CmdError> {
-    let before = &source.event;
+    let before: &Event = &source.event;
     if before.recurrence.is_some() {
         let day = source.item.day.ok_or_else(|| fail("a day of the series is needed to move one of its occurrences"))?;
         let changed = shifted_series(before, day, start, end, &remote::offset_of(s))?;
@@ -773,7 +789,7 @@ pub(super) fn delete_selected(s: &mut Session, v: &Value) -> CmdResult {
         if let Some(day) = r.item.day {
             // Every day of this series that the batch takes, not just this one, has to fit.
             let more = resolved.iter().filter(|other| other.event.id == r.event.id && other.item.day.is_some()).count();
-            if r.event.exceptions.len().saturating_add(more) > 5000 {
+            if r.event.exceptions.len().saturating_add(more) > super::MAX_SERIES_EXCEPTIONS {
                 return Err(fail("this series has too many cancelled days"));
             }
             if r.event.exceptions.contains(&day) || occurrence_times(&r.event, day, &here).is_none() {
@@ -782,24 +798,23 @@ pub(super) fn delete_selected(s: &mut Session, v: &Value) -> CmdResult {
         }
     }
     // One question for everybody the batch writes to, and no mail without the yes.
-    let mut people = 0usize;
-    for r in &resolved {
-        if r.event.origin.id.is_empty() {
-            continue;
-        }
-        people = people.saturating_add(super::invited(s, &r.event));
-    }
+    let plan = delete_plan(s, &resolved, decline);
+    let people = reached(plan.iter().filter(|notice| notice.kind == NoticeKind::Cancellation));
     let send = match (people, strict_send) {
         (0, send) => send.unwrap_or(false),
         (_, Some(true)) => true,
         (people, _) => return Err(super::unsent(people, super::TELLS_CANCEL)),
     };
     let note = super::comment(v);
+    // The cancellations the yes is for: exactly the items the plan asked about.
+    let cancels: Vec<SelectedEvent> = plan.iter().filter(|notice| notice.kind == NoticeKind::Cancellation).map(|notice| notice.item).collect();
     let mut deleted = 0usize;
     let mut said: Vec<Value> = Vec::with_capacity(resolved.len());
-    let mut approvals: Vec<(Id, Id, String)> = Vec::new();
+    // (Each resolved event is the one shared before the batch began: it stands as it was while
+    // the mailbox changes, and the approvals read it after.)
+    let mut approvals: Vec<&Event> = Vec::new();
     for r in &resolved {
-        let before = &r.event;
+        let before: &Event = &r.event;
         let answering = decline && super::kept_by(s, before).is_some() && before.origin.guest && !before.origin.id.is_empty();
         match r.item.day {
             Some(day) => {
@@ -816,8 +831,6 @@ pub(super) fn delete_selected(s: &mut Session, v: &Value) -> CmdResult {
                 }
             }
             None => {
-                let account = before.origin.account;
-                let remote_id = before.origin.id.clone();
                 s.mailbox.remove_event(before.id)?;
                 if answering {
                     // (A declined meeting is taken out of the calendar, and its organizer hears
@@ -826,8 +839,8 @@ pub(super) fn delete_selected(s: &mut Session, v: &Value) -> CmdResult {
                     said.push(json!({"id": before.id, "response": Response::Declined}));
                 } else {
                     remote::note_deleted(&mut s.mailbox, before)?;
-                    if send && !remote_id.is_empty() && super::invited(s, before) > 0 {
-                        approvals.push((account, before.id, remote_id));
+                    if send && cancels.contains(&r.item) {
+                        approvals.push(before);
                     }
                     said.push(json!({"id": before.id}));
                 }
@@ -835,8 +848,8 @@ pub(super) fn delete_selected(s: &mut Session, v: &Value) -> CmdResult {
         }
         deleted += 1;
     }
-    for (account, id, remote_id) in approvals {
-        remote::approve_mail(&mut s.mailbox, account, id, &remote_id, &note);
+    for event in approvals {
+        remote::approve_mail(&mut s.mailbox, event.origin.account, event.id, &event.origin.id, &note);
     }
     // What is left of the set is what is selected, once, with the last survivor in focus.
     let left = survivors(s, &resolved);
@@ -871,12 +884,12 @@ pub(super) fn paste_mail_of(s: &Session, v: &Value) -> Option<super::Mail> {
     if !cut {
         return None;
     }
+    // (Nor does one without a `start` the command can read: it is refused before anything is
+    // changed or sent.)
+    p::datetime(v, "start").ok().flatten()?;
     // (A payload with no readable list, or a destination that isn't one, asks about nothing:
     // the command refuses it whole rather than acting on what happens to be selected.)
-    let Named::Items(items) = named(v).ok()? else { return None };
-    let target = p::id_strict(v, "calendar").ok()?;
-    let resolved = resolve(s, &items, Allow::Occurrences).ok()?;
-    mail_summary(s, &resolved, target).kind()
+    mail_summary(&paste_notices(s, v)?).kind()
 }
 
 /// The mail `calendar.delete` over a batch would make a server send, counted once for all of them.
@@ -896,6 +909,188 @@ pub(super) fn items_mail_of(s: &Session, id: &str, v: &Value) -> Option<super::M
     }
     let (items, allow) = batch_targets(s, v).ok()?;
     let resolved = resolve(s, &items, allow).ok()?;
-    let people: usize = resolved.iter().filter(|r| !r.event.origin.id.is_empty()).fold(0usize, |n, r| n.saturating_add(super::invited(s, &r.event)));
+    let plan = delete_plan(s, &resolved, false);
+    let people = reached(plan.iter().filter(|notice| notice.kind == NoticeKind::Cancellation));
     (people > 0).then_some(super::Mail::Cancellation(people))
+}
+
+// ---- who a batch writes to ----
+
+/// What an account's server sends about one item of a batch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoticeKind {
+    /// The meeting is cancelled: to the people invited to a meeting the owner organizes.
+    Cancellation,
+    /// The meeting's new time: to the people invited, for a cut that moves it where its server
+    /// keeps it.
+    Update,
+    /// An invitation: an appointment of this computer's with people in it, cut into a calendar a
+    /// server keeps.
+    Invitation,
+    /// The owner's no: to the organizer of somebody else's meeting that is declined.
+    Decline,
+}
+
+/// What a batch makes an account's server write about one of its items, and to whom.
+///
+/// The one plan of a batch's mail: the command counts the people it asks about from it, the
+/// agent gate builds its question and binds the owner's yes from it, and the window's question
+/// names its people and accounts from it, so that none of them can say another number or other
+/// people than the command writes to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Notice {
+    /// The item, as the batch names it.
+    pub item: SelectedEvent,
+    pub kind: NoticeKind,
+    /// The account whose server sends it.
+    pub account: Id,
+    /// The addresses it goes to, as the event writes them: trimmed, none empty, each once. Empty
+    /// for a decline whose organizer has no address here, and for an item whose people all have
+    /// none ([`Notice::unnamed`] counts those).
+    pub to: Vec<String>,
+    /// How many of the people invited have no address here: still people the server may write
+    /// to (it keeps its own list of who is invited), as the host's rule counts them
+    /// (`remote::permitted`), so each is counted on their own and never named.
+    pub unnamed: usize,
+}
+
+/// The addresses everything in `notices` goes to, each person once (by address, whatever its
+/// case), in the order they come.
+pub fn recipients<'a>(notices: impl IntoIterator<Item = &'a Notice>) -> Vec<&'a str> {
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut out: Vec<&str> = Vec::new();
+    for notice in notices {
+        for address in &notice.to {
+            if seen.insert(address.to_ascii_lowercase()) {
+                out.push(address.as_str());
+            }
+        }
+    }
+    out
+}
+
+/// How many people everything in `notices` writes to: each address once ([`recipients`]), and
+/// each person without an address on their own, as nobody can tell two of them apart. The count
+/// a batch asks about, so that it asks exactly when the host would hold its change back for want
+/// of the owner's yes.
+pub fn reached<'a>(notices: impl IntoIterator<Item = &'a Notice> + Clone) -> usize {
+    let nameless = notices.clone().into_iter().fold(0usize, |n, notice| n.saturating_add(notice.unnamed));
+    recipients(notices).len().saturating_add(nameless)
+}
+
+/// How many of the people invited to `event` have no address here.
+fn nameless(event: &Event) -> usize {
+    event.attendees.iter().filter(|attendee| attendee.address.email.trim().is_empty()).count()
+}
+
+/// The people invited to `event`, as addresses: trimmed, none empty, each once.
+fn invitees(event: &Event) -> Vec<String> {
+    let mut seen: HashSet<String> = HashSet::new();
+    event
+        .attendees
+        .iter()
+        .map(|attendee| attendee.address.email.trim())
+        .filter(|email| !email.is_empty() && seen.insert(email.to_ascii_lowercase()))
+        .map(str::to_string)
+        .collect()
+}
+
+/// What deleting `event` (`item`, of a batch or as the one event of the older form) makes a
+/// server write: a cancellation to the people invited to a meeting the owner organizes that a
+/// server keeps; with `decline`, the owner's no to the organizer of somebody else's meeting (sent
+/// only on the owner's yes, which the caller reads); and nothing for an appointment, for one not on
+/// a server yet, or for anything this computer keeps.
+pub fn delete_notice(s: &Session, event: &Event, item: SelectedEvent, decline: bool) -> Option<Notice> {
+    if event.origin.id.is_empty() {
+        return None;
+    }
+    let account = remote::keeper(&s.mailbox, &event.origin)?.id;
+    if event.origin.guest {
+        if !decline {
+            return None;
+        }
+        let organizer = event.organizer.as_ref().map(|organizer| organizer.email.trim()).filter(|email| !email.is_empty());
+        return Some(Notice { item, kind: NoticeKind::Decline, account, to: organizer.map(str::to_string).into_iter().collect(), unnamed: 0 });
+    }
+    // (Everybody invited counts, an attendee without an address included: so does the host.)
+    (!event.attendees.is_empty()).then(|| Notice { item, kind: NoticeKind::Cancellation, account, to: invitees(event), unnamed: nameless(event) })
+}
+
+/// What cutting `r` into `target` (when named; else its own calendar) makes a server write. One
+/// occurrence of a series moves where it is, and a meeting moved in its own calendar is changed
+/// there: the people invited to one the owner organizes hear of the new time. Into another
+/// calendar of the same account an appointment only moves, which writes to nobody; an appointment
+/// of this computer's with people in it, cut into a calendar a server keeps, is an invitation that
+/// server sends.
+fn cut_notice(s: &Session, r: &Resolved, target: Option<Id>) -> Option<Notice> {
+    let event: &Event = &r.event;
+    let destination = target.unwrap_or(event.calendar);
+    let kept = remote::keeper(&s.mailbox, &event.origin);
+    let (kind, account) = if event.recurrence.is_some() || (kept.is_some() && destination == event.calendar) {
+        (NoticeKind::Update, kept.filter(|_| !event.origin.guest)?.id)
+    } else if kept.is_none() && destination != event.calendar {
+        let keeper = s.mailbox.calendar(destination).and_then(|calendar| remote::keeper(&s.mailbox, &calendar.origin))?;
+        (NoticeKind::Invitation, keeper.id)
+    } else {
+        return None;
+    };
+    (!event.attendees.is_empty()).then(|| Notice { item: r.item, kind, account, to: invitees(event), unnamed: nameless(event) })
+}
+
+/// A batch delete's plan: what each item makes a server write.
+fn delete_plan(s: &Session, resolved: &[Resolved], decline: bool) -> Vec<Notice> {
+    resolved.iter().filter_map(|r| delete_notice(s, &r.event, r.item, decline)).collect()
+}
+
+/// A cut's plan: what each item makes a server write.
+fn cut_plan(s: &Session, resolved: &[Resolved], target: Option<Id>) -> Vec<Notice> {
+    resolved.iter().filter_map(|r| cut_notice(s, r, target)).collect()
+}
+
+/// What a `calendar.delete` of a set would make servers write, item by item, read as the command
+/// reads it (with its `decline`). `None` when it is no set ([`super::delete_form`]) or when the
+/// command would refuse it: then nothing is described.
+pub fn delete_notices(s: &Session, v: &Value) -> Option<Vec<Notice>> {
+    if super::delete_form(&s.sel, v).ok()? != super::DeleteForm::Batch {
+        return None;
+    }
+    let decline = p::opt_bool(v, "decline").ok()?.unwrap_or(false);
+    let (items, allow) = batch_targets(s, v).ok()?;
+    let resolved = resolve(s, &items, allow).ok()?;
+    Some(delete_plan(s, &resolved, decline))
+}
+
+/// Where a `calendar.paste` would put the start of each item, read as the command reads its
+/// payload and places them: for the window's question, which says where each one goes. `None`
+/// when the command would refuse the payload.
+pub fn paste_places(s: &Session, v: &Value) -> Option<Vec<(SelectedEvent, DateTime)>> {
+    let start = p::datetime(v, "start").ok().flatten()?;
+    let Named::Items(items) = named(v).ok()? else { return None };
+    let resolved = resolve(s, &items, Allow::Occurrences).ok()?;
+    let places = placements(&resolved, start).ok()?;
+    Some(resolved.iter().zip(places).map(|(r, (from, _))| (r.item, from)).collect())
+}
+
+/// When each of `items` starts by the clock here, as the commands that act on it resolve it: a day
+/// of a series at the time that day happens here, by the series' own zone (which can be on the
+/// date before or after the series' own day, at another hour than its first start's); a whole
+/// event, or a whole series named without a day, at its own start. For the window's question,
+/// which says when each item is. An item a command would refuse (gone, cancelled, a day the
+/// series doesn't have) is left out, as the command never gets as far as placing it.
+pub fn item_starts(s: &Session, items: &[SelectedEvent]) -> Vec<(SelectedEvent, DateTime)> {
+    items.iter().filter_map(|item| resolve(s, std::slice::from_ref(item), Allow::Series).ok()).flatten().map(|r| (r.item, r.start)).collect()
+}
+
+/// What a `calendar.paste` would make servers write, item by item: nothing for a copy (a new
+/// appointment with nobody in it); for a cut, what each item's move writes. `None` when the
+/// command would refuse it (no readable `cut`, `start`, `items` or `calendar`).
+pub fn paste_notices(s: &Session, v: &Value) -> Option<Vec<Notice>> {
+    if !p::opt_bool(v, "cut").ok()?.unwrap_or(false) {
+        return Some(Vec::new());
+    }
+    p::datetime(v, "start").ok().flatten()?;
+    let Named::Items(items) = named(v).ok()? else { return None };
+    let target = p::id_strict(v, "calendar").ok()?;
+    let resolved = resolve(s, &items, Allow::Occurrences).ok()?;
+    Some(cut_plan(s, &resolved, target))
 }

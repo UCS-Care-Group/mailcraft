@@ -95,14 +95,19 @@ msgstr "“{name}”不是仅保存在此计算机上的类别"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "\"{name}\" on {day}"
+#, fuzzy
+msgid "\"{name}\" will be permanently deleted."
+msgstr "“{name}”将被永久删除。"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "\"{name}\", {when}"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "\"{name}\" will be permanently deleted."
-msgstr "“{name}”将被永久删除。"
+msgid "\"{name}\", {when}, moves to {to}"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -125,6 +130,11 @@ msgstr "“{shown}”不是电子邮件地址"
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 msgid "\"{title}\" is cancelled, and can't be selected"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr ""
 
 #. what a command says
@@ -541,12 +551,12 @@ msgstr "您的日历中有同一 ID 但组织者不同的会议，因此此邀�
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them: the cancellation that is sent is of the meeting you organize."
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them."
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told."
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them: the cancellation that is sent is of the meeting you organize."
 msgstr ""
 
 #. what a command says
@@ -2774,6 +2784,11 @@ msgstr "取消登录"
 msgid "Cancel This Meeting?"
 msgstr "取消本次会议？"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Cancellations from the server of {account}:"
+msgstr ""
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -3696,7 +3711,7 @@ msgid "Copies a short message with the address of Microsoft's page where an admi
 msgstr "复制一条短消息，其中包含 Microsoft 授权页面的地址。贵组织管理员可在该页面为整个组织批准 MailCraft。程序不会发送消息，请自行粘贴到邮件或聊天中。"
 
 #. command label, interface, name, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "复制"
@@ -4088,8 +4103,8 @@ msgstr "当前邮箱"
 msgid "Current View"
 msgstr "当前视图"
 
-#. command label, name, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Cut"
 msgstr "剪切"
@@ -7427,6 +7442,11 @@ msgid "Invented mail, meetings, people and tasks to try things on"
 msgstr "用于试用的虚构邮件、会议、联系人和任务"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Invitations from the server of {account}:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Invite Attendees"
@@ -9909,6 +9929,11 @@ msgid "New task"
 msgstr "新建任务"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "New times from the server of {account}:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Newest on top"
@@ -10455,6 +10480,11 @@ msgstr "此约会没有邀请任何人。"
 #, fuzzy
 msgid "Nobody is signing in"
 msgstr "没有正在登录的账户"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Nobody is written to about:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -17626,6 +17656,24 @@ msgid "The servers below were found in the DNS records of {domain} (its SRV reco
 msgstr "以下服务器是在 {domain} 的 DNS 记录（其 SRV 记录）中找到的。连接之前请先检查。"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The servers of {accounts} send the {n} person invited the invitation by mail."
+msgid_plural "The servers of {accounts} send the {n} people invited the invitation by mail."
+msgstr[0] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The servers of {accounts} tell the {n} person invited of the new time."
+msgid_plural "The servers of {accounts} tell the {n} people invited of the new time."
+msgstr[0] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The servers of {accounts} tell the {n} person invited, so that they know it is cancelled."
+msgid_plural "The servers of {accounts} tell the {n} people invited, so that they know it is cancelled."
+msgstr[0] ""
+
+#. interface
 #: crates/ui-egui/src/settings_notice.rs
 #, fuzzy
 msgid "The settings file (ui.json) couldn't be read, so the default settings were restored. It couldn't be renamed, so it was left as it is and won't be overwritten."
@@ -18347,8 +18395,8 @@ msgstr[0] "这将删除此处列出的此对话中的 {n} 封邮件。它们将�
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This deletes {n} appointment from your calendar:"
-msgid_plural "This deletes {n} appointments from your calendar:"
+msgid "This deletes {n} appointment from your calendar."
+msgid_plural "This deletes {n} appointments from your calendar."
 msgstr[0] ""
 
 #. interface
@@ -18814,8 +18862,8 @@ msgstr "无法验证此邮件的数字签名。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This moves {n} appointment to {when}, in {to}:"
-msgid_plural "This moves {n} appointments to {when}, in {to}:"
+msgid "This moves {n} appointment to {when}, in {to}."
+msgid_plural "This moves {n} appointments, the earliest to {when} and the others by as much, in {to}."
 msgstr[0] ""
 
 #. interface
@@ -19994,7 +20042,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
-msgid "What was cut has changed since; copy it again to paste it"
+msgid "What was cut has changed since; cut it again to paste it"
 msgstr ""
 
 #. interface
@@ -21570,6 +21618,11 @@ msgstr "操作超时"
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "它会给他人发信或访问网络"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "its account"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -23562,6 +23615,17 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "次"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "to {n} person"
+msgid_plural "to {n} people"
+msgstr[0] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "to {people}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
@@ -25075,6 +25139,12 @@ msgid "{n} person proposed another time."
 msgid_plural "{n} people proposed another time."
 msgstr[0] "{n} 人提议了其他时间。"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{n} person without an address"
+msgid_plural "{n} people without an address"
+msgstr[0] ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -25265,6 +25335,11 @@ msgstr "{n}.{tenth} GB"
 msgid "{n}.{tenth} MB"
 msgstr "{n}.{tenth} MB"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{others} and {last}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/mod.rs
 #, fuzzy
@@ -25276,6 +25351,17 @@ msgstr "{path} 大于 {mb} MB"
 #, fuzzy
 msgid "{path} isn't a mailbox; bring it in with File › Import"
 msgstr "{path} 不是邮箱；请通过文件 › 导入将其导入"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{people} and {nameless}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{people} and {n} more"
+msgid_plural "{people} and {n} more"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

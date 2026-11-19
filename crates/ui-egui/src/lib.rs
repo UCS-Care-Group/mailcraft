@@ -1557,7 +1557,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.calendarPaste",
         "Paste",
         "Calendar",
-        r#"{} — Paste: what Copy or Cut put on the calendar's clipboard, at the time picked in the grid, moving it when it was a cut. Answers {"items": n, "cut": bool} and nothing else. Refused with any parameter, without the Calendar in front, behind a question, File page or menu, with nothing on the calendar's clipboard, with no time picked, and — since it never asks — with a paste that would ask the owner first (who is written to, or an appointment window's unsaved changes). Never for an agent"#,
+        r#"{} — Paste: what Copy or Cut put on the calendar's clipboard, at the time picked in the grid, moving it when it was a cut. Answers {"items": n, "cut": bool} once it is done, and nothing else. Refused with any parameter, without the Calendar in front, behind a question, File page or menu, with nothing on the calendar's clipboard, and with no time picked. The owner's own Paste (the ribbon, a menu, command search) asks what a paste asks first (who is written to, an appointment window's unsaved changes) and answers {"pending": "confirm"} while the question is up; through the control channel it never asks, and such a paste is refused. Never for an agent"#,
     ),
     (
         "ui.joinMeeting",
@@ -1869,6 +1869,12 @@ pub struct MailApp {
     /// File › New or File › Open, asked for while the saver had the open mailbox to write: it
     /// runs once the saver is done with the file ([`MailApp::through_saver`]).
     pub(crate) after_save: Option<(String, Value)>,
+    /// The Calendar's Copy, Cut or Paste chosen in Command Search, and how many more passes it
+    /// waits for the search window to be gone ([`calendar_view::after_search`]).
+    pub(crate) after_search: Option<(String, u8)>,
+    /// Whether the selected calendar items read as a set to copy, as of the mailbox's revision and
+    /// the selection it was worked out for: the ribbon asks every frame.
+    pub(crate) copy_hint: calendar_view::CopyHint,
     /// What became of the last command that waited for a save (`ui.inspect`'s `saving.last`): an
     /// agent that was answered `"pending": "save"` learns here whether it ran.
     pub(crate) after_save_outcome: Option<Value>,
@@ -2089,6 +2095,8 @@ impl MailApp {
             close_ready: false,
             close_anyway: false,
             after_save: None,
+            after_search: None,
+            copy_hint: calendar_view::CopyHint::default(),
             after_save_outcome: None,
             running_after_save: false,
             ctx: None,
@@ -5568,6 +5576,8 @@ impl MailApp {
         // anything reads them (#406). The agent's question is on top of everything.
         keys::gate_main(self, &ctx);
         agent_gate::keys(self, &ctx);
+        // What Command Search handed over for the Calendar, once the Calendar is in front again.
+        calendar_view::after_search(self, &ctx);
         // Windows of their own (a message, an appointment), before the shortcuts: their keys are
         // not also the main window's where they are inside it.
         windows::show(self, &ctx);

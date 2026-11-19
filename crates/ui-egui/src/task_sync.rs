@@ -223,6 +223,7 @@ impl MailApp {
             tick: None,
             calendar: None,
             cut: None,
+            listing: None,
         };
         for id in accounts.iter().filter(|id| **id != first) {
             ask.more.push((label(*id), json!({"account": id})));

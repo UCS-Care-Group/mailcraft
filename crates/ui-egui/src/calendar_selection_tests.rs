@@ -437,11 +437,13 @@ fn a_cut_whose_source_changed_since_is_not_pasted_again() {
     select(&mut w, &[(lunch.id, None), (dentist.id, None)]);
     chord(&mut w, COMMAND, egui::Key::X);
     assert_eq!(event(&w, "Lunch with Dev").start, lunch.start, "nothing moves until it is pasted");
+    // (What is held is a cut of both: a stale cut, not an empty clipboard, is what Paste refuses.)
+    let held = w.ctx.data(|d| d.get_temp::<super::Clip>(egui::Id::unique(super::CLIP_ID))).expect("Ctrl+X put the set on the calendar's clipboard");
+    assert!(held.cut, "as a cut");
+    assert_eq!(held.items.iter().map(|item| item.id).collect::<Vec<_>>(), vec![lunch.id, dentist.id], "of both members");
 
     // The source changes behind the clipboard's back (an edit replaces the shared event).
-    if let Ok(ev) = w.state_mut().session.mailbox.event_mut(lunch.id) {
-        ev.title.push_str(" (changed)");
-    }
+    w.state_mut().session.mailbox.event_mut(lunch.id).expect("the source is there").title.push_str(" (changed)");
     w.run_steps(2);
     let somewhere = after_noon(&w, 4.0);
     click(&mut w, somewhere, Modifiers::NONE, PointerButton::Primary);
@@ -529,6 +531,9 @@ mod main_context_guard_tests;
 #[path = "cut_command_tests.rs"]
 mod cut_command_tests;
 
+#[path = "command_search_clipboard_tests.rs"]
+mod command_search_clipboard_tests;
+
 #[path = "anonymous_clock_ui_tests.rs"]
 mod anonymous_clock_ui_tests;
 
@@ -543,3 +548,6 @@ mod paste_safety_tests;
 
 #[path = "paste_route_tests.rs"]
 mod paste_route_tests;
+
+#[path = "calendar_review_followup_tests.rs"]
+mod review_followup_tests;

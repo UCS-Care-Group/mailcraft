@@ -267,7 +267,8 @@ fn two_hundred_kept() -> (mailcraft_model::Mailbox, Vec<Id>, Date, Date) {
                 end: start.add_minutes(30),
                 calendar,
                 organizer: Some(Address::new("Zoe Example", KEPT_ACCOUNT)),
-                attendees: vec![Attendee { address: Address::new("Bo Example", "bo@example.org"), ..Attendee::default() }],
+                // (Somebody else to each: a batch counts each person once.)
+                attendees: vec![Attendee { address: Address::new("Bo Example", format!("bo{n}@example.org")), ..Attendee::default() }],
                 origin: Origin { account, id: format!("server-batch-{n}"), ..Origin::default() },
                 ..Event::default()
             })

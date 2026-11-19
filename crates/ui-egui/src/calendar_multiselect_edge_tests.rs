@@ -437,7 +437,8 @@ fn the_item_menu_copies_cuts_and_deletes_the_whole_set_once() {
     let moved =
         (w.state().session.mailbox.event(lunch.id).map(|event| event.start), w.state().session.mailbox.event(dentist.id).map(|event| event.start));
     assert_eq!(moved.0, Some(at(date(10, 14), 15, 0)), "the earliest member lands where the time was picked");
-    assert!(moved.1.is_some_and(|start| start != dentist.start), "and the second member moved too: {moved:?}");
+    let spacing = lunch.start.minutes_until(dentist.start);
+    assert_eq!(moved.1, Some(at(date(10, 14), 15, 0).add_minutes(spacing)), "and the second keeps its time after the first: {moved:?}");
     assert!(w.state_mut().session.undo(), "a cut and paste of a set is one step");
     w.run_steps(2);
     assert_eq!(w.state().session.mailbox.event(lunch.id).map(|event| event.start), Some(lunch.start), "one step puts them back");
@@ -521,4 +522,22 @@ fn a_same_day_cut_moves_only_the_occurrence_that_was_cut() {
     w.run_steps(2);
     assert_eq!(w.state().session.mailbox.event(standup.id).unwrap().exceptions, before.exceptions);
     assert_eq!(titled(&w, "Team stand-up").len(), 1);
+}
+
+/// Open in an item's menu opens the item the menu was opened over, as a double click on it does,
+/// not the member of the set that happens to have the focus (CodeRabbit on #1665,
+/// calendar_view.rs:2437).
+#[test]
+fn open_in_the_item_menu_opens_the_item_it_was_opened_over() {
+    let mut w = week();
+    let lunch = event(&w, "Lunch with Dev");
+    let dentist = event(&w, "Dentist");
+    select(&mut w, &[(lunch.id, None), (dentist.id, None)]);
+    assert_eq!(focused(&w).0, Some(dentist.id), "fixture: the other member has the focus");
+    let point = drawn(&w, "Lunch with Dev").center();
+    click(&mut w, point, Modifiers::NONE, PointerButton::Secondary);
+    assert_eq!(selected(&w).len(), 2, "fixture: the menu was opened over the set, which it keeps");
+    choose_in_menu(&mut w, "Open");
+    w.run_steps(3);
+    assert_eq!(focused(&w).0, Some(lunch.id), "Open is about the item the menu was opened over");
 }

@@ -22,7 +22,10 @@ pub mod share;
 mod share_tests;
 
 pub use meeting::teams_refusal;
-pub use selection::{delete_items, selected_items};
+pub(crate) use selection::days_gone;
+pub use selection::{
+    Notice, NoticeKind, delete_items, delete_notice, delete_notices, item_starts, paste_notices, paste_places, reached, recipients, selected_items,
+};
 
 pub fn specs() -> Vec<CommandSpec> {
     let mut specs = own_specs();
@@ -47,7 +50,7 @@ fn own_specs() -> Vec<CommandSpec> {
             .params(r#"{"start": "YYYY-MM-DDTHH:MM", "end"?: same (default: keep the length), "id"?: number, "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" — as for calendar.edit: with "occurrence", `start` is where the series would start, and that one occurrence moves by as much, "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent the update)}"#)
             .selection(needs_event),
         CommandSpec::new("calendar.delete", "Delete", "Appointment › Actions", delete)
-            .params(r#"{"id"?: number, "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" (only that day of a series), "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent a cancellation), "comment"?: string (a note for them), "decline"?: true (somebody else's meeting: decline it rather than only delete the owner's copy; the organizer is told when "send" is true)} — "items" deletes that set in one step (1 to 200; a day of a series needs its "day", and "scope": "series" deletes all of a series named without one); without it, Delete takes the selected set when more than one is selected, and `id` alone is always the one event it names. Answers {"deleted": n, "items": [...]}"#)
+            .params(r#"{"id"?: number, "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" (only that day of a series), "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent a cancellation), "comment"?: string (a note for them), "decline"?: true (somebody else's meeting: decline it rather than only delete the owner's copy; the organizer is told when "send" is true)} — "items" deletes that set in one step (1 to 200; a day of a series needs its "day", and "scope": "series" deletes all of a series named without one); without "items" or "id", Delete takes the typed selection as such a set, even when it holds one item; `id` (or nothing, with no typed selection: the event in focus) is the one event it names, and keeps its older scope rules. A set answers {"deleted": n, "items": [...]}, n being a count; one whole event answers {"deleted": id}, its id; one day of a series answers {"id", "occurrence"}"#)
             .selection(needs_event),
         CommandSpec::new("calendar.select", "Select Event", "Calendar", selection::select).pure().params(r#"{"id"?: number | null, "day"?: "YYYY-MM-DD", "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "extend"?: bool} — "items" is the typed selection: whole events, and occurrences of a series by the day the series names them by; "extend" toggles each named item in or out. `id`: null selects nothing; `id`/`day` is the older single-event selection, and replaces the typed set"#),
         CommandSpec::new("calendar.get", "Get Event", "Calendar", get).pure().params(r#"{"id"?: number}"#),
@@ -238,6 +241,9 @@ fn unsent(people: usize, doing: &str) -> CmdError {
 const TELLS_UPDATE: &str = "changing it makes the account's server send them an update by mail.";
 const TELLS_CANCEL: &str = "deleting it makes the account's server send them a cancellation by mail.";
 const TELLS_INVITE: &str = "putting it into a calendar that an account's server keeps makes that server send them the invitation by mail.";
+
+/// The most days a series keeps as cancelled or changed: a change that would need more is refused.
+pub(crate) const MAX_SERIES_EXCEPTIONS: usize = 5000;
 
 /// Whether the owner said yes to the mail that reaching `people` takes; an error when there
 /// are people and no yes. No people, no mail.
@@ -574,7 +580,7 @@ fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, changed: Ev
     if !happens_on(s, series, day) {
         return Err(failed!("the series doesn't happen on {date}", date = day.iso()));
     }
-    if series.exceptions.len() >= 5000 {
+    if series.exceptions.len() >= MAX_SERIES_EXCEPTIONS {
         return Err(fail("this series has too many changed days"));
     }
     let kept = kept_by(s, series).is_some();
@@ -672,16 +678,14 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
     if id == "calendar.paste" {
         return selection::paste_mail_of(s, v);
     }
-    // (A Delete of a typed set is asked about as the set, not as the one in focus. The route is
-    // the command's own dispatch: `items` without `id`, or no `id` at all over a non-empty typed
-    // selection. A payload the command refuses before it acts — an `ids` list, `items` beside
-    // `id` — asks about nothing; an explicit or null `id` stays the legacy one-event read.)
+    // (A Delete of a typed set is asked about as the set, not as the one in focus, by the
+    // command's own reading of its payload ([`delete_form`]). A payload the command refuses
+    // before it acts asks about nothing; an explicit or null `id` stays the one-event read.)
     if id == "calendar.delete" {
-        if v.get("ids").is_some() || (v.get("items").is_some() && v.get("id").is_some()) {
-            return None;
-        }
-        if v.get("items").is_some() || (v.get("id").is_none() && !s.sel.events.is_empty()) {
-            return selection::items_mail_of(s, id, v);
+        match delete_form(&s.sel, v) {
+            Err(_) => return None,
+            Ok(DeleteForm::Batch) => return selection::items_mail_of(s, id, v),
+            Ok(DeleteForm::One) => {}
         }
     }
     if matches!(id, "calendar.new" | "calendar.newMeeting") {
@@ -848,9 +852,22 @@ fn move_event(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id}))
 }
 
-fn delete(s: &mut Session, v: &Value) -> CmdResult {
-    // A named set, even one occurrence, is one batch: an explicit `id` is always the
-    // one event it names.
+/// How `calendar.delete` reads what it is to delete.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DeleteForm {
+    /// A set: the `items` it names, or, naming no `id`, the typed selection (one item included).
+    Batch,
+    /// The older one-event form: the event `id` names, or, naming none, the one in focus.
+    One,
+}
+
+/// How `calendar.delete` with `v` is read over the selection `sel`: as a set, as one event, or
+/// refused (the error is the command's own) for naming its target two ways.
+///
+/// The one place this is decided. The command, its mail ([`mail_of`]), the agent gate, the
+/// binding of the owner's yes and the window's questions all ask it, so that none of them can
+/// take a set for one event, or the other way round, where another doesn't.
+pub fn delete_form(sel: &crate::Selection, v: &Value) -> Result<DeleteForm, CmdError> {
     if v.get("ids").is_some() {
         return Err(bad("calendar items are named by `items` (a list) or by `id` (one), not by `ids`"));
     }
@@ -858,9 +875,15 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
         if v.get("id").is_some() {
             return Err(bad("name the events by `items` or by `id`, not both"));
         }
-        return selection::delete_selected(s, v);
+        return Ok(DeleteForm::Batch);
     }
-    if v.get("id").is_none() && !s.sel.events.is_empty() {
+    // A named set, even one occurrence, is one batch; an explicit `id` (even `null`) is always
+    // the one event it names.
+    if v.get("id").is_none() && !sel.events.is_empty() { Ok(DeleteForm::Batch) } else { Ok(DeleteForm::One) }
+}
+
+fn delete(s: &mut Session, v: &Value) -> CmdResult {
+    if delete_form(&s.sel, v)? == DeleteForm::Batch {
         return selection::delete_selected(s, v);
     }
     let before = changing(s, v)?;
@@ -882,7 +905,7 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
         if !happens_on(s, &before, day) {
             return Err(failed!("the series doesn't happen on {date}", date = day.iso()));
         }
-        if before.exceptions.len() >= 5000 {
+        if before.exceptions.len() >= MAX_SERIES_EXCEPTIONS {
             return Err(fail("this series has too many cancelled days"));
         }
         // (A series that isn't on the server yet has invited nobody yet.)

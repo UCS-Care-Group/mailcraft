@@ -391,6 +391,7 @@ fn the_question_is_not_put_over_another_window() {
             tick: None,
             calendar: None,
             cut: None,
+            listing: None,
         }),
     });
     let before = jobs.lock().unwrap().len();
@@ -435,6 +436,7 @@ fn a_change_the_owner_cant_be_asked_about_now_is_dropped_and_said() {
                     tick: None,
                     calendar: None,
                     cut: None,
+                    listing: None,
                 }),
             });
         } else {

@@ -633,6 +633,17 @@ pub(crate) fn assign_lanes(spans: &[(usize, usize)]) -> Vec<usize> {
         .collect()
 }
 
+/// How many rows each day of a laid-out Month week shows when its cell has room for `rows`: a
+/// cell too low for two rows keeps its one row for an event (and says `+n more` beside the day
+/// number). What is drawn and what a Shift click may take are both read from this.
+fn month_limits(layout: &WeekLayout, rows: usize) -> [usize; 7] {
+    let mut limit = [0usize; 7];
+    for (slot, needed) in limit.iter_mut().zip(layout.rows) {
+        *slot = if rows < 2 { rows } else { chip_limit(needed, rows) };
+    }
+    limit
+}
+
 /// How many rows of a month cell with room for `rows` hold events when showing everything takes
 /// `needed` rows: all of them, or one less to leave a row for `+n more`.
 pub(crate) fn chip_limit(needed: usize, rows: usize) -> usize {
@@ -922,10 +933,11 @@ fn occurrence_json(item: SelectedEvent) -> Value {
     }
 }
 
-/// The key an occurrence's own hit entry is recorded under, beside the series' `event` entry, so
-/// that the fifth stand-up of the week can be asked for rather than given the first one drawn.
-fn occurrence_hit_key(item: &Item) -> String {
-    format!("eventOccurrence:{}:{}", item.ev.id, item.occ.day.iso())
+/// Record an occurrence's own hit entry (`eventOccurrence:{id}:{day}`), beside the series' `event`
+/// entry, so that the fifth stand-up of the week can be asked for rather than given the first one
+/// drawn. Its key is written out only when somebody asks ([`crate::control::HitMap::add_occurrence`]).
+fn occurrence_hit(hit: &mut crate::control::HitMap, item: &Item, rect: egui::Rect) {
+    hit.add_occurrence(item.ev.id, item.occ.day, rect);
 }
 
 /// Whether `item` is selected: by its own occurrence in the typed set, or, when that set is empty,
@@ -946,16 +958,38 @@ fn focused_item(app: &MailApp) -> Option<SelectedEvent> {
 
 /// Select `item` alone, as an ordinary click does: it replaces whatever was selected.
 fn select_one(app: &mut MailApp, item: &Item) {
+    // A cancelled appointment is no member of a typed set: it is selected the older way, as the
+    // one item in focus, so that it can still be opened, or deleted from the calendar.
+    if item.ev.cancelled {
+        let _ = app.run("calendar.select", json!({ "id": item.ev.id, "day": item.occ.start.date.iso() }));
+        return;
+    }
     let _ = app.run("calendar.select", json!({ "items": [occurrence_json(occurrence_item(item))] }));
 }
 
-/// Toggle `item` in or out of the set, as a Command (Ctrl) click does.
+/// Toggle `item` in or out of the set, as a Command (Ctrl) click does. A cancelled appointment
+/// is no member of a set, and a Command click never takes away the rest of what is selected:
+/// while a set is selected the click leaves it as it is and the status line says why; otherwise
+/// it selects the cancelled appointment alone, as a plain click does, or, when it is what is
+/// selected already, selects nothing.
 fn toggle_one(app: &mut MailApp, item: &Item) {
+    if item.ev.cancelled {
+        if is_selected(app, item) {
+            let _ = app.run("calendar.select", json!({ "id": null }));
+        } else if !app.session.sel.events.is_empty() {
+            let title = mailcraft_names::shown(&item.ev.title, 80);
+            app.status(crate::i18n::fmt(tl!("\"{title}\" is cancelled, so it can't be added to the selection."), &[("title", &title)]));
+        } else {
+            select_one(app, item);
+        }
+        return;
+    }
     let _ = app.run("calendar.select", json!({ "items": [occurrence_json(occurrence_item(item))], "extend": true }));
 }
 
 /// The items of the visible, chronological range from the focus to `item`, each once, capped as a
-/// selection is: what a Shift click takes.
+/// selection is: what a Shift click takes. `items` are those the view draws: never one a day keeps
+/// behind its `+n more`, which the owner couldn't see selected.
 fn range_to(app: &MailApp, items: &[Item], item: &Item) -> Vec<SelectedEvent> {
     let end = occurrence_item(item);
     let Some(at) = items.iter().position(|other| occurrence_item(other) == end) else { return vec![end] };
@@ -967,8 +1001,9 @@ fn range_to(app: &MailApp, items: &[Item], item: &Item) -> Vec<SelectedEvent> {
     let mut chosen: Vec<SelectedEvent> = Vec::new();
     let Some(range) = items.get(lo..=hi) else { return vec![end] };
     for other in range {
-        // (A calendar that only says when its owner is busy has no appointment to select.)
-        if other.free_busy {
+        // (A calendar that only says when its owner is busy has no appointment to select, and a
+        // cancelled appointment can't be selected: it is left out, as Select All leaves it out.)
+        if other.free_busy || other.ev.cancelled {
             continue;
         }
         let member = occurrence_item(other);
@@ -1515,7 +1550,63 @@ fn a_window_of_the_system_has_the_keyboard(app: &MailApp, ctx: &egui::Context) -
 pub(crate) fn copy_ready(app: &MailApp) -> bool {
     app.session.view.module == mailcraft_engine::Module::Calendar
         && app.ctx.as_ref().is_some_and(|ctx| clear_of_the_window(app, ctx))
-        && selected_items(&app.session, &json!({})).is_ok_and(|items| !items.is_empty())
+        && app.copy_hint.ready(&app.session)
+}
+
+/// Whether the selection reads as a set of items to copy, kept for the mailbox's revision and the
+/// selection it was read for: the ribbon asks it for Copy and for Cut every frame, and reading a
+/// set resolves every member. A hint only: the commands read the set again themselves.
+#[derive(Default)]
+pub(crate) struct CopyHint(std::cell::RefCell<Option<HintFor>>);
+
+/// What a [`CopyHint`] was read for, and what it read.
+struct HintFor {
+    rev: u64,
+    event: Option<Id>,
+    event_day: Option<Date>,
+    events: Vec<SelectedEvent>,
+    ready: bool,
+}
+
+impl CopyHint {
+    fn ready(&self, s: &mailcraft_engine::Session) -> bool {
+        let sel = &s.sel;
+        let same = |h: &HintFor| h.rev == s.rev() && h.event == sel.event && h.event_day == sel.event_day && h.events == sel.events;
+        if let Ok(kept) = self.0.try_borrow()
+            && let Some(hint) = kept.as_ref().filter(|hint| same(hint))
+        {
+            return hint.ready;
+        }
+        let ready = selected_items(s, &json!({})).is_ok_and(|items| !items.is_empty());
+        if let Ok(mut kept) = self.0.try_borrow_mut() {
+            *kept = Some(HintFor { rev: s.rev(), event: sel.event, event_day: sel.event_day, events: sel.events.clone(), ready });
+        }
+        ready
+    }
+}
+
+/// How many passes a Calendar command chosen in Command Search waits for the search window to be
+/// gone: egui keeps a closed window's layer for a pass or so.
+pub(crate) const AFTER_SEARCH_PASSES: u8 = 4;
+
+/// Whether Command Search hands `id` over to the Calendar for after it has closed: the Calendar's
+/// Copy, Cut and Paste, which act only with nothing over the Calendar ([`clear_of_the_window`]).
+pub(crate) fn waits_for_the_calendar(id: &str) -> bool {
+    matches!(id, "ui.calendarCopy" | "ui.calendarCut" | "ui.calendarPaste")
+}
+
+/// The Calendar's Copy, Cut or Paste that Command Search handed over: run once the search window
+/// has gone and the Calendar is clear of the window again. Should something else be over it when
+/// the wait is up (a question, a dialog of its own), it runs all the same, and is refused for
+/// that, with the reason, as it is from anywhere else: the guard is the command's, unchanged.
+pub(crate) fn after_search(app: &mut MailApp, ctx: &egui::Context) {
+    let Some((id, left)) = app.after_search.take() else { return };
+    if left > 0 && !clear_of_the_window(app, ctx) {
+        app.after_search = Some((id, left - 1));
+        ctx.request_repaint();
+        return;
+    }
+    let _ = app.run(&id, json!({}));
 }
 
 /// Whether the Calendar's Paste could put something where the grid's pick is now: the Calendar in
@@ -2437,8 +2528,6 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, items: &[Item], t
     if resp.secondary_clicked() && !is_selected(app, item) {
         select_one(app, item);
     }
-    // A set of more than one is what its menu's Copy, Cut and Delete act on.
-    let batch = (app.session.sel.events.len() > 1).then(|| json!(app.session.sel.events.iter().copied().map(occurrence_json).collect::<Vec<_>>()));
     let (repeats, show_as, private) = (item.ev.recurrence.is_some(), item.ev.show_as, item.ev.private);
     // An event of the mailbox's own can be put into another calendar (into a server's too, which
     // then has it). One that a server keeps can go into another calendar of the same account
@@ -2461,10 +2550,22 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, items: &[Item], t
     resp.context_menu(|ui| {
         ui.set_min_width(200.0);
         use crate::widgets::{mi, mi_check};
-        mi(ui, app, "Open", "calendar.edit", json!({}));
+        // Open is about the item the menu was opened over, as a double click on it is: that item
+        // alone is selected, and opened in a window of its own or in the form here.
+        let open = egui::Button::new(tl!("Open")).shortcut_text(crate::widgets::shortcut_text(app, "calendar.edit")).min_size(vec2(190.0, 0.0));
+        if ui.add_enabled(app.enabled("calendar.edit"), open).clicked() {
+            select_one(app, item);
+            if app.run_or_else("ui.openWindow", json!({"event": id})).is_err() {
+                let _ = app.run("calendar.edit", json!({}));
+            }
+            ui.close();
+        }
+        // A set of more than one is what the menu's Copy, Cut and Delete act on.
+        let batch =
+            (app.session.sel.events.len() > 1).then(|| json!(app.session.sel.events.iter().copied().map(occurrence_json).collect::<Vec<_>>()));
         // Copy and Cut take the whole selected set, as the keys do.
         let ctx = ui.ctx().clone();
-        for (label, cut) in [("Copy", false), ("Cut", true)] {
+        for (label, cut) in [(tl_later!("Copy"), false), (tl_later!("Cut"), true)] {
             if ui.add(egui::Button::new(tl!(label)).min_size(vec2(190.0, 0.0))).clicked() {
                 clip(app, &ctx, cut);
                 ui.close();
@@ -3344,7 +3445,12 @@ fn step_selection(app: &mut MailApp, ctx: &egui::Context, frame: &mut Frame, ite
     if n == 0 {
         return;
     }
-    let next = match (items.iter().position(|item| is_selected(app, item)), load_slot(ctx)) {
+    // From the item in focus (the last of a typed set), not the first selected one listed.
+    let focus = focused_item(app);
+    let at = focus
+        .and_then(|focus| items.iter().position(|item| occurrence_item(item) == focus))
+        .or_else(|| items.iter().position(|item| is_selected(app, item)));
+    let next = match (at, load_slot(ctx)) {
         (Some(at), _) => {
             if forward {
                 (at + 1) % n
@@ -3509,7 +3615,7 @@ fn paste(app: &mut MailApp, ctx: &egui::Context, text: Option<&str>, ask: Ask) -
     // A clipboard is only of the sources it captured, not a later replacement under the same id.
     if !sources_unchanged(app, &clip) {
         let why = if clip.cut {
-            tl!("What was cut has changed since; copy it again to paste it")
+            tl!("What was cut has changed since; cut it again to paste it")
         } else {
             tl!("What was copied has changed since; copy it again to paste it")
         };
@@ -3796,6 +3902,9 @@ struct Grid<'a> {
     from: Date,
     days: &'a [Date],
     items: &'a [Item],
+    /// The items drawn, in order: what a Shift click takes a range of (never a bar or a block a
+    /// day counts as `+n more`).
+    range: &'a [Item],
     today: Date,
     twelve: bool,
     scale: Scale,
@@ -3847,7 +3956,6 @@ fn time_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to: 
     let blocks = Blocks::of(full.min.x + gutter, full.width() - gutter, n, panes.len());
     let count = blocks.count;
     let scale = Scale::of(time_scale(&app.session));
-    let g = Grid { t, blocks, from, days: &days, items, today: app.session.today(), twelve: app.session.prefs.twelve_hour, scale, panes };
     frame.zones.from = from;
     frame.zones.fronts = fronts(panes);
 
@@ -3899,6 +4007,27 @@ fn time_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to: 
         }
         bars.retain(|b| b.lane < lane_cap);
     }
+    // What the grid draws: the bars that kept a lane and the blocks that kept a place in a day.
+    let mut drawn = vec![false; items.len()];
+    let laid_out = bars.iter().flatten().map(|bar| bar.item).chain(segs.iter().flatten().flatten().map(|seg| seg.item));
+    for index in laid_out {
+        if let Some(seen) = drawn.get_mut(index) {
+            *seen = true;
+        }
+    }
+    let drawn_items: Vec<Item> = items.iter().zip(&drawn).filter(|(_, seen)| **seen).map(|(item, _)| item.clone()).collect();
+    let g = Grid {
+        t,
+        blocks,
+        from,
+        days: &days,
+        items,
+        range: &drawn_items,
+        today: app.session.today(),
+        twelve: app.session.prefs.twelve_hour,
+        scale,
+        panes,
+    };
 
     if tabbed(panes) {
         tab_strip(app, ui, &blocks, panes);
@@ -4181,7 +4310,7 @@ fn all_day_row(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, bars
             );
             let resp = ui.interact(rect, ui.scope_id().with(("bar", item.ev.id, item.occ.start.date.to_days())), Sense::click_and_drag());
             app.hit.add("event", item.ev.id, rect);
-            app.hit.add_key(occurrence_hit_key(item), rect);
+            occurrence_hit(&mut app.hit, item, rect);
             // Dragging moves it by days, its ends change its first and last day, and down into
             // the hours it becomes an appointment there.
             frame.track(ui, &resp, item, rect, Piece { bar: true, starts: bar.starts, ends: bar.ends }, &under);
@@ -4190,7 +4319,7 @@ fn all_day_row(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, bars
             if frame.fades(item) {
                 p.rect_filled(rect, 3.0, t.surface_sunken);
             }
-            event_input(app, resp, item, g.items, !dragging);
+            event_input(app, resp, item, g.range, !dragging);
         }
     }
     if more_h > 0.0 {
@@ -4383,14 +4512,14 @@ fn hour_grid(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, segs: 
                     let dragging = frame.drag.is_some();
                     if block.intersects(seen) {
                         app.hit.add("event", item.ev.id, block.intersect(seen));
-                        app.hit.add_key(occurrence_hit_key(item), block.intersect(seen));
+                        occurrence_hit(&mut app.hit, item, block.intersect(seen));
                         paint_block(&p, block, item, &t, g.twelve, is_selected(app, item), resp.hovered() && !dragging);
                         if frame.fades(item) {
                             // The block fades where it was while its ghost shows where it is going.
                             p.rect_filled(block, 3.0, t.surface_sunken);
                         }
                     }
-                    event_input(app, resp, item, g.items, !dragging);
+                    event_input(app, resp, item, g.range, !dragging);
                 }
             }
         }
@@ -4795,6 +4924,25 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
     let picked_in = picked.as_ref().map(|s| pane_of(panes, s.calendar));
     let mut entry_at: Option<Rect> = None;
     let pointer = frame.pointer;
+    // What the Month draws, laid out as it is drawn below: a Shift click takes a range of these
+    // only, never an item a day keeps behind its `+n more`.
+    let mut drawn = vec![false; items.len()];
+    for week in 0..weeks {
+        let day_at = |d: usize| days.get(week * 7 + d).copied();
+        for (mine, spans) in mine.iter().zip(&spans) {
+            let layout = layout_week(spans, i64::try_from(week).unwrap_or(0));
+            let limit = month_limits(&layout, rows);
+            let fits = |d: usize, row: usize| row < limit.get(d).copied().unwrap_or(0) && day_at(d).is_some();
+            let bars = layout.bars.iter().filter(|(_, first, last, row)| (*first..=(*last).min(6)).any(|d| fits(d, *row))).map(|bar| bar.0);
+            let chips = layout.chips.iter().filter(|(_, d, row)| fits(*d, *row)).map(|chip| chip.0);
+            for index in bars.chain(chips) {
+                if let Some(seen) = mine.get(index).and_then(|i| drawn.get_mut(*i)) {
+                    *seen = true;
+                }
+            }
+        }
+    }
+    let drawn_items: Vec<Item> = items.iter().zip(&drawn).filter(|(_, seen)| **seen).map(|(item, _)| item.clone()).collect();
     for week in 0..weeks {
         let top = area.min.y + week as f32 * cell_h;
         let day_at = |d: usize| days.get(week * 7 + d).copied();
@@ -4828,10 +4976,7 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
             // A cell too low for two rows keeps its row for an event and says so beside the day
             // number.
             let compact = rows < 2;
-            let mut limit = [0usize; 7];
-            for (slot, needed) in limit.iter_mut().zip(layout.rows) {
-                *slot = if compact { rows } else { chip_limit(needed, rows) };
-            }
+            let limit = month_limits(&layout, rows);
             let limit_of = |d: usize| limit.get(d).copied().unwrap_or(0);
             let mut more = layout.totals;
 
@@ -4933,7 +5078,7 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
                         Sense::click_and_drag(),
                     );
                     app.hit.add("event", item.ev.id, rect);
-                    app.hit.add_key(occurrence_hit_key(item), rect);
+                    occurrence_hit(&mut app.hit, item, rect);
                     // Dragging moves it by days; its ends change its first and its last day.
                     frame.track(ui, &resp, item, rect, Piece { bar: true, starts, ends }, &under);
                     let dragging = frame.drag.is_some();
@@ -4941,7 +5086,7 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
                     if frame.fades(item) {
                         p.rect_filled(rect, 3.0, t.surface_sunken);
                     }
-                    event_input(app, resp, item, items, !dragging);
+                    event_input(app, resp, item, &drawn_items, !dragging);
                     d = end + 1;
                 }
             }
@@ -4958,7 +5103,7 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
                 let resp =
                     ui.interact(rect, ui.scope_id().with(("month_chip", item.ev.id, item.occ.start.date.to_days(), week)), Sense::click_and_drag());
                 app.hit.add("event", item.ev.id, rect);
-                app.hit.add_key(occurrence_hit_key(item), rect);
+                occurrence_hit(&mut app.hit, item, rect);
                 // Dragged to another day it keeps its time of day.
                 frame.track(ui, &resp, item, rect, Piece { bar: false, starts: false, ends: false }, &under);
                 let dragging = frame.drag.is_some();
@@ -4966,7 +5111,7 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
                 if frame.fades(item) {
                     p.rect_filled(rect, 3.0, t.surface_sunken);
                 }
-                event_input(app, resp, item, items, !dragging);
+                event_input(app, resp, item, &drawn_items, !dragging);
             }
             for (d, count) in more.iter().enumerate().filter(|(_, n)| **n > 0) {
                 let Some(day) = day_at(d) else { continue };

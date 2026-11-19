@@ -557,7 +557,7 @@ pub(crate) fn takes_away(app: &MailApp, id: &str, p: &Value, item: Id) -> bool {
     let named = |selected: Option<Id>| mailcraft_engine::p::id_strict(p, "id").ok().and_then(|n| n.or(selected));
     let sel = &app.session.sel;
     match id {
-        "calendar.delete" if p.get("items").is_some() || (p.get("id").is_none() && !sel.events.is_empty()) => {
+        "calendar.delete" if mailcraft_engine::cmd::calendar::delete_form(sel, p).ok() != Some(mailcraft_engine::cmd::calendar::DeleteForm::One) => {
             mailcraft_engine::cmd::calendar::delete_items(&app.session, p).is_ok_and(|items| items.iter().any(|selected| selected.id == item))
         }
         "calendar.paste" if p.get("cut").and_then(Value::as_bool) == Some(true) => {

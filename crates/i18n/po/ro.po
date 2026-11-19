@@ -95,14 +95,19 @@ msgstr "„{name}” nu este o categorie păstrată doar pe acest computer"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "\"{name}\" on {day}"
+#, fuzzy
+msgid "\"{name}\" will be permanently deleted."
+msgstr "„{name}” va fi șters definitiv."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "\"{name}\", {when}"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "\"{name}\" will be permanently deleted."
-msgstr "„{name}” va fi șters definitiv."
+msgid "\"{name}\", {when}, moves to {to}"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -125,6 +130,11 @@ msgstr "„{shown}” nu este o adresă de e-mail"
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 msgid "\"{title}\" is cancelled, and can't be selected"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr ""
 
 #. what a command says
@@ -541,12 +551,12 @@ msgstr "O întâlnire din calendarul dvs. are acest ID, dar alt organizator, dec
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them: the cancellation that is sent is of the meeting you organize."
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them."
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told."
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them: the cancellation that is sent is of the meeting you organize."
 msgstr ""
 
 #. what a command says
@@ -2778,6 +2788,11 @@ msgstr "Anulare conectare"
 msgid "Cancel This Meeting?"
 msgstr "Anulați această întâlnire?"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Cancellations from the server of {account}:"
+msgstr ""
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -3700,7 +3715,7 @@ msgid "Copies a short message with the address of Microsoft's page where an admi
 msgstr "Copiază un mesaj scurt cu adresa paginii Microsoft unde un administrator al organizației aprobă MailCraft, o dată pentru toți. Nu se trimite nimic: lipiți-l chiar dvs. într-un e-mail sau chat."
 
 #. command label, interface, name, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Copiere"
@@ -4092,8 +4107,8 @@ msgstr "Cutia poștală curentă"
 msgid "Current View"
 msgstr "Vizualizarea curentă"
 
-#. command label, name, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Cut"
 msgstr "Decupare"
@@ -7458,6 +7473,11 @@ msgid "Invented mail, meetings, people and tasks to try things on"
 msgstr "E-mailuri, întâlniri, persoane și sarcini inventate, pentru încercări"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Invitations from the server of {account}:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Invite Attendees"
@@ -9946,6 +9966,11 @@ msgid "New task"
 msgstr "Sarcină nouă"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "New times from the server of {account}:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Newest on top"
@@ -10494,6 +10519,11 @@ msgstr "Nimeni nu este invitat la această programare."
 #, fuzzy
 msgid "Nobody is signing in"
 msgstr "Nu se conectează nimeni"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Nobody is written to about:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -17687,6 +17717,30 @@ msgid "The servers below were found in the DNS records of {domain} (its SRV reco
 msgstr "Serverele de mai jos au fost găsite în înregistrările DNS ale {domain} (înregistrările sale SRV). Verificați-le înainte de a vă conecta."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The servers of {accounts} send the {n} person invited the invitation by mail."
+msgid_plural "The servers of {accounts} send the {n} people invited the invitation by mail."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The servers of {accounts} tell the {n} person invited of the new time."
+msgid_plural "The servers of {accounts} tell the {n} people invited of the new time."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The servers of {accounts} tell the {n} person invited, so that they know it is cancelled."
+msgid_plural "The servers of {accounts} tell the {n} people invited, so that they know it is cancelled."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
 #: crates/ui-egui/src/settings_notice.rs
 #, fuzzy
 msgid "The settings file (ui.json) couldn't be read, so the default settings were restored. It couldn't be renamed, so it was left as it is and won't be overwritten."
@@ -18412,8 +18466,8 @@ msgstr[2] "Aceasta șterge cele {n} de mesaje ale acestei conversații listate a
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This deletes {n} appointment from your calendar:"
-msgid_plural "This deletes {n} appointments from your calendar:"
+msgid "This deletes {n} appointment from your calendar."
+msgid_plural "This deletes {n} appointments from your calendar."
 msgstr[0] ""
 msgstr[1] ""
 msgstr[2] ""
@@ -18891,8 +18945,8 @@ msgstr "Semnătura digitală a acestui mesaj nu poate fi verificată."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This moves {n} appointment to {when}, in {to}:"
-msgid_plural "This moves {n} appointments to {when}, in {to}:"
+msgid "This moves {n} appointment to {when}, in {to}."
+msgid_plural "This moves {n} appointments, the earliest to {when} and the others by as much, in {to}."
 msgstr[0] ""
 msgstr[1] ""
 msgstr[2] ""
@@ -20079,7 +20133,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
-msgid "What was cut has changed since; copy it again to paste it"
+msgid "What was cut has changed since; cut it again to paste it"
 msgstr ""
 
 #. interface
@@ -21658,6 +21712,11 @@ msgstr "a durat prea mult"
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "scrie altor persoane sau accesează webul"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "its account"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -23652,6 +23711,19 @@ msgstr[0] "dată"
 msgstr[1] "ori"
 msgstr[2] "de ori"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "to {n} person"
+msgid_plural "to {n} people"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "to {people}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
@@ -25357,6 +25429,14 @@ msgstr[0] "{n} persoană a propus altă oră."
 msgstr[1] "{n} persoane au propus altă oră."
 msgstr[2] "{n} de persoane au propus altă oră."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{n} person without an address"
+msgid_plural "{n} people without an address"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -25591,6 +25671,11 @@ msgstr "{n},{tenth} GB"
 msgid "{n}.{tenth} MB"
 msgstr "{n},{tenth} MB"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{others} and {last}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/mod.rs
 #, fuzzy
@@ -25602,6 +25687,19 @@ msgstr "{path} este mai mare de {mb} MB"
 #, fuzzy
 msgid "{path} isn't a mailbox; bring it in with File › Import"
 msgstr "{path} nu este o cutie poștală; aduceți-l cu Fișier › Import"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{people} and {nameless}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{people} and {n} more"
+msgid_plural "{people} and {n} more"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

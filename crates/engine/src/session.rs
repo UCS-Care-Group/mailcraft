@@ -412,6 +412,26 @@ pub struct SelectedEvent {
     pub day: Option<Date>,
 }
 
+/// The calendar's part of a [`Selection`], as it was last put right
+/// ([`Session::normalize_calendar_selection`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CalendarFocus {
+    event: Option<Id>,
+    event_day: Option<Date>,
+    events: Vec<SelectedEvent>,
+}
+
+impl CalendarFocus {
+    fn of(sel: &Selection) -> Self {
+        Self { event: sel.event, event_day: sel.event_day, events: sel.events.clone() }
+    }
+
+    /// Whether `sel`'s calendar part is this one.
+    fn is(&self, sel: &Selection) -> bool {
+        self.event == sel.event && self.event_day == sel.event_day && self.events == sel.events
+    }
+}
+
 /// What is selected in each module.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -1225,6 +1245,10 @@ pub struct Session {
     /// What the last undo or redo couldn't do there (a delete for good, a message sent).
     undo_said: Vec<String>,
     rev: u64,
+    /// The calendar selection as [`Session::normalize_calendar_selection`] last left it, and the
+    /// revision of the mailbox it was put right against: while neither has changed since, there
+    /// is nothing to put right again.
+    calendar_settled: Option<(u64, CalendarFocus)>,
     list_cache: Option<ListCache>,
     /// What each folder holds, as of the revision and message count it was counted at
     /// ([`Session::folder_counts`]).
@@ -1400,6 +1424,7 @@ impl Session {
             steps_moved: 0,
             undo_said: Vec::new(),
             rev: 0,
+            calendar_settled: None,
             list_cache: None,
             counts_cache: None,
             conversation_cache: None,
@@ -3191,10 +3216,22 @@ impl Session {
     }
 
     /// Keep instance selection and legacy focus coherent after a command or a server sweep.
+    ///
+    /// Every successful command comes here. When neither the mailbox ([`Session::rev`]) nor the
+    /// calendar selection has changed since it was last put right, it is right as it is; else
+    /// each series is looked at once for all of its selected days (`cmd::calendar::days_gone`).
     fn normalize_calendar_selection(&mut self) {
         if self.sel.events.is_empty() {
             return;
         }
+        if self.calendar_settled.as_ref().is_some_and(|(rev, focus)| *rev == self.rev && focus.is(&self.sel)) {
+            return;
+        }
+        self.settle_calendar_selection();
+        self.calendar_settled = Some((self.rev, CalendarFocus::of(&self.sel)));
+    }
+
+    fn settle_calendar_selection(&mut self) {
         let here = crate::cmd::remote::offset_of(self);
         let mailbox = &self.mailbox;
         let selection = &mut self.sel;
@@ -3202,21 +3239,47 @@ impl Session {
         let replaced = selection.events.last().and_then(|item| {
             let event = mailbox.event(item.id)?;
             let date = item.day.filter(|_| event.recurrence.is_some()).map_or(event.start.date, |day| event.occurrence_times(day, &here).0.date);
-            Some(selection.event.is_some() && (selection.event != Some(item.id) || selection.event_day.is_some_and(|day| day != date)))
+            // (Another day beside the same one-off appointment names nothing else of it: a server
+            // that moved it moved the focus with it, and its date is put right below. Of a series,
+            // another day is another occurrence.)
+            let elsewhere = event.recurrence.is_some() && selection.event_day.is_some_and(|day| day != date);
+            Some(selection.event.is_some() && (selection.event != Some(item.id) || elsewhere))
         });
         if replaced == Some(true) {
             selection.events.clear();
             return;
         }
         selection.events.truncate(MAX_SELECTED_EVENTS);
+        // The days each selected series no longer has, read once per series.
+        let mut days_of: Vec<(Id, Vec<Date>)> = Vec::new();
+        for item in &selection.events {
+            if let Some(day) = item.day {
+                match days_of.iter_mut().find(|(id, _)| *id == item.id) {
+                    Some((_, days)) => days.push(day),
+                    None => days_of.push((item.id, vec![day])),
+                }
+            }
+        }
+        let gone: Vec<(Id, HashSet<Date>)> = days_of
+            .iter()
+            .filter_map(|(id, days)| {
+                let event = mailbox.event(*id).filter(|event| event.recurrence.is_some())?;
+                Some((*id, crate::cmd::calendar::days_gone(event, days, &here)))
+            })
+            .collect();
         let mut seen = Vec::with_capacity(selection.events.len());
         selection.events.retain_mut(|item| {
             let Some(event) = mailbox.event(item.id) else { return false };
+            // (A cancelled appointment can't be selected: one a server cancelled leaves the set,
+            // and the rest stays usable.)
+            if event.cancelled {
+                return false;
+            }
             if event.recurrence.is_none() {
                 item.day = None;
             } else {
                 let Some(day) = item.day else { return false };
-                if !event.occurrences_in(day.add_days(-1), day.add_days(1), &here).iter().any(|occurrence| occurrence.day == day) {
+                if gone.iter().any(|(id, days)| *id == item.id && days.contains(&day)) {
                     return false;
                 }
             }
@@ -4128,7 +4191,7 @@ impl Session {
         // gone for good, an appointment the owner is changing taken away) is undone, whatever
         // path it took there.
         let result = match (result, &self.agent) {
-            (Ok(_), Some(_)) if self.owner_changing.iter().any(|e| gone_in(&before.mailbox, &self.mailbox, *e)) => Err(CmdError::Failed(format!(
+            (Ok(_), Some(_)) if self.owner_changing.iter().any(|e| taken_from(&before.mailbox, &self.mailbox, *e)) => Err(CmdError::Failed(format!(
                 "`{id}` would take away an appointment, a contact or a task the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
             ))),
             // What is written in the message the owner is writing is theirs until it is closed
@@ -4259,8 +4322,9 @@ impl Session {
     }
 }
 
-/// Whether the event, contact or task `item` that `before` has is gone from `after`.
-fn gone_in(before: &Mailbox, after: &Mailbox, item: Id) -> bool {
+/// Whether the event, contact or task `item` that `before` has is taken from under the owner in
+/// `after`: gone, or, for an event, moved (its times or its calendar) or with a day cancelled.
+fn taken_from(before: &Mailbox, after: &Mailbox, item: Id) -> bool {
     let there = |m: &Mailbox| m.event(item).is_some() || m.contact(item).is_some() || m.task(item).is_some();
     if there(before) && !there(after) {
         return true;

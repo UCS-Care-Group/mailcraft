@@ -183,6 +183,16 @@ fn agents_cannot_drive_calendar_copy_cut_or_paste_with_every_grant() {
     let before = clipboard(&w).expect("the baseline copy");
     let mailbox = w.state().session.mailbox.clone();
     for command in ["ui.calendarCopy", "ui.calendarCut", "ui.calendarPaste"] {
+        // Each could act now were it the agent's: Copy and Cut have the item selected, and Paste a
+        // time picked to put the copy at, so a refusal is about who asks, never about a missing
+        // pick (review-02 N1; CodeRabbit on #1665, cut_command_tests.rs:185).
+        if command == "ui.calendarPaste" {
+            let picked = after_noon(&w, 3.0);
+            click(&mut w, picked, Modifiers::NONE, PointerButton::Primary);
+            assert!(super::super::paste_ready(w.state()), "fixture: Paste could put the copy at the picked time now");
+        } else {
+            assert!(super::super::copy_ready(w.state()), "fixture: {command} could take the selected item now");
+        }
         assert_eq!(mailcraft_engine::agent::access(command), Some(mailcraft_engine::agent::Access::Never), "{command} is never an agent's");
         let request = crate::control::ControlRequest::new("engine.execute", json!({"command": command, "params": {}})).0;
         let request = request.from_agent(mailcraft_engine::agent::Class::ALL.to_vec());
@@ -192,6 +202,7 @@ fn agents_cannot_drive_calendar_copy_cut_or_paste_with_every_grant() {
         let after = clipboard(&w).expect("the owner's copy is retained");
         assert_eq!(after.items, before.items, "{command}");
         assert_eq!((after.cut, &after.text, after.opening), (before.cut, &before.text, before.opening), "{command}");
+        assert_eq!(after.sources.len(), before.sources.len(), "{command}");
         assert!(after.sources.iter().zip(&before.sources).all(|(now, was)| Arc::ptr_eq(now, was)), "{command}");
         assert!(w.state().session.mailbox == mailbox, "{command} changed nothing");
         assert!(w.state().dialog.is_none() && w.state().asking.is_empty(), "{command}: refusal asks nothing");
