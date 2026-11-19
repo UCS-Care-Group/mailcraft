@@ -364,6 +364,11 @@ msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "La posta di un account JMAP non può ancora essere posticipata."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A Zimbra server answered at {host}: your account may be on it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "A brand's name on another address."
@@ -661,6 +666,11 @@ msgstr "Una casella condivisa, letta con l'accesso di {account}"
 #, fuzzy
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
 msgstr "Una breve nota con il link a quella pagina, da incollare in una mail o in una chat. MailCraft non invia nulla da solo."
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "A sign-in token of this session is kept: the password isn't asked for until it ends."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1333,16 +1343,6 @@ msgstr "Già nei contatti"
 #, fuzzy
 msgid "Also Hotmail, Live and MSN"
 msgstr "Anche Hotmail, Live e MSN"
-
-#. interface
-#: crates/ui-egui/src/account_setup/zimbra.rs
-msgid "Also keep this account's calendar, over CalDAV at this server"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup/zimbra.rs
-msgid "Also keep this account's contacts, over CardDAV at this server"
-msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -5963,7 +5963,7 @@ msgid "For now, your automatic replies aren't changed: {error}"
 msgstr "Per ora le risposte automatiche non vengono modificate: {error}"
 
 #. interface
-#: crates/ui-egui/src/ews_setup.rs
+#: crates/ui-egui/src/ews_setup.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Forget"
 msgstr "Dimentica"
@@ -5979,6 +5979,11 @@ msgstr "Dimentica calendario e contatti scaricati"
 #, fuzzy
 msgid "Forget Trusted Certificate"
 msgstr "Dimentica il certificato attendibile"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Forget Trusted Device"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
@@ -15557,6 +15562,11 @@ msgstr "Interrompi questo Invia/Ricevi; ciò che è arrivato rimane"
 msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
 msgstr "Smetti di considerare attendibile questo certificato per questo account. Se il server lo presenta di nuovo e questo computer non lo considera attendibile, ti verrà chiesto."
 
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "Stop trusting this computer for this account: the next Send/Receive signs in afresh and asks for the code again (when the account has a second step). What the server has trusted can be withdrawn there too, under its own settings."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -18023,6 +18033,11 @@ msgid "This account is no longer in the mailbox."
 msgstr "Questo account non è più nella casella di posta."
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This account isn't a Zimbra account"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "This account may not change its categories through Microsoft Graph"
@@ -18247,6 +18262,11 @@ msgstr "La chiave di questo certificato è di un tipo che MailCraft non usa: qui
 #, fuzzy
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
 msgstr "Questo computer non considera attendibile il certificato presentato dal server {host}. Se è il server della tua organizzazione, puoi considerare attendibile questo solo certificato per questo account."
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "This computer is trusted: the code of the authenticator app isn't asked for."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -19649,6 +19669,16 @@ msgid "Use system setting follows Animation effects in Windows' settings. Where 
 msgstr "Usa impostazione di sistema segue gli effetti di animazione delle impostazioni di Windows. Dove MailCraft non può ancora leggere l'impostazione di sistema, le animazioni vengono riprodotte finché non scegli Non riprodurre mai."
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's calendar (CalDAV)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's contacts (CardDAV)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Use {address}"
@@ -20688,9 +20718,8 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Zimbra {host} · not kept in step yet: this part is not built"
-msgstr "Zimbra {host} · non ancora sincronizzato: questa parte non è ancora pronta"
+msgid "Zimbra {host}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -20761,6 +20790,11 @@ msgstr "`answer.outcome` è read, missing, notPermitted, refused, approval o fai
 #, fuzzy
 msgid "`format` is \"smime\" or \"openpgp\""
 msgstr "`format` è \"smime\" o \"openpgp\""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`id` is required"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/keep_offline.rs
@@ -25638,6 +25672,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Righe"
+
+#, fuzzy
+#~ msgid "Zimbra {host} · not kept in step yet: this part is not built"
+#~ msgstr "Zimbra {host} · non ancora sincronizzato: questa parte non è ancora pronta"
 
 #, fuzzy
 #~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"

@@ -30,7 +30,7 @@ fn file_info_names_a_zimbra_accounts_server_and_why_it_waits() {
     assert!(card.starts_with("Zimbra zimbra.example.org · not kept in step") && card.contains("MAILCRAFT_ZIMBRA=1"), "{card}");
     a.session.zimbra = true;
     let card = crate::backstage::account_detail(&a, a.session.mailbox.account(id).unwrap());
-    assert_eq!(card, "Zimbra zimbra.example.org · not kept in step yet: this part is not built");
+    assert_eq!(card, "Zimbra zimbra.example.org");
     a.session.mailbox.account_mut(id).unwrap().zimbra = Some(ZimbraServer { url: "http://elsewhere.example/".into(), ..Default::default() });
     let card = crate::backstage::account_detail(&a, a.session.mailbox.account(id).unwrap());
     assert_eq!(card, "Zimbra · no usable server address");

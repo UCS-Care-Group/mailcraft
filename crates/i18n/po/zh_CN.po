@@ -364,6 +364,11 @@ msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "JMAP 账户的邮件暂不支持暂缓。"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A Zimbra server answered at {host}: your account may be on it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "A brand's name on another address."
@@ -662,6 +667,11 @@ msgstr "共享邮箱，使用 {account} 的登录信息读取"
 #, fuzzy
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
 msgstr "一段附有该页面链接的简短说明,可粘贴到邮件或聊天中。MailCraft 本身不会发送任何内容。"
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "A sign-in token of this session is kept: the password isn't asked for until it ends."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1334,16 +1344,6 @@ msgstr "已在您的通讯录中"
 #, fuzzy
 msgid "Also Hotmail, Live and MSN"
 msgstr "也适用于 Hotmail、Live 和 MSN"
-
-#. interface
-#: crates/ui-egui/src/account_setup/zimbra.rs
-msgid "Also keep this account's calendar, over CalDAV at this server"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup/zimbra.rs
-msgid "Also keep this account's contacts, over CardDAV at this server"
-msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -5960,7 +5960,7 @@ msgid "For now, your automatic replies aren't changed: {error}"
 msgstr "目前不会更改自动回复：{error}"
 
 #. interface
-#: crates/ui-egui/src/ews_setup.rs
+#: crates/ui-egui/src/ews_setup.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Forget"
 msgstr "清除"
@@ -5976,6 +5976,11 @@ msgstr "清除已下载的日历和联系人"
 #, fuzzy
 msgid "Forget Trusted Certificate"
 msgstr "取消信任证书"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Forget Trusted Device"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
@@ -15566,6 +15571,11 @@ msgstr "停止本次发送/接收；已到达的内容将保留"
 msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
 msgstr "不再信任此账户的这张证书。如果服务器再次出示该证书，而本机不信任它，系统会询问您。"
 
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "Stop trusting this computer for this account: the next Send/Receive signs in afresh and asks for the code again (when the account has a second step). What the server has trusted can be withdrawn there too, under its own settings."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -18036,6 +18046,11 @@ msgid "This account is no longer in the mailbox."
 msgstr "此账户已不在邮箱中。"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This account isn't a Zimbra account"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "This account may not change its categories through Microsoft Graph"
@@ -18262,6 +18277,11 @@ msgstr "MailCraft 不支持此证书的密钥类型；此处仅导入 P-256 或 
 #, fuzzy
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
 msgstr "此计算机不信任 {host} 服务器提供的证书。如果这是您组织的服务器，可以为此账户信任这张证书。"
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "This computer is trusted: the code of the authenticator app isn't asked for."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -19659,6 +19679,16 @@ msgid "Use system setting follows Animation effects in Windows' settings. Where 
 msgstr "“使用系统设置”遵循 Windows 设置中的“动画效果”。如果 MailCraft 暂时无法读取系统设置，动画会照常播放，直到您选择“从不播放”。"
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's calendar (CalDAV)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's contacts (CardDAV)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Use {address}"
@@ -20702,9 +20732,8 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Zimbra {host} · not kept in step yet: this part is not built"
-msgstr "Zimbra {host} · 尚未同步：该部分尚未构建"
+msgid "Zimbra {host}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -20776,6 +20805,11 @@ msgstr "`answer.outcome` 为 read、missing、notPermitted、refused、approval 
 #, fuzzy
 msgid "`format` is \"smime\" or \"openpgp\""
 msgstr "`format` 为 \"smime\" 或 \"openpgp\""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`id` is required"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/keep_offline.rs
@@ -25536,6 +25570,10 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Zimbra {host} · not kept in step yet: this part is not built"
+#~ msgstr "Zimbra {host} · 尚未同步：该部分尚未构建"
 
 #, fuzzy
 #~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"

@@ -362,6 +362,11 @@ msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "JMAP ანგარიშის ფოსტის გადადება ჯერ შეუძლებელია."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A Zimbra server answered at {host}: your account may be on it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "A brand's name on another address."
@@ -657,6 +662,11 @@ msgstr "საერთო საფოსტო ყუთი, რომელ�
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "A sign-in token of this session is kept: the password isn't asked for until it ends."
 msgstr ""
 
 #. interface
@@ -5943,7 +5953,7 @@ msgid "For now, your automatic replies aren't changed: {error}"
 msgstr "ჯერჯერობით თქვენი ავტომატური პასუხები არ იცვლება: {error}"
 
 #. interface
-#: crates/ui-egui/src/ews_setup.rs
+#: crates/ui-egui/src/ews_setup.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Forget"
 msgstr "დავიწყება"
@@ -5959,6 +5969,11 @@ msgstr "ჩამოტვირთული კალენდრისა დ�
 #, fuzzy
 msgid "Forget Trusted Certificate"
 msgstr "სანდო სერტიფიკატის დავიწყება"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Forget Trusted Device"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
@@ -15498,6 +15513,11 @@ msgstr "ამ გაგზავნა/მიღების შეჩერე
 msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
 msgstr "ამ ანგარიშისთვის ამ სერტიფიკატის ნდობის შეწყვეტა. თუ სერვერი მას ისევ აჩვენებს და ეს კომპიუტერი არ ენდობა, გკითხავთ."
 
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "Stop trusting this computer for this account: the next Send/Receive signs in afresh and asks for the code again (when the account has a second step). What the server has trusted can be withdrawn there too, under its own settings."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -17959,6 +17979,11 @@ msgid "This account is no longer in the mailbox."
 msgstr "ეს ანგარიში საფოსტო ყუთში აღარ არის."
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This account isn't a Zimbra account"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "This account may not change its categories through Microsoft Graph"
@@ -18184,6 +18209,11 @@ msgstr "ამ სერტიფიკატის გასაღები ი
 #, fuzzy
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
 msgstr "ეს კომპიუტერი არ ენდობა სერტიფიკატს, რომელსაც სერვერი {host} აჩვენებს. თუ ეს თქვენი ორგანიზაციის სერვერია, შეგიძლიათ ამ ანგარიშისთვის სწორედ ამ ერთ სერტიფიკატს ენდოთ."
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "This computer is trusted: the code of the authenticator app isn't asked for."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -19586,6 +19616,16 @@ msgid "Use system setting follows Animation effects in Windows' settings. Where 
 msgstr "„სისტემის პარამეტრის გამოყენება“ Windows-ის პარამეტრებში „ანიმაციის ეფექტებს“ მიჰყვება. სადაც MailCraft სისტემის პარამეტრს ჯერ ვერ კითხულობს, ანიმაციები ეშვება, სანამ „არასოდეს გაშვებას“ არ აირჩევთ."
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's calendar (CalDAV)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's contacts (CardDAV)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Use {address}"
@@ -20624,9 +20664,8 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Zimbra {host} · not kept in step yet: this part is not built"
-msgstr "Zimbra {host} · ჯერ არ სინქრონიზდება: ეს ნაწილი ჯერ არ არის აგებული"
+msgid "Zimbra {host}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -20698,6 +20737,11 @@ msgstr "`answer.outcome` არის read, missing, notPermitted, refused, appr
 #, fuzzy
 msgid "`format` is \"smime\" or \"openpgp\""
 msgstr "`format` არის \"smime\" ან \"openpgp\""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`id` is required"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/keep_offline.rs
@@ -25564,6 +25608,10 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Zimbra {host} · not kept in step yet: this part is not built"
+#~ msgstr "Zimbra {host} · ჯერ არ სინქრონიზდება: ეს ნაწილი ჯერ არ არის აგებული"
 
 #, fuzzy
 #~ msgid "{why}: send this message from another account, or save it as a draft"
