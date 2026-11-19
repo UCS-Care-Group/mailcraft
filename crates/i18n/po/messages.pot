@@ -4787,7 +4787,7 @@ msgid ""
 msgstr ""
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 msgid "Folder Pane"
 msgstr ""
 
@@ -7753,9 +7753,19 @@ msgstr ""
 msgid "Move Event"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+msgid "Move Favorite Up or Down"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 msgid "Move Folder"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+msgid "Move Folder Up or Down"
 msgstr ""
 
 #. interface
@@ -17211,6 +17221,16 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "a favourite can't be put before itself"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a folder can't be put before itself"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't move into itself"
 msgstr ""
@@ -17218,6 +17238,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't move to another account"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a folder is put among the folders beside it: name one with the same parent"
 msgstr ""
 
 #. what a command says

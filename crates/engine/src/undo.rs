@@ -989,6 +989,13 @@ fn folders(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>
                 if t.favorite != a.favorite {
                     f.favorite = t.favorite;
                 }
+                // (The owner's order, #1514: kept here alone.)
+                if t.place != a.place {
+                    f.place = t.place;
+                }
+                if t.favorite_place != a.favorite_place {
+                    f.favorite_place = t.favorite_place;
+                }
                 kept.push(f);
             }
             // Taken away by the change but put back since (the server refused).

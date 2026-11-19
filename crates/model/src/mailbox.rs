@@ -148,6 +148,40 @@ pub struct Folder {
     /// It is never made on the server: one that complete listing doesn't have goes.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub awaiting_listing: bool,
+    /// Its place among the folders that share its parent, where the owner put it (#1514): kept
+    /// on this computer alone, never sent to a server. `None` until the owner first moves it or
+    /// one beside it, and in a file from before there was an order; such a folder comes after
+    /// those with a place, by name ([`sort_as_listed`]).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub place: Option<u32>,
+    /// Its place among the Favorites kept in MailCraft (#1514), as [`Folder::place`] is among its
+    /// siblings. `None` until the owner first moves a favourite, and once it stops being one.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub favorite_place: Option<u32>,
+}
+
+/// The rank of the folders that lead an account's top level in the folder pane, in the order
+/// they lead it: Inbox, Drafts, Sent Items and Deleted Items, which stay there (#1514); every
+/// other folder ranks after them.
+pub fn lead_rank(kind: FolderKind) -> usize {
+    const LEAD: [FolderKind; 4] = [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted];
+    LEAD.iter().position(|k| *k == kind).unwrap_or(LEAD.len())
+}
+
+/// Whether a folder keeps its place at the head of its account's list whatever the owner does
+/// (#1514): one of [`lead_rank`]'s at the top level.
+pub fn leads(f: &Folder) -> bool {
+    f.parent.is_none() && lead_rank(f.kind) < 4
+}
+
+/// Put folders that share a parent (`top`: none, they are an account's top level) in the order
+/// the folder pane lists them: at the top level Inbox, Drafts, Sent Items and Deleted Items lead;
+/// every other folder, Archive, Junk Email and Outbox among them, follows in the order the owner
+/// put them in ([`Folder::place`], #1514), and those without a place after them by name without
+/// regard to case. Subfolders are so too, with nothing leading.
+pub fn sort_as_listed(list: &mut [&Folder], top: bool) {
+    // The id last: two folders of one name keep their places from frame to frame.
+    list.sort_by_cached_key(|f| (if top { lead_rank(f.kind) } else { 0 }, f.place.unwrap_or(u32::MAX), f.name.to_lowercase(), f.id));
 }
 
 /// Whether a list of category names has `name`.
@@ -1869,8 +1903,58 @@ impl Mailbox {
     pub fn children(&self, account: Id, parent: Option<Id>) -> Vec<&Folder> {
         let mut v: Vec<&Folder> = self.folders.iter().filter(|f| f.account == account && f.parent == parent).collect();
         let rank = |f: &Folder| FolderKind::STANDARD.iter().position(|k| *k == f.kind).unwrap_or(usize::MAX);
-        v.sort_by(|a, b| rank(a).cmp(&rank(b)).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+        // (Then where the owner put them, #1514.)
+        v.sort_by_cached_key(|f| (rank(f), f.place.unwrap_or(u32::MAX), f.name.to_lowercase()));
         v
+    }
+
+    /// The folders that [`Mailbox::reorder_folder`] moves `id` among (#1514), it among them, as
+    /// the folder pane lists them: those that share its parent but the ones that lead
+    /// ([`leads`]). Empty for a folder that leads, or isn't here.
+    pub fn reorder_siblings(&self, id: Id) -> Vec<Id> {
+        let Some(f) = self.folder(id).filter(|f| !leads(f)) else { return Vec::new() };
+        let mut siblings: Vec<&Folder> = self.folders.iter().filter(|g| g.account == f.account && g.parent == f.parent && !leads(g)).collect();
+        sort_as_listed(&mut siblings, f.parent.is_none());
+        siblings.into_iter().map(|g| g.id).collect()
+    }
+
+    /// Put the folder `id` in another place among the folders that share its parent (#1514), as
+    /// dragging it there does: right before `before`, one of them, or last without one. Inbox,
+    /// Drafts, Sent Items and Deleted Items lead an account's top level and stay there
+    /// ([`leads`]): they aren't moved, nor named as `before`. Only [`Folder::place`] changes, of
+    /// each of the siblings, and nothing is sent to a server. Whether anything moved.
+    pub fn reorder_folder(&mut self, id: Id, before: Option<Id>) -> Result<bool, ModelError> {
+        let f = self.folder(id).ok_or(not_found("folder", id))?;
+        if leads(f) {
+            return Err(invalid(format!("{} stays at the top of its account's folders", f.name)));
+        }
+        let (account, parent) = (f.account, f.parent);
+        if let Some(before) = before {
+            if before == id {
+                return Err(invalid("a folder can't be put before itself"));
+            }
+            let b = self.folder(before).ok_or(not_found("folder", before))?;
+            if b.account != account || b.parent != parent {
+                return Err(invalid("a folder is put among the folders beside it: name one with the same parent"));
+            }
+            if leads(b) {
+                return Err(invalid(format!("{} stays at the top of its account's folders", b.name)));
+            }
+        }
+        let was = self.reorder_siblings(id);
+        let mut order: Vec<Id> = was.iter().copied().filter(|f| *f != id).collect();
+        let at = before.and_then(|b| order.iter().position(|f| *f == b)).unwrap_or(order.len());
+        order.insert(at, id);
+        if order == was {
+            return Ok(false);
+        }
+        let place: HashMap<Id, u32> = order.iter().enumerate().map(|(n, id)| (*id, u32::try_from(n).unwrap_or(u32::MAX))).collect();
+        for f in self.folders.iter_mut() {
+            if let Some(n) = place.get(&f.id) {
+                f.place = Some(*n);
+            }
+        }
+        Ok(true)
     }
 
     /// The folder is an Outbox or lies under one: mail put there is sent by the next Send/Receive.
@@ -2086,7 +2170,12 @@ impl Mailbox {
         if self.name_taken(f.account, parent, &f.name, Some(id)) {
             return Err(invalid(format!("a folder named \"{}\" already exists there", f.name)));
         }
-        self.folder_mut(id)?.parent = parent;
+        let f = self.folder_mut(id)?;
+        // (Last among the folders it now shares a parent with, #1514.)
+        if f.parent != parent {
+            f.place = None;
+        }
+        f.parent = parent;
         Ok(())
     }
 

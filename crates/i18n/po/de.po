@@ -5424,7 +5424,7 @@ msgstr ""
 "eigenschaften"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Ordnerbereich"
@@ -8757,11 +8757,23 @@ msgstr "Nach unten"
 msgid "Move Event"
 msgstr "Ereignis verschieben"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Favoriten nach oben oder unten verschieben"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Ordner verschieben"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Ordner nach oben oder unten verschieben"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -19470,6 +19482,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "Ein Entwurf kann keine Erinnerung haben: erst senden oder in der Nachricht selbst „Nachverfolgung“ benutzen"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "ein Favorit kann nicht vor sich selbst gesetzt werden"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "ein Ordner kann nicht vor sich selbst gesetzt werden"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -19480,6 +19504,12 @@ msgstr "ein Ordner kann nicht in sich selbst verschoben werden"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "ein Ordner kann nicht in ein anderes Konto verschoben werden"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "ein Ordner wird unter die Ordner neben ihm eingereiht: einen mit demselben übergeordneten Ordner nennen"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

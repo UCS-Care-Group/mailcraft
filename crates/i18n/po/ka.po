@@ -5756,7 +5756,7 @@ msgstr ""
 "თვისებები"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "საქაღალდეების პანელი"
@@ -9320,11 +9320,23 @@ msgstr "ჩამოწევა"
 msgid "Move Event"
 msgstr "ღონისძიების გადატანა"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "რჩეულის ზემოთ ან ქვემოთ გადატანა"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "საქაღალდის გადატანა"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "საქაღალდის ზემოთ ან ქვემოთ გადატანა"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -20680,6 +20692,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "მონახაზს შეხსენება ვერ ექნება: ჯერ გაგზავნეთ ან გამოიყენეთ „შემდგომი რეაგირება“ თავად წერილში"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "რჩეულს საკუთარი თავის წინ ვერ დადებთ"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "საქაღალდეს საკუთარი თავის წინ ვერ დადებთ"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20690,6 +20714,12 @@ msgstr "საქაღალდე საკუთარ თავში ვე
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "საქაღალდე სხვა ანგარიშში ვერ გადავა"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "საქაღალდე მის გვერდით მყოფ საქაღალდეებს შორის თავსდება: მიუთითეთ იგივე მშობლის მქონე"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

@@ -5764,7 +5764,7 @@ msgstr ""
 "属性"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "文件夹窗格"
@@ -9339,11 +9339,23 @@ msgstr "下移"
 msgid "Move Event"
 msgstr "移动事件"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "上移或下移收藏夹"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "移动文件夹"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "上移或下移文件夹"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -20748,6 +20760,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "草稿不能设置提醒：请先发送，或在邮件本身中使用“跟进”"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "收藏项不能放在它自己之前"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "文件夹不能放在它自己之前"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20758,6 +20782,12 @@ msgstr "文件夹不能移入自身"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "文件夹不能移至其他账户"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "文件夹只能在同级文件夹之间排序：请指定一个具有相同上级的文件夹"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
