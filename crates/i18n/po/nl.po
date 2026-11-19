@@ -24638,16 +24638,6 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 
 #. interface
 #: crates/ui-egui/src/credits.rs
-#, fuzzy
-#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-#~ msgstr "gedeelde postvakken worden geopend onder een via Microsoft Graph bijgehouden account"
-
-#, fuzzy
-#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-#~ msgstr "gedeelde postvakken worden geopend onder een account dat via Microsoft Graph wordt bijgehouden"
-
-#, fuzzy
-
 msgid "−Bin"
 msgstr "−Bin"
 
@@ -24656,6 +24646,14 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "gedeelde postvakken worden geopend onder een via Microsoft Graph bijgehouden account"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "gedeelde postvakken worden geopend onder een account dat via Microsoft Graph wordt bijgehouden"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"

@@ -25164,16 +25164,6 @@ msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas êt
 
 #. interface
 #: crates/ui-egui/src/credits.rs
-#, fuzzy
-#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-#~ msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte synchronisé via Microsoft Graph"
-
-#, fuzzy
-#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-#~ msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte qui est synchronisé via Microsoft Graph"
-
-#, fuzzy
-
 msgid "−Bin"
 msgstr "−Bin"
 
@@ -25182,6 +25172,14 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Lignes"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte synchronisé via Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte qui est synchronisé via Microsoft Graph"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"

@@ -23704,14 +23704,6 @@ msgstr ""
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
 
-#, fuzzy
-#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-#~ msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird"
-
-#, fuzzy
-#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-#~ msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird"
-
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -23723,6 +23715,14 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Zeilen"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"

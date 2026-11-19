@@ -25263,16 +25263,6 @@ msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenv
 
 #. interface
 #: crates/ui-egui/src/credits.rs
-#, fuzzy
-#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-#~ msgstr "los buzones compartidos se abren con una cuenta sincronizada a través de Microsoft Graph"
-
-#, fuzzy
-#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-#~ msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph"
-
-#, fuzzy
-
 msgid "−Bin"
 msgstr "−Bin"
 
@@ -25281,6 +25271,14 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Líneas"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "los buzones compartidos se abren con una cuenta sincronizada a través de Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"

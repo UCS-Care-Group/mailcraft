@@ -1755,7 +1755,7 @@ msgid "Aqua"
 msgstr ""
 
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Archive"
 msgstr "არქივი"
@@ -4192,7 +4192,7 @@ msgid "Delayed until {when}"
 msgstr "დაყოვნებულია, გაიგზავნება {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Delete"
 msgstr "წაშლა"
@@ -5670,8 +5670,8 @@ msgstr "სახელი"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "შესვლის მეთოდის შეცვლამდე ჯერ შეინახეთ Google-ის სტანდარტული IMAP და SMTP პარამეტრები და შესაბამისი ელფოსტის მომხმარებლის სახელი."
 
-#. android, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Flag"
 msgstr "დროშა"
@@ -8775,7 +8775,7 @@ msgid "Mark as Unread"
 msgstr "წაუკითხავად მონიშვნა"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "წაკითხულად მონიშვნა"
@@ -10340,8 +10340,8 @@ msgstr "მისამართის მქონე არავინ არ
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "შესაბამისი არავინ ან თქვენი ერთზე მეტი კონტაქტია: {names}"
 
-#. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "არცერთი"
@@ -15491,20 +15491,30 @@ msgstr "კვი"
 msgid "Sunday"
 msgstr "კვირა"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Swipe Action"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Swipe actions"
 msgstr "გასრიალების მოქმედებები"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
+msgstr ""
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the left"
 msgstr "მარცხნივ გასრიალება"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the right"
 msgstr "მარჯვნივ გასრიალება"
@@ -17359,6 +17369,11 @@ msgstr "დაყენება ერთი სერვერიდან მ
 #, fuzzy
 msgid "The shared mailbox couldn't be added"
 msgstr "საერთო საფოსტო ყუთი ვერ დაემატა"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+msgid "The shared mailbox couldn't be read."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -20655,6 +20670,11 @@ msgstr "საერთო საფოსტო ყუთს გადადე
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "საერთო საფოსტო ყუთი ოფლაინ იმდენ ფოსტას ინახავს, რამდენსაც ანგარიში, რომლითაც ის არის გახსნილი: შეცვალეთ იმ ანგარიშის პარამეტრი"
@@ -20724,6 +20744,16 @@ msgstr "ჯერ დაამატეთ ანგარიში (ფაი�
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "დაამატეთ ერთი მიმღები მაინც"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21526,6 +21556,11 @@ msgid "no such paragraph"
 msgstr "ასეთი აბზაცი არ არსებობს"
 
 #. what a command says
+#: crates/model/src/rich.rs
+msgid "no such signature"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
 msgid "no task with id {id}"
@@ -21802,15 +21837,13 @@ msgstr "საერთო საფოსტო ყუთი"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
-#, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "საერთო საფოსტო ყუთები იხსნება Microsoft Graph-ით სინქრონიზებული ანგარიშით"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "საერთო საფოსტო ყუთები იხსნება ანგარიშით, რომელიც Microsoft Graph-ით სინქრონიზდება"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -23774,7 +23807,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} JMAP ანგარიშია და ეს ვერსია მასთან ჯერ ვერ აგზავნის და იღებს"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} საერთო საფოსტო ყუთია, რომლის ანგარიშიც აღარ არსებობს: წაშალეთ და ხელახლა დაამატეთ"
@@ -25168,6 +25201,14 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "საერთო საფოსტო ყუთები იხსნება Microsoft Graph-ით სინქრონიზებული ანგარიშით"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "საერთო საფოსტო ყუთები იხსნება ანგარიშით, რომელიც Microsoft Graph-ით სინქრონიზდება"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"

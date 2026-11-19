@@ -25137,16 +25137,6 @@ msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附
 
 #. interface
 #: crates/ui-egui/src/credits.rs
-#, fuzzy
-#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-#~ msgstr "请在通过 Microsoft Graph 同步的账户下打开共享邮箱"
-
-#, fuzzy
-#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-#~ msgstr "共享邮箱在通过 Microsoft Graph 同步的账户下打开"
-
-#, fuzzy
-
 msgid "−Bin"
 msgstr "−二进制"
 
@@ -25155,6 +25145,14 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "请在通过 Microsoft Graph 同步的账户下打开共享邮箱"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "共享邮箱在通过 Microsoft Graph 同步的账户下打开"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"

@@ -25451,16 +25451,6 @@ msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecțio
 
 #. interface
 #: crates/ui-egui/src/credits.rs
-#, fuzzy
-#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-#~ msgstr "cutiile poștale partajate se deschid sub un cont sincronizat prin Microsoft Graph"
-
-#, fuzzy
-#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-#~ msgstr "cutiile poștale partajate se deschid sub un cont sincronizat prin Microsoft Graph"
-
-#, fuzzy
-
 msgid "−Bin"
 msgstr "−Bin"
 
@@ -25469,6 +25459,14 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Linii"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "cutiile poștale partajate se deschid sub un cont sincronizat prin Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "cutiile poștale partajate se deschid sub un cont sincronizat prin Microsoft Graph"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
