@@ -242,6 +242,10 @@ impl eframe::App for App {
         self.0.ui(ui);
         self.3.show(frame);
         open_pages(ui.ctx(), frame);
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if self.0.services.clipboard_keys {
+            clipboard::copy_text_output(ui.ctx(), self.0.services.clipboard.as_deref());
+        }
     }
     fn on_exit(&mut self) {
         // A window closed while its mailbox was still opening has nothing to save (#519).
