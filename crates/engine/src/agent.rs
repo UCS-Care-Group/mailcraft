@@ -1098,26 +1098,51 @@ pub(crate) fn undo_rules_in_outlook(now: &Mailbox, back: &Mailbox) -> Vec<(Strin
     }
     let changed = changed_accounts(now, back);
     let mut out = Vec::new();
+    // An account given another address has its list kept on this computer alone until its new
+    // server's is read, and what a rule gives its mail is made there then: judged on the list as
+    // it is kept in step, as the call that changes the address is.
+    let lists = |a: Id| if back.synced_list_owner(a).is_none() && now.synced_list_owner(a).is_some() { now } else { back };
     for r in back.rules.iter().filter(|r| runs_on_new_mail(r) && reached(&changed, r)) {
         match one_account(r) {
-            Some(a) => rule_makes_in_outlook(back, r, Some(a), Counted::Alone, &mut out),
+            Some(a) => rule_makes_in_outlook(lists(a), r, Some(a), Counted::Alone, &mut out),
             // A rule for every account's mail: what it does with the mail of the accounts the step
             // reaches.
             None => {
                 for a in &changed {
-                    rule_makes_in_outlook(back, r, (*a != 0).then_some(*a), Counted::Alone, &mut out);
+                    rule_makes_in_outlook(lists(*a), r, (*a != 0).then_some(*a), Counted::Alone, &mut out);
                 }
             }
         }
     }
+    // And a name the rules give that a list has no more (a category renamed or taken away), as
+    // the call that changes the list is asked (#566).
+    if lists_differ(now, back) {
+        let before = rules_in_outlook(now);
+        out.extend(rules_in_outlook(back).into_iter().filter(|made| !had(&before, made)));
+    }
     out
 }
 
-/// Whether an undo or redo from `now` to `to` changes what the rules read: the Safe or Blocked
-/// Senders, so that more mail gets through to them, or an account's address a rule reads
-/// ([`changed_accounts`]).
+/// Whether `made` (a name and the list it is new on) is among `before`.
+fn had(before: &[(String, Id)], (name, owner): &(String, Id)) -> bool {
+    before.iter().any(|(n, o)| o == owner && mailcraft_model::sync::same_category(n, name))
+}
+
+/// Whether the lists of categories differ, or whether they are kept in step with Outlook.
+fn lists_differ(now: &Mailbox, to: &Mailbox) -> bool {
+    now.categories != to.categories
+        || now.account_categories != to.account_categories
+        || now.local_categories != to.local_categories
+        || now.server_categories != to.server_categories
+        || now.category_writes != to.category_writes
+}
+
+/// Whether an undo or redo from `now` to `to` that leaves the rules as they are changes what they
+/// read (the Safe or Blocked Senders, so that more mail gets through to them, or an account's
+/// address a rule reads: [`changed_accounts`]) or the lists of categories the names they give
+/// are looked up on.
 pub(crate) fn undo_changes_what_rules_read(now: &Mailbox, to: &Mailbox) -> bool {
-    to.rules == now.rules && !changed_accounts(now, to).is_empty()
+    to.rules == now.rules && (!changed_accounts(now, to).is_empty() || lists_differ(now, to))
 }
 
 /// Whether a rule runs here: when it is switched on, or, on new mail, when its server last had it
@@ -1245,15 +1270,17 @@ fn beside_makes_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String
             // wasn't before: the new name a rule follows it to, where that list hasn't got it, and
             // the old name a rule it leaves as it was still gives, where the list renamed had it.
             let before = rules_in_outlook(mb);
-            let had = |(name, owner): &(String, Id)| before.iter().any(|(n, o)| o == owner && mailcraft_model::sync::same_category(n, name));
-            out.extend(rules_in_outlook(&after).into_iter().filter(|made| !had(made)));
+            out.extend(rules_in_outlook(&after).into_iter().filter(|made| !had(&before, made)));
             // And a rule whose condition or exception names the category takes or leaves alone
             // other mail then (it reads both names; a rename only of the letters' case reads the
             // same): all it gives that mail, and all the rules after it give, counts.
-            let only_case = mailcraft_model::clean_name(to).is_some_and(|to| mailcraft_model::sync::same_category(from.trim(), &to));
-            if !only_case {
+            // So does a rule that looks for the new name, which the mail renamed and the mail
+            // given it carry then.
+            let Some(to) = mailcraft_model::clean_name(to) else { return out };
+            if !mailcraft_model::sync::same_category(from.trim(), &to) {
                 for (was, now) in mb.rules.iter().zip(&after.rules) {
-                    if runs_on_new_mail(now) && (was.conditions != now.conditions || was.exceptions != now.exceptions) {
+                    let reads = was.conditions != now.conditions || was.exceptions != now.exceptions || now.names_category(&to, false);
+                    if runs_on_new_mail(now) && reads {
                         rule_makes_in_outlook(&after, now, one_account(now), Counted::WithOthers, &mut out);
                     }
                 }
@@ -2586,9 +2613,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let with_settings = !matches!(reverts, None | Some(Class::Settings)) && s.undo_changes_settings(redo);
             if with_settings {
                 does.push(format!("puts {SETTINGS_PUT_BACK} back as they were{rules_made}"));
-            } else if !rules_made.is_empty() {
-                // An account, or its address a rule reads, put back with the accounts (#566): other
-                // mail reaches the rules then, and the categories they give it are made in Outlook.
+            } else if !rules_made.is_empty() && rule_onto.is_empty() {
+                // An account, or its address a rule reads, put back with the accounts, or a list of
+                // categories (#566): the categories the rules then give mail are made in Outlook.
                 does.push(format!("may let other new mail reach the rules{rules_made}"));
             }
             if !places.is_empty() {
@@ -2608,6 +2635,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     "may let more new mail reach the rules {names}{more}, which file mail onto the server of {server}",
                     &[("names", &rule_names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")), ("more", &more), ("server", &server)],
                 ));
+                // (And the categories the rules give mail and have made in Outlook, said once.)
+                if !with_settings && let Some(last) = does.last_mut() {
+                    last.push_str(&rules_made);
+                }
             }
             // The categories it deletes in Outlook are named below, and not said twice (#661).
             if s.undo_removes_more_than_outlooks(redo) {
