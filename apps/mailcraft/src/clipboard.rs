@@ -17,7 +17,8 @@
 //! `clipboard_mime`. `arboard` is the way back when that has nothing to say (#1217).
 //!
 //! One clipboard is opened at the first copy or paste and kept: on X11 and Wayland what was
-//! copied is served from this program for as long as it holds the clipboard.
+//! copied is served from this program for as long as it holds the clipboard. Wayland text writes
+//! use the window's `wl_data_device`, which needs no compositor-specific clipboard extension.
 
 use std::cell::RefCell;
 
@@ -75,13 +76,70 @@ impl Board {
     }
 }
 
+/// Handle egui's text-copy output on Wayland through winit's active seat and clipboard device.
+pub fn copy_text_output(ctx: &egui::Context, board: Option<&dyn RichClipboard>) {
+    let Some(board) = board else { return };
+    route_copy_text_output(ctx, |text| board.put_text(text));
+}
+
+fn route_copy_text_output(
+    ctx: &egui::Context,
+    mut put_text: impl FnMut(&str) -> Result<(), String>,
+) {
+    ctx.output_mut(|output| {
+        output.commands.retain(|command| match command {
+            egui::OutputCommand::CopyText(text) => match put_text(text) {
+                Ok(()) => false,
+                Err(error) => {
+                    log::warn!("the clipboard took no text; leaving the copy to the window backend: {error}");
+                    true
+                }
+            },
+            _ => true,
+        });
+    });
+}
+
 impl RichClipboard for Board {
     fn put(&self, html: &str, text: &str) -> Result<(), String> {
-        let r = self.with(|b| b.set().html(html, Some(text)));
-        if let Err(e) = &r {
-            log::warn!("the clipboard took no HTML: {e}");
+        match self.with(|b| b.set().html(html, Some(text))) {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+                if let Some(wayland) = &self.wayland {
+                    return match wayland.store_text(text.to_owned()) {
+                        Ok(()) => {
+                            log::warn!("the clipboard took no HTML; only its text was stored on Wayland: {error}");
+                            Ok(())
+                        }
+                        Err(wayland_error) => {
+                            let error = format!("{error}; Wayland: {wayland_error}");
+                            log::warn!("the clipboard took no HTML or text: {error}");
+                            Err(error)
+                        }
+                    };
+                }
+                log::warn!("the clipboard took no HTML: {error}");
+                Err(error)
+            }
         }
-        r
+    }
+
+    fn put_text(&self, text: &str) -> Result<(), String> {
+        match self.with(|b| b.set_text(text.to_owned())) {
+            Ok(()) => Ok(()),
+            Err(arboard_error) => {
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+                if let Some(wayland) = &self.wayland {
+                    return wayland
+                        .store_text(text.to_owned())
+                        .map_err(|wayland_error| {
+                            format!("{arboard_error}; Wayland: {wayland_error}")
+                        });
+                }
+                Err(arboard_error)
+            }
+        }
     }
 
     fn html(&self) -> Option<String> {
@@ -167,44 +225,5 @@ fn fragment(html: &str) -> &str {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use mailcraft_ui_egui::MAX_PICTURE_SIDE as MAX_SIDE;
-
-    #[test]
-    fn a_picture_on_the_clipboard_is_kept_as_png() {
-        let png = png(2, 1, &[255, 0, 0, 255, 0, 0, 255, 255]).unwrap();
-        assert!(png.starts_with(b"\x89PNG"));
-        assert_eq!(super::png(2, 2, &[0; 8]), None);
-        assert_eq!(super::png(0, 0, &[]), None);
-        assert_eq!(super::png(MAX_SIDE + 1, 1, &[0; 4 * (MAX_SIDE + 1)]), None);
-    }
-
-    #[test]
-    fn the_html_is_taken_out_of_what_windows_hands_over() {
-        assert_eq!(fragment("<b>x</b>"), "<b>x</b>");
-        let windows = "Version:0.9\r\nStartHTML:00000097\r\nEndHTML:00000170\r\n<html><body>\r\n<!--StartFragment--><ul><li>a</li></ul><!--EndFragment-->\r\n</body></html>";
-        assert_eq!(fragment(windows), "<ul><li>a</li></ul>");
-        assert_eq!(fragment("Version:0.9\r\nStartHTML:1\r\n<p>y</p>"), "<p>y</p>");
-        assert_eq!(fragment("Version:0.9\r\n<!--StartFragment-->no end"), "<!--StartFragment-->no end");
-        assert_eq!(fragment("Version:"), "");
-    }
-
-    /// The real clipboard of the machine the test runs on: HTML put there comes back, and its
-    /// text is there for programs that take text. Run by hand, in each kind of session
-    /// (`WAYLAND_DISPLAY` unset for X11): `cargo test -p mailcraft clipboard -- --ignored`.
-    #[test]
-    #[ignore = "uses the system's clipboard"]
-    fn html_goes_on_the_system_clipboard_and_comes_back() {
-        let board = Board::default();
-        board.put("<ul><li>one<ul><li>two</li></ul></li></ul>", "- one\n   - two").unwrap();
-        // Another clipboard of this program reads it through the system.
-        let other = Board::default();
-        assert_eq!(other.html().as_deref(), Some("<ul><li>one<ul><li>two</li></ul></li></ul>"));
-        let text = arboard::Clipboard::new().unwrap().get_text().unwrap();
-        assert_eq!(text, "- one\n   - two");
-        // Text alone on the clipboard: no HTML to paste.
-        arboard::Clipboard::new().unwrap().set_text("plain").unwrap();
-        assert_eq!(other.html(), None);
-    }
-}
+#[path = "clipboard_tests.rs"]
+mod clipboard_tests;
