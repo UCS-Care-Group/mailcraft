@@ -265,6 +265,17 @@ fn paint_candidate_line(painter: &egui::Painter, rect: egui::Rect, y: f32, text:
     painter.galley(egui::pos2(candidate_text_start_x(rect, size.x, true), y - size.y / 2.0), galley, color);
 }
 
+/// Right-anchor descriptive dialog text in Hebrew; leave English label layout unchanged.
+fn choice_description(ui: &mut Ui, text: impl Into<egui::WidgetText>, rtl: bool) {
+    if rtl {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add(egui::Label::new(text).wrap());
+        });
+    } else {
+        ui.label(text);
+    }
+}
+
 impl NameChoice {
     /// The message being written it is for.
     pub(crate) fn compose(&self) -> u64 {
@@ -279,16 +290,18 @@ impl NameChoice {
         }
         let Some((text, people)) = self.names.front() else { return true };
         let t = crate::theme::Tokens::get(ui.ctx());
-        ui.label(crate::i18n::fmt(tl!("More than one person matches \"{name}\". Choose one:"), &[("name", text)]));
+        let rtl = crate::i18n::current().code() == "he";
+        choice_description(ui, crate::i18n::fmt(tl!("More than one person matches \"{name}\". Choose one:"), &[("name", text)]), rtl);
         if self.more.contains(text) {
-            ui.label(
+            choice_description(
+                ui,
                 egui::RichText::new(tl!("The address list has more people of that name than it shows: type more of it to find one not listed."))
                     .color(t.text_dim),
+                rtl,
             );
         }
         ui.add_space(4.0);
         let mut chosen = None;
-        let rtl = crate::i18n::current().code() == "he";
         egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 1.0);
             for (index, person) in people.iter().enumerate() {
@@ -309,7 +322,7 @@ impl NameChoice {
             }
         });
         if !self.error.is_empty() {
-            ui.label(egui::RichText::new(self.error.as_str()).color(t.red));
+            choice_description(ui, egui::RichText::new(self.error.as_str()).color(t.red), rtl);
         }
         let (ok, cancel) = buttons(ui, tl!("OK"), self.selected < people.len());
         if (ok || enter) && chosen.is_none() {
