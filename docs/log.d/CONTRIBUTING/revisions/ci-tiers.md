@@ -1,1 +1,0 @@
-| 2026-11-16 | minor | Continuous integration: the tiers, the cheap checks first in `quick`, a pull request's tests chosen from the packages it changes, and the `full-ci` label that runs the whole suite |

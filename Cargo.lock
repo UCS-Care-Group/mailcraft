@@ -3095,7 +3095,7 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "mailcraft"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "apple-native-keyring-store",
  "arboard",
@@ -3138,6 +3138,7 @@ dependencies = [
  "security-framework",
  "serde_json",
  "sha2 0.11.1",
+ "spellkit",
  "sysinfo",
  "tempfile",
  "tray-icon",
@@ -3155,7 +3156,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-assuan"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "proptest",
  "thiserror 2.0.21",
@@ -3163,11 +3164,11 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-ber"
-version = "0.13.0"
+version = "0.14.0"
 
 [[package]]
 name = "mailcraft-charset"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "base64 0.23.1",
  "encoding_rs",
@@ -3176,7 +3177,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-cli"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-engine",
@@ -3191,14 +3192,14 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-control-key"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "ring",
 ]
 
 [[package]]
 name = "mailcraft-dav"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-ical",
  "mailcraft-link",
@@ -3211,7 +3212,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-engine"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "image",
  "libc",
@@ -3241,7 +3242,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-ews"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "hmac 0.13.0",
  "log",
@@ -3256,7 +3257,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-host"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "log",
  "mailcraft-engine",
@@ -3269,7 +3270,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-html"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-link",
  "mailcraft-names",
@@ -3280,14 +3281,14 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-i18n"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "mailcraft-ical"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-model",
  "mailcraft-time",
@@ -3296,7 +3297,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-jmap"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "log",
  "mailcraft-charset",
@@ -3311,7 +3312,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-jmap-types"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "proptest",
  "serde",
@@ -3320,7 +3321,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-link"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-names",
  "proptest",
@@ -3328,7 +3329,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mcp"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "log",
  "mailcraft-control-key",
@@ -3338,7 +3339,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mime"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-ber",
  "mailcraft-charset",
@@ -3352,7 +3353,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mime-model"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-html",
  "mailcraft-mime",
@@ -3364,7 +3365,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mobile"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "jni",
  "log",
@@ -3387,7 +3388,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-model"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-i18n",
@@ -3402,14 +3403,14 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-names"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "mailcraft-net"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "cryptoki",
  "flate2",
@@ -3434,7 +3435,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-openpgp"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "ed25519-dalek",
  "mailcraft-names",
@@ -3450,7 +3451,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-proto"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "log",
  "mailcraft-charset",
@@ -3460,7 +3461,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-pst"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-charset",
  "proptest",
@@ -3468,7 +3469,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-smime"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "aes 0.9.4",
  "cbc",
@@ -3499,7 +3500,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-time"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "jiff",
  "js-sys",
@@ -3509,7 +3510,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-tnef"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-pst",
@@ -3518,7 +3519,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-ui-egui"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "egui",
  "egui_kittest",
@@ -3547,7 +3548,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-vcard"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-model",
@@ -3558,7 +3559,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-web"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "eframe",
  "egui",
@@ -3946,8 +3947,8 @@ dependencies = [
  "block2 0.5.1",
  "libc",
  "objc2 0.5.3",
- "objc2-core-data",
- "objc2-core-image",
+ "objc2-core-data 0.2.2",
+ "objc2-core-image 0.2.2",
  "objc2-foundation 0.2.2",
  "objc2-quartz-core 0.2.2",
 ]
@@ -3960,10 +3961,17 @@ checksum = "d49e936b501e5c5bf01fda3a9452ff86dc3ea98ad5f283e1455153142d97518c"
 dependencies = [
  "bitflags 2.13.2",
  "block2 0.6.2",
+ "libc",
  "objc2 0.6.5",
+ "objc2-cloud-kit 0.3.2",
+ "objc2-core-data 0.3.2",
  "objc2-core-foundation",
  "objc2-core-graphics",
+ "objc2-core-image 0.3.2",
+ "objc2-core-text",
+ "objc2-core-video",
  "objc2-foundation 0.3.2",
+ "objc2-quartz-core 0.3.2",
 ]
 
 [[package]]
@@ -3977,6 +3985,17 @@ dependencies = [
  "objc2 0.5.3",
  "objc2-core-location",
  "objc2-foundation 0.2.2",
+]
+
+[[package]]
+name = "objc2-cloud-kit"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73ad74d880bb43877038da939b7427bba67e9dd42004a18b809ba7d87cee241c"
+dependencies = [
+ "bitflags 2.13.2",
+ "objc2 0.6.5",
+ "objc2-foundation 0.3.2",
 ]
 
 [[package]]
@@ -4000,6 +4019,17 @@ dependencies = [
  "block2 0.5.1",
  "objc2 0.5.3",
  "objc2-foundation 0.2.2",
+]
+
+[[package]]
+name = "objc2-core-data"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b402a653efbb5e82ce4df10683b6b28027616a2715e90009947d50b8dd298fa"
+dependencies = [
+ "bitflags 2.13.2",
+ "objc2 0.6.5",
+ "objc2-foundation 0.3.2",
 ]
 
 [[package]]
@@ -4039,6 +4069,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-core-image"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5d563b38d2b97209f8e861173de434bd0214cf020e3423a52624cd1d989f006"
+dependencies = [
+ "objc2 0.6.5",
+ "objc2-foundation 0.3.2",
+]
+
+[[package]]
 name = "objc2-core-location"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4048,6 +4088,31 @@ dependencies = [
  "objc2 0.5.3",
  "objc2-contacts",
  "objc2-foundation 0.2.2",
+]
+
+[[package]]
+name = "objc2-core-text"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cde0dfb48d25d2b4862161a4d5fcc0e3c24367869ad306b0c9ec0073bfed92d"
+dependencies = [
+ "bitflags 2.13.2",
+ "objc2 0.6.5",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
+]
+
+[[package]]
+name = "objc2-core-video"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d425caf1df73233f29fd8a5c3e5edbc30d2d4307870f802d18f00d83dc5141a6"
+dependencies = [
+ "bitflags 2.13.2",
+ "objc2 0.6.5",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
+ "objc2-io-surface",
 ]
 
 [[package]]
@@ -4077,6 +4142,7 @@ checksum = "e3e0adef53c21f888deb4fa59fc59f7eb17404926ee8a6f59f5df0fd7f9f3272"
 dependencies = [
  "bitflags 2.13.2",
  "block2 0.6.2",
+ "libc",
  "objc2 0.6.5",
  "objc2-core-foundation",
 ]
@@ -4184,9 +4250,9 @@ dependencies = [
  "bitflags 2.13.2",
  "block2 0.5.1",
  "objc2 0.5.3",
- "objc2-cloud-kit",
- "objc2-core-data",
- "objc2-core-image",
+ "objc2-cloud-kit 0.2.2",
+ "objc2-core-data 0.2.2",
+ "objc2-core-image 0.2.2",
  "objc2-core-location",
  "objc2-foundation 0.2.2",
  "objc2-link-presentation",
@@ -5969,6 +6035,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "spellkit"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a19e81e1579dd3ae5eae968455253dcddd7b0bdc6f4ef20fa743a0f7fc2750a1"
+dependencies = [
+ "cfg-if",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "pkg-config",
+ "windows",
+]
+
+[[package]]
 name = "spin"
 version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7576,7 +7656,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "image",
  "mailcraft-charset",
