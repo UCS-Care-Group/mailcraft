@@ -532,6 +532,12 @@ fn line_break(c: u8) -> bool {
     matches!(c, b'\n' | b'\r' | 0x0c)
 }
 
+/// How many bytes after the backslash at `at`, in a string, its escape takes: two for a CR LF
+/// pair, which a CSS reader reads as one line break before it reads escapes, else one.
+fn escaped(b: &[u8], at: usize) -> usize {
+    if b.get(at + 1) == Some(&b'\r') && b.get(at + 2) == Some(&b'\n') { 2 } else { 1 }
+}
+
 /// Where the `close` that ends what starts at `from` is, skipping strings and nested brackets.
 fn close_at(b: &[u8], from: usize, close: u8) -> Option<usize> {
     let mut depth = 0u32;
@@ -540,7 +546,7 @@ fn close_at(b: &[u8], from: usize, close: u8) -> Option<usize> {
     while let Some(&c) = b.get(i) {
         if quote != 0 {
             if c == b'\\' {
-                i += 1;
+                i += escaped(b, i);
             } else if c == quote || line_break(c) {
                 quote = 0;
             }
@@ -571,7 +577,7 @@ pub(crate) fn split_commas(text: &str) -> Vec<&str> {
     while let Some(&c) = b.get(i) {
         if quote != 0 {
             if c == b'\\' {
-                i += 1;
+                i += escaped(b, i);
             } else if c == quote || line_break(c) {
                 quote = 0;
             }
@@ -858,9 +864,15 @@ fn selector(text: &str) -> Option<Selector> {
     Some(Selector { compounds, combinators, specificity: pack(ids, classes, tags) })
 }
 
+/// `text` without the CSS white space round it (space, tab, line feed, form feed, carriage
+/// return), and nothing else: another space character may be part of a name.
+pub(crate) fn css_trim(text: &str) -> &str {
+    text.trim_matches(|c: char| matches!(c, ' ' | '\t' | '\n' | '\x0c' | '\r'))
+}
+
 /// What the scoped writer of an authored signature's sheets (`crate::authored`) needs to know of
 /// one selector of a list, read by the parser the cascade reads it with: `None` when the cascade
-/// drops it. Offsets are into `text.trim()`.
+/// drops it. Offsets are into [`css_trim`]`(text)`.
 pub(crate) struct Shape {
     /// Where the tag name (or `*`) that the leftmost compound selector starts with ends, and the
     /// name (`*` for any).
@@ -872,10 +884,12 @@ pub(crate) struct Shape {
     pub structural: bool,
     /// `html` or `:root` anywhere, or `body` anywhere but as the leftmost compound's tag.
     pub outside: bool,
+    /// The leftmost compound selector tests an attribute (`[class="card"]`).
+    pub attribute: bool,
 }
 
 pub(crate) fn shape(text: &str) -> Option<Shape> {
-    let text = text.trim();
+    let text = css_trim(text);
     let parsed = selector(text)?;
     let mut cur = Cursor { text, at: 0 };
     let tag = if cur.eat('*') {
@@ -891,7 +905,8 @@ pub(crate) fn shape(text: &str) -> Option<Shape> {
         lead.simples.iter().any(|s| matches!(s, Simple::FirstChild | Simple::LastChild | Simple::OnlyChild | Simple::Nth { .. } | Simple::Not(_)));
     let outside = parsed.compounds.iter().enumerate().any(|(i, c)| reaches_out(&c.simples, i == 0));
     let sibling = matches!(parsed.combinators.first(), Some(Combinator::Next | Combinator::Later));
-    Some(Shape { tag, sibling, structural, outside })
+    let attribute = lead.simples.iter().any(|s| matches!(s, Simple::Attr(_)));
+    Some(Shape { tag, sibling, structural, outside, attribute })
 }
 
 /// Whether simple selectors name `html` or `:root`, or `body` other than as the tag of the
@@ -1065,7 +1080,7 @@ pub(crate) fn scan_to(b: &[u8], from: usize, stops: &[u8]) -> Option<usize> {
     while let Some(&c) = b.get(i) {
         if quote != 0 {
             if c == b'\\' {
-                i += 1;
+                i += escaped(b, i);
             } else if c == quote || line_break(c) {
                 quote = 0;
             }
@@ -1092,7 +1107,7 @@ pub(crate) fn block_end(b: &[u8], open: usize) -> usize {
     while let Some(&c) = b.get(i) {
         if quote != 0 {
             if c == b'\\' {
-                i += 1;
+                i += escaped(b, i);
             } else if c == quote || line_break(c) {
                 quote = 0;
             }

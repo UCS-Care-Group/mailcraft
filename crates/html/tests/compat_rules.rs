@@ -454,6 +454,7 @@ fn the_new_rules_have_their_rulebook_ids_and_severities() {
         (Rule::RemUnit, "OL-UNIT-001", Severity::Warning),
         (Rule::ViewportUnit, "OL-UNIT-002", Severity::Warning),
         (Rule::NoGenericFontFamily, "OL-FNT-002", Severity::Warning),
+        (Rule::StyleNotSendable, "MC-CSS-002", Severity::Error),
     ];
     for (rule, id, severity) in expected {
         assert_eq!(rule.id(), id);
@@ -461,8 +462,8 @@ fn the_new_rules_have_their_rulebook_ids_and_severities() {
         assert!(Rule::ALL.contains(&rule), "{id} is not in Rule::ALL");
     }
     let mut ids: Vec<&str> = Rule::ALL.iter().map(|r| r.id()).collect();
-    assert_eq!(ids.len(), 23, "the four rules of the first part and the nineteen of this one");
+    assert_eq!(ids.len(), 24, "the four rules of the first part, the nineteen of this one and MC-CSS-002");
     ids.sort_unstable();
     ids.dedup();
-    assert_eq!(ids.len(), 23, "two rules share an id");
+    assert_eq!(ids.len(), 24, "two rules share an id");
 }

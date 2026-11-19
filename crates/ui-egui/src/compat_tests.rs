@@ -607,3 +607,23 @@ fn keep_editing_is_what_escape_answers_and_enter_changes_nothing() {
     let ui = &h.state().ui;
     assert!(ui.backstage && ui.backstage_page == "signatures", "Escape did not keep File › Signatures open");
 }
+
+#[test]
+fn discarding_after_leaving_for_another_page_goes_on_to_that_page() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let mut h = window(opened(SIZED_BY_STYLE));
+    h.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).expect("File shows Options");
+    h.run_steps(4);
+    assert!(h.query_by_label(CANT_SAVE).is_some(), "leaving the page for Options asked nothing: {CANT_SAVE:?}");
+    let discard = hit_rect(&h, "questionAction", 0).expect("the question's Discard changes is in the hit map");
+    click(&mut h, discard.center());
+    h.run_steps(4);
+    assert!(h.state().session.signature_edit.is_none(), "Discard changes left the signature open");
+    let ui = &h.state().ui;
+    assert!(
+        ui.backstage && ui.backstage_page == "options",
+        "Discard changes did not go on to Options: backstage={} page={:?}",
+        ui.backstage,
+        ui.backstage_page
+    );
+}

@@ -17,7 +17,7 @@ use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
 /// What the owner is told when a stored signature's styles can't go out.
-const REFUSAL: &str = "this signature's styles can't be sent safely: fix them in File › Signatures";
+const REFUSAL: &str = "this signature's styles can't be sent safely: fix them in File › Signatures, then insert the signature again (Message › Include › Signature), or choose Edit Signature as Text";
 const NAME: &str = "Studio";
 /// A sheet that fetches another (an at-rule the writer refuses).
 const IMPORTING: &str = "<style>@import \"https://styles.example.net/card.css\";\n.studio-card { color: #1f4e79; }</style>";
@@ -143,4 +143,28 @@ fn a_signature_with_a_clean_sheet_saves_and_sends() {
     let sent = run(&mut s, "compose.send", json!({}));
     assert!(sent["id"].as_u64().is_some(), "sent: {sent}");
     assert!(s.compose.is_none(), "nothing is being written any more");
+}
+
+/// The refusal's remedies let the message being written go: the message keeps the signature as it
+/// went in, so fixing it in File › Signatures alone leaves the message refused; inserting it again
+/// then puts the fixed one in, and Edit Signature as Text sends its simpler copy.
+#[test]
+fn the_refusals_remedies_let_the_message_being_written_be_sent() {
+    let mut s = writing_with(IMPORTING);
+    run(&mut s, "signature.open", json!({"name": NAME}));
+    let fixed = format!("<html><head>{CLEAN}</head><body><div class=\"studio-card\">Northwind Studio card</div><div>Priya Raman</div></body></html>");
+    run(&mut s, "signature.html", json!({"html": fixed}));
+    run(&mut s, "signature.save", json!({}));
+    run(&mut s, "signature.close", json!({}));
+    let err = s.run("compose.send", &json!({})).expect_err("the message still holds the signature as it went in");
+    assert_eq!(err.to_string(), REFUSAL, "fixing the signature alone does not let the message go");
+    run(&mut s, "compose.signature", json!({"name": NAME}));
+    assert_eq!(s.compose.as_ref().and_then(|c| c.signature_html()), Some(fixed.as_str()), "the fixed signature is in the message");
+    let sent = run(&mut s, "compose.send", json!({}));
+    assert!(sent["id"].as_u64().is_some(), "sent with the fixed signature inserted again: {sent}");
+
+    let mut s = writing_with(IMPORTING);
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
+    let sent = run(&mut s, "compose.send", json!({}));
+    assert!(sent["id"].as_u64().is_some(), "sent with the signature edited as text: {sent}");
 }

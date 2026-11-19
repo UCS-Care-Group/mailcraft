@@ -36,7 +36,7 @@
 //! ([`MAX_HTML`], [`MAX_TEXT`], [`MAX_PICTURES`], and the per-picture and total byte caps),
 //! checked before anything is cloned and again as the document is written.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ops::Range;
 
 use mailcraft_html::{BlockKind, ImageSourceError, image_sources};
@@ -44,7 +44,7 @@ use mailcraft_model::rich::safe_link;
 use mailcraft_model::signature::{Layout, MAX_HTML, MAX_PICTURE_BYTES, MAX_PICTURES, MAX_PICTURES_BYTES, MAX_TEXT, picture_mime};
 use mailcraft_model::{Signature, clean_name};
 
-use crate::rich::{ImgRef, from_html_with_pictures, internal_cid};
+use crate::rich::{ImgRef, from_html_with_pictures, internal_cid, internal_cid_of};
 
 /// Most bytes a supplied asset's name may have.
 pub const MAX_ASSET_NAME: usize = 4096;
@@ -179,7 +179,8 @@ pub fn import(name: &str, html: &str, assets: &[Asset]) -> Result<Signature, Imp
     let mut plan: Vec<(Range<usize>, usize)> = Vec::with_capacity(sources.len());
     let mut referenced = vec![false; assets.len()];
     let mut order: Vec<usize> = Vec::new();
-    for source in &sources {
+    // A picture a `<template>` holds goes out in no message: it is bound to nothing and needs no file.
+    for source in sources.iter().filter(|source| !source.in_template) {
         // A picture on the web keeps its address and adds nothing; nothing is fetched.
         let Some(normalized) = classify_reference(&source.src)? else { continue };
         let index = names.iter().position(|n| *n == normalized).ok_or(ImportError::MissingAsset)?;
@@ -234,23 +235,40 @@ pub fn import(name: &str, html: &str, assets: &[Asset]) -> Result<Signature, Imp
     // wrote, if one got this far, is not one of them.
     let claimed: HashMap<String, u32> = signature.pictures().iter().map(|p| (internal_cid(p), p.id)).collect();
     let stand_in = from_html_with_pictures(&rewritten, &mut |img: &ImgRef| claimed.get(&img.cid).copied());
-    let present: HashSet<u32> = stand_in.pictures().into_iter().collect();
+    // How many places each picture stands in the text.
+    let mut present: HashMap<u32, usize> = HashMap::new();
+    for id in stand_in.pictures() {
+        let n = present.entry(id).or_default();
+        *n = n.saturating_add(1);
+    }
 
     // Every imported picture must stand where the owner put it, in the text and as a picture the
     // reading pane really reads: one hidden by its style, its `hidden` attribute, a size of two
     // pixels or less or an unsupported layout is refused here rather than dropped by `tidy`.
     let blocks = mailcraft_html::parse_text_own(&rewritten, safe_link);
     let mut meta: HashMap<u32, (Option<u16>, String)> = HashMap::new();
+    let mut shown: HashMap<u32, usize> = HashMap::new();
     for block in mailcraft_html::images(&blocks) {
         if let BlockKind::Image { src, width, .. } = &block.kind
             && let Some(id) = src_cid(src).and_then(|cid| claimed.get(cid))
-            && !meta.contains_key(id)
         {
-            meta.insert(*id, (*width, block.spans.iter().map(|s| s.text.as_str()).collect()));
+            let n = shown.entry(*id).or_default();
+            *n = n.saturating_add(1);
+            meta.entry(*id).or_insert_with(|| (*width, block.spans.iter().map(|s| s.text.as_str()).collect()));
         }
     }
-    for id in assigned.iter().flatten() {
-        if !present.contains(id) || !meta.contains_key(id) {
+    // Each place the document names a picture is a place it stands: one shown and one hidden is
+    // refused as one hidden alone is.
+    let mut named: HashMap<usize, usize> = HashMap::new();
+    for (_, index) in &plan {
+        let n = named.entry(*index).or_default();
+        *n = n.saturating_add(1);
+    }
+    for (index, id) in assigned.iter().enumerate() {
+        let Some(id) = id else { continue };
+        let places = named.get(&index).copied().unwrap_or(0);
+        let stands = |counts: &HashMap<u32, usize>| counts.get(id).copied().unwrap_or(0) == places;
+        if !stands(&present) || !stands(&shown) || !meta.contains_key(id) {
             return Err(ImportError::UnsupportedRepresentation);
         }
     }
@@ -295,28 +313,44 @@ pub fn import(name: &str, html: &str, assets: &[Asset]) -> Result<Signature, Imp
 /// An absolute `http:` or `https:` address is kept as it is and asks for nothing, under
 /// [`mailcraft_html::is_safe_url`]; every other address is read as a local reference and refused
 /// exactly as [`import`] refuses it. A name longer than [`MAX_ASSET_NAME`] is refused here, before
-/// a file of that name would be asked for.
+/// a file of that name would be asked for. A picture a `<template>` holds goes out in no message,
+/// and asks for none ([`mailcraft_html::ImageSource::in_template`]).
 ///
 /// The names are distinct, in first-reference order, and at most [`MAX_PICTURES`]: a document that
-/// needs more local pictures than a signature holds is refused before any of them is read.
+/// needs more local pictures than a signature holds is refused before any of them is read, and so
+/// is one that the pictures' new addresses would make longer than [`MAX_HTML`]
+/// ([`ImportError::RewrittenHtmlTooLarge`], as [`import`] would refuse it).
 pub fn required_assets(html: &str) -> Result<Vec<String>, ImportError> {
     if html.len() > MAX_HTML {
         return Err(ImportError::HtmlTooLarge);
     }
     let sources = image_sources(html).map_err(ImportError::Source)?;
     let mut needed: Vec<String> = Vec::with_capacity(sources.len().min(MAX_PICTURES));
-    for source in &sources {
+    // How long the document is once `import` writes each of these values as its picture's address.
+    let mut rewritten = html.len();
+    // As `import` reads them: a picture a `<template>` holds asks for no file.
+    for source in sources.iter().filter(|source| !source.in_template) {
         let Some(name) = classify_reference(&source.src)? else { continue };
         if name.len() > MAX_ASSET_NAME {
             return Err(ImportError::BadReference);
         }
-        if needed.iter().any(|n| n == &name) {
-            continue;
-        }
-        if needed.len() >= MAX_PICTURES {
-            return Err(ImportError::TooManyPictures);
-        }
-        needed.push(name);
+        let at = match needed.iter().position(|n| *n == name) {
+            Some(at) => at,
+            None => {
+                if needed.len() >= MAX_PICTURES {
+                    return Err(ImportError::TooManyPictures);
+                }
+                needed.push(name);
+                needed.len().saturating_sub(1)
+            }
+        };
+        // `import` numbers the pictures from 1, in the order the document first names them.
+        let id = u32::try_from(at).map_or(u32::MAX, |n| n.saturating_add(1));
+        rewritten = rewritten.saturating_sub(source.value_range.len()).saturating_add("cid:".len()).saturating_add(internal_cid_of(id).len());
+    }
+    // A document no file can make fit is refused before any file is asked for.
+    if rewritten > MAX_HTML {
+        return Err(ImportError::RewrittenHtmlTooLarge);
     }
     Ok(needed)
 }

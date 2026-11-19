@@ -28,6 +28,11 @@ pub struct ImageSource {
     /// The byte range of the value as written, in the document it was read from, its quotes not
     /// counted.
     pub value_range: Range<usize>,
+    /// Whether a `<template>` holds the picture, as the writer of a signature reads the document:
+    /// the writer leaves such a picture out of every message, so no file is needed for it. It is
+    /// listed all the same, so that a caller who judges every address the document names judges
+    /// this one too.
+    pub in_template: bool,
 }
 
 /// Why a document's pictures could not be listed. Says nothing of the document's text or of the
@@ -67,8 +72,8 @@ impl std::error::Error for ImageSourceError {}
 
 /// The sources of the pictures in `html`, in source order: each `src` value as written (its byte
 /// range) and decoded (its text). An element with no `src`, or with an empty one, names no picture
-/// and gives none; where an element has more than one `src`, the first wins, as it does for
-/// [`crate::parse`].
+/// and gives none; one a `<template>` holds is given, marked [`ImageSource::in_template`]; where an
+/// element has more than one `src`, the first wins, as it does for [`crate::parse`].
 ///
 /// Refused, with the reason, rather than read in part: a document longer than
 /// [`crate::MAX_INPUT_WITH_PICTURES`], one that names more than [`MAX_IMAGE_SOURCES`] pictures, one
@@ -80,6 +85,10 @@ pub fn image_sources(html: &str) -> Result<Vec<ImageSource>, ImageSourceError> {
     }
     let mut sources: Vec<ImageSource> = Vec::new();
     let mut tokens = Tokenizer::new(html);
+    // For each `<img>`, whether the writer leaves it out for a `<template>` around it, by the
+    // writer's own reading of where each element ends (a template inside an `svg` ends with it).
+    let held = crate::quote::pictures_in_templates(html);
+    let mut images = 0usize;
     while let Some(token) = tokens.next() {
         let Token::Open(tag) = &token else { continue };
         // A `<base href>` is an address to resolve against, which this reader does not guess at.
@@ -96,6 +105,9 @@ pub fn image_sources(html: &str) -> Result<Vec<ImageSource>, ImageSourceError> {
         if tag.name != "img" {
             continue;
         }
+        // One the writer's reading does not place is not held, so that a file is asked for it.
+        let in_template = held.get(images).copied().unwrap_or(false);
+        images = images.saturating_add(1);
         // A start tag the end of the document cut off may hide its own end, so it is not read.
         if !tokens.tag_closed() {
             return Err(ImageSourceError::UnclosedTag);
@@ -117,7 +129,7 @@ pub fn image_sources(html: &str) -> Result<Vec<ImageSource>, ImageSourceError> {
         if sources.len() >= MAX_IMAGE_SOURCES {
             return Err(ImageSourceError::TooManySources);
         }
-        sources.push(ImageSource { src: unescape(raw), value_range });
+        sources.push(ImageSource { src: unescape(raw), value_range, in_template });
     }
     Ok(sources)
 }

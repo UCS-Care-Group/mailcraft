@@ -161,14 +161,39 @@ fn email_compatible(html: &str) -> Result<(), CmdError> {
 /// signature's own pictures; anything else (a file's name or path, a `file:` address, another
 /// scheme) is refused, since no file is kept beside a signature and the picture would be sent
 /// broken. Checked where HTML is kept, as `email_compatible` is: at the save, and when HTML is
-/// written straight to a signature that is not open. The window asks it of the open signature
-/// (`SignatureEdit::signature`, whose pictures are those the save keeps and maybe more) before
-/// Save and when its page is left, so that it says why the save would be refused. Reads nothing
-/// and fetches nothing.
+/// written straight to a signature that is not open; and of what `signature.import` makes, a
+/// `<template>`'s pictures included (refused first in words of their own there,
+/// `held_pictures_keepable`), so that an imported signature saves as it is. The window asks it of
+/// the open signature (`SignatureEdit::signature`, whose pictures are those the save keeps and
+/// maybe more) before Save and when its page is left, so that it says why the save would be
+/// refused. Reads nothing and fetches nothing.
 pub fn sendable_pictures(sig: &Signature, html: &str) -> Result<(), CmdError> {
     if pictures_named(&own_addresses(sig), html)?.local {
         return Err(fail(
             "this HTML names a picture that is neither on the web nor one of this signature's own: give it a web address (https://…), or name the picture's file relative to the HTML file and bring both in with Import HTML…",
+        ));
+    }
+    Ok(())
+}
+
+/// That every picture a `<template>` of `html` holds is one `sig` can keep: each address is judged
+/// as [`sendable_pictures`] judges it, and a picture written into the HTML (`data:`) is refused
+/// too, since Save's email-compatibility check refuses it with no fix to offer. It is what
+/// `signature.import` asks of what it makes, before Save's own checks. The import binds no file to
+/// such a picture and no message sends it, so Save's remedy (bring the file in with the import)
+/// can't help: it is refused in words of its own, which say to take it out or give it a web
+/// address. Reads nothing and fetches nothing.
+fn held_pictures_keepable(sig: &Signature, html: &str) -> Result<(), CmdError> {
+    let own = own_addresses(sig);
+    let sources = mailcraft_html::image_sources(html).map_err(unlisted)?;
+    let unkeepable = sources.iter().filter(|s| s.in_template).any(|s| match picture_source(&s.src) {
+        PictureSource::Web => false,
+        PictureSource::Cid(cid) => !own.contains_key(cid),
+        PictureSource::Data | PictureSource::Local => true,
+    });
+    if unkeepable {
+        return Err(fail(
+            "this HTML names a picture inside a <template> that is neither on the web nor one of this signature's own: such a picture is never sent, so take it out or give it a web address (https://…)",
         ));
     }
     Ok(())
@@ -413,6 +438,7 @@ fn picture_add(s: &mut Session, v: &Value) -> CmdResult {
 
 fn picture_set(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::u64(v, "id").and_then(|n| u32::try_from(n).ok()).ok_or_else(|| bad("`id` is a picture's id"))?;
+    pictures_not_in_html(s, v)?;
     let width = match v.get("width") {
         None => None,
         Some(Value::Null) => Some(None),
@@ -427,6 +453,7 @@ fn picture_set(s: &mut Session, v: &Value) -> CmdResult {
 
 fn picture_remove(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::u64(v, "id").and_then(|n| u32::try_from(n).ok()).ok_or_else(|| bad("`id` is a picture's id"))?;
+    pictures_not_in_html(s, v)?;
     if names_open(s, v)
         && let Some(e) = s.signature_edit.as_mut()
     {
@@ -442,6 +469,18 @@ fn picture_remove(s: &mut Session, v: &Value) -> CmdResult {
     }
     named(s, v)?.remove_picture(id).map_err(|e| fail(e.to_string()))?;
     done()
+}
+
+/// That the signature `v` names (the open one when it is that) is no HTML signature. An HTML
+/// signature's pictures are what its HTML says of them, which is what goes out, so their size,
+/// description and removal are changed there, never beside it.
+fn pictures_not_in_html(s: &Session, v: &Value) -> Result<(), CmdError> {
+    let html = if names_open(s, v) {
+        s.signature_edit.as_ref().is_some_and(|e| e.signature.html().is_some())
+    } else {
+        p::str(v, "name").and_then(|name| s.mailbox.signature(name.trim())).is_some_and(|sig| sig.html().is_some())
+    };
+    if html { Err(fail("an HTML signature's pictures are sized, described and taken out in its HTML")) } else { Ok(()) }
 }
 
 /// Where a picture stands in a text (each place it does).
@@ -533,7 +572,10 @@ fn html(s: &mut Session, v: &Value) -> CmdResult {
 fn bound_stand_in(sig: &Signature, html: &str) -> Result<RichText, CmdError> {
     let own = own_addresses(sig);
     let named = pictures_named(&own, html)?.own;
-    let text = mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img: &mailcraft_mime_model::rich::ImgRef| own.get(&img.cid).copied());
+    // Its address decoded, as `pictures_named` reads it (`cid:sig-1&#64;…` is `cid:sig-1@…`).
+    let text = mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img: &mailcraft_mime_model::rich::ImgRef| {
+        own.get(&mailcraft_html::unescape(&img.cid)).copied()
+    });
     let held: std::collections::HashSet<u32> = text.pictures().into_iter().collect();
     if !named.is_subset(&held) {
         return Err(fail("this HTML hides a picture of the signature where its text can't show it"));

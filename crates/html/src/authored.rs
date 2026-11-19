@@ -180,7 +180,8 @@ fn wrapper_tag(scope: &str, body: Option<&Tag<'_>>) -> String {
         }
         seen.push(attr.clone());
         if attr == "class" {
-            let classes = value.trim();
+            // HTML's own spaces round the classes, and no other: a no-break space is part of one.
+            let classes = value.trim_matches(|c: char| c.is_ascii_whitespace());
             if !classes.is_empty() {
                 out.push(' ');
                 out.push_str(&escape(classes));
@@ -346,7 +347,7 @@ impl Writer<'_> {
         let scope = self.scope;
         let mut selectors = Vec::new();
         for part in split_commas(prelude) {
-            let text = part.trim();
+            let text = sheet::css_trim(part);
             let shape = sheet::shape(text).ok_or(Unsupported)?;
             if shape.outside {
                 return Err(Unsupported);
@@ -363,7 +364,9 @@ impl Writer<'_> {
             match &shape.tag {
                 Some((end, name)) if name == "body" => {
                     let rest = text.get(*end..).unwrap_or("");
-                    if shape.structural || shape.sibling {
+                    // The wrapper's own attributes are not the body's (its class has the scope
+                    // in it): an attribute test of it would not match as it did.
+                    if shape.structural || shape.sibling || shape.attribute {
                         return Err(Unsupported);
                     }
                     selectors.push(format!("div.{scope}{rest}"));

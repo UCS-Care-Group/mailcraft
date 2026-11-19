@@ -285,11 +285,10 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     // An HTML signature with an email compatibility error, or whose HTML could not be checked,
     // can't be kept, nor one naming a picture it can't be sent with: Save says why, and the
     // engine refuses it too.
-    let refusal = app
-        .session
-        .signature_edit
+    let saved = app.session.signature_edit.as_ref().map(as_saved);
+    let refusal = saved
         .as_ref()
-        .and_then(|e| e.signature.html())
+        .and_then(|sig| sig.html())
         .and_then(|h| crate::compat::save_refusal(&crate::compat::checked(ui.ctx(), h)))
         .or_else(|| if dirty { picture_refusal(app) } else { None });
     ui.horizontal(|ui| {
@@ -588,8 +587,17 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             // known picture address is at a part this message really holds. A `cid:` the signature
             // does not hold keeps the address the HTML gives it — the existing cleaning leaves such
             // a reference alone — and no part is invented here for it.
-            let signature = mailcraft_engine::mime::rich::signature_html(&sig, &cid);
-            let html = format!("<p>{}</p>\r\n{signature}", tl!("Thanks, Thursday at ten works for me. I'll bring the drawings."));
+            let greeting = format!("<p>{}</p>\r\n", tl!("Thanks, Thursday at ten works for me. I'll bring the drawings."));
+            // An HTML signature as a message sends it: its style sheets scoped to it in the
+            // head (`authored_signature_html`); one whose sheets can't be, as a draft keeps it.
+            let authored = sig.html().and_then(|own| {
+                let scope = mailcraft_html::AuthoredScope::new("mc-preview").ok()?;
+                mailcraft_engine::mime::rich::authored_signature_html(&sig, own, &scope, &cid).ok()
+            });
+            let html = match authored {
+                Some(f) => mailcraft_engine::mime::rich::document_with_head(&f.head, &format!("{greeting}{}", f.body), None),
+                None => format!("{greeting}{}", mailcraft_engine::mime::rich::signature_html(&sig, &cid)),
+            };
             let m = std::sync::Arc::new(message_of(html, sig.pictures(), cid));
             ctx.data_mut(|d| d.insert_temp(key, (hash, m.clone())));
             m
@@ -710,7 +718,18 @@ mod html_import_tests;
 #[path = "signature_picture_refusal_tests.rs"]
 mod picture_refusal_tests;
 
-/// Where the window notes that it asked [`ask_leave`]'s question.
+/// The open signature as `signature.save` keeps it: with the text it has now, which lets its HTML
+/// go when that text is no longer the HTML's (`Signature::set_body`). Save is judged on this.
+fn as_saved(e: &mailcraft_engine::SignatureEdit) -> mailcraft_model::Signature {
+    let mut sig = e.signature.clone();
+    match sig.set_body(e.body.text().clone()) {
+        Ok(()) => sig,
+        Err(_) => e.signature.clone(),
+    }
+}
+
+/// Where the window notes that it asked [`ask_leave`]'s question, with where the owner was going
+/// (File open or not, and its page).
 fn leave_asked() -> egui::Id {
     egui::Id::unique("mailcraft-signature-leave-asked")
 }
@@ -720,17 +739,17 @@ fn leave_asked() -> egui::Id {
 /// ([`mailcraft_engine::cmd::signature::sendable_pictures`]). `None` when it isn't HTML, or every
 /// picture it names can be sent.
 fn picture_refusal(app: &MailApp) -> Option<String> {
-    let sig = &app.session.signature_edit.as_ref()?.signature;
-    let why = mailcraft_engine::cmd::signature::sendable_pictures(sig, sig.html()?).err()?;
+    let sig = as_saved(app.session.signature_edit.as_ref()?);
+    let why = mailcraft_engine::cmd::signature::sendable_pictures(&sig, sig.html()?).err()?;
     Some(why.in_lang(crate::i18n::current()))
 }
 
 /// The page was left with a signature whose save was refused: when that is for its email
 /// compatibility errors, or for a picture it can't be sent with, the owner is asked whether to
 /// keep editing it (what Escape answers: the window stays on the page with every edit) or to
-/// discard the changes, which closes the signature without keeping them and leaves the page.
-/// Nothing is asked over another dialog.
-pub(crate) fn ask_leave(app: &mut MailApp) {
+/// discard the changes, which closes the signature without keeping them and goes on to `to`, where
+/// the owner was going (File open or not, and its page). Nothing is asked over another dialog.
+pub(crate) fn ask_leave(app: &mut MailApp, to: (bool, String)) {
     let Some(ctx) = app.ctx.clone() else { return };
     let Some(html) = app.session.signature_edit.as_ref().and_then(|e| e.signature.html()) else { return };
     // The findings the editor keeps for this very text: the same answer its Save gave.
@@ -747,17 +766,22 @@ pub(crate) fn ask_leave(app: &mut MailApp) {
     let mut ask = crate::dialogs::Question::new(tl!("Unsaved Signature"), why, tl!("Discard changes"), json!({}));
     ask.cancel = Some(tl!("Keep editing").to_string());
     app.dialog = Some(crate::dialogs::Dialog::Confirm { command: "signature.close".to_string(), params: json!({"discard": true}), ask });
-    ctx.data_mut(|d| d.insert_temp(leave_asked(), true));
+    ctx.data_mut(|d| d.insert_temp(leave_asked(), to));
 }
 
 /// Once [`ask_leave`]'s question is answered: after Discard changes (the signature is closed),
-/// the page is left as the owner asked; after Keep editing, nothing more.
+/// the page is left for where the owner was going (another page of File, or out of File); after
+/// Keep editing, nothing more.
 fn after_leave_question(app: &mut MailApp, ctx: &egui::Context) {
-    if app.dialog.is_some() || !ctx.data(|d| d.get_temp::<bool>(leave_asked())).unwrap_or(false) {
+    if app.dialog.is_some() {
         return;
     }
-    ctx.data_mut(|d| d.remove::<bool>(leave_asked()));
+    let Some((backstage, page)) = ctx.data(|d| d.get_temp::<(bool, String)>(leave_asked())) else { return };
+    ctx.data_mut(|d| d.remove::<(bool, String)>(leave_asked()));
     if app.session.signature_edit.is_none() {
-        let _ = app.run("ui.backstage", json!({"value": false}));
+        let to = if backstage { json!({"value": true, "page": page}) } else { json!({"value": false}) };
+        if app.run("ui.backstage", to).is_err() {
+            let _ = app.run("ui.backstage", json!({"value": false}));
+        }
     }
 }

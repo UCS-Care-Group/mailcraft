@@ -54,6 +54,10 @@
 //!   start tag when no one element explains the refusal (what the writer would write of the
 //!   document is longer than it gives, say). It has no fix. Nothing is said of a document without a
 //!   style sheet.
+//! - `MC-CSS-002`: a `style` attribute that the writer leaves out whole, because something in it
+//!   could fetch or run something (a `url(`, an `expression(`, a `behavior`, …: what makes a quote
+//!   leave a style out), so that every declaration in it would be lost, a colour or padding beside
+//!   a background picture included. Found on the attribute's value, with no fix.
 //!
 //! A picture attached to the message (`cid:`) is not judged by its name: what it is comes from
 //! its own bytes, and the signature importer already takes only PNG, JPEG and GIF pictures by
@@ -102,6 +106,9 @@ pub enum Rule {
     CssOnlyImageSize,
     /// `MC-CSS-001`: a style sheet that can't be sent safely with the signature.
     StylesheetNotSendable,
+    /// `MC-CSS-002`: a `style` attribute that can't be sent safely, so that the writer leaves it
+    /// out whole.
+    StyleNotSendable,
     /// `OL-IMG-004`: the picture's source is written into the HTML as a `data:` address.
     DataUriImage,
     /// `OL-EL-002`: a form or a form control (`<form>`, `<input>`, `<button>`, `<select>`,
@@ -145,7 +152,7 @@ pub enum Rule {
 
 impl Rule {
     /// Every rule: the rulebook's, in the order of their ids, then MailCraft's own.
-    pub const ALL: [Rule; 23] = [
+    pub const ALL: [Rule; 24] = [
         Rule::BackgroundImage,
         Rule::Gradient,
         Rule::RoundedCorners,
@@ -169,6 +176,7 @@ impl Rule {
         Rule::RemUnit,
         Rule::ViewportUnit,
         Rule::StylesheetNotSendable,
+        Rule::StyleNotSendable,
     ];
 
     /// The rule's stable id, which never changes once given.
@@ -178,6 +186,7 @@ impl Rule {
             Rule::UnsupportedImageFormat => "OL-IMG-003",
             Rule::CssOnlyImageSize => "OL-IMG-005",
             Rule::StylesheetNotSendable => "MC-CSS-001",
+            Rule::StyleNotSendable => "MC-CSS-002",
             Rule::DataUriImage => "OL-IMG-004",
             Rule::FormControl => "OL-EL-002",
             Rule::EmbeddedContent => "OL-EL-003",
@@ -207,6 +216,7 @@ impl Rule {
             | Rule::UnsupportedImageFormat
             | Rule::CssOnlyImageSize
             | Rule::StylesheetNotSendable
+            | Rule::StyleNotSendable
             | Rule::DataUriImage
             | Rule::FormControl
             | Rule::EmbeddedContent
@@ -326,6 +336,7 @@ pub fn check(html: &str) -> Result<Vec<Finding>, CheckError> {
                 let within = tokens.tag_start()..tokens.pos();
                 elements.open(tag, &within, &mut found);
                 styles.inline(html, tag, &within, element)?;
+                dropped_style(html, tag, &within, &mut found)?;
                 element = element.saturating_add(1);
                 raw = RAW_TEXT.iter().copied().find(|name| *name == tag.name);
                 if tag.name == "img" {
@@ -361,6 +372,17 @@ pub fn check(html: &str) -> Result<Vec<Finding>, CheckError> {
     // The same finding twice (two calls in a declaration that can only be found whole) is one.
     found.dedup();
     Ok(found)
+}
+
+/// MC-CSS-002: the `style` attribute of `tag` (spanning `within`), when the writer leaves it out
+/// whole: read as the writer reads it, with its character references decoded
+/// ([`crate::quote::risky_style`]).
+fn dropped_style(html: &str, tag: &Tag<'_>, within: &Range<usize>, found: &mut Vec<Finding>) -> Result<(), CheckError> {
+    let Some(raw) = tag.raw_attr("style") else { return Ok(()) };
+    if !crate::quote::risky_style(&unescape(raw)) {
+        return Ok(());
+    }
+    note(found, finding(Rule::StyleNotSendable, range_in(html, raw, within)?, None))
 }
 
 fn finding(rule: Rule, range: Range<usize>, fix: Option<Fix>) -> Finding {
@@ -473,10 +495,11 @@ fn frames(html: &str, from: usize, to: usize, found: &mut Vec<Finding>) -> Resul
                 let (tag_end, closed) = start_tag_end(b, name_end);
                 let end_tag = find_end_tag(b, tag_end, &name);
                 let element_end = end_tag.map_or(b.len(), |at| find_byte(b, at, b'>').map_or(b.len(), |j| j + 1));
+                // Cut off by the end of the document, as a start tag the reader gives would be.
+                if !closed {
+                    return Err(CheckError::UnclosedTag);
+                }
                 if name == "iframe" {
-                    if !closed {
-                        return Err(CheckError::UnclosedTag);
-                    }
                     let fix = end_tag.map(|_| Fix { range: i..element_end, replacement: String::new() });
                     found.push(finding(Rule::EmbeddedContent, i..tag_end, fix));
                 }
@@ -638,10 +661,22 @@ struct StyleSize {
 /// OL-IMG-005: a size in the inline style with no matching attribute.
 fn size(html: &str, tag: &Tag<'_>, within: &Range<usize>, name_end: usize, found: &mut Vec<Finding>) -> Result<(), CheckError> {
     let Some(raw) = tag.raw_attr("style") else { return Ok(()) };
-    let mut width = None;
-    let mut height = None;
-    for (property, value) in declarations(raw) {
-        let name = unescape(property);
+    // A style with a character reference in it is read decoded, as the writer writes it; its
+    // parts can't be told apart by their bytes then, so a size is found on the whole value.
+    let decoded: String;
+    let (text, whole) = if raw.contains('&') {
+        decoded = unescape(raw);
+        (decoded.as_str(), Some(range_in(html, raw, within)?))
+    } else {
+        (raw, None)
+    };
+    // Each size with whether it is `!important`.
+    let mut width: Option<(bool, Option<StyleSize>)> = None;
+    let mut height: Option<(bool, Option<StyleSize>)> = None;
+    // `text` is decoded once already (or has no reference to decode): `&amp;#49;` is `&#49;`, as
+    // the writer writes it, and is not read again.
+    for (property, value) in declarations(text) {
+        let name = after_comments(property);
         let slot = if name.eq_ignore_ascii_case("width") {
             &mut width
         } else if name.eq_ignore_ascii_case("height") {
@@ -649,15 +684,25 @@ fn size(html: &str, tag: &Tag<'_>, within: &Range<usize>, name_end: usize, found
         } else {
             continue;
         };
-        let decoded = unescape(value);
-        let (value_text, _) = strip_important(&decoded);
-        let range = range_in(html, property, within)?.start..range_in(html, value, within)?.end;
-        // The last declaration wins, as in CSS; a keyword (`auto`) sets no size.
-        *slot = style_px(value_text).map(|px| StyleSize { range, px });
+        let (value_text, important) = strip_important(value);
+        // No CSS value holds a `&` (one that is left once decoded was written twice): CSS drops
+        // such a declaration, and the one before it stands.
+        if value_text.contains('&') {
+            continue;
+        }
+        let range = match &whole {
+            Some(whole) => whole.clone(),
+            None => range_in(html, property, within)?.start..range_in(html, value, within)?.end,
+        };
+        // As in CSS: an `!important` declaration wins over every one that isn't, and among
+        // those alike the last does; a keyword (`auto`) sets no size.
+        if slot.as_ref().is_none_or(|(was, _)| important || !*was) {
+            *slot = Some((important, style_px(value_text).map(|px| StyleSize { range, px })));
+        }
     }
     let missing: Vec<(&str, StyleSize)> = [("width", width), ("height", height)]
         .into_iter()
-        .filter_map(|(name, size)| Some((name, size?)))
+        .filter_map(|(name, size)| Some((name, size?.1?)))
         .filter(|(name, _)| !tag.attr(name).is_some_and(|v| !v.trim().is_empty()))
         .collect();
     let (Some(start), Some(end)) = (missing.iter().map(|(_, s)| s.range.start).min(), missing.iter().map(|(_, s)| s.range.end).max()) else {
@@ -702,6 +747,24 @@ fn range_in(html: &str, part: &str, within: &Range<usize>) -> Result<Range<usize
         return Err(CheckError::BadRange);
     }
     Ok(range)
+}
+
+/// `property`, a declaration's name as the declarations were split, from past the CSS white space
+/// and comments it starts with, as a CSS reader reads it: still a slice of the text it came from.
+fn after_comments(property: &str) -> &str {
+    let b = property.as_bytes();
+    let mut i = 0;
+    loop {
+        while b.get(i).is_some_and(u8::is_ascii_whitespace) {
+            i += 1;
+        }
+        if b.get(i) == Some(&b'/') && b.get(i + 1) == Some(&b'*') {
+            i = find_sub(b, i + 2, b"*/").map_or(b.len(), |e| e + 2);
+        } else {
+            break;
+        }
+    }
+    property.get(i..).unwrap_or("")
 }
 
 /// One CSS declaration the checker reads, from a `style` attribute or a `<style>` rule.
@@ -764,11 +827,13 @@ impl Styles {
             let whole = range_in(html, raw, within)?;
             let decoded = unescape(raw);
             for (property, value) in declarations(&decoded) {
+                let property = after_comments(property);
                 self.decls.push(Decl { property: property.to_string(), value: value.to_string(), range: whole.clone(), value_at: None, place });
             }
             return Ok(());
         }
         for (property, value) in declarations(raw) {
+            let property = after_comments(property);
             let (p, v) = (range_in(html, property, within)?, range_in(html, value, within)?);
             self.decls.push(Decl { property: property.to_string(), value: value.to_string(), range: p.start..v.end, value_at: Some(v.start), place });
         }
@@ -813,6 +878,7 @@ impl Styles {
                         root: level == 0 && matches!(lower.as_str(), ":root" | "html" | "body" | "*"),
                     });
                     for (property, value) in declarations(text.get(open + 1..close).unwrap_or("")) {
+                        let property = after_comments(property);
                         let (Some(p), Some(v)) = (span_of(html, property), span_of(html, value)) else { continue };
                         self.decls.push(Decl {
                             property: property.to_string(),
@@ -860,9 +926,9 @@ struct Call<'a> {
     closed: bool,
 }
 
-/// The calls in `value` of any of the functions `names` (in any letter case), outside strings.
-/// The calls inside a call of another function are looked for too; those inside one of `names`
-/// are not.
+/// The calls in `value` of any of the functions `names` (in any letter case), outside strings
+/// and comments. The calls inside a call of another function are looked for too; those inside
+/// one of `names` are not.
 fn calls<'a>(value: &'a str, names: &[&str]) -> Vec<Call<'a>> {
     let b = value.as_bytes();
     let mut out = Vec::new();
@@ -870,6 +936,8 @@ fn calls<'a>(value: &'a str, names: &[&str]) -> Vec<Call<'a>> {
     while let Some(&c) = b.get(i) {
         if c == b'"' || c == b'\'' {
             i = find_byte(b, i + 1, c).map_or(b.len(), |e| e + 1);
+        } else if c == b'/' && b.get(i + 1) == Some(&b'*') {
+            i = find_sub(b, i + 2, b"*/").map_or(b.len(), |e| e + 2);
         } else if is_name_start(c) {
             let start = i;
             while b.get(i).is_some_and(|c| is_name_byte(*c)) {
@@ -1112,8 +1180,9 @@ fn dimensions(value: &str) -> Vec<(Range<usize>, &str)> {
 /// be written in its place as it is: the call is in a `style` attribute, its variable is defined
 /// once in the text, at the root of the document (`:root`, `html`, `body` or `*`, outside
 /// `@media`) or in the same `style` attribute, and that definition is a plain value (no `var()`,
-/// no `!important`, no quote, character reference, `<`, `>`, `\`, `;` or brace) of at most
-/// [`MAX_FIX_BYTES`] bytes.
+/// no `!important`, no quote, character reference, `<`, `>`, `\`, `;` or brace, and no CSS-wide
+/// keyword such as `initial`: a `var()` of one stands for its fallback, never for the keyword)
+/// of at most [`MAX_FIX_BYTES`] bytes.
 fn variable_value(styles: &Styles, defined: &HashMap<&str, Definition<'_>>, used: &Decl, call: &Call<'_>) -> Option<String> {
     let Place::Inline { element, .. } = used.place else { return None };
     let name = call.args.split(',').next()?.trim();
@@ -1155,6 +1224,10 @@ fn definitions(styles: &Styles) -> Result<HashMap<&str, Definition<'_>>, CheckEr
     Ok(out)
 }
 
+/// The CSS-wide keywords: as a custom property's value, each makes a `var()` of it stand for its
+/// fallback or for nothing, not for the keyword.
+const CSS_WIDE: [&str; 5] = ["initial", "inherit", "unset", "revert", "revert-layer"];
+
 /// The value of the definition `d` when it can be written in a `var()`'s place as it is: written
 /// in the checked text just as it is here, plain ([`variable_value`]), and short enough to be
 /// copied into each call's fix ([`MAX_FIX_BYTES`]).
@@ -1165,7 +1238,8 @@ fn plain_value(d: &Decl) -> Option<&str> {
         && value.len() <= MAX_FIX_BYTES
         && !important
         && !value.to_ascii_lowercase().contains("var(")
-        && !value.contains(['"', '\'', '&', '<', '>', '\\', ';', '{', '}']);
+        && !value.contains(['"', '\'', '&', '<', '>', '\\', ';', '{', '}'])
+        && !CSS_WIDE.iter().any(|k| value.trim().eq_ignore_ascii_case(k));
     plain.then_some(value)
 }
 

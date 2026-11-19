@@ -288,6 +288,8 @@ fn the_pictures_together_stay_within_their_cap() {
     assert!(note(&h).contains("512 KB"), "the page did not say the pictures are too large together: {:?}", note(&h));
     chose(&mut h, &picks, &picked, 1, &vec![2; MAX_PICTURE_BYTES]);
     assert_eq!(rows(&h), Some(vec![Some(MAX_PICTURE_BYTES), Some(MAX_PICTURE_BYTES), None]), "a replacement within the cap was refused");
+    let kept = h.state().signature_import.job.as_ref().and_then(|j| j.slots.get(1)).and_then(|s| s.picked.as_ref()).map(|(_, b)| b.clone());
+    assert!(kept.is_some_and(|b| b == vec![2; MAX_PICTURE_BYTES]), "the row kept its old file, not the replacement's bytes");
     assert!(note(&h).is_empty(), "a replacement within the cap was said to be refused: {:?}", note(&h));
 }
 

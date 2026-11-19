@@ -221,3 +221,20 @@ fn leaving_with_such_a_picture_and_discarding_closes_the_signature_and_leaves() 
         assert!(!h.state().ui.backstage, "Discard changes did not leave File");
     }
 }
+
+/// The open signature's text changed by a command (`compose.type`), which the engine saves as rich
+/// text without the HTML it no longer matches: Save follows what the engine would save, and is
+/// not held back by a picture of the HTML that is no longer kept.
+#[test]
+fn save_follows_the_signature_the_engine_would_save() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let mut a = opened(LOCAL);
+    a.execute("compose.type", json!({"text": "Harbour "})).expect("typed into the open signature");
+    let e = a.session.signature_edit.as_ref().expect("a signature is open");
+    let mut saved = e.signature.clone();
+    saved.set_body(e.body.text().clone()).expect("its text");
+    assert!(e.signature.html().is_some() && saved.html().is_none(), "fixture guard: the engine would save it as rich text");
+    let h = window(a);
+    let (_, disabled) = save_button(&h);
+    assert!(!disabled, "Save is held back by HTML that would not be saved");
+}

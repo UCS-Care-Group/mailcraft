@@ -220,7 +220,12 @@ pub fn signature_html(sig: &Signature, content_id: &dyn Fn(&Picture) -> String) 
 /// The address a signature's own HTML gives one of its pictures, which a message replaces with the
 /// Content-ID of the part it sends: `sig-<id>@signature.invalid`, without `cid:`.
 pub fn internal_cid(picture: &Picture) -> String {
-    format!("sig-{}@signature.invalid", picture.id)
+    internal_cid_of(picture.id)
+}
+
+/// [`internal_cid`] of the picture whose id is `id`.
+pub fn internal_cid_of(id: u32) -> String {
+    format!("sig-{id}@signature.invalid")
 }
 
 /// The owner's own HTML, made fit to send: [`mailcraft_html::quotable_with_rebound_cids`] keeps its

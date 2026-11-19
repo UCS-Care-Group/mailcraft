@@ -1159,18 +1159,44 @@ fn saved_signature<'m>(m: &'m Message, own_html: &str) -> Option<(usize, &'m Dra
 /// A draft's HTML read with its signature back in place: what is before the fragment at `at` and
 /// what is after it read as any draft's text is, and between them the paragraphs of the
 /// signature's own text, marked as inserting it marks them. A part that reads as no text at all
-/// (where the document opens, or closes) adds no paragraph. `None` when the whole would be more
-/// than a message holds.
+/// (where the document opens, or closes) adds no paragraph; but an empty line the draft's HTML
+/// writes in its body above the signature (a `<br>`, the owner's text being one empty line) is
+/// kept. `None` when the whole would be more than a message holds.
 fn with_signature(read: &mut dyn FnMut(&str) -> RichText, html: &str, at: usize, snapshot: &DraftSignature) -> Option<RichText> {
     let end = at.checked_add(snapshot.rendered().len())?;
-    let before = read(html.get(..at)?);
+    let above = html.get(..at)?;
+    let before = read(above);
     let after = read(html.get(end..)?);
-    let own = |t: &RichText| if t.paragraphs().len() == 1 && t.is_empty() { Vec::new() } else { t.paragraphs().to_vec() };
+    let own = |t: &RichText, line: bool| if t.paragraphs().len() == 1 && t.is_empty() && !line { Vec::new() } else { t.paragraphs().to_vec() };
     let marked = snapshot.signature().body().paragraphs().iter().map(|p| Paragraph { signature: true, ..p.clone() });
-    let paragraphs: Vec<Paragraph> = own(&before).into_iter().chain(marked).chain(own(&after)).collect();
+    let written = line_break_in_body(above);
+    let paragraphs: Vec<Paragraph> = own(&before, written).into_iter().chain(marked).chain(own(&after, false)).collect();
     let text = RichText::from_paragraphs(paragraphs);
     let fits = text.len() <= mailcraft_model::rich::MAX_CHARS && text.paragraphs().len() <= mailcraft_model::rich::MAX_PARAGRAPHS;
     fits.then_some(text)
+}
+
+/// Whether `above`, a draft's HTML above its signature, writes a line break in its body: a `<br>`
+/// tag by its whole name, after the `<body>` start tag when there is one (the head is no text).
+fn line_break_in_body(above: &str) -> bool {
+    let lower = above.to_ascii_lowercase();
+    let start = match start_tags(&lower, "<body").next() {
+        Some(at) => match lower.get(at..).and_then(|tag| tag.find('>')) {
+            Some(end) => at.saturating_add(end).saturating_add(1),
+            None => return false,
+        },
+        None => 0,
+    };
+    lower.get(start..).is_some_and(|body| start_tags(body, "<br").next().is_some())
+}
+
+/// Where in `lower` (HTML in lower case) a tag that opens with `open` (`<` and the name) starts: the
+/// name whole, followed by white space, `/` or `>`.
+fn start_tags<'a>(lower: &'a str, open: &'a str) -> impl Iterator<Item = usize> + 'a {
+    lower
+        .match_indices(open)
+        .map(|(at, _)| at)
+        .filter(move |at| lower.as_bytes().get(at.saturating_add(open.len())).is_some_and(|b| b.is_ascii_whitespace() || matches!(b, b'/' | b'>')))
 }
 
 fn set(s: &mut Session, v: &Value) -> CmdResult {
@@ -1598,9 +1624,13 @@ fn sent_html_signature(c: &Compose, message_id: &str) -> Result<Option<(Signatur
 }
 
 /// Why a message whose HTML signature's style sheets can't go with it is not sent (its draft is
-/// saved with the signature's simpler copy).
+/// saved with the signature's simpler copy). The message holds the signature as it went in, so
+/// the refusal names what lets it go: the signature inserted again once it is fixed, or its
+/// simpler copy.
 fn unsafe_signature_styles() -> CmdError {
-    fail("this signature's styles can't be sent safely: fix them in File › Signatures")
+    fail(
+        "this signature's styles can't be sent safely: fix them in File › Signatures, then insert the signature again (Message › Include › Signature), or choose Edit Signature as Text",
+    )
 }
 
 /// The class an HTML signature's style sheets are scoped to in a message: `mc-sig-` and a

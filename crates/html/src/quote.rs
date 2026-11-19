@@ -246,6 +246,27 @@ pub fn quotable_with_rebound_cids(html: &str, rebound: &mut ReboundCid<'_>) -> S
     quote(html, None, Some(rebound))
 }
 
+/// For each `<img>` start tag of `html`, in source order, whether the writer of a signature
+/// ([`crate::authored_fragment_with_rebound_cids`], whose quoter is fed every token and no style
+/// sheet) leaves it out because a `<template>` holds it. It is the writer's own reading, so a
+/// template inside an element left out whole (an `svg`, a `noscript`, a hidden block) ends where
+/// that element does, and a `<body>` ends what came before it. Only where each element ends is
+/// followed: nothing of what the writer would make of the document is written, so what this holds
+/// is the open elements and the answer, whatever the document's length.
+pub(crate) fn pictures_in_templates(html: &str) -> Vec<bool> {
+    let mut q = Quoter { listing: true, ..Quoter::default() };
+    let mut held = Vec::new();
+    for token in Tokenizer::new(html) {
+        if let Token::Open(tag) = &token
+            && tag.name == "img"
+        {
+            held.push(q.skip.as_ref().is_some_and(|skip| skip.name == "template"));
+        }
+        q.token(token);
+    }
+    held
+}
+
 fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, rebind: Option<&mut ReboundCid<'_>>) -> String {
     let carrying = written.is_some();
     let html = truncate(html, if carrying { MAX_INPUT.saturating_add(MAX_DATA_TEXT) } else { MAX_INPUT });
@@ -300,6 +321,8 @@ pub(crate) struct Quoter<'a, 'w, 'b, 'm> {
     body: bool,
     /// The next text is raw text (inside `xmp`): written as it is, not decoded first.
     raw: bool,
+    /// Nothing is written: only where each element starts and ends is followed.
+    listing: bool,
 }
 
 struct Skip {
@@ -317,7 +340,7 @@ impl Quoter<'_, '_, '_, '_> {
             if !self.body {
                 // (Where the pictures go, and what they took, stay.)
                 let (written, rebind, budget) = (self.written.take(), self.rebind.take(), std::mem::take(&mut self.budget));
-                *self = Quoter { body: true, written, rebind, budget, ..Quoter::default() };
+                *self = Quoter { body: true, written, rebind, budget, listing: self.listing, ..Quoter::default() };
             }
             return;
         }
@@ -326,6 +349,7 @@ impl Quoter<'_, '_, '_, '_> {
         }
         let raw = std::mem::take(&mut self.raw);
         match token {
+            Token::Text(_) if self.listing => {}
             Token::Text(text) if raw => self.out.push_str(&escape(text)),
             Token::Text(text) => self.out.push_str(&escape(&unescape(text))),
             Token::Open(tag) => self.open_tag(&tag),
@@ -397,6 +421,12 @@ impl Quoter<'_, '_, '_, '_> {
         };
         self.close_implied(kept);
         if !void && self.open.len() >= MAX_DEPTH {
+            return;
+        }
+        if self.listing {
+            if !void {
+                self.open.push(kept);
+            }
             return;
         }
         self.out.push('<');
@@ -507,6 +537,9 @@ impl Quoter<'_, '_, '_, '_> {
     fn close_to(&mut self, at: usize) {
         while self.open.len() > at {
             let Some(name) = self.open.pop() else { break };
+            if self.listing {
+                continue;
+            }
             self.out.push_str("</");
             self.out.push_str(name);
             self.out.push('>');
@@ -631,6 +664,8 @@ pub(crate) fn risky_style(style: &str) -> bool {
     RISKY_STYLE.iter().any(|r| plain.contains(r))
 }
 
+#[cfg(test)]
+mod listing_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

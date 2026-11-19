@@ -8,7 +8,11 @@
 //! that two places name, and checks the model's caps again as it writes. This module is the
 //! command's door: it reads the parameters strictly — no field but the three it takes, no field of
 //! an asset but its name and its bytes — and bounds every one of them *before* any of it is copied
-//! or decoded, so a hostile caller cannot make it allocate what it would then refuse.
+//! or decoded, so a hostile caller cannot make it allocate what it would then refuse. What it
+//! makes is judged for its pictures as `signature.save` judges them
+//! ([`super::sendable_pictures`]), so that it can be saved as it is; a picture a `<template>`
+//! holds that it couldn't keep is refused first, in words of its own, since no file given beside
+//! the document is ever bound to it.
 //!
 //! Nothing here reads a file, asks a server, opens a dialog, opens a signature in the editor,
 //! starts a message or changes a default. The signature is made whole and appended once, so a
@@ -72,6 +76,16 @@ pub(super) fn run(s: &mut Session, v: &Value) -> CmdResult {
     }
     // Made whole first, then in the mailbox once: a refused document leaves no signature behind.
     let made = mailcraft_mime_model::signature_import::import(&name, html, &assets).map_err(|e| fail(e.to_string()))?;
+    // Its pictures judged as the save judges them, a `<template>` around one or not: a picture a
+    // template holds asks for no file, but a file's name, a `file:` address, a `cid:` it doesn't
+    // own or a picture written into the HTML (`data:`, which Save's compatibility check refuses)
+    // there would make a signature that is never saved again unchanged. Such a picture is
+    // refused first, in words of its own (Save's would have the owner bring in a file, which the
+    // import never binds to it); any other in the save's words.
+    if let Some(kept) = made.html() {
+        super::held_pictures_keepable(&made, kept)?;
+        super::sendable_pictures(&made, kept)?;
+    }
     s.mailbox.signatures.push(made);
     Ok(json!({"name": name}))
 }

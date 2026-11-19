@@ -271,6 +271,7 @@ pub(crate) fn rule_title(rule: Rule) -> &'static str {
         Rule::UnsupportedImageFormat => crate::tl!("Picture format that may not show"),
         Rule::CssOnlyImageSize => crate::tl!("Picture sized only by its style"),
         Rule::StylesheetNotSendable => crate::tl!("Style rule that can't be sent"),
+        Rule::StyleNotSendable => crate::tl!("Style that can't be sent"),
         Rule::DataUriImage => crate::tl!("Picture written into the HTML"),
         Rule::FormControl => crate::tl!("Form or form field"),
         Rule::EmbeddedContent => crate::tl!("Embedded frame or object"),
@@ -306,6 +307,9 @@ pub(crate) fn rule_explanation(rule: Rule) -> &'static str {
         ),
         Rule::StylesheetNotSendable => crate::tl!(
             "This style rule uses something MailCraft can't send safely (such as an import, a web address or an unsupported selector). Remove or simplify the rule."
+        ),
+        Rule::StyleNotSendable => crate::tl!(
+            "This style uses something MailCraft can't send safely (such as a web address for a background picture), so the whole style would be left out, its colours and spacing with it. Remove that part of the style."
         ),
         Rule::DataUriImage => crate::tl!(
             "Classic Outlook for Windows doesn't show a picture whose data is written into the HTML, so this one will be missing there: attach the picture to the signature instead."
@@ -373,6 +377,7 @@ pub(crate) fn fix_label(rule: Rule) -> Option<&'static str> {
         Rule::SvgImage
         | Rule::UnsupportedImageFormat
         | Rule::StylesheetNotSendable
+        | Rule::StyleNotSendable
         | Rule::DataUriImage
         | Rule::GeneratedContent
         | Rule::Flexbox

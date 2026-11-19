@@ -5208,10 +5208,12 @@ impl MailApp {
         {
             self.status(e.clone());
             self.signature_note = Some(signatures::Note { text: e, error: true });
+            // Where the owner was going, for after Discard changes.
+            let to = (self.ui.backstage, self.ui.backstage_page.clone());
             self.ui.backstage = true;
             self.ui.backstage_page = "signatures".into();
             self.signatures_shown = true;
-            signatures::ask_leave(self);
+            signatures::ask_leave(self, to);
             return;
         }
         let _ = self.execute("signature.close", json!({"discard": true}));

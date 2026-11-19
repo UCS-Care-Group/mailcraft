@@ -103,10 +103,17 @@ fn assert_sent_whole(label: &str, m: &Message) {
         let html = m.body.html.as_deref().unwrap_or_else(|| panic!("{label} ({what}): an HTML message"));
         assert!(html.contains(RULE), "{label} ({what}): the signature's style rule goes with it: {html}");
         assert!(html.contains("<table") && html.contains("Northwind Studio card"), "{label} ({what}): the signature's table: {html}");
+        // The pictures' sources as the reader finds them, compared whole: not a `cid:` in the
+        // text, nor one that only starts with the part's Content-ID.
+        let sources: Vec<String> = mailcraft_html::image_sources(html)
+            .unwrap_or_else(|e| panic!("{label} ({what}): its pictures: {e}"))
+            .into_iter()
+            .map(|s| s.src)
+            .collect();
         let parts: Vec<(String, bool, bool)> = m
             .attachments
             .iter()
-            .map(|a| (a.name.clone(), a.inline, !a.content_id.is_empty() && html.contains(&format!("cid:{}", a.content_id))))
+            .map(|a| (a.name.clone(), a.inline, !a.content_id.is_empty() && sources.iter().any(|src| *src == format!("cid:{}", a.content_id))))
             .collect();
         assert_eq!(parts.len(), 1, "{label} ({what}): the signature's picture and nothing else goes: {parts:?}");
         let a = &m.attachments[0];

@@ -168,6 +168,10 @@ fn an_import_of_the_name_open_in_the_editor_is_refused_even_with_unsaved_words()
     run(&mut s, "signature.set", json!({"name": "Studio", "text": "Priya Raman"}));
     run(&mut s, "signature.open", json!({"name": "Studio"}));
     run(&mut s, "compose.type", json!({"text": "Unsaved words"}));
+    // Only the editor holds the name now, as when the mailbox lost it under the open editor: the
+    // refusal is the editor's own check, not the mailbox's.
+    s.mailbox.signatures.retain(|x| !x.name.eq_ignore_ascii_case("Studio"));
+    assert!(s.mailbox.signature("Studio").is_none(), "fixture guard: the mailbox doesn't keep the name");
     let editor_before = s.signature_edit.clone().expect("a signature is open");
     let before = s.mailbox.clone();
 

@@ -15905,6 +15905,11 @@ msgstr "Výraznější text a okraje, ve světlém i tmavém motivu."
 msgid "Style rule that can't be sent"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "Style that can't be sent"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -19223,6 +19228,11 @@ msgstr ""
 msgid "This style rule uses something MailCraft can't send safely (such as an import, a web address or an unsupported selector). Remove or simplify the rule."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+msgid "This style uses something MailCraft can't send safely (such as a web address for a background picture), so the whole style would be left out, its colours and spacing with it. Remove that part of the style."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
@@ -21429,6 +21439,11 @@ msgstr "přidejte aspoň jednoho příjemce"
 #, fuzzy
 msgid "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
 msgstr "server, adresu a uživatelské jméno účtu serveru Exchange nelze změnit, jakmile je jeho pošta zde: odeberte ho a přidejte ten druhý"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+msgid "an HTML signature's pictures are sized, described and taken out in its HTML"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/digital_signature.rs
@@ -23704,6 +23719,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+msgid "this HTML names a picture inside a <template> that is neither on the web nor one of this signature's own: such a picture is never sent, so take it out or give it a web address (https://…)"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
 msgid "this HTML names a picture that is neither on the web nor one of this signature's own: give it a web address (https://…), or name the picture's file relative to the HTML file and bring both in with Import HTML…"
 msgstr ""
 
@@ -23919,7 +23939,7 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
-msgid "this signature's styles can't be sent safely: fix them in File › Signatures"
+msgid "this signature's styles can't be sent safely: fix them in File › Signatures, then insert the signature again (Message › Include › Signature), or choose Edit Signature as Text"
 msgstr ""
 
 #. interface
