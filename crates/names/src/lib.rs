@@ -108,7 +108,7 @@ pub fn shown(text: &str, max: usize) -> String {
 /// (`Default_Ignorable_Code_Point`, Unicode 17.0, less the format characters and the variation
 /// selectors): the combining grapheme joiner, the Hangul fillers, the Khmer inherent vowels, and
 /// the code points Unicode keeps for more characters that show nothing.
-fn is_ignorable(c: char) -> bool {
+pub fn is_ignorable(c: char) -> bool {
     matches!(
         c,
         '\u{034f}'
