@@ -1226,17 +1226,26 @@ fn beside_makes_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String
         "category.rename" => {
             let (Ok(account), Some(from)) = (crate::cmd::category::list_account(s, params), p::str(params, "from")) else { return out };
             let Some(to) = p::str(params, "to").and_then(mailcraft_model::clean_name) else { return out };
-            // Each rule as the rename leaves it ([`Mailbox::rename_category`]). It takes and leaves
-            // alone the mail it did, so only the new name it gives is the rename's.
-            for (i, whole) in mb.rules_renaming(account, from) {
-                let Some(mut r) = mb.rules.get(i).filter(|r| runs_on_new_mail(r)).cloned() else { continue };
-                r.rename_category(from.trim(), &to, whole);
-                rule_makes_in_outlook(mb, &r, one_account(&r), Counted::Alone, &mut out);
-            }
             let same = mailcraft_model::sync::same_category;
             // The list renamed has the new name then: nothing of it is new there.
             let renamed = mb.synced_list_owner(account);
-            out.retain(|(name, o)| same(name, &to) && renamed != Some(*o));
+            // Each rule as the rename leaves it ([`Mailbox::rename_category`]): it gives the new
+            // name; and one whose condition names the category takes mail with either name then,
+            // some it didn't, and gives it all it gives (an exception leaves alone more).
+            for (i, whole) in mb.rules_renaming(account, from) {
+                let Some(mut r) = mb.rules.get(i).filter(|r| runs_on_new_mail(r)).cloned() else { continue };
+                let widened =
+                    r.conditions.iter().any(|c| matches!(c, mailcraft_model::Condition::Category(names) if names.iter().any(|n| same(n, from))));
+                r.rename_category(from.trim(), &to, whole);
+                let mut its = Vec::new();
+                rule_makes_in_outlook(mb, &r, one_account(&r), Counted::Alone, &mut its);
+                for (name, owner) in its {
+                    let new_name = same(&name, &to);
+                    if (widened || new_name) && !(new_name && renamed == Some(owner)) {
+                        out.push((name, owner));
+                    }
+                }
+            }
         }
         _ => {}
     }
@@ -2561,9 +2570,14 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             // The rules and the like it puts back when it is asked about for something else
             // (#661), and the categories those rules give mail and have made in Outlook.
-            if !matches!(reverts, None | Some(Class::Settings)) && s.undo_changes_settings(redo) {
-                let made = gathered(s.undo_rules_make_categories(redo)).map(|m| made_suffix(s, &m, true)).unwrap_or_default();
-                does.push(format!("puts {SETTINGS_PUT_BACK} back as they were{made}"));
+            let rules_made = gathered(s.undo_rules_make_categories(redo)).map(|m| made_suffix(s, &m, true)).unwrap_or_default();
+            let with_settings = !matches!(reverts, None | Some(Class::Settings)) && s.undo_changes_settings(redo);
+            if with_settings {
+                does.push(format!("puts {SETTINGS_PUT_BACK} back as they were{rules_made}"));
+            } else if !rules_made.is_empty() {
+                // An account's address a rule reads, put back with the accounts (#566): the
+                // categories the rules then give mail and have made in Outlook.
+                does.push(format!("puts back an account's address that a rule reads{rules_made}"));
             }
             if !places.is_empty() {
                 // Send for a message (#566): it waits again to be made on another account's server.
