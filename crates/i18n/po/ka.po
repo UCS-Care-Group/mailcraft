@@ -21237,8 +21237,9 @@ msgstr "ერთი სახის ორი პირობა აქვს �
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
+#, fuzzy
 msgid "it is a drawing (SVG) that is damaged or can't be shown"
-msgstr ""
+msgstr "ეს ნახატი (SVG) დაზიანებულია ან მისი ჩვენება შეუძლებელია"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
