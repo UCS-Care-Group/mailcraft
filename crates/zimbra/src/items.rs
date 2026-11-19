@@ -113,7 +113,7 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
             None => return Err(Error::Unreadable),
             // A folder the server names in no item's id shape passes the item over, like a
             // bad id does.
-            Some(l) if json::item_id(Some(l)).is_none() => continue,
+            Some(l) if json::item_id(Some(l)).is_none() => return Err(Error::Unreadable),
             _ => {}
         }
         if json::bad_list(m.get("e")) {
