@@ -1894,19 +1894,25 @@ pub(crate) fn color_menu(ui: &mut Ui, app: &mut MailApp) {
             }
         }
     });
+    let mut refused = false;
     ui.horizontal(|ui| {
         let key = egui::Id::unique("mailcraft-custom-color");
         let mut typed: String = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| now.clone().flatten().unwrap_or_default());
         crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut typed).hint_text("#rrggbb").desired_width(90.0).char_limit(7)));
         let valid = mailcraft_model::rich::safe_color(&typed);
         if ui.add_enabled(enabled && valid.is_some(), egui::Button::new(tl!("Apply"))).clicked()
-            && let Some(hex) = valid
+            && let Some(hex) = valid.clone()
         {
             let _ = app.run("format.color", json!({"value": hex}));
             ui.close();
         }
+        // Only a six-digit hex colour is applied; say so rather than leave Apply greyed unexplained.
+        refused = valid.is_none() && !typed.trim().is_empty();
         ui.data_mut(|d| d.insert_temp(key, typed));
     });
+    if refused {
+        ui.label(egui::RichText::new(tl!("Use six digits, like #fdb200")).color(ui.visuals().error_fg_color));
+    }
 }
 
 /// Highlights offered behind text: an original palette of light colours, which dark text reads on.

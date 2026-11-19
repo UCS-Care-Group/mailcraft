@@ -19450,6 +19450,12 @@ msgstr "https://-ის გამოყენება"
 msgid "Use my own working hours"
 msgstr "ჩემი სამუშაო საათების გამოყენება"
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Use six digits, like #fdb200"
+msgstr "გამოიყენეთ ექვსი ციფრი, მაგ. #fdb200"
+
 #. name
 #: crates/ui-egui/src/motion.rs crates/ui-egui/src/theme.rs
 #, fuzzy

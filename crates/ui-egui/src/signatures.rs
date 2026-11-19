@@ -316,7 +316,9 @@ fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.horizontal_wrapped(|ui| {
         ui.menu_button(tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
         ui.menu_button(tl!("Size"), |ui| crate::ribbon::size_menu(ui, app));
-        ui.menu_button(tl!("Colour"), |ui| crate::ribbon::color_menu(ui, app));
+        // The menu holds a hex field: a click in it must not shut it (#1464, as #1493 for the ribbon).
+        let keep = egui::containers::menu::MenuConfig::new().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+        egui::containers::menu::MenuButton::new(tl!("Colour")).config(keep).ui(ui, |ui| crate::ribbon::color_menu(ui, app));
         for (label, on, command) in [("B", look.bold, "format.bold"), ("I", look.italic, "format.italic"), ("U", look.underline, "format.underline")]
         {
             if ui.add(egui::Button::selectable(on, egui::RichText::new(label).strong())).on_hover_text(tl!(command_label(command))).clicked() {

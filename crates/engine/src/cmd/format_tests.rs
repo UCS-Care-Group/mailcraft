@@ -448,3 +448,20 @@ fn a_typed_marker_and_space_start_a_list_and_undo_puts_the_marker_back() {
     key(&mut s, "* ");
     assert_eq!(mine(&s), "* ");
 }
+
+/// #1464: a colour that isn't in the palette (`#fdb200`, typed as `FDB200` too) is applied and
+/// sent; anything but a hex colour is refused and changes nothing.
+#[test]
+fn a_custom_hex_colour_goes_out_in_the_html() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "subject": "Colour", "body": "Hello"}));
+    run(&mut s, "format.color", json!({"value": "FDB200", "from": 0, "to": 5}));
+    assert_eq!(compose(&s).body.text().style_at(2).color.as_deref(), Some("#fdb200"));
+    for bad in ["#fdb20", "#fdb2000", "fdb20g", "red", "#fdb200; x:y", "url(x)"] {
+        assert!(s.run("format.color", &json!({"value": bad, "from": 0, "to": 5})).is_err(), "{bad}");
+    }
+    assert_eq!(compose(&s).body.text().style_at(2).color.as_deref(), Some("#fdb200"));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let html = s.mailbox.message(id).unwrap().body.html.clone().unwrap();
+    assert!(html.contains("color:#fdb200"), "{html}");
+}

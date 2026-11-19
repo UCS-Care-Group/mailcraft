@@ -18310,6 +18310,12 @@ msgstr "Stattdessen https:// verwenden"
 msgid "Use my own working hours"
 msgstr "Meine eigenen Arbeitszeiten verwenden"
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Use six digits, like #fdb200"
+msgstr "Sechs Ziffern verwenden, z. B. #fdb200"
+
 #. name
 #: crates/ui-egui/src/motion.rs crates/ui-egui/src/theme.rs
 #, fuzzy

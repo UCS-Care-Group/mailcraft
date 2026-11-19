@@ -264,6 +264,8 @@ mod shared_permission;
 #[cfg(test)]
 mod shared_permission_tests;
 #[cfg(test)]
+mod signature_colour_tests;
+#[cfg(test)]
 mod signature_link_tests;
 #[cfg(test)]
 mod signature_rename_tests;

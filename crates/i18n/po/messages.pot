@@ -16187,6 +16187,11 @@ msgstr ""
 msgid "Use my own working hours"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Use six digits, like #fdb200"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/motion.rs crates/ui-egui/src/theme.rs
 msgid "Use system setting"
