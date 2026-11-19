@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-12 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-16 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -150,6 +150,23 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   `dmarc` that is the server's word, judged from the full list; a signer chooses its own
   `header.d`, so a suffix missing from the short list (`uk.com`, `eu.org`) could sign for every
   name under it. Only whoever holds that suffix's own DNS can publish a key for it.
+- **A picture that comes as an attachment is decoded only as one in the body is** (#834). With
+  the owner's choice (`ui.attachmentPictures`, a checkbox in File › Options, on by default as
+  pictures written into a message are) an attached file is shown as a
+  picture only when it is a PNG, JPEG, GIF or WebP by its own bytes (`images::probe`: never by its
+  name or declared type, so never SVG or HTML), within the reading pane's caps on a picture's
+  bytes, sides and pixels, decoded by the same capped decoder off the window's thread (in the
+  browser, one a frame), one at a time, into a small texture (at most 24 a message, 64 kept). Nothing is fetched. A file kept on
+  disk beside the mailbox is brought in for it only when its declared type or name says it may be
+  a picture, at most 24 a message and 96 MB (what is in memory already counts by its length, so the
+  cap holds from one frame to the next), through the session's memory budget. Only the first 24 files
+  of a message that may be pictures are looked at in a frame, and no more than 4 MB are compared by
+  content in a frame to tell a picture read again from a new one, so a message with a thousand
+  attachments costs no more a frame than one with a few
+  (`crates/ui-egui/src/reading/attachment_pictures.rs`). Anything else, or a picture that fails to
+  decode, stays a chip. Mail in Junk E-mail, or in a folder under it, is shown by names only: no
+  attachment there is looked at, brought in or decoded for a picture. An agent asks before it turns
+  the switch over (`settings`).
 - **Sender warnings say what the server said, and what MailCraft can see, nothing more** (#508).
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above, and like it never from a last clause
@@ -264,6 +281,15 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **Header injection.** A value that reaches a header loses CR, LF and NUL
   (`crates/mime/src/header.rs`, `clean`; `crates/mime/src/write.rs`), so a reply can't be made to
   carry headers the owner didn't write.
+- **Who mail says it is from.** A message is from the account's own address or one of the other
+  sender addresses its owner listed for an IMAP account (#797; `account.setSenderAddresses`,
+  each checked as a mailbox's own address: plain ASCII, nothing a protocol line could read
+  otherwise). A From that isn't one of them never reaches SMTP's `MAIL FROM`, which falls back to
+  the account's own (`crates/net/src/send.rs`, `Envelope::of`), and a message being written from
+  an address taken off the list isn't sent. A reply's From is picked from the original's To, Cc,
+  `X-Original-To` and `Delivered-To`, but only among the owner's own addresses: what a sender
+  writes there can't make the owner's mail claim to be from an address the owner didn't list.
+  An agent changes the list only on the owner's yes (class accounts), shown every address.
 
 ### A malicious picture host
 
@@ -278,6 +304,28 @@ Gets the request for a picture the owner asked for.
   arrives must be a PNG, JPEG, GIF or WebP by its own bytes.
 - The picture cache (`apps/mailcraft/src/picture_cache.rs`) names files by hashes and never writes
   the address; it is capped and read back through the same checks as a download.
+
+### A reaction sent by one click
+
+React (#1544, `mail.react`) sends mail from one click: an emoji, as a reply (RFC 9078) to the
+sender of a message. It is the one thing that sends mail without a message to read through before
+Send, so it is held narrow. The emoji is one of six fixed ones (anything else is refused, so
+nothing a caller or a message writes reaches the mail's text), the recipient is one address (the
+message's sender, never its Reply-To: a message from `boss@company.example` with a Reply-To of
+another domain must not tell that domain the address is read, and the owner is shown the recipient
+beside the emoji), and nothing of the original is
+quoted. It is refused for a message with a warning about its sender (a failed check, a name that shows another address, a look-alike, made-up or brand-copying domain; not a warning about a link in the body, nor the External tag; an answer would confirm the address to whoever is behind it), for drafts, for the owner's own mail, for Junk E-mail (an answer would tell a
+spammer the address is read), for automated mail (`Auto-Submitted` other than `no`,
+`Precedence: bulk`, `list` or `junk`, a no-reply or `mailer-daemon` sender, a list's own address as
+the sender: nobody reads an answer, and a list could echo it to its members; only the headers
+MailCraft keeps by name are looked at, so mail read before this was added is judged by its sender
+alone) and for a second identical reaction (also when the server's copy in Sent Items has lost the
+mark). It waits as long as the owner's Undo Send says, like any sent mail, and can be taken back
+in that time. An agent is asked about it in the window (`send`) and must name the message. A reaction tells the sender the mail was read,
+as a read receipt does, but only when the owner clicks (PRIVACY.md says so). It goes through the account's normal
+sending over TLS like any mail, and a Microsoft or Exchange server account is refused rather than
+given a path of its own. The message text is never read into a reaction: `Content-Disposition:
+reaction` is written, never taken from mail that comes in.
 
 ### A hostile or compromised mail server
 
@@ -686,12 +734,24 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-16 | minor | #1544: a reaction sent by one click: six fixed emoji, one recipient (the sender, never the Reply-To, shown beside the emoji), nothing quoted, refused for a message with a sender warning, for drafts, own mail, Junk E-mail and automated mail, held back by Undo Send, asked about for an agent |
+| 2026-11-15 | patch | Known limits: S/MIME and OpenPGP signatures are checked; encrypting and signing sent mail are not built |
+| 2026-11-14 | patch | #1262: Check Names and People's Address Book ask an Exchange server account's address list only on the owner's press or search, and read its answer within caps, keeping a name, an address, four short lines and two numbers of each person, in the window alone |
+| 2026-11-13 | minor | #834: mail in Junk E-mail is shown by names only, no attachment there is decoded for a picture; the choice between names and pictures is a checkbox in File › Options too |
+| 2026-11-12 | patch | #661: an agent is asked `send` before it writes a category to Outlook (sent there, renamed there, new to the list, another colour, or put back so by an undo or redo), and `delete` for an undo or redo that has one deleted there |
 | 2026-11-12 | minor | #1103: provider discovery asks the DNS for the domain's Autodiscover hosts (SRV record and `autodiscover.<domain>` alias) beside its exchangers; the Exchange search's alias step, in the place of MS-OXDISCO's plain-HTTP redirect and specified in autodiscover.md, asks the owner before the sign-in goes to the alias's host |
+| 2026-11-11 | patch | #661: the window's background jobs that are called off for another mailbox include the categories' |
 | 2026-11-11 | minor | #30 part 4: the owner's own private keys kept in the credential store (`key:openpgp:`, `key:smime:`; passphrase-protected, S/MIME on Linux and FreeBSD only) and the rules they pass; running GnuPG (fixed arguments, no shell, a time limit and a cap on its output, the direct trust model) |
+| 2026-11-08 | minor | #836: an outgoing relay the owner marked as needing no sign-in is never shown the password, even when it offers a way to sign in; not for an account that signs in on its provider's page |
+| 2026-11-08 | minor | #834: a picture that comes as an attachment, shown as a picture at the owner's switch, is told by its bytes and decoded within the reading pane's caps off the window's thread; files kept on disk are brought in for it within caps |
+| 2026-11-08 | minor | #797: who mail says it is from: the account's own address or a sender address its owner listed; any other From never reaches the SMTP envelope, and a reply's From is chosen only among the owner's own addresses |
+| 2026-11-08 | patch | The HTML whitelist adds `direction` and the `dir` attribute, which only choose the side a paragraph stands at (a paragraph with neither reads left to right); nothing is run or fetched for them (#603) |
 | 2026-11-07 | patch | #843: a `.pst` distribution list's stream of members is read within caps |
 | 2026-11-07 | patch | AU3-11, AU3-12, AU3-13, AU3-14, AU3-15, AU3-V5: on Exchange Online only its own verdict above the hop where it took the mail in is read (with its id or none), only for mail it says came in, and a failure there without that word; a copy MailCraft puts on a server leaves every verdict behind; Safe Senders don't take mail its server failed out of Junk; a meeting a server keeps is changed only by its organizer's own message; links are judged in every look a message has, and a message with more looks than are checked says so; a part is shown in place only as a picture an `<img>` asks for |
 | 2026-11-07 | patch | AU3-08, AU3-09, AU3-10, AU3-21, AU3-26, AU3-V8, H6: every background job of the window answers only for the mailbox opening it was started under and is called off when another mailbox takes its place; no answer is relabelled with the account open now; a shared mailbox's sign-in is checked against its owner; a message handed to a server is marked as being sent on disk first, and one still marked at the next run is held, not sent again |
 | 2026-11-07 | patch | AU3-02, AU3-03, AU3-18, AU3-19: secrets are read and written by the account itself, an Exchange server account's name holds the certificate it trusts, a mailbox where two accounts share an address reads nothing until confirmed, every entry read is noted for the full wipe, removing an account deletes its entries under every name, and no build but a test's sends a Microsoft sign-in to this computer |
+| 2026-11-06 | minor | #509: send warnings (a lookalike recipient, compared as it reads without a `+tag` or Gmail's dots; outsiders who would see each other, never without an organisation) are the owner's to answer: refused without `confirmed`, asked in the window, an agent's own answer dropped; headless honours the call's `confirmed`; each recipient counted once, and more than 1,000 different ones a warning of its own (`tooManyRecipients`) |
+| 2026-11-05 | minor | #601: a picture behind a box is shown only from the message itself (`cid:`, `data:`); one on the web is never kept or fetched |
 | 2026-11-05 | minor | #602: under a reply or forward, the pictures written into a message (`data:`) that the reading pane shows go as parts of their own with Content-IDs naming nothing of the owner, within #533's checks and caps; the rest are left out and a `data:` address is never sent on |
 | 2026-11-05 | patch | #781 review: an Exchange stamp already in a mailbox file, which a move from another account may have carried in before, vouches for nothing; only one read by this version is believed |
 | 2026-11-04 | patch | #473 follow-up: only a Microsoft or an Exchange server account's copy goes to Deleted Items on undo; on any other account the copy is removed and Delete is asked. An undo that puts back the accounts and takes messages, drafts or contacts away is asked once, naming both, and a yes covers both; the owner's yes holds for the step and the items asked about only, not for one done or downloaded meanwhile |

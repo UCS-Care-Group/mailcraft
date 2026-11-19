@@ -6,8 +6,6 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
-mod capitals;
-
 use super::find::{Place, moved};
 use super::{Format, ListKind, MAX_CHARS, MAX_FIND, RichText, Style, clean_line};
 use crate::ModelError;
@@ -72,9 +70,9 @@ pub struct RichBody {
     undo: Vec<Step>,
     #[serde(skip)]
     redo: Vec<Step>,
-    /// The start and end of the typed text in the current undo step.
+    /// Where typing goes on in the same undo step.
     #[serde(skip)]
-    typing: Option<(usize, usize)>,
+    typing: Option<usize>,
     /// The look Format Painter copied, to be put on the next selection.
     #[serde(skip)]
     painter: Option<Style>,
@@ -257,40 +255,16 @@ impl RichBody {
             self.typing = None;
             return Ok(());
         }
-        let start = self.typing.filter(|&(_, end)| sel.is_empty() && end == sel.head && !text.contains(['\n', '\r']) && self.can_undo());
+        let continues = sel.is_empty() && self.typing == Some(sel.head) && !text.contains(['\n', '\r']) && self.can_undo();
         let mut end = 0;
-        self.edit(start.is_some(), |t, s| {
+        self.edit(continues, |t, s| {
             t.delete(sel.start(), sel.end())?;
             end = t.insert(sel.start(), text, &style)?;
             *s = Selection::caret(end);
             Ok(())
         })?;
         self.pending = None;
-        self.typing = (!text.contains(['\n', '\r'])).then_some((start.map_or(sel.start(), |(start, _)| start), end));
-        Ok(())
-    }
-
-    /// Finish a typed word, then capitalize the first word of the sentence if needed.
-    /// The correction is its own undo step, so Undo restores what was typed.
-    pub fn type_with_auto_capitalization(&mut self, text: &str, language: &str) -> Result<(), ModelError> {
-        let sel = self.selection;
-        let initial = if sel.is_empty() && matches!(text, " " | "\n" | "\r" | "\r\n") {
-            self.typing.filter(|&(_, end)| end == sel.head).and_then(|(start, _)| capitals::find(&self.text, start, sel.head, language))
-        } else {
-            None
-        };
-        self.type_text(text)?;
-        let Some(initial) = initial else { return Ok(()) };
-        let extra = initial.extra_chars();
-        if self.text.storage_len().saturating_add(extra) > MAX_CHARS {
-            return Ok(());
-        }
-        self.edit(false, |text, selection| {
-            initial.replace(text)?;
-            *selection = Selection::caret(selection.head.saturating_add(extra));
-            Ok(())
-        })?;
-        self.typing = None;
+        self.typing = (!text.contains(['\n', '\r'])).then_some(end);
         Ok(())
     }
 

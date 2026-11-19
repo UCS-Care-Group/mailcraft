@@ -74,11 +74,6 @@ pub(crate) fn locale(app: &MailApp, ctx: &Context) -> Option<String> {
     Some(languages.into_iter().find(|tag| same(tag)).unwrap_or_default())
 }
 
-pub(crate) fn writing_locale(app: &MailApp, ctx: &Context) -> Option<String> {
-    let selected = preference(app, ctx);
-    (!selected.is_empty()).then_some(selected)
-}
-
 fn locale_name(tag: &str) -> String {
     mailcraft_i18n::Lang::from_code(tag).map_or_else(|| tag.to_string(), |lang| format!("{} ({tag})", lang.native_name()))
 }

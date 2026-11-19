@@ -810,14 +810,6 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     {
         set(app, json!({"autoLists": lists}));
     }
-    let mut capitalize = prefs.auto_capitalize;
-    if ui
-        .checkbox(&mut capitalize, tl!("Capitalize the first word of sentences"))
-        .on_hover_text(tl!("Capitalizes after you finish typing a word. Undo restores what you typed."))
-        .changed()
-    {
-        set(app, json!({"autoCapitalize": capitalize}));
-    }
     let mut in_window = app.ui.replies_in_window;
     let switch = ui
         .checkbox(&mut in_window, tl!("Open new messages, replies and forwards in a new window"))
@@ -873,6 +865,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     section(ui, tl!("Pictures in mail"), t);
     crate::reading::remote::options(app, ui, t);
     crate::sender_images::options(app, ui, t);
+    crate::reading::attachment_pictures::options(app, ui);
     crate::attachment_preview::options(app, ui);
     section(ui, tl!("Accounts"), t);
     let mut remember = app.ui.remember_sign_in;

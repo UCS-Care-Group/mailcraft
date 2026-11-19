@@ -23,7 +23,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("compose.select", "Select Text", "Message", select).pure().params(r#"{"from": number, "to"?: number} (to: the caret, default from)"#).when_writing(needs_doc),
         CommandSpec::new("compose.type", "Type", "Message", type_text)
             .pure()
-            .params(r#"{"text": string, "autoList"?: bool, "autoCapitalize"?: bool, "capitalLanguage"?: string} — over the selection, in the formatting at the caret; a line break starts a paragraph (of the same kind; a line break alone in an empty list item ends the list there). "autoList" (the keyboard's, with a space): when the paragraph so far is `* `, `- `, `1. ` or `1) ` in an HTML message and File › Options has Automatic bulleted and numbered lists on, it becomes a list item without the marker, an undo step of its own. "autoCapitalize" (the keyboard's, with a space or line break): capitalize the first word of a sentence when this option is on, as its own undo step. "capitalLanguage" is its language tag, or the interface's language when omitted"#)
+            .params(r#"{"text": string, "autoList"?: bool} — over the selection, in the formatting at the caret; a line break starts a paragraph (of the same kind; a line break alone in an empty list item ends the list there). "autoList" (the keyboard's, with a space): when the paragraph so far is `* `, `- `, `1. ` or `1) ` in an HTML message and File › Options has Automatic bulleted and numbered lists on, it becomes a list item without the marker, an undo step of its own."#)
             .when_writing(needs_doc),
         CommandSpec::new("compose.replaceText", "Replace Text at Position", "Message", replace_text)
             .pure()
@@ -188,12 +188,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 
 fn type_text(s: &mut Session, v: &Value) -> CmdResult {
     let text = p::req_str(v, "text")?.to_string();
-    if s.prefs.auto_capitalize && s.signature_edit.is_none() && p::bool(v, "autoCapitalize").unwrap_or(false) {
-        let language = p::str(v, "capitalLanguage").filter(|tag| !tag.is_empty() && tag.len() <= 63).unwrap_or_else(|| s.interface_language.code());
-        edit(s, &json!({}), |b| b.type_with_auto_capitalization(&text, language))?;
-    } else {
-        edit(s, &json!({}), |b| b.type_text(&text))?;
-    }
+    edit(s, &json!({}), |b| b.type_text(&text))?;
     // Lists as you type (#973): only after a space, in HTML, when the owner leaves them on.
     if text == " " && p::bool(v, "autoList").unwrap_or(false) && s.prefs.auto_lists && matches!(s.doc(), Some((_, false))) {
         edit(s, &json!({}), |b| b.auto_list())?;
