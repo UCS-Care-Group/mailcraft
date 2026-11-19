@@ -150,6 +150,23 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   `dmarc` that is the server's word, judged from the full list; a signer chooses its own
   `header.d`, so a suffix missing from the short list (`uk.com`, `eu.org`) could sign for every
   name under it. Only whoever holds that suffix's own DNS can publish a key for it.
+- **A picture that comes as an attachment is decoded only as one in the body is** (#834). With
+  the owner's choice (`ui.attachmentPictures`, a checkbox in File › Options, on by default as
+  pictures written into a message are) an attached file is shown as a
+  picture only when it is a PNG, JPEG, GIF or WebP by its own bytes (`images::probe`: never by its
+  name or declared type, so never SVG or HTML), within the reading pane's caps on a picture's
+  bytes, sides and pixels, decoded by the same capped decoder off the window's thread (in the
+  browser, one a frame), one at a time, into a small texture (at most 24 a message, 64 kept). Nothing is fetched. A file kept on
+  disk beside the mailbox is brought in for it only when its declared type or name says it may be
+  a picture, at most 24 a message and 96 MB (what is in memory already counts by its length, so the
+  cap holds from one frame to the next), through the session's memory budget. Only the first 24 files
+  of a message that may be pictures are looked at in a frame, and no more than 4 MB are compared by
+  content in a frame to tell a picture read again from a new one, so a message with a thousand
+  attachments costs no more a frame than one with a few
+  (`crates/ui-egui/src/reading/attachment_pictures.rs`). Anything else, or a picture that fails to
+  decode, stays a chip. Mail in Junk E-mail, or in a folder under it, is shown by names only: no
+  attachment there is looked at, brought in or decoded for a picture. An agent asks before it turns
+  the switch over (`settings`).
 - **Sender warnings say what the server said, and what MailCraft can see, nothing more** (#508).
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above, and like it never from a last clause
@@ -201,6 +218,7 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
   only between names one character apart in length). An agent gets the warnings with `mail.get`
   as data, their details framed as message content. The owner can dismiss the banner (the cross at its right, `mail.dismissWarnings`, kept with the message as the kinds it held): a caution goes, a warning stays as a slim bar that opens again, and a kind that was not there brings the banner back. The command needs the owner (`Class::Settings`), so an agent cannot hide a warning.
+- **The signer's domain is the sender's choice** (#1472). `authentication.dkimDomain` in `mail.get` and `read_message` is the `header.d` of a passing DKIM signature, which whoever signs the mail picks; for an agent it is framed as untrusted, data and never instructions (`TEXT_KEYS`). The `spf`, `dkim` and `dmarc` words are short plain words read from the account's own server's topmost header.
 - **Send warnings are the owner's to answer** (#509). Before a message goes, `compose.send` looks
   for a recipient whose domain is a lookalike sender's would be (above), or whose part before the
   @ is one edit or one skeleton from a known address at the same domain (five characters or
@@ -263,6 +281,15 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **Header injection.** A value that reaches a header loses CR, LF and NUL
   (`crates/mime/src/header.rs`, `clean`; `crates/mime/src/write.rs`), so a reply can't be made to
   carry headers the owner didn't write.
+- **Who mail says it is from.** A message is from the account's own address or one of the other
+  sender addresses its owner listed for an IMAP account (#797; `account.setSenderAddresses`,
+  each checked as a mailbox's own address: plain ASCII, nothing a protocol line could read
+  otherwise). A From that isn't one of them never reaches SMTP's `MAIL FROM`, which falls back to
+  the account's own (`crates/net/src/send.rs`, `Envelope::of`), and a message being written from
+  an address taken off the list isn't sent. A reply's From is picked from the original's To, Cc,
+  `X-Original-To` and `Delivered-To`, but only among the owner's own addresses: what a sender
+  writes there can't make the owner's mail claim to be from an address the owner didn't list.
+  An agent changes the list only on the owner's yes (class accounts), shown every address.
 
 ### A malicious picture host
 
@@ -277,6 +304,28 @@ Gets the request for a picture the owner asked for.
   arrives must be a PNG, JPEG, GIF or WebP by its own bytes.
 - The picture cache (`apps/mailcraft/src/picture_cache.rs`) names files by hashes and never writes
   the address; it is capped and read back through the same checks as a download.
+
+### A reaction sent by one click
+
+React (#1544, `mail.react`) sends mail from one click: an emoji, as a reply (RFC 9078) to the
+sender of a message. It is the one thing that sends mail without a message to read through before
+Send, so it is held narrow. The emoji is one of six fixed ones (anything else is refused, so
+nothing a caller or a message writes reaches the mail's text), the recipient is one address (the
+message's sender, never its Reply-To: a message from `boss@company.example` with a Reply-To of
+another domain must not tell that domain the address is read, and the owner is shown the recipient
+beside the emoji), and nothing of the original is
+quoted. It is refused for a message with a warning about its sender (a failed check, a name that shows another address, a look-alike, made-up or brand-copying domain; not a warning about a link in the body, nor the External tag; an answer would confirm the address to whoever is behind it), for drafts, for the owner's own mail, for Junk E-mail (an answer would tell a
+spammer the address is read), for automated mail (`Auto-Submitted` other than `no`,
+`Precedence: bulk`, `list` or `junk`, a no-reply or `mailer-daemon` sender, a list's own address as
+the sender: nobody reads an answer, and a list could echo it to its members; only the headers
+MailCraft keeps by name are looked at, so mail read before this was added is judged by its sender
+alone) and for a second identical reaction (also when the server's copy in Sent Items has lost the
+mark). It waits as long as the owner's Undo Send says, like any sent mail, and can be taken back
+in that time. An agent is asked about it in the window (`send`) and must name the message. A reaction tells the sender the mail was read,
+as a read receipt does, but only when the owner clicks (PRIVACY.md says so). It goes through the account's normal
+sending over TLS like any mail, and a Microsoft or Exchange server account is refused rather than
+given a path of its own. The message text is never read into a reaction: `Content-Disposition:
+reaction` is written, never taken from mail that comes in.
 
 ### A hostile or compromised mail server
 

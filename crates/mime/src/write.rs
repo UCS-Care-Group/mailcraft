@@ -58,6 +58,10 @@ const NAME_PIECE: usize = 52;
 /// `Message::headers` whose name isn't a valid field name is dropped. Text that isn't printable
 /// ASCII is written as encoded-words, and long lines are folded.
 ///
+/// A message with [`Message::reaction`] set (RFC 9078) whose text is one emoji and that has no HTML
+/// is `multipart/alternative`: the part marked `Content-Disposition: reaction`, then the same
+/// emoji as plain text.
+///
 /// The body is `text/plain` when there is only text; `multipart/alternative` with the HTML when
 /// there is both (only `text/html` when the text is blank); the HTML and the inline attachments
 /// go in a `multipart/related`; other attachments wrap everything in a `multipart/mixed`. An
@@ -291,7 +295,12 @@ fn body(message: &Message) -> Part {
     // The forms the body comes in: its text, its HTML, and its iCalendar form when it has one.
     let mut forms: Vec<Part> = Vec::new();
     match &message.body.html {
-        None => forms.push(text),
+        None => {
+            // A reaction (RFC 9078) goes first, the same emoji as plain text after it for a reader
+            // that doesn't know the disposition.
+            forms.extend(reaction_part(message));
+            forms.push(text);
+        }
         Some(html) => {
             let mut rich = text_part("html", html);
             if !inline.is_empty() {
@@ -324,6 +333,26 @@ fn body(message: &Message) -> Part {
     }
     root
 }
+
+/// The part that carries a reaction (RFC 9078): the message's text, which must be one short line
+/// without spaces or control characters, as `text/plain; charset=utf-8` with
+/// `Content-Disposition: reaction`. `None` for a message that isn't one, or whose text isn't
+/// fit to be one: it is then written as the plain message it is.
+fn reaction_part(message: &Message) -> Option<Part> {
+    if !message.reaction {
+        return None;
+    }
+    let emoji = message.body.text.trim();
+    if emoji.is_empty() || emoji.len() > MAX_REACTION || emoji.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return None;
+    }
+    let mut part = text_part("plain", emoji);
+    part.fields.push(("Content-Disposition", "reaction".to_string()));
+    Some(part)
+}
+
+/// Most bytes a reaction's emoji may have (the longest sequences of Unicode TR51 are 35).
+const MAX_REACTION: usize = 64;
 
 fn text_part(subtype: &str, text: &str) -> Part {
     let text = charset::unix_lines(text);

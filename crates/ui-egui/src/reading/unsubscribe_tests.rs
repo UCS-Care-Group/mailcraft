@@ -410,3 +410,20 @@ fn a_long_address_and_subject_are_shown_whole() {
     let (q, _) = super::question_many(&mut app, &json!({"ids": [shop]})).unwrap();
     assert!(q.text.contains(&to) && q.text.contains(&subject), "{}", q.text);
 }
+
+#[test]
+fn the_menus_answer_is_kept_until_the_mailbox_or_the_selection_changes() {
+    let (mut app, id) = list_app(&ONE_CLICK);
+    let shop = add_at(&mut app, "deals@shop.example", 60, &[("List-Unsubscribe", "<mailto:leave@shop.example>")]);
+    assert!(super::any_offered(&mut app, &[id, shop]));
+    let kept = app.unsubscribing.menu.clone();
+    assert!(super::any_offered(&mut app, &[id, shop]));
+    assert_eq!(app.unsubscribing.menu, kept, "asked again, the same answer is kept");
+    // Both moved to Junk E-mail: the mailbox changed, so it is asked again, and nothing is offered.
+    app.session.run("mail.junk", &json!({"ids": [id, shop]})).unwrap();
+    assert!(!super::any_offered(&mut app, &[id, shop]));
+    // Another selection is asked about on its own.
+    let (mut app, id) = list_app(&ONE_CLICK);
+    assert!(super::any_offered(&mut app, &[id]));
+    assert!(!super::any_offered(&mut app, &[]));
+}

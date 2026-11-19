@@ -33,6 +33,9 @@ pub enum SharedPermission {
     Needed,
     /// The owner is being asked: the question, or the provider's page.
     Asking,
+    /// The question went away unanswered: not put again by itself in this session (File › Info's
+    /// line for the account it is opened through has Ask again).
+    Declined,
     /// Asked, and no: why, in a few words.
     Refused(String),
 }
@@ -41,7 +44,7 @@ impl SharedPermission {
     /// Whether the shared mailbox's calendars wait for the owner's permission: not asked of the
     /// server until it is had (or asked for again).
     pub fn blocks(this: Option<&SharedPermission>) -> bool {
-        matches!(this, Some(SharedPermission::Needed | SharedPermission::Asking | SharedPermission::Refused(_)))
+        matches!(this, Some(SharedPermission::Needed | SharedPermission::Asking | SharedPermission::Declined | SharedPermission::Refused(_)))
     }
 }
 
@@ -370,7 +373,7 @@ impl Session {
         let perm = &mut self.driver.calendar.shared_perm;
         if came.consent_needed {
             // (Asked about when the calendar is in front, by the host.)
-            if !matches!(perm.get(&shared), Some(SharedPermission::Asking | SharedPermission::Refused(_))) {
+            if !matches!(perm.get(&shared), Some(SharedPermission::Asking | SharedPermission::Declined | SharedPermission::Refused(_))) {
                 perm.insert(shared, SharedPermission::Needed);
             }
         } else if came.sign_in_refused {

@@ -25,7 +25,7 @@ msgid "\"{address}\" isn't an address mail can be sent to"
 msgstr "A(z) „{address}” címre nem lehet levelet küldeni."
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/account_setup.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "\"{address}\" isn't an e-mail address"
 msgstr "A(z) „{address}” érvénytelen e-mail-cím."
@@ -209,6 +209,18 @@ msgstr "+ Művelet"
 #, fuzzy
 msgid "+ condition"
 msgstr "+ Feltétel"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "+Bin"
+msgstr "+Bin"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "+Lines"
+msgstr "+Sorok"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -583,6 +595,12 @@ msgid "A port is a number from 1 to 65535"
 msgstr "A kikötő 1-65535"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "A preview may omit some content from the original file."
+msgstr "Az előnézetben előfordulhat, hogy az eredeti fájl egyes részei nem jelennek meg."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "A report is written beside your mailbox."
@@ -641,6 +659,12 @@ msgstr "Egy megosztott postafiók, a fiók bejelentkezésével olvasva, ami nyit
 #, fuzzy
 msgid "A shared mailbox, read with the sign-in of {account}"
 msgstr "Megosztott postafiók a következő fiókkal megnyitva: {account}"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
+msgstr "Rövid üzenet az oldal hivatkozásával, e-mailbe vagy csevegésbe illesztéshez. A MailCraft maga nem küld semmit."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -764,8 +788,8 @@ msgstr ""
 "Fiók-\n"
 "beállítások"
 
-#. command label, interface
-#: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
+#. command label, interface, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Account Settings"
 msgstr "Fiókbeállítások"
@@ -775,6 +799,12 @@ msgstr "Fiókbeállítások"
 #, fuzzy
 msgid "Account name"
 msgstr "Fiók neve"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Account's signature"
+msgstr "A fiók aláírása"
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
@@ -949,6 +979,12 @@ msgid "Add account"
 msgstr "Fiók hozzáadása"
 
 #. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Add address"
+msgstr "Cím hozzáadása"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Add an account"
@@ -1025,7 +1061,7 @@ msgid "Add to Contacts"
 msgstr "Hozzáadás a névjegyekhez"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Add to Favorites"
 msgstr "Hozzáadás a Kedvencekhez"
@@ -1067,7 +1103,7 @@ msgid "Added to Contacts"
 msgstr "Hozzáadva a névjegyekhez"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "Cím"
@@ -1109,6 +1145,12 @@ msgstr "Cím:"
 #, fuzzy
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
 msgstr "Címek külön; (hagyja üresen a válaszokat, hogy jöjjön Önhöz)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Addresses your mail server lets this account send from with the same sign-in, such as aliases. Replies are sent from the address a message came to."
+msgstr "Azok a címek, amelyekről a levelezőszerver engedi ennek a fióknak a küldést ugyanazzal a bejelentkezéssel, például az álnevek. A válaszok arról a címről mennek, amelyre az üzenet érkezett."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -1255,28 +1297,10 @@ msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page tha
 msgstr "Engedélyezze a böngészőben megnyílt oldalon, hogy a MailCraft szinkronban tartsa ezt a postafiókot az Outlookkal…"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr "Hagyja, hogy a MailCraft elolvassa mások naptárait a böngészőjében megnyílt oldalon…"
-
-#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Allow MailCraft to read shared mailboxes on the page that opened in your browser…"
 msgstr "Hagyja, hogy MailCraft elolvassa a megosztott postafiókákat az oldalon, amely megnyílt a böngésző…"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr "Hagyja, hogy MailCraft elolvassa a megosztott postafiókok naptárait a böngészőjében megnyitott oldalon…"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
-msgstr "Hagyja, hogy MailCraft küldjen megosztott postafiókákról a böngészőjében megnyitott oldalon…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1403,6 +1427,12 @@ msgstr "X.509 tanúsítvány (.cer, .pem) vagy OpenPGP nyilvános kulcs (.asc) a
 #, fuzzy
 msgid "An account couldn't be sent and received."
 msgstr "Az egyik fiók szinkronizálása nem sikerült."
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "An address this account may send from"
+msgstr "Egy cím, amelyről ez a fiók küldhet"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1748,8 +1778,14 @@ msgstr "ápr."
 msgid "April"
 msgstr "április"
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Aqua"
+msgstr "Akvamarin"
+
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Archive"
 msgstr "Archiválás"
@@ -1817,12 +1853,6 @@ msgid "As recipients see it"
 msgstr "A címzettek ezt fogják látni"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "As the people you write to see it"
-msgstr "Mint az emberek, akiket írsz, hogy lássák."
-
-#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Ask again"
@@ -1845,6 +1875,12 @@ msgstr "Kérdezd meg, mielőtt letöltené a képeket a domain feladóiról"
 #, fuzzy
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Kérje meg, mielőtt letöltené a feladó képeit."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Ask before previewing this type of file"
+msgstr "Mindig kérdezzen rá az ilyen típusú fájlok előnézete előtt"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
@@ -1883,10 +1919,16 @@ msgid "Ask for permission to read and change your To Do lists and tasks: Microso
 msgstr "Kérjen engedélyt a To Do listáinak és feladatainak olvasására és módosítására: A Microsoft oldala megnyitja a böngészőjében. Enélkül a feladatok ezen a számítógépen maradnak."
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
+msgstr "Engedély kérése a megosztott postafiókok olvasásához és az azokból való küldéshez, valamint az Önnel megosztott naptárak olvasásához: a Microsoft oldala megnyílik a böngészőben. Enélkül semmi sem olvasható vagy küldhető belőlük."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
-msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-msgstr "Kérjen engedélyt a megosztott postafiókok naptárainak elolvasására: A Microsoft oldala a böngészőjében nyílik meg. Enélkül a postafiók naptárából semmi sem olvasható."
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr "Ezeknek az üzeneteknek az újbóli kérése a következő Küldés/fogadáskor. A kiszolgálón lévő levelek érintetlenek maradnak, és semmi sem vész el, ha újra nem sikerülnek."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -2162,13 +2204,13 @@ msgstr "Automatikus válaszok a postaszerveren maradnak, és a MailCraft csak ol
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Automatic replies are off"
-msgstr "Automatikus válasz nem sikerült"
+msgstr "Az automatikus válaszok ki vannak kapcsolva"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Automatic replies are on"
-msgstr "Automatikus válaszok a következő címen:"
+msgstr "Az automatikus válaszok be vannak kapcsolva"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -2351,10 +2393,28 @@ msgid "Before anything changes, a copy of your whole mailbox is saved next to it
 msgstr "Mielőtt bármi megváltozna, az egész postafiókád egy példánya a közelében marad, a mai dátummal a nevében."
 
 #. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Binary assets added"
+msgstr "Hozzáadott bináris erőforrások"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Binary assets removed"
+msgstr "Eltávolított bináris erőforrások"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Birthday"
 msgstr "Születésnap"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Black"
+msgstr "Fekete"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -2362,8 +2422,14 @@ msgstr "Születésnap"
 msgid "Block Sender"
 msgstr "Feladó letiltása"
 
+#. interface
+#: crates/ui-egui/src/forms/junk.rs
+#, fuzzy
+msgid "Blocked Senders"
+msgstr "Letiltott feladók"
+
 #. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/theme/accent.rs
 #, fuzzy
 msgid "Blue"
 msgstr "Kék"
@@ -2829,6 +2895,12 @@ msgid "Cc: {names}"
 msgstr "Másolat: {names}"
 
 #. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Celebrate"
+msgstr "Ünneplés"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
@@ -3231,7 +3303,7 @@ msgid "Clear Downloaded Pictures"
 msgstr "Letöltött képek törlése"
 
 #. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Clear Flag"
 msgstr "Jelölő törlése"
@@ -3275,8 +3347,8 @@ msgstr "Keresés törlése (Esc)"
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "Kattintson ide a {name} előnézetéhez; kattintson duplán a megnyitásához"
+msgid "Click to select {name}; double-click to open it"
+msgstr "Kattintson a kijelöléshez, vagy kattintson duplán a megnyitáshoz: {name}"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -3373,6 +3445,12 @@ msgstr "Összeomlik a Ribbon"
 #, fuzzy
 msgid "Colour"
 msgstr "Szín"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Commits"
+msgstr "Commitok"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
@@ -3527,7 +3605,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr "A kontaktusok nem mennek a törölt tárgyakhoz."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "Folytassa"
@@ -3860,6 +3938,12 @@ msgstr "Nem tudtam elolvasni Gmail \"{name}\" kategóriáit."
 msgid "Couldn't read the list of folders"
 msgstr "Nem sikerült elolvasni a mappákat"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "Nem sikerült újracsatlakozni, hogy folytassa a(z) „{name}” mappával"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
@@ -3979,6 +4063,12 @@ msgstr "DOMAIN\\user or you@pexage.org; üresen áll a címre"
 #, fuzzy
 msgid "Dark"
 msgstr "Sötét"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Dark Red"
+msgstr "Sötétvörös"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -4135,7 +4225,7 @@ msgid "Delayed until {when}"
 msgstr "Késleltetve eddig: {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Delete"
 msgstr "Törlés"
@@ -4173,7 +4263,7 @@ msgid "Delete Conversation"
 msgstr "A beszélgetés törlése"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Delete Folder"
 msgstr "Mappa törlése"
@@ -4597,12 +4687,6 @@ msgstr "Kész: naprakész"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "Kész: {n} új"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "Dupla kattintással nyitható meg a {name}; jobb kattintással menthető"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -5035,7 +5119,7 @@ msgid ""
 msgstr "Mappa ürítése"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Empty Folder"
 msgstr "Mappa ürítése"
@@ -5414,6 +5498,12 @@ msgstr "Kedvenc"
 msgid "Favorites"
 msgstr "Kedvencek"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Favorites Are Set in Outlook"
+msgstr "A kedvenceket az Outlookban kell beállítani"
+
 #. command label
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -5451,7 +5541,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Ketten még mindig itt vannak, szóval nincs mit összehozni."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Fájl"
@@ -5580,11 +5670,23 @@ msgstr "Befejezni a bejelentkezést (a böngészője várakozik)"
 msgid "Finish signing in on Microsoft's page in your browser. MailCraft is waiting."
 msgstr "Fejezze be a bejelentkezést a Microsoft oldalán a böngészőben. A MailCraft várakozik."
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "First"
+msgstr "Első"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "First Message"
 msgstr "Első üzenet"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "First commit"
+msgstr "Első commit"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -5598,8 +5700,8 @@ msgstr "Keresztnév"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "Először mentse el a Google szokásos IMAP és SMTP beállításait és a megfelelő e-mail felhasználónevet, mielőtt bejelentkezési módszereket váltana."
 
-#. android, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Flag"
 msgstr "Jelölő"
@@ -5721,7 +5823,7 @@ msgid ""
 msgstr "Elintézendő"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Follow Up"
 msgstr "Elintézendő"
@@ -5785,6 +5887,12 @@ msgstr "Olyan továbbítószerverhez, amely jelszó nélkül fogadja a leveleket
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
 msgstr "Egy Microsoft-nál bejelentkező fiókhoz: az Outlook kedvencei alatt található mappák ugyanabból a sorrendben kerülnek bemutatásra. A szerverről olvasnak, és soha nem változtattak meg ott. Enélkül a MailCraft-ban található kedvencek jelennek meg."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, nothing of shared mailboxes is read or sent: {error}"
+msgstr "Egyelőre semmi sem olvasható vagy küldhető a megosztott postafiókokból: {error}"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -6133,6 +6241,12 @@ msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
 msgstr "GitHub oldala nyitva van: ellenőrizze, majd adja be. MailCraft nem küldött semmit."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Give it a title first"
+msgstr "Először adjon meg egy címet"
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Give the report a title, on one line and in 200 characters at most."
@@ -6266,6 +6380,12 @@ msgstr "Cél: {host}"
 msgid "Going back to MailCraft {version} didn't happen: this version is still the one here."
 msgstr "Visszamenni MailCraft {version}-ba nem történt meg: ez a verzió még mindig itt van."
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Gold"
+msgstr "Arany"
+
 #. name
 #: crates/model/src/mailbox.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -6390,7 +6510,19 @@ msgstr "Grafit"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
-msgstr "A Gravatartól a feladó képét kérjük el, és megmondjuk neki a címük hash-ét; ha nincs ilyen, a favicon.im-től, majd a Google-től a weboldaluk ikonját kérjük el, és megmondjuk nekik a feladó tartományát. Ezzel ezek a szolgáltatások megtudják, kinek a képeit nézi. Csak azokhoz, akiket ismer (a névjegyei, és akinek írt), és azokhoz a levelekhez történik, amelyeknek a képeit letölti, a Levélszemét mappa leveleihez soha, a feladó képe pedig csak akkor, ha a levelezőszerver megerősíti, hogy a levél tőle származik."
+msgstr "A MailCraft a Gravatartól kéri le a feladó képét, és ehhez elküldi neki a feladó e-mail-címének hash-értékét. Ha ott nincs kép, a favicon.im-től, majd a Google-tól kéri le a feladó webhelyének ikonját, és ehhez elküldi nekik a feladó e-mail-címének domainnevét. Ezek a szolgáltatások így megtudják, kiknek a képét nézi meg. Ez csak a névjegyeire és azokra vonatkozik, akiknek már írt, és csak azokra a levelekre, amelyekben letölti a képeket. Levélszemét esetén nem történik ilyen lekérés. A feladó képe csak akkor jelenik meg, ha a levelezőszerver megerősíti, hogy a levél valóban tőle érkezett."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Green"
+msgstr "Zöld"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Grey"
+msgstr "Szürke"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
@@ -6591,7 +6723,7 @@ msgid "High Contrast"
 msgstr "Magas kontraszt"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "High Importance"
 msgstr "Fontos"
@@ -6621,7 +6753,7 @@ msgid "Hold Unsent Mail"
 msgstr "A nem küldött levelek megtartása"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Kezdőlap"
@@ -7372,6 +7504,12 @@ msgstr "Dőlt"
 msgid "Item"
 msgstr "Tétel"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
+msgid "Item from Message"
+msgstr "Tétel levélből"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -7746,6 +7884,12 @@ msgstr "Nagyobb üzenetek letöltése, amikor megnyitja őket. Kevesebb eltávol
 msgid "Largest on top"
 msgstr "A legnagyobb felül"
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Last"
+msgstr "Utolsó"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -7765,6 +7909,12 @@ msgid "Last Week"
 msgstr "Múlt hét"
 
 #. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Last commit"
+msgstr "Utolsó commit"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Last name"
@@ -7781,6 +7931,18 @@ msgstr "Később."
 #, fuzzy
 msgid "Later keeps this account on IMAP for now. You can switch whenever you like: search the commands for \"Switch to Microsoft Graph\"."
 msgstr "A Később lehetőség egyelőre megtartja az IMAP-kapcsolatot. A Váltás Microsoft Graphra parancsot később bármikor megkeresheti és elindíthatja."
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Laugh"
+msgstr "Nevetés"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Lavender"
+msgstr "Levendula"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7818,6 +7980,18 @@ msgstr "Ne ellenőrizd!"
 msgid "Leave this account out of this Send/Receive"
 msgstr "A fiók kihagyása a mostani küldésből és fogadásból"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "A(z) „{name}” mappa 1 üzenete kimarad, mert {tries} futásban nem sikerült letölteni; az Átugrott üzenetek újrapróbálása újra megpróbálja"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "A(z) „{name}” mappa {count} üzenete kimarad, mert {tries} futásban nem sikerült letölteni; az Átugrott üzenetek újrapróbálása újra megpróbálja őket"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -7843,6 +8017,18 @@ msgid "Light"
 msgstr "Világos"
 
 #. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Like"
+msgstr "Tetszik"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Lime"
+msgstr "Lime"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Limited details: and the titles"
@@ -7853,6 +8039,24 @@ msgstr "Korlátozott részletek: és a címek"
 #, fuzzy
 msgid "Line Spacing"
 msgstr "Sorköz"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Line delta"
+msgstr "Sorok különbsége"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Lines added"
+msgstr "Hozzáadott sorok"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Lines deleted"
+msgstr "Törölt sorok"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signatures.rs
@@ -8016,6 +8220,12 @@ msgstr "{folders}, {files}, {messages} eddig"
 msgid "Looks like a brand."
 msgstr "Márkának tűnik."
 
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Love"
+msgstr "Imádom"
+
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8023,7 +8233,7 @@ msgid "Low"
 msgstr "Alacsony"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Low Importance"
 msgstr "Kevésbé fontos"
@@ -8105,12 +8315,6 @@ msgstr "Levelezési mappa a fiókban: {folder}"
 #, fuzzy
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "Egy másik postafiókából nem lehet bemenni egy Outboxba: a következő Küldés/fogadó küldené el"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Mail from the shared mailbox waits: {error}"
-msgstr "A megosztott postafiókából érkező levelek várnak: {error}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8299,7 +8503,7 @@ msgid "MailCraft is up to date ({version})."
 msgstr "MailCraft naprakész ({version})."
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr "MailCraft még nem olvashatja el mások naptárát."
@@ -8510,6 +8714,12 @@ msgstr "Postafiók"
 msgid "Make a signature with New."
 msgstr "Az Új gombbal hozhat létre aláírást."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Make an Item from a Message"
+msgstr "Tétel létrehozása levélből"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8590,8 +8800,8 @@ msgstr ""
 "Összes megjelölése\n"
 "olvasottként"
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Mark All as Read"
 msgstr "Jelöld meg, hogy mi az olvasás"
@@ -8620,20 +8830,20 @@ msgstr "A kulcs ellenőrzése"
 msgid "Mark a message as read when it is opened in the reading pane"
 msgstr "Az olvasóablakban megnyitott üzenetek megjelölése olvasottként"
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as Read"
 msgstr "Megjelölés olvasottként"
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as Unread"
 msgstr "Megjelölés olvasatlanként"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Megjelölés olvasottként"
@@ -8716,8 +8926,14 @@ msgid_plural "Merge {n} Contacts…"
 msgstr[0] "{n} névjegy egyesítése…"
 msgstr[1] "{n} névjegy egyesítése…"
 
-#. android, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Merged PRs"
+msgstr "Egyesített PR-ek"
+
+#. android, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Üzenet"
@@ -8989,6 +9205,12 @@ msgstr "Kis méret"
 #, fuzzy
 msgid "Mobile"
 msgstr "Mobil"
+
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Module bar"
+msgstr "Modulsáv"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -9281,16 +9503,28 @@ msgid "My outgoing server needs no sign-in"
 msgstr "A kimenő szerverem nem kér bejelentkezést"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Name"
 msgstr "Név"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Name (A–Z)"
+msgstr "Név (A–Z)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Name (optional)"
 msgstr "Név (nem kötelező)"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Name somebody to invite first"
+msgstr "Először adja meg, kit hív meg"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -9323,7 +9557,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "Nevek vagy címek pontosvesszővel elválasztva"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Navigation"
 msgstr "Navigáció"
@@ -9341,6 +9575,12 @@ msgstr "Navigációs sáv"
 #, fuzzy
 msgid "Navigation Bar"
 msgstr "Navigációs sáv"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Navy"
+msgstr "Tengerészkék"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9507,6 +9747,12 @@ msgstr "Új e-mail"
 #, fuzzy
 msgid "New Folder"
 msgstr "Új mappa"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "New Folder…"
+msgstr "Új mappa…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9735,6 +9981,12 @@ msgid "No account is connected to a mail server (File › Add Account)"
 msgstr "Egyetlen fiók sem kapcsolódik levelezési kiszolgálóhoz (Fájl › Fiók hozzáadása)"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "No account is connected to a mail server yet."
+msgstr "Még egyik fiók sincs levelezőkiszolgálóhoz csatlakoztatva."
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "No account signs in with Microsoft"
@@ -9867,6 +10119,12 @@ msgid "No date"
 msgstr "Nincs dátum"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "No day fits this pattern"
+msgstr "Egyetlen nap sem felel meg ennek a mintának"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "No downloaded pictures are kept on this computer."
@@ -9973,6 +10231,12 @@ msgstr "Nem található névjegy."
 #, fuzzy
 msgid "No preview helper is available for this attachment."
 msgstr "Ehhez a melléklethoz nem áll rendelkezésre előzetes segítő."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "No preview is available for this attachment."
+msgstr "Ehhez a melléklethez nem érhető el előnézet."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
@@ -10154,8 +10418,8 @@ msgstr "Senkit, akinek címe van, nem hívnak meg."
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "Senki, vagy több, mint egy kapcsolatod, egyezik: {names}"
 
-#. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "Nincs"
@@ -10165,6 +10429,12 @@ msgstr "Nincs"
 #, fuzzy
 msgid "None of these messages can be unsubscribed from here."
 msgstr "Ezek közül egyik üzenetről sem lehet innen leiratkozni."
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "None of those messages is in this mailbox any more."
+msgstr "Ezek közül a levelek közül egy sincs már ebben a postafiókban."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10177,6 +10447,12 @@ msgstr "Még nincs."
 #, fuzzy
 msgid "Normal"
 msgstr "Normál"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Normal Importance"
+msgstr "Normál fontosság"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
@@ -10981,7 +11257,7 @@ msgid "Open Result from the Server"
 msgstr "Nyissa meg a kiszolgáló eredményét"
 
 #. command label, interface
-#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Open Shared Calendar"
 msgstr "Megosztott naptár megnyitása"
@@ -11167,6 +11443,12 @@ msgid "Opens GitHub's page in your browser, filled in: you check it and submit i
 msgstr "Megnyitja GitHub oldalát a böngészőjében, kitöltve: ellenőrzi és odaküldi."
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Opens Microsoft's approval page in your browser. Sign in there with an administrator account and accept; MailCraft carries on by itself."
+msgstr "Megnyitja a Microsoft jóváhagyási oldalát a böngészőben. Jelentkezzen be ott rendszergazdai fiókkal, és fogadja el; a MailCraft ezután magától folytatja."
+
+#. interface
 #: crates/ui-egui/src/reading/sharing.rs
 #, fuzzy
 msgid "Opens it by their address, on this computer only: it won't appear in Outlook or on your other devices"
@@ -11189,6 +11471,12 @@ msgstr "Beállítások"
 #, fuzzy
 msgid "Or is it one of these?"
 msgstr "Vagy ez is egy ilyen?"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Orange"
+msgstr "Narancssárga"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -11244,23 +11532,29 @@ msgstr "Egyéb naptárak"
 msgid "Other accounts and On this computer"
 msgstr "Más fiókok és a helyi fiók"
 
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Other addresses you send from"
+msgstr "További címek, amelyekről küld"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
 msgid "Other people's calendars can be opened under a Microsoft work or school account"
 msgstr "Más emberek naptárai Microsoft munka vagy iskolai fiók alatt is nyithatók"
 
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Other people's calendars weren't allowed: {error}"
-msgstr "Más emberek naptárai nem voltak megengedettek: {error}"
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
 msgstr "Egyébként az értesítés a feladót és a tárgyat mutatja, az üzenet szövegét és képeit soha. A zárképernyőn megjelenő tartalmat a telefon saját adatvédelmi beállítása szabja meg."
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Egyébként a nevükkel jelennek meg. A Levélszemét mappában mindig a nevükkel jelennek meg."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11370,6 +11664,12 @@ msgstr "A PLAIN-nek felhasználói névre és jelszóra van szüksége NUL karak
 msgid "PM"
 msgstr "du."
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "PRs"
+msgstr "PR-ek"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -11471,6 +11771,12 @@ msgstr "Illessze be vagy írja be az aláírás HTML-kódját"
 #, fuzzy
 msgid "Pattern"
 msgstr "Minta"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Peach"
+msgstr "Barack"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
@@ -11610,8 +11916,8 @@ msgstr "Az interneten található képek minden egyes megnyitott üzenetben le l
 msgid "Pictures: {n} KB of {max} KB"
 msgstr "Képek: {n} KB of {max} KB"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pin"
 msgstr "Rögzítés"
@@ -11621,6 +11927,12 @@ msgstr "Rögzítés"
 #, fuzzy
 msgid "Pin to the top of the list"
 msgstr "Rögzítés a lista tetején"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Pink"
+msgstr "Rózsaszín"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -11723,6 +12035,12 @@ msgstr "Melléklet előnézete"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
+msgid "Preview File"
+msgstr "Fájl előnézete"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview attachments with local PdfCraft"
 msgstr "Előnézeti mellékletok helyi PdfCraft"
 
@@ -11737,6 +12055,12 @@ msgstr "Előnézeti mellékletok helyi PdfCraft és PhotoCraft"
 #, fuzzy
 msgid "Preview attachments with local PhotoCraft"
 msgstr "Előnézeti mellékletok helyi PhotoCraft"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview files only when you trust the sender."
+msgstr "Csak megbízható feladótól érkező fájl előnézetét nyissa meg."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11901,6 +12225,12 @@ msgid "Public keys of other people"
 msgstr "Más emberek nyilvános kulcsai"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Purple"
+msgstr "Lila"
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Put the calendar items"
@@ -11960,6 +12290,12 @@ msgstr "Esedékes emlékeztetők megjelenítése"
 msgid "Range"
 msgstr "Távolság"
 
+#. command label, interface
+#: crates/engine/src/cmd/react.rs crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "React"
+msgstr "Reagálás"
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -12015,6 +12351,24 @@ msgstr "Olvasóablak"
 #, fuzzy
 msgid "Reading Pane"
 msgstr "Olvasóablak"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Reading pane at the bottom"
+msgstr "Olvasópanel alul"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Reading pane off"
+msgstr "Olvasópanel kikapcsolva"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Reading pane on the right"
+msgstr "Olvasópanel jobbra"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -12244,6 +12598,16 @@ msgstr "Emlékeztető ablak"
 msgid "Remove"
 msgstr "Eltávolítás"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+"Melléklet\n"
+"eltávolítása"
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -12261,6 +12625,16 @@ msgstr "Melléklet eltávolítása"
 #, fuzzy
 msgid "Remove Everything"
 msgstr "Minden eltávolítása"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"Az importált\n"
+"duplikátumok eltávolítása"
 
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
@@ -12387,7 +12761,7 @@ msgid "Remove from Calendar"
 msgstr "Törlés a naptárból"
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Remove from Favorites"
 msgstr "Eltávolítás a Kedvencekből"
@@ -12433,6 +12807,12 @@ msgstr "Eltávolítja ezt a fiókot?"
 #, fuzzy
 msgid "Remove this action"
 msgstr "Művelet eltávolítása"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Remove this address"
+msgstr "Cím eltávolítása"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12489,6 +12869,12 @@ msgstr "Átnevezés kategória"
 #, fuzzy
 msgid "Rename Folder"
 msgstr "A mappa átnevezése"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Rename Folder…"
+msgstr "Mappa átnevezése…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -12659,7 +13045,7 @@ msgid "Reset View"
 msgstr "A nézet újraindítása"
 
 #. command label, ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Respond"
 msgstr "Válaszok"
@@ -12706,11 +13092,23 @@ msgstr "Frissítés újraindítása"
 msgid "Restart to update is the owner's click."
 msgstr "A frissítés újrakezdése a tulajdonos kattintása."
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Restore attachment preview warnings"
+msgstr "Előnézeti figyelmeztetések visszaállítása"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
 msgid "Retry"
 msgstr "Újra"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "Átugrott üzenetek újrapróbálása"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -12899,7 +13297,7 @@ msgstr ""
 "futtatása"
 
 #. command label, interface
-#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Run Rules Now"
 msgstr "Szabályok futtatása most"
@@ -12933,6 +13331,18 @@ msgstr "A szabály futtatása az üzenetek beérkezésekor"
 #, fuzzy
 msgid "SHA-256 fingerprint"
 msgstr "SHA-256 ujjlenyomat"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Sad"
+msgstr "Szomorú"
+
+#. interface
+#: crates/ui-egui/src/forms/junk.rs
+#, fuzzy
+msgid "Safe Senders"
+msgstr "Biztonságos feladók"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12984,6 +13394,16 @@ msgstr ""
 msgid "Save & Close"
 msgstr "Mentés és bezárás"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+"Az összes\n"
+"melléklet mentése"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -12996,8 +13416,8 @@ msgstr "Minden melléklet mentése"
 msgid "Save All Attachments…"
 msgstr "Összes melléklet mentése…"
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Save As"
 msgstr "Mentés"
@@ -13103,6 +13523,12 @@ msgstr "Mielőtt Google-bejelentkezésre vált, mentse vagy vesse el a fiók mó
 #, fuzzy
 msgid "Save out"
 msgstr "Mentés"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Save to Computer"
+msgstr "Mentés a számítógépre"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -13651,12 +14077,6 @@ msgstr "Automatikus küldés és fogadás"
 msgid "Send automatic replies"
 msgstr "Automatikus válaszok küldése"
 
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Send from a Shared Mailbox"
-msgstr "Küldés megosztott postafiókából"
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -13873,6 +14293,12 @@ msgstr "Küldés/fogadás JMAP-pal"
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Microsoft Graph- pel történő üzenetküldés/ fogadás"
 
+#. command label
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "Sender Addresses"
+msgstr "Feladócímek"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
 #, fuzzy
@@ -14037,6 +14463,12 @@ msgstr "A kiszolgáló beállításai"
 msgid "Server: {address}"
 msgstr "Kiszolgáló: {address}"
 
+#. command label
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "Set Sender Addresses"
+msgstr "Feladócímek beállítása"
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -14086,6 +14518,12 @@ msgid "Shared Calendars"
 msgstr "Megosztott naptárak"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Shared Mailboxes and Calendars"
+msgstr "Megosztott postafiókok és naptárak"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Shared mailbox · No access: Microsoft won't open it for you. Send/Receive tries again"
@@ -14110,22 +14548,44 @@ msgid "Shared mailboxes"
 msgstr "Megosztott postafiókok"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Shared mailboxes weren't allowed: {error}"
-msgstr "Megosztott postafiókák nem engedélyezettek: {error}"
+msgid "Shared mailboxes and calendars weren't allowed: {error}"
+msgstr "A megosztott postafiókok és naptárak nem lettek engedélyezve: {error}"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
+#: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
-msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr "Megosztott postafiókák naptárai nem megengedettek: {error}"
+msgid "Shared mailboxes and calendars: asking for your permission…"
+msgstr "Megosztott postafiókok és naptárak: engedély kérése…"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: not allowed ({why})"
+msgstr "Megosztott postafiókok és naptárak: nem engedélyezett ({why})"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: waiting for your permission"
+msgstr "Megosztott postafiókok és naptárak: az Ön engedélyére vár"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
 #, fuzzy
 msgid "Show"
 msgstr "Megjelenítés"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Show\n"
+"Message"
+msgstr ""
+"Üzenet\n"
+"megjelenítése"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14181,6 +14641,12 @@ msgstr "A Gmail kategóriák megjelenítése a bekeretezett részben"
 msgid "Show MailCraft"
 msgstr "MailCraft megjelenítése"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Message"
+msgstr "Üzenet megjelenítése"
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -14192,6 +14658,12 @@ msgstr "Csak a naptár megjelenítése"
 #, fuzzy
 msgid "Show Outlook's Favorites"
 msgstr "Az Outlook kedvencei"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Képmellékletek megjelenítése képként"
 
 #. command label
 #: crates/engine/src/cmd/sync_progress.rs
@@ -14228,12 +14700,6 @@ msgstr "Feladatok megjelenítése"
 #, fuzzy
 msgid "Show Training"
 msgstr "Képzés megjelenítése"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Show a Shared Mailbox's Calendars"
-msgstr "Megosztásos postafiók naptárak megjelenítése"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -14322,6 +14788,12 @@ msgstr "Több feladat megjelenítése"
 #, fuzzy
 msgid "Show password"
 msgstr "Jelszó megjelenítése"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Képmellékletek megjelenítése képként"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -14688,6 +15160,18 @@ msgid "Signing in brought nothing back"
 msgstr "A bejelentkezés nem hozott vissza semmit."
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Signing in didn't work"
+msgstr "A bejelentkezés nem sikerült"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Signing in happens on Microsoft's page in a web browser, and none could be started on this computer. Check that it has a default browser, then try again."
+msgstr "A bejelentkezés a Microsoft oldalán, webböngészőben történik, de ezen a számítógépen nem sikerült böngészőt indítani. Ellenőrizze, hogy van-e alapértelmezett böngésző, majd próbálja újra."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Signing in stopped unexpectedly"
@@ -14764,6 +15248,12 @@ msgstr "Kihagyás"
 #, fuzzy
 msgid "Skipped"
 msgstr "Kihagyva"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Sky"
+msgstr "Égszínkék"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -15179,20 +15669,38 @@ msgstr "V"
 msgid "Sunday"
 msgstr "vasárnap"
 
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Surprised"
+msgstr "Meglepett"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Swipe Action"
+msgstr "Csúsztatási művelet"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Swipe actions"
 msgstr "Csúsztatási műveletek"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
+msgstr "Csúsztasson vízszintesen egy üzeneten a kiválasztott művelet végrehajtásához. Windows alatt a vízszintes egérgörgő is elindíthatja."
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the left"
 msgstr "Csúsztatás balra"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the right"
 msgstr "Csúsztatás jobbra"
@@ -15408,7 +15916,7 @@ msgid "Tasks: waiting for your permission"
 msgstr "Feladatok: az engedélyére várva"
 
 #. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/theme/accent.rs
 #, fuzzy
 msgid "Teal"
 msgstr "Türkiz"
@@ -15664,12 +16172,6 @@ msgstr "Ez túl hosszú egy jelentéshez: rövidítse meg"
 #, fuzzy
 msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at most. Leave the box empty if you have none."
 msgstr "Ez nem egy GitHub felhasználónév: betűk, számjegyek és egyetlen kötőjelek, legfeljebb 39. Hagyja üresen a dobozt, ha nincs."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "That isn't a shared mailbox"
-msgstr "Ez nem megosztott postafiók"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -16024,12 +16526,6 @@ msgstr ""
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
 msgstr "A(z) {name} naptár és az ezen a számítógépen tárolt eseményei törlődnek, a hozzá tárolt címmel együtt. Semmi nem kerül elküldésre; a címmel újra előfizethet."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "The calendars of the shared mailbox wait: {error}"
-msgstr "A megosztott postafiók naptárai várakoznak: {error}"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -16598,6 +17094,18 @@ msgid "The name of someone you know."
 msgstr "Valakinek a neve, akit ismersz."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The name people you write to will see"
+msgstr "A név, amelyet az emberek látnak, akiknek írsz"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "The name recipients see; your own when empty"
+msgstr "A címzettek által látott név; üresen a saját neve"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The name the calendar gives itself"
@@ -16651,6 +17159,12 @@ msgstr "A kimenő levelező szerver nem egy fogadónév (betűk, számjegyek, po
 msgid "The owner hasn't allowed update checks."
 msgstr "A tulajdonos nem engedélyezte a frissítéseket."
 
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "The page was closed, or five minutes went by before the sign-in was finished."
+msgstr "Az oldalt bezárták, vagy a bejelentkezés befejezése előtt öt perc telt el."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
@@ -16680,6 +17194,18 @@ msgstr "A fájlban található privát kulcs nincs titkosítva, így a MailCraft
 #, fuzzy
 msgid "The proposed end has to be after the proposed start."
 msgstr "A javasolt cél a javasolt kezdés után kell, hogy legyen."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The range needs a day to end by"
+msgstr "A tartományhoz záró nap szükséges"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The range needs a day to start on"
+msgstr "A tartományhoz kezdő nap szükséges"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -16748,6 +17274,12 @@ msgid "The rules sent couldn't be noted: {error}"
 msgstr "A küldött szabályokat nem lehetett megjegyezni: {error}"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
+msgstr "Ugyanez az oldal kéri a hozzáférhető megosztott postafiókok olvasását és az azokból való küldést, valamint az Önnel megosztott naptárak olvasását, hogy a MailCraftnak ne kelljen újra kérdeznie."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The search for your Exchange server asks to start again with an address in another domain, {host}."
@@ -16812,6 +17344,12 @@ msgstr "A feladó neve {brand}, de ez az üzenet innen jött: {real}, és {domai
 #, fuzzy
 msgid "The sender's name shows {shown}, but the message came from {real}."
 msgstr "A feladó neve {shown}-t mutatja, de az üzenet {real}-tól jött."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The series needs a day to end by"
+msgstr "A sorozathoz záró nap szükséges"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17144,6 +17682,18 @@ msgid "The space the folder's own messages take on this computer"
 msgstr "A könyvtár saját üzeneteinek helye, amit a számítógépen használ"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The start and the end need a date and a time"
+msgstr "A kezdethez és a befejezéshez dátum és időpont szükséges"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The start and the end need a time"
+msgstr "A kezdethez és a befejezéshez időpont szükséges"
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "The switch of {account} to Microsoft Graph waits until MailCraft can reach the server."
@@ -17414,7 +17964,7 @@ msgid "This account has no mail server to send the answer through."
 msgstr "Ez a fiók nincs levelező szerver, hogy küldje el a választ."
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Ez a fiók nem jelent be a Microsoft-nál"
@@ -17544,6 +18094,12 @@ msgstr "Ez a konstrukció nem tud csatlakozni a levelező szerverekhez. A fiók 
 #, fuzzy
 msgid "This build can't connect to mail servers. Use the desktop app to add an Exchange server account."
 msgstr "Ez a konstrukció nem tud csatlakozni a levelező szerverekhez. Az asztali alkalmazás segítségével hozzáadhat egy Exchange szerver fiókot."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
+msgstr "Ez a build nem tud levelezőkiszolgálókhoz csatlakozni. Használja az asztali alkalmazást, vagy hozza be a leveleket a Fájl › Importálás menüvel."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -17844,6 +18400,12 @@ msgstr "Másik fiókkal jelentkezett be"
 #, fuzzy
 msgid "This item has changes that aren't saved. Save them?"
 msgstr "Ez az elem mentetlen módosításokat tartalmaz. Menti őket?"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
+msgstr "Ehhez a tételhez fájlok vannak csatolva, amelyeket csak a kiszolgáló őriz, és amelyek egy másolatból hiányoznának: innen nem másolható."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -18232,7 +18794,7 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "A sorozat még nem érkezett meg a fiók kiszolgálójára. Egy kis idő múlva módosíthatja valamelyik előfordulását."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
 msgstr "A megosztott postafiókhoz tartozó fiók már nincs meg"
@@ -18424,18 +18986,6 @@ msgid "To add another Google address, go back and start a new account setup."
 msgstr "Ha szeretne hozzáadni egy másik Google címet, menjen vissza és indítson el egy új fiók beállítást."
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
-msgstr ""
-"A {address}-tól érkező találkozók megválaszolásához vagy küldéséhez MailCraft-nak szüksége van az engedélyére, hogy közös postafiókákból küldhessen.\n"
-"\n"
-"A Microsoft oldala egyszer megnyílik a böngészőjében. A válasz {address}-ként vagy annak nevében a szervezet választása. Amíg nem engedi, a válasz ezen a számítógépen vár, és semmi sem kerül elküldésre a saját címéről."
-
-#. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
@@ -18502,40 +19052,16 @@ msgid "To me"
 msgstr "Nekem"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+"To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"
 "\n"
-"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+"Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr ""
-"Mások megosztott naptárainak megnyitásához a MailCraft olvasási engedélyt kér. A Microsoft oldala egyszer nyílik meg a böngészőben az engedélykéréshez.\n"
+"A(z) {address} címmel megnyitott megosztott postafiókok olvasásához és az azokból való küldéshez, valamint az Önnel megosztott naptárak megjelenítéséhez a MailCraftnak szüksége van az Ön engedélyére. A Microsoft oldala megnyílik a böngészőben, és egyszer rákérdez mindenre, amit a MailCraft használ, és Ön még nem engedélyezett.\n"
 "\n"
-"A megnyitott naptárak csak ezen a számítógépen jelennek meg. Az Outlookban és más eszközökön nem lesznek láthatók."
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr ""
-"Ahhoz, hogy erről a címről küldhessen levelet, a MailCraft engedélyt kér a megosztott postafiókokból való küldéshez: {address}. A Microsoft engedélykérő oldala egyszer nyílik meg a böngészőben.\n"
-"\n"
-"A szervezet beállítása dönti el, hogy a levél feladójaként a(z) {address} cím jelenik meg, vagy a levél ennek nevében megy ki. Engedélyezésig az üzenet a megosztott fiók Postázandó üzenetek mappájában vár. A saját címéről nem megy ki üzenet."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid ""
-"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-msgstr ""
-"A {address} naptárainak megjelenítéséhez MailCraft-nak szüksége van az engedélyére, hogy elolvassa a megosztott postafiókák naptárait.\n"
-"\n"
-"A Microsoft oldala egyszer megnyílik a böngészőjében. A naptárról csak egyszer láthatja a tulajdonosát és a szervezetét, hogy döntsön: ez nem változtat semmin. Amíg nem engedi, {address} naptáraiból semmit sem olvasunk."
+"Amíg nem engedélyezi, semmi sem olvasható ezekből a postafiókokból és naptárakból, a megosztott postafiókból küldendő levelek és értekezlet-válaszok ezen a számítógépen várnak, és semmi sem megy el helyettük az Ön saját címéről."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18676,7 +19202,7 @@ msgid "Try Signing In Again"
 msgstr "Próbáljon újra bejelentkezni!"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Próbáld újra."
@@ -18812,6 +19338,12 @@ msgstr "Gépelés visszavonása"
 #, fuzzy
 msgid "Undo {what}"
 msgstr "Visszavonás: {what}"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unpin"
+msgstr "Rögzítés feloldása"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
@@ -19633,6 +20165,12 @@ msgstr "Munkahely"
 msgid "Write"
 msgstr "Írás"
 
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "Write a Note with the Response…"
+msgstr "Jegyzet írása a válaszhoz…"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -19676,6 +20214,12 @@ msgid "Yahoo Mail"
 msgstr "Yahoo Mail"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Yellow"
+msgstr "Sárga"
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Yes"
@@ -19697,7 +20241,7 @@ msgstr "Te."
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "You accepted this meeting."
-msgstr "Elfogadtad ezt a találkozót."
+msgstr "Elfogadta ezt az értekezletet."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -19706,10 +20250,16 @@ msgid "You always download this sender's pictures, but the mail server didn't co
 msgstr "Mindig letölti ennek a feladónak a képeit, de a levelezőszerver nem erősítette meg, hogy ez az üzenet tőle jött, ezért először rákérdezünk."
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "You came back from Microsoft's page without having signed in: you said no there, or the page sent you back."
+msgstr "Bejelentkezés nélkül tért vissza a Microsoft oldaláról: ott nemet mondott, vagy az oldal visszaküldte."
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "You declined this meeting."
-msgstr "Visszautasítottad a találkozót."
+msgstr "Elutasította ezt az értekezletet."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19805,7 +20355,7 @@ msgstr "Ezzel a fiókkal jelentkezett be: {signedIn}. A megadott fiók: {typed}.
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "You tentatively accepted this meeting."
-msgstr "Te is elfogadtad ezt a találkozót."
+msgstr "Feltételesen elfogadta ezt az értekezletet."
 
 #. interface, what a command says
 #: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
@@ -19946,12 +20496,6 @@ msgid "Your organisation doesn't allow Exchange Web Services for this account. A
 msgstr "A szervezet ennél a fióknál nem engedélyezi az Exchange Web Services használatát. Forduljon a rendszergazdához."
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr "A szervezet nem engedi, hogy MailCraft elolvassa a megosztott postafiókák naptárait."
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
@@ -19962,6 +20506,12 @@ msgstr "A szervezet nem engedi, hogy MailCraft megváltoztassa az automatikus v�
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
 msgstr "A szervezete nem engedi, hogy a MailCraft szinkronban tartsa ezt a postafiókot az Outlookkal"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
+msgstr "A szervezete nem engedi, hogy a MailCraft olvassa a megosztott postafiókokat és az Önnel megosztott naptárakat"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -20030,22 +20580,10 @@ msgid "Your organisation's administrator has to approve MailCraft keeping this m
 msgstr "A szervezet rendszergazdájának egyszer jóvá kell hagynia, hogy a MailCraft szinkronban tartsa ezt a postafiókot az Outlookkal: Fájl › Információ"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr "A szervezet adminisztrátorának jóvá kell hagynia a mások naptárainak olvasását egyszer: Fájl › Infó"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postafiókok olvasását egyszer: Fájl › Info"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postafiókok naptárainak olvasását egyszer: Fájl › Információ"
+msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
+msgstr "A szervezete rendszergazdájának egyszer jóvá kell hagynia, hogy a MailCraft megosztott postafiókokat és naptárakat olvasson: Fájl › Információ"
 
 #. interface
 #: crates/ui-egui/src
@@ -20203,6 +20741,12 @@ msgstr "a .pst fájlt csak a számítógépen található mappába importálják
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
 msgstr "a JMAP-fiók szervere és címe nem módosítható, ha a posta itt van: távolítsa el és adja hozzá a másikat"
 
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "a Microsoft or Exchange account sends from other addresses only as its server allows, which MailCraft doesn't ask for yet"
+msgstr "A Microsoft- vagy Exchange-fiók csak annyi más címről küldhet, amennyit a szervere megenged, amit a MailCraft még nem kérdez le"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
@@ -20318,6 +20862,30 @@ msgid "a picture in a message is at most {mb} MB"
 msgstr "egy kép egy üzenetben legfeljebb {mb} MB"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction can't be sent to a draft or to mail you wrote"
+msgstr "piszkozatra vagy saját üzenetre nem lehet reagálni"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account"
+msgstr "reakciót csak IMAP-, JMAP- és helyi fiókból lehet küldeni, Microsoft- vagy Exchange-kiszolgálófiókból nem"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to automated mail (a no-reply address, a mailing list, bulk mail)"
+msgstr "automatikus üzenetre (no-reply cím, levelezőlista, tömeges levél) nem küldünk reakciót"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to mail in Junk E-mail"
+msgstr "a levélszemét mappában lévő üzenetre nem küldünk reakciót"
+
+#. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
 msgid "a reply may be {most} characters long at most"
@@ -20346,6 +20914,12 @@ msgstr "a fiók szabálya nem helyezhető át másik fiók kiszolgálójára"
 #, fuzzy
 msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
 msgstr "A szerverre váró szabály azok után megy, amit ott kell megtenni; a szerver elmozdítható, ha már ott van"
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "a sender address has no e-mail address"
+msgstr "egy feladócímhez nem tartozik e-mail-cím"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -20478,6 +21052,12 @@ msgstr "az Exchange-fióktípusra vagy más típusra a fiók eltávolításával
 #, fuzzy
 msgid "an account can't be put before itself"
 msgstr "a fiók nem helyezhető saját maga elé"
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "an account has {max} sender addresses at most"
+msgstr "egy fióknak legfeljebb {max} feladócíme lehet"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21058,7 +21638,7 @@ msgid "no account with id {account}"
 msgstr "nincs ilyen azonosítójú fiók: {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nincs ilyen azonosítójú fiók: {id}"
@@ -21154,7 +21734,7 @@ msgid "no message is being written"
 msgstr "nincs megnyitva szerkesztésre üzenet"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "nincs ilyen azonosítójú üzenet: {id}"
@@ -21213,8 +21793,8 @@ msgstr "nincs szabad aláírás"
 msgid "no signature named \"{from}\""
 msgstr "nincs \"{from}\" nevű aláírás."
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/signature.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "no signature named \"{name}\""
 msgstr "nincs \"{name}\" nevű aláírás."
@@ -21236,6 +21816,11 @@ msgstr "nincs ilyen kötődés"
 #, fuzzy
 msgid "no such paragraph"
 msgstr "nincs ilyen bekezdés"
+
+#. what a command says
+#: crates/model/src/rich.rs
+msgid "no such signature"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -21375,6 +21960,12 @@ msgstr "A következő rész tartalmából:"
 msgid "only a message you sent can be sent again"
 msgstr "Csak egy üzenet küldhető újra"
 
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "only an IMAP account sends from other addresses"
+msgstr "csak az IMAP-fiók küldhet más címekről"
+
 #. why a command can't run
 #: crates/engine/src/gmail.rs
 #, fuzzy
@@ -21489,7 +22080,7 @@ msgid "select a conversation in conversation view first"
 msgstr "először egy beszélgetést válasszon a beszélgetési nézetben"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "először válasszon ki egy üzenetet"
@@ -21723,7 +22314,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "a fiókhoz nincs bejelentkezésre használható felhasználónév vagy e-mail-cím"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "a fiók már nincs meg"
@@ -21854,6 +22445,12 @@ msgstr "a letöltés sikertelen"
 msgid "the download stopped before it was done"
 msgstr "a letöltés leállt, mielőtt megtörtént volna"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "a titkosított kapcsolat útközben megsérült (ezt általában a levelezési kapcsolatokat átvizsgáló víruskereső vagy tűzfal okozza: kapcsolja ki a MailCraftra vonatkozó levél- vagy SSL-vizsgálatot, vagy kérdezze meg a levelezési szolgáltatót)"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
@@ -21937,6 +22534,12 @@ msgstr "a .pst fájlt behozták a törölt tárgyakba: az import leállt"
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "A mappa, amiben ez az üzenet van, már nincs ezen a számítógépen."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "a mappa számozása megváltozott olvasás közben"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -22149,7 +22752,7 @@ msgid "the sender has no address to put on the list"
 msgstr "a feladónak nincs címe, amit felírhatna a listára"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "a feladónak nincs használható e-mail-címe"
@@ -22712,7 +23315,7 @@ msgid "this account has no signature; add one in File › Options"
 msgstr "ehhez a fiókhoz nincs aláírás. A Fájl › Beállítások alatt adhat hozzá egyet."
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/react.rs
 #, fuzzy
 msgid "this account has no {folder} folder"
 msgstr "Ez a fiók nem rendelkezik {folder} mappával"
@@ -22802,16 +23405,34 @@ msgid "this message already has as many attachments as it can carry"
 msgstr "Ez az üzenet már annyi tartozékot tartalmaz, amennyit elbír"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has a warning about its sender, so no reaction is sent to it"
+msgstr "ennek az üzenetnek figyelmeztetése van a feladójáról, ezért nem küldünk rá reakciót"
+
+#. what a command says
 #: crates/model/src/pictures.rs
 #, fuzzy
 msgid "this message has had as many pictures as it can"
 msgstr "Ez az üzenet annyi képet kapott, amennyit csak tudott."
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has no Message-ID, so a reaction can't say what it answers"
+msgstr "ennek az üzenetnek nincs Message-ID-je, ezért a reakció nem tudja megmondani, mire válaszol"
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "this message has no sender address to look for"
 msgstr "Ez az üzenet nem a feladó címét kell keresni"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has no sender to send a reaction to"
+msgstr "ennek az üzenetnek nincs feladója, akinek reakciót lehetne küldeni"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -22850,6 +23471,12 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "alkalom"
 msgstr[1] "alkalom"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "to {recipient}"
+msgstr "címzett: {recipient}"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -23023,6 +23650,12 @@ msgstr "kapcsolat nélkül"
 msgid "year"
 msgstr "év"
 
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "you already reacted to this message with {emoji}"
+msgstr "erre az üzenetre már reagált ezzel: {emoji}"
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -23122,6 +23755,12 @@ msgid "{address} is already set up"
 msgstr "{address} már készen áll."
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{address} is no longer one of this account's sender addresses: choose another From"
+msgstr "{address} már nem ennek a fióknak a feladócíme: válasszon másik feladót"
+
+#. what a command says
 #: crates/engine/src/cmd/junk.rs
 #, fuzzy
 msgid "{address} is one of your own addresses: your own mail isn't blocked"
@@ -23138,6 +23777,12 @@ msgstr "{address} be van állítva."
 #, fuzzy
 msgid "{address} isn't a shared mailbox open here."
 msgstr "A(z) {address} nincs megnyitva megosztott postafiókként."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{address} isn't one of this account's sender addresses (add it in Account Settings)"
+msgstr "{address} nem ennek a fióknak a feladócíme (adja hozzá a Fiókbeállításokban)"
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
@@ -24232,6 +24877,22 @@ msgstr[0] "{n} üzenet már itt volt"
 msgstr[1] "{n} üzenet már itt volt"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] "{n} levelet húztak: csak az elsőt nyitotta meg."
+msgstr[1] "{n} levelet húztak: csak az elsőt nyitotta meg."
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "{n} üzenet ki lett hagyva, mert a letöltése nem sikerült."
+msgstr[1] "{n} üzenet ki lett hagyva, mert a letöltésük nem sikerült."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "{n} message will be permanently deleted."
@@ -24861,6 +25522,12 @@ msgstr "{why}, tehát a beiratkozás nem jut eszembe: MailCraft minden egyes alk
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}, a {n} változtatásai itt várnak a gépen."
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "ΔLines"
+msgstr "ΔSorok"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -24901,15 +25568,125 @@ msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint 
 msgid "• to {to}, subject “{subject}”"
 msgstr "• címzett: {to}, tárgy: „{subject}”"
 
+#. interface
+#: crates/ui-egui/src/credits.rs
 #, fuzzy
-#~ msgid "Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
-#~ msgstr "Kimarad az a levél, amelyért a kiszolgálója nem kezeskedik, amely a Levélszemét mappában van, vagy amelynek a feladójára figyelmeztetés vonatkozik."
+msgid "−Bin"
+msgstr "−Bin"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "−Lines"
+msgstr "−Sorok"
 
 #, fuzzy
-#~ msgid "{n} by a message from your account through your Outbox, with the subject and text the list gave."
-#~ msgid_plural "{n} by a message each from your account through your Outbox, with the subject and text each list gave."
-#~ msgstr[0] "{n} a fiókjából küldött üzenettel, a Postázandó üzenetek mappán keresztül, a lista által megadott tárggyal és szöveggel."
-#~ msgstr[1] "{n} egy-egy, a fiókjából küldött üzenettel, a Postázandó üzenetek mappán keresztül, az egyes listák által megadott tárggyal és szöveggel."
+#~ msgid "As the people you write to see it"
+#~ msgstr "Mint az emberek, akiket írsz, hogy lássák."
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
+#~ msgstr "Hagyja, hogy a MailCraft elolvassa mások naptárait a böngészőjében megnyílt oldalon…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
+#~ msgstr "Hagyja, hogy MailCraft elolvassa a megosztott postafiókok naptárait a böngészőjében megnyitott oldalon…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
+#~ msgstr "Hagyja, hogy MailCraft küldjen megosztott postafiókákról a böngészőjében megnyitott oldalon…"
+
+#, fuzzy
+#~ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
+#~ msgstr "Kérjen engedélyt a megosztott postafiókok naptárainak elolvasására: A Microsoft oldala a böngészőjében nyílik meg. Enélkül a postafiók naptárából semmi sem olvasható."
+
+#, fuzzy
+#~ msgid "Mail from the shared mailbox waits: {error}"
+#~ msgstr "A megosztott postafiókából érkező levelek várnak: {error}"
+
+#, fuzzy
+#~ msgid "Other people's calendars weren't allowed: {error}"
+#~ msgstr "Más emberek naptárai nem voltak megengedettek: {error}"
+
+#, fuzzy
+#~ msgid "Send from a Shared Mailbox"
+#~ msgstr "Küldés megosztott postafiókából"
+
+#, fuzzy
+#~ msgid "Shared mailboxes weren't allowed: {error}"
+#~ msgstr "Megosztott postafiókák nem engedélyezettek: {error}"
+
+#, fuzzy
+#~ msgid "Shared mailboxes' calendars weren't allowed: {error}"
+#~ msgstr "Megosztott postafiókák naptárai nem megengedettek: {error}"
+
+#, fuzzy
+#~ msgid "Show a Shared Mailbox's Calendars"
+#~ msgstr "Megosztásos postafiók naptárak megjelenítése"
+
+#, fuzzy
+#~ msgid "That isn't a shared mailbox"
+#~ msgstr "Ez nem megosztott postafiók"
+
+#, fuzzy
+#~ msgid "The calendars of the shared mailbox wait: {error}"
+#~ msgstr "A megosztott postafiók naptárai várakoznak: {error}"
+
+#, fuzzy
+#~ msgid ""
+#~ "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "A {address}-tól érkező találkozók megválaszolásához vagy küldéséhez MailCraft-nak szüksége van az engedélyére, hogy közös postafiókákból küldhessen.\n"
+#~ "\n"
+#~ "A Microsoft oldala egyszer megnyílik a böngészőjében. A válasz {address}-ként vagy annak nevében a szervezet választása. Amíg nem engedi, a válasz ezen a számítógépen vár, és semmi sem kerül elküldésre a saját címéről."
+
+#, fuzzy
+#~ msgid ""
+#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+#~ msgstr ""
+#~ "Mások megosztott naptárainak megnyitásához a MailCraft olvasási engedélyt kér. A Microsoft oldala egyszer nyílik meg a böngészőben az engedélykéréshez.\n"
+#~ "\n"
+#~ "A megnyitott naptárak csak ezen a számítógépen jelennek meg. Az Outlookban és más eszközökön nem lesznek láthatók."
+
+#, fuzzy
+#~ msgid ""
+#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "Ahhoz, hogy erről a címről küldhessen levelet, a MailCraft engedélyt kér a megosztott postafiókokból való küldéshez: {address}. A Microsoft engedélykérő oldala egyszer nyílik meg a böngészőben.\n"
+#~ "\n"
+#~ "A szervezet beállítása dönti el, hogy a levél feladójaként a(z) {address} cím jelenik meg, vagy a levél ennek nevében megy ki. Engedélyezésig az üzenet a megosztott fiók Postázandó üzenetek mappájában vár. A saját címéről nem megy ki üzenet."
+
+#, fuzzy
+#~ msgid ""
+#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
+#~ msgstr ""
+#~ "A {address} naptárainak megjelenítéséhez MailCraft-nak szüksége van az engedélyére, hogy elolvassa a megosztott postafiókák naptárait.\n"
+#~ "\n"
+#~ "A Microsoft oldala egyszer megnyílik a böngészőjében. A naptárról csak egyszer láthatja a tulajdonosát és a szervezetét, hogy döntsön: ez nem változtat semmin. Amíg nem engedi, {address} naptáraiból semmit sem olvasunk."
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+#~ msgstr "A szervezet nem engedi, hogy MailCraft elolvassa a megosztott postafiókák naptárait."
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
+#~ msgstr "A szervezet adminisztrátorának jóvá kell hagynia a mások naptárainak olvasását egyszer: Fájl › Infó"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
+#~ msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postafiókok olvasását egyszer: Fájl › Info"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
+#~ msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postafiókok naptárainak olvasását egyszer: Fájl › Információ"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"

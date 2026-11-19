@@ -97,7 +97,7 @@ An attachment on a phone is opened only when you ask. A program, a script, an in
 
 A message written on a phone is kept as a draft in the mailbox in the phone's memory (saved a few seconds after your last edit) and goes nowhere until you press Send; then it is queued in the mailbox on the phone, and the screen says so, and it goes to your provider with the next check (a Microsoft account sends it through Microsoft Graph). The mailbox, drafts and queued messages included, is kept in the app's own folder on the phone. Suggestions for a recipient come from your own contacts and sent mail on the phone; nothing is asked of a server for them. A `mailto:` link only fills the composer in: its recipients, subject and body, and nothing else it names. On Android, other apps can also share text, links and files into a new message; the files are read only through what the sharing app granted (never this app's own files), up to 20 files, 25 MB each and 50 MB together, their kind is taken from their bytes, and nothing is sent anywhere by sharing: the message waits in the composer until you send it.
 
-Read receipts go one way only. A message you write with Request a Read Receipt asks its recipients' programs to tell your own address when they read it. A request for a receipt in mail you receive is ignored: MailCraft never answers one, and nobody learns from MailCraft when you read their message.
+Read receipts go one way only. A message you write with Request a Read Receipt asks its recipients' programs to tell your own address when they read it. A request for a receipt in mail you receive is ignored: MailCraft never answers one, and nobody learns from MailCraft when you read their message. A reaction does tell the sender, when you click it: React sends them a short mail with one emoji, to their own address (shown beside the emoji), and never for mail with a sender warning.
 
 ## Permissions asked of a Microsoft account
 
@@ -122,35 +122,45 @@ computer, for you, and for nothing else:
 - changing the rules your mailbox keeps on Microsoft's servers (with `MailboxSettings.ReadWrite`), so that
   a rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
   phone: the rule's name, the words it looks for and what it does go to your own Microsoft account and
-  nowhere else.
-
-  These two permissions are on the page of a new sign-in, beside the rest; when Microsoft's page won't have them
-  (an organisation may make an administrator approve them), it is asked again without them, so that
-  signing in for mail never waits on them. An account that signed in before is asked by the
-  program for those of them its sign-in doesn't cover yet, in one question for both ("Keep in Step
-  with Outlook"), and then on one page of Microsoft's (one that allowed changing its automatic
-  replies or rules before has `MailboxSettings.ReadWrite` already, and its categories are kept in
-  step without a new question); a question you close is not put again by itself while MailCraft stays open (it comes
-  back when you change your automatic replies or press Allow in the Categories window, the next time
-  MailCraft starts, or when you open another mailbox), and File › Info has one line
-  for each Microsoft account (Sync with Outlook: on, partly on or off) with Ask again. Until they are
-  given, nothing of your tasks and rules is sent and they stay on this computer, a change of your
-  automatic replies waits for your answer (a no, or the question closed, drops it and says so), the rules already on the server are read with
-  your mailbox settings and shown, and your categories are shown as Outlook has them and can't be changed
-  here;
+  nowhere else;
 - reading the list of folders you keep under Favorites in Outlook, if you ask for it;
-- reading and changing the mail of shared mailboxes you have been given access to, if you open one;
-- sending from a shared mailbox, asked for by itself the first time you send from one (an
-  answer to a meeting or an invitation from a shared mailbox's calendar is sending from it);
-- reading and changing the calendars of shared mailboxes you have been given access to, asked for by itself the
-  first time you tick one in the calendar's folder list (nothing of a shared mailbox's calendar is
-  read before that, and it comes from your own Microsoft servers with your own sign-in; what you
-  may see of it is up to its owner and your organisation);
-- the same permission is asked for by itself the first time you open somebody's calendar by their address
-  (Open Shared Calendar), without the permissions that reading a shared mailbox's mail takes; the
-  address you type goes only to your own Microsoft servers, the calendar is read with your own sign-in
-  and kept on this computer only, and what you may see of it is up to its owner and your organisation;
+- reading and changing the mail of shared mailboxes you have been given access to (`Mail.ReadWrite.Shared`);
+  nothing of a shared mailbox is read until you open it;
+- sending from a shared mailbox (`Mail.Send.Shared`; an answer to a meeting or an invitation from a shared
+  mailbox's calendar is sending from it);
+- reading and changing the calendars of shared mailboxes you have been given access to, and the calendars
+  you open by somebody's address (Open Shared Calendar) (`Calendars.ReadWrite.Shared`): nothing of a shared
+  mailbox's calendar is read before you tick it in the calendar's folder list; the address you type goes only
+  to your own Microsoft servers; either is read with your own sign-in, a calendar opened by address is kept on
+  this computer only, and what you may see of it is up to its owner and your organisation;
 - keeping you signed in (a refresh token, stored as described above).
+
+All of these but the Favorites are on the page of a sign-in, so that you are asked once. When
+Microsoft's page won't have them all, it is asked again: a personal account is never asked for the
+shared mailboxes and calendars (it has none); a page that won't have some of the permissions is asked
+again without the shared mailboxes' and calendars', then without the to-dos' and the settings' too; an
+organisation that makes an administrator approve some, or an owner who says no on the page, is not
+asked again for a bit less, only (for an administrator's approval) once more for what mail alone needs,
+so that signing in for mail never waits on the rest.
+The Favorites' two (`MailboxConfigItem.Read`, `Mail.ReadBasic`) are asked for by themselves, only
+when you ask for them, because an organisation may need an administrator to approve them.
+
+An account that signed in before MailCraft asked for all of this on one page is asked by the
+program, when it first needs one it doesn't have, in one question ("Keep in Step with Outlook", or
+"Shared Mailboxes and Calendars" when only those wait), and then on one page of Microsoft's for
+everything it lacks (Microsoft shows only what you haven't allowed yet; one that allowed changing its
+automatic replies or rules before has `MailboxSettings.ReadWrite` already, and its categories are
+kept in step without a new question). A shared mailbox you open, or ask to be read, opens that page
+at once. A question you close is not put again by itself while MailCraft stays open (it comes back
+when you change your automatic replies, press Allow in the Categories window, send from a shared
+mailbox or open a calendar by address, the next time MailCraft starts, or when you open another
+mailbox), and File › Info has one line for each Microsoft account (Sync with Outlook: on, partly on
+or off) with Ask again. Until they are given, nothing of your tasks and rules is sent and they stay
+on this computer, a change of your automatic replies waits for your answer (a no, or the question
+closed, drops it and says so), the rules already on the server are read with your mailbox settings
+and shown, your categories are shown as Outlook has them and can't be changed here, nothing of a
+shared mailbox or a calendar shared with you is read, and mail from a shared mailbox waits in its
+Outbox (a no holds it there) and is never sent from your own address instead.
 
 An administrator who approves MailCraft for an organisation is asked, in advance, for all of
 these, so that one approval covers what is asked later.

@@ -10,6 +10,7 @@
 //! any package), when the pull request carries the `full-ci` label, when the diff can't be read,
 //! and for anything that isn't a pull request (a push to main, the merge queue, a schedule, a run
 //! by hand). The rules err towards running everything; main runs the whole suite on every merge.
+//! The merge queue runs it on Linux alone; the push to main that follows runs every system.
 //!
 //! Two classes of pull request skip the Rust matrix's other legs or the matrix itself: a
 //! translation (only `crates/i18n/po/` and documentation) runs on Linux alone, and a change to the
@@ -174,6 +175,13 @@ pub fn plan(event: &str, label: bool, changed: Option<&[String]>, packages: &[Pa
         android_app,
         android_rust: true,
     };
+    // The merge queue runs the whole suite on Linux alone: its job is to catch two pull requests
+    // that pass apart and fail together, which is rarely a matter of the system, and macOS's
+    // runners are the scarce ones. The pull request ran its tests on every system, and the push
+    // to main runs the whole suite on every system after the merge.
+    if event == "merge_group" {
+        return Plan { linux_only: true, ..full("a merge_group run, on Linux alone".into(), true) };
+    }
     if event != "pull_request" {
         return full(format!("a {event} run"), true);
     }

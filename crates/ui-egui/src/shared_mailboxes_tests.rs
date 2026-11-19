@@ -77,7 +77,7 @@ fn window() -> (MailApp, Id, Answers, Jobs, SignIns) {
     }));
     let log = sign_ins.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        log.lock().unwrap().push((req.account, req.graph, req.shared, req.email.clone()));
+        log.lock().unwrap().push((req.account, req.graph, req.sync, req.email.clone()));
         let (tx, rx) = mpsc::channel();
         tx.send(Ok(Tokens { email: OWNER.into(), ..tokens("shared-access", "ref-2") })).unwrap();
         rx
@@ -110,8 +110,9 @@ fn a_shared_mailbox_is_read_with_its_owners_sign_in_and_its_permission_is_asked_
         assert_eq!((mail.account, mail.email.as_str(), mail.shared), (shared, SHARED, true));
     }
     app.poll_graph();
-    // Asked for on Microsoft's page, by itself, for the owner.
+    // The one page for an older sign-in, for the owner, at once: he asked for the mailbox to be read.
     assert_eq!(*sign_ins.lock().unwrap(), [(owner, true, true, OWNER.to_string())]);
+    assert!(app.dialog.is_none(), "no question first");
     app.poll_sign_in();
     // Allowed: read at once, and its folders come in under it.
     assert_eq!(jobs.lock().unwrap().len(), 2);
@@ -122,6 +123,35 @@ fn a_shared_mailbox_is_read_with_its_owners_sign_in_and_its_permission_is_asked_
     assert_eq!(app.graph_tokens.get(&shared).map(|t| t.access.as_str()), Some("shared-access-2"));
     assert_eq!(app.tokens.get(&owner).map(|t| (t.access.as_str(), t.refresh.as_str())), Some(("own-access", "ref-3")));
     assert_eq!(sign_ins.lock().unwrap().len(), 1, "asked once");
+    no_imap();
+}
+
+#[test]
+fn a_page_that_came_back_without_the_shared_permissions_opens_no_second_page() {
+    let (mut app, owner, answers, jobs, sign_ins) = window();
+    let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();
+    // The page was refused for the shared permissions and asked again without them: its tokens
+    // are good for the rest, and say so.
+    let log = sign_ins.clone();
+    app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
+        log.lock().unwrap().push((req.account, req.graph, req.sync, req.email.clone()));
+        let (tx, rx) = mpsc::channel();
+        tx.send(Ok(Tokens { email: OWNER.into(), shared_not_given: true, ..tokens("shared-access", "ref-2") })).unwrap();
+        rx
+    }));
+    // Every run of the shared mailbox finds the token doesn't cover it.
+    for _ in 0..3 {
+        answers.lock().unwrap().push_back((GraphResult { account: shared, consent_needed: true, ..Default::default() }, Vec::new()));
+    }
+    app.execute("ui.sync", json!({"account": shared})).unwrap();
+    app.poll_graph();
+    assert_eq!(sign_ins.lock().unwrap().len(), 1, "the one page");
+    app.poll_sign_in();
+    app.poll_graph();
+    assert_eq!(jobs.lock().unwrap().len(), 1, "not allowed: nothing is run again by itself");
+    assert_eq!(sign_ins.lock().unwrap().len(), 1, "and no second page");
+    assert!(app.status_msg.as_ref().is_some_and(|(said, _)| said.contains("doesn't let MailCraft read shared mailboxes")), "{:?}", app.status_msg);
+    assert!(!app.shared_checking.contains(&shared) && owner != shared);
     no_imap();
 }
 
@@ -564,8 +594,6 @@ fn add_shared_mailbox_waits_for_a_sign_in_being_renewed() {
         account: owner,
         snapshot,
         shared: None,
-        shared_send: false,
-        shared_calendars: false,
         sync: false,
         browser: false,
         opening: app.session.openings(),
@@ -781,8 +809,8 @@ fn favourites_searches_and_counts_in_a_shared_mailbox_ask_no_server_for_anything
     no_imap();
 }
 
-/// What each sign-in was asked: for shared mailboxes, and for sending from them.
-type SendSignIns = Arc<Mutex<Vec<(bool, bool)>>>;
+/// What each sign-in was asked: whether it was the one page for an older sign-in, and for whom.
+type SendSignIns = Arc<Mutex<Vec<(bool, Id)>>>;
 
 /// [`window`] with a shared mailbox that has something waiting in its Outbox, and a sign-in that
 /// answers `answer`; the shared mailbox, the message, and what sign-ins were asked.
@@ -796,7 +824,7 @@ fn sending(answer: Result<Tokens, String>) -> (MailApp, Id, Id, Id, Answers, Job
     let asked: SendSignIns = Default::default();
     let log = asked.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        log.lock().unwrap().push((req.shared, req.shared_send));
+        log.lock().unwrap().push((req.sync, req.account));
         let (tx, rx) = mpsc::channel();
         tx.send(answer.clone()).unwrap();
         rx
@@ -819,20 +847,23 @@ fn the_first_send_from_a_shared_mailbox_asks_the_owner_first_then_microsofts_pag
     // The run took what waits to the host, which found it may not go yet.
     let sends = jobs.lock().unwrap()[0].2.as_ref().map(|m| m.sends.len());
     assert_eq!(sends, Some(1));
-    // The window asks first; nothing is held, and no page has come up.
+    // The window puts the one question for the owner's older sign-in first; nothing is held, and
+    // no page has come up.
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("the owner is asked first") };
-    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSharedSend", Some(shared)));
-    assert!(ask.text.contains(SHARED) && ask.text.contains("nothing is sent from your own address"), "{}", ask.text);
+    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSync", Some(owner)));
+    assert!(ask.text.contains(OWNER) && ask.text.contains("nothing is sent from your own address"), "{}", ask.text);
     assert!(asked.lock().unwrap().is_empty());
     assert!(app.session.mailbox.message(id).is_some_and(|m| m.held.is_empty()));
-    // Go ahead: Microsoft's page, for sending from shared mailboxes, by itself.
+    // Go ahead (the older id is the same as the one question's): the one page, for the owner.
     app.dialog = None;
     assert_eq!(app.run("ui.allowSharedSend", json!({"account": shared, "confirmed": true})).unwrap()["account"], owner);
-    assert_eq!(*asked.lock().unwrap(), [(true, true)]);
-    // Allowed: the shared mailbox runs again at once, with what came back.
+    assert_eq!(*asked.lock().unwrap(), [(true, owner)]);
+    // Allowed: the shared mailbox runs again at once, asking for a token that covers sending
+    // (none is made up from the page's).
     app.poll_sign_in();
-    assert_eq!(app.graph_tokens.get(&shared).map(|t| t.access.as_str()), Some("send-access"));
+    assert!(!app.graph_tokens.contains_key(&shared));
     assert_eq!(jobs.lock().unwrap().len(), 2);
+    assert_eq!(jobs.lock().unwrap()[1].2.as_ref().map(|m| m.sends.len()), Some(1));
     assert!(app.session.mailbox.message(id).is_some_and(|m| m.held.is_empty()));
     no_imap();
 }
@@ -869,8 +900,9 @@ fn a_run_that_started_by_itself_never_asks_and_the_mail_waits() {
     assert!(app.dialog.is_none() && asked.lock().unwrap().is_empty());
     assert!(app.session.mailbox.message(id).is_some_and(|m| m.held.is_empty()), "it waits, not held");
     assert!(app.session.sync_status.contains("needs your permission"), "{}", app.session.sync_status);
-    // Only a shared mailbox's.
-    assert!(app.run("ui.allowSharedSend", json!({"account": 1, "confirmed": true})).is_err());
+    // Not meant without a yes, nor for an account that isn't there.
+    assert!(app.run("ui.allowSharedSend", json!({"account": shared})).is_err());
+    assert!(app.run("ui.allowSharedSend", json!({"account": 9_999, "confirmed": true})).is_err());
     assert!(app.run("ui.allowSharedSend", json!({"confirmed": true})).is_err());
     no_imap();
 }
@@ -935,7 +967,7 @@ fn send_receive_asks_about_mail_held_back_for_permission() {
     let last = jobs.lock().unwrap().last().cloned().unwrap();
     assert_eq!((last.0, last.2.map(|m| m.sends.len())), (shared, Some(1)));
     let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("the owner is asked") };
-    assert_eq!(command, "ui.allowSharedSend");
+    assert_eq!(command, "ui.allowSync");
     assert!(asked.lock().unwrap().is_empty(), "no page before the owner says go ahead");
     no_imap();
 }
@@ -964,7 +996,8 @@ fn pressing_send_in_a_shared_mailbox_asks_about_sending_from_it() {
     app.execute("mail.new", json!({"to": "kit@example.net", "subject": "Third"})).unwrap();
     app.run("compose.send", json!({})).unwrap();
     let Some(crate::dialogs::Dialog::Confirm { command, params, .. }) = &app.dialog else { panic!("asked at once") };
-    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSharedSend", Some(shared)));
+    let owner = app.session.mailbox.owner_of(shared).map(|o| o.id);
+    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSync", owner));
     frame(&mut app);
     assert_eq!(jobs.lock().unwrap().len(), 1);
     no_imap();
