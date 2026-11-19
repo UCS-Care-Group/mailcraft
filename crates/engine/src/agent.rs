@@ -1224,25 +1224,37 @@ fn beside_makes_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String
             }
         }
         "category.rename" => {
-            let (Ok(account), Some(from)) = (crate::cmd::category::list_account(s, params), p::str(params, "from")) else { return out };
-            let Some(to) = p::str(params, "to").and_then(mailcraft_model::clean_name) else { return out };
-            let same = mailcraft_model::sync::same_category;
-            // The list renamed has the new name then: nothing of it is new there.
-            let renamed = mb.synced_list_owner(account);
-            // Each rule as the rename leaves it ([`Mailbox::rename_category`]): it gives the new
-            // name; and one whose condition names the category takes mail with either name then,
-            // some it didn't, and gives it all it gives (an exception leaves alone more).
-            for (i, whole) in mb.rules_renaming(account, from) {
-                let Some(mut r) = mb.rules.get(i).filter(|r| runs_on_new_mail(r)).cloned() else { continue };
-                let widened =
-                    r.conditions.iter().any(|c| matches!(c, mailcraft_model::Condition::Category(names) if names.iter().any(|n| same(n, from))));
-                r.rename_category(from.trim(), &to, whole);
-                let mut its = Vec::new();
-                rule_makes_in_outlook(mb, &r, one_account(&r), Counted::Alone, &mut its);
-                for (name, owner) in its {
-                    let new_name = same(&name, &to);
-                    if (widened || new_name) && !(new_name && renamed == Some(owner)) {
-                        out.push((name, owner));
+            let (Ok(account), Some(from), Some(to)) = (crate::cmd::category::list_account(s, params), p::str(params, "from"), p::str(params, "to"))
+            else {
+                return out;
+            };
+            // The rename made as the command makes it, on a copy of the mailbox without its items,
+            // which the rules don't read for this: the lists and the rules as it leaves them. One
+            // it refuses changes nothing.
+            let mut after = mb.clone();
+            after.messages = Default::default();
+            after.contacts.clear();
+            after.events.clear();
+            after.tasks.clear();
+            after.notes.clear();
+            after.journal.clear();
+            if after.rename_category(account, from, to).is_err() {
+                return out;
+            }
+            // What the rules give mail that is new on a list kept in step with Outlook then, and
+            // wasn't before: the new name a rule follows it to, where that list hasn't got it, and
+            // the old name a rule it leaves as it was still gives, where the list renamed had it.
+            let before = rules_in_outlook(mb);
+            let had = |(name, owner): &(String, Id)| before.iter().any(|(n, o)| o == owner && mailcraft_model::sync::same_category(n, name));
+            out.extend(rules_in_outlook(&after).into_iter().filter(|made| !had(made)));
+            // And a rule whose condition or exception names the category takes or leaves alone
+            // other mail then (it reads both names; a rename only of the letters' case reads the
+            // same): all it gives that mail, and all the rules after it give, counts.
+            let only_case = mailcraft_model::clean_name(to).is_some_and(|to| mailcraft_model::sync::same_category(from.trim(), &to));
+            if !only_case {
+                for (was, now) in mb.rules.iter().zip(&after.rules) {
+                    if runs_on_new_mail(now) && (was.conditions != now.conditions || was.exceptions != now.exceptions) {
+                        rule_makes_in_outlook(&after, now, one_account(now), Counted::WithOthers, &mut out);
                     }
                 }
             }
@@ -2575,9 +2587,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             if with_settings {
                 does.push(format!("puts {SETTINGS_PUT_BACK} back as they were{rules_made}"));
             } else if !rules_made.is_empty() {
-                // An account's address a rule reads, put back with the accounts (#566): the
-                // categories the rules then give mail and have made in Outlook.
-                does.push(format!("puts back an account's address that a rule reads{rules_made}"));
+                // An account, or its address a rule reads, put back with the accounts (#566): other
+                // mail reaches the rules then, and the categories they give it are made in Outlook.
+                does.push(format!("may let other new mail reach the rules{rules_made}"));
             }
             if !places.is_empty() {
                 // Send for a message (#566): it waits again to be made on another account's server.
