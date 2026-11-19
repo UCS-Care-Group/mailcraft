@@ -181,5 +181,31 @@ fn an_appointment_made_here_names_this_account_as_its_sender() {
     assert!(written.contains("PropertyTag=\"0x0064\""), "how it is named: {written}");
     assert!(written.contains("<t:Value>ada@example.org</t:Value>"), "the account: {written}");
     let plain = calendar_item(&event, "", None).write();
-    assert!(!plain.contains("ExtendedProperty"), "nothing when there is no sender: {plain}");
+    assert!(!plain.contains("0x0042") && !plain.contains("0x0065"), "nothing of the sender when there is none: {plain}");
+}
+
+/// A plain appointment says it is not a meeting (`PidLidAppointmentStateFlags` = 0): a server
+/// keeps no such value for one made over EWS, and an older Grommunio reads it with
+/// `getItemProp`, fails with E-3127 when it is absent, and then leaves the item out of
+/// `FindItem` (the event seems to vanish). A meeting leaves the value to the server.
+#[test]
+fn a_plain_appointment_says_it_is_not_a_meeting() {
+    let plain = RemoteEvent { title: "Lunch".into(), start: 1_795_000_000, end: 1_795_001_800, ..Default::default() };
+    let written = calendar_item(&plain, "", None).write();
+    assert!(written.contains("PropertyId=\"33303\""), "the appointment state flags: {written}");
+    assert!(written.contains("PropertySetId=\"00062002-0000-0000-C000-000000000046\""), "in the appointment's own set: {written}");
+    // Before Start, where the item's own part of the schema puts extended properties.
+    let flags = written.find("33303").unwrap_or(usize::MAX);
+    let start = written.find("<t:Start>").unwrap_or(0);
+    assert!(flags < start, "before the calendar's own fields: {written}");
+
+    let meeting = RemoteEvent {
+        title: "Review".into(),
+        start: 1_795_000_000,
+        end: 1_795_001_800,
+        attendees: vec![Attendee { address: Address::new("Ada", "ada@example.org"), optional: false, response: Response::None }],
+        ..Default::default()
+    };
+    let written = calendar_item(&meeting, "", None).write();
+    assert!(!written.contains("33303"), "the server sets the flags of a meeting: {written}");
 }

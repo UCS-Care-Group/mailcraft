@@ -718,6 +718,12 @@ pub fn calendar_item(event: &RemoteEvent, zone: &str, sender: Option<&Address>) 
             item = item.child(property);
         }
     }
+    // An appointment with nobody invited is not a meeting, and says so: a server does not set
+    // the flag by itself for one made over EWS, and older Grommunio versions throw when they
+    // read it back (see `appointment_state_flags`).
+    if !event.attendees.iter().any(|attendee| routing(&attendee.address).is_some()) {
+        item = item.child(appointment_state_flags());
+    }
     item = item
         .child(Element::new("t:Start").text(&mailcraft_time::format_iso_utc(event.start)))
         .child(Element::new("t:End").text(&mailcraft_time::format_iso_utc(event.end.max(event.start))))
@@ -856,6 +862,22 @@ pub fn sender_change(id: &str, change_key: &str, sender: &Address) -> Element {
     Element::new("m:UpdateItem")
         .attr("SendMeetingInvitationsOrCancellations", "SendToNone")
         .child(Element::new("m:ItemChanges").child(Element::new("t:ItemChange").child(id).child(updates)))
+}
+
+/// `PidLidAppointmentStateFlags` (0x8217 in `PSETID_Appointment`), an appointment that is not a
+/// meeting. A server keeps no such value for a plain appointment made over EWS, and Grommunio
+/// before gromox commit 0029bc246 reads it with `getItemProp`, which fails with
+/// `E-3127: failed to get item property` when it is absent — the item is then left out of
+/// `FindItem` ("FindItem skipped an item"), and the event seems to have vanished.
+fn appointment_state_flags() -> Element {
+    Element::new("t:ExtendedProperty")
+        .child(
+            Element::new("t:ExtendedFieldURI")
+                .attr("PropertySetId", "00062002-0000-0000-C000-000000000046")
+                .attr("PropertyId", "33303")
+                .attr("PropertyType", "Integer"),
+        )
+        .child(Element::new("t:Value").text("0"))
 }
 
 /// The `t:Recurrence` element of a rule, when the mailbox can say it.
