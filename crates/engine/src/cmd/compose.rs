@@ -512,7 +512,7 @@ fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
 }
 
 /// Matches a `cid:` reference from HTML against candidate attachments.
-fn match_attachment<'a>(candidates: &[&'a Attachment], cid: &str) -> Option<&'a Attachment> {
+pub(super) fn match_attachment<'a>(candidates: &[&'a Attachment], cid: &str) -> Option<&'a Attachment> {
     let clean = |s: &str| -> String {
         let t = s.trim().trim_matches(['<', '>']).trim();
         let t = t.strip_prefix("cid:").or_else(|| t.strip_prefix("CID:")).unwrap_or(t);
@@ -2042,40 +2042,4 @@ fn suggest_command(s: &mut Session, v: &Value) -> CmdResult {
     let limit = p::u64(v, "limit").unwrap_or(6).clamp(1, 20) as usize;
     let found: Vec<Value> = suggest(s, query, limit).into_iter().map(|x| json!({"name": x.name, "email": x.email, "contact": x.contact})).collect();
     Ok(json!({"suggestions": found}))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_match_attachment() {
-        let png = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\x01\0\0\0\x01\x08\x06\0\0\0\x1f\x15c4\0\0\0\nIDATx\x9cc\0\x01\0\0\x05\0\x01\r\n-\xb4\0\0\0\0IEND\xaeB`\x82";
-        let a1 = Attachment {
-            name: "logo.png".into(),
-            mime: "image/png".into(),
-            content_id: "<logo123@example.com>".into(),
-            inline: true,
-            data: std::sync::Arc::new(png.to_vec()),
-            kept: None,
-        };
-        let a2 = Attachment {
-            name: "photo.jpg".into(),
-            mime: "image/jpeg".into(),
-            content_id: "photo-unique".into(),
-            inline: true,
-            data: std::sync::Arc::new(png.to_vec()),
-            kept: None,
-        };
-        let candidates = vec![&a1, &a2];
-
-        // Match with brackets
-        assert_eq!(match_attachment(&candidates, "logo123@example.com").map(|a| a.name.as_str()), Some("logo.png"));
-        assert_eq!(match_attachment(&candidates, "<logo123@example.com>").map(|a| a.name.as_str()), Some("logo.png"));
-        assert_eq!(match_attachment(&candidates, "cid:logo123@example.com").map(|a| a.name.as_str()), Some("logo.png"));
-
-        // Match exact or by filename fallback
-        assert_eq!(match_attachment(&candidates, "photo-unique").map(|a| a.name.as_str()), Some("photo.jpg"));
-        assert_eq!(match_attachment(&candidates, "photo.jpg").map(|a| a.name.as_str()), Some("photo.jpg"));
-    }
 }
