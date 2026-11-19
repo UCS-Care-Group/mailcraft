@@ -6654,7 +6654,7 @@ msgstr "პასუხები სხვა მისამართებზ�
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Header contains"
-msgstr "თავსართი შეიცავს"
+msgstr "სათაური შეიცავს"
 
 #. interface
 #: crates/ui-egui/src/reading.rs

@@ -307,3 +307,32 @@ fn a_copy_of_a_message_waiting_for_its_new_version_doesnt_wait() {
     let how = Matching { me: "ada@example.org", ..Default::default() };
     assert!(mb.rules[0].matches_in(copy, &how) && !mb.rules[0].undecided_in(copy, &how));
 }
+
+/// A hostile file's header lines kept as they came are cut when it opens, after the last whole
+/// line that fits, and said to be cut: a rule with words in the header can't tell of a word it
+/// doesn't find in them. Lines that fit are left as they are.
+#[test]
+fn a_hostile_file_cannot_load_too_many_header_lines() {
+    let line = "X-Filler: ééééééééééééééééééééééééééééééé\n";
+    let lines = line.repeat(MAX_READ_HEADER / line.len() + 2);
+    let json = serde_json::json!({
+        "accounts": [{"id": 1, "name": "A"}],
+        "folders": [{"id": 5, "account": 1, "name": "Inbox", "kind": "inbox"}],
+        "messages": {
+            "3": {"id": 3, "folder": 5, "subject": "ok", "readHeader": lines},
+            "4": {"id": 4, "folder": 5, "readHeader": "To: a@example.org\n"}
+        },
+        "nextId": 9
+    });
+    let mut mb: Mailbox = serde_json::from_value(json).unwrap();
+    let fixed = mb.repair();
+    assert!(fixed.iter().any(|f| f.contains("header lines")), "{fixed:?}");
+    let m = mb.message(3).unwrap();
+    assert!(m.read_header.len() <= MAX_READ_HEADER && m.read_header.len() > MAX_READ_HEADER - line.len(), "{}", m.read_header.len());
+    assert!(m.read_header.ends_with('\n') && m.read_header.lines().all(|l| format!("{l}\n") == line));
+    assert!(m.read_header_cut);
+    let rule = Rule { enabled: true, conditions: vec![Condition::HeaderContains(words("no-such-word"))], ..Default::default() };
+    assert!(rule.undecided_in(m, &Matching { me: "a@example.org", ..Default::default() }));
+    let short = mb.message(4).unwrap();
+    assert!(short.read_header == "To: a@example.org\n" && !short.read_header_cut);
+}

@@ -634,9 +634,21 @@ fn an_exception_for_a_word_in_a_header_line_read_into_the_message_leaves_it_alon
         format!("From: Ann <ann@example.org>\r\nTo: Me <{ME}>\r\nSubject: Now\r\nMessage-ID: <urgent@example.org>\r\nX-Priority: 1 (Highest)\r\n\r\nCall me.\r\n")
             .into_bytes(),
     );
+    let plain =
+        add(format!("From: Ann <ann@example.org>\r\nTo: Me <{ME}>\r\nSubject: Lunch\r\nMessage-ID: <plain@example.org>\r\n\r\nNoon?\r\n")
+            .into_bytes());
+    // The exception is told on each, found in the first two and not in the third: not left alone
+    // because it can't be told.
+    let exception = s.mailbox.rules.last().unwrap().exceptions[0].clone();
+    let how = mailcraft_model::Matching { me: ME, ..Default::default() };
+    for (id, found) in [(signed, true), (urgent, true), (plain, false)] {
+        let m = s.mailbox.message(id).unwrap();
+        assert!(!exception.unread_in(m) && exception.matches_in(m, &how) == found, "{:?}", m.subject);
+    }
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
     let gone: Vec<&str> = [("signed", signed), ("urgent", urgent)].into_iter().filter(|(_, id)| !here(&s, *id)).map(|(k, _)| k).collect();
     assert!(gone.is_empty(), "deleted past their exception: {gone:?}");
+    assert!(!here(&s, plain), "Ann's mail without either word is deleted");
 }
 
 /// A word longer than a rule keeps is refused, not cut, as a long address or category is: cut, the

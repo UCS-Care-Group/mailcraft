@@ -159,3 +159,26 @@ fn a_microsoft_download_keeps_the_header_as_it_came_only_for_a_header_rule() {
     comes_as(&mut s, "L2", true);
     assert!(kept(&s, "L2").contains("Subject: L2") && marks(&s, "L2") == (true, false), "{:?}", marks(&s, "L2"));
 }
+
+/// Check again on IMAP brings a garbled message down again (its subject read wrongly before): the
+/// header as it came is taken from that download only for an account a rule looks for words in the
+/// header for, as for new mail.
+#[test]
+fn imap_check_again_keeps_the_header_as_it_came_only_for_a_header_rule() {
+    let bytes = b"From: Bo <bo@example.org>\r\nSubject: Caf\xc3\xa9\r\nMessage-ID: <m1@example.org>\r\n\r\nHello.\r\n";
+    for rule in [false, true] {
+        let mut s = Session::empty();
+        let ada = imap(&mut s, "ada@mail.example");
+        arrives(&mut s, ada, 1, vec![Message { read_header: String::new(), ..received(1, "Caf\u{FFFD}") }]);
+        if rule {
+            let header = json!({"type": "headerContains", "value": "x-list"});
+            s.run("rules.add", &json!({"name": "Header", "account": ada, "conditions": [header], "actions": [{"type": "markRead"}]})).unwrap();
+        }
+        let id = s.mailbox.messages.values().find(|m| m.uid == 1).unwrap().id;
+        assert!(crate::cmd::imap_again::unreadable(s.mailbox.message(id).unwrap()));
+        crate::cmd::imap_again::take_again(&mut s.mailbox, id, mailcraft_mime_model::parse_fetched(bytes));
+        let m = s.mailbox.message(id).unwrap();
+        assert_eq!(m.subject, "Caf\u{e9}", "{rule}");
+        assert_eq!(m.read_header.contains("Subject: Caf"), rule, "{rule}: {:?}", m.read_header);
+    }
+}

@@ -5040,6 +5040,7 @@ impl Mailbox {
         let mut on_server: HashSet<(Id, u32)> = HashSet::new();
         let mut untied = 0;
         let mut cut_hidden = 0;
+        let mut cut_lines = 0;
         for m in self.messages.values_mut() {
             // What the sender hid is kept to a few KB; a hostile file's is cut at a character.
             if m.hidden_text.len() > crate::MAX_HIDDEN_TEXT {
@@ -5050,6 +5051,20 @@ impl Mailbox {
                 }
                 m.hidden_text.truncate(end);
                 cut_hidden += 1;
+            }
+            // So are the header lines kept as they came, after the last whole line that fits; a
+            // hostile file's are said to be cut, as a message's are when they are read
+            // ([`crate::Message::read_header_cut`]), so a rule with words in the header can't tell.
+            if m.read_header.len() > crate::MAX_READ_HEADER {
+                let m = Arc::make_mut(m);
+                let mut end = crate::MAX_READ_HEADER;
+                while end > 0 && !m.read_header.is_char_boundary(end) {
+                    end -= 1;
+                }
+                let end = m.read_header.get(..end).and_then(|kept| kept.rfind('\n')).map_or(0, |n| n + 1);
+                m.read_header.truncate(end);
+                m.read_header_cut = true;
+                cut_lines += 1;
             }
             let twice = m.uid != 0 && !on_server.insert((m.folder, m.uid));
             if twice || m.synced.is_some_and(|s| s.uid != m.uid) {
@@ -5063,6 +5078,9 @@ impl Mailbox {
         }
         if cut_hidden > 0 {
             fixed.push(format!("{cut_hidden} message(s) with too much hidden text cut"));
+        }
+        if cut_lines > 0 {
+            fixed.push(format!("{cut_lines} message(s) with too many header lines kept cut"));
         }
         if untied > 0 {
             fixed.push(format!("{untied} message(s) untied from the mail server's copy"));
