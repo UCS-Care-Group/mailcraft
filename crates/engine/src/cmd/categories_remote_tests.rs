@@ -3759,3 +3759,22 @@ fn a_redo_of_a_rename_whose_new_name_a_rule_looks_for_names_the_category() {
     s.mailbox.apply_rules(m, &s.rule_clock());
     assert!(s.mailbox.categories_to_write(a).iter().any(|(n, made)| n == "Zed" && *made), "{:?}", s.mailbox.categories_to_write(a));
 }
+
+/// Of the categories the rules give that are new in Outlook, the one a redo makes new is named
+/// first, as a question names three (#566, #661).
+#[test]
+fn a_redo_names_first_the_category_it_makes_new_in_outlook() {
+    let (mut s, a) = rig_with_local();
+    let gives = |id: Id, account: Id, name: &str| Rule {
+        id,
+        name: format!("R{id}"),
+        enabled: true,
+        account,
+        conditions: vec![Condition::SubjectContains(vec!["x".into()])],
+        actions: vec![Action::Categorize(name.into())],
+        ..Default::default()
+    };
+    s.mailbox.rules = vec![gives(9001, a, "Z1"), gives(9002, a, "Z2"), gives(9003, a, "Z3"), gives(9004, 0, "Old local")];
+    let rename = json!({"account": a, "from": "Old local", "to": "New local"});
+    asked_whenever_the_rules_make_one(&mut s, a, "category.rename", &rename, true);
+}
