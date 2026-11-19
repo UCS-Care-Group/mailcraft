@@ -41,9 +41,9 @@ mod czech_tests;
 #[cfg(test)]
 mod polish_tests;
 #[cfg(test)]
-mod slovenian_tests;
-#[cfg(test)]
 mod said_tests;
+#[cfg(test)]
+mod slovenian_tests;
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
