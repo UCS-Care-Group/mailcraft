@@ -57,6 +57,18 @@ pub(crate) fn number(value: Option<&Value>) -> Option<u64> {
     }
 }
 
+/// Whether a flag is on, when the value is a flag at all: `None` for one that is there but in
+/// no shape a flag is written — [`on`] would read it off, and a read flag's off can end a read
+/// before its end.
+pub(crate) fn checked_on(value: Option<&Value>) -> Option<bool> {
+    match value {
+        Some(Value::Bool(b)) => Some(*b),
+        Some(Value::Number(n)) => Some(n.as_u64() == Some(1)),
+        Some(other) => text(Some(other)).map(|t| matches!(t.trim(), "1" | "true" | "TRUE")),
+        None => Some(false),
+    }
+}
+
 /// Whether a flag is on: `true`, `1` or `"1"`, `"true"`.
 pub(crate) fn on(value: Option<&Value>) -> bool {
     match value {

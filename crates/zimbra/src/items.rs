@@ -135,7 +135,10 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
         let sort = json::number(m.get("sf")).or_else(|| json::number(m.get("d")))?;
         (!id.is_empty() && id.len() <= 128 && !id.chars().any(char::is_control)).then_some((id, sort))
     });
-    Ok(Page { messages, more: json::on(answer.get("more")), cursor })
+    // A `more` that is no flag can't tell the page ends the folder: read off it would end the
+    // read early, and the run would count what it never listed as gone.
+    let more = json::checked_on(answer.get("more")).ok_or(Error::Unreadable)?;
+    Ok(Page { messages, more, cursor })
 }
 
 /// A message as the model has one, from its summary; `None` for one that has no own id.

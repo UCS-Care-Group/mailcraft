@@ -52,7 +52,7 @@ pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
     if first {
         return Ok(delta);
     }
-    delta.more = json::on(answer.get("more"));
+    delta.more = json::checked_on(answer.get("more")).ok_or(Error::Unreadable)?;
     if json::bad_list(answer.get("m")) || json::bad_list(answer.get("deleted")) {
         return Err(Error::Unreadable);
     }
