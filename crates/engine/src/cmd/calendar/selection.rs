@@ -30,7 +30,7 @@ pub fn specs() -> Vec<CommandSpec> {
             r#"{} — every distinct appointment shown in the range in view and in the calendars shown, up to 200; answers {"selected": n, "capped": bool} (capped says the range holds more than 200)"#,
         ),
         CommandSpec::new("calendar.paste", "Paste", "Calendar", paste).params(
-            r#"{"items": [{"id": number, "day"?: "YYYY-MM-DD"}, …], "start": "YYYY-MM-DDTHH:MM", "cut"?: bool, "calendar"?: number, "send"?: bool} — pastes the named items at `start`: the earliest timed one there, the others by their own day and time-of-day offsets from it, whole-day ones as whole days. "cut": true moves them (a series' occurrence as that occurrence changed, never a cancellation); "calendar" is where they go (default: each one's own; a series' occurrence stays in its series' calendar). Answers {"ids": [...], "cut": bool}, the ids in the order of the items. Items are required, 1 to 200, and the same item twice is refused. "send": true is required when cutting makes the account's server write to the people invited"#,
+            r#"{"items": [{"id": number, "day"?: "YYYY-MM-DD"}, …], "start": "YYYY-MM-DDTHH:MM", "cut"?: bool, "calendar"?: number, "send"?: bool} — pastes the named items at `start`: the earliest timed one there, the others by their own day and time-of-day offsets from it, whole-day ones as whole days. "cut": true moves them (a series' occurrence as that occurrence changed, never a cancellation); "calendar" is where they go (default: each one's own; a series' occurrence stays in its series' calendar). Answers {"ids": [...], "cut": bool}, the ids in the order of the items. Items are required, 1 to 200, and the same item twice is refused, and so is a copy (not a cut) of an item with files attached, as Copy Event refuses one (only its server keeps them). "send": true is required when cutting makes the account's server write to the people invited"#,
         ),
     ]
 }
@@ -454,7 +454,11 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let placements = placements(&resolved, start)?;
     // Everything a batch could be refused for is checked before any of it is changed.
     for (r, (destination, (from, to))) in resolved.iter().zip(destinations.iter().zip(placements.iter().copied())) {
-        if free_busy(s, r.event.calendar) {
+        if !cut {
+            // A copy is refused for whatever Copy Event refuses one for (#1664: files that only
+            // the server keeps, which the copy would be without).
+            crate::cmd::calendar_extra::copyable(s, &r.event)?;
+        } else if free_busy(s, r.event.calendar) {
             return Err(fail(
                 "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read.",
             ));
