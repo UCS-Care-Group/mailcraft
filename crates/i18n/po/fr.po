@@ -1667,8 +1667,9 @@ msgstr "Appliquer les tâches téléchargées"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Apply Downloaded Zimbra Messages"
-msgstr ""
+msgstr "Appliquer les messages Zimbra téléchargés"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs

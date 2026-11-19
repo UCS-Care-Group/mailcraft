@@ -1671,6 +1671,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "Letöltött feladatok alkalmazása"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Downloaded Zimbra Messages"
+msgstr "A letöltött Zimbra-üzenetek alkalmazása"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -15550,7 +15556,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "A fájl importálása újra, hogy a többit."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "Megállt; legközelebb innen folytatjuk"
@@ -17460,7 +17466,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "A szerver lehalkította a fiók bejelentkezését. A Send/Receive használatával újra bejelentkezhet."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "A szerver lehalkította a {name} bejelentkezését: jelentkezzen be újra"
@@ -19458,7 +19464,7 @@ msgid "Up to 50 MB"
 msgstr "Legfeljebb 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "Naprakész"
@@ -20615,9 +20621,8 @@ msgstr "A Zimbra-fiókok tesztelés alatt állnak: indítsa a MailCraftot MAILCR
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
-#, fuzzy
-msgid "Zimbra accounts can't be sent and received yet: that part is not built"
-msgstr "A Zimbra-fiókokkal még nem lehet küldeni és fogadni: ez a rész még nincs elkészítve"
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -21768,7 +21773,7 @@ msgid "no message with id {id}"
 msgstr "nincs ilyen azonosítójú üzenet: {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "a(z) „{name}” mappában nincs ilyen azonosítójú üzenet: {id}"
@@ -22744,11 +22749,6 @@ msgid "the request was lost"
 msgstr "a kérés elveszett"
 
 #. what a command says
-#: crates/engine/src/cmd/zimbra_mail.rs
-msgid "the result is for another account"
-msgstr ""
-
-#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result would make this account keep more sync state than is taken in"
@@ -23312,16 +23312,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "Ez a Exchange kiszolgáló fiók nem rendelkezik kiszolgáló beállítások"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "ez a küldés és fogadás másik fiókon futott. A jelenlegi fiók: {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "Ez a Send/Receive a {name} nevű kiszolgálónak volt."
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25578,6 +25583,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Sorok"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "A Zimbra-fiókokkal még nem lehet küldeni és fogadni: ez a rész még nincs elkészítve"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

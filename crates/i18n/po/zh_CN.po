@@ -1668,8 +1668,9 @@ msgstr "应用下载的待办事项"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Apply Downloaded Zimbra Messages"
-msgstr ""
+msgstr "应用已下载的 Zimbra 邮件"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs

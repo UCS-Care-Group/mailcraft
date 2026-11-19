@@ -1666,6 +1666,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "ჩამოტვირთული დავალებების გამოყენება"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Downloaded Zimbra Messages"
+msgstr "ჩამოტვირთული Zimbra-ის შეტყობინებების გამოყენება"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -15491,7 +15497,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "შეჩერდა ბოლომდე მისვლამდე. დანარჩენის შემოსატანად ფაილი ხელახლა შემოიტანეთ."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "შეჩერდა; შემდეგ ჯერზე აქედან გაგრძელდება"
@@ -17393,7 +17399,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "სერვერმა ამ ანგარიშით შესვლა უარყო. ხელახლა შესასვლელად გამოიყენეთ „გაგზავნა/მიღება“."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "სერვერმა ანგარიშით {name} შესვლა უარყო: ხელახლა შედით"
@@ -19385,7 +19391,7 @@ msgid "Up to 50 MB"
 msgstr "50 მბ-მდე"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "განახლებულია"
@@ -20543,9 +20549,8 @@ msgstr "Zimbra-ის ანგარიშები მოწმდება: �
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
-#, fuzzy
-msgid "Zimbra accounts can't be sent and received yet: that part is not built"
-msgstr "Zimbra-ის ანგარიშებით ჯერ ვერ იგზავნება და ვერ მიიღება: ეს ნაწილი ჯერ არ არის აგებული"
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -21692,7 +21697,7 @@ msgid "no message with id {id}"
 msgstr "წერილი id-ით {id} არ არსებობს"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "{name}: წერილი id-ით {id} არ არსებობს"
@@ -22666,12 +22671,6 @@ msgid "the request was lost"
 msgstr "მოთხოვნა დაიკარგა"
 
 #. what a command says
-#: crates/engine/src/cmd/zimbra_mail.rs
-#, fuzzy
-msgid "the result is for another account"
-msgstr "შედეგი სხვა ანგარიშისთვისაა"
-
-#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result would make this account keep more sync state than is taken in"
@@ -23235,16 +23234,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "ამ Exchange სერვერის ანგარიშს სერვერის პარამეტრები არ აქვს"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "ეს „გაგზავნა/მიღება“ სხვა ანგარიშისთვის იყო და არა ანგარიშისთვის {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "ეს „გაგზავნა/მიღება“ იყო სერვერისთვის, რომელსაც {name} ადრე ასახელებდა"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25491,6 +25495,14 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Zimbra-ის ანგარიშებით ჯერ ვერ იგზავნება და ვერ მიიღება: ეს ნაწილი ჯერ არ არის აგებული"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "შედეგი სხვა ანგარიშისთვისაა"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

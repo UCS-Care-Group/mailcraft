@@ -1672,8 +1672,9 @@ msgstr "Zastosuj pobrane zadania do wykonania"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Apply Downloaded Zimbra Messages"
-msgstr ""
+msgstr "Zastosuj pobrane wiadomości Zimbra"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs

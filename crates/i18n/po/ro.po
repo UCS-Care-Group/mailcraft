@@ -1670,8 +1670,9 @@ msgstr "Aplicare sarcini descărcate"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Apply Downloaded Zimbra Messages"
-msgstr ""
+msgstr "Aplică mesajele Zimbra descărcate"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
