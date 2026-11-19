@@ -40,7 +40,7 @@ pub fn request(base: &str, token: &Secret) -> Result<HttpRequest, Error> {
 /// A tag's colour: its `rgb` when there is one, its numbered colour's of ours otherwise, grey
 /// when neither says one.
 fn color(tag: &serde_json::Value) -> Rgb {
-    Rgb::parse(&json::line(tag.get("rgb")))
+    Rgb::parse(&json::raw(tag.get("rgb")).unwrap_or_default())
         .or_else(|| json::number(tag.get("color")).and_then(|n| usize::try_from(n).ok()).and_then(|n| COLORS.get(n)).copied())
         .unwrap_or(mailcraft_model::GREY_CATEGORY)
 }
@@ -48,12 +48,17 @@ fn color(tag: &serde_json::Value) -> Rgb {
 /// The tags of a `GetTagResponse`, as categories: a name and a colour each, capped.
 pub fn answer(response: &HttpResponse) -> Result<Vec<Category>, Error> {
     let answer = soap::answer("GetTagRequest", response)?;
-    Ok(json::list(answer.get("tag"))
-        .iter()
-        .take(MAX_TAGS)
-        .filter_map(|tag| {
-            let name = json::line(tag.get("name"));
-            (!name.is_empty()).then(|| Category { name, color: color(tag) })
+    let tags = json::list(answer.get("tag"));
+    if json::bad_list(answer.get("tag")) || tags.len() > MAX_TAGS {
+        return Err(Error::Unreadable);
+    }
+    tags.iter()
+        .map(|tag| {
+            let name = json::raw(tag.get("name")).ok_or(Error::Unreadable)?;
+            if name.trim().is_empty() || name.len() > json::MAX_TEXT || name.chars().any(char::is_control) {
+                return Err(Error::Unreadable);
+            }
+            Ok(Category { name, color: color(tag) })
         })
-        .collect())
+        .collect()
 }
