@@ -3263,3 +3263,130 @@ fn a_rule_that_copies_mail_into_another_account_names_the_category_its_outlook_g
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
     assert!(s.mailbox.category_of(b, "Zed").is_some(), "the copy's list takes the category");
 }
+
+/// An agent's change of the zone the calendar is shown in, beside a rule that reads the days mail
+/// came by it and gives mail a category new on a list kept in step with Outlook, lets that rule
+/// take mail it didn't, and so has the category made in Outlook: it is asked as a send that names
+/// the category and whose Outlook, as switching such a rule on is (#661). Once the list has the
+/// category, nothing more goes there, and the change is asked about as before.
+#[test]
+fn changing_the_time_zone_beside_a_rule_that_gives_a_category_new_in_outlook_asks_as_a_send() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    (s.clock.offset, s.clock.zone) = (None, Some(mailcraft_time::Zone::named("Europe/London").unwrap()));
+    s.run("view.timeZone", &json!({"zone": "Europe/London"})).unwrap();
+    let params = json!({"name": "Tag new reports", "account": a, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "report"}, {"type": "receivedBetween", "value": {"from": "2026-11-11"}}],
+        "actions": [{"type": "categorize", "value": "Zed"}]});
+    s.run("rules.add", &params).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    // 23:30 UTC on 10 November: the 10th in London, the 11th in Tokyo.
+    let at = 1_794_353_400;
+    let report = Message { folder: inbox, account: a, subject: "Monthly report".into(), received: at, date: at, ..Default::default() };
+    let mut before = s.mailbox.clone();
+    let early = before.add_message(report.clone()).unwrap();
+    assert!(before.apply_rules(early, &s.rule_clock()).is_empty() && before.category_of(a, "Zed").is_none(), "the 10th is before the 11th");
+    let tokyo = json!({"zone": "Asia/Tokyo"});
+    let asked = check(&s, "view.timeZone", &tokyo, &[]);
+    let Verdict::Ask(Class::Send, said) = &asked else { panic!("the zone change was {asked:?}") };
+    assert!(said.contains("Asia/Tokyo") && said.contains("“Zed”") && said.contains("“a@example.org”") && said.contains("Outlook"), "{said}");
+    assert_eq!(check(&s, "view.timeZone", &tokyo, &[Class::Send]), Verdict::Run);
+    // What the owner is asked about is what happens: in Tokyo's zone the rule takes such mail, and
+    // Zed goes to Outlook.
+    s.run("view.timeZone", &tokyo).unwrap();
+    let m = s.mailbox.add_message(report).unwrap();
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert!(s.mailbox.categories_to_write(a).iter().any(|(n, made)| n == "Zed" && *made), "{:?}", s.mailbox.categories_to_write(a));
+    // With Zed on the list, the zone change makes nothing there.
+    assert_eq!(check(&s, "view.timeZone", &json!({"zone": "Europe/London"}), &[]), Verdict::Run);
+}
+
+/// A rename on the list IMAP accounts and this computer share rewrites a rule for every account's
+/// mail (#566), which then puts the new name on a Microsoft account's mail and so makes it in that
+/// account's Outlook. The agent chose that name: the rename is asked as a send that names it, as a
+/// rename made in Outlook is (#661). The list being renamed has the new name then, and a rename on
+/// it that no rule takes elsewhere asks nothing.
+#[test]
+fn renaming_a_category_that_a_rule_for_every_account_takes_to_outlook_asks_as_a_send() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    s.mailbox.categories = vec![tag("Old", GREEN), tag("Plain", BLUE)];
+    let every = |id: Id, name: &str| Rule {
+        id,
+        name: "Tag".into(),
+        enabled: true,
+        account: 0,
+        conditions: vec![Condition::SubjectContains(vec!["x".into()])],
+        actions: vec![Action::Categorize(name.into())],
+        ..Default::default()
+    };
+    s.mailbox.rules.push(every(9001, "Old"));
+    let rename = json!({"from": "Old", "to": "Chosen by the agent"});
+    let asked = check(&s, "category.rename", &rename, &[]);
+    let Verdict::Ask(Class::Send, said) = &asked else { panic!("the rename was {asked:?}") };
+    assert!(said.contains("“Chosen by the agent”, new on the list of “a@example.org”") && said.contains("made in Outlook too"), "{said}");
+    s.run("category.rename", &rename).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let m = s.mailbox.add_message(Message { folder: inbox, account: a, subject: "x".into(), ..Default::default() }).unwrap();
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert!(s.mailbox.categories_to_write(a).iter().any(|(n, made)| n == "Chosen by the agent" && *made), "{:?}", s.mailbox.categories_to_write(a));
+    // A rule for an IMAP account's mail alone gives the new name on the shared list, which has it.
+    let imap = s
+        .run("account.add", &json!({"email": "b@example.org", "kind": "imap", "imapHost": "imap.example.org", "smtpHost": "smtp.example.org"}))
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    s.mailbox.rules = vec![Rule { account: imap, ..every(9002, "Plain") }];
+    assert_eq!(check(&s, "category.rename", &json!({"from": "Plain", "to": "Also chosen"}), &[]), Verdict::Run);
+}
+
+/// An agent's change of an account's address, beside a rule for its mail that reads it ("sent to
+/// me") and gives mail a category new on the list kept in step with Outlook, has the category made
+/// there for the mail it then takes: asked as a send naming the category, and still a change to
+/// the account (#566, #661).
+#[test]
+fn changing_the_address_beside_a_rule_that_gives_a_category_new_in_outlook_asks_as_a_send() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    s.mailbox.rules.push(Rule {
+        id: 9001,
+        name: "Mine".into(),
+        enabled: true,
+        account: a,
+        conditions: vec![Condition::ToMe],
+        actions: vec![Action::Categorize("Zed".into())],
+        ..Default::default()
+    });
+    let edit = json!({"id": a, "email": "new@example.org"});
+    let asked = check(&s, "account.edit", &edit, &[Class::Accounts]);
+    let Verdict::Ask(Class::Send, said) = &asked else { panic!("the address change was {asked:?}") };
+    assert!(said.contains("“Zed”") && said.contains("made in Outlook too"), "{said}");
+    assert!(matches!(check(&s, "account.edit", &edit, &[Class::Send]), Verdict::Ask(Class::Accounts, _)));
+    assert_eq!(check(&s, "account.edit", &edit, &[Class::Accounts, Class::Send]), Verdict::Run);
+    // Its name alone leaves the address, and what the rule takes, as they are.
+    assert_eq!(check(&s, "account.edit", &json!({"id": a, "name": "Owner"}), &[Class::Accounts]), Verdict::Run);
+}
+
+/// An agent's change to the Safe Senders lets more of an account's new mail through to its rules
+/// (#566); one there that gives mail a category new on the list kept in step with Outlook then
+/// makes it there: asked as a send naming the category, and still a change of settings.
+#[test]
+fn a_safe_sender_beside_a_rule_that_gives_a_category_new_in_outlook_is_asked_as_a_send() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    s.mailbox.rules.push(Rule {
+        id: 9001,
+        name: "Reports".into(),
+        enabled: true,
+        account: a,
+        conditions: vec![Condition::SubjectContains(vec!["report".into()])],
+        actions: vec![Action::Categorize("Zed".into())],
+        ..Default::default()
+    });
+    let safe = json!({"list": "safe", "entry": "zoe@example.org", "account": a});
+    let asked = check(&s, "junk.add", &safe, &[Class::Settings]);
+    let Verdict::Ask(Class::Send, said) = &asked else { panic!("the Safe Senders change was {asked:?}") };
+    assert!(said.contains("“Zed”") && said.contains("made in Outlook too"), "{said}");
+    assert!(matches!(check(&s, "junk.add", &safe, &[Class::Send]), Verdict::Ask(Class::Settings, _)));
+    assert_eq!(check(&s, "junk.add", &safe, &[Class::Settings, Class::Send]), Verdict::Run);
+    // Headless, the refusal names both, so that one start of the server covers it.
+    assert_eq!(crate::agent::also(&s, "junk.add", &safe, Class::Send), vec![Class::Settings]);
+    // Blocking a sender lets nothing more through.
+    assert_eq!(check(&s, "junk.add", &json!({"list": "blocked", "entry": "zoe@example.org", "account": a}), &[Class::Settings]), Verdict::Run);
+}
