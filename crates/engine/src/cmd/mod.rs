@@ -32,6 +32,7 @@ mod category_tests;
 pub mod compose;
 #[cfg(test)]
 mod compose_trust_tests;
+pub mod contacts_opened;
 #[cfg(test)]
 mod conversation_thread_tests;
 pub mod dav_account;
@@ -44,6 +45,7 @@ mod device_limits_relist_tests;
 #[cfg(test)]
 mod device_limits_tests;
 pub mod edit;
+pub mod ews_directory;
 mod ews_down;
 pub mod ews_mail;
 mod ews_up;
@@ -230,6 +232,7 @@ pub fn registry() -> Registry {
     v.extend(calendar_extra::specs());
     v.extend(calendar_opened::specs());
     v.extend(calendar_subscribed::specs());
+    v.extend(contacts_opened::specs());
     v.extend(calendar_settings::specs());
     v.extend(zones::specs());
     v.extend(people::specs());
@@ -259,6 +262,7 @@ pub fn registry() -> Registry {
     v.extend(ews_mail::specs());
     v.extend(dav_account::specs());
     v.extend(dav_sync::specs());
+    v.extend(ews_directory::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());

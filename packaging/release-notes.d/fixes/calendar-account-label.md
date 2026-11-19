@@ -1,0 +1,2 @@
+- Calendar tabs and the list of calendars now say whose each one is when an account's server keeps it: its name, with the account's name or address in parentheses, so two accounts' "Calendar" or a person's shared calendar can't be taken for one another.
+- An Exchange server account's calendar is read again for the days in view when you move to another week or month, so appointments somebody put on the server show then instead of waiting for a full Send/Receive.
