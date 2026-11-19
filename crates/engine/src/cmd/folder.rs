@@ -4,7 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use mailcraft_model::{Folder, FolderKind, Id, Message};
+use mailcraft_model::{Folder, FolderKind, GmailCategory, Id, Message};
 use serde_json::{Value, json};
 
 use super::{bad, fail};
@@ -485,21 +485,34 @@ pub fn deleted_with(s: &Session, id: Id) -> Vec<Id> {
 fn empty(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let kind = s.mailbox.folder(id).map(|f| f.kind);
+    let gmail: Option<GmailCategory> = v.get("gmail").and_then(|g| g.as_str()).and_then(GmailCategory::parse);
     // On the owner's yes to an agent's question, only what the question showed goes
     // (`Session::only_shown`): what came in meanwhile stays.
     let only = s.only_shown.clone();
     let shown = |m: &Id| only.as_ref().is_none_or(|o| o.messages.contains(m));
-    let ids: Vec<Id> = s.mailbox.messages_in(id).map(|m| m.id).filter(shown).collect();
+    let ids: Vec<Id> = if let Some(cat) = gmail {
+        s.mailbox.messages_in(id)
+            .filter(|m| m.gmail_category == Some(cat))
+            .map(|m| m.id)
+            .filter(shown)
+            .collect()
+    } else {
+        s.mailbox.messages_in(id).map(|m| m.id).filter(shown).collect()
+    };
     // Folders deleted into Deleted Items go with it, but one that wasn't shown, or that holds a
     // folder or a message that wasn't, stays.
     let folder_shown = |f: &Id| only.as_ref().is_none_or(|o| o.folders.contains(f));
-    let children: Vec<Id> = emptied_folders(s, id)
-        .into_iter()
-        .filter(|c| s.mailbox.subtree(*c).iter().all(folder_shown) && held_under(s, &[*c]).iter().all(shown))
-        .collect();
+    let children: Vec<Id> = if gmail.is_some() {
+        Vec::new()
+    } else {
+        emptied_folders(s, id)
+            .into_iter()
+            .filter(|c| s.mailbox.subtree(*c).iter().all(folder_shown) && held_under(s, &[*c]).iter().all(shown))
+            .collect()
+    };
     // Emptying Deleted Items or Junk removes for good; any other folder goes to Deleted Items. All
     // of it in one go (#1037): one at a time, a folder of 200,000 took an hour.
-    if matches!(kind, Some(FolderKind::Deleted | FolderKind::Junk)) {
+    if matches!(kind, Some(FolderKind::Deleted | FolderKind::Junk)) && gmail.is_none() {
         s.mailbox.remove_messages(&ids)?;
     } else {
         s.mailbox.delete_messages(&ids)?;

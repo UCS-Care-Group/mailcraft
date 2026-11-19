@@ -863,7 +863,11 @@ fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }
-    let ids: Vec<Id> = s.mailbox.messages_in(folder).filter(|m| !m.read).map(|m| m.id).collect();
+    let gmail: Option<mailcraft_model::GmailCategory> = v.get("gmail").and_then(|g| g.as_str()).and_then(mailcraft_model::GmailCategory::parse);
+    let ids: Vec<Id> = s.mailbox.messages_in(folder)
+        .filter(|m| !m.read && gmail.as_ref().is_none_or(|cat| m.gmail_category == Some(*cat)))
+        .map(|m| m.id)
+        .collect();
     for id in &ids {
         s.mailbox.message_mut(*id)?.read = true;
     }

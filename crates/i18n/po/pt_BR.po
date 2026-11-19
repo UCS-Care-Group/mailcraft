@@ -5928,7 +5928,7 @@ msgstr "Emoji"
 #, fuzzy
 #, fuzzy
 msgid "Empty"
-msgstr "Vazio"
+msgstr "Esvaziar"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6220,6 +6220,9 @@ msgstr "Tudo aqui em um arquivo .mailcraft"
 #, fuzzy
 msgid "Everything in \"{folder}\" will be permanently deleted."
 msgstr "Tudo em \"{folder}\" será excluído permanentemente."
+
+msgid "Everything in \"{folder}\" will be moved to Deleted Items."
+msgstr "Tudo em \"{folder}\" será movido para a Lixeira."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt

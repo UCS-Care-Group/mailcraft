@@ -586,10 +586,10 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         ui.separator();
         item(ui, app, tl_later!("Mark All as Read"), "mail.markAllRead", json!({"folder": id}), true);
         item(ui, app, tl_later!("Run Rules Now"), "rules.run", json!({"folder": id}), true);
-        if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
-            let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
-            item(ui, app, tl_later!("Empty Folder"), "folder.empty", json!({"id": id}), emptiable);
-        }
+        let emptiable = !app.session.mailbox.emptying_stays_on_server(id)
+            && (app.session.mailbox.count(id) > 0
+                || (kind == FolderKind::Deleted && app.session.mailbox.subtree(id).iter().any(|&c| app.session.mailbox.count(c) > 0)));
+        item(ui, app, tl_later!("Empty Folder"), "folder.empty", json!({"id": id}), emptiable);
         ui.separator();
         if from_outlook {
             item(ui, app, tl_later!("Favorites Are Set in Outlook"), "folder.favorite", json!({"id": id}), false);
@@ -679,6 +679,19 @@ fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: 
     if resp.clicked() {
         let _ = app.run("folder.select", json!({"id": inbox, "gmail": category.code()}));
     }
+    let total_in_cat = app.session.mailbox.messages_in(inbox).filter(|m| m.gmail_category == Some(category)).count();
+    resp.context_menu(|ui| {
+        ui.set_min_width(190.0);
+        let item = |ui: &mut Ui, app: &mut MailApp, label: &str, cmd: &str, params: serde_json::Value, enabled: bool| {
+            if ui.add_enabled(enabled, egui::Button::new(tl!(label)).min_size(vec2(180.0, 0.0))).clicked() {
+                let _ = app.run(cmd, params);
+                ui.close();
+            }
+        };
+        item(ui, app, tl_later!("Empty Folder"), "folder.empty", json!({"id": inbox, "gmail": category.code()}), total_in_cat > 0);
+        ui.separator();
+        item(ui, app, tl_later!("Mark All as Read"), "mail.markAllRead", json!({"folder": inbox, "gmail": category.code()}), unread > 0);
+    });
     crate::gmail_move::drop_target(app, ui, &resp, row, category);
 }
 

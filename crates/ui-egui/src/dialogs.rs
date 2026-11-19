@@ -573,17 +573,34 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
         }
         "folder.empty" => {
             let f = folder("id")?;
-            if mb.count(f.id) == 0 {
+            let gmail: Option<mailcraft_model::GmailCategory> =
+                params.get("gmail").and_then(|g| g.as_str()).and_then(mailcraft_model::GmailCategory::parse);
+            let count = if let Some(cat) = gmail {
+                mb.messages_in(f.id).filter(|m| m.gmail_category == Some(cat)).count()
+            } else {
+                mb.count(f.id)
+            };
+            if count == 0 {
                 return None;
             }
-            let everything =
-                crate::i18n::fmt(tl!("Everything in \"{folder}\" will be permanently deleted."), &[("folder", crate::nav::folder_name(f))]);
-            // (Of a JMAP account, only when its server has some of it: what is this computer's
-            // alone, a draft or mail brought in from a file, is removed nowhere else.)
-            let jmap = mb.account(f.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap);
-            let going = mb.subtree(f.id);
-            let theirs = || mb.messages.values().any(|m| m.server.is_some() && going.contains(&m.folder));
-            let text = format!("{everything}{}", server_too(on_server(f.account) && (!jmap || theirs())));
+            let name = if let Some(cat) = gmail {
+                crate::nav::gmail_name(cat).to_string()
+            } else {
+                crate::nav::folder_name(f).to_string()
+            };
+            let is_trash_or_junk = matches!(f.kind, mailcraft_model::FolderKind::Deleted | mailcraft_model::FolderKind::Junk) && gmail.is_none();
+            let text = if is_trash_or_junk {
+                let everything =
+                    crate::i18n::fmt(tl!("Everything in \"{folder}\" will be permanently deleted."), &[("folder", &name)]);
+                // (Of a JMAP account, only when its server has some of it: what is this computer's
+                // alone, a draft or mail brought in from a file, is removed nowhere else.)
+                let jmap = mb.account(f.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap);
+                let going = mb.subtree(f.id);
+                let theirs = || mb.messages.values().any(|m| m.server.is_some() && going.contains(&m.folder));
+                format!("{everything}{}", server_too(on_server(f.account) && (!jmap || theirs())))
+            } else {
+                crate::i18n::fmt(tl!("Everything in \"{folder}\" will be moved to Deleted Items."), &[("folder", &name)])
+            };
             question(tl!("Empty Folder"), text, tl!("Empty"))
         }
         // Copies only this computer has of mail its server has (#1401): what goes is counted first.
