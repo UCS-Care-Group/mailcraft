@@ -107,6 +107,7 @@ mod test_support;
 pub mod connection;
 pub mod fetch;
 pub mod mail;
+pub mod search;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin;
 

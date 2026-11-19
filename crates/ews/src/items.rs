@@ -233,7 +233,7 @@ pub(crate) fn conversation_of(item: &Node) -> String {
 }
 
 /// The message in an item element, when it has an id.
-fn read_item(item: &Node) -> Option<GraphMessage> {
+pub(crate) fn read_item(item: &Node) -> Option<GraphMessage> {
     let id_node = item.child_in(TYPES, "ItemId")?;
     let id = id_node.attribute("Id").filter(|id| valid_id(id))?;
     let change_key = id_node.attribute("ChangeKey").filter(|key| valid_id(key)).unwrap_or_default();

@@ -331,7 +331,8 @@ fn a_call_that_is_wrong_is_refused_for_the_reason_a_server_gives() {
         ("a body to fetch", json!(["Email/get", {"accountId": account, "ids": [], "fetchTextBodyValues": true}, "c0"]), "invalidArguments"),
         ("no filter", json!(["Email/query", {"accountId": account}, "c0"]), "unsupportedFilter"),
         ("a null filter", json!(["Email/query", {"accountId": account, "filter": null}, "c0"]), "unsupportedFilter"),
-        ("a filter on text", json!(["Email/query", {"accountId": account, "filter": {"text": "x"}}, "c0"]), "unsupportedFilter"),
+        ("a filter on size", json!(["Email/query", {"accountId": account, "filter": {"minSize": 1}}, "c0"]), "unsupportedFilter"),
+        ("a filter with nothing in it", json!(["Email/query", {"accountId": account, "filter": {}}, "c0"]), "unsupportedFilter"),
         (
             "a filter operator",
             json!(["Email/query", {"accountId": account, "filter": {"operator": "AND", "conditions": []}}, "c0"]),

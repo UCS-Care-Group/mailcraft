@@ -108,6 +108,116 @@ impl std::fmt::Debug for GraphSearchResult {
     }
 }
 
+/// Most folders one search of an Exchange server account names, and most mailboxes one of a JMAP
+/// account says an email may lie in.
+pub const MAX_SEARCH_FOLDERS: usize = 1_000;
+
+/// A search of an Exchange server account's mailbox on its server (#1725): `FindItem` in the
+/// folders named, newest first, a page at a time. The counterpart of [`GraphSearchRequest`] for a
+/// host that has to be told where the server is; what it brings back is a [`GraphSearchResult`].
+/// The password goes beside the request and is not in it.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct EwsSearchRequest {
+    pub account: Id,
+    /// The account's address: what the answer is checked against.
+    pub email: String,
+    /// The address of the Exchange Web Services endpoint. Never logged.
+    pub url: String,
+    /// The name the password is sent with; empty means `email`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub username: String,
+    /// The fingerprint of the one certificate the owner trusts for this account; empty when none.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub trusted: String,
+    /// Which search of the session this is for.
+    pub ticket: u64,
+    /// The server ids of the folders to search, in the order they are asked: at most
+    /// [`MAX_SEARCH_FOLDERS`].
+    pub folders: Vec<String>,
+    /// The search as the owner typed it ([`crate::search::Query::for_server`] says what of it goes).
+    pub query: String,
+    /// Where the search goes on from, as the last answer said ([`GraphSearchResult::next`]);
+    /// empty for the first page.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub next: String,
+}
+
+/// Nothing of the server, the owner or the search: counts only.
+impl std::fmt::Debug for EwsSearchRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EwsSearchRequest")
+            .field("account", &self.account)
+            .field("ticket", &self.ticket)
+            .field("folders", &self.folders.len())
+            .field("next", &!self.next.is_empty())
+            .finish()
+    }
+}
+
+/// A mailbox of a JMAP account an email may be said to lie in, with the kind of folder it is here:
+/// an email in several mailboxes is listed in the first of them, in the order a run uses.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SearchPlace {
+    /// The mailbox's server id.
+    pub id: String,
+    pub kind: crate::FolderKind,
+}
+
+/// A search of a JMAP account's mailbox on its server (#1725): `Email/query` with a filter, newest
+/// first, a page at a time (RFC 8621 §4.4). What it brings back is a [`GraphSearchResult`]. The
+/// secret that opens the server goes beside the request and is not in it.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct JmapSearchRequest {
+    pub account: Id,
+    /// The account's address: what the answer is checked against.
+    pub email: String,
+    /// The address of the server's session resource. It may carry the account's address, so it
+    /// is never logged.
+    pub session: String,
+    /// The secret that goes beside this request is a bearer token; otherwise the password.
+    #[serde(skip_serializing_if = "is_false")]
+    pub bearer: bool,
+    /// Which search of the session this is for.
+    pub ticket: u64,
+    /// The server id of the one mailbox searched; empty for the whole account.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub folder: String,
+    /// For a search of the whole account: the mailboxes whose mail stays out of it (Deleted Items
+    /// and Junk E-mail), by server id.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub outside: Vec<String>,
+    /// The mailboxes this computer has for the account, at most [`MAX_SEARCH_FOLDERS`]: an email
+    /// that lies in none of them is passed over.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub places: Vec<SearchPlace>,
+    /// The search as the owner typed it.
+    pub query: String,
+    /// Where the search goes on from ([`GraphSearchResult::next`]); empty for the first page.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub next: String,
+}
+
+/// Nothing of the server, the owner or the search: counts only.
+impl std::fmt::Debug for JmapSearchRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JmapSearchRequest")
+            .field("account", &self.account)
+            .field("ticket", &self.ticket)
+            .field("folder", &!self.folder.is_empty())
+            .field("outside", &self.outside.len())
+            .field("places", &self.places.len())
+            .field("next", &!self.next.is_empty())
+            .finish()
+    }
+}
+
+#[cfg(test)]
+#[path = "search_requests_tests.rs"]
+mod requests_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -17,7 +17,8 @@ use crate::standin::{Check, Folder, Hostile, Refusal, State, error_message, inva
 use crate::xml::{Node, escape};
 
 /// The `FieldURI`s a request may ask for besides the shape's own (the ones this stand-in knows).
-const FIELD_URIS: &[&str] = &[
+pub(crate) const FIELD_URIS: &[&str] = &[
+    "item:IsDraft",
     "message:ToRecipients",
     "message:CcRecipients",
     "message:From",
@@ -427,7 +428,7 @@ impl State {
 
     /// `ItemShape` of `SyncFolderItems`/`GetItem`: the base shape, whether the MIME content is
     /// asked for, and the extra `FieldURI`s.
-    fn item_shape(shape: &Node, mime_allowed: bool) -> Result<(String, bool, Vec<String>), Refusal> {
+    pub(crate) fn item_shape(shape: &Node, mime_allowed: bool) -> Result<(String, bool, Vec<String>), Refusal> {
         Check::is(shape, MESSAGES, "ItemShape", &[])?;
         let order: &[&str] =
             if mime_allowed { &["BaseShape", "IncludeMimeContent", "AdditionalProperties"] } else { &["BaseShape", "AdditionalProperties"] };
