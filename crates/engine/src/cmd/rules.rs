@@ -317,13 +317,8 @@ fn apply_server_param(rule: &mut Rule, s: &Session, v: &Value) -> Result<(), Cmd
     Ok(())
 }
 
-/// The rule `v` describes for `rules.edit`, starting with `existing` and applying any params.
-/// This is like `edit()` but without mutating the session's mailbox: for questions an agent is
-/// asking about what the rule would be after the edit.
-pub(crate) fn rule_for_edit(s: &Session, existing: &Rule, v: &Value) -> Result<Rule, CmdError> {
-    let mut rule = existing.clone();
-
-    // Update fields from params if present
+/// Update rule fields from params. Used by `rule_for_edit` and `edit`.
+fn update_rule_from_params(rule: &mut Rule, s: &Session, v: &Value) -> Result<(), CmdError> {
     if let Some(name) = v.get("name").and_then(Value::as_str) {
         rule.name = clean_name(name).ok_or_else(|| bad("`name` is empty"))?;
     }
@@ -348,7 +343,16 @@ pub(crate) fn rule_for_edit(s: &Session, existing: &Rule, v: &Value) -> Result<R
         rule.stop = p::opt_bool(v, "stop")?.unwrap_or(rule.stop);
     }
 
-    // Apply server location change if requested
+    Ok(())
+}
+
+/// The rule `v` describes for `rules.edit`, starting with `existing` and applying any params.
+/// This is like `edit()` but without mutating the session's mailbox: for questions an agent is
+/// asking about what the rule would be after the edit.
+pub(crate) fn rule_for_edit(s: &Session, existing: &Rule, v: &Value) -> Result<Rule, CmdError> {
+    let mut rule = existing.clone();
+
+    update_rule_from_params(&mut rule, s, v)?;
     apply_server_param(&mut rule, s, v)?;
 
     Ok(rule)
@@ -649,30 +653,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 
     let mut rule = rule.clone();
 
-    // Update fields from params
-    if let Some(name) = v.get("name").and_then(Value::as_str) {
-        rule.name = clean_name(name).ok_or_else(|| bad("`name` is empty"))?;
-    }
-
-    if let Some(conds) = v.get("conditions").and_then(Value::as_array) {
-        let conds: Vec<Condition> = conds.iter().take(20).map(condition).collect::<Result<Vec<_>, _>>()?;
-        if conds.is_empty() {
-            return Err(bad("conditions must have at least one condition"));
-        }
-        rule.conditions = conds;
-    }
-
-    if let Some(acts) = v.get("actions").and_then(Value::as_array) {
-        let acts: Vec<Action> = acts.iter().take(20).map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?;
-        if acts.is_empty() {
-            return Err(bad("actions must have at least one action"));
-        }
-        rule.actions = acts;
-    }
-
-    if let Some(_stop) = v.get("stop") {
-        rule.stop = p::opt_bool(v, "stop")?.unwrap_or(rule.stop);
-    }
+    update_rule_from_params(&mut rule, s, v)?;
 
     // Handle server location change if requested
     let was_on_server = rule.on_server();

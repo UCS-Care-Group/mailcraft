@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Agent questions for rules.edit: server delete and another-account folder.
+//!
+//! Shared helper functions for rules.edit agent tests.
+//! When adding new test modules that need session setup, use these helpers
+//! instead of duplicating the setup code.
 
 use mailcraft_model::{Action, Condition, FolderKind, Keep, Rule};
 use serde_json::Value;
@@ -387,7 +391,7 @@ mod agent_gate_tests {
         // Use rule_for_edit to build the rule as it would be after edit
         let result = rule_for_edit(&s, existing, &params);
         assert!(result.is_ok(), "rule_for_edit failed: {:?}", result);
-        let rule_after_edit = result.unwrap();
+        let _rule_after_edit = result.unwrap();
 
         // Check server_rule_deletes through the agent gate
         let verdict = agent::check(&s, "rules.edit", &params, &[]);
@@ -435,7 +439,7 @@ mod agent_gate_tests {
         // Use rule_for_edit to build the rule as it would be after edit
         let result = rule_for_edit(&s, existing, &params);
         assert!(result.is_ok(), "rule_for_edit failed: {:?}", result);
-        let rule_after_edit = result.unwrap();
+        let _rule_after_edit = result.unwrap();
 
         // Check rules_onto_another_server through the agent gate
         let verdict = agent::check(&s, "rules.edit", &params, &[]);
