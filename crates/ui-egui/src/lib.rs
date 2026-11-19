@@ -5055,6 +5055,8 @@ impl MailApp {
         self.drain_control(ctx);
         // What is kept to show things again quickly goes once the window has been out of sight a while.
         out_of_sight::tick(self, ctx);
+        // A window given back by the system while the main window is minimized.
+        windows::wake(self, ctx);
         control::trail(self, ctx);
         self.poll_sign_in();
         // A sign-in for an account that is being set up has nobody waiting for it once that dialog
