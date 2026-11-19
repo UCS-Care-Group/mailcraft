@@ -96,6 +96,10 @@ fn faults_are_read_by_their_code_alone() {
 
 #[test]
 fn ambiguous_values_and_incomplete_pages_are_refused() {
+    for id in ["a:b:c", ":2", "a b:2", "a:0"] {
+        let response = answer(200, &json!({"Body": {"GetFolderResponse": {"folder": {"id": "1", "folder": [{"id": id, "name": "bad"}]}}}}));
+        assert!(!folders::answer(&response).unwrap().complete);
+    }
     for token in [json!(true), json!(["5", "6"]), json!({"_content": "1\u{0}2"})] {
         let response = answer(200, &json!({"Body": {"SyncResponse": {"token": token}}}));
         assert_eq!(delta::answer(&response, false), Err(Error::Unreadable));
