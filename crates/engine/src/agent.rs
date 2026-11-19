@@ -964,11 +964,13 @@ fn removes_in_outlook(s: &Session, params: &Value) -> bool {
 /// next job writes there: `category.set` with a name the list doesn't have (`made`) or another
 /// colour for one that goes there; a Categorize call, a new or changed to-do or event, or a
 /// meeting with a contact, that puts on an item a name its list doesn't have; a rule made,
-/// switched on or run that gives mail such a name. The names, and the accounts whose Outlook it
-/// is. Read as the command reads its params (through the same functions); what the command
-/// refuses (a list MailCraft may not change there, a colour Outlook hasn't got, ids named
-/// wrongly) makes nothing, and asks nothing. (A contact's new or changed categories are this
-/// computer's list, or are refused: a contact an account's server keeps isn't edited here.)
+/// switched on or run that gives mail such a name, or a change beside such a rule that lets more
+/// mail reach it or has it give another name ([`beside_makes_in_outlook`]). The names, and the
+/// accounts whose Outlook it is. Read as the command reads its params (through the same
+/// functions); what the command refuses (a list MailCraft may not change there, a colour Outlook
+/// hasn't got, ids named wrongly) makes nothing, and asks nothing. (A contact's new or changed
+/// categories are this computer's list, or are refused: a contact an account's server keeps isn't
+/// edited here.)
 struct MadeInOutlook {
     names: Vec<String>,
     owners: Vec<Id>,
@@ -1012,6 +1014,9 @@ fn makes_in_outlook(s: &Session, id: &str, params: &Value) -> Option<MadeInOutlo
     }
     if RUNS_RULES.contains(&id) {
         return gathered(rules_make_in_outlook(s, id, params));
+    }
+    if changes_beside_rules(id) {
+        return gathered(beside_makes_in_outlook(s, id, params));
     }
     let (name, lists): (String, Vec<Id>) = match id {
         "category.set" => {
@@ -1138,6 +1143,72 @@ fn rules_make_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String, 
     out
 }
 
+/// The changes beside the rules that may let more mail reach them, or have them give mail another
+/// name (#566): a change to the Safe or Blocked Senders, of an account's address, of the zone the
+/// calendar is shown in, or a category's rename.
+fn changes_beside_rules(id: &str) -> bool {
+    id.starts_with("junk.") || matches!(id, "account.edit" | "view.timeZone" | "category.rename")
+}
+
+/// The categories that the rules a change beside them reaches ([`changes_beside_rules`]) give
+/// mail and put on a list kept in step with Outlook that hasn't got them (#661), each with that
+/// list's account; read as [`rules_onto_another_server`] reads the change, so that what it asks a
+/// send for when such a rule puts mail onto another server it asks for when such a rule makes a
+/// category in Outlook. A change to the Safe or Blocked Senders that lets more mail through
+/// ([`junk_lets_through`]) reaches the rules for that mail; a change of an account's address, or
+/// of the zone, the rules for the same mail when one of them reads it ([`read_beside`]), any of
+/// which may then take mail it didn't (a stop, or a category an exception looks for); a rename,
+/// the rules it rewrites ([`renamed_rules`]), which then give mail the new name, chosen by the
+/// call. Those that run on new mail count, as for the rule calls.
+fn beside_makes_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String, Id)> {
+    let mb = &s.mailbox;
+    let mut out = Vec::new();
+    // The rules for the mail of `account` (0: each for whichever mail it is for) that a change of
+    // what `reads` reads reaches; every rule for that mail when nothing in particular is read.
+    let reached = |account: Id, reads: Option<fn(&mailcraft_model::Rule) -> bool>| {
+        mb.rules.iter().filter(move |r| {
+            runs_on_new_mail(r) && (account == 0 || r.is_for(account)) && reads.is_none_or(|reads| read_beside(mb, account, r, reads))
+        })
+    };
+    match id {
+        _ if id.starts_with("junk.") => {
+            for a in junk_lets_through(s, id, params) {
+                for r in reached(a, None) {
+                    rule_makes_in_outlook(mb, r, Some(a), Counted::Alone, &mut out);
+                }
+            }
+        }
+        "account.edit" => {
+            if let Some(a) = me_changes(s, id, params) {
+                for r in reached(a, Some(reads_me)) {
+                    rule_makes_in_outlook(mb, r, Some(a), Counted::Alone, &mut out);
+                }
+            }
+        }
+        "view.timeZone" if zone_changes(s, id, params) => {
+            for r in reached(0, Some(reads_days)) {
+                rule_makes_in_outlook(mb, r, one_account(r), Counted::Alone, &mut out);
+            }
+        }
+        "category.rename" => {
+            let (Ok(account), Some(from)) = (crate::cmd::category::list_account(s, params), p::str(params, "from")) else { return out };
+            let Some(to) = p::str(params, "to").and_then(mailcraft_model::clean_name) else { return out };
+            // Each rule as the rename leaves it ([`Mailbox::rename_category`]).
+            for (i, whole) in mb.rules_renaming(account, from) {
+                let Some(mut r) = mb.rules.get(i).filter(|r| runs_on_new_mail(r)).cloned() else { continue };
+                r.rename_category(from.trim(), &to, whole);
+                rule_makes_in_outlook(mb, &r, one_account(&r), Counted::Alone, &mut out);
+            }
+            // The list renamed has the new name then: nothing of it is new there.
+            if let Some(owner) = mb.synced_list_owner(account) {
+                out.retain(|(name, o)| *o != owner || !mailcraft_model::sync::same_category(name, &to));
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
 /// Whose categories [`rule_makes_in_outlook`] counts: the rule's alone (a rule run by itself, or
 /// each of the rules a run goes through), the rule's and those of the rules that run with it (a
 /// rule made, switched on, moved or kept elsewhere: which of the others match, stop or are
@@ -1201,11 +1272,12 @@ fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<I
 /// What [`makes_in_outlook`] makes there for a call that gives an item or a rule categories, said
 /// after what the call does; empty for nothing.
 fn made_in_outlook_suffix(s: &Session, id: &str, params: &Value) -> String {
-    if !GIVES_CATEGORIES.contains(&id) && !RUNS_RULES.contains(&id) {
+    let by_rules = RUNS_RULES.contains(&id) || changes_beside_rules(id);
+    if !GIVES_CATEGORIES.contains(&id) && !by_rules {
         return String::new();
     }
     let Some(made) = makes_in_outlook(s, id, params) else { return String::new() };
-    made_suffix(s, &made, RUNS_RULES.contains(&id))
+    made_suffix(s, &made, by_rules)
 }
 
 /// [`made_in_outlook_suffix`] for what is made (`by_rules`: what the rules give mail).
@@ -1846,8 +1918,9 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 /// deleted on its server or one there that deletes mail, whichever it is asked about (#661), and
 /// the Settings it is besides, whatever it is asked as; so does an undo or redo that puts back
 /// rules, signatures or Safe and Blocked Senders. A change of an account's address asked as a
-/// send for a rule beside it needs the Accounts too (#566), and a change of the Safe or Blocked
-/// Senders so asked the Settings. Asked about as one question, so that the owner's yes lets it
+/// send for a rule beside it (one that puts mail onto another server, or makes a category in
+/// Outlook) needs the Accounts too (#566, #661), and a change of the Safe or Blocked Senders so
+/// asked the Settings. Asked about as one question, so that the owner's yes lets it
 /// run.
 pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
@@ -1902,10 +1975,15 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
             }
             more
         }
-        // A change asked as a send for a rule beside it that puts mail onto another server is
-        // still what it is besides: one of the Safe or Blocked Senders a change of settings
-        // (#566).
-        _ if class == Class::Send && id.starts_with("junk.") && rules_onto_another_server(s, id, params) => vec![Class::Settings],
+        // A change asked as a send for a rule beside it that puts mail onto another server, or
+        // makes a category in Outlook, is still what it is besides: one of the Safe or Blocked
+        // Senders a change of settings (#566, #661).
+        _ if class == Class::Send
+            && id.starts_with("junk.")
+            && (rules_onto_another_server(s, id, params) || makes_in_outlook(s, id, params).is_some()) =>
+        {
+            vec![Class::Settings]
+        }
         _ => Vec::new(),
     }
 }
@@ -2363,7 +2441,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let there = if outlook { " and from Outlook" } else { "" };
             format!("delete the category {}{whose}{there}, taking it off everything that has it{shared}", quoted(st("name")))
         }
-        "view.timeZone" if zone_changes(s, id, params) && !reads_beside_said(s, 0, reads_days, "").is_empty() => {
+        // (A category the rules beside it then make in Outlook is said after it, #661.)
+        "view.timeZone"
+            if zone_changes(s, id, params) && (!reads_beside_said(s, 0, reads_days, "").is_empty() || makes_in_outlook(s, id, params).is_some()) =>
+        {
             let zone = crate::cmd::zones::rule_zone_after(s, params).map(|z| z.id().to_string()).unwrap_or_default();
             let beside = reads_beside_said(s, 0, reads_days, "the days mail came by the calendar's time zone");
             // (And the second zone, which no rule reads, as it is given.)
@@ -2374,7 +2455,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             };
             format!("show the calendar in the time zone {}{second}{beside}", quoted(&zone))
         }
-        "category.rename" if shared_category(s, id, params) || renames_in_outlook(s, params) || !rename_beside_said(s, params).is_empty() => {
+        "category.rename"
+            if shared_category(s, id, params)
+                || renames_in_outlook(s, params)
+                || !rename_beside_said(s, params).is_empty()
+                || makes_in_outlook(s, id, params).is_some() =>
+        {
             // In Outlook too (#661): the new name is made there, the items there take it, and the
             // old one is deleted there.
             // Whose Outlook, as `category.remove` says: two accounts may both have the name.
