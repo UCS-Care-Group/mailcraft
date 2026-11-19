@@ -11,7 +11,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use egui::{Align, Color32, FontId, Layout, Margin, Rect, RichText, Sense, Stroke, Ui, vec2};
+use egui::{Align, Align2, Color32, FontId, Layout, Margin, Rect, RichText, Sense, Stroke, Ui, vec2};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -160,9 +160,15 @@ impl JournalState {
     }
 
     pub fn sync_editing_fields(&mut self) {
-        if let Some(entry) = self.current_entry() {
-            self.editing_title = entry.title.clone();
-            self.editing_content = entry.content.clone();
+        let pair = self
+            .selected_id
+            .as_ref()
+            .and_then(|id| self.entries.iter().find(|e| &e.id == id))
+            .map(|e| (e.title.clone(), e.content.clone()));
+
+        if let Some((title, content)) = pair {
+            self.editing_title = title;
+            self.editing_content = content;
         } else {
             self.editing_title.clear();
             self.editing_content.clear();
@@ -383,7 +389,7 @@ fn render_journal_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 let display_title = if title.trim().is_empty() { "Sem título" } else { &title };
                 ui.painter().text(
                     title_rect.min,
-                    Align::LEFT,
+                    Align2::LEFT_TOP,
                     display_title,
                     FontId::proportional(13.5),
                     if is_selected { t.accent_text } else { t.text },
@@ -393,7 +399,7 @@ fn render_journal_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 let date_rect = Rect::from_min_size(pos2_at(r.min.x + 12.0, r.min.y + 28.0), vec2(r.width() - 20.0, 14.0));
                 ui.painter().text(
                     date_rect.min,
-                    Align::LEFT,
+                    Align2::LEFT_TOP,
                     date_str,
                     FontId::proportional(11.0),
                     t.text_dim,
@@ -402,7 +408,7 @@ fn render_journal_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 let snippet_rect = Rect::from_min_size(pos2_at(r.min.x + 12.0, r.min.y + 46.0), vec2(r.width() - 20.0, 14.0));
                 ui.painter().text(
                     snippet_rect.min,
-                    Align::LEFT,
+                    Align2::LEFT_TOP,
                     &preview,
                     FontId::proportional(11.0),
                     t.text_dim,
@@ -536,8 +542,9 @@ fn render_journal_detail(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 );
                 if resp.changed() {
                     // Auto-sync in memory
+                    let new_content = app.journal.editing_content.clone();
                     if let Some(e) = app.journal.current_entry_mut() {
-                        e.content = app.journal.editing_content.clone();
+                        e.content = new_content;
                     }
                 }
             } else {
