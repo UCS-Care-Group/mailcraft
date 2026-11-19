@@ -200,7 +200,8 @@ fn a_two_factor_account_and_odd_tokens_give_no_token() {
     let without = answer(200, &json!({"Body": {"AuthResponse": {"twoFactorAuthRequired": {"_content": true}}}}));
     assert_eq!(auth::answer(&without).map(|_| ()), Err(Error::Unreadable));
     // A flag that is no flag can't be read off either: the sign-in's answer is refused.
-    let odd = answer(200, &json!({"Body": {"AuthResponse": {"authToken": [{"_content": "pending"}], "twoFactorAuthRequired": {"_content": "tr\u{0}ue"}}}}));
+    let odd =
+        answer(200, &json!({"Body": {"AuthResponse": {"authToken": [{"_content": "pending"}], "twoFactorAuthRequired": {"_content": "tr\u{0}ue"}}}}));
     assert_eq!(auth::answer(&odd).map(|_| ()), Err(Error::Unreadable));
     for token in ["", "with space", "a\"b", &"x".repeat(5000)] {
         let odd = answer(200, &json!({"Body": {"AuthResponse": {"authToken": [{"_content": token}]}}}));
