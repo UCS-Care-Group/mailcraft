@@ -46,6 +46,8 @@ macro_rules! tl_later {
     };
 }
 
+#[cfg(test)]
+mod accent_custom_tests;
 mod account_setup;
 pub mod address_book;
 mod advanced_search;
@@ -896,6 +898,10 @@ pub struct UiState {
     pub close_to_tray_notice_seen: bool,
     /// The accent colour of the window.
     pub accent: theme::Accent,
+    /// The colour of the custom accent (`accent` = `custom`), as "#rrggbb"; anything else reads
+    /// as none and the default custom colour is used.
+    #[serde(default, with = "theme::color_option")]
+    pub custom_accent: Option<egui::Color32>,
     /// The greys of the dark theme: neutral (the default) or tinted blue (#1384).
     pub dark_style: theme::DarkStyle,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
@@ -1038,6 +1044,7 @@ impl Default for UiState {
             close_to_tray: false,
             close_to_tray_notice_seen: false,
             accent: theme::Accent::default(),
+            custom_accent: None,
             dark_style: theme::DarkStyle::default(),
             light_messages: false,
             replies_in_window: false,
@@ -1089,6 +1096,13 @@ impl Default for UiState {
     }
 }
 
+impl UiState {
+    /// The colour a custom accent shows: the one saved, or the default when none was picked yet.
+    pub fn custom_accent_color(&self) -> egui::Color32 {
+        self.custom_accent.unwrap_or(theme::DEFAULT_CUSTOM_COLOR)
+    }
+}
+
 /// The engine's preferences in the window's settings for a new install: the engine's own, but
 /// for what the window turns on that a session without its settings (`mailcraft-cli run`,
 /// headless `mcp`) leaves off. An answered meeting request goes from the Inbox to Deleted Items,
@@ -1128,7 +1142,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value": "system"|"on"|"off"} — whether the window's animations play: as the system says (Windows' Animation effects; where the system says nothing, they play), always, or never (menus and sections open at once, scrolling to a place jumps there; a spinner still turns)"#,
     ),
-    ("ui.accent", "Accent Colour", "File › Options", r#"{"accent": "blue"|"teal"|"violet"|"graphite"}"#),
+    (
+        "ui.accent",
+        "Accent Colour",
+        "File › Options",
+        r##"{"accent": "blue"|"teal"|"violet"|"graphite"|"custom"|"#rrggbb", "color"?: "#rrggbb"|[r, g, b]} — with "custom", "color" picks the colour of your own (without it, the one last picked is kept); "#rrggbb" as "accent" itself picks a custom colour straight away"##,
+    ),
     ("ui.darkStyle", "Dark Theme Style", "File › Options", r#"{"value": "neutral"|"blue"}"#),
     (
         "ui.lightMessages",
@@ -2771,13 +2790,43 @@ impl MailApp {
                 }
                 None => Err("`on` is true or false".into()),
             },
-            "ui.accent" => match s("accent").and_then(theme::Accent::from_code) {
-                Some(a) => {
-                    self.ui.accent = a;
-                    Ok(json!({"accent": a.code()}))
+            "ui.accent" => {
+                // A colour of the owner's own: "accent": "custom" with "color", or "accent" as
+                // "#rrggbb" itself. Without "color", the colour last picked is kept.
+                let picked = p.get("color").map(theme::parse_color_value);
+                match s("accent").and_then(theme::Accent::from_code) {
+                    Some(a) => {
+                        if a == theme::Accent::Custom {
+                            match picked {
+                                None => {
+                                    self.ui.accent = theme::Accent::Custom;
+                                    Ok(json!({"accent": "custom", "color": theme::hex_string(self.ui.custom_accent_color())}))
+                                }
+                                Some(Some(c)) => {
+                                    self.ui.accent = theme::Accent::Custom;
+                                    self.ui.custom_accent = Some(c);
+                                    Ok(json!({"accent": "custom", "color": theme::hex_string(c)}))
+                                }
+                                Some(None) => Err("`color` is \"#rrggbb\" or [r, g, b]".into()),
+                            }
+                        } else {
+                            self.ui.accent = a;
+                            Ok(json!({"accent": a.code()}))
+                        }
+                    }
+                    None => match s("accent").and_then(theme::parse_hex_color) {
+                        Some(c) => {
+                            self.ui.accent = theme::Accent::Custom;
+                            self.ui.custom_accent = Some(c);
+                            Ok(json!({"accent": "custom", "color": theme::hex_string(c)}))
+                        }
+                        None => {
+                            Err("`accent` is blue, teal, violet, graphite, custom or \"#rrggbb\"; with custom, `color` is \"#rrggbb\" or [r, g, b]"
+                                .into())
+                        }
+                    },
                 }
-                None => Err("`accent` is blue, teal, violet or graphite".into()),
-            },
+            }
             "ui.darkStyle" => match s("value").and_then(theme::DarkStyle::from_code) {
                 Some(style) => {
                     self.ui.dark_style = style;
@@ -5018,6 +5067,7 @@ impl MailApp {
         let choice = theme::ThemeChoice {
             appearance: self.ui.theme,
             accent: self.ui.accent,
+            custom: self.ui.custom_accent,
             high_contrast: self.ui.high_contrast,
             dark_style: self.ui.dark_style,
         };

@@ -717,6 +717,11 @@ msgstr "აქცენტი"
 msgid "Accent Colour"
 msgstr "აქცენტის ფერი"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4040,6 +4045,11 @@ msgstr "მიმდინარე საფოსტო ყუთი"
 #, fuzzy
 msgid "Current View"
 msgstr "მიმდინარე ხედი"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr ""
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
