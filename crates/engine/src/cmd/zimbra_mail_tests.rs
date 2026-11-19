@@ -90,6 +90,94 @@ fn a_completed_zimbra_round_sorts_later_inbox_arrivals() {
 }
 
 #[test]
+fn a_delta_cannot_complete_a_pending_fresh_folder_read() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    let mut fresh = result(account, "4711");
+    fresh.partial = true;
+    fresh.pages.push(ZimbraMessagePage { folder: "2".into(), messages: vec![mail("257", "2", "Hello", false)], afresh: true, ..Default::default() });
+    apply(&mut s, fresh);
+    let mut delta = result(account, "4711");
+    delta.partial = true;
+    delta.pages.push(ZimbraMessagePage { messages: vec![mail("258", "2", "Later", true)], last: true, ..Default::default() });
+    apply(&mut s, delta);
+    let inbox = s.mailbox.folder_by_server(account, "2").unwrap();
+    let server = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap();
+    assert!(!server.caught_up && !server.round_ended);
+    let mut tail = result(account, "4711");
+    tail.partial = true;
+    tail.pages.push(ZimbraMessagePage { folder: "2".into(), last: true, ..Default::default() });
+    apply(&mut s, tail);
+    let server = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap();
+    assert!(server.caught_up && server.round_ended);
+}
+
+#[test]
+fn a_page_for_a_missing_folder_blocks_the_run_token_and_sweep() {
+    for delta in [false, true] {
+        for split in [false, true] {
+            let (mut s, account) = session();
+            first_read(&mut s, account);
+            let mut removal = result(account, "4711");
+            removal.partial = true;
+            removal.pages.push(ZimbraMessagePage { removed: vec!["257".into()], ..Default::default() });
+            apply(&mut s, removal);
+            let mut missing = result(account, "4711");
+            missing.partial = split;
+            missing.whole = !split;
+            missing.pages.push(ZimbraMessagePage {
+                folder: if delta { String::new() } else { "999".into() },
+                messages: vec![mail("900", "999", "Not taken", false)],
+                last: true,
+                ..Default::default()
+            });
+            if !split {
+                missing.token = "4712".into();
+                missing.resume = Some(Vec::new());
+            }
+            apply(&mut s, missing);
+            if split {
+                let mut end = result(account, "4711");
+                (end.token, end.whole, end.resume) = ("4712".into(), true, Some(Vec::new()));
+                apply(&mut s, end);
+            }
+            assert_eq!(s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap().token, "4711");
+            assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
+        }
+    }
+}
+
+#[test]
+fn reported_errors_survive_display_cleaning_and_block_a_later_finish() {
+    for error in ["", "\u{0}", "\n \t", "Server error"] {
+        for split in [false, true] {
+            let (mut s, account) = session();
+            first_read(&mut s, account);
+            let mut removal = result(account, "4711");
+            removal.partial = true;
+            removal.pages.push(ZimbraMessagePage { removed: vec!["257".into()], ..Default::default() });
+            apply(&mut s, removal);
+            let mut failed = result(account, "4711");
+            failed.errors.push(error.into());
+            failed.partial = split;
+            failed.whole = !split;
+            if !split {
+                failed.token = "4712".into();
+                failed.resume = Some(Vec::new());
+            }
+            apply(&mut s, failed);
+            if split {
+                let mut end = result(account, "4711");
+                (end.token, end.whole, end.resume) = ("4712".into(), true, Some(Vec::new()));
+                apply(&mut s, end);
+            }
+            assert_eq!(s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap().token, "4711", "{error:?}, split={split}");
+            assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
+        }
+    }
+}
+
+#[test]
 fn an_incomplete_listing_prevents_a_later_piece_advancing_the_token() {
     let (mut s, account) = session();
     let mut partial = result(account, "");

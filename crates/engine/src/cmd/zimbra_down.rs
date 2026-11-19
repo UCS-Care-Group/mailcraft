@@ -91,7 +91,8 @@ fn bounded_folder(f: &mut GraphFolder) -> bool {
 /// cut. A piece is the end of a run that went well (`whole`) only if it is the last, came whole,
 /// and tells of no trouble; a cut one keeps no token.
 pub(crate) fn bounded(mut result: ZimbraMailResult) -> (ZimbraMailResult, bool) {
-    let mut cut = false;
+    let reported_errors = !result.errors.is_empty();
+    let mut cut = reported_errors;
     if let Some(listing) = result.listing.as_mut() {
         let before = listing.folders.len();
         listing.folders.retain_mut(bounded_folder);
@@ -114,7 +115,7 @@ pub(crate) fn bounded(mut result: ZimbraMailResult) -> (ZimbraMailResult, bool) 
     }
     result.errors = lines(&result.errors);
     result.busy_for = result.busy_for.map(|seconds| seconds.min(MAX_BUSY));
-    let trouble = !result.errors.is_empty() || result.stopped || result.auth_refused || result.busy_for.is_some() || !result.untrusted.is_empty();
+    let trouble = reported_errors || result.stopped || result.auth_refused || result.busy_for.is_some() || !result.untrusted.is_empty();
     result.whole &= !cut && !trouble && !result.partial;
     if !result.whole {
         result.token.clear();
@@ -141,9 +142,10 @@ pub(crate) fn take_folders(
     removed
 }
 
-fn take_folder_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &MessagePage, down: &mut Down) {
+fn take_folder_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &MessagePage, down: &mut Down, folder_read: bool) -> bool {
+    let Some(id) = mb.folder_by_server(account, &page.folder) else { return false };
     graph_down::take_page(mb, index, account, page, down);
-    if let Some(id) = mb.folder_by_server(account, &page.folder)
+    if folder_read
         && let Ok(folder) = mb.folder_mut(id)
         && let Some(server) = folder.server.as_mut()
     {
@@ -151,12 +153,13 @@ fn take_folder_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page
         server.caught_up = page.caught_up;
         server.round_ended = page.caught_up || (!page.afresh && ended);
     }
+    true
 }
 
 /// Take in one page of a run. A folder's page goes as a Graph page of that folder; a page of
 /// changes is cut into one page per folder its messages are in, and what it says was deleted is
 /// marked gone wherever it is.
-pub(crate) fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &ZimbraMessagePage, down: &mut Down) {
+pub(crate) fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &ZimbraMessagePage, down: &mut Down) -> bool {
     if !page.folder.is_empty() {
         let as_page = MessagePage {
             folder: page.folder.clone(),
@@ -166,16 +169,16 @@ pub(crate) fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, 
             caught_up: page.last,
             ..MessagePage::default()
         };
-        take_folder_page(mb, index, account, &as_page, down);
-        return;
+        return take_folder_page(mb, index, account, &as_page, down, true);
     }
     let mut by_folder: BTreeMap<&str, Vec<GraphMessage>> = BTreeMap::new();
     for m in &page.messages {
         by_folder.entry(m.server.folder.as_str()).or_default().push(m.clone());
     }
+    let mut whole = true;
     for (folder, messages) in by_folder {
-        let as_page = MessagePage { folder: folder.to_string(), messages, caught_up: page.last, ..MessagePage::default() };
-        take_folder_page(mb, index, account, &as_page, down);
+        let as_page = MessagePage { folder: folder.to_string(), messages, ..MessagePage::default() };
+        whole &= take_folder_page(mb, index, account, &as_page, down, false);
     }
     for id in &page.removed {
         let Some(m) = index.find(mb, account, id) else { continue };
@@ -186,4 +189,5 @@ pub(crate) fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, 
             down.gone += 1;
         }
     }
+    whole
 }

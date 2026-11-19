@@ -226,7 +226,7 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     if result.from != at {
         return Err(fail("this Send/Receive went on from where the account no longer is: the next one reads again"));
     }
-    let (result, cut) = zimbra_down::bounded(result);
+    let (result, mut cut) = zimbra_down::bounded(result);
     if s.file_is_current() {
         s.note_saved();
     }
@@ -237,7 +237,7 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     }
     let mut index = std::mem::take(&mut s.graph_index);
     for page in &result.pages {
-        zimbra_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
+        cut |= !zimbra_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
     if down.left > 0 {
