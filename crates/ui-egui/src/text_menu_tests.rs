@@ -23,6 +23,9 @@ use crate::dialogs::Dialog;
 use crate::widgets::key_text;
 use crate::{MailApp, RichClipboard, Services};
 
+#[path = "text_menu_fallback_tests.rs"]
+mod fallback;
+
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
 /// What the tests type where a password goes. It opens nothing.

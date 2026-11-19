@@ -223,7 +223,7 @@ impl eframe::App for App {
         quit::on_frame(ctx, &mut self.0, self.6.available());
         self.6.after_frame(ctx);
     }
-    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         // On Linux and the BSDs, the desktop's light or dark preference (`desktop_theme`), for
         // "Use system setting": winit has none there.
         #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
@@ -233,9 +233,11 @@ impl eframe::App for App {
         // Under Wayland the clipboard keys come as key events, to be turned into cut, copy and
         // paste here, where a picture on the clipboard can be seen (`mailcraft_ui_egui::paste_keys`, #1217).
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        if self.0.services.clipboard_keys {
-            mailcraft_ui_egui::paste_keys::translate(&mut raw.events, self.0.services.clipboard.as_deref());
+        if self.0.services.clipboard_keys && mailcraft_ui_egui::paste_keys::translate(&mut raw.events, self.0.services.clipboard.as_deref()) {
+            ctx.send_viewport_cmd_to(raw.viewport_id, egui::ViewportCommand::RequestPaste);
         }
+        #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+        let _ = ctx;
         self.0.raw_input_hook(raw);
     }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {

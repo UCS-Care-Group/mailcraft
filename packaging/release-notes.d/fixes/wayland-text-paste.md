@@ -1,0 +1,1 @@
+- On Wayland, Ctrl+V and a text field's Paste menu try the window's native text clipboard when the rich clipboard reader has no selection, including in messages and signatures. Missing HTML or pictures no longer trigger an X11 clipboard read ([#1217](https://github.com/GITHUB_REPOSITORY/issues/1217)).

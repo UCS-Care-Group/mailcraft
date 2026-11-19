@@ -72,6 +72,8 @@ struct Pending {
     /// What a body's Paste found on the clipboard besides its text: it goes with the paste, and
     /// with it when it is dropped.
     captured: Option<Captured>,
+    /// The rich reader had no selection: ask the window's native reader after restoring focus.
+    native_paste: bool,
     pass: u64,
 }
 
@@ -380,20 +382,29 @@ pub(crate) fn carry_out(app: &mut MailApp, ctx: &Context) {
     // What the control channel's input chose gives the text the keyboard back, and no more.
     let refused = app.driven && asked.item != Item::SelectAll;
     let events = match asked.item {
-        _ if refused => (Vec::new(), None),
-        Item::Cut => (vec![Event::Cut], None),
-        Item::Copy => (vec![Event::Copy], None),
+        _ if refused => (Vec::new(), None, false),
+        Item::Cut => (vec![Event::Cut], None, false),
+        Item::Copy => (vec![Event::Copy], None, false),
         Item::SelectAll => (
             [true, false]
                 .into_iter()
                 .map(|pressed| Event::Key { key: Key::A, physical_key: Some(Key::A), pressed, repeat: false, modifiers: Modifiers::COMMAND })
                 .collect(),
             None,
+            false,
         ),
         Item::Paste => paste(app, asked.takes),
     };
-    let (events, captured) = events;
-    let pending = Pending { viewport: asked.viewport, target: asked.target, takes: asked.takes, events, captured, pass };
+    let (events, captured, native_paste) = events;
+    let pending = Pending {
+        viewport: asked.viewport,
+        target: asked.target,
+        takes: asked.takes,
+        events,
+        captured,
+        native_paste: native_paste && app.services.clipboard_keys,
+        pass,
+    };
     ctx.data_mut(|d| d.insert_temp(self::pending(), pending));
     ctx.request_discard("a choice in a text's menu, given to the text before anything else");
     ctx.request_repaint_of(asked.viewport);
@@ -401,24 +412,28 @@ pub(crate) fn carry_out(app: &mut MailApp, ctx: &Context) {
 
 /// What Paste gives a text that takes `takes`, the clipboard read once, now: what Ctrl+V gives,
 /// and for a body the HTML beside the text ([`Captured`]).
-fn paste(app: &MailApp, takes: Takes) -> (Vec<Event>, Option<Captured>) {
-    let Some(board) = app.services.clipboard.as_ref() else { return (Vec::new(), None) };
+fn paste(app: &MailApp, takes: Takes) -> (Vec<Event>, Option<Captured>, bool) {
+    let Some(board) = app.services.clipboard.as_ref() else { return (Vec::new(), None, false) };
     // What the system's backend hands egui for Ctrl+V (egui-winit), from the same reads: the text
     // when there is some, line ends as `\n`; nothing for an empty one; the picture only when there
     // is no text at all. The body then reads the HTML beside the text, as for Ctrl+V.
-    match board.text() {
-        Some(text) => {
+    match board.paste_text() {
+        Ok(Some(text)) => {
             let text = text.replace("\r\n", "\n");
             if text.is_empty() {
-                return (Vec::new(), None);
+                return (Vec::new(), None, false);
             }
             let captured = (takes != Takes::Text).then(|| Captured { html: board.html().filter(|html| !html.trim().is_empty()) });
-            (vec![Event::Paste(text)], captured)
+            (vec![Event::Paste(text)], captured, false)
         }
         // (Only a signature or a message's body takes a picture: anywhere else egui's
         // `PasteImage` changes nothing.)
-        None if takes == Takes::Pictures => (board.image().and_then(|png| picture(&png)).into_iter().collect(), None),
-        None => (Vec::new(), None),
+        Ok(None) if takes == Takes::Pictures => match board.image() {
+            Some(png) => (picture(&png).into_iter().collect(), None, false),
+            None => (Vec::new(), None, app.services.clipboard_keys && !board.has_image()),
+        },
+        Ok(None) => (Vec::new(), None, true),
+        Err(_) => (Vec::new(), None, false),
     }
 }
 
@@ -521,6 +536,9 @@ pub(crate) fn deliver(ctx: &Context) -> Scope {
         let mut state = TextEdit::load_state(ctx, pending.target).unwrap_or_default();
         state.cursor.set_char_range(Some(range));
         state.store(ctx, pending.target);
+    }
+    if pending.native_paste {
+        ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste);
     }
     ctx.input_mut(|i| {
         let newer = std::mem::take(&mut i.events);
