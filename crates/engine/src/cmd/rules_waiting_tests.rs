@@ -1441,6 +1441,32 @@ fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until
         Condition::Flagged,
         Condition::ReceivedBetween { from: None, to: None },
     ];
+    // Every kind of condition is in the list: the match has no catch-all, so a new kind can't be
+    // left out of it.
+    let kind = |c: &Condition| match c {
+        Condition::FromContains(_) => 0,
+        Condition::ToContains(_) => 1,
+        Condition::SubjectContains(_) => 2,
+        Condition::BodyContains(_) => 3,
+        Condition::SubjectOrBodyContains(_) => 4,
+        Condition::HasAttachment => 5,
+        Condition::Importance(_) => 6,
+        Condition::From(_) => 7,
+        Condition::SentTo(_) => 8,
+        Condition::SentOnlyToMe => 9,
+        Condition::ToMe => 10,
+        Condition::CcMe => 11,
+        Condition::ToOrCcMe => 12,
+        Condition::NotToMe => 13,
+        Condition::Sensitivity(_) => 14,
+        Condition::SizeBetween { .. } => 15,
+        Condition::MeetingRequest => 16,
+        Condition::AutomaticReply => 17,
+        Condition::Category(_) => 18,
+        Condition::Flagged => 19,
+        Condition::ReceivedBetween { .. } => 20,
+    };
+    assert_eq!(conditions.iter().map(kind).collect::<Vec<_>>(), (0..conditions.len()).collect::<Vec<_>>());
     for sent in [false, true] {
         let mut s = Session::empty();
         let url = "https://exchange.example.org/EWS/Exchange.asmx";

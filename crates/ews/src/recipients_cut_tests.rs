@@ -72,3 +72,20 @@ fn recipients_answered_with_some_left_out_are_cut() {
     let nobody = read(&format!("{}<t:Mailbox></t:Mailbox>", one(0)));
     assert!(nobody.cut && nobody.to.len() == 1, "a recipient with no address");
 }
+
+/// A message whose recipients the server answers with more than are kept of a list: it is listed
+/// as cut, as the answer says, so that a rule that reads who it was sent to waits (#566).
+#[test]
+fn a_message_answered_with_more_recipients_than_are_kept_is_listed_cut() {
+    let standin = exchange2010();
+    let id = standin.state().deliver("inbox", "All staff", false);
+    standin.state().deliver("inbox", "Budget", false);
+    {
+        let mut s = standin.state();
+        let item = s.items.iter_mut().find(|i| i.id == id).unwrap();
+        item.to = (0..201).map(|n| (format!("P{n}"), format!("p{n}@example.org"))).collect();
+    }
+    let messages = listed(&standin);
+    let cut: Vec<(&str, bool)> = messages.iter().map(|m| (m.subject.as_str(), m.cut)).collect();
+    assert_eq!(cut, [("All staff", true), ("Budget", false)]);
+}
