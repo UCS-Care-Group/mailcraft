@@ -144,6 +144,17 @@ pub fn secret_key(kind: &str, a: &mailcraft_model::Account) -> String {
             Some(pin) => format!("{kind}:{address}|ews={url}|user={user}|pin={pin}"),
             None => format!("{kind}:{address}|ews={url}|user={user}"),
         }
+    } else if a.kind == mailcraft_model::AccountKind::Zimbra {
+        // (As an Exchange server account's: its whole address, the user name it signs in with,
+        // and the certificate it trusts besides the system's, when it does. A user name may carry
+        // `|` itself: quoted, so that a name of `a|pin=x` never reads as the key of another's.)
+        let esc = |s: &str| s.replace('%', "%25").replace('|', "%7C");
+        let url = a.zimbra.as_ref().map_or("none".to_string(), |z| esc(z.base()));
+        let user = a.zimbra.as_ref().map_or_else(String::new, |z| esc(&z.username.trim().to_ascii_lowercase()));
+        match a.zimbra.as_ref().map(|z| z.trusted.trim().to_ascii_lowercase()).filter(|pin| !pin.is_empty()) {
+            Some(pin) => format!("{kind}:{address}|zimbra={url}|user={user}|pin={pin}"),
+            None => format!("{kind}:{address}|zimbra={url}|user={user}"),
+        }
     } else {
         format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
     }

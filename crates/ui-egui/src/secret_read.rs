@@ -94,6 +94,15 @@ impl MailApp {
                 })
             })
             .collect();
+        // A Zimbra account's trusted device, kept as its password is.
+        asks.extend(
+            self.session
+                .mailbox
+                .accounts
+                .iter()
+                .filter(|a| a.kind == mailcraft_model::AccountKind::Zimbra)
+                .map(|a| Ask { key: Self::secret_key("trust", a), old: None }),
+        );
         // The addresses of the calendars subscribed to, which may hold a secret (#209): kept like a password.
         let subscribed = self
             .session

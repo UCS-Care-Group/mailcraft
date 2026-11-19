@@ -77,9 +77,8 @@ msgstr "«{name}» è gestito dal server di {who}. Le modifiche fatte qui non ve
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "\"{name}\" is no longer on the recipient lines"
-msgstr "«{name}» non è più nelle righe dei destinatari"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -89,9 +88,8 @@ msgstr "«{name}» fa parte di una serie. Si intende solo quello del {day} o l'i
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
-#, fuzzy
 msgid "\"{name}\" isn't a category kept on this computer only"
-msgstr "\"{name}\" non è una categoria conservata solo su questo computer"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1036,9 +1034,8 @@ msgstr "Aggiungi qualcuno a cui inviarlo."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Add this category to Outlook's list, in the nearest of Outlook's colours"
-msgstr "Aggiungi questa categoria all'elenco di Outlook, nel colore di Outlook più vicino"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -1064,9 +1061,8 @@ msgstr "Aggiungi ai Preferiti"
 
 #. command label, interface
 #: crates/engine/src/cmd/category.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Add to Outlook"
-msgstr "Aggiungi a Outlook"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/junk.rs
@@ -1094,9 +1090,8 @@ msgstr "Aggiunto da una versione più recente di MailCraft: inviare e ricevere c
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Added to Contacts"
-msgstr "Aggiunto ai contatti"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
@@ -1106,29 +1101,25 @@ msgstr "Indirizzo"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Address\n"
 "Book"
-msgstr "Rubrica"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "Address Book"
-msgstr "Rubrica"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Address list"
-msgstr "Elenco indirizzi"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Address list · {account}"
-msgstr "Elenco indirizzi · {account}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1246,9 +1237,8 @@ msgstr "Tutta la posta e tutti gli account conservati su questo telefono vengono
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "All names are checked"
-msgstr "Tutti i nomi sono stati controllati"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -1288,9 +1278,8 @@ msgstr "Consenti di mantenere le attività sincronizzate con Microsoft To Do"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page that opened in your browser…"
-msgstr "Consenti a MailCraft di sincronizzare questa cassetta postale con Outlook nella pagina aperta nel browser…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -1667,6 +1656,11 @@ msgid "Apply Downloaded To-dos"
 msgstr "Applica le attività scaricate"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Apply Downloaded Zimbra Messages"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -1697,6 +1691,12 @@ msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "Applica Invia/Ricevi con Microsoft Graph"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Send/Receive with Zimbra"
+msgstr "Applica Invia/Ricevi con Zimbra"
+
+#. command label
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "Apply Sent Calendar Changes"
@@ -1704,9 +1704,8 @@ msgstr "Applica modifiche al calendario inviate"
 
 #. command label
 #: crates/engine/src/cmd/categories_remote.rs
-#, fuzzy
 msgid "Apply Sent Category Changes"
-msgstr "Applica le modifiche alle categorie inviate"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
@@ -1888,27 +1887,23 @@ msgstr "Chiedi di nuovo prima"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Ask for permission to keep your automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, your automatic replies aren't changed."
-msgstr "Chiedi il permesso di sincronizzare con Outlook le tue risposte automatiche: la pagina di Microsoft si apre nel browser. Senza di esso, le risposte automatiche non vengono modificate."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Ask for permission to keep your rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, rules stay on this computer and the categories can't be changed here."
-msgstr "Chiedi il permesso di sincronizzare con Outlook le tue regole, risposte automatiche e categorie: la pagina di Microsoft si apre nel browser. Senza di esso, le regole restano su questo computer e le categorie non si possono modificare qui."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Ask for permission to keep your tasks and automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
-msgstr "Chiedi il permesso di sincronizzare con Outlook le tue attività e risposte automatiche: la pagina di Microsoft si apre nel browser. Senza di esso, le attività restano su questo computer."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
-msgstr "Chiedi il permesso di sincronizzare con Outlook le tue attività, regole, risposte automatiche e categorie: la pagina di Microsoft si apre nel browser. Senza di esso, attività e regole restano su questo computer e le categorie non si possono modificare qui."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -2325,7 +2320,7 @@ msgid "Available formats:"
 msgstr "Formati disponibili:"
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Back"
 msgstr "Indietro"
@@ -2387,6 +2382,11 @@ msgstr "Attenzione a questo messaggio."
 #, fuzzy
 msgid "Before anything changes, a copy of your whole mailbox is saved next to it, with today's date in its name."
 msgstr "Prima di qualsiasi modifica, accanto alla cassetta postale ne viene salvata una copia completa con la data di oggi nel nome."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Beside its name and on its mail"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -2759,39 +2759,33 @@ msgstr "Categorie"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. Asking for your permission to change them…"
-msgstr "Categorie dal server di {address}. Ti viene chiesto il permesso di modificarle…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. Checking whether MailCraft may change them…"
-msgstr "Categorie dal server di {address}. Verifica se MailCraft può modificarle…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. Microsoft no longer takes the sign-in, so they can't be changed"
-msgstr "Categorie dal server di {address}. Microsoft non accetta più l'accesso, quindi non si possono modificare"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. No permission to change them"
-msgstr "Categorie dal server di {address}. Nessun permesso di modificarle"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. No permission to change them ({why})"
-msgstr "Categorie dal server di {address}. Nessun permesso di modificarle ({why})"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. Read-only here until MailCraft can check whether it may change them"
-msgstr "Categorie dal server di {address}. Qui in sola lettura finché MailCraft non può verificare se può modificarle"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
@@ -2801,45 +2795,38 @@ msgstr "Categorie:"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: Microsoft no longer takes the sign-in"
-msgstr "Categorie: Microsoft non accetta più l'accesso"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: asking for your permission…"
-msgstr "Categorie: ti viene chiesto il permesso…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: checking…"
-msgstr "Categorie: verifica in corso…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: kept in step with Outlook"
-msgstr "Categorie: sincronizzate con Outlook"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: read-only here (MailCraft may not change them)"
-msgstr "Categorie: qui in sola lettura (MailCraft non può modificarle)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: read-only here ({why})"
-msgstr "Categorie: qui in sola lettura ({why})"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: read-only here until MailCraft can check whether it may change them"
-msgstr "Categorie: qui in sola lettura finché MailCraft non può verificare se può modificarle"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
@@ -2855,15 +2842,13 @@ msgstr "Categorizza"
 
 #. command label
 #: crates/engine/src/cmd/categories_remote.rs
-#, fuzzy
 msgid "Category Changes Allowed"
-msgstr "Modifiche alle categorie consentite"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/categories_remote.rs
-#, fuzzy
 msgid "Category Changes to Send"
-msgstr "Modifiche alle categorie da inviare"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
@@ -3423,6 +3408,11 @@ msgstr "Hai chiuso la pagina? Questo riapre da capo la pagina di accesso del pro
 msgid "Closes this window. Nothing is kept."
 msgstr "Chiude questa finestra. Non viene conservato nulla."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Code from your authenticator app for {account}"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -3520,7 +3510,7 @@ msgid "Confirm servers"
 msgstr "Conferma server"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Connect"
 msgstr "Connetti"
@@ -3591,9 +3581,8 @@ msgstr "Scheda contatto"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Contacts"
-msgstr "Contatti"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4576,9 +4565,8 @@ msgstr "Nome visualizzato"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Distribution list"
-msgstr "Lista di distribuzione"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4729,6 +4717,12 @@ msgstr "Scarica immagini in tutta la posta"
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Scarica automaticamente le immagini nella posta"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Download Zimbra Messages in Full"
+msgstr "Scarica i messaggi Zimbra per intero"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5884,9 +5878,8 @@ msgstr "Per un server di posta gestito dalla tua organizzazione. MailCraft cerca
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "For a relay that takes mail without a password: it is never sent yours."
-msgstr "Per un relay che accetta posta senza password: la tua non gli viene mai inviata."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -5902,27 +5895,23 @@ msgstr "Per ora, nulla delle cassette postali condivise viene letto o inviato: {
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "For now, rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
-msgstr "Per ora le regole restano su questo computer, le risposte automatiche non vengono modificate e le categorie non si possono modificare qui: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
-msgstr "Per ora attività e regole restano su questo computer, le risposte automatiche non vengono modificate e le categorie non si possono modificare qui: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "For now, tasks stay on this computer and your automatic replies aren't changed: {error}"
-msgstr "Per ora le attività restano su questo computer e le risposte automatiche non vengono modificate: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "For now, your automatic replies aren't changed: {error}"
-msgstr "Per ora le risposte automatiche non vengono modificate: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -6114,9 +6103,8 @@ msgstr "Dall'esterno della sua organizzazione."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
-msgstr "Dall'elenco indirizzi dell'organizzazione di {account}. Mostrato durante la ricerca e non conservato: «Aggiungi ai contatti» ne conserva una copia su questo computer."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -6528,9 +6516,8 @@ msgstr "Grigio"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Group"
-msgstr "Gruppo"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -6884,6 +6871,11 @@ msgstr "Se si dispone di un proprio account di amministratore, la prima opzione 
 #, fuzzy
 msgid "If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts."
 msgstr "Se se ne dispone, incollare qui il relativo ID applicazione (client). Proviene da una registrazione di app in Microsoft Entra: un client pubblico con URI di reindirizzamento http://localhost, per account in qualsiasi directory e account personali."
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "If your account signs in with a second step, MailCraft asks for the code of your authenticator app when it first connects."
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -7730,9 +7722,8 @@ msgstr "Conserva i dati"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Keep in Step with Outlook"
-msgstr "Sincronizza con Outlook"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -8198,15 +8189,13 @@ msgstr "Ricerca del server Exchange…"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Looking the names up in the organisation's address list…"
-msgstr "Ricerca dei nomi nell'elenco indirizzi dell'organizzazione…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Looking the names up stopped unexpectedly"
-msgstr "La ricerca dei nomi si è interrotta inaspettatamente"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -8418,6 +8407,11 @@ msgstr "MailCraft non può ancora accedere a questo server in questo modo (richi
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
 msgstr "MailCraft include il software elencato di seguito. Le librerie Rust del suo nucleo sono elencate con le loro versioni nel repository del codice sorgente."
 
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "MailCraft connects to Zimbra through its own web service over HTTPS: the SOAP API (in JSON) and REST, not IMAP or SMTP. It needs Zimbra Collaboration 8.8 or later."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -8614,9 +8608,8 @@ msgstr[1] "MailCraft è stato avviato con {n} elementi che non sono link di post
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "MailCraft wasn't allowed to keep this mailbox in step with Outlook: {error}"
-msgstr "MailCraft non ha avuto il permesso di sincronizzare questa cassetta postale con Outlook: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9172,9 +9165,8 @@ msgstr "La pagina di Microsoft è tornata senza l'approvazione: è stata rifiuta
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Microsoft's page opens in your browser to ask for your permission, once."
-msgstr "La pagina di Microsoft si apre nel browser per chiederti il permesso, una sola volta."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9291,9 +9283,8 @@ msgstr "Al momento non è possibile richiedere altri risultati sul server"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "More than one person matches \"{name}\". Choose one:"
-msgstr "Più di una persona corrisponde a «{name}». Scegline una:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -9499,9 +9490,8 @@ msgstr "La mia organizzazione deve prima approvare MailCraft: cosa fare"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "My outgoing server needs no sign-in"
-msgstr "Il mio server in uscita non richiede l'accesso"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -10378,9 +10368,8 @@ msgstr "Nessuno ha proposto un altro orario."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Nobody in the address list matches"
-msgstr "Nessuno nell'elenco indirizzi corrisponde"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -10402,9 +10391,8 @@ msgstr "Nessuno corrisponde alla ricerca"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Nobody matches: {names}"
-msgstr "Nessuna corrispondenza: {names}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
@@ -10558,9 +10546,8 @@ msgstr "Non ancora conservata da nessuna parte: usare Apri ed esporta › Salva 
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Not looked up in the address list: {names}"
-msgstr "Non cercati nell'elenco indirizzi: {names}"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -10582,9 +10569,8 @@ msgstr "Non ora: viene installata all'uscita da MailCraft."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour"
-msgstr "Non è nell'elenco di Outlook: la posta, gli eventi e le attività a cui la assegni portano comunque il suo nome sul server dell'account, dove non ha colore"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11104,9 +11090,8 @@ msgstr "Qui c'è solo l'inizio di questo messaggio. Il resto viene scaricato con
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Only the first {n} are shown: type more of the name to find somebody else."
-msgstr "Sono mostrati solo i primi {n}: digita più lettere del nome per trovare qualcun altro."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -11624,9 +11609,8 @@ msgstr "Esterno alla mia organizzazione (attivato)"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Outside the organisation"
-msgstr "Esterno all'organizzazione"
+msgstr ""
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
@@ -12196,9 +12180,8 @@ msgstr "Chiavi pubbliche"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Public folder"
-msgstr "Cartella pubblica"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -13795,9 +13778,8 @@ msgstr "Cerca contatti"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
-#, fuzzy
 msgid "Search the address list"
-msgstr "Cerca nell'elenco indirizzi"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/zones.rs
@@ -13807,9 +13789,8 @@ msgstr "Cerca fusi orari"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Searching the address list stopped unexpectedly"
-msgstr "La ricerca nell'elenco indirizzi si è interrotta inaspettatamente"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
@@ -13819,9 +13800,8 @@ msgstr "Ricerca sul server…"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Searching…"
-msgstr "Ricerca in corso…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13933,9 +13913,8 @@ msgstr "Selezionare prima del testo"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Select somebody to see the details"
-msgstr "Seleziona qualcuno per vedere i dettagli"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -13955,7 +13934,7 @@ msgid "Send & Receive"
 msgstr "Invia e ricevi"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Invia/Ricevi"
@@ -14253,7 +14232,7 @@ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
 msgstr "Invia/Ricevi accede a Microsoft; poi è possibile cercare sul server."
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Invia/Ricevi si è interrotto in modo imprevisto"
@@ -14275,6 +14254,12 @@ msgstr "Invia/Ricevi con JMAP"
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Invia/Ricevi con Microsoft Graph"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Send/Receive with Zimbra"
+msgstr "Invia/Ricevi con Zimbra"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -14307,7 +14292,7 @@ msgid "Sending"
 msgstr "Invio"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Sending and receiving…"
 msgstr "Invio e ricezione…"
@@ -15522,7 +15507,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "Interrotto prima della fine. Importa di nuovo il file per recuperare il resto."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "Interrotto; la prossima volta riprende da qui"
@@ -15732,27 +15717,23 @@ msgstr "Sincronizza comunque"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Sync with Outlook: asking for your permission…"
-msgstr "Sincronizzazione con Outlook: ti viene chiesto il permesso…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Sync with Outlook: off"
-msgstr "Sincronizzazione con Outlook: disattivata"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Sync with Outlook: on"
-msgstr "Sincronizzazione con Outlook: attivata"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Sync with Outlook: partly on"
-msgstr "Sincronizzazione con Outlook: attivata in parte"
+msgstr ""
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -16210,6 +16191,11 @@ msgstr "La firma digitale è scaduta."
 msgid "The Entire Series"
 msgstr "L'intera serie"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The Zimbra server is asked to trust this computer, so that it doesn't ask for a code every time."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -16229,7 +16215,7 @@ msgid "The account could not be removed. It and its sign-in are still here. Try 
 msgstr "Impossibile rimuovere l'account. Esso e il relativo accesso sono ancora presenti. Riprova."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "The account couldn't be added"
 msgstr "Impossibile aggiungere l'account"
@@ -16266,9 +16252,8 @@ msgstr "L'account tramite cui si apre {address} non esiste più."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "The account's password is needed first: press Send/Receive and type it"
-msgstr "Prima serve la password dell'account: premi Invia/Ricevi e digitala"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -16314,15 +16299,19 @@ msgstr "Il server dell'account la crea quando la riunione viene inviata; il coll
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
-msgstr "L'elenco indirizzi contiene più persone con quel nome di quante ne mostri: digita più lettere per trovarne una non elencata."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The address of the calendar"
 msgstr "L'indirizzo del calendario"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The address your browser opens Zimbra's web client at. It must begin with https://."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -16504,9 +16493,8 @@ msgstr "Il calendario {name} e i suoi eventi conservati su questo computer verra
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "The categories couldn't be kept in step: the job stopped unexpectedly"
-msgstr "Non è stato possibile sincronizzare le categorie: l'operazione si è interrotta inaspettatamente"
+msgstr ""
 
 #. interface, what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/category_sync.rs
@@ -16516,15 +16504,13 @@ msgstr "Impossibile acquisire le categorie: {error}"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "The categories sent couldn't be noted: {error}"
-msgstr "Non è stato possibile annotare le categorie inviate: {error}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/undo.rs
-#, fuzzy
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
-msgstr "Non è stato possibile ripristinare la categoria «{name}»: l'elenco delle categorie è pieno."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -16570,9 +16556,8 @@ msgstr "Il certificato non è stato emesso da un'autorità di certificazione di 
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
-msgstr "Il test di connessione verifica solo che questo server risponda. Se invece richiede l'accesso, lo dirà il primo messaggio che invierà."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -17427,7 +17412,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "Il server ha rifiutato l'accesso per questo account. Usa Invia/Ricevi per accedere di nuovo."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "Il server ha rifiutato l'accesso per {name}: accedi di nuovo"
@@ -17443,6 +17428,11 @@ msgstr "L'indirizzo del server deve iniziare con https:// e indicare il server (
 #, fuzzy
 msgid "The server's address or the user name can't be used. Check them in Server settings."
 msgstr "L'indirizzo del server o il nome utente non sono utilizzabili. Controllali in Impostazioni server."
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The server's address {why}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17751,6 +17741,11 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "Il nome utente è troppo lungo o contiene un carattere non ammesso in un nome"
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The user name {why}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
@@ -17950,9 +17945,8 @@ msgstr "Questo account non è più nella casella di posta."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "This account may not change its categories through Microsoft Graph"
-msgstr "Questo account non può modificare le sue categorie tramite Microsoft Graph"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/sync_driver/rules.rs
@@ -18037,7 +18031,7 @@ msgid "This build can't connect to Microsoft"
 msgstr "Questa build non può connettersi a Microsoft"
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "Questa build non può connettersi ai server di posta"
@@ -18158,9 +18152,8 @@ msgstr "Questo calendario non è ancora collegato all'account. Ciò che cambia a
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
-#, fuzzy
 msgid "This category is on more events of calendars kept on a server than can wait to be sent at once: nothing was changed."
-msgstr "Questa categoria è su più eventi di calendari conservati su un server di quanti possano attendere di essere inviati in una volta: non è stato cambiato nulla."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -18802,9 +18795,8 @@ msgstr "Non è stato possibile leggere questa attività."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "This version of MailCraft can't search an address list"
-msgstr "Questa versione di MailCraft non può cercare in un elenco indirizzi"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -18960,39 +18952,27 @@ msgstr "Per aggiungere un altro indirizzo Google, torna indietro e avvia una nuo
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid ""
 "To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, your automatic replies aren't changed."
 msgstr ""
-"Per sincronizzare con Outlook le risposte automatiche di {address}, MailCraft ha bisogno del tuo permesso per modificare le impostazioni della tua cassetta postale. La pagina di Microsoft si apre nel browser per chiedertelo, una sola volta.\n"
-"\n"
-"Finché non lo consenti, le risposte automatiche non vengono modificate."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid ""
 "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
-"Per sincronizzare con Outlook le regole, le risposte automatiche e le categorie di {address}, MailCraft ha bisogno del tuo permesso per modificare le impostazioni della tua cassetta postale. La pagina di Microsoft si apre nel browser per chiedertelo, una sola volta.\n"
-"\n"
-"Finché non lo consenti, le regole restano su questo computer e nulla di esse viene inviato a Microsoft, le risposte automatiche non vengono modificate e le categorie di questa cassetta postale non si possono modificare qui."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid ""
 "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
 msgstr ""
-"Per sincronizzare con Outlook le attività e le risposte automatiche di {address}, MailCraft ha bisogno del tuo permesso per modificare i tuoi elenchi di To Do e le impostazioni della tua cassetta postale. La pagina di Microsoft si apre nel browser per chiedertelo, una sola volta.\n"
-"\n"
-"Finché non lo consenti, le attività restano su questo computer e nulla di esse viene inviato a Microsoft, e le risposte automatiche non vengono modificate."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -19014,9 +18994,6 @@ msgid ""
 "\n"
 "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
-"Per sincronizzare con Outlook le attività, le regole, le risposte automatiche e le categorie di {address}, MailCraft ha bisogno del tuo permesso per modificare i tuoi elenchi di To Do e le impostazioni della tua cassetta postale. La pagina di Microsoft si apre nel browser per chiedertelo, una sola volta.\n"
-"\n"
-"Finché non lo consenti, attività e regole restano su questo computer e nulla di esse viene inviato a Microsoft, le risposte automatiche non vengono modificate e le categorie di questa cassetta postale non si possono modificare qui."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
@@ -19241,9 +19218,13 @@ msgstr "Digita"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Type a name in the search box to search the organisation's address list"
-msgstr "Digita un nome nella casella di ricerca per cercare nell'elenco indirizzi dell'organizzazione"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Type the address of your Zimbra server, as your browser opens its web client"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19424,7 +19405,7 @@ msgid "Up to 50 MB"
 msgstr "Fino a 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "Aggiornato"
@@ -19576,7 +19557,7 @@ msgid "Use {address}"
 msgstr "Usa {address}"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "User name"
 msgstr "Nome utente"
@@ -19598,6 +19579,11 @@ msgstr "Nome utente"
 #, fuzzy
 msgid "Usually the whole address"
 msgstr "Di solito l'indirizzo completo"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Usually the whole address; empty for your address"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -20099,9 +20085,8 @@ msgstr "Lavoro offline: la posta che invii attende in Posta in uscita"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Workplace"
-msgstr "Luogo di lavoro"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
@@ -20447,9 +20432,8 @@ msgstr "La tua organizzazione non consente a MailCraft di modificare le tue risp
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
-msgstr "La tua organizzazione non consente a MailCraft di sincronizzare questa cassetta postale con Outlook"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
@@ -20519,9 +20503,8 @@ msgstr "In tal caso, nella propria organizzazione solo un amministratore può ap
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Your organisation's administrator has to approve MailCraft keeping this mailbox in step with Outlook once: File › Info"
-msgstr "L'amministratore della tua organizzazione deve approvare, una sola volta, che MailCraft sincronizzi questa cassetta postale con Outlook: File › Informazioni"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -20570,6 +20553,60 @@ msgstr "Il suo stesso nome."
 #, fuzzy
 msgid "Z on top"
 msgstr "Z in alto"
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra Collaboration 8.8 or later, through its web service"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra account"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr "Gli account Zimbra sono in fase di test: avvia MailCraft con MAILCRAFT_ZIMBRA=1 per provarli"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra server address (web client, HTTPS)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step yet: this part is not built"
+msgstr "Zimbra {host} · non ancora sincronizzato: questa parte non è ancora pronta"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr "Zimbra {host} · non sincronizzato: gli account Zimbra sono disattivati (avvia MailCraft con MAILCRAFT_ZIMBRA=1 per provarli)"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra · no usable server address"
+msgstr "Zimbra · nessun indirizzo del server utilizzabile"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra · signs in with a user name and password, and a code when the account asks for one"
+msgstr ""
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -20695,6 +20732,12 @@ msgstr "un account Microsoft o Exchange invia da altri indirizzi solo se il suo 
 #, fuzzy
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "un accesso Microsoft si usa solo con i server di posta di Microsoft: questo account indica un altro server"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "il server, l'indirizzo e il nome utente di un account Zimbra non possono essere cambiati una volta che la sua posta è qui: rimuovilo e aggiungi l'altro"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -20932,9 +20975,8 @@ msgstr "un'attività richiede un titolo"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "add an Exchange server account first: its organisation's address list is searched"
-msgstr "aggiungere prima un account server Exchange: viene cercato l'elenco indirizzi della sua organizzazione"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
@@ -20983,6 +21025,12 @@ msgstr "un certificato S/MIME è considerato attendibile tramite la sua autorit�
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
 msgstr "un account diventa un account JMAP, o smette di esserlo, solo rimuovendolo e aggiungendolo di nuovo"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr "un account diventa un account Zimbra, o smette di esserlo, solo rimuovendolo e aggiungendolo di nuovo"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21544,6 +21592,12 @@ msgid "no account here keeps its rules on its server"
 msgstr "nessun account qui conserva le sue regole sul suo server"
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "no account is a Zimbra account"
+msgstr "nessun account è un account Zimbra"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -21580,7 +21634,7 @@ msgid "no account with id {account}"
 msgstr "nessun account con ID {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nessun account con id {id}"
@@ -21682,7 +21736,7 @@ msgid "no message with id {id}"
 msgstr "nessun messaggio con id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "nessun messaggio con id {id} in {name}"
@@ -22664,7 +22718,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "il risultato farebbe conservare a questo account più stato di sincronizzazione di quanto ne venga acquisito"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "il risultato {why}"
@@ -23221,16 +23275,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "questo account di server Exchange non ha impostazioni del server"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "questo Invia/Ricevi era per un altro account, non per {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "questo Invia/Ricevi era per il server {name} indicato prima"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -23276,15 +23335,13 @@ msgstr "questo account non invia posta, quindi un messaggio non può attendere u
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
-#, fuzzy
 msgid "this account's categories aren't kept in step with a server"
-msgstr "le categorie di questo account non sono sincronizzate con alcun server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/categories_remote.rs
-#, fuzzy
 msgid "this account's categories aren't kept in step with its server"
-msgstr "le categorie di questo account non sono sincronizzate con il suo server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -24032,6 +24089,12 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name} non ha un indirizzo di server JMAP utilizzabile"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} has no Zimbra server address that can be used"
+msgstr "{name} non ha un indirizzo del server Zimbra utilizzabile"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -24102,6 +24165,12 @@ msgstr "{name} non è un account Microsoft sincronizzato tramite IMAP"
 #, fuzzy
 msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "{name} non è un account Microsoft o di server Exchange"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} isn't a Zimbra account"
+msgstr "{name} non è un account Zimbra"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -24335,11 +24404,10 @@ msgstr[1] "{n} elementi del calendario"
 
 #. what a command says
 #: crates/engine/src/undo.rs
-#, fuzzy
 msgid "{n} category couldn't be put back: the list of categories is full."
 msgid_plural "{n} categories couldn't be put back: the list of categories is full."
-msgstr[0] "Non è stato possibile ripristinare {n} categoria: l'elenco delle categorie è pieno."
-msgstr[1] "Non è stato possibile ripristinare {n} categorie: l'elenco delle categorie è pieno."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -24493,11 +24561,10 @@ msgstr[1] "{n} eventi visualizzati"
 
 #. what a command says
 #: crates/engine/src/session.rs
-#, fuzzy
 msgid "{n} event keeps its categories as they were on its server: too many changes are waiting to be sent."
 msgid_plural "{n} events keep their categories as they were on their servers: too many changes are waiting to be sent."
-msgstr[0] "{n} evento mantiene le sue categorie com'erano sul suo server: troppe modifiche sono in attesa di essere inviate."
-msgstr[1] "{n} eventi mantengono le loro categorie com'erano sui loro server: troppe modifiche sono in attesa di essere inviate."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -24525,11 +24592,10 @@ msgstr[1] "{n} cartelle"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
-#, fuzzy
 msgid "{n} found in the address list"
 msgid_plural "{n} found in the address list"
-msgstr[0] "{n} trovato nell'elenco indirizzi"
-msgstr[1] "{n} trovati nell'elenco indirizzi"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -25318,9 +25384,8 @@ msgstr[1] "{sent} messaggi inviati"
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs
-#, fuzzy
 msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
-msgstr "{server} (Questo server richiede l'accesso: deseleziona \"Il mio server in uscita non richiede l'accesso\" nelle impostazioni dell'account.)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -25414,6 +25479,11 @@ msgstr "{why}, quindi gli accessi non vengono memorizzati: MailCraft li richiede
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modifiche apportate qui sono in attesa su questo computer."
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "{why}: send this message from another account, or save it as a draft"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -25467,12 +25537,36 @@ msgid "−Lines"
 msgstr "−Righe"
 
 #, fuzzy
-#~ msgid "As the people you write to see it"
-#~ msgstr "Come lo vedono le persone a cui si scrive"
-
-#, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
 #~ msgstr "Consenti a MailCraft di leggere i calendari di altre persone nella pagina aperta nel browser…"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+#~ msgstr "La tua organizzazione non consente a MailCraft di leggere i calendari delle cassette postali condivise"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
+#~ msgstr "L'amministratore della tua organizzazione deve approvare una volta la lettura dei calendari di altre persone: File › Info"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
+#~ msgstr "L'amministratore dell'organizzazione deve approvare una volta la lettura delle cassette postali condivise: File › Informazioni"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
+#~ msgstr "L'amministratore della tua organizzazione deve approvare una volta la lettura dei calendari delle cassette postali condivise: File › Info"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Gli account Zimbra non possono ancora inviare e ricevere: quella parte non è ancora pronta"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "il risultato è per un altro account"
+
+#, fuzzy
+#~ msgid "As the people you write to see it"
+#~ msgstr "Come lo vedono le persone a cui si scrive"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
@@ -25557,22 +25651,6 @@ msgstr "−Righe"
 #~ "Per mostrare i calendari di {address}, MailCraft ha bisogno della tua autorizzazione a leggere i calendari delle cassette postali condivise. La pagina di Microsoft si apre nel browser per chiedertela, una sola volta.\n"
 #~ "\n"
 #~ "Ciò che puoi vedere di un calendario è deciso dal suo proprietario e dalla tua organizzazione: questo non cambia nulla in merito. Finché non lo consenti, non viene letto nulla dei calendari di {address}."
-
-#, fuzzy
-#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-#~ msgstr "La tua organizzazione non consente a MailCraft di leggere i calendari delle cassette postali condivise"
-
-#, fuzzy
-#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-#~ msgstr "L'amministratore della tua organizzazione deve approvare una volta la lettura dei calendari di altre persone: File › Info"
-
-#, fuzzy
-#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-#~ msgstr "L'amministratore dell'organizzazione deve approvare una volta la lettura delle cassette postali condivise: File › Informazioni"
-
-#, fuzzy
-#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-#~ msgstr "L'amministratore della tua organizzazione deve approvare una volta la lettura dei calendari delle cassette postali condivise: File › Info"
 
 #~ msgid "The colour is set in Outlook"
 #~ msgstr "Il colore viene impostato in Outlook"

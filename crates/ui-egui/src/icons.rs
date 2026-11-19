@@ -1181,6 +1181,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.line(&[(10.0, y + 2.5), (14.0, y + 2.5)]);
             }
         }
+        // A Zimbra server: the envelope it serves, and its Z in the modifier's corner.
+        "zimbra" => {
+            pen.cut_box(2.5, 4.5, 17.5, 15.5, c);
+            pen.flap(2.5, 4.5, 17.5, 15.5, c);
+            pen.line_c(&[(12.5, 12.5), (17.5, 12.5), (12.5, 17.5), (17.5, 17.5)], a);
+        }
         "device" => {
             pen.rect(2.5, 3.5, 17.5, 13.5, c);
             pen.line(&[(10.0, 13.5), (10.0, 16.5)]);
@@ -1472,6 +1478,7 @@ pub const NAMES: &[&str] = &[
     "description",
     "work",
     "server",
+    "zimbra",
     "device",
     "tick",
     "bold",

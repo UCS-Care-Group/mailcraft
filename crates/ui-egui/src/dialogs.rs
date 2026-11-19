@@ -106,6 +106,11 @@ pub enum Dialog {
         /// Of the selection rather than the whole message.
         selection: bool,
     },
+    /// The code of a Zimbra account's second step, for its next Send/Receive. Kept nowhere.
+    ZimbraCode {
+        account: Id,
+        code: String,
+    },
     /// The password for a Send/Receive. Kept in memory only.
     Password {
         account: Id,
@@ -272,6 +277,7 @@ impl Dialog {
             Dialog::DateTime { .. } => "dateTime",
             Dialog::WordCount { .. } => "wordCount",
             Dialog::Password { .. } => "password",
+            Dialog::ZimbraCode { .. } => "zimbraCode",
             Dialog::DiscardDraft { .. } => "discardDraft",
             Dialog::Confirm { .. } => "confirm",
             Dialog::Report { name, .. } => name,
@@ -392,6 +398,7 @@ impl Dialog {
                 Dialog::DateTime { choices: mailcraft_engine::cmd::writing_tools::date_time_choices(&app.session, at), selected: 0, at }
             }
             "password" => Dialog::Password { account: id("account")?, password: String::new(), shown: false },
+            "zimbraCode" => Dialog::ZimbraCode { account: id("account")?, code: String::new() },
             // Opened by name (`ui.dialog`, which an agent may run), it has nothing waiting for its
             // answer: what runs after it is only ever set by the window itself (`leaving`), or the
             // owner's click would run what an agent named, past what it may do (#442).
@@ -1994,6 +2001,33 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             close |= !open || enter;
             if close {
                 app.want_body_focus();
+            }
+        }
+        Dialog::ZimbraCode { account, code } => {
+            let who = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
+            let mut submit = false;
+            let open = window(ctx, tl!("Sign In"), 380.0, |ui| {
+                ui.label(crate::i18n::fmt(tl!("Code from your authenticator app for {account}"), &[("account", &who)]));
+                let resp = ui.add(egui::TextEdit::singleline(code).char_limit(16).desired_width(f32::INFINITY).hint_text("123456"));
+                resp.request_focus();
+                ui.label(
+                    egui::RichText::new(tl!("The Zimbra server is asked to trust this computer, so that it doesn't ask for a code every time."))
+                        .color(t.text_dim)
+                        .size(11.0),
+                );
+                let ready = !code.trim().is_empty();
+                let (ok, cancel) = buttons(ui, tl!("Send/Receive"), ready);
+                submit = ok || (enter && ready);
+                close |= cancel;
+            });
+            close |= !open;
+            if submit {
+                let r = app.execute("ui.sync", json!({"account": account, "code": code.trim()}));
+                code.clear();
+                if let Err(e) = r {
+                    app.status(e);
+                }
+                close = true;
             }
         }
         Dialog::Password { account, password, shown } => {
