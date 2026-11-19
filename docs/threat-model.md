@@ -456,7 +456,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   accounts, rules or signatures of before. The question shows the call in full: one too long to
   show (`MAX_QUESTION`) is refused, never cut; a calendar question names the event and the people
   it writes to. `ui.copyDiagnostics` is not available to agents.
-  Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
+  Undo and redo put back what the step changed (mail, contacts and events that downloads changed
+  since stay as they are now: #605, #1674), so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
   On a Microsoft account whose categories are kept in step with Outlook, an agent is asked
