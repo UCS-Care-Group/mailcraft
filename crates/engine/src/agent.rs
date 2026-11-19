@@ -268,6 +268,7 @@ const SAFE: &[&str] = &[
     "view.calendar",
     "view.people",
     "view.tasks",
+    "view.notes",
     "view.readingPane",
     "view.gmailCategories",
     "view.folderPane",

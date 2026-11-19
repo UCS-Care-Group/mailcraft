@@ -29388,3 +29388,12 @@ msgstr "−Bin"
 msgid "−Lines"
 msgstr "−Linhas"
 
+
+msgid "Search notes"
+msgstr "Pesquisar notas"
+
+msgid "New\nNote"
+msgstr "Nova\nNota"
+
+msgid "Sync\nNotes"
+msgstr "Sincronizar\nNotas"

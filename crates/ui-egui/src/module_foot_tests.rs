@@ -63,15 +63,15 @@ fn a_click_at_the_foot_goes_to_that_module() {
     let mut w = window();
     at_foot(&mut w, true);
     for (i, module) in
-        [mailcraft_engine::Module::Calendar, mailcraft_engine::Module::People, mailcraft_engine::Module::Tasks, mailcraft_engine::Module::Mail]
+        [mailcraft_engine::Module::Calendar, mailcraft_engine::Module::People, mailcraft_engine::Module::Tasks, mailcraft_engine::Module::Notes, mailcraft_engine::Module::Mail]
             .into_iter()
             .enumerate()
     {
-        let at = [1u64, 2, 3, 0][i];
+        let at = [1u64, 2, 3, 4, 0][i];
         let r = w.state().hit.rect("moduleFoot", at).unwrap_or_else(|| panic!("{module:?} at the foot"));
         testing::click(&mut w, r.center(), PointerButton::Primary, 1);
         assert_eq!(w.state().session.view.module, module);
-        assert_eq!(row(&w).len(), 4, "{module:?} shows the row too");
+        assert_eq!(row(&w).len(), 5, "{module:?} shows the row too");
     }
 }
 

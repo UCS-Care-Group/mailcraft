@@ -431,6 +431,7 @@ pub(crate) fn describe_tab(app: &MailApp, name: &str) -> Tab {
             Module::Calendar => (home_calendar(app), "Home calendar"),
             Module::People => (home_people(app), "Home people"),
             Module::Tasks => (home_tasks(app), "Home tasks"),
+            Module::Notes => (home_notes(app), "Home notes"),
         },
     };
     if app.services.recent_attachments.is_some() {
@@ -699,6 +700,19 @@ fn home_people(app: &MailApp) -> Tab {
 /// there are two or more.
 pub(crate) fn merge_params(app: &MailApp) -> Value {
     if app.people_picked.len() >= 2 { json!({"ids": app.people_picked}) } else { json!({}) }
+}
+
+fn home_notes(_app: &MailApp) -> Tab {
+    Tab::of(vec![
+        g(
+            "New",
+            vec![
+                Item::big("newTask", "New\nNote", "notes.new", no()).at(0, 1),
+            ],
+        ),
+        g("Delete", vec![Item::big("delete", "Delete", "notes.delete", no()).at(1, 2).plain()]),
+        g("Sync", vec![Item::big("sync", "Sync\nNotes", "notes.sync", no()).at(2, 3)]),
+    ])
 }
 
 fn home_tasks(app: &MailApp) -> Tab {

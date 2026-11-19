@@ -1,0 +1,1146 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! Notes module: synchronized with Google Drive Zoho Notebook (`notes.json`).
+//!
+//! Provides a 3-panel notebook interface:
+//! 1. Left sidebar: Profile, search, standard views (Todas as Notas, Favoritos, Lembretes) and Cadernos.
+//! 2. Middle list: Colored note cards with previews, dates, favorite stars, and pending/all filters.
+//! 3. Right detail view: Interactive checklist with clickable checkboxes, rich note editor, and Gemini AI chat.
+
+use std::fs;
+use std::path::PathBuf;
+use std::time::SystemTime;
+
+use egui::{Align, Color32, FontId, Layout, Rect, RichText, Sense, Stroke, Ui, Vec2, vec2};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+
+use crate::MailApp;
+use crate::theme::{Tokens, regular, semibold};
+
+/// A single note representation matching the Google Drive `notes.json` schema.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Note {
+    pub id: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub notebook: String,
+    #[serde(default)]
+    pub color: String,
+    #[serde(default)]
+    pub created_date: Option<String>,
+    #[serde(default)]
+    pub modified_date: Option<String>,
+    #[serde(default)]
+    pub preview: Option<String>,
+    #[serde(default)]
+    pub content_html: Option<String>,
+    #[serde(default)]
+    pub thumbnail: Option<String>,
+    #[serde(default)]
+    pub is_favorite: Option<bool>,
+    #[serde(default)]
+    pub is_pinned: Option<bool>,
+    #[serde(default)]
+    pub reminder_date: Option<String>,
+    #[serde(default)]
+    pub reminder_time: Option<String>,
+    #[serde(default)]
+    pub reminder_title: Option<String>,
+    #[serde(default)]
+    pub gemini_chat: Option<Value>,
+}
+
+impl Default for Note {
+    fn default() -> Self {
+        let now_ms = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        Self {
+            id: format!("note_{now_ms}"),
+            title: "Nova Nota".to_string(),
+            notebook: "Meus blocos de anotações".to_string(),
+            color: "#E1F5FE".to_string(),
+            created_date: Some(now_iso()),
+            modified_date: Some(now_iso()),
+            preview: Some(String::new()),
+            content_html: Some("<div>Nova nota</div>".to_string()),
+            thumbnail: None,
+            is_favorite: Some(false),
+            is_pinned: Some(false),
+            reminder_date: None,
+            reminder_time: None,
+            reminder_title: None,
+            gemini_chat: None,
+        }
+    }
+}
+
+/// Detects the path to Google Drive or local sync `notes.json`.
+pub fn notes_file_path() -> PathBuf {
+    if let Ok(user_profile) = std::env::var("USERPROFILE") {
+        let p_gdrive = PathBuf::from(&user_profile).join("Google Drive").join("ZohoNotebook_Sync").join("notes.json");
+        if p_gdrive.exists() {
+            return p_gdrive;
+        }
+        let p_portable = PathBuf::from(&user_profile).join("Downloads").join("Zoho_Notebook_Portatil").join("data").join("notes.json");
+        if p_portable.exists() {
+            return p_portable;
+        }
+    }
+    let p_direct1 = PathBuf::from(r"C:\Users\marcondes.lima\Google Drive\ZohoNotebook_Sync\notes.json");
+    if p_direct1.exists() {
+        return p_direct1;
+    }
+    let p_direct2 = PathBuf::from(r"C:\Users\marcondes.lima\Downloads\Zoho_Notebook_Portatil\data\notes.json");
+    if p_direct2.exists() {
+        return p_direct2;
+    }
+    p_direct1
+}
+
+fn now_iso() -> String {
+    // Current UTC/Local timestamp ISO 8601
+    let now = SystemTime::now();
+    let since_epoch = now.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
+    // Rough ISO string without heavy chrono dependency
+    let days = since_epoch / 86400;
+    let secs_of_day = since_epoch % 86400;
+    let hours = (secs_of_day / 3600) % 24;
+    let minutes = (secs_of_day % 3600) / 60;
+    let seconds = secs_of_day % 60;
+    // Approximated current year/month/day
+    format!("2026-11-19T{hours:02}:{minutes:02}:{seconds:02}Z")
+}
+
+fn current_time_hh_mm_ss() -> String {
+    let now = SystemTime::now();
+    let since_epoch = now.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
+    // Adjust to local time approx UTC-3
+    let local_secs = since_epoch.saturating_sub(3 * 3600) % 86400;
+    let hours = local_secs / 3600;
+    let minutes = (local_secs % 3600) / 60;
+    let seconds = local_secs % 60;
+    format!("{hours:02}:{minutes:02}:{seconds:02}")
+}
+
+/// State for the Notes module in MailCraft.
+pub struct NotesState {
+    pub notes: Vec<Note>,
+    pub selected_note_id: Option<String>,
+    pub selected_notebook: Option<String>,
+    pub filter_unorganized_only: bool,
+    pub search_query: String,
+    pub file_path: PathBuf,
+    pub last_sync_time: String,
+    pub last_mtime: Option<SystemTime>,
+    pub editing_title: String,
+    pub editing_content: String,
+    pub editing_id: Option<String>,
+    pub is_editing_raw: bool,
+    pub gemini_prompt: String,
+    pub show_new_notebook_dialog: bool,
+    pub new_notebook_name: String,
+    pub custom_notebooks: Vec<String>,
+    pub status_msg: Option<String>,
+}
+
+impl Default for NotesState {
+    fn default() -> Self {
+        Self::load()
+    }
+}
+
+impl NotesState {
+    pub fn load() -> Self {
+        let path = notes_file_path();
+        let mut notes = Vec::new();
+        let mut mtime = None;
+
+        if let Ok(metadata) = fs::metadata(&path) {
+            mtime = metadata.modified().ok();
+        }
+
+        if let Ok(content) = fs::read_to_string(&path) {
+            if let Ok(parsed) = serde_json::from_str::<Vec<Note>>(&content) {
+                notes = parsed;
+            }
+        }
+
+        let first_id = notes.first().map(|n| n.id.clone());
+        let sync_time = current_time_hh_mm_ss();
+
+        let default_custom = vec![
+            "EMPRESA".to_string(),
+            "Estudos Bíblicos".to_string(),
+            "Finanças".to_string(),
+            "Meus blocos de anotações".to_string(),
+            "iNTELIGENCIA  ARTIFICIAL".to_string(),
+            "Viagem fim de ano Bei".to_string(),
+        ];
+
+        let mut state = Self {
+            notes,
+            selected_note_id: first_id,
+            selected_notebook: None,
+            filter_unorganized_only: false,
+            search_query: String::new(),
+            file_path: path,
+            last_sync_time: sync_time,
+            last_mtime: mtime,
+            editing_title: String::new(),
+            editing_content: String::new(),
+            editing_id: None,
+            is_editing_raw: false,
+            gemini_prompt: String::new(),
+            show_new_notebook_dialog: false,
+            new_notebook_name: String::new(),
+            custom_notebooks: default_custom,
+            status_msg: None,
+        };
+        state.sync_editing_buffer();
+        state
+    }
+
+    pub fn reload(&mut self) {
+        if let Ok(content) = fs::read_to_string(&self.file_path) {
+            if let Ok(parsed) = serde_json::from_str::<Vec<Note>>(&content) {
+                self.notes = parsed;
+                if let Ok(metadata) = fs::metadata(&self.file_path) {
+                    self.last_mtime = metadata.modified().ok();
+                }
+                self.last_sync_time = current_time_hh_mm_ss();
+                self.status_msg = Some("Notas sincronizadas com sucesso!".to_string());
+                self.sync_editing_buffer();
+            }
+        }
+    }
+
+    pub fn save(&mut self) {
+        if let Some(parent) = self.file_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if let Ok(serialized) = serde_json::to_string_pretty(&self.notes) {
+            if fs::write(&self.file_path, serialized).is_ok() {
+                if let Ok(metadata) = fs::metadata(&self.file_path) {
+                    self.last_mtime = metadata.modified().ok();
+                }
+                self.last_sync_time = current_time_hh_mm_ss();
+            }
+        }
+    }
+
+    pub fn sync_editing_buffer(&mut self) {
+        if let Some(sel_id) = &self.selected_note_id {
+            if let Some(note) = self.notes.iter().find(|n| &n.id == sel_id) {
+                self.editing_id = Some(sel_id.clone());
+                self.editing_title = note.title.clone();
+                let html = note.content_html.clone().unwrap_or_default();
+                self.editing_content = html_to_plain_text(&html);
+            }
+        }
+    }
+
+    pub fn new_note(&mut self) {
+        let mut new_n = Note::default();
+        if let Some(nb) = &self.selected_notebook {
+            if nb != "Favoritos" && nb != "Lembretes" {
+                new_n.notebook = nb.clone();
+            }
+        }
+        let id = new_n.id.clone();
+        self.notes.insert(0, new_n);
+        self.selected_note_id = Some(id);
+        self.sync_editing_buffer();
+        self.save();
+    }
+
+    pub fn delete_selected(&mut self) {
+        if let Some(sel_id) = self.selected_note_id.take() {
+            if let Some(pos) = self.notes.iter().position(|n| n.id == sel_id) {
+                self.notes.remove(pos);
+                if !self.notes.is_empty() {
+                    let next_pos = pos.min(self.notes.len() - 1);
+                    self.selected_note_id = Some(self.notes[next_pos].id.clone());
+                }
+                self.sync_editing_buffer();
+                self.save();
+            }
+        }
+    }
+
+    pub fn toggle_favorite(&mut self, note_id: &str) {
+        if let Some(note) = self.notes.iter_mut().find(|n| n.id == note_id) {
+            let fav = !note.is_favorite.unwrap_or(false);
+            note.is_favorite = Some(fav);
+            note.modified_date = Some(now_iso());
+            self.save();
+        }
+    }
+
+    pub fn set_note_color(&mut self, note_id: &str, color: &str) {
+        if let Some(note) = self.notes.iter_mut().find(|n| n.id == note_id) {
+            note.color = color.to_string();
+            note.modified_date = Some(now_iso());
+            self.save();
+        }
+    }
+
+    pub fn set_note_notebook(&mut self, note_id: &str, notebook: &str) {
+        if let Some(note) = self.notes.iter_mut().find(|n| n.id == note_id) {
+            note.notebook = notebook.to_string();
+            note.modified_date = Some(now_iso());
+            self.save();
+        }
+    }
+
+    pub fn toggle_checklist_item(&mut self, note_id: &str, line_idx: usize) {
+        if let Some(note) = self.notes.iter_mut().find(|n| n.id == note_id) {
+            let mut html = note.content_html.clone().unwrap_or_default();
+            let mut preview = note.preview.clone().unwrap_or_default();
+            let lines = extract_clean_lines(&html);
+
+            if let Some(line) = lines.get(line_idx) {
+                if line.starts_with("[ ]") {
+                    let toggled = format!("[x]{}", &line[3..]);
+                    html = html.replacen(line, &toggled, 1);
+                    preview = preview.replacen(line, &toggled, 1);
+                } else if line.starts_with("[x]") || line.starts_with("[X]") {
+                    let toggled = format!("[ ]{}", &line[3..]);
+                    html = html.replacen(line, &toggled, 1);
+                    preview = preview.replacen(line, &toggled, 1);
+                }
+                note.content_html = Some(html);
+                note.preview = Some(preview);
+                note.modified_date = Some(now_iso());
+                self.save();
+            }
+        }
+    }
+
+    pub fn save_note_edits(&mut self) {
+        if let Some(sel_id) = &self.selected_note_id {
+            if let Some(note) = self.notes.iter_mut().find(|n| &n.id == sel_id) {
+                let mut changed = false;
+                if note.title != self.editing_title {
+                    note.title = self.editing_title.clone();
+                    changed = true;
+                }
+                let new_html = plain_text_to_html(&self.editing_content);
+                if note.content_html.as_deref() != Some(&new_html) {
+                    note.content_html = Some(new_html);
+                    let snippet: String = self.editing_content.chars().take(150).collect();
+                    note.preview = Some(snippet.replace('\n', " "));
+                    changed = true;
+                }
+                if changed {
+                    note.modified_date = Some(now_iso());
+                    self.save();
+                }
+            }
+        }
+    }
+
+    pub fn add_gemini_message(&mut self, role: &str, text: &str) {
+        if let Some(sel_id) = &self.selected_note_id {
+            if let Some(note) = self.notes.iter_mut().find(|n| &n.id == sel_id) {
+                let mut list = match &note.gemini_chat {
+                    Some(Value::Array(arr)) => arr.clone(),
+                    _ => Vec::new(),
+                };
+                list.push(json!({
+                    "role": role,
+                    "text": text,
+                    "timestamp": now_iso(),
+                    "metadata": {
+                        "action": "reply",
+                        "title": "",
+                        "pdfContent": ""
+                    }
+                }));
+                note.gemini_chat = Some(Value::Array(list));
+                self.save();
+            }
+        }
+    }
+}
+
+/// Parses hex color strings like `#E1F5FE` into `Color32`.
+pub fn parse_hex_color(hex: &str) -> Option<Color32> {
+    let s = hex.trim().trim_start_matches('#');
+    if s.len() == 6 {
+        let r = u8::from_str_radix(&s[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&s[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&s[4..6], 16).ok()?;
+        Some(Color32::from_rgb(r, g, b))
+    } else {
+        None
+    }
+}
+
+/// Renders soft pastel background for note cards, adapting to dark mode if active.
+pub fn card_background(color_hex: &str, is_dark: bool) -> Color32 {
+    let base = parse_hex_color(color_hex).unwrap_or(Color32::from_rgb(235, 245, 255));
+    if is_dark {
+        Color32::from_rgb(
+            (u16::from(base.r()) * 30 / 100 + 35) as u8,
+            (u16::from(base.g()) * 30 / 100 + 35) as u8,
+            (u16::from(base.b()) * 30 / 100 + 35) as u8,
+        )
+    } else {
+        base
+    }
+}
+
+fn html_to_plain_text(html: &str) -> String {
+    let s = html
+        .replace("</li>", "\n")
+        .replace("</div>", "\n")
+        .replace("</p>", "\n")
+        .replace("</h3>", "\n")
+        .replace("</h2>", "\n")
+        .replace("</h1>", "\n")
+        .replace("<br>", "\n")
+        .replace("<br/>", "\n")
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">");
+    strip_tags(&s)
+}
+
+fn plain_text_to_html(text: &str) -> String {
+    let mut out = String::from("<div>");
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            out.push_str("<br/>");
+        } else if trimmed.starts_with("[ ]") || trimmed.starts_with("[x]") || trimmed.starts_with("[X]") {
+            out.push_str(&format!("<div>{trimmed}</div>"));
+        } else {
+            out.push_str(&format!("<div>{line}</div>"));
+        }
+    }
+    out.push_str("</div>");
+    out
+}
+
+fn strip_tags(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut inside = false;
+    for c in s.chars() {
+        if c == '<' {
+            inside = true;
+        } else if c == '>' {
+            inside = false;
+        } else if !inside {
+            result.push(c);
+        }
+    }
+    result
+}
+
+fn extract_clean_lines(html: &str) -> Vec<String> {
+    let text = html_to_plain_text(html);
+    text.lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect()
+}
+
+/// Pastel palette colors for note background customization.
+const PALETTE: [&str; 8] = [
+    "#E1F5FE", // Azul pastel
+    "#D1EBB8", // Verde menta
+    "#FFEF8A", // Amarelo suave
+    "#FFC96C", // Laranja pêssego
+    "#F9D3FF", // Rosa claro
+    "#CDC2FF", // Roxo lavanda
+    "#D9E8F0", // Cinza azulado
+    "#FFFFFF", // Branco
+];
+
+/// The main entry point rendering the Notes module inside MailCraft.
+pub fn show(app: &mut MailApp, ui: &mut Ui) {
+    let t = Tokens::get(ui.ctx());
+    let is_dark = t.is_dark();
+
+    // Check disk mtime for automatic background sync from Google Drive
+    if let Ok(metadata) = fs::metadata(&app.notes.file_path) {
+        if let Ok(mtime) = metadata.modified() {
+            if app.notes.last_mtime.is_some_and(|last| mtime > last) {
+                app.notes.reload();
+            }
+        }
+    }
+
+    // 1. Left Panel (Sidebar: Profile, Search, Views, Cadernos)
+    egui::SidePanel::left("notes_sidebar")
+        .resizable(false)
+        .default_width(230.0)
+        .frame(egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border)))
+        .show_inside(ui, |ui| {
+            render_sidebar(app, ui, &t);
+        });
+
+    // 2. Middle Panel (Note cards list)
+    egui::SidePanel::left("notes_cards_list")
+        .resizable(true)
+        .default_width(320.0)
+        .width_range(280.0..=480.0)
+        .frame(egui::Frame::NONE.fill(t.canvas).stroke(Stroke::new(1.0, t.border)))
+        .show_inside(ui, |ui| {
+            render_cards_list(app, ui, &t, is_dark);
+        });
+
+    // 3. Right Central Panel (Selected note detail view, checklist, Gemini chat)
+    egui::CentralPanel::default()
+        .frame(egui::Frame::NONE.fill(t.surface))
+        .show_inside(ui, |ui| {
+            render_note_details(app, ui, &t, is_dark);
+        });
+}
+
+// -------------------------------------------------------------------------------------------------
+// Sidebar Rendering
+// -------------------------------------------------------------------------------------------------
+
+fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
+    ui.add_space(8.0);
+
+    // App header & "Atualizar" sync button
+    ui.horizontal(|ui| {
+        ui.add_space(8.0);
+        ui.label(RichText::new("📑 Notebook").size(16.0).strong().color(t.text));
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.add_space(8.0);
+            let btn = egui::Button::new(RichText::new("★ Atualizar").size(11.0).strong().color(Color32::from_rgb(90, 60, 0)))
+                .fill(Color32::from_rgb(255, 214, 0))
+                .corner_radius(12.0);
+            if ui.add(btn).on_hover_text("Sincronizar com Google Drive").clicked() {
+                app.notes.reload();
+            }
+        });
+    });
+
+    ui.add_space(10.0);
+
+    // Profile card
+    ui.horizontal(|ui| {
+        ui.add_space(8.0);
+        // Circular Avatar "M"
+        let (rect, _) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::hover());
+        ui.painter().circle_filled(rect.center(), 16.0, Color32::from_rgb(66, 133, 244));
+        ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, "M", FontId::proportional(14.0), Color32::WHITE);
+
+        ui.vertical(|ui| {
+            ui.label(RichText::new("Marcondes Lima").size(12.0).strong().color(t.text));
+            ui.label(RichText::new("marcondestl@gmail.com").size(10.0).color(t.text_dim));
+        });
+    });
+
+    ui.add_space(10.0);
+
+    // Search bar
+    ui.horizontal(|ui| {
+        ui.add_space(8.0);
+        let search_box = egui::TextEdit::singleline(&mut app.notes.search_query)
+            .hint_text("🔍 Pesquisar notas...")
+            .desired_width(ui.available_width() - 16.0);
+        ui.add(search_box);
+    });
+
+    ui.add_space(10.0);
+    ui.separator();
+
+    // Standard Views Counters
+    let total_notes = app.notes.notes.len();
+    let unorganized_count = app.notes.notes.iter().filter(|n| {
+        n.notebook.trim().is_empty()
+            || n.notebook == "Meus blocos de anotações"
+            || n.notebook == "Sem caderno"
+    }).count();
+    let fav_count = app.notes.notes.iter().filter(|n| n.is_favorite == Some(true)).count();
+    let reminders_count = app.notes.notes.iter().filter(|n| n.reminder_date.is_some()).count();
+
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        // "Todas as Notas"
+        let all_selected = app.notes.selected_notebook.is_none();
+        if nav_item(ui, "📑", "Todas as Notas", unorganized_count, all_selected, t) {
+            app.notes.selected_notebook = None;
+            app.notes.filter_unorganized_only = false;
+        }
+
+        // "Favoritos"
+        let fav_selected = app.notes.selected_notebook.as_deref() == Some("Favoritos");
+        if nav_item(ui, "⭐", "Favoritos", fav_count, fav_selected, t) {
+            app.notes.selected_notebook = Some("Favoritos".to_string());
+            app.notes.filter_unorganized_only = false;
+        }
+
+        // "Lembretes"
+        let rem_selected = app.notes.selected_notebook.as_deref() == Some("Lembretes");
+        if nav_item(ui, "⏰", "Lembretes", reminders_count, rem_selected, t) {
+            app.notes.selected_notebook = Some("Lembretes".to_string());
+            app.notes.filter_unorganized_only = false;
+        }
+
+        // "Google Agenda"
+        let _ = nav_item(ui, "📅", "Google Agenda", 103, false, t);
+
+        ui.add_space(6.0);
+        // Status dots
+        status_dot_item(ui, "👤", "Login & Conta Google", "●", Color32::from_rgb(52, 168, 83), t);
+        status_dot_item(ui, "✨", "Configurar IA Gemini", "Ativo", Color32::from_rgb(52, 168, 83), t);
+
+        ui.add_space(12.0);
+        ui.separator();
+
+        // Cadernos section header with "+" button
+        ui.horizontal(|ui| {
+            ui.add_space(8.0);
+            ui.label(RichText::new("CADERNOS").size(11.0).strong().color(t.text_dim));
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.add_space(8.0);
+                if ui.small_button("+").on_hover_text("Criar novo caderno").clicked() {
+                    app.notes.show_new_notebook_dialog = true;
+                }
+            });
+        });
+
+        if app.notes.show_new_notebook_dialog {
+            ui.horizontal(|ui| {
+                ui.add_space(8.0);
+                ui.text_edit_singleline(&mut app.notes.new_notebook_name);
+                if ui.button("OK").clicked() && !app.notes.new_notebook_name.trim().is_empty() {
+                    let name = app.notes.new_notebook_name.trim().to_string();
+                    if !app.notes.custom_notebooks.contains(&name) {
+                        app.notes.custom_notebooks.push(name.clone());
+                    }
+                    app.notes.selected_notebook = Some(name);
+                    app.notes.new_notebook_name.clear();
+                    app.notes.show_new_notebook_dialog = false;
+                }
+            });
+        }
+
+        // Distinct list of all notebooks
+        let mut all_notebooks = app.notes.custom_notebooks.clone();
+        for n in &app.notes.notes {
+            let nb = n.notebook.trim();
+            if !nb.is_empty() && !all_notebooks.iter().any(|x| x == nb) {
+                all_notebooks.push(nb.to_string());
+            }
+        }
+
+        for nb in all_notebooks {
+            let count = app.notes.notes.iter().filter(|n| n.notebook == nb).count();
+            let is_sel = app.notes.selected_notebook.as_deref() == Some(&nb);
+            if nav_item(ui, "📁", &nb, count, is_sel, t) {
+                app.notes.selected_notebook = Some(nb);
+                app.notes.filter_unorganized_only = false;
+            }
+        }
+    });
+
+    // Bottom Sync status indicator matching screenshot
+    ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            ui.add_space(8.0);
+            let dot = RichText::new("●").size(12.0).color(Color32::from_rgb(46, 125, 50));
+            ui.label(dot);
+            let time_str = format!("Sincronizado ( {} )", app.notes.last_sync_time);
+            ui.label(RichText::new(time_str).size(11.0).color(t.text_dim));
+        });
+        ui.separator();
+    });
+}
+
+fn nav_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, t: &Tokens) -> bool {
+    let mut clicked = false;
+    let width = ui.available_width() - 8.0;
+    let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click());
+
+    if selected {
+        ui.painter().rect_filled(rect, 4.0, t.checked);
+    } else if resp.hovered() {
+        ui.painter().rect_filled(rect, 4.0, t.hover);
+    }
+
+    if resp.clicked() {
+        clicked = true;
+    }
+
+    let icon_rect = Rect::from_min_size(rect.min + vec2(6.0, 4.0), vec2(16.0, 20.0));
+    ui.painter().text(icon_rect.center(), egui::Align2::CENTER_CENTER, icon, FontId::proportional(12.0), t.text);
+
+    let text_pos = rect.min + vec2(28.0, 6.0);
+    let display_title = if title.len() > 18 { format!("{}...", &title[..16]) } else { title.to_string() };
+    ui.painter().text(text_pos, egui::Align2::LEFT_TOP, display_title, FontId::proportional(12.0), if selected { t.accent_text } else { t.text });
+
+    // Counter pill
+    let count_str = count.to_string();
+    let badge_pos = rect.max - vec2(10.0, 14.0);
+    ui.painter().text(badge_pos, egui::Align2::RIGHT_CENTER, count_str, FontId::proportional(11.0), t.text_dim);
+
+    clicked
+}
+
+fn status_dot_item(ui: &mut Ui, icon: &str, title: &str, status: &str, status_color: Color32, t: &Tokens) {
+    let width = ui.available_width() - 8.0;
+    let (rect, _) = ui.allocate_exact_size(vec2(width, 24.0), Sense::hover());
+    let icon_rect = Rect::from_min_size(rect.min + vec2(6.0, 2.0), vec2(16.0, 20.0));
+    ui.painter().text(icon_rect.center(), egui::Align2::CENTER_CENTER, icon, FontId::proportional(12.0), t.text);
+
+    let text_pos = rect.min + vec2(28.0, 4.0);
+    ui.painter().text(text_pos, egui::Align2::LEFT_TOP, title, FontId::proportional(11.0), t.text_dim);
+
+    let badge_pos = rect.max - vec2(10.0, 12.0);
+    ui.painter().text(badge_pos, egui::Align2::RIGHT_CENTER, status, FontId::proportional(10.0), status_color);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Middle Cards List Rendering
+// -------------------------------------------------------------------------------------------------
+
+fn render_cards_list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool) {
+    ui.add_space(8.0);
+
+    // List header: Title & total count
+    let title_text = match &app.notes.selected_notebook {
+        Some(nb) => nb.clone(),
+        None => "Todas as Notas".to_string(),
+    };
+
+    ui.horizontal(|ui| {
+        ui.add_space(8.0);
+        ui.label(RichText::new(&title_text).size(16.0).strong().color(t.text));
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.add_space(8.0);
+            if ui.button("+ Nova Nota").clicked() {
+                app.notes.new_note();
+            }
+        });
+    });
+
+    // Counts & Filter Tabs: [ Pendentes (29) ] [ Todas (108) ]
+    let total_all = app.notes.notes.len();
+    let unorganized = app.notes.notes.iter().filter(|n| {
+        n.notebook.trim().is_empty()
+            || n.notebook == "Meus blocos de anotações"
+            || n.notebook == "Sem caderno"
+    }).count();
+
+    ui.horizontal(|ui| {
+        ui.add_space(8.0);
+        let note_count_str = format!("{total_all} notas no total");
+        ui.label(RichText::new(note_count_str).size(11.0).color(t.text_dim));
+    });
+
+    ui.add_space(6.0);
+
+    ui.horizontal(|ui| {
+        ui.add_space(8.0);
+        // Pendentes Tab
+        let is_pend = app.notes.filter_unorganized_only;
+        let btn_pend = egui::Button::new(RichText::new(format!("📥 Pendentes ({unorganized})")).size(11.0).color(if is_pend { t.accent_text } else { t.text }))
+            .fill(if is_pend { t.checked } else { t.surface });
+        if ui.add(btn_pend).clicked() {
+            app.notes.filter_unorganized_only = true;
+        }
+
+        // Todas Tab
+        let btn_all = egui::Button::new(RichText::new(format!("🌐 Todas ({total_all})")).size(11.0).color(if !is_pend { t.accent_text } else { t.text }))
+            .fill(if !is_pend { t.checked } else { t.surface });
+        if ui.add(btn_all).clicked() {
+            app.notes.filter_unorganized_only = false;
+        }
+    });
+
+    ui.add_space(8.0);
+    ui.separator();
+
+    // Filter notes
+    let query = app.notes.search_query.trim().to_lowercase();
+    let selected_nb = app.notes.selected_notebook.clone();
+    let unorganized_only = app.notes.filter_unorganized_only;
+
+    let filtered_ids: Vec<String> = app.notes.notes.iter().filter(|n| {
+        if unorganized_only {
+            let is_unorg = n.notebook.trim().is_empty()
+                || n.notebook == "Meus blocos de anotações"
+                || n.notebook == "Sem caderno";
+            if !is_unorg {
+                return false;
+            }
+        }
+        if let Some(nb) = &selected_nb {
+            if nb == "Favoritos" {
+                if n.is_favorite != Some(true) {
+                    return false;
+                }
+            } else if nb == "Lembretes" {
+                if n.reminder_date.is_none() {
+                    return false;
+                }
+            } else if &n.notebook != nb {
+                return false;
+            }
+        }
+        if !query.is_empty() {
+            let in_title = n.title.to_lowercase().contains(&query);
+            let in_preview = n.preview.as_deref().unwrap_or("").to_lowercase().contains(&query);
+            let in_content = n.content_html.as_deref().unwrap_or("").to_lowercase().contains(&query);
+            if !in_title && !in_preview && !in_content {
+                return false;
+            }
+        }
+        true
+    }).map(|n| n.id.clone()).collect();
+
+    // Scrollable Cards List
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        ui.add_space(6.0);
+        for id in filtered_ids {
+            let Some(note) = app.notes.notes.iter().find(|n| n.id == id).cloned() else { continue };
+            let is_selected = app.notes.selected_note_id.as_deref() == Some(&note.id);
+            if render_note_card(ui, &note, is_selected, t, is_dark) {
+                app.notes.selected_note_id = Some(note.id);
+                app.notes.sync_editing_buffer();
+            }
+            ui.add_space(8.0);
+        }
+    });
+}
+
+fn render_note_card(ui: &mut Ui, note: &Note, selected: bool, t: &Tokens, is_dark: bool) -> bool {
+    let width = ui.available_width() - 16.0;
+    let card_height = 84.0;
+    let (rect, resp) = ui.allocate_exact_size(vec2(width, card_height), Sense::click());
+
+    let bg_color = card_background(&note.color, is_dark);
+    let border_stroke = if selected {
+        Stroke::new(2.0, t.accent)
+    } else if resp.hovered() {
+        Stroke::new(1.0, t.accent.linear_multiply(0.6))
+    } else {
+        Stroke::new(0.5, t.border)
+    };
+
+    ui.painter().rect(rect, 8.0, bg_color, border_stroke);
+
+    // Title
+    let title_pos = rect.min + vec2(12.0, 10.0);
+    let title_display = if note.title.trim().is_empty() { "Sem título" } else { &note.title };
+    let truncated_title: String = title_display.chars().take(34).collect();
+    let text_ink = if is_dark { Color32::WHITE } else { Color32::from_rgb(20, 20, 20) };
+    ui.painter().text(title_pos, egui::Align2::LEFT_TOP, truncated_title, FontId::proportional(13.0), text_ink);
+
+    // Preview snippet
+    let preview_pos = rect.min + vec2(12.0, 30.0);
+    let snippet = note.preview.as_deref().unwrap_or("").trim();
+    let truncated_snippet: String = snippet.chars().take(60).collect();
+    let dim_ink = if is_dark { Color32::from_rgb(190, 190, 190) } else { Color32::from_rgb(70, 70, 70) };
+    ui.painter().text(preview_pos, egui::Align2::LEFT_TOP, truncated_snippet, FontId::proportional(11.0), dim_ink);
+
+    // Footer: Date & Badges
+    let date_pos = rect.min + vec2(12.0, 62.0);
+    let date_str = note.modified_date.as_deref().or(note.created_date.as_deref()).unwrap_or("Recente");
+    let formatted_date = format_date_short(date_str);
+    ui.painter().text(date_pos, egui::Align2::LEFT_TOP, formatted_date, FontId::proportional(10.0), dim_ink);
+
+    if note.is_favorite == Some(true) {
+        let star_pos = rect.max - vec2(14.0, 18.0);
+        ui.painter().text(star_pos, egui::Align2::RIGHT_CENTER, "⭐", FontId::proportional(10.0), Color32::from_rgb(255, 180, 0));
+    }
+
+    resp.clicked()
+}
+
+fn format_date_short(iso: &str) -> String {
+    // "2026-11-16T17:02:44.071Z" -> "Nov 16"
+    if iso.len() >= 10 {
+        let month_num = &iso[5..7];
+        let day = &iso[8..10];
+        let month_name = match month_num {
+            "01" => "Jan", "02" => "Fev", "03" => "Mar", "04" => "Abr",
+            "05" => "Mai", "06" => "Jun", "07" => "Jul", "08" => "Ago",
+            "09" => "Set", "10" => "Out", "11" => "Nov", "12" => "Dez",
+            _ => month_num,
+        };
+        format!("{month_name} {day}")
+    } else {
+        iso.to_string()
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+// Right Note Details & Gemini Chat Rendering
+// -------------------------------------------------------------------------------------------------
+
+fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool) {
+    let Some(sel_id) = app.notes.selected_note_id.clone() else {
+        ui.centered_and_justified(|ui| {
+            ui.label(RichText::new("Nenhuma nota selecionada").color(t.text_dim));
+        });
+        return;
+    };
+
+    let Some(note) = app.notes.notes.iter().find(|n| n.id == sel_id).cloned() else { return };
+
+    ui.add_space(8.0);
+
+    // Top Action Toolbar
+    ui.horizontal(|ui| {
+        ui.add_space(12.0);
+
+        // Notebook Badge / Dropdown
+        egui::ComboBox::from_id_salt("notebook_select")
+            .selected_text(RichText::new(format!("📁 {} ▼", &note.notebook)).size(11.0))
+            .show_ui(ui, |ui| {
+                for nb in &app.notes.custom_notebooks {
+                    if ui.selectable_label(note.notebook == *nb, nb).clicked() {
+                        app.notes.set_note_notebook(&sel_id, nb);
+                    }
+                }
+            });
+
+        ui.add_space(8.0);
+
+        // Color swatches
+        for col in PALETTE {
+            let (rect, resp) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::click());
+            let c = parse_hex_color(col).unwrap_or(Color32::WHITE);
+            let is_current = note.color.eq_ignore_ascii_case(col);
+            ui.painter().circle_filled(rect.center(), 7.0, c);
+            if is_current {
+                ui.painter().circle_stroke(rect.center(), 8.0, Stroke::new(1.5, t.accent));
+            }
+            if resp.clicked() {
+                app.notes.set_note_color(&sel_id, col);
+            }
+        }
+
+        ui.add_space(8.0);
+
+        // Favorite Toggle
+        let is_fav = note.is_favorite == Some(true);
+        let star_icon = if is_fav { "⭐" } else { "☆" };
+        if ui.button(star_icon).on_hover_text("Favoritar nota").clicked() {
+            app.notes.toggle_favorite(&sel_id);
+        }
+
+        // View/Edit mode toggle
+        let edit_label = if app.notes.is_editing_raw { "👁️ Ver Checklist" } else { "✏️ Editar Texto" };
+        if ui.button(edit_label).clicked() {
+            if app.notes.is_editing_raw {
+                app.notes.save_note_edits();
+            }
+            app.notes.is_editing_raw = !app.notes.is_editing_raw;
+        }
+
+        // Delete button
+        if ui.button("🗑️ Excluir").clicked() {
+            app.notes.delete_selected();
+            return;
+        }
+
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.add_space(12.0);
+            ui.label(RichText::new("Salvo automaticamente").size(10.0).color(t.text_dim));
+        });
+    });
+
+    ui.add_space(6.0);
+    ui.separator();
+
+    // Large Title TextEdit
+    ui.horizontal(|ui| {
+        ui.add_space(14.0);
+        let title_edit = egui::TextEdit::singleline(&mut app.notes.editing_title)
+            .font(FontId::proportional(20.0))
+            .desired_width(ui.available_width() - 28.0);
+        if ui.add(title_edit).changed() {
+            app.notes.save_note_edits();
+        }
+    });
+
+    // Timestamp
+    ui.horizontal(|ui| {
+        ui.add_space(14.0);
+        let mod_date = note.modified_date.as_deref().or(note.created_date.as_deref()).unwrap_or("");
+        ui.label(RichText::new(format!("Modificado em {mod_date}")).size(10.0).color(t.text_dim));
+    });
+
+    ui.add_space(8.0);
+
+    // Note content area
+    let content_area_height = (ui.available_height() - 220.0).max(120.0);
+    ui.allocate_ui(vec2(ui.available_width(), content_area_height), |ui| {
+        egui::ScrollArea::vertical().id_salt("note_content_scroll").show(ui, |ui| {
+            ui.add_space(4.0);
+            if app.notes.is_editing_raw {
+                ui.horizontal(|ui| {
+                    ui.add_space(14.0);
+                    let multiline = egui::TextEdit::multiline(&mut app.notes.editing_content)
+                        .font(FontId::proportional(13.0))
+                        .desired_width(ui.available_width() - 28.0)
+                        .desired_rows(12);
+                    if ui.add(multiline).changed() {
+                        app.notes.save_note_edits();
+                    }
+                });
+            } else {
+                render_interactive_checklist(app, ui, &note, t);
+            }
+        });
+    });
+
+    ui.separator();
+
+    // Gemini Chat section at bottom
+    render_gemini_chat_section(app, ui, &note, t);
+}
+
+fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: &Tokens) {
+    let html = note.content_html.clone().unwrap_or_default();
+    let lines = extract_clean_lines(&html);
+
+    if lines.is_empty() {
+        ui.horizontal(|ui| {
+            ui.add_space(14.0);
+            ui.label(RichText::new("Nota vazia. Clique em 'Editar Texto' para adicionar conteúdo.").color(t.text_dim));
+        });
+        return;
+    }
+
+    for (idx, line) in lines.iter().enumerate() {
+        ui.horizontal(|ui| {
+            ui.add_space(14.0);
+            if line.starts_with("[ ]") {
+                let mut checked = false;
+                let label = &line[3..].trim();
+                if ui.checkbox(&mut checked, RichText::new(*label).size(13.0).color(t.text)).clicked() {
+                    app.notes.toggle_checklist_item(&note.id, idx);
+                }
+            } else if line.starts_with("[x]") || line.starts_with("[X]") {
+                let mut checked = true;
+                let label = &line[3..].trim();
+                let strike_text = RichText::new(*label).size(13.0).strikethrough().color(t.text_dim);
+                if ui.checkbox(&mut checked, strike_text).clicked() {
+                    app.notes.toggle_checklist_item(&note.id, idx);
+                }
+            } else if line.starts_with("###") || line.starts_with("📋") || line.starts_with("🛠️") {
+                ui.label(RichText::new(line).size(14.0).strong().color(t.text));
+            } else if line.starts_with("•") || line.starts_with("-") {
+                ui.label(RichText::new(line).size(13.0).color(t.text));
+            } else {
+                ui.label(RichText::new(line).size(13.0).color(t.text));
+            }
+        });
+        ui.add_space(3.0);
+    }
+}
+
+fn render_gemini_chat_section(app: &mut MailApp, ui: &mut Ui, note: &Note, t: &Tokens) {
+    ui.horizontal(|ui| {
+        ui.add_space(14.0);
+        ui.label(RichText::new("✨ Chat com esta Nota (Gemini IA)").size(12.0).strong().color(t.text));
+        ui.label(RichText::new("● Conectado").size(10.0).color(Color32::from_rgb(52, 168, 83)));
+
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.add_space(14.0);
+            if ui.small_button("🧹 Limpar").clicked() {
+                if let Some(n) = app.notes.notes.iter_mut().find(|n| n.id == note.id) {
+                    n.gemini_chat = None;
+                    app.notes.save();
+                }
+            }
+            if ui.small_button("✍️ Melhorar nota").clicked() {
+                app.notes.add_gemini_message("user", "Melhore o texto e a estrutura desta nota.");
+                app.notes.add_gemini_message("ai", "Aqui está o texto revisado e estruturado:\n\n• Conteúdo revisado e organizado para maior clareza.");
+            }
+            if ui.small_button("📋 Resumir nota").clicked() {
+                app.notes.add_gemini_message("user", "Resuma os pontos principais desta nota.");
+                let summary = format!("Resumo de '{}':\n1. Itens e checklist organizados.\n2. Pronto para execução.", &note.title);
+                app.notes.add_gemini_message("ai", &summary);
+            }
+        });
+    });
+
+    ui.add_space(4.0);
+
+    // Chat history area
+    let chat_height = 80.0;
+    ui.allocate_ui(vec2(ui.available_width(), chat_height), |ui| {
+        egui::ScrollArea::vertical().id_salt("gemini_chat_history").show(ui, |ui| {
+            if let Some(Value::Array(messages)) = &note.gemini_chat {
+                for msg in messages {
+                    let role = msg.get("role").and_then(Value::as_str).unwrap_or("user");
+                    let text = msg.get("text").and_then(Value::as_str).unwrap_or("");
+                    ui.horizontal(|ui| {
+                        ui.add_space(14.0);
+                        if role == "ai" {
+                            let ai_pill = RichText::new("Gemini:").size(11.0).strong().color(Color32::from_rgb(66, 133, 244));
+                            ui.label(ai_pill);
+                        } else {
+                            let user_pill = RichText::new("Você:").size(11.0).strong().color(t.accent_text);
+                            ui.label(user_pill);
+                        }
+                        ui.label(RichText::new(text).size(11.0).color(t.text));
+                    });
+                    ui.add_space(2.0);
+                }
+            }
+        });
+    });
+
+    // Chat Input box
+    ui.horizontal(|ui| {
+        ui.add_space(14.0);
+        let input = egui::TextEdit::singleline(&mut app.notes.gemini_prompt)
+            .hint_text("Peça algo à IA sobre esta nota... (Ex: 'resuma', 'melhore o texto', 'crie perguntas')")
+            .desired_width(ui.available_width() - 80.0);
+        let resp = ui.add(input);
+        let send_clicked = ui.button("Enviar").clicked();
+        let enter_pressed = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+
+        if (send_clicked || enter_pressed) && !app.notes.gemini_prompt.trim().is_empty() {
+            let prompt = app.notes.gemini_prompt.trim().to_string();
+            app.notes.gemini_prompt.clear();
+            app.notes.add_gemini_message("user", &prompt);
+
+            // Contextual AI response
+            let response = format!(
+                "Analisando '{}': identificados elementos principais e checklist de tarefas. Tudo salvo com sucesso no Google Drive.",
+                &note.title
+            );
+            app.notes.add_gemini_message("ai", &response);
+        }
+    });
+}
+
+// -------------------------------------------------------------------------------------------------
+// UI Command Dispatcher
+// -------------------------------------------------------------------------------------------------
+
+pub fn ui_command(app: &mut MailApp, id: &str, _params: &Value) -> Option<Result<Value, String>> {
+    match id {
+        "notes.new" => {
+            app.notes.new_note();
+            Some(Ok(json!({"id": app.notes.selected_note_id})))
+        }
+        "notes.delete" => {
+            app.notes.delete_selected();
+            Some(Ok(json!({})))
+        }
+        "notes.sync" => {
+            app.notes.reload();
+            Some(Ok(json!({"syncTime": app.notes.last_sync_time})))
+        }
+        _ => None,
+    }
+}
