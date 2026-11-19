@@ -1255,6 +1255,8 @@ fn new_exchange_2010_mail_whose_recipients_werent_given_waits_for_the_download()
 /// from it, and the server doesn't give the recipients of what it is now (its GetItem failed): it
 /// is listed `cut`, with no To. A rule deletes mail when my address isn't in To: Run Rules Now
 /// leaves it alone until it is downloaded, and doesn't take the recipients it had before as known.
+/// (Exchange gives a draft sent from a phone a new id: the half that sends it is how a Microsoft
+/// 365 or JMAP account lists one, through the same code.)
 #[test]
 fn a_downloaded_draft_relisted_without_its_recipients_isnt_deleted_by_a_rule_about_them() {
     for sent in [false, true] {
