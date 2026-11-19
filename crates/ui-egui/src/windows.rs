@@ -361,6 +361,11 @@ fn open_message(app: &mut MailApp, id: Id) -> Result<Value, String> {
         return Err(tl!("Too many windows are open: close one first").to_string());
     }
     let window = app.windows.add(What::Message { message: id, seen: m });
+    // Opened in a window it is read, with the reading pane off too (#1734): the message the list
+    // has selected, whose selection a window doesn't change.
+    if app.session.sel.messages == [id] {
+        let _ = app.run("mail.select", json!({"id": id, "open": true}));
+    }
     Ok(json!({"window": window, "message": id}))
 }
 
