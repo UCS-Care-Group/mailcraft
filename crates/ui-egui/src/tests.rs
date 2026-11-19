@@ -2477,8 +2477,8 @@ fn signature_picture_over_the_total_is_refused_on_the_page() {
     assert!(total(&a) <= MAX_PICTURES_BYTES);
 }
 
-/// File › Signatures › Rename: Enter keeps the new name, and a click elsewhere lets go of the
-/// field without renaming.
+/// File › Signatures › Rename: Enter keeps the new name, and so does a click elsewhere (#1651);
+/// either way the field lets go of the keyboard.
 #[test]
 fn renaming_a_signature_keeps_the_name_and_lets_go_of_the_keyboard() {
     use egui_kittest::kittest::Queryable as _;
@@ -2502,13 +2502,15 @@ fn renaming_a_signature_keeps_the_name_and_lets_go_of_the_keyboard() {
     assert!(m.signature("Mine at work").is_some() && m.signature("Mine").is_none(), "Enter didn't rename it");
     assert!(harness.ctx.memory(|m| m.focused()).is_none(), "the field kept the keyboard");
 
-    // Rename again, then click away: the name stays, and the field is gone.
+    // Rename again, type, then click away: the typed name is kept too, and the field is gone.
     harness.get_by_label("Rename").click();
     harness.run_steps(3);
+    key(&mut harness, egui::Key::End);
     harness.event(egui::Event::Text("x".into()));
     harness.run_steps(3);
     harness.get_by_label("New").click();
     harness.run_steps(3);
-    assert!(harness.state().session.mailbox.signature("Mine at work").is_some());
+    let m = &harness.state().session.mailbox;
+    assert!(m.signature("Mine at workx").is_some() && m.signature("Mine at work").is_none(), "the click away lost the name");
     assert!(harness.ctx.memory(|m| m.focused()).is_none(), "the field kept the keyboard after a click away");
 }

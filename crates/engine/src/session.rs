@@ -668,6 +668,10 @@ pub struct Compose {
     pub draft: Option<Id>,
     /// The account it is sent from.
     pub account: Id,
+    /// Which of the account's sender addresses it is from (#797), as the account keeps it; empty
+    /// for the account's own address.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub from: String,
     pub to: String,
     pub cc: String,
     pub bcc: String,
@@ -2518,11 +2522,20 @@ impl Session {
     /// the next time.
     pub fn load_where(&mut self, id: Id, pick: impl Fn(&Attachment) -> bool) -> Result<bool, CmdError> {
         let Some(m) = self.mailbox.messages.get(&id) else { return Err(failed!("no message with id {id}", id)) };
-        if !m.body_is_kept() && m.attachments.iter().all(|a| a.is_loaded() || !pick(a)) {
+        // `pick` is asked once about each attachment that is not in memory, in order: one that
+        // counts (that stops after so many) can rely on it.
+        let picked: Vec<bool> = m.attachments.iter().filter(|a| !a.is_loaded()).map(&pick).collect();
+        if !m.body_is_kept() && !picked.contains(&true) {
             return Ok(false);
         }
         let mut copy = Message::clone(m);
-        let loaded = loaded_into(&mut copy, |part| self.content(id, part), &pick);
+        let asked = std::cell::Cell::new(0usize);
+        let again = |_: &Attachment| {
+            let at = asked.get();
+            asked.set(at + 1);
+            picked.get(at).copied().unwrap_or(false)
+        };
+        let loaded = loaded_into(&mut copy, |part| self.content(id, part), &again);
         if let Err(e) = &loaded
             && copy.body_is_kept()
             && let Some(kept) = copy.kept.as_deref_mut()
