@@ -201,6 +201,7 @@ impl NotesState {
             gemini_rx: None,
             gemini_loading: false,
         };
+        state.migrate_existing_chat_comments();
         state.sync_editing_buffer();
         state
     }
@@ -214,9 +215,69 @@ impl NotesState {
                 }
                 self.last_sync_time = current_time_hh_mm_ss();
                 self.status_msg = Some("Notas sincronizadas com sucesso!".to_string());
+                self.migrate_existing_chat_comments();
                 self.sync_editing_buffer();
             }
         }
+    }
+
+    pub fn migrate_existing_chat_comments(&mut self) {
+        let mut changed_any = false;
+        for note in &mut self.notes {
+            if let Some(Value::Array(messages)) = &note.gemini_chat {
+                let current_html = note.content_html.clone().unwrap_or_default();
+                let mut to_append = Vec::new();
+                for m in messages {
+                    if m.get("role").and_then(Value::as_str) == Some("ai") {
+                        if let Some(text) = m.get("text").and_then(Value::as_str) {
+                            let clean = text.trim();
+                            if !clean.is_empty() && clean != "Pensando..." && !current_html.contains(clean) {
+                                to_append.push(clean.to_string());
+                            }
+                        }
+                    }
+                }
+                if !to_append.is_empty() {
+                    let mut new_html = current_html;
+                    for comment in to_append {
+                        new_html.push_str(&format!(
+                            "<br/><br/><div style=\"margin-top: 14px; padding: 10px 14px; border-left: 4px solid #4285F4; background: rgba(66, 133, 244, 0.08); border-radius: 4px;\"><b>✨ Comentário Gemini IA:</b><br/>{}</div>",
+                            comment.replace('\n', "<br/>")
+                        ));
+                    }
+                    note.content_html = Some(new_html);
+                    note.modified_date = Some(now_iso());
+                    changed_any = true;
+                }
+            }
+        }
+        if changed_any {
+            self.save();
+        }
+    }
+
+    pub fn append_ai_comment_to_note(&mut self, note_id: &str, reply: &str) {
+        let clean_reply = reply.trim();
+        if clean_reply.is_empty() {
+            return;
+        }
+
+        if let Some(note) = self.notes.iter_mut().find(|n| n.id == note_id) {
+            let mut html = note.content_html.clone().unwrap_or_default();
+            let comment_block = format!(
+                "<br/><br/><div style=\"margin-top: 14px; padding: 10px 14px; border-left: 4px solid #4285F4; background: rgba(66, 133, 244, 0.08); border-radius: 4px;\"><b>✨ Comentário Gemini IA:</b><br/>{}</div>",
+                clean_reply.replace('\n', "<br/>")
+            );
+            html.push_str(&comment_block);
+            note.content_html = Some(html);
+            note.modified_date = Some(now_iso());
+
+            let plain = html_to_plain_text(note.content_html.as_deref().unwrap_or(""));
+            let snippet: String = plain.chars().take(150).collect();
+            note.preview = Some(snippet.replace('\n', " "));
+        }
+        self.sync_editing_buffer();
+        self.save();
     }
 
     pub fn save(&mut self) {
@@ -533,9 +594,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         None
     };
 
-    if let Some((_note_id, reply)) = received_gemini {
+    if let Some((note_id, reply)) = received_gemini {
         app.notes.gemini_loading = false;
         app.notes.update_last_gemini_ai_message(&reply);
+        app.notes.append_ai_comment_to_note(&note_id, &reply);
         ui.ctx().request_repaint();
     }
 
@@ -1032,7 +1094,7 @@ fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, _is_dark: boo
     ui.add_space(6.0);
 
     // Note content area
-    let content_area_height = (ui.available_height() - 200.0).max(120.0);
+    let content_area_height = (ui.available_height() - 85.0).max(120.0);
     ui.allocate_ui(vec2(ui.available_width(), content_area_height), |ui| {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
@@ -1105,12 +1167,14 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
                     app.notes.toggle_checklist_item(&note.id, idx);
                 }
             });
-        } else if line.starts_with("###") || line.starts_with("📋") || line.starts_with("🛠️") {
+        } else if line.starts_with("###") || line.starts_with("📋") || line.starts_with("🛠️") || line.starts_with("✨") || line.starts_with("💡") || line.starts_with("✍️") || line.contains("Comentário Gemini IA") {
+            ui.add_space(8.0);
             ui.add(
-                egui::Label::new(RichText::new(line).size(14.5).strong().color(t.text))
+                egui::Label::new(RichText::new(line).size(14.5).strong().color(Color32::from_rgb(66, 133, 244)))
                     .wrap()
                     .selectable(true),
             );
+            ui.add_space(4.0);
         } else if line.starts_with("•") || line.starts_with("-") {
             ui.horizontal_top(|ui| {
                 ui.label(RichText::new("•").size(13.5).color(t.text));
@@ -1131,6 +1195,56 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
         }
         ui.add_space(5.0);
     }
+
+    // Display Gemini Chat comments after the last line of the note
+    if let Some(Value::Array(messages)) = &note.gemini_chat {
+        let unappended: Vec<(&str, &str)> = messages
+            .iter()
+            .filter_map(|m| {
+                let role = m.get("role").and_then(Value::as_str)?;
+                let text = m.get("text").and_then(Value::as_str)?;
+                let clean = text.trim();
+                if !clean.is_empty() && clean != "Pensando..." && !lines.iter().any(|l| l.contains(clean)) {
+                    Some((role, clean))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !unappended.is_empty() {
+            ui.add_space(14.0);
+            ui.separator();
+            ui.add_space(8.0);
+            ui.label(RichText::new("✨ Comentários do Chat (Gemini IA):").strong().size(14.0).color(Color32::from_rgb(66, 133, 244)));
+            ui.add_space(6.0);
+
+            for (role, text) in unappended {
+                let frame = egui::Frame::NONE
+                    .fill(if role == "ai" { Color32::from_rgba_premultiplied(66, 133, 244, 20) } else { Color32::from_rgba_premultiplied(128, 128, 128, 15) })
+                    .stroke(Stroke::new(1.0, if role == "ai" { Color32::from_rgb(66, 133, 244) } else { t.border }))
+                    .corner_radius(6.0)
+                    .inner_margin(Margin::same(10));
+
+                frame.show(ui, |ui| {
+                    if role == "ai" {
+                        ui.label(RichText::new("Gemini IA:").strong().size(12.0).color(Color32::from_rgb(66, 133, 244)));
+                    } else {
+                        ui.label(RichText::new("Você perguntou:").strong().size(12.0).color(t.accent_text));
+                    }
+                    ui.add_space(4.0);
+                    for l in text.lines() {
+                        if l.trim().is_empty() {
+                            ui.add_space(4.0);
+                        } else {
+                            ui.add(egui::Label::new(RichText::new(l).size(13.0).color(t.text)).wrap().selectable(true));
+                        }
+                    }
+                });
+                ui.add_space(6.0);
+            }
+        }
+    }
 }
 
 fn render_gemini_chat_section(app: &mut MailApp, ui: &mut Ui, note: &Note, t: &Tokens) {
@@ -1140,7 +1254,7 @@ fn render_gemini_chat_section(app: &mut MailApp, ui: &mut Ui, note: &Note, t: &T
             ui.horizontal(|ui| {
                 ui.label(RichText::new("✨ Chat com esta Nota (Gemini IA)").size(12.0).strong().color(t.text));
                 if app.notes.gemini_loading {
-                    ui.label(RichText::new("⏳ Processando...").size(10.0).color(Color32::from_rgb(255, 180, 0)));
+                    ui.label(RichText::new("⏳ Gerando comentário...").size(10.0).color(Color32::from_rgb(255, 180, 0)));
                 } else {
                     ui.label(RichText::new("● Conectado").size(10.0).color(Color32::from_rgb(52, 168, 83)));
                 }
@@ -1160,40 +1274,6 @@ fn render_gemini_chat_section(app: &mut MailApp, ui: &mut Ui, note: &Note, t: &T
                     }
                 });
             });
-        });
-
-    ui.add_space(2.0);
-
-    // Chat history area
-    let chat_height = 90.0;
-    egui::Frame::NONE
-        .inner_margin(Margin { left: 16, right: 16, top: 2, bottom: 2 })
-        .show(ui, |ui| {
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .id_salt("gemini_chat_history")
-                .max_height(chat_height)
-                .show(ui, |ui| {
-                    if let Some(Value::Array(messages)) = &note.gemini_chat {
-                        for msg in messages {
-                            let role = msg.get("role").and_then(Value::as_str).unwrap_or("user");
-                            let text = msg.get("text").and_then(Value::as_str).unwrap_or("");
-                            ui.horizontal_top(|ui| {
-                                if role == "ai" {
-                                    let ai_pill = RichText::new("Gemini:").size(11.0).strong().color(Color32::from_rgb(66, 133, 244));
-                                    ui.label(ai_pill);
-                                } else {
-                                    let user_pill = RichText::new("Você:").size(11.0).strong().color(t.accent_text);
-                                    ui.label(user_pill);
-                                }
-                                ui.add(egui::Label::new(RichText::new(text).size(11.5).color(t.text)).wrap().selectable(true));
-                            });
-                            ui.add_space(4.0);
-                        }
-                    } else {
-                        ui.label(RichText::new("Faça perguntas ou peça tarefas à IA sobre a nota aberta acima.").size(11.0).color(t.text_dim));
-                    }
-                });
         });
 
     ui.add_space(4.0);
@@ -1298,6 +1378,11 @@ fn query_gemini_backend(prompt: &str, context: &str) -> String {
         format!(
             "📝 **Resumo Inteligente:**\nA nota aborda passagens bíblicas centrais (como Salmo 37:29, Isaías 25:8 e João 5:28,29) que fundamentam a importância do Reino de Deus, destacando promessas de justiça, consolo e vida plena."
         )
+    } else if lower.contains("dizim") || lower.contains("oferta") || lower.contains("aplicar") || lower.contains("fidelidade") {
+        "💡 **Aplicação Pastoral e Prática:**\n\n\
+        1. **Ensinar pela Graça e Princípio:** Apresente a fidelidade a Deus como uma aliança de amor e confiança, e não como uma imposição ou cobrança legalista.\n\
+        2. **Compreender a Realidade Individual:** Muitas pessoas enfrentam desemprego ou endividamento. O acolhimento fraterno e o ensino prático de mordomia ajudam a restaurar a dignidade financeira.\n\
+        3. **Esperança da Restituição:** Conforme a promessa de Joel e Malaquias, a fidelidade ao Senhor afasta o espírito de perda e atrai proteção, sabedoria e paz para a família.".to_string()
     } else if lower.contains("melhor") {
         "✍️ **Sugestão de Aprimoramento:**\nO texto foi organizado em tópicos claros, com referências bíblicas destacadas em negrito e citações formatadas para facilitar a meditação e o ensino.".to_string()
     } else {

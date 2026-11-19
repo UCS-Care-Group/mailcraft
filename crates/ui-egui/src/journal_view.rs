@@ -253,6 +253,19 @@ impl JournalState {
         }
         self.save_to_disk();
     }
+
+    pub fn append_ai_comment_to_entry(&mut self, entry_id: &str, reply: &str) {
+        let clean = reply.trim();
+        if clean.is_empty() {
+            return;
+        }
+        if let Some(entry) = self.entries.iter_mut().find(|e| e.id == entry_id) {
+            entry.content.push_str(&format!("\n\n✨ Comentário Gemini IA:\n{}", clean));
+            entry.date = now_iso();
+        }
+        self.sync_editing_fields();
+        self.save_to_disk();
+    }
 }
 
 /// Commands for the Journal UI.
@@ -281,6 +294,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     if let Some((entry_id, reply_text)) = received_gemini {
         if app.journal.selected_id.as_deref() == Some(&entry_id) {
             app.journal.update_last_gemini_message(&reply_text);
+            app.journal.append_ai_comment_to_entry(&entry_id, &reply_text);
         }
         app.journal.gemini_loading = false;
         app.journal.gemini_rx = None;
