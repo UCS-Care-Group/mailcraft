@@ -108,10 +108,14 @@ fn a_two_factor_account_and_odd_tokens_give_no_token() {
 
 #[test]
 fn ids_of_other_mailboxes_and_odd_ids_are_passed_over() {
+    // A hit whose id is no id at all can't be told from a cached message the listing left out:
+    // the whole answer is refused, like an item that names no folder.
+    let odd = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "0"}, {"id": "-4"}, {"id": "12345678901"}]}}}));
+    assert_eq!(items::answer(&odd), Err(Error::Unreadable));
     let found = answer(
         200,
         &json!({"Body": {"SearchResponse": {"m": [
-            {"id": "a1b2:12", "l": "2"}, {"id": "0"}, {"id": "-4"}, {"id": "12345678901"}, {"id": "257", "l": "x:2", "su": "another mailbox's"}, {"id": "300", "l": "2", "su": "ok\u{0}\r\nyes"}
+            {"id": "a1b2:12", "l": "2"}, {"id": "257", "l": "x:2", "su": "another mailbox's"}, {"id": "300", "l": "2", "su": "ok\u{0}\r\nyes"}
         ]}}}),
     );
     let page = items::answer(&found).unwrap();

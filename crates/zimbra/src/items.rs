@@ -98,8 +98,15 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
     let listed = json::list(answer.get("m"));
     let mut messages = Vec::new();
     for m in listed.iter().take(PAGE) {
+        // An item of another mailbox is passed over; a hit whose id is no id at all can't be
+        // told from a cached message the listing left out — on a fresh read the page would
+        // still complete, and the run would count that message gone while the token moves
+        // past the change.
         if json::own_id(m.get("id")).is_none() {
-            continue;
+            if json::foreign_id(m.get("id")) {
+                continue;
+            }
+            return Err(Error::Unreadable);
         }
         match m.get("l") {
             // An item that names no folder at all can't be told moved or removed: an empty
