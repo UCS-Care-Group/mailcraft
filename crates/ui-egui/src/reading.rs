@@ -229,6 +229,10 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
         remote::line(app, ui, m, &doc, access, progress, place, t);
         unreadable_line(ui, m, doc.from_text, t, app.windows.len());
     });
+    if place == Place::Pane && app.ai_reply.open && app.ai_reply.message_id == Some(m.id) {
+        let t = Tokens::get(ui.ctx());
+        crate::ai_reply::render_ai_reply_panel(app, ui, m, &t);
+    }
     // A meeting that came with the message: what it is, and the ways to answer it.
     invitation::bar(app, ui, m, place);
     // A calendar that was shared with the owner, and the way to open it (#70).
@@ -489,6 +493,22 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                         let sc = crate::widgets::shortcut_text(app, id);
                         if crate::widgets::icon_button(ui, icon, &format!("{} ({sc})", tl!(tip)), 17.0, true).clicked() {
                             let _ = app.run(id, json!({}));
+                        }
+                    }
+
+                    let ai_active = app.ai_reply.open && app.ai_reply.message_id == Some(m.id);
+                    let ai_label = egui::RichText::new("✨ Responder com IA")
+                        .font(semibold(12.0))
+                        .color(if ai_active { t.accent_text } else { t.accent });
+                    let ai_btn = egui::Button::new(ai_label)
+                        .fill(if ai_active { t.accent } else { t.hover })
+                        .corner_radius(4.0);
+                    if ui.add(ai_btn).on_hover_text(tl!("Sugerir respostas inteligentes com Gemini IA")).clicked() {
+                        if ai_active {
+                            app.ai_reply.open = false;
+                        } else {
+                            app.ai_reply.open = true;
+                            app.ai_reply.init_for_message(m);
                         }
                     }
                 }

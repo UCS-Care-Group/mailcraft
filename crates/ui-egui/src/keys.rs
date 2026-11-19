@@ -818,6 +818,16 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         // A `+` typed with Shift is the same key as one without.
         let modifiers = if name == "Plus" { Modifiers { shift: false, ..modifiers } } else { modifiers };
         let k = combo(modifiers, name);
+        if k == "F5" || k == "F9" {
+            if app.enabled("ui.sync") {
+                let _ = app.run("ui.sync", json!({}));
+            } else if app.sync_rx.is_some() || app.graph_rx.is_some() {
+                app.status(tl!("Send/Receive is already running"));
+            } else {
+                let _ = app.run("ui.sync", json!({}));
+            }
+            continue;
+        }
         if k == "Delete"
             && let Some(id) = module_delete(app)
         {
