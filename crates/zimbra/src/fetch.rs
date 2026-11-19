@@ -16,7 +16,7 @@ pub fn request(base: &str, token: &Secret, id: &str) -> Result<HttpRequest, Erro
     let url = format!("{}/service/home/~/?id={id}&auth=co", base.trim_end_matches('/'));
     let cookie = Secret::new(&format!("ZM_AUTH_TOKEN={}", token.expose()));
     let fields = [("Cookie", cookie.expose()), ("Accept", "message/rfc822")];
-    Ok(HttpRequest::new(Method::Get, &url, &fields, Vec::new())?.with_response_limit(RESPONSE_LIMIT))
+    Ok(HttpRequest::new(Method::Get, &url, &fields, Vec::new())?.with_larger_response_limit(RESPONSE_LIMIT))
 }
 
 /// The message's text, or what went wrong.

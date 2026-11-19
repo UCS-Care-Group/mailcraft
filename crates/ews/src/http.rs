@@ -189,9 +189,16 @@ impl HttpRequest {
         Self::new(Method::Post, url, &fields, body.into_bytes())
     }
 
-    /// Sets the largest response body accepted to `bytes`, at most [`MAX_RESPONSE_LIMIT`].
+    /// Restricts the largest response body accepted to `bytes`, never raising its current limit.
     #[must_use]
     pub fn with_response_limit(mut self, bytes: usize) -> Self {
+        self.max_response = self.max_response.min(bytes);
+        self
+    }
+
+    #[doc = "Explicitly sets a larger response budget for whole-message downloads, capped at [`MAX_RESPONSE_LIMIT`]."]
+    #[must_use]
+    pub fn with_larger_response_limit(mut self, bytes: usize) -> Self {
         self.max_response = bytes.min(MAX_RESPONSE_LIMIT);
         self
     }

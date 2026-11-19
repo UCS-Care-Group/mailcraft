@@ -155,7 +155,7 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
             .iter()
             .filter(|e| json::raw(e.get("t")).is_some_and(|t| t.trim() == kind))
             .take(MAX_PEOPLE)
-            .map(|e| Address::new(json::line(e.get("p")), json::raw(e.get("a")).map(|a| a.trim().to_string()).unwrap_or_default()))
+            .map(|e| Address::new(json::line(e.get("p")), json::text(e.get("a")).map(|a| a.trim().to_string()).unwrap_or_default()))
             .filter(|a| !a.email.is_empty())
             .collect()
     };
@@ -190,7 +190,7 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
     };
     Some(GraphMessage {
         server,
-        message_id: json::raw(m.get("mid")).unwrap_or_default().trim().trim_matches(['<', '>']).to_string(),
+        message_id: json::text(m.get("mid")).unwrap_or_default().trim().trim_matches(['<', '>']).to_string(),
         subject: json::line(m.get("su")),
         from: people("f").into_iter().next().unwrap_or_default(),
         to: people("t"),
