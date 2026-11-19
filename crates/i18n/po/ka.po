@@ -1702,6 +1702,7 @@ msgstr "გაგზავნა/მიღების გამოყენე�
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Apply Send/Receive with Zimbra"
 msgstr "Zimbra-ით გაგზავნის/მიღების გამოყენება"
 
@@ -4745,6 +4746,7 @@ msgstr "ფოსტაში სურათების ავტომატ�
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Download Zimbra Messages in Full"
 msgstr "Zimbra-ის შეტყობინებების სრულად ჩამოტვირთვა"
 
@@ -14321,6 +14323,7 @@ msgstr "გაგზავნა/მიღება Microsoft Graph-ით"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Send/Receive with Zimbra"
 msgstr "გაგზავნა/მიღება Zimbra-ით"
 
@@ -20654,26 +20657,31 @@ msgstr "ჯერ Z"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
 msgstr "Zimbra-ის ანგარიშები მოწმდება: გაუშვით MailCraft MAILCRAFT_ZIMBRA=1-ით, რომ სცადოთ"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts can't be sent and received yet: that part is not built"
 msgstr "Zimbra-ის ანგარიშებით ჯერ ვერ იგზავნება და ვერ მიიღება: ეს ნაწილი ჯერ არ არის აგებული"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra {host} · not kept in step yet: this part is not built"
 msgstr "Zimbra {host} · ჯერ არ სინქრონიზდება: ეს ნაწილი ჯერ არ არის აგებული"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
 msgstr "Zimbra {host} · არ სინქრონიზდება: Zimbra-ის ანგარიშები გამორთულია (გაუშვით MailCraft MAILCRAFT_ZIMBRA=1-ით, რომ სცადოთ)"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra · no usable server address"
 msgstr "Zimbra · გამოყენებადი სერვერის მისამართი არ არის"
 
@@ -20805,6 +20813,7 @@ msgstr "Microsoft-ით შესვლა მხოლოდ Microsoft-ის 
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
 msgstr "Zimbra-ის ანგარიშის სერვერის, მისამართისა და მომხმარებლის სახელის შეცვლა შეუძლებელია, როცა მისი ფოსტა უკვე აქ არის: წაშალეთ და დაამატეთ მეორე"
 
@@ -21112,6 +21121,7 @@ msgstr "ანგარიში JMAP ანგარიში ხდება �
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
 msgstr "ანგარიში Zimbra-ის ანგარიში ხდება ან წყვეტს ასეთი ყოფნა მხოლოდ წაშლითა და ხელახლა დამატებით"
 
@@ -21683,6 +21693,7 @@ msgstr "აქ არცერთი ანგარიში თავის �
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "no account is a Zimbra account"
 msgstr "არც ერთი ანგარიში არ არის Zimbra-ის ანგარიში"
 
@@ -22805,8 +22816,9 @@ msgstr "მოთხოვნა დაიკარგა"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "the result is for another account"
-msgstr ""
+msgstr "შედეგი სხვა ანგარიშისთვისაა"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -24186,6 +24198,7 @@ msgstr "{name}: JMAP სერვერის გამოსადეგი მ
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "{name} has no Zimbra server address that can be used"
 msgstr "{name}-ს არ აქვს გამოყენებადი Zimbra-ის სერვერის მისამართი"
 
@@ -24263,6 +24276,7 @@ msgstr "{name} არ არის Microsoft ან Exchange სერვერ�
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "{name} isn't a Zimbra account"
 msgstr "{name} არ არის Zimbra-ის ანგარიში"
 
@@ -25592,8 +25606,9 @@ msgstr "{why}. მასში აქ შეტანილი ცვლილ�
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "{why}: send this message from another account, or save it as a draft"
-msgstr ""
+msgstr "{why}: გაგზავნეთ ეს შეტყობინება სხვა ანგარიშიდან ან შეინახეთ მონახაზად"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

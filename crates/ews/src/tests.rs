@@ -510,6 +510,21 @@ fn the_response_keeps_a_small_capped_set_of_fields() {
 }
 
 #[test]
+fn a_response_limit_only_restricts_the_current_budget() {
+    let request = HttpRequest::new(Method::Get, "https://mail.example.org/message", &[], vec![]).unwrap();
+    assert_eq!(request.clone().with_response_limit(usize::MAX).max_response_bytes(), http::RESPONSE_LIMIT);
+    assert_eq!(request.with_response_limit(1024).with_response_limit(2048).max_response_bytes(), 1024);
+}
+
+#[test]
+fn a_larger_response_requires_an_explicit_bounded_budget() {
+    let request = HttpRequest::new(Method::Get, "https://mail.example.org/message", &[], vec![]).unwrap();
+    let large = request.with_larger_response_limit(usize::MAX);
+    assert_eq!(large.max_response_bytes(), http::MAX_RESPONSE_LIMIT);
+    assert_eq!(large.with_response_limit(1024).with_response_limit(2048).max_response_bytes(), 1024);
+}
+
+#[test]
 fn a_request_can_be_any_get_or_post() {
     let get = HttpRequest::new(
         Method::Get,

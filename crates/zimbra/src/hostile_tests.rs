@@ -95,6 +95,43 @@ fn faults_are_read_by_their_code_alone() {
 }
 
 #[test]
+fn only_a_full_mime_fetch_asks_for_a_larger_response() {
+    let token = crate::http::Secret::new("synthetic-token");
+    let fetch = fetch::request("https://mail.example.org", &token, "257").unwrap();
+    assert_eq!(fetch.max_response_bytes(), crate::http::RESPONSE_LIMIT);
+    assert_eq!(fetch.max_response_bytes(), 32 * 1024 * 1024);
+    let search = items::by_id("https://mail.example.org", &token, &["257".into()]).unwrap();
+    assert_eq!(search.max_response_bytes(), crate::http::SOAP_LIMIT);
+}
+
+#[test]
+fn oversized_message_text_does_not_wedge_a_sync_page() {
+    for text in ["x".repeat(20 * 1024), "界".repeat(8 * 1024)] {
+        for field in ["mid", "address"] {
+            let mut message = json!({"id": "257", "l": "2", "mid": "<kept@example.org>", "e": [{"t": "f", "a": "ada@example.org"}]});
+            if field == "mid" {
+                message["mid"] = json!(format!("<{text}>"));
+            } else {
+                message["e"][0]["a"] = json!(text);
+            }
+            let response = answer(200, &json!({"Body": {"SearchResponse": {"m": [message]}}}));
+            let page = items::answer(&response).unwrap();
+            assert_eq!(page.messages.len(), 1);
+            let result = mailcraft_model::sync::ZimbraMailResult {
+                pages: vec![mailcraft_model::sync::ZimbraMessagePage {
+                    folder: "2".into(),
+                    messages: page.messages,
+                    last: true,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            };
+            assert!(result.check().is_ok(), "{field} must not make a successfully read page unusable");
+        }
+    }
+}
+
+#[test]
 fn typed_deletions_without_messages_keep_their_token() {
     for group in [
         json!({"ids": "500", "cn": [{"ids": "500"}]}),

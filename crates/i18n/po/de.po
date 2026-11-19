@@ -1611,6 +1611,7 @@ msgstr "Senden/Empfangen mit Microsoft Graph übernehmen"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Apply Send/Receive with Zimbra"
 msgstr "Senden/Empfangen mit Zimbra übernehmen"
 
@@ -4494,6 +4495,7 @@ msgstr "Bilder in E-Mails automatisch herunterladen"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Download Zimbra Messages in Full"
 msgstr "Zimbra-Nachrichten vollständig herunterladen"
 
@@ -13477,6 +13479,7 @@ msgstr "Senden/Empfangen mit Microsoft Graph"
 
 #. command label
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Send/Receive with Zimbra"
 msgstr "Senden/Empfangen mit Zimbra"
 
@@ -19455,26 +19458,31 @@ msgstr "Z oben"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
 msgstr "Zimbra-Konten werden getestet: Starten Sie MailCraft mit MAILCRAFT_ZIMBRA=1, um sie auszuprobieren"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts can't be sent and received yet: that part is not built"
 msgstr "Mit Zimbra-Konten kann noch nicht gesendet und empfangen werden: Dieser Teil ist noch nicht gebaut"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra {host} · not kept in step yet: this part is not built"
 msgstr "Zimbra {host} · noch nicht abgeglichen: Dieser Teil ist noch nicht gebaut"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
 msgstr "Zimbra {host} · nicht abgeglichen: Zimbra-Konten sind ausgeschaltet (starten Sie MailCraft mit MAILCRAFT_ZIMBRA=1, um sie auszuprobieren)"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Zimbra · no usable server address"
 msgstr "Zimbra · keine verwendbare Serveradresse"
 
@@ -19597,6 +19605,7 @@ msgstr "Eine Microsoft-Anmeldung wird nur mit den eigenen Mailservern von Micros
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
 msgstr "Server, Adresse und Benutzername eines Zimbra-Kontos lassen sich nicht mehr ändern, sobald seine Mail hier ist: Entfernen Sie es und fügen Sie das andere hinzu"
 
@@ -19892,6 +19901,7 @@ msgstr "Ein Konto kann nur dadurch zu einem JMAP-Konto werden oder aufhören, ei
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
 msgstr "Ein Konto wird nur zum Zimbra-Konto oder hört auf, eins zu sein, indem es entfernt und neu hinzugefügt wird"
 
@@ -20419,6 +20429,7 @@ msgstr "kein Konto hier speichert seine Regeln auf seinem Server"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "no account is a Zimbra account"
 msgstr "kein Konto ist ein Zimbra-Konto"
 
@@ -21478,8 +21489,9 @@ msgstr "die Anfrage ist verloren gegangen"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "the result is for another account"
-msgstr ""
+msgstr "Das Ergebnis gehört zu einem anderen Konto"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -22794,6 +22806,7 @@ msgstr "{name} hat keine verwendbare JMAP-Server-Adresse"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "{name} has no Zimbra server address that can be used"
 msgstr "{name} hat keine verwendbare Zimbra-Serveradresse"
 
@@ -22870,6 +22883,7 @@ msgstr "{name} ist kein Microsoft- oder Exchange-Server-Konto"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "{name} isn't a Zimbra account"
 msgstr "{name} ist kein Zimbra-Konto"
 
@@ -24122,6 +24136,7 @@ msgstr "{why}. {n} hier darin vorgenommene Änderungen warten auf diesem Compute
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "{why}: send this message from another account, or save it as a draft"
 msgstr "{why}: Senden Sie diese Nachricht von einem anderen Konto, oder speichern Sie sie als Entwurf"
 
