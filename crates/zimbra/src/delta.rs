@@ -77,7 +77,7 @@ pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
     delta.changed = changed_ids;
     let mut deleted_ids = 0usize;
     for deleted in json::list(answer.get("deleted")) {
-        if json::bad_list(deleted.get("m")) {
+        if !deleted.is_object() || deleted.get("m").is_none_or(|m| m.is_null()) || json::bad_list(deleted.get("m")) {
             return Err(Error::Unreadable);
         }
         for m in json::list(deleted.get("m")) {
