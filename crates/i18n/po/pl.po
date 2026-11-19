@@ -23183,7 +23183,7 @@ msgstr "serwer nie potrafi sprawdzać dnia nadejścia poczty"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server can't look at whether you flagged mail"
-msgstr "serwer nie potrafi sprawdzić, czy oznaczyłeś pocztę flagą"
+msgstr "serwer nie potrafi sprawdzić, czy oflagowałeś pocztę"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
