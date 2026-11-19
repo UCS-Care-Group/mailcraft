@@ -38,6 +38,8 @@ mod private_headers_tests;
 #[cfg(test)]
 mod protected_tests;
 #[cfg(test)]
+mod reaction_tests;
+#[cfg(test)]
 mod read_receipt_tests;
 #[cfg(test)]
 mod signed_tests;

@@ -1461,6 +1461,7 @@ pub(crate) fn all_commands(app: &MailApp) -> Vec<(String, String, String, String
                     | "view.searchSuggestions"
                     | "account.preset"
                     | "mail.select"
+                    | "mail.itemFromMessage"
                     | "calendar.select"
                     | "people.select"
                     | "tasks.select"
