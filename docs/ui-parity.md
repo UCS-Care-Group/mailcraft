@@ -1,6 +1,6 @@
 # Interface parity
 
-> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-16 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 How the window compares with the target's. The look is the Craft apps' own (MailCraft's own colours,
 a cool grey window and a blue accent, one set of tokens for every pane); the *arrangement* is the one
@@ -117,8 +117,21 @@ be shown when they can't.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-16 | minor | #544: The tray’s top-left red badge follows unread Inbox mail in the owner’s own server accounts, clears after the last unread Inbox message is read or removed, and works independently of desktop alerts |
+| 2026-11-16 | minor | Move Items, Copy Items and the Move to Folder and Copy to Folder menus: the folders of every account, the one in view's first and the others' under their names, not only that account's |
+| 2026-11-16 | minor | #1544: a React button beside Forward in the reading pane opens six emoji; one click sends it to the sender as a short mail (greyed for automated mail too) |
+| 2026-11-16 | patch | #1511: changing the message list's arrangement scrolls the list to the selected message and centres it |
+| 2026-11-16 | minor | Czech as a preview language (Čeština (náhled)). |
+| 2026-11-15 | minor | Selecting an attachment opens the Attachments ribbon. Available previews keep the message header above them, and other files leave the message visible. Show Message is enabled only while a preview or its confirmation hides the body. |
+| 2026-11-15 | minor | #1357: Polish as a preview language (Polski (wersja zapoznawcza)). |
+| 2026-11-14 | minor | Hungarian preview in File › Options, with a Monday-first calendar, a 24-hour clock and year-first dates. |
+| 2026-11-14 | minor | #834: picture attachments: no switch beside the attachments any more; the choice is only the check box in File › Options, as classic Outlook has the place of the attachments |
+| 2026-11-14 | minor | People: a contact's sender image in place of their initials, in the list and on the card (#1364) |
+| 2026-11-14 | minor | #1197: spreadsheet ranges pasted into HTML mail keep their table and supported cell formatting |
 | 2026-11-14 | minor | #1385: Folder pane: a shared mailbox can be named too, in its own Account Settings (its name and colour only, kept on this computer) |
 | 2026-11-14 | minor | #1384: the dark theme in neutral greys or, chosen in File › Options › General › Dark theme, the blue-tinted greys it had before |
+| 2026-11-13 | minor | #834: File › Options: a checkbox for showing picture attachments as pictures; Junk E-mail always shows names only |
+| 2026-11-13 | minor | #1010: Georgian as a preview language: ქართული (საცდელი) in File › Options, a 24-hour clock, Monday first, day-month-year |
 | 2026-11-13 | patch | The dark theme in neutral greys in place of blue-tinted ones (normal and high contrast), the accents' washes on them |
 | 2026-11-13 | patch | #1272: Mail quick actions leave room for the floating thumb, and People and Tasks follow the scrollbar mode |
 | 2026-11-13 | minor | #1174: Module bar: a row at the foot of the pane on the left as well as the bar down the window's edge (View › Layout › Navigation Bar) |
@@ -129,11 +142,17 @@ be shown when they can't.
 | 2026-11-12 | minor | #1135: Romanian as a preview language: Română (previzualizare) in File › Options, a 24-hour clock, Monday first, day-month-year |
 | 2026-11-12 | minor | #1031: Simplified Chinese preview, with a 24-hour clock and Monday first |
 | 2026-11-12 | minor | #1017: Folder pane: an account's heading is the name given in Account Settings › Account name, its address while none is |
+| 2026-11-11 | minor | #661: File › Info has one line per Microsoft account for keeping it in step with Outlook, with Ask again; a Microsoft account's categories in the Categories window take Outlook's 25 colours, are read-only with Allow until MailCraft may change them in Outlook, and one kept on this computer only has Add to Outlook; the Backstage row no longer says there are no automatic replies |
 | 2026-11-11 | minor | #956 part 3: Report a Problem › Send report (to the MailCraft team privately, the reference or why not said, Try again), with an optional GitHub username; Open on GitHub stays |
 | 2026-11-11 | minor | #30 part 4b: File › Options › Security; Verify… on the reading pane's bar; Certificates on a contact's card |
 | 2026-11-10 | patch | #956: Report a Problem opens a GitHub issue only; Send by Email is gone |
 | 2026-11-10 | minor | #973: Composer: lists as you type (`* `, `- `, `1. `, `1) `), with a switch in File › Options › Mail |
+| 2026-11-08 | minor | #834: Reading pane and a message's window: picture attachments shown as small pictures, with a switch beside the attachments back to chips (Names or Pictures), for every message |
+| 2026-11-08 | minor | #797: the composer's From lists, under each IMAP account, the other addresses it sends from (Account Settings › Other addresses you send from); a reply, Reply All or forward is from the address the original was sent to |
 | 2026-11-08 | minor | #893: each account can have a colour (Account Settings › Colour; a new account gets one of the palette's that no other has): a dot after its name in the folder pane, and a stripe down the left edge of its mail's rows in a search of All Mailboxes |
+| 2026-11-07 | minor | #873: Module bar: a message dropped on Calendar, Tasks or People opens a new appointment, task or contact filled in from it |
+| 2026-11-05 | patch | #727: Composer: a click on another message saves the reading pane's message to Drafts and shows the one clicked; the list's keys move no hidden selection |
+| 2026-11-05 | minor | #601: Reading pane: a picture behind a table, a cell or a block is shown when it is in the message itself, never from the web |
 | 2026-11-05 | minor | #761: Add Account: an address at a domain nobody here knows says its servers are only a guess from its domain, and offers the Microsoft 365 and Exchange server choices on the same page |
 | 2026-11-05 | minor | #600: Reading pane: a message is drawn in the first of its fonts installed on this computer |
 | 2026-11-04 | minor | #785: Reading pane and a message's window: a ▾ at each attachment chip's right end opens the chip's right-click menu (Open, Save As, Save All Attachments, Remove), by a click or by Enter or Space |
