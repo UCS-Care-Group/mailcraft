@@ -63,8 +63,16 @@ pub(crate) fn number(value: Option<&Value>) -> Option<u64> {
 pub(crate) fn checked_on(value: Option<&Value>) -> Option<bool> {
     match value {
         Some(Value::Bool(b)) => Some(*b),
-        Some(Value::Number(n)) => Some(n.as_u64() == Some(1)),
-        Some(other) => text(Some(other)).map(|t| matches!(t.trim(), "1" | "true" | "TRUE")),
+        Some(Value::Number(n)) => match n.as_u64() {
+            Some(1) => Some(true),
+            Some(0) => Some(false),
+            _ => None,
+        },
+        Some(other) => match text(Some(other))?.trim() {
+            "1" | "true" | "TRUE" => Some(true),
+            "0" | "false" | "FALSE" => Some(false),
+            _ => None,
+        },
         None => Some(false),
     }
 }
@@ -151,5 +159,20 @@ pub(crate) fn ids(value: Option<&Value>, most: usize) -> Option<Vec<String>> {
     if raw.len() > MAX_LIST || raw.chars().any(char::is_control) {
         return None;
     }
-    Some(raw.split(',').filter_map(|id| own_id(Some(&Value::String(id.to_string())))).take(most).collect())
+    let mut out = Vec::new();
+    for id in raw.split(',') {
+        let value = Value::String(id.to_string());
+        // An id of another mailbox's item (`<zid>:<rid>`) is passed over; anything else is
+        // no id at all — dropping it while the page's token is kept would lose a deletion
+        // the server did send.
+        match own_id(Some(&value)) {
+            Some(id) => out.push(id),
+            None if foreign_id(Some(&value)) => {}
+            None => return None,
+        }
+        if out.len() >= most {
+            break;
+        }
+    }
+    Some(out)
 }
