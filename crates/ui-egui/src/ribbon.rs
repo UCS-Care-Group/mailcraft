@@ -1225,11 +1225,29 @@ pub(crate) struct FolderRow {
     pub(crate) heading: Option<String>,
 }
 
-/// The folders whose place (or mailbox) holds `query` (any part, ignoring case and accents), as
-/// indexes into `list`. Nothing typed (or nothing but marks) is all of them.
+impl FolderRow {
+    /// Whether a search for `wanted` (folded, never empty) finds this folder: its text holds it
+    /// as typed, or every word typed starts a word of its place or mailbox, in any order
+    /// (`Sum 2025` finds `Summer 2025`, #1655).
+    pub(crate) fn matches(&self, wanted: &str, words: &[String]) -> bool {
+        if self.fold.contains(wanted) {
+            return true;
+        }
+        if words.len() < 2 {
+            return false;
+        }
+        let have = mailcraft_model::words::words(&format!("{} {}", self.path, self.account));
+        words.iter().all(|q| have.iter().any(|h| h.starts_with(q.as_str())))
+    }
+}
+
+/// The folders whose place (or mailbox) holds `query` (any part, ignoring case and accents), or
+/// whose words each start with a word of it, as indexes into `list`. Nothing typed (or nothing but marks) is all of them.
 fn folder_matches(list: &[FolderRow], query: &str) -> Vec<usize> {
-    let wanted = mailcraft_model::words::fold(&query.chars().take(FOLDER_SEARCH_MAX).collect::<String>());
-    list.iter().enumerate().filter(|(_, row)| wanted.is_empty() || row.fold.contains(&wanted)).map(|(i, _)| i).collect()
+    let query: String = query.chars().take(FOLDER_SEARCH_MAX).collect();
+    let wanted = mailcraft_model::words::fold(&query);
+    let words = mailcraft_model::words::words(&query);
+    list.iter().enumerate().filter(|(_, row)| wanted.is_empty() || row.matches(&wanted, &words)).map(|(i, _)| i).collect()
 }
 
 /// What a folder menu offers.
