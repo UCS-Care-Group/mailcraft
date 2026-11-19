@@ -1087,6 +1087,39 @@ pub(crate) fn rules_in_outlook(mb: &Mailbox) -> Vec<(String, Id)> {
     out
 }
 
+/// [`rules_in_outlook`] of `back`, the mailbox an undo or redo from `now` puts back, as the step
+/// reaches the rules: all of them when it changes them; when it changes only what they read (the
+/// Safe or Blocked Senders letting more mail through, an account's address a rule reads:
+/// [`changed_accounts`]), the rules for that mail, as the call it undoes or redoes is asked
+/// (#566, #661).
+pub(crate) fn undo_rules_in_outlook(now: &Mailbox, back: &Mailbox) -> Vec<(String, Id)> {
+    if back.rules != now.rules {
+        return rules_in_outlook(back);
+    }
+    let changed = changed_accounts(now, back);
+    let mut out = Vec::new();
+    for r in back.rules.iter().filter(|r| runs_on_new_mail(r) && reached(&changed, r)) {
+        match one_account(r) {
+            Some(a) => rule_makes_in_outlook(back, r, Some(a), Counted::Alone, &mut out),
+            // A rule for every account's mail: what it does with the mail of the accounts the step
+            // reaches.
+            None => {
+                for a in &changed {
+                    rule_makes_in_outlook(back, r, (*a != 0).then_some(*a), Counted::Alone, &mut out);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Whether an undo or redo from `now` to `to` changes what the rules read: the Safe or Blocked
+/// Senders, so that more mail gets through to them, or an account's address a rule reads
+/// ([`changed_accounts`]).
+pub(crate) fn undo_changes_what_rules_read(now: &Mailbox, to: &Mailbox) -> bool {
+    to.rules == now.rules && !changed_accounts(now, to).is_empty()
+}
+
 /// Whether a rule runs here: when it is switched on, or, on new mail, when its server last had it
 /// on.
 fn runs_on_new_mail(r: &mailcraft_model::Rule) -> bool {
@@ -1193,16 +1226,17 @@ fn beside_makes_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String
         "category.rename" => {
             let (Ok(account), Some(from)) = (crate::cmd::category::list_account(s, params), p::str(params, "from")) else { return out };
             let Some(to) = p::str(params, "to").and_then(mailcraft_model::clean_name) else { return out };
-            // Each rule as the rename leaves it ([`Mailbox::rename_category`]).
+            // Each rule as the rename leaves it ([`Mailbox::rename_category`]). It takes and leaves
+            // alone the mail it did, so only the new name it gives is the rename's.
             for (i, whole) in mb.rules_renaming(account, from) {
                 let Some(mut r) = mb.rules.get(i).filter(|r| runs_on_new_mail(r)).cloned() else { continue };
                 r.rename_category(from.trim(), &to, whole);
                 rule_makes_in_outlook(mb, &r, one_account(&r), Counted::Alone, &mut out);
             }
+            let same = mailcraft_model::sync::same_category;
             // The list renamed has the new name then: nothing of it is new there.
-            if let Some(owner) = mb.synced_list_owner(account) {
-                out.retain(|(name, o)| *o != owner || !mailcraft_model::sync::same_category(name, &to));
-            }
+            let renamed = mb.synced_list_owner(account);
+            out.retain(|(name, o)| same(name, &to) && renamed != Some(*o));
         }
         _ => {}
     }
@@ -2446,7 +2480,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             if zone_changes(s, id, params) && (!reads_beside_said(s, 0, reads_days, "").is_empty() || makes_in_outlook(s, id, params).is_some()) =>
         {
             let zone = crate::cmd::zones::rule_zone_after(s, params).map(|z| z.id().to_string()).unwrap_or_default();
-            let beside = reads_beside_said(s, 0, reads_days, "the days mail came by the calendar's time zone");
+            let beside = match reads_beside_said(s, 0, reads_days, "the days mail came by the calendar's time zone") {
+                // Beside a rule that makes a category in Outlook alone (said after it, #661): why.
+                none if none.is_empty() => "; a rule reads the days mail came by it".to_string(),
+                beside => beside,
+            };
             // (And the second zone, which no rule reads, as it is given.)
             let second = match params.get("second") {
                 Some(Value::String(z)) if !z.trim().is_empty() => format!(", with the second time zone {}", quoted(&clip(z, 60))),
@@ -2875,6 +2913,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     .map(|new| (crate::cmd::account::servers_text(account), crate::cmd::account::servers_text(new)))
                     .filter(|(was, now)| was != now);
                 let rules = me_changes(s, id, params).map(|a| me_beside_said(s, a)).unwrap_or_default();
+                // Beside a rule that makes a category in Outlook alone (said after it, #661): why.
+                let reads = match (&new, me_changes(s, id, params)) {
+                    (Some(new), Some(_)) if rules.is_empty() && makes_in_outlook(s, id, params).is_some() => {
+                        format!("; its address changes to {}, which a rule for its mail reads (\"sent to me\", say)", quoted(&clip(&new.email, 80)))
+                    }
+                    _ => String::new(),
+                };
                 let mut text = match moved {
                     Some((was, now)) => format!("change the account {a}; its servers change from {was} to {now}"),
                     None => format!("change the account {a}"),
@@ -2889,6 +2934,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     _ => {}
                 }
                 text.push_str(&rules);
+                text.push_str(&reads);
                 return text;
             }
             // The only account leaves an empty mailbox, as at a first start (#313); the shared
