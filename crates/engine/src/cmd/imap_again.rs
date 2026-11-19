@@ -15,7 +15,7 @@
 use std::collections::HashMap;
 
 use mailcraft_model::sync::FolderDelta;
-use mailcraft_model::{AccountKind, Address, Id, Mailbox, Message, ORIGINAL_PATIENCE, ORIGINAL_TRIES};
+use mailcraft_model::{AccountKind, Address, Id, Mailbox, Message, NOT_DOWNLOADED, ORIGINAL_PATIENCE, ORIGINAL_TRIES};
 use mailcraft_time::Timestamp;
 
 /// Most messages one synchronisation request asks to have downloaded again, over all folders.
@@ -111,7 +111,7 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     // for text read wrongly before (U+FFFD), which is taken from the same download too, as it
     // would have been had it been marked for that. (One being moved into another account, asked
     // for from the copy it came from, alike.)
-    if wanted && (m.draft || !unreadable(m)) {
+    if wanted && (m.draft || (!unreadable(m) && m.not_downloaded == 0)) {
         if !m.parts_removed && read.original.is_some() {
             m.original = read.original;
         }
@@ -142,6 +142,7 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     m.kept = None;
     if m.not_downloaded > 0 {
         m.not_downloaded = 0;
+        m.remove_header(NOT_DOWNLOADED);
         m.attachments = read.attachments;
     }
     // Digitally signed or Encrypted: the bytes it came as (#30), unless a part was removed here:

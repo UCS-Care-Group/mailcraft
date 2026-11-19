@@ -213,7 +213,6 @@ impl Shown {
             attachments: c
                 .attachments
                 .iter()
-                .filter(|a| !a.inline)
                 .map(|a| (mailcraft_engine::opening::file_name(&a.name), mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64)))
                 .collect(),
             quote: c.quote.is_some(),

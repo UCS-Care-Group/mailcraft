@@ -545,6 +545,49 @@ pub(super) fn match_attachment<'a>(candidates: &[&'a Attachment], cid: &str) -> 
     None
 }
 
+/// Converts HTML into rich text while extracting and allocating inline pictures.
+fn rich_from_html_candidates(
+    html: &str,
+    candidates: &[&Attachment],
+    pictures: &mut Vec<Picture>,
+    picture_seq: &mut u32,
+    body_pictures: &std::collections::HashSet<u32>,
+) -> mailcraft_model::RichText {
+    let mut cid_map: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    let mut held: std::collections::HashSet<u32> = body_pictures.clone();
+    for p in pictures.iter() {
+        held.insert(p.id);
+    }
+
+    mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img| {
+        if let Some(&id) = cid_map.get(&img.cid) {
+            return Some(id);
+        }
+        let a = match_attachment(candidates, &img.cid)?;
+        if mailcraft_model::pictures::picture_mime(&a.data).is_none() {
+            return None;
+        }
+        if let Some(existing) = pictures.iter().find(|p| p.data.as_slice() == a.data.as_slice()) {
+            cid_map.insert(img.cid.clone(), existing.id);
+            held.insert(existing.id);
+            return Some(existing.id);
+        }
+        let name = if a.name.is_empty() { "picture.png" } else { &a.name };
+        let id = mailcraft_model::pictures::add(
+            pictures,
+            picture_seq,
+            &held,
+            name,
+            a.data.to_vec(),
+            Some(&img.alt),
+            img.width,
+        ).ok()?;
+        held.insert(id);
+        cid_map.insert(img.cid.clone(), id);
+        Some(id)
+    })
+}
+
 /// The `References` of an answer to `m`: its own, then its Message-ID. A long thread's stay
 /// bounded: the root and the latest ones.
 pub(super) fn references_of(m: &Message) -> Vec<String> {
@@ -615,33 +658,8 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         if let Some(html) = &m.body.html {
             let (html, written) = quoted_html(s, &m, html);
             let candidates: Vec<&Attachment> = written.iter().chain(m.attachments.iter()).collect();
-            let mut cid_map: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
-
-            let rich = mailcraft_mime_model::rich::from_html_with_pictures(&html, &mut |img| {
-                if let Some(&id) = cid_map.get(&img.cid) {
-                    return Some(id);
-                }
-                let a = match_attachment(&candidates, &img.cid)?;
-                if mailcraft_model::pictures::picture_mime(&a.data).is_none() {
-                    return None;
-                }
-                if let Some(existing) = pictures.iter().find(|p| p.data.as_slice() == a.data.as_slice()) {
-                    cid_map.insert(img.cid.clone(), existing.id);
-                    return Some(existing.id);
-                }
-                let name = if a.name.is_empty() { "picture.png" } else { &a.name };
-                let id = mailcraft_model::pictures::add(
-                    &mut pictures,
-                    &mut picture_seq,
-                    &std::collections::HashSet::new(),
-                    name,
-                    a.data.to_vec(),
-                    Some(&img.alt),
-                    img.width,
-                ).ok()?;
-                cid_map.insert(img.cid.clone(), id);
-                Some(id)
-            });
+            let body_pics = std::collections::HashSet::new();
+            let rich = rich_from_html_candidates(&html, &candidates, &mut pictures, &mut picture_seq, &body_pics);
             Some(rich)
         } else {
             let text = quoted(s, &m);
@@ -656,7 +674,8 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         let _ = body_rich.insert_rich(1, &qr);
     }
 
-    let held_pic_data: Vec<&[u8]> = pictures.iter().map(|p| p.data.as_slice()).collect();
+    let referenced: std::collections::HashSet<u32> = body_rich.pictures().into_iter().collect();
+    let held_pic_data: Vec<&[u8]> = pictures.iter().filter(|p| referenced.contains(&p.id)).map(|p| p.data.as_slice()).collect();
     let attachments = if mode == ComposeMode::Forward {
         m.attachments.iter().filter(|a| !held_pic_data.iter().any(|d| *d == a.data.as_slice())).cloned().collect()
     } else {
@@ -1319,42 +1338,19 @@ fn remove_quote(s: &mut Session, _: &Value) -> CmdResult {
 /// Convert the quoted previous message into editable text appended to the body.
 fn quote_as_text(s: &mut Session, _: &Value) -> CmdResult {
     let c = compose_mut(s)?;
-    if let Some(q) = c.quote.take() {
-        let mut pictures = std::mem::take(&mut c.pictures);
+    if let Some(q) = c.quote.as_ref() {
+        let mut pictures = c.pictures.clone();
         let mut picture_seq = c.picture_seq;
-        let mut cid_map = std::collections::HashMap::new();
         let candidates: Vec<&Attachment> = q.pictures.iter().collect();
-        let rich = mailcraft_mime_model::rich::from_html_with_pictures(&q.html, &mut |img| {
-            if let Some(&id) = cid_map.get(&img.cid) {
-                return Some(id);
-            }
-            let a = match_attachment(&candidates, &img.cid)?;
-            if mailcraft_model::pictures::picture_mime(&a.data).is_none() {
-                return None;
-            }
-            if let Some(existing) = pictures.iter().find(|p| p.data.as_slice() == a.data.as_slice()) {
-                cid_map.insert(img.cid.clone(), existing.id);
-                return Some(existing.id);
-            }
-            let name = if a.name.is_empty() { "picture.png" } else { &a.name };
-            let id = mailcraft_model::pictures::add(
-                &mut pictures,
-                &mut picture_seq,
-                &std::collections::HashSet::new(),
-                name,
-                a.data.to_vec(),
-                Some(&img.alt),
-                img.width,
-            ).ok()?;
-            cid_map.insert(img.cid.clone(), id);
-            Some(id)
-        });
-        c.pictures = pictures;
-        c.picture_seq = picture_seq;
+        let body_pics: std::collections::HashSet<u32> = c.body.text().pictures().into_iter().collect();
+        let rich = rich_from_html_candidates(&q.html, &candidates, &mut pictures, &mut picture_seq, &body_pics);
         let mut text = c.body.text().clone();
         let len = text.len();
-        let _ = text.insert_rich(len, &rich);
+        text.insert_rich(len, &rich).map_err(|e| fail(e.to_string()))?;
+        c.pictures = pictures;
+        c.picture_seq = picture_seq;
         c.body = RichBody::new(text);
+        c.quote = None;
         c.dirty = true;
     }
     done()
