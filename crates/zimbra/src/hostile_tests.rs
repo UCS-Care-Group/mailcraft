@@ -165,6 +165,12 @@ fn an_item_with_no_folder_is_unreadable_not_removed() {
     // A folder the item says is another mailbox's passes it over, like a foreign id does.
     let foreign = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "257", "l": "998:2", "su": "not ours"}]}}}));
     assert_eq!(items::answer(&foreign).unwrap().messages.len(), 0);
+    // A `more` that is no flag can't tell the page ends the read either: read off, the run
+    // would count what it never listed as gone.
+    let tail = answer(200, &json!({"Body": {"SearchResponse": {"more": {}, "m": [{"id": "257", "l": "2"}]}}}));
+    assert_eq!(items::answer(&tail), Err(Error::Unreadable));
+    let tail = answer(200, &json!({"Body": {"SyncResponse": {"more": {}, "token": "5"}}}));
+    assert_eq!(delta::answer(&tail, false), Err(Error::Unreadable));
 }
 
 #[test]
