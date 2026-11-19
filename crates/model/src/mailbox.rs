@@ -2930,6 +2930,8 @@ impl Mailbox {
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned, copy.rule_alert) = (None, None, 0, false);
             copy.rules_waiting = None;
+            // (Made on the other server from what is here: nothing of it waits to be fetched again.)
+            copy.stale = false;
             (copy.snooze, copy.follow_up) = (None, None);
             copy.placed.clear();
             copy.left_gmail_inbox();
@@ -2963,6 +2965,9 @@ impl Mailbox {
         // rules waiting for it to be here whole.
         copy.rule_alert = false;
         copy.rules_waiting = None;
+        // A copy has no server's version of its own to wait for: the rules read it as it is here
+        // (#566).
+        copy.stale = false;
         copy.placed.clear();
         copy.left_gmail_inbox();
         hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));

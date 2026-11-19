@@ -1522,3 +1522,19 @@ Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encod
         assert!(binned(&s), "sent {sent}: the rules don't go by the version downloaded");
     }
 }
+
+/// A Microsoft account made an IMAP one keeps no message waiting for its server's other version:
+/// IMAP never fetches it again, so the rules read it as it is here (#566).
+#[test]
+fn an_account_that_no_longer_fetches_again_keeps_nothing_waiting_for_it() {
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let id = s.mailbox.add_message(Message { folder: inbox, account, subject: "Plan".into(), stale: true, ..Default::default() }).unwrap();
+    s.run("account.edit", &json!({"id": account, "kind": "jmap", "jmap": {"url": "https://jmap.example.org/.well-known/jmap"}})).ok();
+    s.run("account.edit", &json!({"id": account, "kind": "exchange", "ews": {"url": "https://exchange.example.org/EWS/Exchange.asmx"}})).ok();
+    assert!(s.mailbox.message(id).unwrap().stale, "an account that fetches again keeps it waiting");
+    s.run("account.edit", &json!({"id": account, "kind": "imap", "incoming": {"host": "imap.example.org"}})).unwrap();
+    assert_eq!(s.mailbox.account(account).unwrap().kind, mailcraft_model::AccountKind::Imap);
+    assert!(!s.mailbox.message(id).unwrap().stale);
+}

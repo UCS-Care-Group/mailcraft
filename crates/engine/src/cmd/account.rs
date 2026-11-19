@@ -695,6 +695,16 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if readdressed || left_microsoft {
         s.mailbox.restart_category_sync(id);
     }
+    // Only a Microsoft, Exchange or JMAP account fetches again a message its server lists as
+    // another version: on any other, one waiting for that would wait for ever, and no rule would
+    // read it; it is read as it is here (#566).
+    let fetches_again = matches!(s.mailbox.account(id).map(|x| x.kind), Some(AccountKind::Microsoft | AccountKind::Exchange | AccountKind::Jmap));
+    if !fetches_again {
+        let waiting: Vec<Id> = s.mailbox.messages.values().filter(|m| m.account == id && m.stale).map(|m| m.id).collect();
+        for m in waiting {
+            s.mailbox.message_mut(m)?.stale = false;
+        }
+    }
     Ok(json!({"id": id}))
 }
 
