@@ -1,0 +1,1 @@
+- MCP has a Save Attachment tool, so an agent can get an attachment's bytes without discovering the generic `execute` command; without a path the file comes back as base64 `data`, and with `--files` it is written only inside that folder.
