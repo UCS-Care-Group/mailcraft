@@ -4379,6 +4379,13 @@ impl MailApp {
         }
         // For reading a shared mailbox (#70): it is read now, or why not is said.
         if let Some(shared) = for_shared {
+            // The owner signed in as themselves: the owner's account is signed in (#1556),
+            // whatever reading the shared mailbox then comes to.
+            if let Ok(tokens) = &answer
+                && self.session.mailbox.account(account).is_some_and(|a| !mailcraft_engine::sync_driver::signed_in_as_other(a, tokens))
+            {
+                self.note_sign_in_needed(account, false);
+            }
             // (And for reading its calendars: they are read now, or why not is said.)
             if for_shared_calendars {
                 return self.shared_calendars_signed_in(shared, account, answer);
@@ -4724,8 +4731,14 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
-                    self.logged_problems.end_run(*whose, "mail");
+                    let whose = *whose;
+                    self.logged_problems.end_run(whose, "mail");
                     (self.sync_rx, self.sync_password) = (None, None);
+                    // A piece said the sign-in was turned down before it stopped (#1556): the
+                    // password goes as at a run's end, so the next try asks again.
+                    if std::mem::take(&mut self.sync_refused) {
+                        self.forget_refused_sign_in(whose);
+                    }
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
                 }
@@ -4804,19 +4817,7 @@ impl MailApp {
             }
             let totals = std::mem::take(&mut self.sync_totals);
             if std::mem::take(&mut self.sync_refused) {
-                // Said until a sign-in goes through (#1556).
-                self.note_sign_in_needed(account, true);
-                // Forget the password so the next try asks again, and the access token so the
-                // next try renews it (the refresh token stays for that).
-                self.passwords.remove(&account);
-                if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
-                    let key = Self::secret_key("password", a);
-                    store.delete(&key);
-                    self.secret_cache.remove(&key);
-                }
-                if let Some(tokens) = self.tokens.get_mut(&account) {
-                    tokens.access.clear();
-                }
+                self.forget_refused_sign_in(account);
             } else if totals.errors.is_empty() {
                 // It went through: this password is worth remembering, if no piece said so before
                 // (a run called off may have been before it signed in, and proves nothing).
@@ -4832,6 +4833,22 @@ impl MailApp {
             self.note_pushed(account);
             self.graph_switch_after_sync(account, totals.errors.is_empty() && !totals.stopped);
             return;
+        }
+    }
+
+    /// A run of `account` was turned down: said until a sign-in goes through (#1556), and the
+    /// password is forgotten so the next try asks again, and the access token so the next try
+    /// renews it (the refresh token stays for that).
+    fn forget_refused_sign_in(&mut self, account: Id) {
+        self.note_sign_in_needed(account, true);
+        self.passwords.remove(&account);
+        if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
+            let key = Self::secret_key("password", a);
+            store.delete(&key);
+            self.secret_cache.remove(&key);
+        }
+        if let Some(tokens) = self.tokens.get_mut(&account) {
+            tokens.access.clear();
         }
     }
 

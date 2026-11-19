@@ -149,6 +149,10 @@ fn a_refusal_in_a_run_that_stops_early_still_marks_the_account() {
     settle(&mut a);
     assert!(!a.syncing());
     assert!(needed(&a, id));
+    // And the password turned down is forgotten, as at a run's end: the next try asks again.
+    assert!(!a.passwords.contains_key(&id) && !a.sync_refused);
+    a.execute("ui.sync", json!({"account": id})).unwrap();
+    assert!(asks_password(&a, id));
 }
 
 fn add_google(a: &mut MailApp) -> Id {
@@ -427,4 +431,29 @@ fn the_folder_panes_mark_signs_in_again() {
     let mark = h.state().hit.rect("accountSignInNeeded", id).expect("the folder pane's mark");
     click_at(&mut h, mark.center());
     assert!(asks_password(h.state(), id), "{:?}", h.state().dialog.as_ref().map(dialogs::Dialog::name));
+}
+
+/// Signed in again for a shared mailbox, as its owner: the owner's mark goes at once, whatever
+/// reading the shared mailbox then comes to.
+#[test]
+fn an_owner_who_signs_in_again_for_a_shared_mailbox_is_signed_in() {
+    let mut a = MailApp::new(Session::empty(), Services::default());
+    a.autosave = false;
+    a.session.driver.set_auto_sync(false);
+    let owner = a.execute("account.add", json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    a.tokens.insert(owner, tokens("ms-1"));
+    let shared = a.execute("account.addSharedMailbox", json!({"account": owner, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+    a.note_sign_in_needed(owner, true);
+    // (Graph won't read it: what the sign-in did is all that is looked at.)
+    a.services.graph = Some(Box::new(|req: GraphRequest| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(GraphResult { account: req.account.id, ..Default::default() }).unwrap();
+        rx
+    }));
+    a.services.sync = Some(Box::new(|_req: SyncRequest| mpsc::channel().1));
+    let (answers, _) = sign_in_host(&mut a);
+    answers.lock().unwrap().push_back(Ok(tokens("ms-2")));
+    a.begin_shared_sign_in(shared).unwrap();
+    settle(&mut a);
+    assert!(!needed(&a, owner));
 }
