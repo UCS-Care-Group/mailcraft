@@ -294,7 +294,16 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("compose_body").show(ui, |ui| {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 16, right: 16, top: 10, bottom: 16 }).show(ui, |ui| {
             let below = c.quote || editor::unedited_html_signature(app).is_some();
-            let room = if below { 8.0 * 19.0 } else { (ui.available_height() - 26.0).max(8.0 * 19.0) };
+            // Room to write above what comes under the text; but a signature laid out in the text
+            // already ends it, and the original follows it as it goes out: room there would be
+            // blank lines under a short signature that the message doesn't have.
+            let room = if editor::signature_in_text(app) && c.quote {
+                0.0
+            } else if below {
+                8.0 * 19.0
+            } else {
+                (ui.available_height() - 26.0).max(8.0 * 19.0)
+            };
             editor::show(app, ui, room, fresh && !focus_to);
             signature(app, ui);
             if c.quote {
