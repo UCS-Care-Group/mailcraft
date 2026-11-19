@@ -1408,8 +1408,9 @@ msgstr "Adresa bez domény."
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
+#, fuzzy
 msgid "An agent made this contact or gave it an address. Until you edit it, its addresses don't bring pictures in mail from your contacts."
-msgstr ""
+msgstr "Tento kontakt vytvořil agent nebo mu přidal adresu. Dokud kontakt neupravíte, obrázky ze zpráv z jeho adres se nebudou stahovat automaticky."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -4702,8 +4703,9 @@ msgstr "Stáhnout obrázky"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download Pictures from Contacts"
-msgstr ""
+msgstr "Stahovat obrázky od kontaktů"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4719,13 +4721,15 @@ msgstr "Stahovat obrázky v poště automaticky"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Download Pictures in Mail from Contacts"
-msgstr ""
+msgstr "Stahovat obrázky ve zprávách od kontaktů"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download from contacts"
-msgstr ""
+msgstr "Stahovat od kontaktů"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4765,8 +4769,9 @@ msgstr "Stahovat obrázky v poště automaticky"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Download pictures in mail from people in my contacts"
-msgstr ""
+msgstr "Stahovat obrázky ve zprávách od lidí v mých kontaktech"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11898,8 +11903,9 @@ msgstr "Obrázky v poště"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
-msgstr ""
+msgstr "Obrázky ve zprávách z adresy ve vašich kontaktech se stahují bez potvrzení, jen pokud adresa přesně odpovídá a poštovní server potvrdí doménu odesílatele. Samotnou adresu server potvrdit nemůže. U nevyžádané pošty to neplatí. Server každého takového odesílatele se dozví, že jste zprávu otevřeli, kdy a z jaké internetové adresy. Kontakt, který agent vytvořil nebo mu přidal adresu, se započítá až po vaší úpravě."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
@@ -11927,8 +11933,9 @@ msgstr "Obrázky z webu se budou stahovat v každé zprávě, kterou otevřete. 
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
-msgstr ""
+msgstr "Ve zprávách od lidí ve vašich kontaktech se stáhnou obrázky z internetu. Jejich servery se dozvědí, kdy jste zprávu otevřeli a z jaké internetové adresy."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -20268,8 +20275,9 @@ msgstr "K {address} nemáte přístup. Pokud byl přístup právě udělen, zkus
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
-msgstr ""
+msgstr "Obrázky od kontaktů stahujete, ale poštovní server nepotvrdil, že tato zpráva pochází od tohoto kontaktu. Proto je nejprve potřeba potvrzení."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs

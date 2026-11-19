@@ -1415,8 +1415,9 @@ msgstr "O adresă fără domeniu."
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
+#, fuzzy
 msgid "An agent made this contact or gave it an address. Until you edit it, its addresses don't bring pictures in mail from your contacts."
-msgstr ""
+msgstr "Un agent a creat acest contact sau i-a adăugat o adresă. Până când editați contactul, imaginile din mesajele de la adresele lui nu se descarcă automat."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -4711,8 +4712,9 @@ msgstr "Descărcare imagini"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download Pictures from Contacts"
-msgstr ""
+msgstr "Descarcă imaginile de la contacte"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4728,13 +4730,15 @@ msgstr "Descărcare automată imagini din e-mail"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Download Pictures in Mail from Contacts"
-msgstr ""
+msgstr "Descarcă imaginile din mesajele de la contacte"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download from contacts"
-msgstr ""
+msgstr "Descarcă de la contacte"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4774,8 +4778,9 @@ msgstr "Descărcare automată imagini din e-mail"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Download pictures in mail from people in my contacts"
-msgstr ""
+msgstr "Descarcă imaginile din mesajele de la persoanele din contactele mele"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11915,8 +11920,9 @@ msgstr "Imagini în e-mail"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
-msgstr ""
+msgstr "Imaginile din mesajele de la o adresă din contacte sunt descărcate fără confirmare doar dacă adresa coincide exact și serverul de e-mail confirmă domeniul expeditorului. Serverul nu poate confirma adresa propriu-zisă. Regula nu se aplică niciodată mesajelor nedorite. Serverul fiecărui astfel de expeditor află că ați deschis mesajul, când și de la ce adresă de internet. Un contact creat de un agent sau căruia agentul i-a adăugat o adresă este luat în considerare doar după ce îl editați."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
@@ -11944,8 +11950,9 @@ msgstr "Imaginile de pe web vor fi descărcate în fiecare mesaj pe care îl des
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
-msgstr ""
+msgstr "Imaginile de pe internet vor fi descărcate în mesajele de la persoanele din contacte. Serverele lor vor afla când ați deschis mesajul și de la ce adresă de internet."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -20293,8 +20300,9 @@ msgstr "Nu aveți acces la {address}. Dacă accesul tocmai a fost dat, încerca�
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
-msgstr ""
+msgstr "Descărcați imaginile de la contacte, dar serverul de e-mail nu a confirmat că acest mesaj vine de la acest contact. De aceea se cere mai întâi confirmarea."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs

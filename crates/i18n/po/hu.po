@@ -1418,8 +1418,9 @@ msgstr "Tartomány nélküli cím."
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
+#, fuzzy
 msgid "An agent made this contact or gave it an address. Until you edit it, its addresses don't bring pictures in mail from your contacts."
-msgstr ""
+msgstr "Ezt a névjegyet egy ügynök hozta létre vagy adott hozzá címet. Amíg nem szerkeszti a névjegyet, a címeiről érkező levelek képei nem töltődnek le automatikusan."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -4701,8 +4702,9 @@ msgstr "Képek letöltése"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download Pictures from Contacts"
-msgstr ""
+msgstr "Névjegyek képeinek letöltése"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4718,13 +4720,15 @@ msgstr "Képek automatikus letöltése a Mail-ben"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Download Pictures in Mail from Contacts"
-msgstr ""
+msgstr "Képek letöltése a névjegyekről érkező levelekben"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download from contacts"
-msgstr ""
+msgstr "Letöltés névjegyektől"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4764,8 +4768,9 @@ msgstr "Képek automatikus letöltése"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Download pictures in mail from people in my contacts"
-msgstr ""
+msgstr "Képek letöltése a névjegyzékemben szereplő személyek leveleiben"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11877,8 +11882,9 @@ msgstr "Képek az üzenetekben"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
-msgstr ""
+msgstr "A névjegyzékben szereplő címről kapott levelek képei kérdés nélkül letöltődnek, ha a cím pontosan egyezik, és a levelezőkiszolgáló igazolja a feladó tartományát. Magát a címet a kiszolgáló nem tudja igazolni. A levélszemétre ez soha nem vonatkozik. Az ilyen feladók kiszolgálója megtudja, hogy megnyitotta a levelet, mikor és milyen internetcímről. Az ügynök által létrehozott vagy címmel kiegészített névjegy csak az Ön módosítása után számít."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
@@ -11906,8 +11912,9 @@ msgstr "Az interneten található képek minden egyes megnyitott üzenetben le l
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
-msgstr ""
+msgstr "A névjegyzékben szereplő személyektől érkező levelekben az interneten tárolt képek letöltődnek. Kiszolgálóik megtudják, mikor és milyen internetcímről nyitotta meg a levelet."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -20224,8 +20231,9 @@ msgstr "Ehhez a címhez nincs hozzáférése: {address}. Ha most kapott hozzáf�
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
-msgstr ""
+msgstr "A névjegyeitől származó képeket letölti, de a levelezőkiszolgáló nem igazolta, hogy ez a levél ettől a névjegytől érkezett. Ezért a letöltés előtt megerősítést kérünk."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs

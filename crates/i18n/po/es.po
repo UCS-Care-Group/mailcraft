@@ -1416,8 +1416,9 @@ msgstr "Una dirección sin dominio."
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
+#, fuzzy
 msgid "An agent made this contact or gave it an address. Until you edit it, its addresses don't bring pictures in mail from your contacts."
-msgstr ""
+msgstr "Un agente creó este contacto o le añadió una dirección. Hasta que edite el contacto, las imágenes de los correos de esas direcciones no se descargarán automáticamente."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -4705,8 +4706,9 @@ msgstr "Descargar imágenes"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download Pictures from Contacts"
-msgstr ""
+msgstr "Descargar imágenes de contactos"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4728,8 +4730,9 @@ msgstr "Descargar imágenes en correos de contactos"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download from contacts"
-msgstr ""
+msgstr "Descargar de contactos"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -11887,8 +11890,9 @@ msgstr "Imágenes en el correo"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
-msgstr ""
+msgstr "Las imágenes de correos enviados desde una dirección de sus contactos se descargan sin preguntar solo si la dirección coincide exactamente y su servidor de correo confirma el dominio de origen. El servidor no puede confirmar la dirección en sí. Esto nunca se aplica al correo no deseado. El servidor de cada remitente sabrá que abrió el mensaje, cuándo y desde qué dirección de Internet. Si un agente creó el contacto o le añadió una dirección, el contacto solo cuenta después de que usted lo edite."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
@@ -11916,8 +11920,9 @@ msgstr "Las imágenes de la web se descargarán en cada mensaje que abra. El ser
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
-msgstr ""
+msgstr "Se descargarán imágenes de Internet en los correos de personas de sus contactos. Sus servidores sabrán cuándo abrió el mensaje y desde qué dirección de Internet."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
