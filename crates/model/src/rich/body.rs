@@ -575,8 +575,9 @@ impl RichBody {
         Ok(now)
     }
 
-    /// Move the list items the selection touches a level deeper (`by` 1) or shallower (-1); an
-    /// item at the outermost level that goes shallower leaves its list. Whether anything changed.
+    /// Move the paragraphs the selection touches a level deeper (`by` 1) or shallower (-1): a list
+    /// item in its list (one at the outermost level that goes shallower leaves its list), an
+    /// ordinary paragraph in from the left or back (#1658). Whether anything changed.
     pub fn indent(&mut self, by: i8) -> Result<bool, ModelError> {
         let sel = self.selection;
         let before = self.text.clone();

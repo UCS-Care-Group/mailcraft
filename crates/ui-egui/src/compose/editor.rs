@@ -46,9 +46,11 @@ pub const BASE_SIZE: f32 = 13.0;
 /// How far a list item's text stands in for each level, its bullet or number in the last step.
 const INDENT: f32 = 28.0;
 
-/// How far the text of a paragraph stands in: list items by their level.
+/// How far the text of a paragraph stands in: a list item by its level and its bullet or number,
+/// an ordinary paragraph by its level alone (Increase Indent, #1658).
 fn indent_of(p: &Paragraph) -> f32 {
-    if p.list == ListKind::None { 0.0 } else { INDENT * (f32::from(p.level) + 1.0) }
+    let marker = if p.list == ListKind::None { 0.0 } else { 1.0 };
+    INDENT * (f32::from(p.level) + marker)
 }
 
 /// Longest text an input method is shown composing.
