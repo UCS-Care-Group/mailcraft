@@ -23,7 +23,7 @@ fn people(list: &[(String, String)]) -> String {
 fn part(item: &Item, name: &str) -> String {
     match name {
         "subject" | "item:Subject" => item.subject.to_lowercase(),
-        "body" | "item:Body" => format!("{} {} {}", item.preview, item.body.1, String::from_utf8_lossy(&item.mime)).to_lowercase(),
+        "body" | "item:Body" | "0x1000" => format!("{} {} {}", item.preview, item.body.1, String::from_utf8_lossy(&item.mime)).to_lowercase(),
         "from" | "message:From" => people(std::slice::from_ref(&item.from)),
         "to" | "item:DisplayTo" => people(&item.to),
         "cc" | "item:DisplayCc" => people(&item.cc),
@@ -54,7 +54,13 @@ fn clause_matches(item: &Item, clause: &str) -> Result<bool, Refusal> {
 
 /// Whether `item` matches a restriction's element.
 fn restriction_matches(item: &Item, node: &Node) -> Result<bool, Refusal> {
+    // A property by its name, or by its MAPI tag (its type said with it).
     let field = |node: &Node| -> Result<String, Refusal> {
+        if let Some(tagged) = node.child_in(TYPES, "ExtendedFieldURI") {
+            Check::is(tagged, TYPES, "ExtendedFieldURI", &["PropertyTag", "PropertyType"])?;
+            Check::attribute(tagged, "PropertyType")?;
+            return Ok(Check::attribute(tagged, "PropertyTag")?.to_owned());
+        }
         let uri = node.child_in(TYPES, "FieldURI").ok_or_else(|| invalid(format!("{} names a property", node.name)))?;
         Check::is(uri, TYPES, "FieldURI", &["FieldURI"])?;
         Ok(Check::attribute(uri, "FieldURI")?.to_owned())
@@ -78,7 +84,7 @@ fn restriction_matches(item: &Item, node: &Node) -> Result<bool, Refusal> {
             let constant = node.child_in(TYPES, "Constant").ok_or_else(|| invalid("Contains needs a Constant"))?;
             Check::is(constant, TYPES, "Constant", &["Value"])?;
             let text = Check::attribute(constant, "Value")?.to_lowercase();
-            if !["item:Subject", "item:Body", "message:From", "item:DisplayTo", "item:DisplayCc"].contains(&name.as_str()) {
+            if !["item:Subject", "0x1000", "message:From", "item:DisplayTo", "item:DisplayCc"].contains(&name.as_str()) {
                 return Err(invalid(format!("{name} is no property this server searches in")));
             }
             Ok(part(item, &name).contains(&text))
@@ -93,7 +99,10 @@ fn restriction_matches(item: &Item, node: &Node) -> Result<bool, Refusal> {
                 .ok_or_else(|| invalid("IsEqualTo needs a FieldURIOrConstant with a Constant"))?;
             match name.as_str() {
                 "item:HasAttachments" => Ok(item.attachments == (value == "true")),
-                "item:Importance" => Ok(item.importance == value),
+                // (`PidTagImportance`: 0 low, 1 normal, 2 high.)
+                "0x0017" => {
+                    Ok(["Low", "Normal", "High"].iter().position(|name| *name == item.importance).map(|n| n.to_string()).as_deref() == Some(value))
+                }
                 _ => Err(invalid(format!("{name} is no property this server compares"))),
             }
         }
@@ -131,13 +140,14 @@ fn found_xml(item: &Item, extra: &[String]) -> String {
     xml
 }
 
-/// Whether a `FindItem` looks for the copy of a message by the marker it carries (an extended
-/// property compared with `IsEqualTo`), which `standin_write` answers, and is no search.
+/// Whether a `FindItem` looks for the copy of a message by the marker it carries (a named
+/// extended property compared with `IsEqualTo`), which `standin_write` answers, and is no search.
 pub(crate) fn by_marker(operation: &Node) -> bool {
     operation
         .child_in(MESSAGES, "Restriction")
         .and_then(|restriction| restriction.child_in(TYPES, "IsEqualTo"))
-        .is_some_and(|equal| equal.child_in(TYPES, "ExtendedFieldURI").is_some())
+        .and_then(|equal| equal.child_in(TYPES, "ExtendedFieldURI"))
+        .is_some_and(|property| property.attribute("PropertyName").is_some())
 }
 
 impl State {
@@ -210,7 +220,7 @@ impl State {
                     for clause in query.text.split(" AND ") {
                         all &= clause_matches(item, clause)?;
                     }
-                    all
+                    all || self.ignores_query_string
                 }
                 (None, Some(restriction)) => {
                     Check::is(restriction, MESSAGES, "Restriction", &[])?;

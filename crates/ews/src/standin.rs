@@ -229,6 +229,9 @@ pub struct State {
     /// servers'): a search that names one is a schema fault, and one with a `Restriction` is
     /// answered (#1725).
     pub lacks_query_string: bool,
+    /// The server takes a `QueryString` in `FindItem` and doesn't look at it: every item of the
+    /// folder is its answer, as Grommunio's is (#1725). A `Restriction` is answered.
+    pub ignores_query_string: bool,
     /// `FindItem` gives no more than this many items to a page, whatever is asked for; 0 for
     /// what is asked for.
     pub find_page: usize,
@@ -307,6 +310,7 @@ impl Default for State {
             versions: Vec::new(),
             directory: Vec::new(),
             lacks_query_string: false,
+            ignores_query_string: false,
             find_page: 0,
         }
     }

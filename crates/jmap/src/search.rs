@@ -5,10 +5,14 @@
 //!
 //! - **What is asked.** `Email/query` (RFC 8621 §4.4) with a filter made of the part of the owner's query a
 //!   server can be asked ([`mailcraft_model::search::Query::for_server`]): a word or a phrase is `text`,
-//!   `from:`, `to:`, `cc:`, `subject:` and `body:` are the conditions of those names, `has:attachment` is
-//!   `hasAttachment`, and `importance:high` or `low` the `Importance` header field. Several terms are joined
-//!   by `AND`. The standard has no condition for an attachment's name, so a search with `attachment:` is not
-//!   one a JMAP server is asked. A search of one mailbox says `inMailbox`; a search of the account says which
+//!   `from:`, `to:`, `cc:`, `subject:` and `body:` are the conditions of those names, and `has:attachment` is
+//!   `hasAttachment`. Several terms are joined by `AND`. The standard has no condition for an attachment's
+//!   name, so a search with `attachment:` is not one a JMAP server is asked.
+//! - **Importance is checked here.** The standard's `header` condition could say `importance:high`, but a
+//!   server need not look in every header field (Stalwart answers such a filter with nothing, #1725), and one
+//!   that doesn't would hide every match without a word. So the term isn't sent: the `Importance` header field
+//!   of what the rest of the search found is read from the `Email/get` the list is made from. A search that
+//!   is `importance:` and nothing else is not asked, since it would read the whole mailbox. A search of one mailbox says `inMailbox`; a search of the account says which
 //!   mailboxes' mail stays out of it (`inMailboxOtherThan`: Deleted Items and Junk E-mail).
 //! - **A page** is [`PAGE`] emails, newest first by arrival, from the position the last answer ended at
 //!   ([`GraphSearchResult::next`]); then `Email/get` for what a message list shows of them, as a run asks it.
@@ -39,6 +43,8 @@ use crate::{ApiRequest, CAPABILITY_MAIL, Connection, Error, Failure, HttpExchang
 pub const PAGE: usize = 50;
 /// The longest text of one condition, in characters.
 const MAX_TEXT: usize = 256;
+/// Most header fields of an email that are looked through for its importance.
+const MAX_HEADERS: usize = 500;
 /// The furthest position a search is followed to.
 const MAX_POSITION: u64 = 100_000;
 
@@ -72,18 +78,40 @@ fn condition(term: &ServerTerm) -> Option<EmailFilterCondition> {
             }
         }
         ServerTerm::HasAttachment => condition.has_attachment = Some(true),
-        ServerTerm::Importance(Importance::High) => condition.header = Some(vec!["Importance".into(), "high".into()]),
-        ServerTerm::Importance(Importance::Low) => condition.header = Some(vec!["Importance".into(), "low".into()]),
-        ServerTerm::Importance(Importance::Normal) => return None,
+        // (Checked on what comes back: [`importance_asked`].)
+        ServerTerm::Importance(_) => return None,
     }
     Some(condition)
+}
+
+/// The importance `request`'s search asks for, when it asks for one: checked on what the server found.
+fn importance_asked(request: &JmapSearchRequest) -> Option<Importance> {
+    Query::parse(&request.query).for_server().terms.iter().find_map(|term| match term {
+        ServerTerm::Importance(importance) => Some(*importance),
+        _ => None,
+    })
+}
+
+/// The importance an email's header says (its `Importance` field: `high` or `low`, anything else and none
+/// at all being normal), as `Email/get` gives the header: a list of names and values.
+fn importance_of(email: &Value) -> Importance {
+    let said = email.get("headers").and_then(Value::as_array).into_iter().flatten().take(MAX_HEADERS).find_map(|field| {
+        let name = field.get("name").and_then(Value::as_str)?;
+        name.eq_ignore_ascii_case("Importance").then(|| field.get("value").and_then(Value::as_str).unwrap_or_default().trim().to_ascii_lowercase())
+    });
+    match said.as_deref() {
+        Some("high") => Importance::High,
+        Some("low") => Importance::Low,
+        _ => Importance::Normal,
+    }
 }
 
 /// The filter for `request`'s search: where to look, and every term of the query a server can be asked.
 /// `None` when a term can't be said, or there is none.
 pub(crate) fn filter_of(request: &JmapSearchRequest) -> Option<Filter<EmailFilterCondition>> {
     let terms = Query::parse(&request.query).for_server().terms;
-    let mut conditions: Vec<EmailFilterCondition> = terms.iter().map(condition).collect::<Option<_>>()?;
+    let sent = terms.iter().filter(|term| !matches!(term, ServerTerm::Importance(_)));
+    let mut conditions: Vec<EmailFilterCondition> = sent.map(condition).collect::<Option<_>>()?;
     if conditions.is_empty() {
         return None;
     }
@@ -184,8 +212,12 @@ pub async fn search_messages<H: HttpExchange>(connection: &Connection<H>, reques
             by_id.entry(id).or_insert(email);
         }
     }
+    let importance = importance_asked(request);
     for id in &ids {
         let Some(email) = by_id.get(id) else { continue };
+        if importance.is_some_and(|asked| importance_of(email) != asked) {
+            continue;
+        }
         let Some(mailbox) = first_place(email.get("mailboxIds"), Some(&claimable)) else { continue };
         out.messages.push(whole(id, mailbox, email, Marks::of(email.get("keywords"))));
     }

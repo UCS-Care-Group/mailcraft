@@ -10,9 +10,13 @@
 //!   (Advanced Query Syntax), `from:`, `to:`, `cc:`, `subject:`, `body:`, `attachment:`,
 //!   `hasattachment:true` and `importance:high` or `low`, joined by `AND`, which the server
 //!   answers from its content index (Exchange Server 2010 and later);
-//! - a `Restriction` ([`restriction`]) for a server that has no `QueryString`: `Contains` on the
-//!   subject, the body and the people a message names, `IsEqualTo` for the two marks. It can't
-//!   say "in an attachment", so a search with `attachment:` is not one it is asked.
+//! - a `Restriction` ([`restriction`]) for a server that has no `QueryString`, or takes one and
+//!   doesn't look at it: `Contains` on the subject, the body and the people a message names,
+//!   `IsEqualTo` for the two marks. The body and the importance are named by their MAPI
+//!   properties (`PidTagBody` and `PidTagImportance` of [MS-OXPROPS], as an `ExtendedFieldURI`),
+//!   which every server has, where Grommunio knows neither `item:Body` nor the importance by
+//!   its name in a restriction (#1725). It can't say "in an attachment", so a search with
+//!   `attachment:` is not one it is asked.
 //!
 //! Every word goes as text: a word that could be read as syntax is written in quotes, with its
 //! own quotes, backslashes and control characters taken out, and a `Constant` is an attribute's
@@ -228,19 +232,44 @@ pub fn restriction(terms: &[ServerTerm]) -> Option<Element> {
     }
 }
 
-fn contains(field: &str, text: &str) -> Element {
+/// A property a restriction looks at: by its name in the schema, or by its MAPI tag and type.
+#[derive(Clone, Copy)]
+enum Property {
+    Named(&'static str),
+    Tagged(&'static str, &'static str),
+}
+
+/// The text of a message (`PidTagBody`) and its importance (`PidTagImportance`: 0 low, 1 normal,
+/// 2 high), [MS-OXPROPS].
+const BODY: Property = Property::Tagged("0x1000", "String");
+const IMPORTANCE: Property = Property::Tagged("0x0017", "Integer");
+
+impl Property {
+    fn element(self) -> Element {
+        match self {
+            Property::Named(name) => Element::new("t:FieldURI").attr("FieldURI", name),
+            Property::Tagged(tag, kind) => Element::new("t:ExtendedFieldURI").attr("PropertyTag", tag).attr("PropertyType", kind),
+        }
+    }
+}
+
+fn contains(property: Property, text: &str) -> Element {
     Element::new("t:Contains")
         .attr("ContainmentMode", "Substring")
         .attr("ContainmentComparison", "IgnoreCase")
-        .child(Element::new("t:FieldURI").attr("FieldURI", field))
+        .child(property.element())
         .child(Element::new("t:Constant").attr("Value", text))
 }
 
-fn equals(field: &str, value: &str) -> Element {
+fn equals(property: Property, value: &str) -> Element {
     Element::new("t:IsEqualTo")
-        .child(Element::new("t:FieldURI").attr("FieldURI", field))
+        .child(property.element())
         .child(Element::new("t:FieldURIOrConstant").child(Element::new("t:Constant").attr("Value", value)))
 }
+
+const FROM: Property = Property::Named("message:From");
+const TO: Property = Property::Named("item:DisplayTo");
+const CC: Property = Property::Named("item:DisplayCc");
 
 /// One term as a part of a restriction.
 fn part(term: &ServerTerm) -> Option<Element> {
@@ -253,21 +282,21 @@ fn part(term: &ServerTerm) -> Option<Element> {
             match field {
                 // Wherever a search looks by itself: the subject, the body and the people.
                 None => Some(
-                    ["item:Subject", "item:Body", "message:From", "item:DisplayTo", "item:DisplayCc"]
-                        .iter()
-                        .fold(Element::new("t:Or"), |any, name| any.child(contains(name, &text))),
+                    [Property::Named("item:Subject"), BODY, FROM, TO, CC]
+                        .into_iter()
+                        .fold(Element::new("t:Or"), |any, property| any.child(contains(property, &text))),
                 ),
-                Some(ServerField::From) => Some(contains("message:From", &text)),
-                Some(ServerField::To) => Some(contains("item:DisplayTo", &text)),
-                Some(ServerField::Cc) => Some(contains("item:DisplayCc", &text)),
-                Some(ServerField::Subject) => Some(contains("item:Subject", &text)),
-                Some(ServerField::Body) => Some(contains("item:Body", &text)),
+                Some(ServerField::From) => Some(contains(FROM, &text)),
+                Some(ServerField::To) => Some(contains(TO, &text)),
+                Some(ServerField::Cc) => Some(contains(CC, &text)),
+                Some(ServerField::Subject) => Some(contains(Property::Named("item:Subject"), &text)),
+                Some(ServerField::Body) => Some(contains(BODY, &text)),
                 Some(ServerField::Attachment) => None,
             }
         }
-        ServerTerm::HasAttachment => Some(equals("item:HasAttachments", "true")),
-        ServerTerm::Importance(Importance::High) => Some(equals("item:Importance", "High")),
-        ServerTerm::Importance(Importance::Low) => Some(equals("item:Importance", "Low")),
+        ServerTerm::HasAttachment => Some(equals(Property::Named("item:HasAttachments"), "true")),
+        ServerTerm::Importance(Importance::High) => Some(equals(IMPORTANCE, "2")),
+        ServerTerm::Importance(Importance::Low) => Some(equals(IMPORTANCE, "0")),
         ServerTerm::Importance(Importance::Normal) => None,
     }
 }

@@ -102,9 +102,16 @@ fn a_restriction_says_the_same_terms_and_none_for_what_it_cannot_say() {
     let one = restricted("subject:budget").unwrap();
     assert!(one.starts_with("<t:Contains ") && one.contains("FieldURI=\"item:Subject\"") && one.contains("Value=\"budget\""), "{one}");
     let anywhere = restricted("budget").unwrap();
-    assert!(anywhere.starts_with("<t:Or>") && anywhere.contains("item:Body") && anywhere.contains("message:From"), "{anywhere}");
+    assert!(anywhere.starts_with("<t:Or>") && anywhere.contains("message:From") && anywhere.contains("item:DisplayTo"), "{anywhere}");
+    // The body and the importance by their MAPI properties, which every server knows.
+    assert!(
+        anywhere.contains("<t:ExtendedFieldURI PropertyTag=\"0x1000\" PropertyType=\"String\"/>") && !anywhere.contains("item:Body"),
+        "{anywhere}"
+    );
     let both = restricted("from:zoe has:attachment importance:low").unwrap();
-    assert!(both.starts_with("<t:And>") && both.contains("item:HasAttachments") && both.contains("Value=\"Low\""), "{both}");
+    assert!(both.starts_with("<t:And>") && both.contains("item:HasAttachments"), "{both}");
+    assert!(both.contains("PropertyTag=\"0x0017\" PropertyType=\"Integer\"/><t:FieldURIOrConstant><t:Constant Value=\"0\"/>"), "{both}");
+    assert!(restricted("importance:high").unwrap().contains("Value=\"2\""));
     assert_eq!(restricted("attachment:report"), None);
     assert_eq!(restricted("is:unread"), None);
 }
@@ -122,9 +129,11 @@ fn every_folder_named_is_searched_and_what_it_finds_comes_newest_first_with_its_
     let notes = &result.messages[1];
     assert_eq!((notes.from.name.as_str(), notes.preview.as_str(), notes.server.read), ("Zoe Park", "Hello about Budget review notes.", false));
     assert!(!notes.server.id.is_empty() && notes.received > 0 && !notes.message_id.is_empty());
-    // One request a folder, each a query string, newest first.
+    // One request a folder, each a query string, newest first; and one more, once, that asks
+    // the first folder with a match for a word nobody wrote.
     let state = standin.state();
-    assert_eq!(state.requests.len(), 2);
+    assert_eq!(state.requests.len(), 3);
+    assert!(state.requests[1].body.contains("<m:QueryString>zq") && state.requests[1].body.contains("MaxEntriesReturned=\"1\""));
     let body = &state.requests[0].body;
     assert!(body.contains("<m:QueryString>budget</m:QueryString>") && body.contains("Order=\"Descending\""), "{body}");
     assert!(body.contains("Traversal=\"Shallow\"") && !body.contains("m:Restriction"), "{body}");
@@ -154,8 +163,8 @@ fn a_search_goes_on_from_where_the_last_answer_ended() {
     let folders = [inbox.as_str(), projects.as_str()];
     // A page a request, forty requests an answer: the Inbox isn't through, and the answer says where it is.
     let first = search(&standin, &request(&folders, "budget", ""));
-    assert_eq!(first.messages.len(), crate::search::MAX_ASKS);
-    assert!(first.errors.is_empty() && first.next.ends_with(&inbox), "{first:?}");
+    assert_eq!(first.messages.len(), crate::search::MAX_ASKS - 1, "one of the requests was the check");
+    assert!(first.errors.is_empty() && first.next.ends_with(&inbox) && first.next.contains(" v "), "{first:?}");
     assert_eq!(standin.state().requests.len(), crate::search::MAX_ASKS);
     let second = search(&standin, &request(&folders, "budget", &first.next));
     assert!(second.next.is_empty() && second.errors.is_empty(), "{second:?}");
@@ -187,7 +196,7 @@ fn a_full_page_ends_the_answer_and_the_rest_waits_for_the_next() {
     let folders = [inbox.as_str(), projects.as_str()];
     let first = search(&standin, &request(&folders, "budget", ""));
     assert_eq!(first.messages.len(), crate::search::PAGE);
-    assert_eq!(standin.state().requests.len(), 1, "a full page isn't followed by another folder");
+    assert_eq!(standin.state().requests.len(), 2, "a full page (and its check) isn't followed by another folder");
     let second = search(&standin, &request(&folders, "budget", &first.next));
     assert_eq!(second.messages.len(), 23);
     assert!(second.next.is_empty());
@@ -233,7 +242,7 @@ fn a_server_without_the_preview_is_asked_again_without_it() {
     assert_eq!(found.messages.len(), 2);
     assert!(found.messages.iter().all(|m| m.preview.is_empty()));
     let state = standin.state();
-    assert_eq!(state.requests.len(), 2);
+    assert_eq!(state.requests.len(), 3);
     assert!(state.requests[0].body.contains("item:Preview") && !state.requests[1].body.contains("item:Preview"));
     assert!(state.requests[1].body.contains("m:QueryString"), "still a query string");
 }
@@ -245,8 +254,9 @@ fn a_folder_that_is_gone_is_passed_over_and_the_others_are_still_asked() {
     let found = search(&standin, &request(&[gone, "bad\u{1}id", &projects, &inbox, &inbox], "budget", ""));
     assert!(found.errors.is_empty() && found.next.is_empty(), "{found:?}");
     assert_eq!(found.messages.len(), 3);
-    // (An id that is none was not sent, and a folder named twice was asked once.)
-    assert_eq!(standin.state().requests.len(), 3);
+    // (An id that is none was not sent, and a folder named twice was asked once; the fourth
+    // request is the check.)
+    assert_eq!(standin.state().requests.len(), 4);
 }
 
 #[test]
@@ -346,4 +356,54 @@ fn an_exchange_2010_is_searched_in_its_own_version_without_the_preview() {
     let state = standin.state();
     let last = state.requests.last().unwrap();
     assert!(last.body.contains("m:QueryString") && !last.body.contains("item:Preview"), "{}", last.body);
+}
+
+#[test]
+fn a_server_that_takes_a_query_string_and_ignores_it_is_found_out_and_asked_with_a_restriction() {
+    let (standin, inbox, projects) = mailbox();
+    standin.state().ignores_query_string = true;
+    let folders = [inbox.as_str(), projects.as_str()];
+    let found = search(&standin, &request(&folders, "budget", ""));
+    assert!(found.errors.is_empty() && found.next.is_empty(), "{found:?}");
+    // Not the Inbox's every message: the ones that say the word.
+    assert_eq!(subjects(&found), ["The budget of the old project", "Budget review notes", "Budget for the spring"]);
+    {
+        let state = standin.state();
+        // The query string, the check that gives it away, and restrictions from there on.
+        assert!(state.requests[0].body.contains("<m:QueryString>budget"));
+        assert!(state.requests[1].body.contains("<m:QueryString>zq"));
+        assert_eq!(state.requests.len(), 4);
+        assert!(state.requests[2..].iter().all(|asked| asked.body.contains("m:Restriction") && !asked.body.contains("m:QueryString")));
+    }
+    // A search that matches nothing finds nothing, where the server alone would give everything.
+    assert!(search(&standin, &request(&folders, "lunch", "")).messages.len() == 1);
+    assert!(search(&standin, &request(&folders, "zeppelin", "")).messages.is_empty());
+    // Further pages keep to the restriction without another check.
+    standin.state().find_page = 1;
+    let first = search(&standin, &request(&folders, "subject:budget", ""));
+    assert!(first.next.is_empty() && first.messages.len() == 3, "{first:?}");
+    // What a restriction can't say is said, not answered with every message.
+    let refused = search(&standin, &request(&folders, "attachment:report", ""));
+    assert!(refused.messages.is_empty() && refused.errors == ["This server can't be asked this search."], "{refused:?}");
+}
+
+#[test]
+fn a_restriction_finds_by_the_body_and_the_importance() {
+    let (standin, inbox, _) = mailbox();
+    {
+        let mut state = standin.state();
+        state.lacks_query_string = true;
+        let urgent = state.deliver("inbox", "Sign-off", false);
+        state.touch(&urgent, crate::standin_mail::ItemChange::Update, |item| item.importance = "High".into());
+    }
+    let high = search(&standin, &request(&[&inbox], "importance:high", ""));
+    assert_eq!(
+        subjects(&high),
+        ["Sign-off"],
+        "{high:?} {:?}",
+        standin.state().requests.iter().map(|r| (r.code.clone(), r.body.len())).collect::<Vec<_>>()
+    );
+    assert!(search(&standin, &request(&[&inbox], "importance:low", "")).messages.is_empty());
+    // (The stand-in's messages say "Hello about <subject>." in their text.)
+    assert_eq!(search(&standin, &request(&[&inbox], "body:\"hello about lunch\"", "")).messages.len(), 1);
 }

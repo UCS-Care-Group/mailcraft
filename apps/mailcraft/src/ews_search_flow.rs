@@ -73,7 +73,10 @@ fn mail_that_is_only_on_the_server_is_found_there_opened_and_fetched_whole() {
         assert!(state.writes.is_empty(), "{:?}", state.writes);
         let finds = state.requests.iter().filter(|r| r.operation == "FindItem").count();
         assert!(finds >= 1 && state.requests.iter().all(|r| r.operation == "FindItem" || r.body.is_empty()), "{:?}", state.requests);
-        assert!(state.requests.iter().filter(|r| r.operation == "FindItem").all(|r| r.body.contains("<m:QueryString>budget</m:QueryString>")));
+        // (Each a query string: the search, and once the word nobody wrote that checks the server looks at it.)
+        let asked: Vec<&str> = state.requests.iter().filter(|r| r.operation == "FindItem").map(|r| r.body.as_str()).collect();
+        assert!(asked.iter().all(|body| body.contains("<m:QueryString>budget</m:QueryString>") || body.contains("<m:QueryString>zq")));
+        assert!(asked.first().is_some_and(|body| body.contains("<m:QueryString>budget</m:QueryString>")));
     }
 
     // Opened: in the Inbox, and fetched whole by the host as any message not here yet.

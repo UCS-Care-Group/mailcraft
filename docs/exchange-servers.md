@@ -32,6 +32,7 @@ against this server.
 | Send to other local users | Delivered once | To and Bcc recipients each got it once |
 | Bcc | Does not leak | The To recipient's copy has no Bcc, and the Bcc recipient got the message |
 | Copy in Sent Items | Works (fixed) | Sending the saved draft with `SendItem` delivered it but filed no copy in Sent Items and left the draft in Drafts. Every send, a saved draft too, now goes as one `CreateItem` with `SendAndSaveCopy` and the message's own content, and the draft is then taken away with a soft delete, only after a clear success. Tried again after the fix: delivered once to the To and Bcc recipients, one copy in Sent Items, no draft left. **Not yet checked against Exchange Server itself**, which filed the copy for `SendItem` and is expected to do the same here |
+| Search on the server (#1725) | Works, with a restriction | Tried again on Gromox 3.13.619 (November 2026), protocol and runner only, not the window. The server takes a `QueryString` in `FindItem` and doesn't look at it: every message of the folder comes back, whatever was asked. MailCraft finds that out with one request (the first time a query string finds anything, the same folder is asked for a random word no message holds) and asks with a `Restriction` from there on. In a restriction the server doesn't know `item:Body`, and refuses `item:Importance` compared with `High`; both are asked by their MAPI properties (`PidTagBody`, `PidTagImportance`), which it answers. Seen right for a word, a phrase, `subject:`, `body:`, `from:`, `to:`, `cc:`, `has:attachment`, `importance:high`, one folder, Deleted Items left out of a search of the mailbox, 50 to a page, and a wrong password said in words. `attachment:` can't be said in a restriction and is refused in words |
 | Undo of a move | Works | The message went back to where it was, on the server too |
 
 ### How sending keeps to "never twice"
@@ -94,9 +95,7 @@ flag isn't read from the server.
 ## Not yet tried
 
 Exchange Server Subscription Edition, SmarterMail, changes sent up and sending against Exchange Server itself, NTLM against a real server, Kerberos
-and modern sign-in (not built), a shared mailbox, Autodiscover from an address, and a search on the server (#1725: More results on the
-server asks `FindItem` with a `QueryString`, folder by folder, and with a `Restriction` on the subject, the body and the people when
-a server won't take the query string; the tests use a stand-in held to the schema).
+and modern sign-in (not built), a shared mailbox, Autodiscover from an address, and a search on the server against Exchange Server itself (#1725: seen on Grommunio only, above).
 
 ## Revision history
 

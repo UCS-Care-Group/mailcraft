@@ -94,6 +94,7 @@ fn the_filter_says_where_to_look_and_each_term_as_a_condition() {
         json!({"operator": "AND", "conditions": [{"inMailboxOtherThan": [ids.trash]}, {"text": "budget"}]})
     );
     let one = JmapSearchRequest { folder: ids.inbox.clone(), ..request(&ids, "from:zoe subject:\"spring plan\" has:attachment importance:high", "") };
+    // (The importance is not sent: it is checked on what comes back.)
     assert_eq!(
         filter_json(&one).unwrap(),
         json!({"operator": "AND", "conditions": [
@@ -101,7 +102,6 @@ fn the_filter_says_where_to_look_and_each_term_as_a_condition() {
             {"from": "zoe"},
             {"subject": "\"spring plan\""},
             {"hasAttachment": true},
-            {"header": ["Importance", "high"]},
         ]})
     );
     // Nothing to leave out, one term: a condition by itself.
@@ -110,6 +110,8 @@ fn the_filter_says_where_to_look_and_each_term_as_a_condition() {
     // What the standard has no condition for, and what a server isn't asked at all.
     assert_eq!(filter_json(&request(&ids, "attachment:report", "")), None);
     assert_eq!(filter_json(&request(&ids, "is:unread", "")), None);
+    // An importance and nothing else would read the whole mailbox: not asked.
+    assert_eq!(filter_json(&request(&ids, "importance:high", "")), None);
     // A mailbox that is no id is no place to search.
     assert_eq!(filter_json(&JmapSearchRequest { folder: "no id".into(), ..request(&ids, "budget", "") }), None);
 }
@@ -346,4 +348,15 @@ proptest! {
             prop_assert!(result.next.is_empty() || result.next.parse::<u64>().is_ok());
         }
     }
+}
+
+#[test]
+fn an_importance_is_not_sent_and_is_checked_on_what_the_server_found() {
+    let (stand_in, ids) = world();
+    let urgent = b"From: Zoe Park <zoe@example.org>\r\nSubject: Budget sign-off\r\nimportance: High\r\nMessage-ID: <u@example.org>\r\n\r\nToday.\r\n";
+    stand_in.with(|d| d.deliver(&ids.inbox, urgent, &[], &at(1)));
+    deliver(&stand_in, &ids.inbox, "Budget for the spring", 2);
+    assert_eq!(subjects(&search(&stand_in, &request(&ids, "budget importance:high", ""))), ["Budget sign-off"]);
+    assert!(search(&stand_in, &request(&ids, "budget importance:low", "")).messages.is_empty());
+    assert_eq!(search(&stand_in, &request(&ids, "budget", "")).messages.len(), 2);
 }
