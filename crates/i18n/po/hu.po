@@ -25,7 +25,7 @@ msgid "\"{address}\" isn't an address mail can be sent to"
 msgstr "A(z) „{address}” címre nem lehet levelet küldeni."
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/account_setup.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "\"{address}\" isn't an e-mail address"
 msgstr "A(z) „{address}” érvénytelen e-mail-cím."
@@ -788,8 +788,8 @@ msgstr ""
 "Fiók-\n"
 "beállítások"
 
-#. command label, interface
-#: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
+#. command label, interface, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Account Settings"
 msgstr "Fiókbeállítások"
@@ -799,6 +799,12 @@ msgstr "Fiókbeállítások"
 #, fuzzy
 msgid "Account name"
 msgstr "Fiók neve"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Account's signature"
+msgstr "A fiók aláírása"
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
@@ -973,6 +979,12 @@ msgid "Add account"
 msgstr "Fiók hozzáadása"
 
 #. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Add address"
+msgstr "Cím hozzáadása"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Add an account"
@@ -1091,7 +1103,7 @@ msgid "Added to Contacts"
 msgstr "Hozzáadva a névjegyekhez"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "Cím"
@@ -1133,6 +1145,12 @@ msgstr "Cím:"
 #, fuzzy
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
 msgstr "Címek külön; (hagyja üresen a válaszokat, hogy jöjjön Önhöz)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Addresses your mail server lets this account send from with the same sign-in, such as aliases. Replies are sent from the address a message came to."
+msgstr "Azok a címek, amelyekről a levelezőszerver engedi ennek a fióknak a küldést ugyanazzal a bejelentkezéssel, például az álnevek. A válaszok arról a címről mennek, amelyre az üzenet érkezett."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -1409,6 +1427,12 @@ msgstr "X.509 tanúsítvány (.cer, .pem) vagy OpenPGP nyilvános kulcs (.asc) a
 #, fuzzy
 msgid "An account couldn't be sent and received."
 msgstr "Az egyik fiók szinkronizálása nem sikerült."
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "An address this account may send from"
+msgstr "Egy cím, amelyről ez a fiók küldhet"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -5517,7 +5541,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Ketten még mindig itt vannak, szóval nincs mit összehozni."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Fájl"
@@ -9491,7 +9515,7 @@ msgid "Name (A–Z)"
 msgstr "Név (A–Z)"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Name (optional)"
 msgstr "Név (nem kötelező)"
@@ -11502,6 +11526,12 @@ msgstr "Egyéb naptárak"
 msgid "Other accounts and On this computer"
 msgstr "Más fiókok és a helyi fiók"
 
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Other addresses you send from"
+msgstr "További címek, amelyekről küld"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
@@ -12771,6 +12801,12 @@ msgstr "Eltávolítja ezt a fiókot?"
 #, fuzzy
 msgid "Remove this action"
 msgstr "Művelet eltávolítása"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Remove this address"
+msgstr "Cím eltávolítása"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14245,6 +14281,12 @@ msgstr "Küldés/fogadás JMAP-pal"
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Microsoft Graph- pel történő üzenetküldés/ fogadás"
 
+#. command label
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "Sender Addresses"
+msgstr "Feladócímek"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
 #, fuzzy
@@ -14408,6 +14450,12 @@ msgstr "A kiszolgáló beállításai"
 #, fuzzy
 msgid "Server: {address}"
 msgstr "Kiszolgáló: {address}"
+
+#. command label
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "Set Sender Addresses"
+msgstr "Feladócímek beállítása"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -17038,6 +17086,12 @@ msgstr "Valakinek a neve, akit ismersz."
 #, fuzzy
 msgid "The name people you write to will see"
 msgstr "A név, amelyet az emberek látnak, akiknek írsz"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "The name recipients see; your own when empty"
+msgstr "A címzettek által látott név; üresen a saját neve"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -20649,6 +20703,12 @@ msgstr "a .pst fájlt csak a számítógépen található mappába importálják
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
 msgstr "a JMAP-fiók szervere és címe nem módosítható, ha a posta itt van: távolítsa el és adja hozzá a másikat"
 
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "a Microsoft or Exchange account sends from other addresses only as its server allows, which MailCraft doesn't ask for yet"
+msgstr "A Microsoft- vagy Exchange-fiók csak annyi más címről küldhet, amennyit a szervere megenged, amit a MailCraft még nem kérdez le"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
@@ -20817,6 +20877,12 @@ msgstr "a fiók szabálya nem helyezhető át másik fiók kiszolgálójára"
 msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
 msgstr "A szerverre váró szabály azok után megy, amit ott kell megtenni; a szerver elmozdítható, ha már ott van"
 
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "a sender address has no e-mail address"
+msgstr "egy feladócímhez nem tartozik e-mail-cím"
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -20948,6 +21014,12 @@ msgstr "az Exchange-fióktípusra vagy más típusra a fiók eltávolításával
 #, fuzzy
 msgid "an account can't be put before itself"
 msgstr "a fiók nem helyezhető saját maga elé"
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "an account has {max} sender addresses at most"
+msgstr "egy fióknak legfeljebb {max} feladócíme lehet"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21528,7 +21600,7 @@ msgid "no account with id {account}"
 msgstr "nincs ilyen azonosítójú fiók: {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nincs ilyen azonosítójú fiók: {id}"
@@ -21683,8 +21755,8 @@ msgstr "nincs szabad aláírás"
 msgid "no signature named \"{from}\""
 msgstr "nincs \"{from}\" nevű aláírás."
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/signature.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "no signature named \"{name}\""
 msgstr "nincs \"{name}\" nevű aláírás."
@@ -21849,6 +21921,12 @@ msgstr "A következő rész tartalmából:"
 #, fuzzy
 msgid "only a message you sent can be sent again"
 msgstr "Csak egy üzenet küldhető újra"
+
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "only an IMAP account sends from other addresses"
+msgstr "csak az IMAP-fiók küldhet más címekről"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
@@ -23633,6 +23711,12 @@ msgid "{address} is already set up"
 msgstr "{address} már készen áll."
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{address} is no longer one of this account's sender addresses: choose another From"
+msgstr "{address} már nem ennek a fióknak a feladócíme: válasszon másik feladót"
+
+#. what a command says
 #: crates/engine/src/cmd/junk.rs
 #, fuzzy
 msgid "{address} is one of your own addresses: your own mail isn't blocked"
@@ -23649,6 +23733,12 @@ msgstr "{address} be van állítva."
 #, fuzzy
 msgid "{address} isn't a shared mailbox open here."
 msgstr "A(z) {address} nincs megnyitva megosztott postafiókként."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{address} isn't one of this account's sender addresses (add it in Account Settings)"
+msgstr "{address} nem ennek a fióknak a feladócíme (adja hozzá a Fiókbeállításokban)"
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
