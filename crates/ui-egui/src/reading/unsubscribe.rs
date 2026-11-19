@@ -49,6 +49,25 @@ pub(crate) struct Unsubscribing {
     waiting: VecDeque<(u64, String)>,
     /// What came of unsubscribing, by message.
     said: HashMap<u64, Outcome>,
+    /// The right-click menu's answer ([`any_offered`]): for which mailbox revision and selection.
+    menu: Option<(u64, Vec<u64>, bool)>,
+}
+
+/// Whether any of `picked` can be unsubscribed from, with the engine's own check (vouched,
+/// outside Junk, no sender warning), as the bar asks it: the right-click menu's question. The
+/// menu is drawn each frame, so the answer is kept for as long as the mailbox and the selection
+/// are the same.
+pub(crate) fn any_offered(app: &mut MailApp, picked: &[u64]) -> bool {
+    let rev = app.session.rev();
+    if let Some((seen, ids, yes)) = &app.unsubscribing.menu
+        && *seen == rev
+        && ids == picked
+    {
+        return *yes;
+    }
+    let yes = picked.iter().take(mailcraft_engine::cmd::unsubscribe::MAX_MANY).any(|i| app.session.unsubscribe_way(*i).is_ok());
+    app.unsubscribing.menu = Some((rev, picked.to_vec(), yes));
+    yes
 }
 
 impl Unsubscribing {

@@ -51,6 +51,9 @@ mod rule;
 pub mod search;
 pub mod send_warnings;
 pub mod sender_warnings;
+pub mod senders;
+#[cfg(test)]
+mod senders_tests;
 pub mod shown;
 pub mod signature;
 pub mod subscription;
@@ -98,6 +101,7 @@ pub use outlook_colors::preset_category_color;
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
 pub use rule::{Action, Condition, Keep, MAX_RULE_GONE, Rule, RuleGone, ServerRule};
+pub use senders::{MAX_SENDER_ADDRESSES, SenderAddress, SenderProblem, clean_sender_addresses};
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
 pub use thread_index::{ThreadIndex, ThreadKey};
@@ -178,6 +182,8 @@ mod account_color_tests;
 mod account_order_tests;
 #[cfg(test)]
 mod auth_results_tests;
+#[cfg(test)]
+mod auth_summary_tests;
 #[cfg(test)]
 mod auto_replies_tests;
 #[cfg(test)]

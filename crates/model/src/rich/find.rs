@@ -4,7 +4,7 @@
 //! message being written).
 //!
 //! What is looked for is plain text on one line: a place never runs over a paragraph break or a
-//! picture. Letter case counts only when asked; otherwise each character is compared in lower
+//! picture or table. Letter case counts only when asked; otherwise each character is compared in lower
 //! case (a character whose lower case is more than one character is compared as it is), so a
 //! place is always as long as what was looked for. Both texts are capped at [`MAX_FIND`]
 //! characters, and the work is linear in the document's length.
@@ -27,7 +27,7 @@ fn fold(c: char) -> char {
     }
 }
 
-/// Text as it is looked for: one line, no control characters but the tab, no picture.
+/// Text as it is looked for: one line, no control characters but the tab, no embedded object.
 fn usable(needle: &str) -> bool {
     !needle.is_empty() && needle.chars().count() <= MAX_FIND && clean_line(needle) == needle
 }
@@ -35,7 +35,7 @@ fn usable(needle: &str) -> bool {
 impl RichText {
     /// Where `needle` stands within `[from, to)`: each place wholly inside it, in order, apart.
     /// Nothing for an empty text, one longer than [`MAX_FIND`], or one with a line break, a
-    /// control character (but the tab) or a picture in it.
+    /// control character (but the tab) or an embedded object in it.
     pub fn find(&self, needle: &str, match_case: bool, from: usize, to: usize) -> Vec<Place> {
         if !usable(needle) || from >= to {
             return Vec::new();
@@ -78,7 +78,7 @@ impl RichText {
 
     /// Put `with` (cleaned to one line) in place of each of `places`, each in the look of its
     /// place's first character, a link and all. The places are in order, apart, not empty, and
-    /// each within one paragraph and holding no picture, as [`RichText::find`] gives them;
+    /// each within one paragraph and holding no embedded object, as [`RichText::find`] gives them;
     /// anything else is an error and changes nothing.
     pub fn replace_places(&mut self, places: &[Place], with: &str) -> Result<(), ModelError> {
         let with = clean_line(with);
@@ -88,7 +88,7 @@ impl RichText {
             return Err(bad());
         }
         let taken: usize = places.iter().map(|(a, b)| b - a).sum();
-        let len = self.len().saturating_sub(taken).saturating_add(with_chars.saturating_mul(places.len()));
+        let len = self.storage_len().saturating_sub(taken).saturating_add(with_chars.saturating_mul(places.len()));
         if len > MAX_CHARS {
             return Err(ModelError::Invalid("the message can't hold that much text".into()));
         }
@@ -118,13 +118,13 @@ impl RichText {
 }
 
 /// `p` with `with` in place of each of `places` (offsets in it, in order, apart); `None` when a
-/// place holds a picture.
+/// place holds a picture or table.
 fn replaced(p: &Paragraph, places: &[Place], with: &str) -> Option<Paragraph> {
     let mut runs: Vec<Run> = Vec::with_capacity(p.runs.len() + places.len() * 2);
     let mut places = places.iter().peekable();
     let mut seen = 0usize;
     for run in &p.runs {
-        if run.picture.is_some() {
+        if run.picture.is_some() || run.table.is_some() {
             if places.peek().is_some_and(|(a, b)| seen >= *a && seen < *b) {
                 return None;
             }

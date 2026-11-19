@@ -190,6 +190,13 @@ pub struct Windows {
     /// Whether places are in points, as the host lists the monitors ([`window_places::POINTS`]
     /// when `None`; a test sets it to try both).
     pub(crate) points: Option<bool>,
+    /// The window of the system that had the keyboard at the last frame (none: the main window,
+    /// or another program). A file dialog remembers it ([`crate::files`]).
+    pub(crate) focused: Option<u64>,
+    /// The window a file dialog was asked from, to come forward again now the dialog is answered:
+    /// the dialog is parented to the main window, which the system brings forward when it closes
+    /// (#1282).
+    pub(crate) refocus: Option<u64>,
 }
 
 /// Where a message being written that a command opens goes (#286).
@@ -893,11 +900,34 @@ pub(crate) fn viewports(app: &MailApp) -> Vec<egui::ViewportId> {
     app.windows.open.iter().map(|w| viewport_of(w.id)).collect()
 }
 
+/// Remember which window of the system has the keyboard, and give it back to the window a file
+/// dialog was asked from (#1282): the dialog's parent is the main window, so the system brings that
+/// one forward when the dialog closes, whichever window asked.
+fn note_focus(app: &mut MailApp, ctx: &egui::Context) {
+    if ctx.embed_viewports() {
+        app.windows.refocus = None;
+        return;
+    }
+    if let Some(id) = app.windows.refocus.take()
+        && let Some(cmd) = refocus_command(app, id)
+    {
+        ctx.send_viewport_cmd_to(cmd.0, cmd.1);
+    }
+    let focused = |v: egui::ViewportId| ctx.input(|i| i.raw.viewports.get(&v).and_then(|info| info.focused)).unwrap_or(false);
+    app.windows.focused = app.windows.open.iter().find(|w| focused(viewport_of(w.id))).map(|w| w.id);
+}
+
+/// The command that brings window `id` forward, when it is still open.
+pub(crate) fn refocus_command(app: &MailApp, id: u64) -> Option<(egui::ViewportId, egui::ViewportCommand)> {
+    app.windows.open.iter().any(|w| w.id == id).then(|| (viewport_of(id), egui::ViewportCommand::Focus))
+}
+
 /// Show the windows that are open, and close the ones whose subject is gone. Once a frame,
 /// before the main window's shortcuts: where the windows are inside the main one, the keys of
 /// the active one (Escape closes it) are not also the main window's.
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     crate::reading::tick(app, ctx);
+    note_focus(app, ctx);
     // The message being written in the window that has the keyboard is the current one (#286).
     compose_window::follow_focus(app, ctx);
     if app.windows.open.is_empty() {
@@ -1302,13 +1332,18 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
         What::Message { seen, .. } => {
             let m = seen.clone();
             let mut close = false;
-            egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
-                .resizable(false)
-                .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
-                .show(ui, |ui| close = actions(app, ui, &m, own_keys));
             // What the message draws (its attachments' chips and `▾`, #785) is recorded as in this
             // window, apart from the same message in the reading pane.
             let scope = app.hit.scope(id);
+            crate::attachment_preview::follow_message(app, id, Some(m.id));
+            if crate::ribbon::show_attachment_window(app, ui, id, m.id) {
+                close = actions(app, ui, &m, own_keys, false);
+            } else {
+                egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
+                    .resizable(false)
+                    .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
+                    .show(ui, |ui| close = actions(app, ui, &m, own_keys, true));
+            }
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
                 crate::reading::show_message(app, ui, &m, Place::Window(id));
             });
@@ -1363,9 +1398,9 @@ enum Action {
     Read,
 }
 
-/// The row of actions on a message in a window of its own. `true` when the window is to close:
-/// the message was deleted from it.
-fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool) -> bool {
+/// A message window's action keys and, when visible, its toolbar. Returns `true` if the action
+/// deleted the message and the window should close.
+fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool, toolbar: bool) -> bool {
     let flagged = m.flag == FlagStatus::Flagged;
     let mut row: Vec<(&str, &str, &'static str, Action, &'static str)> =
         crate::reading::ACTIONS.iter().map(|(icon, label, command)| (*icon, *label, *command, Action::Run(command), hit_kind(command))).collect();
@@ -1390,23 +1425,25 @@ fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool) -> 
             }
         }
     }
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
-        for (n, (icon, label, command, action, kind)) in row.iter().enumerate() {
-            if n == 3 || n == 4 {
-                ui.add_space(8.0);
+    if toolbar {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
+            for (n, (icon, label, command, action, kind)) in row.iter().enumerate() {
+                if n == 3 || n == 4 {
+                    ui.add_space(8.0);
+                }
+                let key = crate::widgets::shortcut_text(app, command);
+                let tip = if key.is_empty() { tl!(label).to_string() } else { format!("{} ({key})", tl!(label)) };
+                let button = crate::widgets::icon_text_button(ui, icon, tl!(label), true).on_hover_text(tip);
+                if !own_keys {
+                    app.hit.add(kind, m.id, button.rect);
+                }
+                if button.clicked() {
+                    asked = Some(*action);
+                }
             }
-            let key = crate::widgets::shortcut_text(app, command);
-            let tip = if key.is_empty() { tl!(label).to_string() } else { format!("{} ({key})", tl!(label)) };
-            let button = crate::widgets::icon_text_button(ui, icon, tl!(label), true).on_hover_text(tip);
-            if !own_keys {
-                app.hit.add(kind, m.id, button.rect);
-            }
-            if button.clicked() {
-                asked = Some(*action);
-            }
-        }
-    });
+        });
+    }
     let Some(action) = asked else { return false };
     let ctx = ui.ctx().clone();
     // What a window of the system starts in the main window is looked at there.
@@ -1462,6 +1499,9 @@ fn hit_kind(command: &str) -> &'static str {
         _ => "windowDelete",
     }
 }
+
+#[cfg(test)]
+mod attachment_shortcuts_tests;
 
 #[cfg(test)]
 mod tests {

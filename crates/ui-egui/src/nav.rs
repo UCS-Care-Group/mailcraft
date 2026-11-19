@@ -68,20 +68,33 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     egui::Panel::left("modules").exact_size(RAIL_W).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(t.nav)).show(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-        for (m, icon, id) in module_buttons() {
+        for (n, (m, icon, id)) in module_buttons().into_iter().enumerate() {
             let (r, resp) = ui.allocate_exact_size(vec2(RAIL_W, RAIL_PITCH), Sense::click());
+            app.hit.add("module", n as u64, r);
             let active = app.session.view.module == m;
+            // Messages dragged over Calendar, Tasks or People are taken there (#873); Mail takes nothing.
+            let takes = dropped_as(m).is_some();
+            let dragged_over = takes && resp.dnd_hover_payload::<crate::mail_view::MessageDrag>().is_some();
+            if dragged_over {
+                crate::drag_pointer::note_folder(ui.ctx(), true);
+                app.hit.add("moduleDrop", n as u64, r);
+                ui.painter().rect_filled(r.shrink(6.0), 4.0, t.hover);
+                ui.painter().rect_stroke(r.shrink(6.0), 4.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+            }
             if active {
                 // The module in view: a bar at the window's edge, and its icon in the accent.
                 let bar = Rect::from_min_size(pos2(r.min.x + 6.0, r.center().y - 16.0), vec2(2.0, 32.0));
                 ui.painter().rect_filled(bar, 1.0, t.accent);
-            } else if resp.hovered() {
+            } else if resp.hovered() && !dragged_over {
                 ui.painter().rect_filled(r.shrink(6.0), 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
             }
             // One colour: the icons of the bar are line drawings, lit when theirs is the module in view.
             let ink = if active { t.accent_text } else { t.icon };
             icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(24.0, 24.0)), icon, ink, ink);
             let sc = crate::widgets::shortcut_text(app, id);
+            if takes && let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>() {
+                drop_on_module(app, m, &drag.0);
+            }
             if resp.on_hover_text(format!("{} ({sc})", tl!(m.label()))).clicked() {
                 let _ = app.run(id, json!({}));
             }
@@ -94,6 +107,79 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
             resp.on_hover_text(format!("{name}: {}", tl!("Pending development")));
         }
     });
+}
+
+/// What a message let go over the module `m` becomes (#873): the kind `mail.itemFromMessage`
+/// fills in, and the form that opens with it. `None` for Mail.
+fn dropped_as(m: Module) -> Option<(&'static str, &'static str)> {
+    match m {
+        Module::Calendar => Some(("appointment", "event")),
+        Module::Tasks => Some(("task", "task")),
+        Module::People => Some(("contact", "contact")),
+        Module::Mail => None,
+    }
+}
+
+pub(crate) use mailcraft_engine::sync_driver::fetch::DROP;
+
+/// Messages let go over Calendar, Tasks or People in the module bar (#873), as in classic Outlook:
+/// a new appointment (in a window of its own), task or contact opens, filled in from the first of
+/// them that is still there: its subject, its text, its sender. Nothing is made until the owner
+/// saves it there, and the message stays where it is, as it was. One form opens however many were
+/// dragged (a task or a contact is filled in in the one dialog), and the status bar says so. A
+/// message of which only the server's short preview is here waits to be downloaded first.
+pub(crate) fn drop_on_module(app: &mut MailApp, m: Module, dragged: &[Id]) {
+    let name = match m {
+        Module::Calendar => "calendar",
+        Module::Tasks => "tasks",
+        Module::People => "people",
+        Module::Mail => return,
+    };
+    let _ = app.run(DROP, json!({"module": name, "ids": dragged}));
+}
+
+/// The first two messages of a drop (`ids`) that are still in the mailbox.
+pub(crate) fn dropped(app: &MailApp, p: &serde_json::Value) -> Vec<Id> {
+    mailcraft_engine::sync_driver::fetch::dropped(&app.session, p)
+}
+
+/// `ui.dropOnModule`; `None` for any other command.
+pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &serde_json::Value) -> Option<Result<serde_json::Value, String>> {
+    (id == DROP).then(|| drop_on(app, p))
+}
+
+fn drop_on(app: &mut MailApp, p: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let (kind, form) = match p.get("module").and_then(serde_json::Value::as_str) {
+        Some("calendar") => ("appointment", "event"),
+        Some("tasks") => ("task", "task"),
+        Some("people") => ("contact", "contact"),
+        _ => return Err("`module` is \"calendar\", \"tasks\" or \"people\"".into()),
+    };
+    let here = dropped(app, p);
+    let Some(first) = here.first().copied() else { return Err(tl!("None of those messages is in this mailbox any more.").to_string()) };
+    let fields = app.session.run("mail.itemFromMessage", &json!({"id": first, "as": kind})).map_err(|e| {
+        app.last_error = Some(e.clone());
+        e.to_string()
+    })?;
+    if form == "event" {
+        // (A window that can't open says why in the status bar itself.)
+        if let Some(Err(e)) = crate::windows::open_form(app, form, &fields) {
+            return Err(e);
+        }
+    } else {
+        match crate::dialogs::open_dialog(app, form, &fields) {
+            Some(dialog) => {
+                app.dialog = Some(dialog);
+                app.sync_panel = None;
+            }
+            None => return Ok(json!({"opened": null})),
+        }
+    }
+    if here.len() > 1 {
+        let n = p.get("ids").and_then(serde_json::Value::as_array).map_or(here.len(), Vec::len);
+        app.status(tln!(n, "{n} message was dragged: only the first was opened.", "{n} messages were dragged: only the first was opened."));
+    }
+    Ok(json!({"opened": form, "message": first}))
 }
 
 /// How tall the row of modules is at the foot of the pane on the left (#1174), and how large a
@@ -576,27 +662,34 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
                 ui.close();
             }
         };
-        item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), takes_folders);
+        item(ui, app, tl_later!("New Folder…"), "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), takes_folders);
         // (Not one that is or holds what a JMAP account's server has, which stays for now.)
         let renamable = custom && !app.session.mailbox.renaming_stays_on_server(id);
-        item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
+        item(ui, app, tl_later!("Rename Folder…"), "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
         let deletable = custom && !app.session.mailbox.folder_stays_on_server(id);
-        item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), deletable);
+        item(ui, app, tl_later!("Delete Folder"), "folder.delete", json!({"id": id}), deletable);
         ui.separator();
-        item(ui, app, "Mark All as Read", "mail.markAllRead", json!({"folder": id}), true);
-        item(ui, app, "Run Rules Now", "rules.run", json!({"folder": id}), true);
+        item(ui, app, tl_later!("Mark All as Read"), "mail.markAllRead", json!({"folder": id}), true);
+        item(ui, app, tl_later!("Run Rules Now"), "rules.run", json!({"folder": id}), true);
         if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
             let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
-            item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), emptiable);
+            item(ui, app, tl_later!("Empty Folder"), "folder.empty", json!({"id": id}), emptiable);
         }
         ui.separator();
         if from_outlook {
-            item(ui, app, "Favorites Are Set in Outlook", "folder.favorite", json!({"id": id}), false);
+            item(ui, app, tl_later!("Favorites Are Set in Outlook"), "folder.favorite", json!({"id": id}), false);
         } else {
-            item(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "folder.favorite", json!({"id": id}), true);
+            item(
+                ui,
+                app,
+                if favorite { tl_later!("Remove from Favorites") } else { tl_later!("Add to Favorites") },
+                "folder.favorite",
+                json!({"id": id}),
+                true,
+            );
         }
         ui.separator();
-        item(ui, app, "Properties…", "folder.properties", json!({"id": id}), true);
+        item(ui, app, tl_later!("Properties…"), "folder.properties", json!({"id": id}), true);
     });
 }
 
@@ -1061,3 +1154,7 @@ pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> Strin
 #[cfg(test)]
 #[path = "nav_tests.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+#[path = "nav_drop_tests.rs"]
+mod drop_tests;

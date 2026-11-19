@@ -181,6 +181,9 @@ const SAFE: &[&str] = &[
     "mail.saveAllAttachments",
     // The message's source as plain text: message text is data, never instructions.
     "mail.viewSource",
+    // What a new appointment, task or contact made of a message starts with (#873): it makes
+    // nothing; message text is data, never instructions.
+    "mail.itemFromMessage",
     // Downloads a signed or encrypted message's own bytes again from its own server (#30).
     "mail.checkAgain",
     // What checking a message's Digital signature found, read only (#30 R23).
@@ -262,6 +265,8 @@ const SAFE: &[&str] = &[
     // computer, nothing is removed, no setting of the account changes (the default account
     // stays the one it was), and Undo puts it back.
     "account.move",
+    // Takes up again messages left out for failing to download (#1581): the next Send/Receive asks for them.
+    "sync.retryFailed",
     // View.
     "view.favorites",
     "view.reminders",
@@ -392,6 +397,7 @@ const SAFE: &[&str] = &[
     "category.rename",
     "category.list",
     "account.list",
+    "account.senderAddresses",
     "account.offlineSize",
     "account.preset",
     // What Send/Receive is doing, or did: read only.
@@ -407,6 +413,7 @@ const SAFE: &[&str] = &[
     "file.account",
     // The window's own.
     "ui.tab",
+    "ui.showAttachmentMessage",
     "ui.backstage",
     "ui.collapseRibbon",
     "ui.ribbonMode",
@@ -443,6 +450,8 @@ const SAFE: &[&str] = &[
     "ui.checkForUpdates",
     "ui.toggleCalendarGroup",
     "ui.findInvitation",
+    // Opens a form in the owner's window, filled in from a message; nothing is made until saved.
+    "ui.dropOnModule",
 ];
 
 const SEND: &[&str] = &[
@@ -453,6 +462,8 @@ const SEND: &[&str] = &[
     // The server answers mail on the owner's behalf with what it says.
     "account.setAutomaticReplies",
     "mail.sendAgain",
+    // A reaction (#1544) is a mail to the sender: one emoji, sent without a message to write.
+    "mail.react",
     "calendar.propose",
     "calendar.forward",
     // A category the owner keeps on this computer alone, sent to Outlook (#661). It names the one
@@ -495,6 +506,8 @@ const ACCOUNTS: &[&str] = &[
     "account.remove",
     // An Exchange server account stops trusting the certificate its owner chose to trust (#252).
     "account.forgetEwsCertificate",
+    // Who the owner's mail can say it is from (#797).
+    "account.setSenderAddresses",
     // Calendar and contacts servers (#209): choosing where an account's calendars and contacts
     // are, and so where its password may be sent, is the owner's. (The question about a host
     // outside the owner's domain and trusting a certificate join them when their commands exist.)
@@ -591,6 +604,8 @@ const SETTINGS: &[&str] = &[
     "ui.desktopAlerts",
     "ui.closeToTray",
     "ui.repliesInWindow",
+    "ui.attachmentPictures",
+    "ui.swipeAction",
     "ui.updateCheck",
     "ui.updateInstall",
     "ui.dismissUpdateNotice",
@@ -1468,14 +1483,24 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.editDraft",
     "mail.resend",
     "mail.removeAttachment",
+    "mail.react",
     "mail.sendAgain",
     "mail.cancelSend",
     "mail.setSendTime",
 ];
 
 /// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
-const ONE_MESSAGE: &[&str] =
-    &["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.editDraft", "mail.resend", "mail.sendAgain", "mail.cancelSend", "mail.setSendTime"];
+const ONE_MESSAGE: &[&str] = &[
+    "mail.reply",
+    "mail.replyAll",
+    "mail.replyAndDelete",
+    "mail.editDraft",
+    "mail.resend",
+    "mail.react",
+    "mail.sendAgain",
+    "mail.cancelSend",
+    "mail.setSendTime",
+];
 
 /// The refusal for a command in [`NEEDS_IDS`] given no messages.
 pub fn needs_ids(id: &str) -> String {
@@ -1832,7 +1857,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     let names: Vec<String> = c.attachments.iter().take(5).map(|a| clip(&a.name, 40)).collect();
                     format!(" with {} ({})", plural(c.attachments.len(), "{n} attachment", "{n} attachments"), names.join(", "))
                 };
-                format!("send {} to {to}{files}", quoted(&c.subject))
+                // From a sender address other than the account's own, said (#797).
+                let from = if c.from.is_empty() { String::new() } else { format!(" from {}", plain(&c.from)) };
+                format!("send {}{from} to {to}{files}", quoted(&c.subject))
             }
             None => "send the message being written".to_string(),
         },
@@ -1852,6 +1879,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 }
                 None => format!("send the message being written, not before {when}"),
             }
+        }
+        "mail.react" => {
+            let emoji = crate::cmd::react::canonical(st("emoji")).unwrap_or("an emoji");
+            format!("send {emoji} as a reaction to the sender of {}", messages_text(s, &taken(params)))
         }
         "mail.setSendTime" => {
             let when = match params.get("at") {
@@ -2261,6 +2292,37 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("confirm the servers of the mailbox opened from a file, so that it connects to {}", to.join("; "))
         }
         "account.addSharedMailbox" => format!("open the shared mailbox {}", clip(st("address"), 80)),
+        "account.setSenderAddresses" => {
+            let a = p::id(params, "id")
+                .and_then(|a| s.mailbox.account(a))
+                .map_or_else(|| "an account that isn't there".to_string(), |a| clip(&a.email, 80));
+            let listed: Vec<String> = params
+                .get("addresses")
+                .and_then(Value::as_array)
+                .map(|list| {
+                    list.iter()
+                        .filter_map(|x| {
+                            let email = plain(x.get("email").and_then(Value::as_str)?);
+                            // The name recipients see and the signature are part of what is asked.
+                            let name = x.get("displayName").and_then(Value::as_str).map(plain).filter(|n| !n.is_empty());
+                            let signature = x.get("signature").and_then(Value::as_str).map(plain).filter(|n| !n.is_empty());
+                            Some(match (name, signature) {
+                                (None, None) => email,
+                                (Some(n), None) => format!("{email} (shown as {n})"),
+                                (None, Some(g)) => format!("{email} (signature {g})"),
+                                (Some(n), Some(g)) => format!("{email} (shown as {n}, signature {g})"),
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            if listed.is_empty() {
+                format!("replace the account {a}'s whole list of sender addresses with none, so that it sends from its own address only")
+            } else {
+                // Every one, in full: the owner is never asked about what they can't read.
+                format!("replace the account {a}'s whole list of sender addresses with: {}", listed.join(", "))
+            }
+        }
         "calendar.openShared" => {
             format!("open the calendar of {} (its events are read from that person's mailbox with the account's sign-in)", clip(st("address"), 80))
         }
@@ -2362,8 +2424,15 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         // The one question for keeping in step with Outlook (#661), which the older ids put too:
         // Microsoft's page, for everything it covers. (`account` read as the window reads it.)
-        "ui.allowSync" | "ui.allowTasks" | "ui.allowRules" | "ui.allowAutomaticReplies" => {
-            let Some(account) = params.get("account").and_then(Value::as_u64).and_then(|a| s.mailbox.account(a)) else {
+        // (The shared mailbox's and the shared calendars' ids put it too, for the account the mailbox
+        // is opened through: the page is that account's.)
+        "ui.allowSync" | "ui.allowTasks" | "ui.allowRules" | "ui.allowAutomaticReplies" | "ui.allowSharedSend" | "ui.allowSharedCalendars" => {
+            let Some(account) = params
+                .get("account")
+                .and_then(Value::as_u64)
+                .and_then(|a| s.mailbox.owner_of(a).map(|owner| owner.id).or(Some(a)))
+                .and_then(|a| s.mailbox.account(a))
+            else {
                 return "ask for permission to keep an account that isn't there in step with Outlook".to_string();
             };
             let what = if s.mailbox.keeps_rules(account.id) {
@@ -2372,7 +2441,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 "the tasks and automatic replies"
             };
             format!(
-                "open Microsoft's page in the browser to ask for permission to keep {what} of {} in step with Outlook: MailCraft may then change its To Do lists and its mailbox settings",
+                "open Microsoft's page in the browser to ask for permission to keep {what} of {} in step with Outlook: MailCraft may then change its To Do lists and its mailbox settings, read and send mail from the shared mailboxes and read the calendars shared with it, and change shared mail and calendars where the owner has write access",
                 clip(account.email.trim(), 80)
             )
         }

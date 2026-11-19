@@ -205,6 +205,25 @@ fn the_account_question_names_a_local_mailbox_and_the_only_account() {
     assert_eq!(describe(&s, "account.edit", &json!({"id": 999_999})), "change an account that isn't there");
 }
 
+#[test]
+fn the_sender_addresses_question_names_the_names_and_the_replacement() {
+    let mut s = Session::empty();
+    let id = s
+        .run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}, "outgoing": {"host": "smtp.example.org"}}))
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let list = json!([{"email": "support@example.org", "displayName": "Example Support"}, {"email": "sales@example.org"}]);
+    let d = describe(&s, "account.setSenderAddresses", &json!({"id": id, "addresses": list}));
+    assert!(d.contains("whole list") && d.contains("support@example.org (shown as Example Support)") && d.contains("sales@example.org"), "{d}");
+    // A signature the owner picked is part of the question too.
+    let list = json!([{"email": "support@example.org", "displayName": "Example Support", "signature": "Support"}, {"email": "sales@example.org", "signature": "Sales"}]);
+    let d = describe(&s, "account.setSenderAddresses", &json!({"id": id, "addresses": list}));
+    assert!(d.contains("(shown as Example Support, signature Support)") && d.contains("sales@example.org (signature Sales)"), "{d}");
+    let d = describe(&s, "account.setSenderAddresses", &json!({"id": id, "addresses": []}));
+    assert!(d.contains("whole list") && d.contains("none"), "{d}");
+}
+
 /// An agent's ask for keeping an account in step with Outlook (#661) names the account and what
 /// it covers, for the one question's id and the older ones that put it; `account` is read as the
 /// window reads it.
@@ -214,12 +233,27 @@ fn an_agents_ask_to_keep_in_step_with_outlook_names_the_account_and_what_it_cove
     let graph = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let imap = json!({"email": "sam@example.org", "auth": "oauth2", "provider": "microsoft", "kind": "imap"});
     let imap = s.run("account.add", &imap).unwrap()["id"].as_u64().unwrap();
-    for id in ["ui.allowSync", "ui.allowTasks", "ui.allowRules", "ui.allowAutomaticReplies"] {
+    for id in ["ui.allowSync", "ui.allowTasks", "ui.allowRules", "ui.allowAutomaticReplies", "ui.allowSharedSend", "ui.allowSharedCalendars"] {
         let d = describe(&s, id, &json!({"account": graph, "confirmed": true}));
         assert!(d.contains("noor@example.org") && d.contains("tasks, rules, automatic replies and categories"), "{id}: {d}");
+        // The page asks for the shared mailboxes' and calendars' permissions too: the owner is told.
+        assert!(d.contains("shared mailboxes") && d.contains("calendars shared"), "{id}: {d}");
         let d = describe(&s, id, &json!({"account": imap, "confirmed": true}));
         assert!(d.contains("sam@example.org") && d.contains("the tasks and automatic replies of"), "{id}: {d}");
         let d = describe(&s, id, &json!({"account": format!("{graph}.0").parse::<f64>().unwrap(), "confirmed": true}));
         assert!(d.contains("isn't there") && !d.contains("noor@example.org"), "{id}: {d}");
+    }
+}
+
+/// The ask for a shared mailbox's permission names the account the page is for, the owner's own.
+#[test]
+fn an_agents_ask_for_a_shared_mailboxs_permission_names_the_owners_account() {
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), 1_791_993_600, 0);
+    let owner = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let opened = mailcraft_model::Account { shared_of: Some(owner), email: "team@example.org".into(), ..mailcraft_model::Account::default() };
+    let shared = s.mailbox.add_account(opened);
+    for id in ["ui.allowSharedSend", "ui.allowSharedCalendars"] {
+        let d = describe(&s, id, &json!({"account": shared, "confirmed": true}));
+        assert!(d.contains("noor@example.org") && !d.contains("team@example.org"), "{id}: {d}");
     }
 }
