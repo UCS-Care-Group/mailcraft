@@ -1234,6 +1234,10 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
         let t = Tokens::get(&ctx);
         // A backend that has no windows after all puts this inside the main one itself.
         let inside = class == egui::ViewportClass::EmbeddedWindow;
+        // The Edit menu's ⌘X, ⌘C and ⌘V (macOS) are for this window while it has the keyboard (#1500).
+        if !inside {
+            edit_keys(app, &ctx);
+        }
         let closing = !inside && ctx.input(|i| i.viewport().close_requested());
         // The window has the keyboard to itself: what is on top in it gets Escape and Enter. While
         // the main window asks something (an agent's question, or a question for this window's
@@ -1260,6 +1264,15 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
         crate::text_menu::finish(&ctx, menus);
     });
     close
+}
+
+/// The Edit menu's input ([`MailApp::edit_keys`]) when this window has the keyboard: the main
+/// window's input never reaches a window of its own (#1500).
+pub(crate) fn edit_keys(app: &mut MailApp, ctx: &egui::Context) {
+    if ctx.input(|i| i.viewport().focused == Some(true)) && !app.edit_keys.is_empty() {
+        let keys = std::mem::take(&mut app.edit_keys);
+        ctx.input_mut(|i| i.events.extend(keys));
+    }
 }
 
 /// Where the window layer's clipboard keys are off (`Services::clipboard_keys`), the key presses
