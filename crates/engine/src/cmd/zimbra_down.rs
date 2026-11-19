@@ -115,12 +115,8 @@ pub(crate) fn bounded(mut result: ZimbraMailResult) -> (ZimbraMailResult, bool) 
     }
     result.errors = lines(&result.errors);
     result.busy_for = result.busy_for.map(|seconds| seconds.min(MAX_BUSY));
-    let trouble = reported_errors
-        || result.stopped
-        || result.auth_refused
-        || result.code_needed
-        || result.busy_for.is_some()
-        || !result.untrusted.is_empty();
+    let trouble =
+        reported_errors || result.stopped || result.auth_refused || result.code_needed || result.busy_for.is_some() || !result.untrusted.is_empty();
     result.whole &= !cut && !trouble && !result.partial;
     if !result.whole {
         result.token.clear();
