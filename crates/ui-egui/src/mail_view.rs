@@ -1420,6 +1420,8 @@ mod list_height_tests;
 mod open_conversation_tests;
 #[cfg(test)]
 mod overlay_scroll_tests;
+#[cfg(test)]
+mod wheel_scroll_tests;
 
 #[cfg(test)]
 mod tests {
