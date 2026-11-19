@@ -412,19 +412,18 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>
     let [from, sent, to, cc, subject] = header_names(s).map(e);
     let marker = e(s.interface_language.t(ORIGINAL));
     let mut out = String::from(QUOTE_MARK);
-    out.push_str("<br><p><b>----- ");
+    out.push_str("<br><div><b>----- ");
     out.push_str(&marker);
-    out.push_str(" -----</b></p>");
-    out.push_str("<p>");
-    out.push_str(&format!("<b>{from}</b> {}<br>", e(&m.from.full())));
-    out.push_str(&format!("<b>{sent}</b> {}<br>", e(&sent_on(s, m))));
+    out.push_str(" -----</b><br>\r\n");
+    out.push_str(&format!("<b>{from}</b> {}<br>\r\n", e(&m.from.full())));
+    out.push_str(&format!("<b>{sent}</b> {}<br>\r\n", e(&sent_on(s, m))));
     if !m.to.is_empty() {
-        out.push_str(&format!("<b>{to}</b> {}<br>", e(&quoted_list(&m.to))));
+        out.push_str(&format!("<b>{to}</b> {}<br>\r\n", e(&quoted_list(&m.to))));
     }
     if !m.cc.is_empty() {
-        out.push_str(&format!("<b>{cc}</b> {}<br>", e(&quoted_list(&m.cc))));
+        out.push_str(&format!("<b>{cc}</b> {}<br>\r\n", e(&quoted_list(&m.cc))));
     }
-    out.push_str(&format!("<b>{subject}</b> {}</p><br>\r\n", e(&m.subject)));
+    out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
     let mut written = Written::of(m);
     out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture)));
     out.push_str("\r\n</div>");
@@ -512,6 +511,40 @@ fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
     m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
 }
 
+/// Matches a `cid:` reference from HTML against candidate attachments.
+fn match_attachment<'a>(candidates: &[&'a Attachment], cid: &str) -> Option<&'a Attachment> {
+    let clean = |s: &str| -> String {
+        let t = s.trim().trim_matches(['<', '>']).trim();
+        let t = t.strip_prefix("cid:").or_else(|| t.strip_prefix("CID:")).unwrap_or(t);
+        t.trim_matches(['<', '>']).trim().to_ascii_lowercase()
+    };
+    let target = clean(cid);
+    let target_dec = clean(&mailcraft_model::shown::percent_decode(cid));
+
+    if let Some(a) = candidates.iter().find(|a| a.content_id == cid) {
+        return Some(*a);
+    }
+    if let Some(a) = candidates.iter().find(|a| {
+        let a_cid = clean(&a.content_id);
+        !a_cid.is_empty() && (a_cid == target || a_cid == target_dec)
+    }) {
+        return Some(*a);
+    }
+    if let Some(a) = candidates.iter().find(|a| {
+        let a_dec = clean(&mailcraft_model::shown::percent_decode(&a.content_id));
+        !a_dec.is_empty() && (a_dec == target || a_dec == target_dec)
+    }) {
+        return Some(*a);
+    }
+    if let Some(a) = candidates.iter().find(|a| {
+        let a_name = clean(&a.name);
+        !a_name.is_empty() && (a_name == target || a_name == target_dec)
+    }) {
+        return Some(*a);
+    }
+    None
+}
+
 /// The `References` of an answer to `m`: its own, then its Message-ID. A long thread's stay
 /// bounded: the root and the latest ones.
 pub(super) fn references_of(m: &Message) -> Vec<String> {
@@ -576,15 +609,40 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let from = reply_from(s, &m);
     let sig = chosen_signature(s, m.account, &from, None, true);
 
-    let mut quote_pictures = Vec::new();
+    let mut pictures: Vec<Picture> = Vec::new();
+    let mut picture_seq: u32 = 0;
     let quoted_rich = if quoting {
         if let Some(html) = &m.body.html {
             let (html, written) = quoted_html(s, &m, html);
-            if mode != ComposeMode::Forward {
-                quote_pictures.extend(shown_pictures(&m, &html));
-            }
-            quote_pictures.extend(written);
-            Some(mailcraft_mime_model::rich::from_html_for_compose(&html))
+            let candidates: Vec<&Attachment> = written.iter().chain(m.attachments.iter()).collect();
+            let mut cid_map: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+
+            let rich = mailcraft_mime_model::rich::from_html_with_pictures(&html, &mut |img| {
+                if let Some(&id) = cid_map.get(&img.cid) {
+                    return Some(id);
+                }
+                let a = match_attachment(&candidates, &img.cid)?;
+                if mailcraft_model::pictures::picture_mime(&a.data).is_none() {
+                    return None;
+                }
+                if let Some(existing) = pictures.iter().find(|p| p.data.as_slice() == a.data.as_slice()) {
+                    cid_map.insert(img.cid.clone(), existing.id);
+                    return Some(existing.id);
+                }
+                let name = if a.name.is_empty() { "picture.png" } else { &a.name };
+                let id = mailcraft_model::pictures::add(
+                    &mut pictures,
+                    &mut picture_seq,
+                    &std::collections::HashSet::new(),
+                    name,
+                    a.data.to_vec(),
+                    Some(&img.alt),
+                    img.width,
+                ).ok()?;
+                cid_map.insert(img.cid.clone(), id);
+                Some(id)
+            });
+            Some(rich)
         } else {
             let text = quoted(s, &m);
             Some(mailcraft_model::RichText::from_plain(text.trim_start_matches('\n')))
@@ -598,12 +656,12 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         let _ = body_rich.insert_rich(1, &qr);
     }
 
-    let mut attachments = if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() };
-    for p in quote_pictures {
-        if !attachments.iter().any(|a| a.content_id == p.content_id) {
-            attachments.push(Attachment { inline: true, ..p });
-        }
-    }
+    let held_pic_data: Vec<&[u8]> = pictures.iter().map(|p| p.data.as_slice()).collect();
+    let attachments = if mode == ComposeMode::Forward {
+        m.attachments.iter().filter(|a| !held_pic_data.iter().any(|d| *d == a.data.as_slice())).cloned().collect()
+    } else {
+        Vec::new()
+    };
 
     let mut c = Compose {
         mode,
@@ -620,6 +678,8 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         attachments,
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
         references: if mode == ComposeMode::Forward { Vec::new() } else { references },
+        pictures,
+        picture_seq,
         ..Default::default()
     };
     if let Some(sig) = &sig {
@@ -1260,7 +1320,37 @@ fn remove_quote(s: &mut Session, _: &Value) -> CmdResult {
 fn quote_as_text(s: &mut Session, _: &Value) -> CmdResult {
     let c = compose_mut(s)?;
     if let Some(q) = c.quote.take() {
-        let rich = mailcraft_mime_model::rich::from_html_for_compose(&q.html);
+        let mut pictures = std::mem::take(&mut c.pictures);
+        let mut picture_seq = c.picture_seq;
+        let mut cid_map = std::collections::HashMap::new();
+        let candidates: Vec<&Attachment> = q.pictures.iter().collect();
+        let rich = mailcraft_mime_model::rich::from_html_with_pictures(&q.html, &mut |img| {
+            if let Some(&id) = cid_map.get(&img.cid) {
+                return Some(id);
+            }
+            let a = match_attachment(&candidates, &img.cid)?;
+            if mailcraft_model::pictures::picture_mime(&a.data).is_none() {
+                return None;
+            }
+            if let Some(existing) = pictures.iter().find(|p| p.data.as_slice() == a.data.as_slice()) {
+                cid_map.insert(img.cid.clone(), existing.id);
+                return Some(existing.id);
+            }
+            let name = if a.name.is_empty() { "picture.png" } else { &a.name };
+            let id = mailcraft_model::pictures::add(
+                &mut pictures,
+                &mut picture_seq,
+                &std::collections::HashSet::new(),
+                name,
+                a.data.to_vec(),
+                Some(&img.alt),
+                img.width,
+            ).ok()?;
+            cid_map.insert(img.cid.clone(), id);
+            Some(id)
+        });
+        c.pictures = pictures;
+        c.picture_seq = picture_seq;
         let mut text = c.body.text().clone();
         let len = text.len();
         let _ = text.insert_rich(len, &rich);
@@ -1952,4 +2042,40 @@ fn suggest_command(s: &mut Session, v: &Value) -> CmdResult {
     let limit = p::u64(v, "limit").unwrap_or(6).clamp(1, 20) as usize;
     let found: Vec<Value> = suggest(s, query, limit).into_iter().map(|x| json!({"name": x.name, "email": x.email, "contact": x.contact})).collect();
     Ok(json!({"suggestions": found}))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_match_attachment() {
+        let png = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\x01\0\0\0\x01\x08\x06\0\0\0\x1f\x15c4\0\0\0\nIDATx\x9cc\0\x01\0\0\x05\0\x01\r\n-\xb4\0\0\0\0IEND\xaeB`\x82";
+        let a1 = Attachment {
+            name: "logo.png".into(),
+            mime: "image/png".into(),
+            content_id: "<logo123@example.com>".into(),
+            inline: true,
+            data: std::sync::Arc::new(png.to_vec()),
+            kept: None,
+        };
+        let a2 = Attachment {
+            name: "photo.jpg".into(),
+            mime: "image/jpeg".into(),
+            content_id: "photo-unique".into(),
+            inline: true,
+            data: std::sync::Arc::new(png.to_vec()),
+            kept: None,
+        };
+        let candidates = vec![&a1, &a2];
+
+        // Match with brackets
+        assert_eq!(match_attachment(&candidates, "logo123@example.com").map(|a| a.name.as_str()), Some("logo.png"));
+        assert_eq!(match_attachment(&candidates, "<logo123@example.com>").map(|a| a.name.as_str()), Some("logo.png"));
+        assert_eq!(match_attachment(&candidates, "cid:logo123@example.com").map(|a| a.name.as_str()), Some("logo.png"));
+
+        // Match exact or by filename fallback
+        assert_eq!(match_attachment(&candidates, "photo-unique").map(|a| a.name.as_str()), Some("photo.jpg"));
+        assert_eq!(match_attachment(&candidates, "photo.jpg").map(|a| a.name.as_str()), Some("photo.jpg"));
+    }
 }
