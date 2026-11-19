@@ -22,7 +22,7 @@ msgid "\"{address}\" isn't an address mail can be sent to"
 msgstr "„{address}“ ni naslov, na katerega je mogoče poslati pošto"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/account_setup.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "\"{address}\" isn't an e-mail address"
 msgstr "„{address}“ ni e-poštni naslov"
@@ -785,8 +785,8 @@ msgstr ""
 "Nastavitve\n"
 "računa"
 
-#. command label, interface
-#: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
+#. command label, interface, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Account Settings"
 msgstr "Nastavitve računa"
@@ -796,6 +796,12 @@ msgstr "Nastavitve računa"
 #, fuzzy
 msgid "Account name"
 msgstr "Ime računa"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Account's signature"
+msgstr "Podpis računa"
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
@@ -970,6 +976,12 @@ msgid "Add account"
 msgstr "Dodaj račun"
 
 #. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Add address"
+msgstr "Dodaj naslov"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Add an account"
@@ -1088,7 +1100,7 @@ msgid "Added to Contacts"
 msgstr "Dodano med stike"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "Naslov"
@@ -1132,6 +1144,12 @@ msgstr "Naslov:"
 #, fuzzy
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
 msgstr "Naslovi, ločeni z ; (pustite prazno, da odgovori pridejo k vam)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Addresses your mail server lets this account send from with the same sign-in, such as aliases. Replies are sent from the address a message came to."
+msgstr "Naslovi, s katerih poštni strežnik temu računu dovoli pošiljanje z isto prijavo, na primer vzdevki. Odgovori se pošljejo z naslova, na katerega je sporočilo prispelo."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -1408,6 +1426,12 @@ msgstr "Potrdilo X.509 (.cer, .pem) ali javni ključ OpenPGP (.asc) tega stika"
 #, fuzzy
 msgid "An account couldn't be sent and received."
 msgstr "Pošte računa ni bilo mogoče poslati in prejeti."
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "An address this account may send from"
+msgstr "Naslov, s katerega lahko ta račun pošilja"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1830,12 +1854,6 @@ msgstr "Kot zavihki nad Prejeto"
 #, fuzzy
 msgid "As recipients see it"
 msgstr "Kot vidijo prejemniki"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "As the people you write to see it"
-msgstr "Kot vidijo osebe, ki jim pišete"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2880,6 +2898,12 @@ msgstr "Kp:"
 #, fuzzy
 msgid "Cc: {names}"
 msgstr "Kp: {names}"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Celebrate"
+msgstr "Praznuj"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
@@ -5552,7 +5576,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Tu je ostalo manj kot dva od teh stikov, zato ni ničesar za združitev."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Datoteka"
@@ -6776,7 +6800,7 @@ msgid "Hold Unsent Mail"
 msgstr "Zadrži neposlano pošto"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Osnovno"
@@ -7529,6 +7553,12 @@ msgstr "Ležeče"
 msgid "Item"
 msgstr "Element"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
+msgid "Item from Message"
+msgstr "Element iz sporočila"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -7954,6 +7984,12 @@ msgid "Later keeps this account on IMAP for now. You can switch whenever you lik
 msgstr "Pozneje ta račun za zdaj obdrži na IMAP. Preklopite lahko, kadar želite: med ukazi poiščite „Preklopi na Microsoft Graph“."
 
 #. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Laugh"
+msgstr "Smeh"
+
+#. interface
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Lavender"
@@ -8030,6 +8066,12 @@ msgstr "Licence"
 #, fuzzy
 msgid "Light"
 msgstr "Svetla"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Like"
+msgstr "Všeč mi je"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -8228,6 +8270,12 @@ msgstr "Iskanje… {folders}, {files}, {messages} doslej"
 #, fuzzy
 msgid "Looks like a brand."
 msgstr "Videti je kot blagovna znamka."
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Love"
+msgstr "Obožujem"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -8719,6 +8767,12 @@ msgstr "Poštni predal"
 msgid "Make a signature with New."
 msgstr "Podpis ustvarite z ukazom Novo."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Make an Item from a Message"
+msgstr "Ustvari element iz sporočila"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -9207,6 +9261,12 @@ msgstr "Pomanjšaj"
 msgid "Mobile"
 msgstr "Mobilni"
 
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Module bar"
+msgstr "Vrstica modulov"
+
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
 #, fuzzy
@@ -9512,7 +9572,7 @@ msgid "Name (A–Z)"
 msgstr "Ime (A–Ž)"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Name (optional)"
 msgstr "Ime (neobvezno)"
@@ -9554,7 +9614,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "Imena ali naslovi, ločeni s ;"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Navigation"
 msgstr "Krmarjenje"
@@ -10422,6 +10482,12 @@ msgstr "Nihče ali več kot eden od vaših stikov se ujema: {names}"
 #, fuzzy
 msgid "None"
 msgstr "Brez"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "None of those messages is in this mailbox any more."
+msgstr "Nobeno od teh sporočil ni več v tem nabiralniku."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11519,6 +11585,12 @@ msgstr "Drugi koledarji"
 msgid "Other accounts and On this computer"
 msgstr "Drugi računi in Na tem računalniku"
 
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Other addresses you send from"
+msgstr "Drugi naslovi, s katerih pošiljate"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
@@ -11530,6 +11602,12 @@ msgstr "Koledarje drugih oseb je mogoče odpreti v Microsoftovem službenem ali 
 #, fuzzy
 msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
 msgstr "Sicer obvestilo pokaže pošiljatelja in zadevo, nikoli besedila sporočila ali njegovih slik. Kaj se pokaže na zaklenjenem zaslonu, sledi nastavitvi zasebnosti telefona."
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Sicer so prikazane z imeni. V Neželeni pošti so vedno prikazane z imeni."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12265,6 +12343,12 @@ msgstr "Prikaži zapadle opomnike"
 msgid "Range"
 msgstr "Obseg"
 
+#. command label, interface
+#: crates/engine/src/cmd/react.rs crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "React"
+msgstr "Odzovi se"
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -12782,6 +12866,12 @@ msgid "Remove this action"
 msgstr "Odstrani to dejanje"
 
 #. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Remove this address"
+msgstr "Odstrani ta naslov"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Remove this condition"
@@ -13014,7 +13104,7 @@ msgid "Reset View"
 msgstr "Ponastavi pogled"
 
 #. command label, ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Respond"
 msgstr "Odgovori"
@@ -13300,6 +13390,12 @@ msgstr "Zaženi to pravilo za pošto, ko prispe"
 #, fuzzy
 msgid "SHA-256 fingerprint"
 msgstr "Prstni odtis SHA-256"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Sad"
+msgstr "Žalost"
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -14259,6 +14355,12 @@ msgstr "Pošlji/prejmi z JMAP"
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Pošlji/prejmi z Microsoft Graph"
 
+#. command label
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "Sender Addresses"
+msgstr "Naslovi pošiljatelja"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
 #, fuzzy
@@ -14424,6 +14526,12 @@ msgstr "Nastavitve strežnika"
 #, fuzzy
 msgid "Server: {address}"
 msgstr "Strežnik: {address}"
+
+#. command label
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "Set Sender Addresses"
+msgstr "Nastavi naslove pošiljatelja"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14618,6 +14726,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Pokaži priljubljene iz Outlooka"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Pokaži slikovne priloge kot slike"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -14740,6 +14854,12 @@ msgstr "Pokaži več opravil"
 #, fuzzy
 msgid "Show password"
 msgstr "Pokaži geslo"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Pokaži slikovne priloge kot slike"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -15614,6 +15734,12 @@ msgstr "ned"
 #, fuzzy
 msgid "Sunday"
 msgstr "nedelja"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Surprised"
+msgstr "Presenečenje"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -17036,6 +17162,18 @@ msgid "The name of someone you know."
 msgstr "Ime nekoga, ki ga poznate."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The name people you write to will see"
+msgstr "Ime, ki ga bodo videle osebe, ki jim pišete"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "The name recipients see; your own when empty"
+msgstr "Ime, ki ga vidijo prejemniki; vaše, kadar je prazno"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The name the calendar gives itself"
@@ -18342,6 +18480,12 @@ msgstr "To ni račun, ki ste ga vpisali"
 #, fuzzy
 msgid "This item has changes that aren't saved. Save them?"
 msgstr "Ta element ima neshranjene spremembe. Jih želite shraniti?"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
+msgstr "Ta element ima priložene datoteke, ki jih hrani samo strežnik in ki jih kopija ne bi imela: od tu ga ni mogoče kopirati."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -20667,6 +20811,12 @@ msgstr "datoteka .pst se uvozi samo v mapo v tem računalniku, nikoli v račun n
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
 msgstr "strežnika in naslova računa JMAP ni mogoče spremeniti, ko je njegova pošta že tukaj: odstranite ga in dodajte drugega"
 
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "a Microsoft or Exchange account sends from other addresses only as its server allows, which MailCraft doesn't ask for yet"
+msgstr "račun Microsoft ali Exchange pošilja z drugih naslovov samo tako, kot dovoli njegov strežnik, česar MailCraft še ne zahteva"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
@@ -20782,6 +20932,30 @@ msgid "a picture in a message is at most {mb} MB"
 msgstr "slika v sporočilu je velika največ {mb} MB"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction can't be sent to a draft or to mail you wrote"
+msgstr "odziva ni mogoče poslati na osnutek ali na pošto, ki ste jo napisali"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account"
+msgstr "odziv se pošlje samo iz računov IMAP, JMAP in lokalnih računov, ne iz računa strežnika Microsoft ali Exchange"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to automated mail (a no-reply address, a mailing list, bulk mail)"
+msgstr "odziv se ne pošlje samodejni pošti (naslov brez odgovora, dopisni seznam, množična pošta)"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to mail in Junk E-mail"
+msgstr "odziv se ne pošlje pošti v Neželeni pošti"
+
+#. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
 msgid "a reply may be {most} characters long at most"
@@ -20810,6 +20984,12 @@ msgstr "pravilo enega računa ne more na strežnik drugega računa"
 #, fuzzy
 msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
 msgstr "pravilo, ki čaka na prenos na strežnik, se uvrsti za tista, ki so že tam; premakniti ga je mogoče, ko je tam"
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "a sender address has no e-mail address"
+msgstr "naslov pošiljatelja nima e-poštnega naslova"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -20942,6 +21122,12 @@ msgstr "račun postane račun strežnika Exchange ali preneha biti tak samo tako
 #, fuzzy
 msgid "an account can't be put before itself"
 msgstr "računa ni mogoče postaviti pred samega sebe"
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "an account has {max} sender addresses at most"
+msgstr "račun ima največ {max} naslovov pošiljatelja"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21528,7 +21714,7 @@ msgid "no account with id {account}"
 msgstr "ni računa z identifikatorjem {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "ni računa z identifikatorjem {id}"
@@ -21624,7 +21810,7 @@ msgid "no message is being written"
 msgstr "nobeno sporočilo se ne piše"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "ni sporočila z identifikatorjem {id}"
@@ -21683,8 +21869,8 @@ msgstr "noben podpis ni odprt"
 msgid "no signature named \"{from}\""
 msgstr "ni podpisa z imenom „{from}“"
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/signature.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "no signature named \"{name}\""
 msgstr "ni podpisa z imenom „{name}“"
@@ -21851,6 +22037,12 @@ msgstr "ob"
 msgid "only a message you sent can be sent again"
 msgstr "ponovno je mogoče poslati samo sporočilo, ki je šlo od vas"
 
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "only an IMAP account sends from other addresses"
+msgstr "z drugih naslovov pošilja samo račun IMAP"
+
 #. why a command can't run
 #: crates/engine/src/gmail.rs
 #, fuzzy
@@ -21966,7 +22158,7 @@ msgid "select a conversation in conversation view first"
 msgstr "najprej izberite pogovor v pogledu pogovorov"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "najprej izberite sporočilo"
@@ -22200,7 +22392,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "račun nima uporabniškega imena ali e-poštnega naslova za prijavo"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "računa ni več"
@@ -22638,7 +22830,7 @@ msgid "the sender has no address to put on the list"
 msgstr "pošiljatelj nima naslova za seznam"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "pošiljatelj nima uporabnega e-poštnega naslova"
@@ -23202,7 +23394,7 @@ msgid "this account has no signature; add one in File › Options"
 msgstr "ta račun nima podpisa; dodajte ga v Datoteka › Možnosti"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/react.rs
 #, fuzzy
 msgid "this account has no {folder} folder"
 msgstr "ta račun nima mape {folder}"
@@ -23286,16 +23478,34 @@ msgid "this message already has as many attachments as it can carry"
 msgstr "to sporočilo ima že toliko prilog, kolikor jih lahko nosi"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has a warning about its sender, so no reaction is sent to it"
+msgstr "to sporočilo ima opozorilo o pošiljatelju, zato se nanj ne pošlje odziva"
+
+#. what a command says
 #: crates/model/src/pictures.rs
 #, fuzzy
 msgid "this message has had as many pictures as it can"
 msgstr "to sporočilo ima že toliko slik, kolikor jih lahko ima"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has no Message-ID, so a reaction can't say what it answers"
+msgstr "to sporočilo nima Message-ID, zato odziv ne more povedati, na kaj odgovarja"
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "this message has no sender address to look for"
 msgstr "to sporočilo nima naslova pošiljatelja za iskanje"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has no sender to send a reaction to"
+msgstr "to sporočilo nima pošiljatelja, ki bi mu poslali odziv"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -23336,6 +23546,12 @@ msgstr[0] "krat"
 msgstr[1] "krat"
 msgstr[2] "krat"
 msgstr[3] "krat"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "to {recipient}"
+msgstr "za {recipient}"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -23509,6 +23725,12 @@ msgstr "delo brez povezave"
 msgid "year"
 msgstr "leto"
 
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "you already reacted to this message with {emoji}"
+msgstr "na to sporočilo ste se že odzvali z {emoji}"
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -23610,6 +23832,12 @@ msgid "{address} is already set up"
 msgstr "{address} je že nastavljen"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{address} is no longer one of this account's sender addresses: choose another From"
+msgstr "{address} ni več eden od naslovov pošiljatelja tega računa: izberite drugega v polju Od"
+
+#. what a command says
 #: crates/engine/src/cmd/junk.rs
 #, fuzzy
 msgid "{address} is one of your own addresses: your own mail isn't blocked"
@@ -23626,6 +23854,12 @@ msgstr "{address} je nastavljen"
 #, fuzzy
 msgid "{address} isn't a shared mailbox open here."
 msgstr "{address} ni tukaj odprt poštni predal v skupni rabi."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{address} isn't one of this account's sender addresses (add it in Account Settings)"
+msgstr "{address} ni eden od naslovov pošiljatelja tega računa (dodajte ga v Nastavitve računa)"
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
@@ -24838,6 +25072,16 @@ msgstr[2] "{n} sporočila so že bila tukaj"
 msgstr[3] "{n} sporočil je že bilo tukaj"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] "{n} sporočilo je bilo povlečeno: odprto je bilo samo prvo."
+msgstr[1] "{n} sporočili sta bili povlečeni: odprto je bilo samo prvo."
+msgstr[2] "{n} sporočila so bila povlečena: odprto je bilo samo prvo."
+msgstr[3] "{n} sporočil je bilo povlečenih: odprto je bilo samo prvo."
+
+#. interface
 #: crates/ui-egui/src/left_out.rs
 #, fuzzy
 msgid "{n} message was left out because it failed to download."
@@ -25602,6 +25846,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Vrstice"
+
+#, fuzzy
+#~ msgid "As the people you write to see it"
+#~ msgstr "Kot vidijo osebe, ki jim pišete"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
