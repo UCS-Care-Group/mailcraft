@@ -39,7 +39,7 @@ pub(super) fn switched_on(s: &Session) -> Option<&'static str> {
 /// (Microsoft Graph keeps its calendars) nor one that only lives here, nor a shared mailbox
 /// (which follows its owner's).
 fn may_have(a: &Account) -> bool {
-    !a.is_shared() && matches!(a.kind, AccountKind::Imap | AccountKind::Jmap | AccountKind::Exchange)
+    !a.is_shared() && matches!(a.kind, AccountKind::Imap | AccountKind::Jmap | AccountKind::Exchange | AccountKind::Zimbra)
 }
 
 /// The list of addresses a command's `key` holds, over `before`, or an error naming it.

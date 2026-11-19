@@ -159,6 +159,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("account.edit", r#"{"id": $account, "name": "X"}"#, Setup::None),
     ("account.remove", r#"{"id": $account}"#, Setup::None),
     ("account.forgetEwsCertificate", r#"{"id": $account}"#, Setup::None),
+    ("ui.forgetZimbraTrust", r#"{"id": $account}"#, Setup::None),
     ("account.davSet", r#"{"id": $account, "calendarHomes": ["https://dav.example.org/cal/"]}"#, Setup::None),
     ("account.davOff", r#"{"id": $account}"#, Setup::None),
     ("account.graphSwitch", r#"{"account": $account}"#, Setup::None),

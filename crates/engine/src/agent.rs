@@ -527,6 +527,8 @@ const ACCOUNTS: &[&str] = &[
     // Mail to keep offline (#143): what is kept on this computer; the server keeps it all.
     "account.thinOffline",
     "ui.keepOffline",
+    // A Zimbra account's trusted device: this computer stops being trusted for its second step.
+    "ui.forgetZimbraTrust",
     // Device limits (MB3.16): what a phone keeps; the server keeps it all.
     "account.deviceLimits",
     "account.trimDevice",
@@ -634,6 +636,11 @@ const NEVER: &[&str] = &[
     "sync.applyDav",
     "sync.davChanges",
     "sync.applyDavUploaded",
+    // A Zimbra account's mail, likewise.
+    "sync.zimbraRequest",
+    "sync.applyZimbra",
+    "sync.zimbraFetchRequest",
+    "sync.applyZimbraFetch",
     // A search of the server goes only on the owner's own click (R6.2).
     "sync.graphSearchRequest",
     "sync.applyGraphSearch",

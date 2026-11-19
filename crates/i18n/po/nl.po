@@ -2,7 +2,7 @@
 # An entry marked fuzzy is a draft no native speaker has reviewed yet.
 msgid ""
 msgstr ""
-"Project-Id-Version: MailCraft\n"
+"WerkweekWerkweekWerkweekWerkweekProject-Id-Version: MailCraft\n"
 "Language: nl\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -361,6 +361,11 @@ msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "E-mail van een JMAP-account kan nog niet worden uitgesteld."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A Zimbra server answered at {host}: your account may be on it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "A brand's name on another address."
@@ -661,6 +666,11 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Een korte notitie met de link naar die pagina, om in e-mail of chat te plakken. MailCraft verstuurt zelf niets."
 
 #. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "A sign-in token of this session is kept: the password isn't asked for until it ends."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -683,7 +693,7 @@ msgid ""
 "About\n"
 "MailCraft"
 msgstr ""
-"Info\n"
+"WerkweekWerkweekWerkweekWerkweekInfo\n"
 "MailCraft"
 
 #. interface, name
@@ -821,7 +831,7 @@ msgid ""
 "Add\n"
 "Account"
 msgstr ""
-"Account\n"
+"WerkweekWerkweekWerkweekWerkweekAccount\n"
 "toevoegen"
 
 #. command label, interface
@@ -1024,7 +1034,7 @@ msgid ""
 "Add to\n"
 "Favorites"
 msgstr ""
-"Toevoegen aan\n"
+"WerkweekWerkweekWerkweekWerkweekToevoegen aan\n"
 "favorieten"
 
 #. command label, interface, ribbon
@@ -1616,6 +1626,11 @@ msgid "Apply Downloaded To-dos"
 msgstr "Gedownloade to-do's toepassen"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Apply Downloaded Zimbra Messages"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 msgid "Apply Results from the Server"
 msgstr "Resultaten van de server toepassen"
@@ -1639,6 +1654,12 @@ msgstr "Verzenden/ontvangen met JMAP toepassen"
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "Verzenden/ontvangen met Microsoft Graph toepassen"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Send/Receive with Zimbra"
+msgstr "Verzenden/Ontvangen met Zimbra toepassen"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -1741,7 +1762,7 @@ msgid ""
 "Arrange\n"
 "By"
 msgstr ""
-"Rangschikken\n"
+"WerkweekWerkweekWerkweekWerkweekRangschikken\n"
 "op"
 
 #. command label, ribbon
@@ -1983,7 +2004,7 @@ msgid ""
 "Attach\n"
 "File"
 msgstr ""
-"Bestand\n"
+"WerkweekWerkweekWerkweekWerkweekBestand\n"
 "bijvoegen"
 
 #. command label
@@ -2247,7 +2268,7 @@ msgid "Available formats:"
 msgstr "Beschikbare indelingen:"
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 msgid "Back"
 msgstr "Terug"
 
@@ -2308,6 +2329,11 @@ msgstr "Wees voorzichtig met dit bericht."
 #, fuzzy
 msgid "Before anything changes, a copy of your whole mailbox is saved next to it, with today's date in its name."
 msgstr "Voordat er iets verandert, wordt een kopie van uw hele postvak ernaast opgeslagen, met de datum van vandaag in de naam."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Beside its name and on its mail"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -2607,7 +2633,7 @@ msgid ""
 "Cancel\n"
 "All"
 msgstr ""
-"Alles\n"
+"WerkweekWerkweekWerkweekWerkweekAlles\n"
 "annuleren"
 
 #. command label
@@ -2815,7 +2841,7 @@ msgid ""
 "Change\n"
 "View"
 msgstr ""
-"Weergave\n"
+"WerkweekWerkweekWerkweekWerkweekWeergave\n"
 "wijzigen"
 
 #. command label
@@ -2959,7 +2985,7 @@ msgid ""
 "Check\n"
 "Names"
 msgstr ""
-"Namen\n"
+"WerkweekWerkweekWerkweekWerkweekNamen\n"
 "controleren"
 
 #. ribbon
@@ -3306,6 +3332,11 @@ msgstr "De pagina gesloten? Dit opent de aanmeldingspagina van de provider opnie
 msgid "Closes this window. Nothing is kept."
 msgstr "Sluit dit venster. Er wordt niets bewaard."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Code from your authenticator app for {account}"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Collapse Conversation"
@@ -3399,7 +3430,7 @@ msgid "Confirm servers"
 msgstr "Servers bevestigen"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Connect"
 msgstr "Verbinden"
@@ -3537,7 +3568,7 @@ msgid ""
 "Copy\n"
 "Diagnostics"
 msgstr ""
-"Diagnose\n"
+"WerkweekWerkweekWerkweekWerkweekDiagnose\n"
 "kopiëren"
 
 #. command label, interface
@@ -3959,7 +3990,7 @@ msgid ""
 "Date &\n"
 "Time"
 msgstr ""
-"Datum &\n"
+"WerkweekWerkweekWerkweekWerkweekDatum &\n"
 "tijd"
 
 #. command label
@@ -4085,7 +4116,7 @@ msgid ""
 "Delete\n"
 "Folder"
 msgstr ""
-"Map\n"
+"WerkweekWerkweekWerkweekWerkweekMap\n"
 "verwijderen"
 
 #. command label
@@ -4557,6 +4588,12 @@ msgstr "Afbeeldingen in alle e-mail downloaden"
 msgid "Download Pictures in Mail Automatically"
 msgstr "Afbeeldingen in e-mail automatisch downloaden"
 
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Download Zimbra Messages in Full"
+msgstr "Zimbra-berichten volledig downloaden"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -4786,7 +4823,7 @@ msgid ""
 "Edit\n"
 "Contact"
 msgstr ""
-"Contactpersoon\n"
+"WerkweekWerkweekWerkweekWerkweekContactpersoon\n"
 "bewerken"
 
 #. ribbon
@@ -4795,7 +4832,7 @@ msgid ""
 "Edit\n"
 "Task"
 msgstr ""
-"Taak\n"
+"WerkweekWerkweekWerkweekWerkweekTaak\n"
 "bewerken"
 
 #. command label
@@ -4874,7 +4911,7 @@ msgid ""
 "Email\n"
 "Calendar"
 msgstr ""
-"Agenda\n"
+"WerkweekWerkweekWerkweekWerkweekAgenda\n"
 "e-mailen"
 
 #. command label, interface, name
@@ -4922,7 +4959,7 @@ msgid ""
 "Empty\n"
 "Folder"
 msgstr ""
-"Map\n"
+"WerkweekWerkweekWerkweekWerkweekMap\n"
 "leegmaken"
 
 #. command label, interface
@@ -5238,7 +5275,7 @@ msgid ""
 "Export\n"
 "Contacts"
 msgstr ""
-"Contactpersonen\n"
+"WerkweekWerkweekWerkweekWerkweekContactpersonen\n"
 "exporteren"
 
 #. ribbon
@@ -5247,7 +5284,7 @@ msgid ""
 "Export\n"
 "Folder"
 msgstr ""
-"Map\n"
+"WerkweekWerkweekWerkweekWerkweekMap\n"
 "exporteren"
 
 #. command label, interface
@@ -5368,7 +5405,7 @@ msgid ""
 "Filter\n"
 "Email"
 msgstr ""
-"E-mail\n"
+"WerkweekWerkweekWerkweekWerkweekE-mail\n"
 "filteren"
 
 #. command label, ribbon
@@ -5691,7 +5728,7 @@ msgid "For now, your automatic replies aren't changed: {error}"
 msgstr "Voorlopig worden uw automatische antwoorden niet gewijzigd: {error}"
 
 #. interface
-#: crates/ui-egui/src/ews_setup.rs
+#: crates/ui-egui/src/ews_setup.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Forget"
 msgstr "Vergeten"
@@ -5705,6 +5742,11 @@ msgstr "Gedownloade agenda en contactpersonen vergeten"
 #: crates/engine/src/cmd/account.rs
 msgid "Forget Trusted Certificate"
 msgstr "Vertrouwd certificaat vergeten"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Forget Trusted Device"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
@@ -5754,7 +5796,7 @@ msgid ""
 "Forward\n"
 "Contact"
 msgstr ""
-"Contactpersoon\n"
+"WerkweekWerkweekWerkweekWerkweekContactpersoon\n"
 "doorsturen"
 
 #. command label
@@ -5912,7 +5954,7 @@ msgid ""
 "Get\n"
 "Support"
 msgstr ""
-"Ondersteuning\n"
+"WerkweekWerkweekWerkweekWerkweekOndersteuning\n"
 "krijgen"
 
 #. command label
@@ -6012,7 +6054,7 @@ msgid ""
 "Gmail\n"
 "Categories"
 msgstr ""
-"Gmail\n"
+"WerkweekWerkweekWerkweekWerkweekGmail\n"
 "Categorieën"
 
 #. command label, ribbon
@@ -6338,7 +6380,7 @@ msgid ""
 "\n"
 "Thank you"
 msgstr ""
-"Hallo,\n"
+"WerkweekWerkweekWerkweekWerkweekHallo,\n"
 "\n"
 "Ik wil MailCraft graag gebruiken met mijn werkaccount. MailCraft is een open-sourceprogramma voor e-mail en agenda dat op mijn eigen computer draait. Onze organisatie laat alleen een beheerder een nieuw programma goedkeuren, dus het heeft eenmalig uw goedkeuring nodig, voor de hele organisatie. De pagina van Microsoft daarvoor is hier:\n"
 "\n"
@@ -6362,7 +6404,7 @@ msgid ""
 "\n"
 "Thank you"
 msgstr ""
-"Hallo,\n"
+"WerkweekWerkweekWerkweekWerkweekHallo,\n"
 "\n"
 "Ik wil MailCraft gebruiken met mijn werkaccount. MailCraft is een opensourceprogramma voor e-mail en agenda dat op mijn eigen telefoon draait. Onze organisatie laat alleen een beheerder een nieuw programma goedkeuren, dus het heeft eenmalig uw goedkeuring nodig, voor de hele organisatie. De pagina van Microsoft daarvoor staat hier:\n"
 "\n"
@@ -6614,6 +6656,11 @@ msgstr "Als u zelf een beheerdersaccount hebt, kunt u zich met de eerste keuze d
 #, fuzzy
 msgid "If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts."
 msgstr "Als u er een hebt, plak hier de toepassings-id (client). Die komt uit een app-registratie in Microsoft Entra: een openbare client met de omleidings-URI http://localhost, voor accounts in een willekeurige directory en persoonlijke accounts."
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "If your account signs in with a second step, MailCraft asks for the code of your authenticator app when it first connects."
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -8107,6 +8154,11 @@ msgstr "MailCraft kan zich nog niet op deze manier aanmelden bij deze server (de
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
 msgstr "MailCraft bevat de onderstaande software. De Rust-bibliotheken van de kern staan met hun versies in de broncode-repository."
 
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "MailCraft connects to Zimbra through its own web service over HTTPS: the SOAP API (in JSON) and REST, not IMAP or SMTP. It needs Zimbra Collaboration 8.8 or later."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -8468,7 +8520,7 @@ msgid ""
 "Mark\n"
 "Complete"
 msgstr ""
-"Voltooid\n"
+"WerkweekWerkweekWerkweekWerkweekVoltooid\n"
 "markeren"
 
 #. ribbon
@@ -8477,7 +8529,7 @@ msgid ""
 "Mark All\n"
 "as Read"
 msgstr ""
-"Alles als\n"
+"WerkweekWerkweekWerkweekWerkweekAlles als\n"
 "gelezen markeren"
 
 #. command label, interface
@@ -8571,7 +8623,7 @@ msgid ""
 "Merge\n"
 "Duplicates"
 msgstr ""
-"Duplicaten\n"
+"WerkweekWerkweekWerkweekWerkweekDuplicaten\n"
 "samenvoegen"
 
 #. command label
@@ -8974,7 +9026,7 @@ msgid ""
 "Move\n"
 "Folder"
 msgstr ""
-"Map\n"
+"WerkweekWerkweekWerkweekWerkweekMap\n"
 "verplaatsen"
 
 #. command label
@@ -9217,7 +9269,7 @@ msgid ""
 "Navigation\n"
 "Bar"
 msgstr ""
-"Navigatie-\n"
+"WerkweekWerkweekWerkweekWerkweekNavigatie-\n"
 "balk"
 
 #. command label, ribbon
@@ -9293,7 +9345,7 @@ msgid ""
 "New\n"
 "Appointment"
 msgstr ""
-"Nieuwe\n"
+"WerkweekWerkweekWerkweekWerkweekNieuwe\n"
 "afspraak"
 
 #. ribbon
@@ -9302,7 +9354,7 @@ msgid ""
 "New\n"
 "Contact"
 msgstr ""
-"Nieuwe\n"
+"WerkweekWerkweekWerkweekWerkweekNieuwe\n"
 "contactpersoon"
 
 #. ribbon
@@ -9311,7 +9363,7 @@ msgid ""
 "New\n"
 "Email"
 msgstr ""
-"Nieuwe\n"
+"WerkweekWerkweekWerkweekWerkweekNieuwe\n"
 "e-mail"
 
 #. ribbon
@@ -9320,7 +9372,7 @@ msgid ""
 "New\n"
 "Folder"
 msgstr ""
-"Nieuwe\n"
+"WerkweekWerkweekWerkweekWerkweekNieuwe\n"
 "map"
 
 #. ribbon
@@ -9329,7 +9381,7 @@ msgid ""
 "New\n"
 "Items"
 msgstr ""
-"Nieuwe\n"
+"WerkweekWerkweekWerkweekWerkweekNieuwe\n"
 "items"
 
 #. ribbon
@@ -9338,7 +9390,7 @@ msgid ""
 "New\n"
 "Meeting"
 msgstr ""
-"Nieuwe\n"
+"WerkweekWerkweekWerkweekWerkweekNieuwe\n"
 "vergadering"
 
 #. ribbon
@@ -9347,7 +9399,7 @@ msgid ""
 "New\n"
 "Task"
 msgstr ""
-"Nieuwe\n"
+"WerkweekWerkweekWerkweekWerkweekNieuwe\n"
 "taak"
 
 #. interface
@@ -9491,7 +9543,7 @@ msgid ""
 "Next 7\n"
 "Days"
 msgstr ""
-"Komende\n"
+"WerkweekWerkweekWerkweekWerkweekKomende\n"
 "7 dagen"
 
 #. command label
@@ -10789,7 +10841,7 @@ msgid ""
 "Open\n"
 "Calendar"
 msgstr ""
-"Agenda\n"
+"WerkweekWerkweekWerkweekWerkweekAgenda\n"
 "openen"
 
 #. interface, ribbon location
@@ -11530,7 +11582,7 @@ msgid ""
 "Plain\n"
 "Text"
 msgstr ""
-"Tekst\n"
+"WerkweekWerkweekWerkweekWerkweekTekst\n"
 "zonder opmaak"
 
 #. command label, ribbon
@@ -11568,7 +11620,7 @@ msgid ""
 "Pop\n"
 "Out"
 msgstr ""
-"Los\n"
+"WerkweekWerkweekWerkweekWerkweekLos\n"
 "koppelen"
 
 #. command label, interface
@@ -12000,7 +12052,7 @@ msgid ""
 "Recent\n"
 "Searches"
 msgstr ""
-"Recente\n"
+"WerkweekWerkweekWerkweekWerkweekRecente\n"
 "zoekopdrachten"
 
 #. command label, ribbon
@@ -12164,7 +12216,7 @@ msgid ""
 "Remove\n"
 "Attachment"
 msgstr ""
-"Bijlage\n"
+"WerkweekWerkweekWerkweekWerkweekBijlage\n"
 "verwijderen"
 
 #. command label, interface
@@ -12190,7 +12242,7 @@ msgid ""
 "Remove Imported\n"
 "Duplicates"
 msgstr ""
-"Geïmporteerde\n"
+"WerkweekWerkweekWerkweekWerkweekGeïmporteerde\n"
 "duplicaten verwijderen"
 
 #. command label, interface
@@ -12302,7 +12354,7 @@ msgid ""
 "Remove from\n"
 "Favorites"
 msgstr ""
-"Verwijderen uit\n"
+"WerkweekWerkweekWerkweekWerkweekVerwijderen uit\n"
 "favorieten"
 
 #. command label, interface
@@ -12405,7 +12457,7 @@ msgid ""
 "Rename\n"
 "Folder"
 msgstr ""
-"Map\n"
+"WerkweekWerkweekWerkweekWerkweekMap\n"
 "hernoemen"
 
 #. command label
@@ -12481,7 +12533,7 @@ msgid ""
 "Reply\n"
 "All"
 msgstr ""
-"Allen\n"
+"WerkweekWerkweekWerkweekWerkweekAllen\n"
 "beantwoorden"
 
 #. command label, interface
@@ -12528,7 +12580,7 @@ msgid ""
 "Report a\n"
 "Problem"
 msgstr ""
-"Probleem\n"
+"WerkweekWerkweekWerkweekWerkweekProbleem\n"
 "melden"
 
 #. command label, interface
@@ -12570,7 +12622,7 @@ msgid ""
 "Reset\n"
 "View"
 msgstr ""
-"Weergave\n"
+"WerkweekWerkweekWerkweekWerkweekWeergave\n"
 "herstellen"
 
 #. command label
@@ -12659,7 +12711,7 @@ msgid ""
 "Reverse\n"
 "Sort"
 msgstr ""
-"Sortering\n"
+"WerkweekWerkweekWerkweekWerkweekSortering\n"
 "omkeren"
 
 #. command label, interface
@@ -12707,7 +12759,7 @@ msgid ""
 "Ribbon\n"
 "Layout"
 msgstr ""
-"Lint\n"
+"WerkweekWerkweekWerkweekWerkweekLint\n"
 "indeling"
 
 #. command label, interface, ribbon
@@ -12814,7 +12866,7 @@ msgid ""
 "Run Rules\n"
 "Now"
 msgstr ""
-"Regels nu\n"
+"WerkweekWerkweekWerkweekWerkweekRegels nu\n"
 "uitvoeren"
 
 #. command label, interface
@@ -12894,7 +12946,7 @@ msgid ""
 "Save\n"
 "Calendar"
 msgstr ""
-"Agenda\n"
+"WerkweekWerkweekWerkweekWerkweekAgenda\n"
 "opslaan"
 
 #. ribbon
@@ -12903,7 +12955,7 @@ msgid ""
 "Save\n"
 "Draft"
 msgstr ""
-"Concept\n"
+"WerkweekWerkweekWerkweekWerkweekConcept\n"
 "opslaan"
 
 #. interface
@@ -12919,7 +12971,7 @@ msgid ""
 "Save All\n"
 "Attachments"
 msgstr ""
-"Alle bijlagen\n"
+"WerkweekWerkweekWerkweekWerkweekAlle bijlagen\n"
 "opslaan"
 
 #. command label
@@ -13219,7 +13271,7 @@ msgid ""
 "Search\n"
 "Calendar"
 msgstr ""
-"Agenda\n"
+"WerkweekWerkweekWerkweekWerkweekAgenda\n"
 "zoeken"
 
 #. ribbon
@@ -13228,7 +13280,7 @@ msgid ""
 "Search\n"
 "Commands"
 msgstr ""
-"Opdrachten\n"
+"WerkweekWerkweekWerkweekWerkweekOpdrachten\n"
 "zoeken"
 
 #. command label, interface, name
@@ -13459,7 +13511,7 @@ msgid "Send & Receive"
 msgstr "Verzenden & ontvangen"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 msgid "Send / Receive"
 msgstr "Verzenden/ontvangen"
 
@@ -13503,7 +13555,7 @@ msgid ""
 "Send Status\n"
 "Report"
 msgstr ""
-"Statusrapport\n"
+"WerkweekWerkweekWerkweekWerkweekStatusrapport\n"
 "verzenden"
 
 #. command label
@@ -13704,7 +13756,7 @@ msgid ""
 "Send/Receive\n"
 "All Folders"
 msgstr ""
-"Verzenden/ontvangen\n"
+"WerkweekWerkweekWerkweekWerkweekVerzenden/ontvangen\n"
 "alle mappen"
 
 #. command label, interface
@@ -13749,7 +13801,7 @@ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
 msgstr "Verzenden/ontvangen meldt aan bij Microsoft; daarna kan de server worden doorzocht."
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Verzenden/ontvangen is onverwacht gestopt"
@@ -13768,6 +13820,12 @@ msgstr "Verzenden/ontvangen met JMAP"
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Verzenden/ontvangen met Microsoft Graph"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Send/Receive with Zimbra"
+msgstr "Verzenden/Ontvangen met Zimbra"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -13800,7 +13858,7 @@ msgid "Sending"
 msgstr "Bezig met verzenden"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Sending and receiving…"
 msgstr "Bezig met verzenden en ontvangen…"
@@ -14056,7 +14114,7 @@ msgid ""
 "Show\n"
 "Message"
 msgstr ""
-"Bericht\n"
+"WerkweekWerkweekWerkweekWerkweekBericht\n"
 "weergeven"
 
 #. ribbon
@@ -14066,7 +14124,7 @@ msgid ""
 "Show\n"
 "Progress"
 msgstr ""
-"Voortgang\n"
+"WerkweekWerkweekWerkweekWerkweekVoortgang\n"
 "weergeven"
 
 #. ribbon
@@ -14075,7 +14133,7 @@ msgid ""
 "Show\n"
 "Training"
 msgstr ""
-"Training\n"
+"WerkweekWerkweekWerkweekWerkweekTraining\n"
 "weergeven"
 
 #. command label, interface, ribbon
@@ -14193,7 +14251,7 @@ msgid ""
 "Show as\n"
 "Conversations"
 msgstr ""
-"Weergeven als\n"
+"WerkweekWerkweekWerkweekWerkweekWeergeven als\n"
 "gesprekken"
 
 #. command label, interface
@@ -14390,7 +14448,7 @@ msgid ""
 "Side-by-\n"
 "Side"
 msgstr ""
-"Naast\n"
+"WerkweekWerkweekWerkweekWerkweekNaast\n"
 "elkaar"
 
 #. command label
@@ -14969,6 +15027,11 @@ msgstr "Dit verzenden/ontvangen stoppen; wat is binnengekomen, blijft"
 msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
 msgstr "U vertrouwt dit certificaat niet meer voor dit account. Als de server het opnieuw toont en deze computer het niet vertrouwt, wordt u gevraagd."
 
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "Stop trusting this computer for this account: the next Send/Receive signs in afresh and asks for the code again (when the account has a second step). What the server has trusted can be withdrawn there too, under its own settings."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -14988,7 +15051,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "Gestopt vóór het einde. Importeer het bestand opnieuw om de rest binnen te halen."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "Gestopt; gaat de volgende keer vanaf hier verder"
@@ -15659,6 +15722,11 @@ msgstr "De digitale handtekening is verlopen."
 msgid "The Entire Series"
 msgstr "De hele reeks"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The Zimbra server is asked to trust this computer, so that it doesn't ask for a code every time."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -15678,7 +15746,7 @@ msgid "The account could not be removed. It and its sign-in are still here. Try 
 msgstr "Het account kon niet worden verwijderd. Het en de aanmelding zijn er nog. Probeer het opnieuw."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "The account couldn't be added"
 msgstr "Het account kon niet worden toegevoegd"
@@ -15772,6 +15840,11 @@ msgstr "De adreslijst bevat meer personen met die naam dan ze toont: typ meer va
 #, fuzzy
 msgid "The address of the calendar"
 msgstr "Het adres van de agenda"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The address your browser opens Zimbra's web client at. It must begin with https://."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -15907,7 +15980,7 @@ msgid ""
 "\n"
 "Hide the copy under Shared Calendars? The shared mailbox's own calendar stays, and lets you change events, answer meeting requests and send from the mailbox where you may. Nothing on the server changes: right-click the shared mailbox's calendar to show the copy again."
 msgstr ""
-"De agenda van het gedeelde postvak {address} wordt twee keer getoond: onder Mijn agenda's bij het gedeelde postvak, en onder Gedeelde agenda's als „{name}”, omdat die ook met u is gedeeld en geaccepteerd.\n"
+"WerkweekWerkweekWerkweekWerkweekDe agenda van het gedeelde postvak {address} wordt twee keer getoond: onder Mijn agenda's bij het gedeelde postvak, en onder Gedeelde agenda's als „{name}”, omdat die ook met u is gedeeld en geaccepteerd.\n"
 "\n"
 "De kopie onder Gedeelde agenda's verbergen? De eigen agenda van het gedeelde postvak blijft, en daarmee kunt u gebeurtenissen wijzigen, vergaderverzoeken beantwoorden en verzenden vanuit het postvak waar u dat mag. Op de server verandert niets: klik met de rechtermuisknop op de agenda van het gedeelde postvak om de kopie weer te tonen."
 
@@ -15943,7 +16016,7 @@ msgid ""
 "\n"
 "Remove the copy opened by address? The other one stays, and nothing on the server changes."
 msgstr ""
-"De agenda van {name} staat nu in uw agendalijst, omdat die met u is gedeeld en geaccepteerd. U hebt die ook op adres geopend, dus die staat er twee keer.\n"
+"WerkweekWerkweekWerkweekWerkweekDe agenda van {name} staat nu in uw agendalijst, omdat die met u is gedeeld en geaccepteerd. U hebt die ook op adres geopend, dus die staat er twee keer.\n"
 "\n"
 "De kopie die op adres is geopend verwijderen? De andere blijft, en op de server verandert niets."
 
@@ -16878,7 +16951,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "De server heeft de aanmelding voor dit account geweigerd. Gebruik Verzenden/ontvangen om opnieuw aan te melden."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "De server heeft de aanmelding voor {name} geweigerd: meld u opnieuw aan"
@@ -16894,6 +16967,11 @@ msgstr "Het adres van de server moet beginnen met https:// en de server noemen (
 #, fuzzy
 msgid "The server's address or the user name can't be used. Check them in Server settings."
 msgstr "Het adres van de server of de gebruikersnaam kan niet worden gebruikt. Controleer ze bij Serverinstellingen."
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The server's address {why}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17200,6 +17278,11 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "De gebruikersnaam is te lang of bevat een teken dat een naam niet mag hebben"
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The user name {why}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
@@ -17394,6 +17477,11 @@ msgid "This account is no longer in the mailbox."
 msgstr "Dit account staat niet meer in het postvak."
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This account isn't a Zimbra account"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "This account may not change its categories through Microsoft Graph"
@@ -17484,7 +17572,7 @@ msgid "This build can't connect to Microsoft"
 msgstr "Deze build kan geen verbinding maken met Microsoft"
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "Deze build kan geen verbinding maken met e-mailservers"
@@ -17619,6 +17707,11 @@ msgstr "De sleutel van dit certificaat is van een soort die MailCraft niet gebru
 #, fuzzy
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
 msgstr "Deze computer vertrouwt het certificaat niet dat de server op {host} toont. Als dit de server van uw organisatie is, kunt u dit ene certificaat voor dit account vertrouwen."
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "This computer is trusted: the code of the authenticator app isn't asked for."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -18306,7 +18399,7 @@ msgid ""
 "Tighter\n"
 "Spacing"
 msgstr ""
-"Kleinere\n"
+"WerkweekWerkweekWerkweekWerkweekKleinere\n"
 "afstand"
 
 #. command label
@@ -18404,7 +18497,7 @@ msgid ""
 "\n"
 "Until you allow it, your automatic replies aren't changed."
 msgstr ""
-"Om de automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+"WerkweekWerkweekWerkweekWerkweekOm de automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
 "Tot u het toestaat, worden uw automatische antwoorden niet gewijzigd."
 
@@ -18416,7 +18509,7 @@ msgid ""
 "\n"
 "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
-"Om de regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+"WerkweekWerkweekWerkweekWerkweekOm de regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
 "Tot u het toestaat, blijven regels op deze computer en wordt er niets van naar Microsoft verzonden, worden uw automatische antwoorden niet gewijzigd en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
 
@@ -18428,7 +18521,7 @@ msgid ""
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
 msgstr ""
-"Om de taken en automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+"WerkweekWerkweekWerkweekWerkweekOm de taken en automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
 "Tot u het toestaat, blijven taken op deze computer en wordt er niets van naar Microsoft verzonden, en worden uw automatische antwoorden niet gewijzigd."
 
@@ -18440,7 +18533,7 @@ msgid ""
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
 msgstr ""
-"Om de taken van {address} bij te houden met Microsoft To Do, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en taken te lezen en te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+"WerkweekWerkweekWerkweekWerkweekOm de taken van {address} bij te houden met Microsoft To Do, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en taken te lezen en te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
 "\n"
 "Totdat u het toestaat, blijven taken op deze computer en wordt er niets van naar Microsoft verzonden."
 
@@ -18452,7 +18545,7 @@ msgid ""
 "\n"
 "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
-"Om de taken, regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+"WerkweekWerkweekWerkweekWerkweekOm de taken, regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
 "Tot u het toestaat, blijven taken en regels op deze computer en wordt er niets van naar Microsoft verzonden, worden uw automatische antwoorden niet gewijzigd en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
 
@@ -18470,7 +18563,7 @@ msgid ""
 "\n"
 "Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr ""
-"Om de gedeelde postvakken die u met {address} opent te lezen en eruit te verzenden, en om de met u gedeelde agenda's te tonen, heeft MailCraft uw toestemming nodig. De pagina van Microsoft wordt in uw browser geopend om u één keer te vragen naar alles wat MailCraft gebruikt en wat u nog niet hebt toegestaan.\n"
+"WerkweekWerkweekWerkweekWerkweekOm de gedeelde postvakken die u met {address} opent te lezen en eruit te verzenden, en om de met u gedeelde agenda's te tonen, heeft MailCraft uw toestemming nodig. De pagina van Microsoft wordt in uw browser geopend om u één keer te vragen naar alles wat MailCraft gebruikt en wat u nog niet hebt toegestaan.\n"
 "\n"
 "Totdat u het toestaat, wordt er niets van die postvakken en agenda's gelezen, wachten e-mail en antwoorden op vergaderingen uit een gedeeld postvak op deze computer, en wordt er in hun plaats niets vanaf uw eigen adres verzonden."
 
@@ -18676,6 +18769,11 @@ msgid "Type a name in the search box to search the organisation's address list"
 msgstr "Typ een naam in het zoekvak om de adreslijst van de organisatie te doorzoeken"
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Type the address of your Zimbra server, as your browser opens its web client"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Type the name of the incoming mail server"
@@ -18762,7 +18860,7 @@ msgid ""
 "Unread/\n"
 "Read"
 msgstr ""
-"Ongelezen/\n"
+"WerkweekWerkweekWerkweekWerkweekOngelezen/\n"
 "Gelezen"
 
 #. command label
@@ -18849,7 +18947,7 @@ msgid "Up to 50 MB"
 msgstr "Tot 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "Actueel"
@@ -18998,13 +19096,23 @@ msgid "Use system setting follows Animation effects in Windows' settings. Where 
 msgstr "De systeeminstelling volgt de animatie-instellingen van Windows. In gevallen waar MailCraft de systeeminstelling nog niet kan lezen, worden animaties afgespeeld tot u Nooit afspelen kiest."
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's calendar (CalDAV)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's contacts (CardDAV)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Use {address}"
 msgstr "{address} gebruiken"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "User name"
 msgstr "Gebruikersnaam"
@@ -19026,6 +19134,11 @@ msgstr "Gebruikersnaam"
 #, fuzzy
 msgid "Usually the whole address"
 msgstr "Meestal het volledige adres"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Usually the whole address; empty for your address"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19308,7 +19421,7 @@ msgid ""
 "What's\n"
 "New"
 msgstr ""
-"Wat is\n"
+"WerkweekWerkweekWerkweekWerkweekWat is\n"
 "nieuw"
 
 #. command label
@@ -19416,7 +19529,7 @@ msgid ""
 "Word\n"
 "Count"
 msgstr ""
-"Aantal\n"
+"WerkweekWerkweekWerkweekWerkweekAantal\n"
 "woorden"
 
 #. command label, interface
@@ -19448,7 +19561,7 @@ msgid ""
 "Work\n"
 "Offline"
 msgstr ""
-"Offline\n"
+"WerkweekWerkweekWerkweekWerkweekOffline\n"
 "werken"
 
 #. ribbon
@@ -19978,6 +20091,59 @@ msgstr "Uw eigen naam."
 msgid "Z on top"
 msgstr "Z bovenaan"
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra Collaboration 8.8 or later, through its web service"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra account"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr "Zimbra-accounts worden getest: start MailCraft met MAILCRAFT_ZIMBRA=1 om ze te proberen"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra server address (web client, HTTPS)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Zimbra {host}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr "Zimbra {host} · niet gesynchroniseerd: Zimbra-accounts zijn uitgeschakeld (start MailCraft met MAILCRAFT_ZIMBRA=1 om ze te proberen)"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra · no usable server address"
+msgstr "Zimbra · geen bruikbaar serveradres"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra · signs in with a user name and password, and a code when the account asks for one"
+msgstr ""
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 msgid "Zoom"
@@ -20027,6 +20193,11 @@ msgstr "`answer.outcome` is read, missing, notPermitted, refused, approval of fa
 #, fuzzy
 msgid "`format` is \"smime\" or \"openpgp\""
 msgstr "`format` is \"smime\" of \"openpgp\""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`id` is required"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/keep_offline.rs
@@ -20099,6 +20270,12 @@ msgstr "een Microsoft- of Exchange-account verzendt alleen vanaf andere adressen
 #, fuzzy
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "een aanmelding bij Microsoft wordt alleen gebruikt met de eigen mailservers van Microsoft: dit account noemt een andere server"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "de server, het adres en de gebruikersnaam van een Zimbra-account kunnen niet worden gewijzigd zodra de e-mail hier is: verwijder het en voeg het andere toe"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -20387,6 +20564,12 @@ msgstr "een S/MIME-certificaat wordt vertrouwd via de certificeringsinstantie en
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
 msgstr "een account wordt een JMAP-account, of houdt op dat te zijn, alleen door het te verwijderen en opnieuw toe te voegen"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr "een account wordt alleen een Zimbra-account, of stopt ermee een te zijn, door het te verwijderen en opnieuw toe te voegen"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -20947,6 +21130,12 @@ msgid "no account here keeps its rules on its server"
 msgstr "geen account hier bewaart zijn regels op zijn server"
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "no account is a Zimbra account"
+msgstr "geen enkel account is een Zimbra-account"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -20983,7 +21172,7 @@ msgid "no account with id {account}"
 msgstr "geen account met id {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "geen account met id {id}"
@@ -21085,7 +21274,7 @@ msgid "no message with id {id}"
 msgstr "geen bericht met id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "geen bericht met id {id} in {name}"
@@ -22062,7 +22251,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "het resultaat zou dit account meer status om bij te houden laten bewaren dan wordt opgenomen"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "het resultaat {why}"
@@ -22619,16 +22808,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "dit Exchange-serveraccount heeft geen serverinstellingen"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "deze Verzenden/ontvangen was voor een ander account, niet voor {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "deze Verzenden/ontvangen was voor de eerder genoemde server {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -23428,6 +23622,12 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name} heeft geen JMAP-serveradres dat kan worden gebruikt"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} has no Zimbra server address that can be used"
+msgstr "{name} heeft geen bruikbaar Zimbra-serveradres"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -23498,6 +23698,12 @@ msgstr "{name} is geen Microsoft-account dat via IMAP wordt bijgehouden"
 #, fuzzy
 msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "{name} is geen Microsoft- of Exchange-serveraccount"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} isn't a Zimbra account"
+msgstr "{name} is geen Zimbra-account"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -24867,6 +25073,18 @@ msgid "−Lines"
 msgstr "−Regels"
 
 #, fuzzy
+#~ msgid "Zimbra {host} · not kept in step yet: this part is not built"
+#~ msgstr "Zimbra {host} · nog niet gesynchroniseerd: dit deel is nog niet gebouwd"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Met Zimbra-accounts kan nog niet worden verzonden en ontvangen: dat deel is nog niet gebouwd"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "het resultaat is voor een ander account"
+
+#, fuzzy
 #~ msgid "As the people you write to see it"
 #~ msgstr "Zoals de personen aan wie u schrijft het zien"
 
@@ -25276,10 +25494,6 @@ msgstr "−Regels"
 #, fuzzy
 #~ msgid "a link goes to an http, https, mailto or tel address"
 #~ msgstr "een koppeling gaat naar een http-, https-, mailto- of tel-adres"
-
-#, fuzzy
-#~ msgid "the result is for another account"
-#~ msgstr "het resultaat is voor een ander account"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't send mail from a JMAP account yet"

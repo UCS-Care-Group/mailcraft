@@ -1,0 +1,29 @@
+[package]
+name = "mailcraft-zimbra"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "MailCraft's Zimbra Collaboration client without sockets or browser APIs: builds each SOAP request (in JSON) and REST address, reads each answer as hostile JSON, and judges it; an in-process, strict stand-in server for the tests of the crates that sit on it"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-ews = { workspace = true }
+# What a run brings back is the model's own sync data (a lower layer, wasm-ready).
+mailcraft-model = { workspace = true }
+# A message to send is written as the RFC 5322 text it is by the program's own writer (a lower layer).
+mailcraft-mime-model = { workspace = true }
+log = { workspace = true }
+# Zimbra speaks its SOAP in JSON as well as XML: the requests are written, and the answers read,
+# by serde_json, already in the tree, with its recursion limit and the crate's own size caps.
+serde_json = { workspace = true }
+
+[features]
+# An in-process Zimbra server that holds a client to the documented protocol (`standin`), for the
+# tests of the crates that sit on this one. Never in a build that isn't a test's.
+stand-in = []
+
+[dev-dependencies]
+proptest = { workspace = true }

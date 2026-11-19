@@ -77,9 +77,8 @@ msgstr "“{name}”由 {who} 的服务器管理。此处的更改尚未发送�
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "\"{name}\" is no longer on the recipient lines"
-msgstr "“{name}”已不在收件人行中"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -89,9 +88,8 @@ msgstr "“{name}”是重复日程的一部分。您指的是 {day} 的这一�
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
-#, fuzzy
 msgid "\"{name}\" isn't a category kept on this computer only"
-msgstr "“{name}”不是仅保存在此计算机上的类别"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -362,6 +360,11 @@ msgstr "正在导入 .pst 文件：完成后重试"
 #, fuzzy
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "JMAP 账户的邮件暂不支持暂缓。"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A Zimbra server answered at {host}: your account may be on it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -662,6 +665,11 @@ msgstr "共享邮箱，使用 {account} 的登录信息读取"
 #, fuzzy
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
 msgstr "一段附有该页面链接的简短说明,可粘贴到邮件或聊天中。MailCraft 本身不会发送任何内容。"
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "A sign-in token of this session is kept: the password isn't asked for until it ends."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1037,9 +1045,8 @@ msgstr "请添加收件人。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Add this category to Outlook's list, in the nearest of Outlook's colours"
-msgstr "将此类别添加到 Outlook 的列表中，使用 Outlook 中最接近的颜色"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -1065,9 +1072,8 @@ msgstr "添加到收藏夹"
 
 #. command label, interface
 #: crates/engine/src/cmd/category.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Add to Outlook"
-msgstr "添加到 Outlook"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/junk.rs
@@ -1095,9 +1101,8 @@ msgstr "由较新版本的 MailCraft 添加：请使用该版本发送和接收�
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Added to Contacts"
-msgstr "已添加至联系人"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
@@ -1107,29 +1112,25 @@ msgstr "地址"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Address\n"
 "Book"
-msgstr "通讯簿"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "Address Book"
-msgstr "通讯簿"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Address list"
-msgstr "地址列表"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Address list · {account}"
-msgstr "地址列表 · {account}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1247,9 +1248,8 @@ msgstr "此手机上保存的所有邮件和账户都会被移除，所有登录
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "All names are checked"
-msgstr "所有姓名均已检查"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -1289,9 +1289,8 @@ msgstr "允许任务与 Microsoft To Do 保持同步"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page that opened in your browser…"
-msgstr "在浏览器打开的页面上，允许 MailCraft 将此邮箱与 Outlook 同步…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -1667,6 +1666,11 @@ msgid "Apply Downloaded To-dos"
 msgstr "应用下载的待办事项"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Apply Downloaded Zimbra Messages"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -1697,6 +1701,12 @@ msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "应用通过 Microsoft Graph 发送/接收的结果"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Send/Receive with Zimbra"
+msgstr " Zimbra /"
+
+#. command label
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "Apply Sent Calendar Changes"
@@ -1704,9 +1714,8 @@ msgstr "应用已发送的日历更改"
 
 #. command label
 #: crates/engine/src/cmd/categories_remote.rs
-#, fuzzy
 msgid "Apply Sent Category Changes"
-msgstr "应用已发送的类别更改"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
@@ -1888,27 +1897,23 @@ msgstr "再次先询问"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Ask for permission to keep your automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, your automatic replies aren't changed."
-msgstr "请求让自动回复与 Outlook 同步的权限：Microsoft 页面将在浏览器中打开。未获授权时，不会更改自动回复。"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Ask for permission to keep your rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, rules stay on this computer and the categories can't be changed here."
-msgstr "请求让规则、自动回复和类别与 Outlook 同步的权限：Microsoft 页面将在浏览器中打开。未获授权时，规则保留在此计算机上，且无法在此更改类别。"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Ask for permission to keep your tasks and automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
-msgstr "请求让任务和自动回复与 Outlook 同步的权限：Microsoft 页面将在浏览器中打开。未获授权时，任务保留在此计算机上。"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
-msgstr "请求让任务、规则、自动回复和类别与 Outlook 同步的权限：Microsoft 页面将在浏览器中打开。未获授权时，任务和规则保留在此计算机上，且无法在此更改类别。"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -2324,7 +2329,7 @@ msgid "Available formats:"
 msgstr "可用格式："
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Back"
 msgstr "返回"
@@ -2388,6 +2393,11 @@ msgstr "请谨慎处理此邮件。"
 #, fuzzy
 msgid "Before anything changes, a copy of your whole mailbox is saved next to it, with today's date in its name."
 msgstr "进行任何更改前，会先在原邮箱文件旁保存一份完整副本，并在文件名中注明今天的日期。"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Beside its name and on its mail"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -2761,39 +2771,33 @@ msgstr "类别"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. Asking for your permission to change them…"
-msgstr "来自 {address} 服务器的类别。正在请求更改权限…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. Checking whether MailCraft may change them…"
-msgstr "来自 {address} 服务器的类别。正在检查 MailCraft 是否可以更改…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. Microsoft no longer takes the sign-in, so they can't be changed"
-msgstr "来自 {address} 服务器的类别。Microsoft 不再接受此登录凭据，因此无法更改"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. No permission to change them"
-msgstr "来自 {address} 服务器的类别。没有更改权限"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. No permission to change them ({why})"
-msgstr "来自 {address} 服务器的类别。没有更改权限（{why}）"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories from {address}'s server. Read-only here until MailCraft can check whether it may change them"
-msgstr "来自 {address} 服务器的类别。在 MailCraft 能够检查是否可以更改之前，此处为只读"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
@@ -2803,45 +2807,38 @@ msgstr "类别："
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: Microsoft no longer takes the sign-in"
-msgstr "类别：Microsoft 不再接受此登录凭据"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: asking for your permission…"
-msgstr "类别：正在请求您的许可…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: checking…"
-msgstr "类别：正在检查…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: kept in step with Outlook"
-msgstr "类别：与 Outlook 保持同步"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: read-only here (MailCraft may not change them)"
-msgstr "类别：此处为只读（MailCraft 无权更改）"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: read-only here ({why})"
-msgstr "类别：此处为只读（{why}）"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "Categories: read-only here until MailCraft can check whether it may change them"
-msgstr "类别：在 MailCraft 能够检查是否可以更改之前，此处为只读"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
@@ -2857,15 +2854,13 @@ msgstr "分类"
 
 #. command label
 #: crates/engine/src/cmd/categories_remote.rs
-#, fuzzy
 msgid "Category Changes Allowed"
-msgstr "已允许类别更改"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/categories_remote.rs
-#, fuzzy
 msgid "Category Changes to Send"
-msgstr "要发送的类别更改"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
@@ -3427,6 +3422,11 @@ msgstr "关闭页面了吗？这将重新打开提供商的登录页面。"
 msgid "Closes this window. Nothing is kept."
 msgstr "关闭此窗口，不会保留任何内容。"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Code from your authenticator app for {account}"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -3524,7 +3524,7 @@ msgid "Confirm servers"
 msgstr "确认服务器"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Connect"
 msgstr "连接"
@@ -3595,9 +3595,8 @@ msgstr "联系人名片"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Contacts"
-msgstr "联系人"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4581,9 +4580,8 @@ msgstr "显示名称"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Distribution list"
-msgstr "通讯组列表"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4734,6 +4732,12 @@ msgstr "下载所有邮件中的图片"
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "自动下载邮件中的图片"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Download Zimbra Messages in Full"
+msgstr " Zimbra "
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5881,9 +5885,8 @@ msgstr "适用于由组织自行运行的邮件服务器。MailCraft 会根据�
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "For a relay that takes mail without a password: it is never sent yours."
-msgstr "适用于无需密码即可接收邮件的中继服务器：绝不会向其发送您的密码。"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -5899,30 +5902,26 @@ msgstr "目前不会读取或发送共享邮箱的任何内容：{error}"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "For now, rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
-msgstr "目前，规则保留在此计算机上，不会更改自动回复，也无法在此更改类别：{error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
-msgstr "目前，任务和规则保留在此计算机上，不会更改自动回复，也无法在此更改类别：{error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "For now, tasks stay on this computer and your automatic replies aren't changed: {error}"
-msgstr "目前，任务保留在此计算机上，不会更改自动回复：{error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "For now, your automatic replies aren't changed: {error}"
-msgstr "目前不会更改自动回复：{error}"
+msgstr ""
 
 #. interface
-#: crates/ui-egui/src/ews_setup.rs
+#: crates/ui-egui/src/ews_setup.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Forget"
 msgstr "清除"
@@ -5938,6 +5937,11 @@ msgstr "清除已下载的日历和联系人"
 #, fuzzy
 msgid "Forget Trusted Certificate"
 msgstr "取消信任证书"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Forget Trusted Device"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
@@ -6109,9 +6113,8 @@ msgstr "来自组织外部。"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
-msgstr "来自 {account} 所在组织的地址列表。仅在查看时显示，不会保存：“添加至联系人”会在此计算机上保存一份副本。"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -6527,9 +6530,8 @@ msgstr "灰色"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Group"
-msgstr "组"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -6884,6 +6886,11 @@ msgstr "如果您有管理员账户，可选择第一项，在 Microsoft 页面�
 #, fuzzy
 msgid "If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts."
 msgstr "如果您有应用程序（客户端）ID，请粘贴在此处。它来自 Microsoft Entra 应用注册：公共客户端，重定向 URI 为 http://localhost，支持任意目录中的账户和个人账户。"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "If your account signs in with a second step, MailCraft asks for the code of your authenticator app when it first connects."
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -7729,9 +7736,8 @@ msgstr "保留数据"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Keep in Step with Outlook"
-msgstr "与 Outlook 保持同步"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -8197,15 +8203,13 @@ msgstr "正在查找您的 Exchange 服务器…"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Looking the names up in the organisation's address list…"
-msgstr "正在组织的地址列表中查找姓名…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Looking the names up stopped unexpectedly"
-msgstr "查找姓名意外停止"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -8417,6 +8421,11 @@ msgstr "MailCraft 暂时无法以此方式登录该服务器（服务器要求�
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
 msgstr "MailCraft 包含下列软件。其核心的 Rust 库及版本列在源代码仓库中。"
 
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "MailCraft connects to Zimbra through its own web service over HTTPS: the SOAP API (in JSON) and REST, not IMAP or SMTP. It needs Zimbra Collaboration 8.8 or later."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -8612,9 +8621,8 @@ msgstr[0] "启动 MailCraft 时提供的 {n} 个项目既不是邮件链接，�
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "MailCraft wasn't allowed to keep this mailbox in step with Outlook: {error}"
-msgstr "MailCraft 未获准将此邮箱与 Outlook 同步：{error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9169,9 +9177,8 @@ msgstr "Microsoft 页面未返回批准结果：可能是在该页面拒绝了�
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Microsoft's page opens in your browser to ask for your permission, once."
-msgstr "系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9289,9 +9296,8 @@ msgstr "目前无法在服务器上请求更多结果"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "More than one person matches \"{name}\". Choose one:"
-msgstr "有多个人与“{name}”匹配。请选择一个："
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -9497,9 +9503,8 @@ msgstr "我的组织必须先批准 MailCraft：该怎么办"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "My outgoing server needs no sign-in"
-msgstr "我的发送服务器无需登录"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -10377,9 +10382,8 @@ msgstr "尚无人提出其他时间。"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Nobody in the address list matches"
-msgstr "地址列表中没有匹配的人"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -10401,9 +10405,8 @@ msgstr "没有匹配搜索条件的联系人"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Nobody matches: {names}"
-msgstr "无匹配：{names}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
@@ -10557,9 +10560,8 @@ msgstr "尚未保存到任何位置：请使用“打开和导出 › 邮箱另�
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Not looked up in the address list: {names}"
-msgstr "未在地址列表中查找：{names}"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -10581,9 +10583,8 @@ msgstr "暂不：退出 MailCraft 时将安装它。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour"
-msgstr "不在 Outlook 的列表中：为邮件、日程和待办事项设置此类别后，其名称仍会发送到账户的服务器，但在服务器上没有颜色"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11103,9 +11104,8 @@ msgstr "此处只有邮件的开头，其余内容将在下一次发送/接收�
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Only the first {n} are shown: type more of the name to find somebody else."
-msgstr "仅显示前 {n} 个：请输入更多姓名内容以查找其他人。"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -11623,9 +11623,8 @@ msgstr "组织外部（开启）"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Outside the organisation"
-msgstr "组织外部"
+msgstr ""
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
@@ -12199,9 +12198,8 @@ msgstr "公钥"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "Public folder"
-msgstr "公用文件夹"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -13802,9 +13800,8 @@ msgstr "搜索联系人"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
-#, fuzzy
 msgid "Search the address list"
-msgstr "搜索地址列表"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/zones.rs
@@ -13814,9 +13811,8 @@ msgstr "搜索时区"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Searching the address list stopped unexpectedly"
-msgstr "搜索地址列表意外停止"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
@@ -13826,9 +13822,8 @@ msgstr "正在搜索服务器…"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Searching…"
-msgstr "正在搜索…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13940,9 +13935,8 @@ msgstr "请先选择文本"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Select somebody to see the details"
-msgstr "选择一个人以查看详细信息"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -13963,7 +13957,7 @@ msgid "Send & Receive"
 msgstr "发送和接收"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "发送/接收"
@@ -14260,7 +14254,7 @@ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
 msgstr "发送/接收会登录 Microsoft；之后即可搜索服务器。"
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Send/Receive stopped unexpectedly"
 msgstr "发送/接收意外中断"
@@ -14282,6 +14276,12 @@ msgstr "使用 JMAP 发送/接收"
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "使用 Microsoft Graph 发送/接收"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Send/Receive with Zimbra"
+msgstr " Zimbra /"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -14314,7 +14314,7 @@ msgid "Sending"
 msgstr "正在发送"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Sending and receiving…"
 msgstr "正在发送和接收…"
@@ -15512,6 +15512,11 @@ msgstr "停止本次发送/接收；已到达的内容将保留"
 msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
 msgstr "不再信任此账户的这张证书。如果服务器再次出示该证书，而本机不信任它，系统会询问您。"
 
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "Stop trusting this computer for this account: the next Send/Receive signs in afresh and asks for the code again (when the account has a second step). What the server has trusted can be withdrawn there too, under its own settings."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -15531,7 +15536,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "操作在完成前停止。请再次导入文件以获取剩余内容。"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "已停止；下次从此处继续"
@@ -15742,27 +15747,23 @@ msgstr "仍然同步"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Sync with Outlook: asking for your permission…"
-msgstr "与 Outlook 同步：正在请求您的许可…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Sync with Outlook: off"
-msgstr "与 Outlook 同步：已关闭"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Sync with Outlook: on"
-msgstr "与 Outlook 同步：已开启"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Sync with Outlook: partly on"
-msgstr "与 Outlook 同步：部分开启"
+msgstr ""
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -16220,6 +16221,11 @@ msgstr "数字签名已过期。"
 msgid "The Entire Series"
 msgstr "整个系列"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The Zimbra server is asked to trust this computer, so that it doesn't ask for a code every time."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -16239,7 +16245,7 @@ msgid "The account could not be removed. It and its sign-in are still here. Try 
 msgstr "无法删除该账户。它及其登录信息仍在这里。请重试。"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "The account couldn't be added"
 msgstr "无法添加账户"
@@ -16276,9 +16282,8 @@ msgstr "用于打开 {address} 的账户已不存在。"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "The account's password is needed first: press Send/Receive and type it"
-msgstr "需要先提供该账户的密码：请按“发送/接收”并输入密码"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -16324,15 +16329,19 @@ msgstr "发送会议时，账户服务器会创建会议，并返回加入链接
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
-#, fuzzy
 msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
-msgstr "地址列表中同名的人比显示的更多：请输入更多姓名内容以查找未列出的人。"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The address of the calendar"
 msgstr "日历的地址"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The address your browser opens Zimbra's web client at. It must begin with https://."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -16516,9 +16525,8 @@ msgstr "日历 {name} 及其保存在此计算机上的事件将被删除，为�
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "The categories couldn't be kept in step: the job stopped unexpectedly"
-msgstr "类别无法保持同步：作业意外停止"
+msgstr ""
 
 #. interface, what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/category_sync.rs
@@ -16528,15 +16536,13 @@ msgstr "无法接收类别：{error}"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "The categories sent couldn't be noted: {error}"
-msgstr "无法记录已发送的类别：{error}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/undo.rs
-#, fuzzy
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
-msgstr "无法还原类别“{name}”：类别列表已满。"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -16582,9 +16588,8 @@ msgstr "该证书不是由该计算机信任的证书颁发机构颁发的。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
-msgstr "连接测试只检查此服务器是否响应。如果它确实需要登录，您发送第一封邮件时会得到提示。"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -17440,7 +17445,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "服务器拒绝了此账户的登录请求。请使用“发送/接收”重新登录。"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "服务器拒绝了 {name} 的登录请求：请重新登录"
@@ -17456,6 +17461,11 @@ msgstr "服务器地址必须以 https:// 开头并包含服务器名称（例�
 #, fuzzy
 msgid "The server's address or the user name can't be used. Check them in Server settings."
 msgstr "无法使用该服务器地址或用户名。请在服务器设置中检查。"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The server's address {why}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17764,6 +17774,11 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "用户名太长或包含名称中不能包含的字符"
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The user name {why}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
@@ -17962,10 +17977,14 @@ msgid "This account is no longer in the mailbox."
 msgstr "此账户已不在邮箱中。"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This account isn't a Zimbra account"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/category_sync.rs
-#, fuzzy
 msgid "This account may not change its categories through Microsoft Graph"
-msgstr "此账户无权通过 Microsoft Graph 更改类别"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/sync_driver/rules.rs
@@ -18052,7 +18071,7 @@ msgid "This build can't connect to Microsoft"
 msgstr "此版本无法连接到 Microsoft"
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "此版本无法连接到邮件服务器"
@@ -18173,9 +18192,8 @@ msgstr "此日历尚未连接到您的账户。其他位置的更改不会显示
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
-#, fuzzy
 msgid "This category is on more events of calendars kept on a server than can wait to be sent at once: nothing was changed."
-msgstr "服务器上保存的日历中带有此类别的日程过多，无法同时等待发送：未做任何更改。"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -18188,6 +18206,11 @@ msgstr "MailCraft 不支持此证书的密钥类型；此处仅导入 P-256 或 
 #, fuzzy
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
 msgstr "此计算机不信任 {host} 服务器提供的证书。如果这是您组织的服务器，可以为此账户信任这张证书。"
+
+#. interface
+#: crates/ui-egui/src/zimbra_mail.rs
+msgid "This computer is trusted: the code of the authenticator app isn't asked for."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -18810,9 +18833,8 @@ msgstr "无法读取此任务。"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "This version of MailCraft can't search an address list"
-msgstr "此版本的 MailCraft 无法搜索地址列表"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -18968,39 +18990,27 @@ msgstr "要添加另一个 Google 地址，请返回并开始设置新账户。"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid ""
 "To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, your automatic replies aren't changed."
 msgstr ""
-"要让 {address} 的自动回复与 Outlook 同步，MailCraft 需要您授权更改邮箱设置。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
-"\n"
-"在您授权之前，不会更改自动回复。"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid ""
 "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
-"要让 {address} 的规则、自动回复和类别与 Outlook 同步，MailCraft 需要您授权更改邮箱设置。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
-"\n"
-"在您授权之前，规则只保存在此计算机上，不会向 Microsoft 发送任何规则内容，不会更改自动回复，也无法在此更改此邮箱的类别。"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid ""
 "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
 msgstr ""
-"要让 {address} 的任务和自动回复与 Outlook 同步，MailCraft 需要您授权更改 To Do 列表和邮箱设置。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
-"\n"
-"在您授权之前，任务只保存在此计算机上，不会向 Microsoft 发送任何任务内容，也不会更改自动回复。"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -19022,9 +19032,6 @@ msgid ""
 "\n"
 "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
-"要让 {address} 的任务、规则、自动回复和类别与 Outlook 同步，MailCraft 需要您授权更改 To Do 列表和邮箱设置。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
-"\n"
-"在您授权之前，任务和规则只保存在此计算机上，不会向 Microsoft 发送其任何内容，不会更改自动回复，也无法在此更改此邮箱的类别。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
@@ -19250,9 +19257,13 @@ msgstr "类型"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Type a name in the search box to search the organisation's address list"
-msgstr "在搜索框中输入姓名以搜索组织的地址列表"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Type the address of your Zimbra server, as your browser opens its web client"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19433,7 +19444,7 @@ msgid "Up to 50 MB"
 msgstr "不超过 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "已是最新"
@@ -19580,13 +19591,23 @@ msgid "Use system setting follows Animation effects in Windows' settings. Where 
 msgstr "“使用系统设置”遵循 Windows 设置中的“动画效果”。如果 MailCraft 暂时无法读取系统设置，动画会照常播放，直到您选择“从不播放”。"
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's calendar (CalDAV)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Use this server's contacts (CardDAV)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Use {address}"
 msgstr "使用 {address}"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "User name"
 msgstr "用户名"
@@ -19608,6 +19629,11 @@ msgstr "用户名"
 #, fuzzy
 msgid "Usually the whole address"
 msgstr "通常是完整地址"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Usually the whole address; empty for your address"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -20113,9 +20139,8 @@ msgstr "离线工作：您发送的邮件会在发件箱中等待"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
-#, fuzzy
 msgid "Workplace"
-msgstr "工作地点"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
@@ -20461,9 +20486,8 @@ msgstr "您的组织不允许 MailCraft 更改您的自动回复。请联系管�
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
-msgstr "您的组织不允许 MailCraft 将此邮箱与 Outlook 同步"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
@@ -20533,9 +20557,8 @@ msgstr "此时您的组织只允许管理员批准新程序。您的账户或密
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
-#, fuzzy
 msgid "Your organisation's administrator has to approve MailCraft keeping this mailbox in step with Outlook once: File › Info"
-msgstr "组织管理员需要批准一次 MailCraft 将此邮箱与 Outlook 同步的权限：文件 › 信息"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -20584,6 +20607,59 @@ msgstr "您自己的姓名。"
 #, fuzzy
 msgid "Z on top"
 msgstr "Z 位于顶部"
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra Collaboration 8.8 or later, through its web service"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra account"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr "Zimbra 账户正在测试中：使用 MAILCRAFT_ZIMBRA=1 启动 MailCraft 即可试用"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra server address (web client, HTTPS)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Zimbra {host}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr "Zimbra {host} · 未同步：Zimbra 账户已关闭（使用 MAILCRAFT_ZIMBRA=1 启动 MailCraft 即可试用）"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra · no usable server address"
+msgstr "Zimbra · 没有可用的服务器地址"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra · signs in with a user name and password, and a code when the account asks for one"
+msgstr ""
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -20638,6 +20714,11 @@ msgstr "`answer.outcome` 为 read、missing、notPermitted、refused、approval 
 #, fuzzy
 msgid "`format` is \"smime\" or \"openpgp\""
 msgstr "`format` 为 \"smime\" 或 \"openpgp\""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`id` is required"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/keep_offline.rs
@@ -20710,6 +20791,12 @@ msgstr "Microsoft 或 Exchange 账户只能按其服务器允许的范围使用�
 #, fuzzy
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "Microsoft 登录只能用于 Microsoft 自有的邮件服务器：此账户指定了其他服务器"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "Zimbra 账户的服务器、地址和用户名在邮件存储后无法更改：请删除并添加另一个"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -20947,9 +21034,8 @@ msgstr "任务必须有标题"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "add an Exchange server account first: its organisation's address list is searched"
-msgstr "请先添加 Exchange 服务器账户：将搜索其组织的地址列表"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
@@ -20998,6 +21084,12 @@ msgstr "S/MIME 证书通过其证书颁发机构获得信任，不会标记为�
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
 msgstr "要将账户改为 JMAP 账户或改为其他类型，必须移除账户后重新添加"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr "只有删除并重新添加，账户才能成为 Zimbra 账户或不再是 Zimbra 账户"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21557,6 +21649,12 @@ msgid "no account here keeps its rules on its server"
 msgstr "此处没有账户在服务器上保存规则"
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "no account is a Zimbra account"
+msgstr "没有任何账户是 Zimbra 账户"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -21593,7 +21691,7 @@ msgid "no account with id {account}"
 msgstr "没有 ID 为 {account} 的账户"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "没有 ID 为 {id} 的账户"
@@ -21695,7 +21793,7 @@ msgid "no message with id {id}"
 msgstr "没有 ID 为 {id} 的邮件"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "{name} 中没有 ID 为 {id} 的邮件"
@@ -22677,7 +22775,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "处理此结果会使账户保存的同步状态超过允许的大小"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "结果 {why}"
@@ -23234,16 +23332,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "此 Exchange 服务器账户没有服务器设置"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "此次发送/接收针对的是另一个账户，不是 {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "此次发送/接收针对的是之前指定的服务器 {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -23289,15 +23392,13 @@ msgstr "此账户不发送邮件，因此邮件无法等待某个时间：请立
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
-#, fuzzy
 msgid "this account's categories aren't kept in step with a server"
-msgstr "此账户的类别未与服务器同步"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/categories_remote.rs
-#, fuzzy
 msgid "this account's categories aren't kept in step with its server"
-msgstr "此账户的类别未与其服务器同步"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -24044,6 +24145,12 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name} 没有可以使用的 JMAP 服务器地址"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} has no Zimbra server address that can be used"
+msgstr "{name} 没有可用的 Zimbra 服务器地址"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -24114,6 +24221,12 @@ msgstr "{name} 不是通过 IMAP 同步的 Microsoft 账户"
 #, fuzzy
 msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "{name} 不是 Microsoft 或 Exchange 服务器账户"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} isn't a Zimbra account"
+msgstr "{name} 不是 Zimbra 账户"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -24337,10 +24450,9 @@ msgstr[0] "{n} 个日历项目"
 
 #. what a command says
 #: crates/engine/src/undo.rs
-#, fuzzy
 msgid "{n} category couldn't be put back: the list of categories is full."
 msgid_plural "{n} categories couldn't be put back: the list of categories is full."
-msgstr[0] "有 {n} 个类别无法还原：类别列表已满。"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -24476,10 +24588,9 @@ msgstr[0] "视图中的 {n} 个日程"
 
 #. what a command says
 #: crates/engine/src/session.rs
-#, fuzzy
 msgid "{n} event keeps its categories as they were on its server: too many changes are waiting to be sent."
 msgid_plural "{n} events keep their categories as they were on their servers: too many changes are waiting to be sent."
-msgstr[0] "有 {n} 个日程在其服务器上的类别保持原样：等待发送的更改过多。"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -24504,10 +24615,9 @@ msgstr[0] "{n} 个文件夹"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
-#, fuzzy
 msgid "{n} found in the address list"
 msgid_plural "{n} found in the address list"
-msgstr[0] "在地址列表中找到 {n} 个"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -25217,9 +25327,8 @@ msgstr[0] "已发送 {sent} 封邮件"
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs
-#, fuzzy
 msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
-msgstr "{server}（此服务器需要登录：请在账户设置中取消勾选“我的发送服务器无需登录”。）"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -25365,12 +25474,40 @@ msgid "−Lines"
 msgstr "−行"
 
 #, fuzzy
-#~ msgid "As the people you write to see it"
-#~ msgstr "收件人看到的效果"
+#~ msgid "Zimbra {host} · not kept in step yet: this part is not built"
+#~ msgstr "Zimbra {host} · 尚未同步：该部分尚未构建"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
 #~ msgstr "在浏览器打开的页面上，允许 MailCraft 读取他人的日历…"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+#~ msgstr "您的组织不允许 MailCraft 读取共享邮箱的日历"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
+#~ msgstr "组织管理员需要批准一次读取他人日历的权限：文件 › 信息"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
+#~ msgstr "组织管理员需要批准一次读取共享邮箱的权限：文件 › 信息"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
+#~ msgstr "组织管理员需要批准一次读取共享邮箱日历的权限：文件 › 信息"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Zimbra 账户尚不能收发邮件：该部分尚未构建"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "该结果属于另一个账户"
+
+#, fuzzy
+#~ msgid "As the people you write to see it"
+#~ msgstr "收件人看到的效果"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
@@ -25455,22 +25592,6 @@ msgstr "−行"
 #~ "要显示 {address} 的日历，MailCraft 需要您授权读取共享邮箱的日历。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
 #~ "\n"
 #~ "您可以查看哪些日历内容由其所有者和您的组织决定，此授权不会改变这些权限。在您授权之前，不会读取 {address} 的任何日历。"
-
-#, fuzzy
-#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-#~ msgstr "您的组织不允许 MailCraft 读取共享邮箱的日历"
-
-#, fuzzy
-#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-#~ msgstr "组织管理员需要批准一次读取他人日历的权限：文件 › 信息"
-
-#, fuzzy
-#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-#~ msgstr "组织管理员需要批准一次读取共享邮箱的权限：文件 › 信息"
-
-#, fuzzy
-#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-#~ msgstr "组织管理员需要批准一次读取共享邮箱日历的权限：文件 › 信息"
 
 #~ msgid "The colour is set in Outlook"
 #~ msgstr "颜色是在 Outlook 中设置的"

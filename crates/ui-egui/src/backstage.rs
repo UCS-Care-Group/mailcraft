@@ -128,6 +128,8 @@ pub(crate) fn account_detail(app: &MailApp, a: &mailcraft_model::Account) -> Str
         AccountKind::Jmap => jmap_line(a),
         // An Exchange server account names its server, and says why it isn't kept in step.
         AccountKind::Exchange => ews_line(app, a),
+        // A Zimbra account names its server, and says why it isn't kept in step.
+        AccountKind::Zimbra => zimbra_line(app, a),
         // Kept as its file has it: this version neither sends nor receives with it.
         AccountKind::Unknown => tl!("Added by a newer version of MailCraft: send and receive with it there").to_string(),
         AccountKind::Imap => {
@@ -151,6 +153,21 @@ pub(crate) fn jmap_line(a: &mailcraft_model::Account) -> String {
     match a.jmap.as_ref().and_then(mailcraft_model::JmapServer::host) {
         Some(host) => crate::i18n::fmt(tl!("JMAP {host}"), &[("host", host)]),
         None => tl!("JMAP · no usable server address").to_string(),
+    }
+}
+
+/// A Zimbra account's line: the name of its server alone, and, while Zimbra accounts are switched
+/// off, why it isn't kept in step.
+pub(crate) fn zimbra_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
+    let host = a.zimbra.as_ref().and_then(mailcraft_model::ZimbraServer::host);
+    let Some(host) = host else { return tl!("Zimbra · no usable server address").to_string() };
+    if app.session.zimbra {
+        crate::i18n::fmt(tl!("Zimbra {host}"), &[("host", host)])
+    } else {
+        crate::i18n::fmt(
+            tl!("Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"),
+            &[("host", host)],
+        )
     }
 }
 
@@ -188,8 +205,16 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         // be removed too, leaving an empty mailbox (#313); the empty mailbox's own placeholder
         // can't. (A shared mailbox has both: its settings are its name and colour, #1385.)
         let removable = a.is_shared() || app.session.mailbox.placeholder() != Some(a.id);
-        let buttons = usize::from(!a.email.is_empty()) + usize::from(removable);
-        let text_w = r.width() - 70.0 - 82.0 * buttons as f32;
+        // A button's width is its words' own, at least 74 — a translation longer than English
+        // must not wrap or clip; the text keeps out of the buttons.
+        let button_w = |ui: &Ui, text: &str| {
+            (ui.painter().layout_no_wrap(text.to_string(), egui::FontId::default(), egui::Color32::WHITE).size().x + 24.0).max(74.0)
+        };
+        let settings_w = button_w(ui, tl!("Settings"));
+        let remove_w = button_w(ui, tl!("Remove"));
+        let settings_at = if removable { 20.0 + remove_w + settings_w } else { 12.0 + settings_w };
+        let left_of_buttons = if !a.email.is_empty() { settings_at } else { 12.0 + remove_w };
+        let text_w = (r.width() - 58.0 - left_of_buttons - 8.0).max(0.0);
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), text_w, &title, semibold(13.0), t.text);
         let detail = account_detail(app, a);
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 39.0), text_w, &detail, regular(11.5), t.text_dim);
@@ -211,11 +236,12 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         }
         // The buttons sit on the card: placed without moving the page's layout on (`ui.put` would
         // take it back up into the card, and what follows was drawn over it).
-        let on_card = |ui: &mut Ui, right: f32, button: egui::Button<'_>| {
-            let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(74.0, 26.0));
+        let on_card = |ui: &mut Ui, right: f32, width: f32, button: egui::Button<'_>| {
+            let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(width, 26.0));
             ui.new_child(egui::UiBuilder::new().max_rect(br)).add_sized(br.size(), button)
         };
-        let settings_at = if removable { 168.0 } else { 86.0 };
+        // `right` is the gap between the card's right edge and the button's left: Remove's own,
+        // the gap between the buttons, and Settings' width.
         // (An account kept in step through Graph has no servers to change, #312.)
         let settings_tip = if a.is_shared() {
             // (Its sign-in is its owner's, #70: only its name and colour are its own, #1385.)
@@ -225,18 +251,20 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         } else {
             tl!("Change this account's name, servers and sign-in")
         };
-        if !a.email.is_empty() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked() {
+        if !a.email.is_empty() && on_card(ui, settings_at, settings_w, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked() {
             let _ = app.run("ui.dialog", json!({"name": "account", "id": a.id}));
         }
         if a.is_shared() {
-            if on_card(ui, 86.0, egui::Button::new(tl!("Remove")))
+            if on_card(ui, 12.0 + remove_w, remove_w, egui::Button::new(tl!("Remove")))
                 .on_hover_text(tl!("Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."))
                 .clicked()
             {
                 let _ = app.run("account.removeSharedMailbox", json!({"id": a.id}));
             }
         } else if removable
-            && on_card(ui, 86.0, egui::Button::new(tl!("Remove"))).on_hover_text(tl!("Remove this account and the mail kept for it here")).clicked()
+            && on_card(ui, 12.0 + remove_w, remove_w, egui::Button::new(tl!("Remove")))
+                .on_hover_text(tl!("Remove this account and the mail kept for it here"))
+                .clicked()
         {
             let _ = app.run("account.remove", json!({"id": a.id}));
         }
@@ -254,6 +282,10 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         // An Exchange server account: its server, user name, sign-in and certificate (#252).
         if a.kind == AccountKind::Exchange {
             crate::ews_setup::info_rows(app, ui, t, a);
+        }
+        // A Zimbra account: whether this computer is trusted for its second step.
+        if a.kind == AccountKind::Zimbra {
+            crate::zimbra_mail::info_rows(app, ui, t, a);
         }
         // Where keeping the to-dos, the rules, the automatic replies and the categories in step
         // with Outlook stands, in one line, with a way to turn it on (#661); what each stands at
