@@ -43,7 +43,7 @@ pub fn request(base: &str, token: &Secret, since: &str) -> Result<HttpRequest, E
 /// What a `SyncResponse` says. Of a first read only the token is taken.
 pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
     let answer = soap::answer("SyncRequest", response)?;
-    let token = json::text(answer.get("token")).unwrap_or_default();
+    let token = json::raw(answer.get("token")).unwrap_or_default();
     let fit = !token.is_empty() && token.len() <= MAX_TOKEN && token.bytes().all(|b| b.is_ascii_alphanumeric() || b"-.:".contains(&b));
     if !fit {
         return Err(Error::Unreadable);

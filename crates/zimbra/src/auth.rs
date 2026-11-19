@@ -27,10 +27,12 @@ pub fn request(base: &str, user: &str, password: &Secret) -> Result<HttpRequest,
 /// long, or with a character no token has) is [`Error::Unreadable`].
 pub fn answer(response: &HttpResponse) -> Result<Secret, Error> {
     let answer = soap::answer("AuthRequest", response)?;
-    if json::on(answer.get("twoFactorAuthRequired")) {
+    // A flag that is no flag can't tell a second step is asked for: read off, the token it came
+    // without would be handed out while the account is asked for more.
+    if json::checked_on(answer.get("twoFactorAuthRequired")).ok_or(Error::Unreadable)? {
         return Err(Error::TwoFactor);
     }
-    let token = json::text(answer.get("authToken")).unwrap_or_default();
+    let token = json::raw(answer.get("authToken")).unwrap_or_default();
     let fit = !token.is_empty() && token.len() <= MAX_TOKEN && token.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_.=".contains(&b));
     if fit { Ok(Secret::new(&token)) } else { Err(Error::Unreadable) }
 }
