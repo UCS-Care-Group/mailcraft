@@ -103,10 +103,7 @@ fn own_folder(id: &str) -> bool {
 
 /// What a refused folder change is said as.
 fn refused(e: Error) -> ChangeOutcome {
-    match e {
-        Error::NoSuchItem => ChangeOutcome::Gone,
-        e => ChangeOutcome::Refused { why: e.to_string() },
-    }
+    ChangeOutcome::Refused { why: e.to_string() }
 }
 
 /// The request for a folder change, and how its answer is read; `None` for a change that needs no
@@ -182,7 +179,6 @@ pub fn message_done(change: &MessageChange) -> MessageOutcome {
 /// What a refused message change is said as.
 pub fn message_refused(e: Error) -> MessageOutcome {
     match e {
-        Error::NoSuchItem => MessageOutcome::Gone,
         Error::Fault(Fault::PermissionDenied) => MessageOutcome::Refused { status: 403 },
         _ => MessageOutcome::Refused { status: 400 },
     }

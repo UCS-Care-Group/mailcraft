@@ -14,6 +14,17 @@ use crate::auth::Credentials;
 use crate::standin::{PASSWORD, StandIn, USER, block_on};
 use crate::sync_mail;
 
+#[test]
+fn a_missing_mutation_target_does_not_prove_the_source_is_gone() {
+    assert!(matches!(crate::up::message_refused(crate::Error::NoSuchItem), MessageOutcome::Refused { .. }));
+    let change = FolderChange::Create { folder: 9, name: "New".into(), parent: "900".into(), parent_folder: None };
+    let response = crate::HttpResponse::new(
+        500,
+        serde_json::json!({"Body": {"Fault": {"Detail": {"Error": {"Code": "mail.NO_SUCH_FOLDER"}}}}}).to_string().into_bytes(),
+    );
+    assert!(matches!(crate::up::folder_done(&change, &response), ChangeOutcome::Refused { .. }));
+}
+
 fn request() -> ZimbraMailRequest {
     ZimbraMailRequest { account: 3, email: USER.into(), url: "http://127.0.0.1:7070".into(), ..Default::default() }
 }
