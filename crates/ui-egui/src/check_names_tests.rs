@@ -15,6 +15,17 @@ use serde_json::json;
 use crate::dialogs::Dialog;
 use crate::{MailApp, Services};
 
+#[test]
+fn check_names_candidate_row_text_anchors_to_hebrew_reading_edge_only() {
+    let row = egui::Rect::from_min_size(egui::pos2(20.0, 40.0), egui::vec2(120.0, 38.0));
+    // Original English left edge and the same clickable row rect.
+    assert_eq!(crate::check_names::candidate_text_start_x(row, 55.0, false), 30.0);
+    // Hebrew text ends ten points before the row's right edge.
+    assert_eq!(crate::check_names::candidate_text_start_x(row, 55.0, true), 75.0);
+    // A clipped line may fill the entire available width, without overflow.
+    assert_eq!(crate::check_names::candidate_text_start_x(row, 100.0, true), 30.0);
+}
+
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
 

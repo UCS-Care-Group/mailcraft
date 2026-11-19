@@ -241,6 +241,30 @@ impl MailApp {
     }
 }
 
+/// Anchor the painted candidate line without changing the row's click region.
+pub(crate) fn candidate_text_start_x(rect: egui::Rect, painted_width: f32, rtl: bool) -> f32 {
+    let start = rect.min.x + 10.0;
+    if rtl { (rect.max.x - 10.0 - painted_width).max(start) } else { start }
+}
+
+/// Keep the existing English paint path; Hebrew right-aligns the same clipped
+/// galley inside the same padded candidate row.
+fn paint_candidate_line(painter: &egui::Painter, rect: egui::Rect, y: f32, text: &str, font: egui::FontId, color: egui::Color32, rtl: bool) {
+    let width = rect.width() - 20.0;
+    if !rtl {
+        paint_clipped(painter, egui::pos2(rect.min.x + 10.0, y), width, text, font, color);
+        return;
+    }
+    if width <= 4.0 || text.is_empty() {
+        return;
+    }
+    let mut job = egui::text::LayoutJob::single_section(text.to_string(), egui::text::TextFormat { font_id: font, color, ..Default::default() });
+    job.wrap = egui::text::TextWrapping { max_width: width, max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+    let galley = painter.layout_job(job);
+    let size = galley.size();
+    painter.galley(egui::pos2(candidate_text_start_x(rect, size.x, true), y - size.y / 2.0), galley, color);
+}
+
 impl NameChoice {
     /// The message being written it is for.
     pub(crate) fn compose(&self) -> u64 {
@@ -264,6 +288,7 @@ impl NameChoice {
         }
         ui.add_space(4.0);
         let mut chosen = None;
+        let rtl = crate::i18n::current().code() == "he";
         egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 1.0);
             for (index, person) in people.iter().enumerate() {
@@ -273,9 +298,8 @@ impl NameChoice {
                 } else if r.hovered() {
                     ui.painter().rect_filled(rect, 4.0, t.hover);
                 }
-                let (x, w) = (rect.min.x + 10.0, rect.width() - 20.0);
-                paint_clipped(ui.painter(), egui::pos2(x, rect.min.y + 11.0), w, &first_line(person), regular(13.0), t.text);
-                paint_clipped(ui.painter(), egui::pos2(x, rect.min.y + 27.0), w, &second_line(person), regular(11.0), t.text_dim);
+                paint_candidate_line(ui.painter(), rect, rect.min.y + 11.0, &first_line(person), regular(13.0), t.text, rtl);
+                paint_candidate_line(ui.painter(), rect, rect.min.y + 27.0, &second_line(person), regular(11.0), t.text_dim, rtl);
                 if r.clicked() {
                     self.selected = index;
                 }
