@@ -784,9 +784,8 @@ msgstr "Accountnaam"
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "Account's signature"
-msgstr "Handtekening van het account"
+msgstr ""
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
@@ -954,9 +953,8 @@ msgstr "Account toevoegen"
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "Add address"
-msgstr "Adres toevoegen"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -1092,6 +1090,11 @@ msgid "Address Book"
 msgstr "Adresboek"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Address list"
@@ -1117,9 +1120,8 @@ msgstr "Adressen gescheiden door ; (leeg laten als antwoorden naar u moeten kome
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "Addresses your mail server lets this account send from with the same sign-in, such as aliases. Replies are sent from the address a message came to."
-msgstr "Adressen waarvandaan uw mailserver dit account met dezelfde aanmelding laat verzenden, zoals aliassen. Antwoorden worden verzonden vanaf het adres waarop een bericht binnenkwam."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -1196,6 +1198,11 @@ msgstr "Alle postvakken"
 #, fuzzy
 msgid "All accounts"
 msgstr "Alle accounts"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "All address books"
+msgstr ""
 
 #. android, interface, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -1388,9 +1395,8 @@ msgstr "Een account kon niet worden verzonden en ontvangen."
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "An address this account may send from"
-msgstr "Een adres waarvandaan dit account mag verzenden"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1614,6 +1620,11 @@ msgstr "Gedownloade regels toepassen"
 #: crates/engine/src/cmd/tasks_remote.rs
 msgid "Apply Downloaded To-dos"
 msgstr "Gedownloade to-do's toepassen"
+
+#. command label
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "Apply Read Exchange Calendar, Contacts and To-dos"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
@@ -1935,6 +1946,11 @@ msgstr "Op een datum en tijd"
 #, fuzzy
 msgid "At most {max} contacts can be merged at once."
 msgstr "Er kunnen hoogstens {max} contactpersonen tegelijk worden samengevoegd."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "At most {n} address books can be opened by address: remove one first."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -2799,9 +2815,8 @@ msgstr "CC: {names}"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Celebrate"
-msgstr "Vieren"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
@@ -5182,6 +5197,11 @@ msgstr "Alles wat op deze telefoon stond, is verwijderd."
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Alles wat de interface doet, is een opdracht: {commands} opdrachten, die {percent}% van de functiecatalogus dekken. De opdrachtregel, het besturingskanaal en de MCP-server voeren dezelfde opdrachten uit."
 
+#. command label
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "Exchange Calendar, Contacts and To-dos to Read"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -7231,9 +7251,8 @@ msgstr "Item"
 
 #. command label
 #: crates/engine/src/cmd/item_from_message.rs
-#, fuzzy
 msgid "Item from Message"
-msgstr "Item uit bericht"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7651,9 +7670,8 @@ msgstr "Later houdt dit account voorlopig op IMAP. U kunt overschakelen wanneer 
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Laugh"
-msgstr "Lachen"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -7734,9 +7752,8 @@ msgstr "Licht"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Like"
-msgstr "Leuk"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -7787,6 +7804,11 @@ msgstr "Koppelingen"
 #: crates/engine/src/cmd/account.rs
 msgid "List Accounts"
 msgstr "Accounts opsommen"
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "List Address Books"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -7927,9 +7949,8 @@ msgstr "Lijkt op een merk."
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Love"
-msgstr "Geweldig"
+msgstr ""
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -8413,9 +8434,8 @@ msgstr "Maak een handtekening met Nieuw."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Make an Item from a Message"
-msgstr "Een item maken van een bericht"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8884,9 +8904,8 @@ msgstr "Mobiel"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Module bar"
-msgstr "Modulebalk"
+msgstr ""
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -10079,9 +10098,8 @@ msgstr "Geen"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
-#, fuzzy
 msgid "None of those messages is in this mailbox any more."
-msgstr "Geen van deze berichten staat nog in dit postvak."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10886,6 +10904,18 @@ msgstr "Antwoorden en doorgestuurde berichten in een nieuw venster openen"
 msgid "Open Result from the Server"
 msgstr "Resultaat van de server openen"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Open Shared\n"
+"Address Book"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/contacts_opened.rs crates/ui-egui/src/dialogs.rs
+msgid "Open Shared Address Book"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Open Shared Calendar"
@@ -11014,6 +11044,11 @@ msgstr "Deze agenda openen"
 #, fuzzy
 msgid "Open {name}? {why}"
 msgstr "{name} openen? {why}"
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Opened the address book of {address}. It is read at the next Send/Receive, and kept on this computer only."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -11160,9 +11195,8 @@ msgstr "Andere accounts en Op deze computer"
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "Other addresses you send from"
-msgstr "Andere adressen waarvandaan u verzendt"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -11178,9 +11212,8 @@ msgstr "Anders toont een melding de afzender en het onderwerp, nooit de berichtt
 
 #. interface
 #: crates/ui-egui/src/reading/attachment_pictures.rs
-#, fuzzy
 msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
-msgstr "Anders worden ze met hun naam weergegeven. In Ongewenste e-mail worden ze altijd met hun naam weergegeven."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11405,7 +11438,7 @@ msgid "Pending development"
 msgstr "In ontwikkeling"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/contacts_opened.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 msgid "People"
 msgstr "Personen"
 
@@ -11895,9 +11928,8 @@ msgstr "Bereik"
 
 #. command label, interface
 #: crates/engine/src/cmd/react.rs crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "React"
-msgstr "Reageren"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -11927,6 +11959,16 @@ msgstr "Leesstatus"
 #, fuzzy
 msgid "Read the Favorites from Outlook again now"
 msgstr "Favorieten uit Outlook nu opnieuw lezen"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their address book with you. It is kept on this computer only, and read at the next Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only, and read at the next Send/Receive."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -12280,6 +12322,11 @@ msgstr "Terugkeerpatroon verwijderen"
 msgid "Remove Reminder"
 msgstr "Herinnering verwijderen"
 
+#. command label
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "Remove Shared Address Book"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
 msgid "Remove Shared Calendar"
@@ -12389,9 +12436,8 @@ msgstr "Deze actie verwijderen"
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "Remove this address"
-msgstr "Dit adres verwijderen"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12890,9 +12936,8 @@ msgstr "SHA-256-vingerafdruk"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Sad"
-msgstr "Verdrietig"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -13495,7 +13540,7 @@ msgid "Send & Receive"
 msgstr "Verzenden & ontvangen"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 msgid "Send / Receive"
 msgstr "Verzenden/ontvangen"
 
@@ -13807,9 +13852,8 @@ msgstr "Verzenden/ontvangen met Microsoft Graph"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
-#, fuzzy
 msgid "Sender Addresses"
-msgstr "Afzenderadressen"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
@@ -13977,9 +14021,8 @@ msgstr "Server: {address}"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
-#, fuzzy
 msgid "Set Sender Addresses"
-msgstr "Afzenderadressen instellen"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14114,6 +14157,11 @@ msgstr ""
 "Training\n"
 "weergeven"
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Address Book"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 msgid "Show As"
@@ -14164,9 +14212,8 @@ msgstr "Favorieten van Outlook weergeven"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Show Picture Attachments as Pictures"
-msgstr "Afbeeldingsbijlagen als afbeeldingen weergeven"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/sync_progress.rs
@@ -14285,9 +14332,8 @@ msgstr "Wachtwoord tonen"
 
 #. interface
 #: crates/ui-egui/src/reading/attachment_pictures.rs
-#, fuzzy
 msgid "Show picture attachments as pictures"
-msgstr "Afbeeldingsbijlagen als afbeeldingen weergeven"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -15167,9 +15213,8 @@ msgstr "zondag"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Surprised"
-msgstr "Verrast"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15637,6 +15682,11 @@ msgid "That is not a sender's address"
 msgstr "Dat is geen adres van een afzender"
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "That is this account's own address: its own address book is there already."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
 msgid "That is this account's own address: its own calendar is there already."
@@ -15815,6 +15865,31 @@ msgstr "De server van het account heeft deze vergadering nog geen koppeling gege
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "De server van het account maakt deze aan wanneer de vergadering wordt verzonden; de koppeling om deel te nemen komt daarbij terug."
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "The address book of {address} is open already."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from is no longer in the account's list, so changes here could not reach the server. Send/Receive may bring it back."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
@@ -16173,6 +16248,11 @@ msgstr "Het domein {domain} noemt een server voor de automatische instelling (Au
 #, fuzzy
 msgid "The download was called off."
 msgstr "De download is afgebroken."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The e-mail address of the person whose address book you want to open"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -16574,15 +16654,13 @@ msgstr "De naam van iemand die u kent."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "The name people you write to will see"
-msgstr "De naam die de personen aan wie u schrijft zullen zien"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "The name recipients see; your own when empty"
-msgstr "De naam die ontvangers zien; leeg uw eigen naam"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17881,9 +17959,8 @@ msgstr "Dit item heeft wijzigingen die niet zijn opgeslagen. Deze opslaan?"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_extra.rs
-#, fuzzy
 msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
-msgstr "Dit item heeft bestanden als bijlage die alleen de server bewaart en die een kopie niet zou hebben: het kan van hieruit niet worden gekopieerd."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -18765,6 +18842,11 @@ msgstr "Typ uw e-mailadres en MailCraft zoekt de rest: Microsoft 365, Outlook.co
 #, fuzzy
 msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
 msgstr "Door aan het begin van een regel * of - en een spatie te typen, begint u een lijst met opsommingstekens, met 1. of 1) een genummerde lijst. Ongedaan maken zet terug wat u typte."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Unavailable"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -20151,9 +20233,8 @@ msgstr "de server en het adres van een JMAP-account kunnen niet meer worden gewi
 
 #. what a command says
 #: crates/engine/src/cmd/senders.rs
-#, fuzzy
 msgid "a Microsoft or Exchange account sends from other addresses only as its server allows, which MailCraft doesn't ask for yet"
-msgstr "een Microsoft- of Exchange-account verzendt alleen vanaf andere adressen als de server het toestaat, en daar vraagt MailCraft nog niet om"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -20271,27 +20352,23 @@ msgstr "een afbeelding in een bericht is hoogstens {mb} MB"
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "a reaction can't be sent to a draft or to mail you wrote"
-msgstr "op een concept of een bericht dat u zelf schreef kan niet worden gereageerd"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account"
-msgstr "een reactie wordt alleen verstuurd vanaf IMAP-, JMAP- en lokale accounts, niet vanaf een Microsoft- of Exchange-serveraccount"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "a reaction isn't sent to automated mail (a no-reply address, a mailing list, bulk mail)"
-msgstr "op automatische berichten (een no-reply-adres, een mailinglijst, bulkmail) wordt niet gereageerd"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "a reaction isn't sent to mail in Junk E-mail"
-msgstr "op berichten in Ongewenste e-mail wordt niet gereageerd"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -20325,9 +20402,8 @@ msgstr "een regel die nog naar de server moet, komt na de regels die er al staan
 
 #. interface, what a command says
 #: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "a sender address has no e-mail address"
-msgstr "een afzenderadres bevat geen e-mailadres"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -20419,6 +20495,11 @@ msgstr "voeg eerst een account toe (Bestand › Account toevoegen)"
 msgid "add at least one recipient"
 msgstr "voeg minstens één ontvanger toe"
 
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "address books open under an Exchange server account"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -20463,9 +20544,8 @@ msgstr "een account kan niet vóór zichzelf worden gezet"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "an account has {max} sender addresses at most"
-msgstr "een account heeft hoogstens {max} afzenderadressen"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21014,7 +21094,7 @@ msgid "no account here keeps its rules on its server"
 msgstr "geen account hier bewaart zijn regels op zijn server"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
 msgstr "geen account is een Exchange-serveraccount"
@@ -21050,10 +21130,20 @@ msgid "no account with id {account}"
 msgstr "geen account met id {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "geen account met id {id}"
+
+#. why a command can't run
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "no address book was opened by address"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "no address book {address} is open"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -21375,9 +21465,8 @@ msgstr "alleen een bericht dat u hebt verzonden, kan opnieuw worden verzonden"
 
 #. what a command says
 #: crates/engine/src/cmd/senders.rs
-#, fuzzy
 msgid "only an IMAP account sends from other addresses"
-msgstr "alleen een IMAP-account verzendt vanaf andere adressen"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
@@ -21560,6 +21649,11 @@ msgid "someone@example.org or @example.org"
 msgstr "naam@example.org of @example.org"
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "that account can't open an address book by address"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -21727,7 +21821,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "het account heeft geen gebruikersnaam of e-mailadres om mee aan te melden"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_opened.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "het account is verdwenen"
@@ -22130,7 +22224,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "het resultaat zou dit account meer status om bij te houden laten bewaren dan wordt opgenomen"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "het resultaat {why}"
@@ -22765,6 +22859,11 @@ msgid "this contact has no e-mail address"
 msgstr "dit contact heeft geen e-mailadres"
 
 #. what a command says
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "this directory was for another account, not for {name}"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "this download was for another account, not for {name}"
@@ -22814,9 +22913,8 @@ msgstr "dit bericht heeft al zoveel bijlagen als het kan bevatten"
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "this message has a warning about its sender, so no reaction is sent to it"
-msgstr "dit bericht heeft een waarschuwing over de afzender, dus er wordt geen reactie verstuurd"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/pictures.rs
@@ -22826,9 +22924,8 @@ msgstr "dit bericht heeft zoveel afbeeldingen als het kan bevatten"
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "this message has no Message-ID, so a reaction can't say what it answers"
-msgstr "dit bericht heeft geen Message-ID, dus de reactie kan niet zeggen waarop ze antwoordt"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -22838,9 +22935,8 @@ msgstr "dit bericht heeft geen afzenderadres om naar te zoeken"
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "this message has no sender to send a reaction to"
-msgstr "dit bericht heeft geen afzender naar wie een reactie kan worden gestuurd"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -22882,9 +22978,8 @@ msgstr[1] "keer"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "to {recipient}"
-msgstr "aan {recipient}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -23060,9 +23155,8 @@ msgstr "jaar"
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "you already reacted to this message with {emoji}"
-msgstr "u hebt op dit bericht al gereageerd met {emoji}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -23164,9 +23258,8 @@ msgstr "{address} is al ingesteld"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "{address} is no longer one of this account's sender addresses: choose another From"
-msgstr "{address} is geen afzenderadres van dit account meer: kies een andere Van"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -23188,9 +23281,8 @@ msgstr "{address} is geen gedeeld postvak dat hier geopend is."
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "{address} isn't one of this account's sender addresses (add it in Account Settings)"
-msgstr "{address} is geen afzenderadres van dit account (voeg het toe in Accountinstellingen)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
@@ -23215,6 +23307,11 @@ msgstr "{address}: {error}. Zie Bestand › Info."
 #, fuzzy
 msgid "{answer}: more ways to answer"
 msgstr "{answer}: meer manieren om te antwoorden"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "{book} (read-only)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -23490,7 +23587,12 @@ msgid "{name} has declined this meeting."
 msgstr "{name} heeft deze vergadering geweigerd."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "{name} has no Exchange server account it is opened through"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} has no Exchange server address that can be used"
 msgstr "{name} heeft geen Exchange-serveradres dat kan worden gebruikt"
@@ -23592,7 +23694,7 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} is geen gedeeld postvak: verwijder het met account.remove"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
 msgstr "{name} is geen Exchange-serveraccount"
@@ -24266,11 +24368,10 @@ msgstr[1] "{n} berichten waren er al"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
-#, fuzzy
 msgid "{n} message was dragged: only the first was opened."
 msgid_plural "{n} messages were dragged: only the first was opened."
-msgstr[0] "{n} bericht is gesleept: alleen het eerste is geopend."
-msgstr[1] "{n} berichten zijn gesleept: alleen het eerste is geopend."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/left_out.rs

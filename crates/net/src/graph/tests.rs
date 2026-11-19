@@ -937,6 +937,9 @@ fn contacts_come_page_by_page() {
             websites: vec!["https://engines.example".into()],
             birthday: Date::new(1815, 12, 10),
             notes: "Met at the\nRoyal Society.".into(),
+            uid: String::new(),
+            book: String::new(),
+            book_id: String::new(),
             modified: at(2026, 9, 30, 10, 0),
         }
     );

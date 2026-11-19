@@ -107,6 +107,7 @@ mod draft_selection_tests;
 mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;
+pub mod ews_calendar;
 #[cfg(test)]
 mod ews_info_tests;
 pub mod ews_mail;
@@ -430,6 +431,10 @@ pub struct Services {
     /// thread, waking the UI with the answer. Absent where no host does (the browser): Check
     /// Names then matches the contacts alone ([`check_names`]).
     pub ews_resolve: Option<Box<dyn Fn(check_names::EwsResolveJob) -> Receiver<mailcraft_model::sync::EwsResolveResult>>>,
+    /// The same host: read an Exchange server account's calendars alone, for the days the owner
+    /// went to (`mailcraft_ews::sync_directory` with a calendar-only request, #1274). Absent where
+    /// no host does: the calendar is then read at Send/Receive only ([`ews_calendar`]).
+    pub ews_calendar: Option<Box<dyn Fn(ews_calendar::EwsCalendarJob) -> Receiver<mailcraft_model::sync::EwsDirectoryResult>>>,
     /// Desktop: set an Exchange server account up on a background thread (#252, E7), once the owner
     /// has pressed Connect and not before: find the server unless its address is given, ask the
     /// owner (through the job's answers) before the sign-in goes to a host outside the domain, and
@@ -1696,6 +1701,8 @@ pub struct MailApp {
     pub(crate) server_searching: server_search::ServerSearching,
     /// Keeping the calendar current between Send/Receive runs ([`calendar_sync`]).
     calendar: calendar_sync::CalendarSync,
+    /// Reading an Exchange server account's calendar for the days on screen ([`ews_calendar`]).
+    ews_calendar: ews_calendar::EwsCalendar,
     /// The next sign-in for Microsoft Graph also asks for the Favorites' permissions.
     favorites_next: bool,
     /// With `sync_next`: the shared mailbox that is read once the page is answered
@@ -2011,6 +2018,7 @@ impl MailApp {
             fetching: Default::default(),
             server_searching: Default::default(),
             calendar: Default::default(),
+            ews_calendar: Default::default(),
             favorites_next: false,
             shared_next: None,
             sync_next: false,
@@ -2198,6 +2206,11 @@ impl MailApp {
         let mailbox = &self.session.mailbox;
         v.task_account = restored_choice(mailbox, saved.task_account, &self.ui.task_account_address);
         v.people_account = restored_choice(mailbox, saved.people_account, &self.ui.people_account_address);
+        // One address book of that account, while it is the same account (#1275); a book the
+        // server no longer lists is simply not found, and the list shows all of the account's.
+        if matches!(v.people_account, mailcraft_model::AccountChoice::Account(_)) && v.people_account == saved.people_account {
+            v.people_contact_book = saved.people_contact_book.chars().take(1024).collect();
+        }
         // Which calendars lie over one another is a layout choice too (calendars that this
         // mailbox doesn't have are simply not found).
         (v.overlay, v.overlay_front) = (saved.overlay.iter().copied().take(200).collect(), saved.overlay_front);
@@ -5118,6 +5131,8 @@ impl MailApp {
             self.calendar_tick(ctx);
             // The calendars subscribed to, when they are due ([`subscribed`]).
             self.subscribed_tick();
+            // An Exchange server account's calendar for the days the owner went to (#1274).
+            self.ews_calendar_tick(ctx);
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).

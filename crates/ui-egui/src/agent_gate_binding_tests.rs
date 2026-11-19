@@ -193,6 +193,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("calendar.subscribe", r#"{"address": "https://cal.example.org/private/token/x.ics"}"#, Setup::None),
     ("calendar.unsubscribe", r#"{"id": $calendar}"#, Setup::None),
     ("calendar.subscriptionSettings", r#"{"id": $calendar, "intervalMinutes": 30}"#, Setup::None),
+    ("contacts.openShared", r#"{"address": "x@example.org"}"#, Setup::None),
+    ("contacts.removeShared", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.hideListedCopy", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.moveToAccount", "{}", Setup::None),
     ("ui.checkCalendar", "{}", Setup::None),
