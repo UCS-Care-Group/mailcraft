@@ -81,7 +81,7 @@ fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
         // A folder shared from another mailbox is named by a foreign id (`<account>:<id>`): it
         // isn't one of this mailbox's, and leaving it out loses nothing of ours. An id of no
         // shape at all, or none, means a folder we can't account for: the listing isn't complete.
-        if !json::raw(folder.get("id")).unwrap_or_default().contains(':') {
+        if !json::foreign_id(folder.get("id")) {
             out.complete = false;
         }
         return;
