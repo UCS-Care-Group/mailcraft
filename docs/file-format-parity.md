@@ -1,6 +1,6 @@
 # File formats and protocols
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-18 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 What MailCraft reads, writes and speaks, and how far each goes. Everything is implemented from the
 public specifications; every reader is fed arbitrary bytes by property tests and must never panic.
@@ -55,9 +55,14 @@ IMAP and SMTP servers, a Graph stand-in and a JMAP stand-in, not yet against oth
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-18 | patch | #1527: Save Mailbox As streams messages, preserves header compatibility and checks file and message sizes while preserving the destination on failure |
+| 2026-11-17 | minor | #1561 part 1: `.eml`: Save Message As writes a message as it was received (the bytes kept of a signed message, or a Microsoft, Exchange server or JMAP server's copy fetched for the save), else says it was written from what this computer keeps; a message only partly here is refused |
+| 2026-11-15 | patch | Protocols: Exchange Web Services for an organisation's own server (mail only, #252); CalDAV, CardDAV and MAPI still no |
 | 2026-11-14 | patch | #1376: `.mailcraft`: header blocks packed in a few `headers-<n>.pack` files in the content folder, not one file each |
 | 2026-11-13 | minor | HS: `.mailcraft` in format 4, a message's header block beside it with its other content; format 3 still read |
 | 2026-11-13 | minor | #276: IMAP: STATUS (pipelined) and IDLE on the Inbox are used |
+| 2026-11-12 | minor | #1232: `.eml`: the files inside a TNEF stream (`winmail.dat`) are read |
+| 2026-11-11 | patch | #661: Microsoft Graph's row says the category list is written too |
 | 2026-11-11 | minor | #1074 part 2: JMAP: mail sent with an upload, `Email/import` and `EmailSubmission/set`; two-way |
 | 2026-11-11 | minor | #1074 part 1: JMAP: changes up with `Email/set` (marks, moves, deletes) |
 | 2026-11-11 | minor | #815 part 5: `.pst` files: notes, journal entries and HTML kept in rich text; no longer a preview |

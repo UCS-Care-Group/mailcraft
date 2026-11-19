@@ -235,6 +235,21 @@ fn message_text_is_framed_as_untrusted() {
     // The same through execute.
     let r = call_tool(&mut h, &pol, "execute", &json!({"command": "mail.get", "params": {"id": id}}));
     assert!(r.content[0]["text"].as_str().unwrap().contains("untrusted message content"));
+    // So is what a new item made of a message starts with (#873).
+    for kind in ["appointment", "task", "contact"] {
+        let r = call_tool(&mut h, &pol, "execute", &json!({"command": "mail.itemFromMessage", "params": {"id": id, "as": kind}}));
+        let v: Value = serde_json::from_str(r.content[0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(v["untrusted"], true, "{kind}: {v}");
+        for key in ["title", "description", "notes", "first", "email"] {
+            if let Some(text) = v[key].as_str().filter(|t| !t.is_empty()) {
+                assert!(text.starts_with(crate::tools::UNTRUSTED_OPEN), "{kind} {key}: {text}");
+            }
+        }
+    }
+    // A contact's first and last names are framed wherever they are answered (#873).
+    let framed = crate::tools::frame(json!({"first": "Robin", "last": "Vale"}));
+    assert!(framed["first"].as_str().unwrap().starts_with(crate::tools::UNTRUSTED_OPEN));
+    assert!(framed["last"].as_str().unwrap().starts_with(crate::tools::UNTRUSTED_OPEN));
     // Send/Receive problems may name a message by its subject: they are framed too (#120).
     h.session.sync_progress.begin(&[h.session.mailbox.accounts[0].id]);
     let r = call_tool(&mut h, &pol, "execute", &json!({"command": "sync.progress", "params": {}}));
