@@ -410,8 +410,12 @@ pub(crate) const QUOTE_MARK: &str = "<div id=\"mailcraft-quote\">";
 fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>) {
     let e = mailcraft_html::escape;
     let [from, sent, to, cc, subject] = header_names(s).map(e);
+    let marker = e(s.interface_language.t(ORIGINAL));
     let mut out = String::from(QUOTE_MARK);
-    out.push_str("<hr style=\"border:none;border-top:solid #E1E1E1 1.0pt\"><div>");
+    out.push_str("<br><p><b>----- ");
+    out.push_str(&marker);
+    out.push_str(" -----</b></p>");
+    out.push_str("<p>");
     out.push_str(&format!("<b>{from}</b> {}<br>", e(&m.from.full())));
     out.push_str(&format!("<b>{sent}</b> {}<br>", e(&sent_on(s, m))));
     if !m.to.is_empty() {
@@ -420,7 +424,7 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>
     if !m.cc.is_empty() {
         out.push_str(&format!("<b>{cc}</b> {}<br>", e(&quoted_list(&m.cc))));
     }
-    out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
+    out.push_str(&format!("<b>{subject}</b> {}</p><br>\r\n", e(&m.subject)));
     let mut written = Written::of(m);
     out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture)));
     out.push_str("\r\n</div>");
@@ -568,26 +572,39 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     };
     let references = references_of(&m);
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
-    // An original in HTML is carried below with its look; one in plain text is quoted in the body.
-    let quote = match &m.body.html {
-        Some(html) if quoting => {
-            let (html, written) = quoted_html(s, &m, html);
-            let text = quote_text(s.interface_language.t(ORIGINAL), &html);
-            // The pictures the quote still shows: not those of what was left out of it. (A
-            // forward carries the original's own as its attachments.) And those written into
-            // the original, which go with both (#602).
-            let mut pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
-            pictures.extend(written);
-            Some(Quote { text, html, pictures })
-        }
-        _ => None,
-    };
-    let body = if quoting && quote.is_none() { quoted(s, &m) } else { String::new() };
     // From the address the original was sent to (#797).
     let from = reply_from(s, &m);
     let sig = chosen_signature(s, m.account, &from, None, true);
-    // A line to write on, a blank one, then the signature above the original.
-    let body = if sig.is_some() { format!("\n{}", body.strip_prefix('\n').unwrap_or(&body)) } else { body };
+
+    let mut quote_pictures = Vec::new();
+    let quoted_rich = if quoting {
+        if let Some(html) = &m.body.html {
+            let (html, written) = quoted_html(s, &m, html);
+            if mode != ComposeMode::Forward {
+                quote_pictures.extend(shown_pictures(&m, &html));
+            }
+            quote_pictures.extend(written);
+            Some(mailcraft_mime_model::rich::from_html_for_compose(&html))
+        } else {
+            let text = quoted(s, &m);
+            Some(mailcraft_model::RichText::from_plain(text.trim_start_matches('\n')))
+        }
+    } else {
+        None
+    };
+
+    let mut body_rich = mailcraft_model::RichText::from_plain("\n");
+    if let Some(qr) = quoted_rich {
+        let _ = body_rich.insert_rich(1, &qr);
+    }
+
+    let mut attachments = if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() };
+    for p in quote_pictures {
+        if !attachments.iter().any(|a| a.content_id == p.content_id) {
+            attachments.push(Attachment { inline: true, ..p });
+        }
+    }
+
     let mut c = Compose {
         mode,
         source: Some(m.id),
@@ -596,11 +613,11 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         to: format_list(&to),
         cc: format_list(&cc),
         subject: prefixed(if mode == ComposeMode::Forward { "FW" } else { "RE" }, &m.subject),
-        body: RichBody::from_plain(&body),
+        body: RichBody::new(body_rich),
         // A reply is written the way the original was: HTML to HTML, plain text to plain text.
         format: if m.body.html.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
-        quote,
-        attachments: if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() },
+        quote: None,
+        attachments,
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
         references: if mode == ComposeMode::Forward { Vec::new() } else { references },
         ..Default::default()
@@ -1243,12 +1260,11 @@ fn remove_quote(s: &mut Session, _: &Value) -> CmdResult {
 fn quote_as_text(s: &mut Session, _: &Value) -> CmdResult {
     let c = compose_mut(s)?;
     if let Some(q) = c.quote.take() {
-        let mut plain = c.body.plain();
-        if !plain.is_empty() && !plain.ends_with('\n') {
-            plain.push('\n');
-        }
-        plain.push_str(&q.text);
-        c.body = RichBody::from_plain(&plain);
+        let rich = mailcraft_mime_model::rich::from_html_for_compose(&q.html);
+        let mut text = c.body.text().clone();
+        let len = text.len();
+        let _ = text.insert_rich(len, &rich);
+        c.body = RichBody::new(text);
         c.dirty = true;
     }
     done()
