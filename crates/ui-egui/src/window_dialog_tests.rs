@@ -54,8 +54,8 @@ fn frame(ctx: &egui::Context, app: &mut MailApp) {
     out.textures_delta.clear();
 }
 
-#[test]
-fn insert_link_pressed_in_a_pop_out_comes_up_over_it() {
+/// A new message popped out, with Insert Link opened from its ribbon.
+fn link_over_a_pop_out() -> (egui::Context, MailApp, u64) {
     let (ctx, queue) = backend();
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
@@ -77,8 +77,28 @@ fn insert_link_pressed_in_a_pop_out_comes_up_over_it() {
     for _ in 0..4 {
         frame(&ctx, &mut app);
     }
+    (ctx, app, compose)
+}
+
+#[test]
+fn insert_link_pressed_in_a_pop_out_comes_up_over_it() {
+    let (_ctx, app, compose) = link_over_a_pop_out();
     assert_eq!(app.dialog.as_ref().map(crate::dialogs::Dialog::name), Some("link"));
     // The window drew it over itself: the main window, behind it, doesn't.
     assert!(app.windows.dialog_shown, "Insert Link wasn't drawn over the window it was pressed in");
     assert_eq!(app.session.compose_id(), Some(compose));
+}
+
+#[test]
+fn a_main_window_dialog_replaces_the_pop_outs() {
+    let (ctx, mut app, _compose) = link_over_a_pop_out();
+    assert!(app.windows.dialog_shown);
+    // All Categories from the main window takes Insert Link's place. The next frame draws it in
+    // the main window: the pop-out, which drew the one it opened, does not draw this one.
+    app.windows.dialog_shown = false;
+    app.run("category.list", json!({})).unwrap();
+    frame(&ctx, &mut app);
+    assert_eq!(app.dialog.as_ref().map(crate::dialogs::Dialog::name), Some("categories"));
+    assert!(!app.windows.dialog_shown, "All Categories was drawn over the pop-out");
+    assert_eq!(super::dialog_compose(&app), None);
 }

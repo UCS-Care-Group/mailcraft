@@ -467,7 +467,7 @@ impl MailApp {
         } else {
             tl!("The calendar connection check found a problem: see its report")
         });
-        self.dialog = Some(crate::dialogs::Dialog::Report { name: "calendarCheck", title: tl!("Calendar Connection Check").to_string(), lines });
+        self.set_dialog(Some(crate::dialogs::Dialog::Report { name: "calendarCheck", title: tl!("Calendar Connection Check").to_string(), lines }));
         // The calendar is looked at again at once, when it is in front.
         self.session.driver.calendar.due = true;
     }

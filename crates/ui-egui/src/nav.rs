@@ -169,7 +169,7 @@ fn drop_on(app: &mut MailApp, p: &serde_json::Value) -> Result<serde_json::Value
     } else {
         match crate::dialogs::open_dialog(app, form, &fields) {
             Some(dialog) => {
-                app.dialog = Some(dialog);
+                app.set_dialog(Some(dialog));
                 app.sync_panel = None;
             }
             None => return Ok(json!({"opened": null})),
