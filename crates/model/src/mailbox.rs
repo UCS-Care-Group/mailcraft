@@ -2213,7 +2213,7 @@ impl Mailbox {
     pub fn add_message(&mut self, mut m: Message) -> Result<Id, ModelError> {
         let folder = self.folder(m.folder).ok_or(not_found("folder", m.folder))?;
         m.account = folder.account;
-        if !m.read_header.is_empty() && !self.keeps_header_as_it_came(m.account) {
+        if (!m.read_header.is_empty() || m.read_header_cut) && !self.keeps_header_as_it_came(m.account) {
             (m.read_header, m.read_header_cut) = (String::new(), false);
         }
         // Within what the mailbox keeps of originals in all (#30).

@@ -279,3 +279,15 @@ fn a_message_whose_lines_kept_as_they_came_were_cut_says_so_in_the_file() {
     assert!(!serde_json::from_str::<Message>(r#"{"id": 3, "readHeader": "To: a@example.org\n"}"#).unwrap().read_header_cut);
     assert!(!serde_json::to_string(&Message::default()).unwrap().contains("readHeaderCut"));
 }
+
+/// The mark goes with the lines: mail that comes to an account no header rule is for keeps
+/// neither, also when none of its lines fitted.
+#[test]
+fn the_mark_that_the_lines_were_cut_goes_with_them() {
+    let (mut mb, inbox, _) = mailbox(vec![]);
+    for lines in ["To: a@example.org\n", ""] {
+        let id = mb.add_message(Message { folder: inbox, read_header: lines.into(), read_header_cut: true, ..Default::default() }).unwrap();
+        let m = mb.message(id).unwrap();
+        assert!(m.read_header.is_empty() && !m.read_header_cut, "{lines:?}");
+    }
+}

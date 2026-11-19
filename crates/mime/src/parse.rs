@@ -242,8 +242,9 @@ fn read_headers(headers: &Headers, m: &mut Message) {
 
 /// A line of the header read into the message itself (or kept only decoded), kept as it came in
 /// [`Message::read_header`]; past [`MAX_READ_HEADER`] the message says those lines were cut, which
-/// only a rule with words in the header reads (#566): what is read into the message has caps of
-/// its own, and says when it runs past them ([`Message::headers_cut`]).
+/// only a rule with words in the header reads (#566): what the other rules read of the fields read
+/// into the message has caps of its own, which say when they are run past
+/// ([`Message::headers_cut`]).
 fn read_as_it_came(m: &mut Message, name: &str, value: &str) {
     let line = format!("{name}: {}", value.replace(['\r', '\n'], " "));
     if m.read_header.len().saturating_add(line.len()).saturating_add(1) <= MAX_READ_HEADER {

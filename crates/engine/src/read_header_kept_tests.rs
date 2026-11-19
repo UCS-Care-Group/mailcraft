@@ -100,7 +100,8 @@ fn mail_from_before_a_header_rule_is_left_alone_by_its_exception() {
 }
 
 /// A Microsoft account's mail, listed and then downloaded whole: its header as it came is kept
-/// at the download only while a rule of the account looks for words in the header.
+/// at the download only while a rule of the account looks for words in the header, with the mark
+/// that its lines ran past 64 KB, which no other rule reads.
 #[test]
 fn a_microsoft_download_keeps_the_header_as_it_came_only_for_a_header_rule() {
     use mailcraft_model::ServerFolder;
@@ -122,21 +123,31 @@ fn a_microsoft_download_keeps_the_header_as_it_came_only_for_a_header_rule() {
         received: 1_060,
         ..Default::default()
     };
-    let whole = |id: &str| {
+    // A long In-Reply-To takes the lines past 64 KB when `long`.
+    let whole = |id: &str, long: bool| {
+        let long_line = if long { format!("In-Reply-To: <{}@example.org>\r\n", "r".repeat(70_000)) } else { String::new() };
         GraphFetched {
         id: id.into(),
-        mime: format!("From: Zoe Park <zoe@example.org>\r\nTo: Ada <{ME}>\r\nSubject: {id}\r\nMessage-ID: <{id}@example.org>\r\nContent-Type: text/plain\r\n\r\nText.\r\n")
+        mime: format!("From: Zoe Park <zoe@example.org>\r\nTo: Ada <{ME}>\r\nSubject: {id}\r\nMessage-ID: <{id}@example.org>\r\n{long_line}Content-Type: text/plain\r\n\r\nText.\r\n")
             .into_bytes(),
     }
     };
-    let comes = |s: &mut Session, id: &str| {
+    let comes_as = |s: &mut Session, id: &str, long: bool| {
         let page = MessagePage { folder: "F-in".into(), messages: vec![listed(id)], ..Default::default() };
         graph_mail::apply_graph_mail(s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
             .unwrap();
-        graph_mail::apply_graph_fetch(s, GraphFetchResult { account, email: ME.into(), fetched: vec![whole(id)], ..Default::default() }).unwrap();
+        graph_mail::apply_graph_fetch(s, GraphFetchResult { account, email: ME.into(), fetched: vec![whole(id, long)], ..Default::default() })
+            .unwrap();
+    };
+    let comes = |s: &mut Session, id: &str| comes_as(s, id, false);
+    let marks = |s: &Session, subject: &str| {
+        let m = s.mailbox.messages.values().find(|m| m.subject == subject).unwrap();
+        (m.read_header_cut, m.headers_cut)
     };
     comes(&mut s, "N1");
     assert_eq!(kept(&s, "N1"), "");
+    comes_as(&mut s, "L1", true);
+    assert_eq!((kept(&s, "L1"), marks(&s, "L1")), (String::new(), (false, false)));
     s.run(
         "rules.add",
         &json!({"name": "List", "server": false, "conditions": [{"type": "headerContains", "value": "x-list"}], "actions": [{"type": "markRead"}]}),
@@ -144,4 +155,7 @@ fn a_microsoft_download_keeps_the_header_as_it_came_only_for_a_header_rule() {
     .unwrap();
     comes(&mut s, "N2");
     assert!(kept(&s, "N2").contains("Subject: N2"), "{:?}", kept(&s, "N2"));
+    assert_eq!(marks(&s, "N2"), (false, false));
+    comes_as(&mut s, "L2", true);
+    assert!(kept(&s, "L2").contains("Subject: L2") && marks(&s, "L2") == (true, false), "{:?}", marks(&s, "L2"));
 }

@@ -125,6 +125,20 @@ fn every_way_in_carries_the_cut_mark_and_the_lines_read() {
             assert!(!rule.matches(m), "{way}: the rule deletes a message its exception was to leave alone");
         }
     }
+    // Lines read into the message past the 64 KB kept of them as they came: every way in says
+    // so apart, and nothing else is said cut.
+    let long = format!("From: a@example.org\r\nSubject: {}\r\n", "a".repeat(70_000));
+    let long_mbox = format!("From a@example.org Tue Nov 10 10:00:00 2026\r\n{long}\r\nbody\r\n");
+    let read = [
+        ("parse", vec![parse(format!("{long}\r\nbody\r\n").as_bytes())]),
+        ("parse_fetched", vec![parse_fetched(format!("{long}\r\nbody\r\n").as_bytes())]),
+        ("parse_mbox", crate::parse_mbox(long_mbox.as_bytes())),
+        ("mbox_messages", crate::mbox_messages(long_mbox.as_bytes()).collect()),
+    ];
+    for (way, messages) in read {
+        assert_eq!(messages.len(), 1, "{way}");
+        assert!(messages.iter().all(|m| m.read_header_cut && !m.headers_cut), "{way}");
+    }
     // Within the caps, nothing is said cut, by any way in.
     let whole = "From: a@example.org\r\nSubject: offer\r\nX-Gateway: keep-this\r\n\r\nbody\r\n";
     assert!(!parse(whole.as_bytes()).headers_cut && !parse_fetched(whole.as_bytes()).headers_cut);
