@@ -33,8 +33,9 @@
 //!   found on the whole rule. It has no fix.
 //! - `OL-DEC-003`: a CSS custom property's definition (`--name:`) and each `var()`, in a `style`
 //!   attribute or a `<style>` rule. A `var()` in a `style` attribute whose variable is defined
-//!   once, at the root or in that same attribute, with a plain value, is fixed by writing that
-//!   value in its place; the definition itself has no fix.
+//!   once, at the root or in that same attribute, with a plain value of at most
+//!   [`MAX_FIX_BYTES`] bytes, is fixed by writing that value in its place; the definition itself
+//!   has no fix.
 //! - `OL-COL-002`: a colour function (`rgb()`, `rgba()`, `hsl()`, `hsla()`) whose numbers are
 //!   separated by spaces. `rgb()` of three plain whole numbers is fixed by separating them with
 //!   commas.
@@ -50,34 +51,43 @@
 //!   ([`crate::authored_fragment_with_rebound_cids`]: an `@import`, a `url(`, a selector it can't
 //!   scope, …), so that the signature could not be sent with it. The finding is the whole
 //!   `<style>` element the writer first refuses the text up to the end of, or the first sheet's
-//!   start tag when no one element explains the refusal (the document is longer than the writer
-//!   reads, say). It has no fix. Nothing is said of a document without a style sheet.
+//!   start tag when no one element explains the refusal (what the writer would write of the
+//!   document is longer than it gives, say). It has no fix. Nothing is said of a document without a
+//!   style sheet.
 //!
 //! A picture attached to the message (`cid:`) is not judged by its name: what it is comes from
 //! its own bytes, and the signature importer already takes only PNG, JPEG and GIF pictures by
 //! their content.
 //!
-//! The checker fails closed: a document longer than is read, one cut off inside a start tag, a
-//! tag with more attributes than are kept, or more findings than are given is refused with a
-//! [`CheckError`], never checked in part.
+//! The checker fails closed: a document longer than is read ([`crate::MAX_INPUT`]), one cut off
+//! inside a start tag, a tag with more attributes than are kept, or more findings than are given
+//! is refused with a [`CheckError`], never checked in part. What it gives is bounded too: at most
+//! [`MAX_FINDINGS`] findings, and no fix longer than [`MAX_FIX_BYTES`].
 
+use std::collections::HashMap;
 use std::ops::Range;
 
 use crate::entities::unescape;
 use crate::sheet::{block_end, media_prelude, scan_to, skip_trivia, split_commas};
 use crate::style::{declarations, strip_important};
-use crate::tokenizer::{Tag, Token, Tokenizer};
+use crate::tokenizer::{Tag, Token, Tokenizer, span_of};
 
 /// Most findings one document gives; one that has more is refused ([`CheckError::TooManyFindings`]).
 pub const MAX_FINDINGS: usize = 1024;
 
-/// How much a finding matters. An error is something the owner must put right before the
-/// signature is kept; the others only say.
+/// Longest replacement a [`Fix`] writes, in bytes. A `var()` whose variable's value is longer is
+/// found without a fix, so that a long value used in many calls is not copied into each of their
+/// findings: the fixes of one check hold at most [`MAX_FINDINGS`] times this (256 KB), however
+/// long the document. Every other fix is far shorter by its making.
+pub const MAX_FIX_BYTES: usize = 256;
+
+/// How much a finding matters ([`Rule::severity`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Severity {
+    /// Something the owner must put right before the signature is kept.
     Error,
+    /// Something a mail program shows otherwise, which doesn't stop the signature being kept.
     Warning,
-    Info,
 }
 
 /// A compatibility rule. Each has a stable [`Rule::id`] that a window translates.
@@ -224,14 +234,18 @@ impl Rule {
 /// `replacement`. No byte outside `range` changes. `range` falls on character boundaries.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fix {
+    /// The bytes replaced, in the checked text.
     pub range: Range<usize>,
+    /// What they are replaced with.
     pub replacement: String,
 }
 
 /// Something in the checked text that a mail program will not show as written.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Finding {
+    /// The rule it breaks.
     pub rule: Rule,
+    /// How much it matters: always its rule's [`Rule::severity`].
     pub severity: Severity,
     /// The bytes it is about in the checked text, on character boundaries.
     pub range: Range<usize>,
@@ -243,7 +257,8 @@ pub struct Finding {
 /// not known to be clean.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CheckError {
-    /// The document is longer than [`crate::MAX_INPUT_WITH_PICTURES`] bytes.
+    /// The document is longer than [`crate::MAX_INPUT`] bytes, far more than a signature holds:
+    /// what the checker keeps of a document grows with it.
     OverInput,
     /// A start tag is cut off by the end of the document.
     UnclosedTag,
@@ -256,10 +271,27 @@ pub enum CheckError {
     TooManyFindings,
 }
 
+impl std::fmt::Display for CheckError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
+            CheckError::OverInput => "the document is longer than is checked",
+            CheckError::UnclosedTag => "a start tag does not end",
+            CheckError::AttributeOverflow => "a tag has more attributes than are read",
+            CheckError::BadRange => "a part of a tag is not where its tag says it is",
+            CheckError::TooManyFindings => "the document gives more findings than are listed",
+        };
+        f.write_str(text)
+    }
+}
+
+impl std::error::Error for CheckError {}
+
 /// The compatibility findings of `html`, in the order of their ranges' starts. Refused, rather
 /// than checked in part, as [`CheckError`] says. `html` is only read.
 pub fn check(html: &str) -> Result<Vec<Finding>, CheckError> {
-    if html.len() > crate::MAX_INPUT_WITH_PICTURES {
+    // The reader's own cap, not the room it leaves for pictures written into a message: each
+    // declaration read is kept, so what is held is some forty times the text.
+    if html.len() > crate::MAX_INPUT {
         return Err(CheckError::OverInput);
     }
     let mut found = Vec::new();
@@ -314,12 +346,14 @@ pub fn check(html: &str) -> Result<Vec<Finding>, CheckError> {
     for sheet in &sheets {
         styles.sheet(html, sheet.css.clone(), 0);
     }
-    generated_content(&styles, &mut found);
-    variables(&styles, &mut found);
-    spaced_colours(&styles, &mut found);
-    declaration_warnings(&styles, &mut found);
-    units(&styles, &mut found);
-    found.extend(stylesheet(html, &sheets));
+    generated_content(&styles, &mut found)?;
+    variables(&styles, &mut found)?;
+    spaced_colours(&styles, &mut found)?;
+    declaration_warnings(&styles, &mut found)?;
+    units(&styles, &mut found)?;
+    if let Some(sheet) = stylesheet(html, &sheets) {
+        note(&mut found, sheet)?;
+    }
     if found.len() > MAX_FINDINGS {
         return Err(CheckError::TooManyFindings);
     }
@@ -331,6 +365,13 @@ pub fn check(html: &str) -> Result<Vec<Finding>, CheckError> {
 
 fn finding(rule: Rule, range: Range<usize>, fix: Option<Fix>) -> Finding {
     Finding { rule, severity: rule.severity(), range, fix }
+}
+
+/// `f` added to `found`, refused as soon as there are more findings than are given, so that a
+/// pass doesn't go on reading for findings that would be refused anyway.
+fn note(found: &mut Vec<Finding>, f: Finding) -> Result<(), CheckError> {
+    found.push(f);
+    if found.len() > MAX_FINDINGS { Err(CheckError::TooManyFindings) } else { Ok(()) }
 }
 
 /// What an element is that a mail program won't show or let be used: OL-EL-002, OL-EL-003 or
@@ -656,13 +697,11 @@ fn style_px(value: &str) -> Option<Option<u16>> {
 /// Where `part`, a slice the tokenizer gave of `html`, sits in it, checked to lie inside the
 /// start tag spanning `within`, before its `>`.
 fn range_in(html: &str, part: &str, within: &Range<usize>) -> Result<Range<usize>, CheckError> {
-    let start = (part.as_ptr() as usize).checked_sub(html.as_ptr() as usize).ok_or(CheckError::BadRange)?;
-    let end = start.checked_add(part.len()).ok_or(CheckError::BadRange)?;
-    let found = html.get(start..end).ok_or(CheckError::BadRange)?;
-    if found.as_ptr() != part.as_ptr() || start <= within.start || end >= within.end {
+    let range = span_of(html, part).ok_or(CheckError::BadRange)?;
+    if range.start <= within.start || range.end >= within.end {
         return Err(CheckError::BadRange);
     }
-    Ok(start..end)
+    Ok(range)
 }
 
 /// One CSS declaration the checker reads, from a `style` attribute or a `<style>` rule.
@@ -690,14 +729,19 @@ enum Place {
     Sheet { rule: usize },
 }
 
-/// One rule of a `<style>` sheet.
+/// One rule of a `<style>` sheet, with what the passes ask of its selectors worked out once
+/// when it is read, however many declarations it has.
 struct StyleRule {
-    /// Its selectors, as written, trimmed.
-    prelude: String,
     /// The whole rule, its selectors to its closing brace.
     range: Range<usize>,
-    /// Whether it is inside an `@media` block, and so holds for some windows only.
-    in_media: bool,
+    /// Whether each of its selectors ends with a `table` ([`tables_only`]).
+    tables_only: bool,
+    /// Whether one of its selectors is for `::before` or `::after` (or the old `:before`,
+    /// `:after`).
+    generated: bool,
+    /// Whether it is the root of the document (`:root`, `html`, `body` or `*`) outside `@media`,
+    /// and so holds for every window.
+    root: bool,
 }
 
 /// The CSS of the checked text: every declaration, with the rules of the sheets they are in.
@@ -760,20 +804,21 @@ impl Styles {
                     let Some(open) = scan_to(b, i, b"{") else { return };
                     let close = block_end(b, open);
                     let rule = self.rules.len();
-                    let prelude = text.get(i..open).unwrap_or("").trim().to_string();
+                    let prelude = text.get(i..open).unwrap_or("").trim();
+                    let lower = prelude.to_ascii_lowercase();
                     self.rules.push(StyleRule {
-                        prelude,
                         range: css.start + i..css.start + close.saturating_add(1).min(b.len()),
-                        in_media: level > 0,
+                        tables_only: tables_only(prelude),
+                        generated: lower.contains(":before") || lower.contains(":after"),
+                        root: level == 0 && matches!(lower.as_str(), ":root" | "html" | "body" | "*"),
                     });
                     for (property, value) in declarations(text.get(open + 1..close).unwrap_or("")) {
-                        let (Some(p), Some(v)) = (offset_in(html, property), offset_in(html, value)) else { continue };
-                        let range = p..v + value.len();
+                        let (Some(p), Some(v)) = (span_of(html, property), span_of(html, value)) else { continue };
                         self.decls.push(Decl {
                             property: property.to_string(),
                             value: value.to_string(),
-                            range,
-                            value_at: Some(v),
+                            range: p.start..v.end,
+                            value_at: Some(v.start),
                             place: Place::Sheet { rule },
                         });
                     }
@@ -784,16 +829,9 @@ impl Styles {
     }
 }
 
-/// Where `part`, a slice of `html`, starts in it.
-fn offset_in(html: &str, part: &str) -> Option<usize> {
-    let start = (part.as_ptr() as usize).checked_sub(html.as_ptr() as usize)?;
-    let found = html.get(start..start.checked_add(part.len())?)?;
-    (found.as_ptr() == part.as_ptr()).then_some(start)
-}
-
 /// OL-SEL-003: a rule for `::before` or `::after` (or the old `:before`, `:after`) that adds
 /// text with `content`: once for each such rule, on the whole rule.
-fn generated_content(styles: &Styles, found: &mut Vec<Finding>) {
+fn generated_content(styles: &Styles, found: &mut Vec<Finding>) -> Result<(), CheckError> {
     let mut last = None;
     for d in &styles.decls {
         let Place::Sheet { rule } = d.place else { continue };
@@ -805,12 +843,12 @@ fn generated_content(styles: &Styles, found: &mut Vec<Finding>) {
             continue;
         }
         let Some(r) = styles.rules.get(rule) else { continue };
-        let selectors = r.prelude.to_ascii_lowercase();
-        if selectors.contains(":before") || selectors.contains(":after") {
-            found.push(finding(Rule::GeneratedContent, r.range.clone(), None));
+        if r.generated {
+            note(found, finding(Rule::GeneratedContent, r.range.clone(), None))?;
             last = Some(rule);
         }
     }
+    Ok(())
 }
 
 /// A call of a CSS function in a value: its bytes in the value, its name as written, and what is
@@ -891,23 +929,26 @@ fn part_range(d: &Decl, part: &Range<usize>) -> (Range<usize>, bool) {
 /// OL-DEC-003: each custom property's definition, and each `var()`. A `var()` in a `style`
 /// attribute is fixed by putting its variable's value in its place when that value is known for
 /// certain ([`variable_value`]); nothing else has a fix.
-fn variables(styles: &Styles, found: &mut Vec<Finding>) {
+fn variables(styles: &Styles, found: &mut Vec<Finding>) -> Result<(), CheckError> {
+    let defined = definitions(styles)?;
     for d in &styles.decls {
         if d.property.starts_with("--") {
-            found.push(finding(Rule::CssVariable, d.range.clone(), None));
+            note(found, finding(Rule::CssVariable, d.range.clone(), None))?;
         }
         for call in calls(&d.value, &["var"]) {
             let (range, exact) = part_range(d, &call.range);
-            let fix = exact.then(|| variable_value(styles, d, &call)).flatten().map(|value| Fix { range: range.clone(), replacement: value });
-            found.push(finding(Rule::CssVariable, range, fix));
+            let fix =
+                exact.then(|| variable_value(styles, &defined, d, &call)).flatten().map(|value| Fix { range: range.clone(), replacement: value });
+            note(found, finding(Rule::CssVariable, range, fix))?;
         }
     }
+    Ok(())
 }
 
 /// OL-COL-002: each call of `rgb()`, `rgba()`, `hsl()` or `hsla()` whose numbers are separated by
 /// spaces (or a `/`) rather than commas. `rgb()` of three plain whole numbers is fixed by
 /// separating them with commas, its name kept as written; nothing else has a fix.
-fn spaced_colours(styles: &Styles, found: &mut Vec<Finding>) {
+fn spaced_colours(styles: &Styles, found: &mut Vec<Finding>) -> Result<(), CheckError> {
     for d in &styles.decls {
         for call in calls(&d.value, &["rgb", "rgba", "hsl", "hsla"]) {
             let args = call.args.trim();
@@ -916,9 +957,10 @@ fn spaced_colours(styles: &Styles, found: &mut Vec<Finding>) {
             }
             let (range, exact) = part_range(d, &call.range);
             let fix = exact.then(|| with_commas(&d.value, &call)).flatten().map(|text| Fix { range: range.clone(), replacement: text });
-            found.push(finding(Rule::SpaceSeparatedColour, range, fix));
+            note(found, finding(Rule::SpaceSeparatedColour, range, fix))?;
         }
     }
+    Ok(())
 }
 
 /// The call `call` of `value`, when it is `rgb()` of three plain whole numbers, written with
@@ -937,38 +979,39 @@ const GRADIENTS: [&str; 6] =
 /// The warnings a declaration gives by its property and value alone, each on the whole
 /// declaration and without a fix: OL-LAY-001 to OL-LAY-005, OL-BOX-007, OL-BOX-008, OL-BG-001,
 /// OL-BG-004 and OL-FNT-002.
-fn declaration_warnings(styles: &Styles, found: &mut Vec<Finding>) {
+fn declaration_warnings(styles: &Styles, found: &mut Vec<Finding>) -> Result<(), CheckError> {
     for d in &styles.decls {
         let property = d.property.to_ascii_lowercase();
         let (value, _) = strip_important(&d.value);
         let value = value.to_ascii_lowercase();
-        let mut warn = |rule: Rule| found.push(finding(rule, d.range.clone(), None));
+        let mut warn = |rule: Rule| note(found, finding(rule, d.range.clone(), None));
         match property.as_str() {
-            "display" if matches!(value.as_str(), "flex" | "inline-flex") => warn(Rule::Flexbox),
-            "display" if matches!(value.as_str(), "grid" | "inline-grid") => warn(Rule::Grid),
-            "float" if value != "none" => warn(Rule::Float),
-            "position" if matches!(value.as_str(), "absolute" | "fixed" | "relative") => warn(Rule::Positioned),
-            "max-width" | "min-width" if value != "none" && !on_table(styles, d) => warn(Rule::MinMaxWidth),
+            "display" if matches!(value.as_str(), "flex" | "inline-flex") => warn(Rule::Flexbox)?,
+            "display" if matches!(value.as_str(), "grid" | "inline-grid") => warn(Rule::Grid)?,
+            "float" if value != "none" => warn(Rule::Float)?,
+            "position" if matches!(value.as_str(), "absolute" | "fixed" | "relative") => warn(Rule::Positioned)?,
+            "max-width" | "min-width" if value != "none" && !on_table(styles, d) => warn(Rule::MinMaxWidth)?,
             "border-radius" | "border-top-left-radius" | "border-top-right-radius" | "border-bottom-left-radius" | "border-bottom-right-radius"
                 if !all_zero(&value) =>
             {
-                warn(Rule::RoundedCorners)
+                warn(Rule::RoundedCorners)?
             }
-            "box-shadow" if value != "none" => warn(Rule::BoxShadow),
+            "box-shadow" if value != "none" => warn(Rule::BoxShadow)?,
             "background" | "background-image" => {
                 let gradient = !calls(&value, &GRADIENTS).is_empty();
                 let picture = !calls(&value, &["url"]).is_empty() || (property == "background-image" && !gradient && value != "none");
                 if picture {
-                    warn(Rule::BackgroundImage);
+                    warn(Rule::BackgroundImage)?;
                 }
                 if gradient {
-                    warn(Rule::Gradient);
+                    warn(Rule::Gradient)?;
                 }
             }
-            "font-family" if !ends_generic(&value) => warn(Rule::NoGenericFontFamily),
+            "font-family" if !ends_generic(&value) => warn(Rule::NoGenericFontFamily)?,
             _ => {}
         }
     }
+    Ok(())
 }
 
 /// Whether the declaration `d` is for tables alone: in a `<table>`'s `style`, or in a rule each of
@@ -976,14 +1019,17 @@ fn declaration_warnings(styles: &Styles, found: &mut Vec<Finding>) {
 fn on_table(styles: &Styles, d: &Decl) -> bool {
     match d.place {
         Place::Inline { table, .. } => table,
-        Place::Sheet { rule } => styles.rules.get(rule).is_some_and(|r| {
-            split_commas(&r.prelude).iter().all(|selector| {
-                let last = selector.rsplit(|c: char| c.is_ascii_whitespace() || matches!(c, '>' | '+' | '~')).next().unwrap_or("");
-                let name = last.split(|c: char| !(c.is_ascii_alphanumeric() || c == '-')).next().unwrap_or("");
-                name.eq_ignore_ascii_case("table")
-            })
-        }),
+        Place::Sheet { rule } => styles.rules.get(rule).is_some_and(|r| r.tables_only),
     }
+}
+
+/// Whether each selector of the list `prelude` ends with a `table`.
+fn tables_only(prelude: &str) -> bool {
+    split_commas(prelude).iter().all(|selector| {
+        let last = selector.rsplit(|c: char| c.is_ascii_whitespace() || matches!(c, '>' | '+' | '~')).next().unwrap_or("");
+        let name = last.split(|c: char| !(c.is_ascii_alphanumeric() || c == '-')).next().unwrap_or("");
+        name.eq_ignore_ascii_case("table")
+    })
 }
 
 /// Whether every length of `value` (lower case) is a zero: square corners.
@@ -1005,7 +1051,7 @@ fn ends_generic(value: &str) -> bool {
 
 /// OL-UNIT-001 and OL-UNIT-002: each size in `rem`, or in `vw`, `vh`, `vmin` or `vmax`, on the
 /// number and its unit, without a fix.
-fn units(styles: &Styles, found: &mut Vec<Finding>) {
+fn units(styles: &Styles, found: &mut Vec<Finding>) -> Result<(), CheckError> {
     for d in &styles.decls {
         for (size, unit) in dimensions(&d.value) {
             let rule = if unit.eq_ignore_ascii_case("rem") {
@@ -1015,9 +1061,10 @@ fn units(styles: &Styles, found: &mut Vec<Finding>) {
             } else {
                 continue;
             };
-            found.push(finding(rule, part_range(d, &size).0, None));
+            note(found, finding(rule, part_range(d, &size).0, None))?;
         }
     }
+    Ok(())
 }
 
 /// The sizes in a CSS value (a number with a unit), outside strings, names and `url()`: each
@@ -1065,30 +1112,61 @@ fn dimensions(value: &str) -> Vec<(Range<usize>, &str)> {
 /// be written in its place as it is: the call is in a `style` attribute, its variable is defined
 /// once in the text, at the root of the document (`:root`, `html`, `body` or `*`, outside
 /// `@media`) or in the same `style` attribute, and that definition is a plain value (no `var()`,
-/// no `!important`, no quote, character reference, `<`, `>`, `\`, `;` or brace).
-fn variable_value(styles: &Styles, used: &Decl, call: &Call<'_>) -> Option<String> {
+/// no `!important`, no quote, character reference, `<`, `>`, `\`, `;` or brace) of at most
+/// [`MAX_FIX_BYTES`] bytes.
+fn variable_value(styles: &Styles, defined: &HashMap<&str, Definition<'_>>, used: &Decl, call: &Call<'_>) -> Option<String> {
     let Place::Inline { element, .. } = used.place else { return None };
     let name = call.args.split(',').next()?.trim();
     if !call.closed || !name.starts_with("--") {
         return None;
     }
-    let mut definitions = styles.decls.iter().filter(|d| d.property == name);
-    let definition = definitions.next()?;
-    if definitions.next().is_some() || definition.value_at.is_none() {
-        return None;
-    }
-    let everywhere = match definition.place {
+    let definition = defined.get(name).filter(|d| d.count == 1)?;
+    let everywhere = match definition.decl.place {
         Place::Inline { element: at, .. } => at == element,
-        Place::Sheet { rule } => {
-            styles.rules.get(rule).is_some_and(|r| !r.in_media && matches!(r.prelude.to_ascii_lowercase().as_str(), ":root" | "html" | "body" | "*"))
-        }
+        Place::Sheet { rule } => styles.rules.get(rule).is_some_and(|r| r.root),
     };
-    let (value, important) = strip_important(&definition.value);
+    let value = definition.plain?;
+    everywhere.then(|| value.to_string())
+}
+
+/// A custom property of the checked text: how many times it is defined, its first definition,
+/// and that definition's value when it is a plain one ([`plain_value`]).
+struct Definition<'s> {
+    count: usize,
+    decl: &'s Decl,
+    plain: Option<&'s str>,
+}
+
+/// Every custom property of `styles` by its name as written, read once for all the `var()` calls
+/// that may name it. Each definition is a finding of its own ([`variables`]), so more than
+/// [`MAX_FINDINGS`] of them are refused here, as they would be there, before the index holds them.
+fn definitions(styles: &Styles) -> Result<HashMap<&str, Definition<'_>>, CheckError> {
+    let mut out: HashMap<&str, Definition<'_>> = HashMap::new();
+    for (n, d) in styles.decls.iter().filter(|d| d.property.starts_with("--")).enumerate() {
+        if n >= MAX_FINDINGS {
+            return Err(CheckError::TooManyFindings);
+        }
+        out.entry(d.property.as_str()).and_modify(|seen| seen.count = seen.count.saturating_add(1)).or_insert_with(|| Definition {
+            count: 1,
+            decl: d,
+            plain: plain_value(d),
+        });
+    }
+    Ok(out)
+}
+
+/// The value of the definition `d` when it can be written in a `var()`'s place as it is: written
+/// in the checked text just as it is here, plain ([`variable_value`]), and short enough to be
+/// copied into each call's fix ([`MAX_FIX_BYTES`]).
+fn plain_value(d: &Decl) -> Option<&str> {
+    d.value_at?;
+    let (value, important) = strip_important(&d.value);
     let plain = !value.is_empty()
+        && value.len() <= MAX_FIX_BYTES
         && !important
         && !value.to_ascii_lowercase().contains("var(")
         && !value.contains(['"', '\'', '&', '<', '>', '\\', ';', '{', '}']);
-    (everywhere && plain).then(|| value.to_string())
+    plain.then_some(value)
 }
 
 /// One `<style>` sheet of the checked text, as the writer of an authored signature reads them.
@@ -1170,11 +1248,7 @@ fn style_elements(html: &str) -> Vec<StyleElement> {
 
 /// Where the sheet `css`, a slice the tokenizer gave of `html`, and its element are.
 fn style_element(html: &str, css: &str) -> Option<StyleElement> {
-    let start = (css.as_ptr() as usize).checked_sub(html.as_ptr() as usize)?;
-    let end = start.checked_add(css.len())?;
-    if html.get(start..end)?.as_ptr() != css.as_ptr() {
-        return None;
-    }
+    let Range { start, end } = span_of(html, css)?;
     // The element ends where the tokenizer goes on from: after the `>` that follows the sheet.
     let close = html.get(end..)?.find('>').map_or(html.len(), |at| end + at + 1);
     Some(match style_start(html, css, start) {

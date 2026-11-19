@@ -23671,7 +23671,7 @@ msgstr "此重复日程中更改的日期过多"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
-msgid "this signature has {n} email compatibility error(s) to fix before it can be saved"
+msgid "this signature has email compatibility errors to fix before it can be saved"
 msgstr ""
 
 #. what a command says

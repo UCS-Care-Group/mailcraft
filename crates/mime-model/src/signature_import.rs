@@ -33,9 +33,8 @@
 //! pixels or less, or some layout this version does not read) is an error, not a picture quietly
 //! dropped. Layout is always [`mailcraft_model::signature::Layout::Inline`], since an imported
 //! document's own tables say where its pictures go. Quotas are the model's own
-//! ([`MAX_HTML`](mailcraft_model::signature::MAX_HTML), [`MAX_TEXT`](mailcraft_model::signature::MAX_TEXT),
-//! [`MAX_PICTURES`](mailcraft_model::signature::MAX_PICTURES), and the per-picture and total byte
-//! caps), checked before anything is cloned and again as the document is written.
+//! ([`MAX_HTML`], [`MAX_TEXT`], [`MAX_PICTURES`], and the per-picture and total byte caps),
+//! checked before anything is cloned and again as the document is written.
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;

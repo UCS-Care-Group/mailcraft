@@ -33,7 +33,7 @@ use crate::authored_css;
 use crate::entities::escape;
 use crate::quote::{Quoter, ReboundCid, attribute_kept, risky_style};
 use crate::sheet::{self, MAX_RULES, MAX_SHEET, block_end, media_prelude, scan_to, skip_trivia, split_commas};
-use crate::tokenizer::{Tag, Token, Tokenizer};
+use crate::tokenizer::{Tag, Token, Tokenizer, span_of};
 use crate::{MAX_INPUT, media};
 
 /// Longest scope class, in bytes.
@@ -49,6 +49,13 @@ const MAX_STYLES: usize = 256;
 pub struct AuthoredScope(String);
 
 impl AuthoredScope {
+    /// The scope `class`, which the writer puts on the signature's wrapper and in front of every
+    /// selector of its sheets.
+    ///
+    /// # Errors
+    ///
+    /// [`AuthoredError::InvalidScope`] when `class` is not an ASCII letter or `_` followed by
+    /// ASCII letters, digits, `_` and `-`, 1 to 64 bytes in all.
     pub fn new(class: &str) -> Result<AuthoredScope, AuthoredError> {
         let mut chars = class.chars();
         let first = chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
@@ -69,7 +76,9 @@ impl AuthoredScope {
 /// sheet in it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthoredFragment {
+    /// Zero or more whole `<style>` elements, for the document's head.
     pub head: String,
+    /// The signature in its `<div class="SCOPE">`, with no style sheet in it.
     pub body: String,
 }
 
@@ -93,6 +102,23 @@ pub enum AuthoredError {
     /// The scope is no class this writes.
     InvalidScope,
 }
+
+impl std::fmt::Display for AuthoredError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
+            AuthoredError::Truncated => "the signature is longer than is read, ends inside a tag or has more style sheet than is read",
+            AuthoredError::Unclosed => "a style sheet, a rule or an @media block does not end",
+            AuthoredError::Unsupported => "a style sheet holds something that can't be scoped to the signature",
+            AuthoredError::Risky => "a style sheet holds something that could fetch or run something, or hides what it says",
+            AuthoredError::TooLarge => "the signature with its scoped style sheets would be longer than is read",
+            AuthoredError::ScopeCollides => "the scope class is already in the signature",
+            AuthoredError::InvalidScope => "the scope is not a class the writer puts on a signature",
+        };
+        f.write_str(text)
+    }
+}
+
+impl std::error::Error for AuthoredError {}
 
 use AuthoredError::*;
 
@@ -197,11 +223,7 @@ impl Writer<'_> {
                 continue;
             }
             // The sheet ends at its end tag, and that tag at its `>`.
-            let start = (css.as_ptr() as usize).checked_sub(html.as_ptr() as usize).ok_or(Unclosed)?;
-            let end = start.checked_add(css.len()).ok_or(Unclosed)?;
-            if html.get(start..end).is_none_or(|s| s.as_ptr() != css.as_ptr()) {
-                return Err(Unclosed);
-            }
+            let end = span_of(html, css).ok_or(Unclosed)?.end;
             let after = html.get(end..).unwrap_or("");
             if !after.get(..7).is_some_and(|t| t.eq_ignore_ascii_case("</style")) {
                 return Err(Unclosed);

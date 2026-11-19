@@ -277,9 +277,12 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     // An HTML signature with an email compatibility error, or whose HTML could not be checked,
     // can't be kept, nor one naming a picture it can't be sent with: Save says why, and the
     // engine refuses it too.
-    let html_now = app.session.signature_edit.as_ref().and_then(|e| e.signature.html().map(str::to_string));
-    let refusal = html_now
-        .and_then(|h| crate::compat::save_refusal(&crate::compat::checked(ui.ctx(), &h)))
+    let refusal = app
+        .session
+        .signature_edit
+        .as_ref()
+        .and_then(|e| e.signature.html())
+        .and_then(|h| crate::compat::save_refusal(&crate::compat::checked(ui.ctx(), h)))
         .or_else(|| if dirty { picture_refusal(app) } else { None });
     ui.horizontal(|ui| {
         let save = ui.add_enabled(dirty && refusal.is_none(), egui::Button::new(tl!("Save")));
@@ -717,8 +720,10 @@ fn picture_refusal(app: &MailApp) -> Option<String> {
 /// discard the changes, which closes the signature without keeping them and leaves the page.
 /// Nothing is asked over another dialog.
 pub(crate) fn ask_leave(app: &mut MailApp) {
+    let Some(ctx) = app.ctx.clone() else { return };
     let Some(html) = app.session.signature_edit.as_ref().and_then(|e| e.signature.html()) else { return };
-    let why = if crate::compat::Checked::of(html).blocks_save() {
+    // The findings the editor keeps for this very text: the same answer its Save gave.
+    let why = if crate::compat::checked(&ctx, html).blocks_save() {
         tl!("This signature can't be saved until its email compatibility errors are fixed.").to_string()
     } else if let Some(why) = picture_refusal(app) {
         crate::i18n::fmt(tl!("This signature can't be saved: {why}"), &[("why", &why)])
@@ -728,7 +733,6 @@ pub(crate) fn ask_leave(app: &mut MailApp) {
     if app.dialog.is_some() {
         return;
     }
-    let Some(ctx) = app.ctx.clone() else { return };
     let mut ask = crate::dialogs::Question::new(tl!("Unsaved Signature"), why, tl!("Discard changes"), json!({}));
     ask.cancel = Some(tl!("Keep editing").to_string());
     app.dialog = Some(crate::dialogs::Dialog::Confirm { command: "signature.close".to_string(), params: json!({"discard": true}), ask });

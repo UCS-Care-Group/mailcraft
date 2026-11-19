@@ -6,7 +6,7 @@
 //! sheet) is not checked; a document that is cut off or larger than is read is refused, so the
 //! caller can treat a refusal as blocking.
 
-use mailcraft_html::compat::{CheckError, Finding, Fix, Rule, Severity, check};
+use mailcraft_html::compat::{CheckError, Finding, Fix, MAX_FINDINGS, Rule, Severity, check};
 use mailcraft_html::{MAX_INPUT, MAX_INPUT_WITH_PICTURES};
 
 fn finding(rule: Rule, range: std::ops::Range<usize>, fix: Option<Fix>) -> Finding {
@@ -159,9 +159,30 @@ fn a_picture_with_more_attributes_than_are_read_is_refused() {
 
 #[test]
 fn a_document_over_the_input_cap_is_refused() {
-    let html = "x".repeat(MAX_INPUT_WITH_PICTURES + 1);
+    // The reader's own cap (`MAX_INPUT`, far above a signature's 64 KB), not the larger one that
+    // leaves room for the pictures written into a message: what the checker keeps of a document
+    // grows with it.
+    let html = "x".repeat(MAX_INPUT + 1);
     assert_eq!(check(&html), Err(CheckError::OverInput));
-    assert_eq!(check(&html[..MAX_INPUT_WITH_PICTURES]), Ok(Vec::new()));
+    assert_eq!(check(&html[..MAX_INPUT]), Ok(Vec::new()));
+    assert_eq!(check(&"x".repeat(MAX_INPUT_WITH_PICTURES)), Err(CheckError::OverInput));
+}
+
+/// Each custom property's definition is a finding of its own: as many as are given are checked,
+/// and one more is refused.
+#[test]
+fn definitions_up_to_the_finding_cap_are_checked_and_one_more_is_refused() {
+    let style = |n: usize| format!("<p style=\"{}\">x</p>", (0..n).map(|i| format!("--p{i}:x;")).collect::<String>());
+    assert_eq!(check(&style(MAX_FINDINGS)).map(|found| found.len()), Ok(MAX_FINDINGS));
+    assert_eq!(check(&style(MAX_FINDINGS + 1)), Err(CheckError::TooManyFindings));
+}
+
+/// A document of at most [`MAX_INPUT`] bytes whose text the writer of an authored signature would
+/// write out longer than it gives: each `&` of the text is written `&amp;`.
+fn written_longer(head: &str, tail: &str) -> String {
+    let html = format!("{head}{}{tail}", "&".repeat(MAX_INPUT / 2));
+    assert!(html.len() <= MAX_INPUT, "fixture guard: the checker reads it");
+    html
 }
 
 /// The bytes of the whole `n`th (from 0) `<style>` element of `html`, start tag to end tag, in
@@ -227,16 +248,16 @@ fn a_style_sheet_that_can_be_scoped_and_sent_has_no_findings() {
 
 #[test]
 fn a_refusal_no_style_element_explains_is_given_at_the_first_style_start_tag() {
-    // The sheet itself can be sent; the document is longer than the writer reads.
-    let html = format!("<style>p {{ color: #333 }}</style><p>{}</p>", "x".repeat(MAX_INPUT));
-    assert!(html.len() <= MAX_INPUT_WITH_PICTURES);
+    // The sheet itself can be sent; what the writer would write of the document is longer than
+    // it gives.
+    let html = written_longer("<style>p { color: #333 }</style><p>", "</p>");
     assert_eq!(check(&html).expect("checked"), [not_sendable(0..7)]);
 }
 
 #[test]
 fn without_a_style_sheet_nothing_is_said_of_style_sheets() {
-    // Longer than the writer reads, but no sheet in it.
-    assert_eq!(check(&"x".repeat(MAX_INPUT + 1)).expect("checked"), []);
+    // Written longer than the writer gives, but no sheet in it.
+    assert_eq!(check(&written_longer("<p>", "</p>")).expect("checked"), []);
     // Not a style sheet, or one no reader takes: in a template.
     assert_eq!(check(r#"<style type="text/plain">@import "a.css";</style><p>x</p>"#).expect("checked"), []);
     assert_eq!(check(r#"<template><style>@import "a.css";</style></template><p>x</p>"#).expect("checked"), []);

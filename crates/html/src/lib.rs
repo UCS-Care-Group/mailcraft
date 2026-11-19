@@ -646,6 +646,8 @@ pub(crate) fn is_blank(c: char) -> bool {
 }
 
 #[cfg(test)]
+mod authored_css_tests;
+#[cfg(test)]
 mod bg_tests;
 #[cfg(test)]
 mod data_tests;

@@ -50,8 +50,8 @@ const WORDS: &str = "Ana Pereira - Lisbon Bindery";
 const LOCAL_PICTURE: &str = "this HTML names a picture that is neither on the web nor one of this signature's own: give it a web address (https://…), or name the picture's file relative to the HTML file and bring both in with Import HTML…";
 /// The refusal of HTML naming a picture by a `cid:` address the signature doesn't own.
 const FOREIGN_PICTURE: &str = "this HTML names a picture this signature doesn't have";
-/// The compat gate's refusal for one error.
-const ONE_ERROR: &str = "this signature has 1 email compatibility error(s) to fix before it can be saved";
+/// The compat gate's refusal, the same for any count of errors.
+const ERRORS: &str = "this signature has email compatibility errors to fix before it can be saved";
 
 /// Picture addresses that name a file the signature doesn't carry, or some other scheme.
 const LOCAL_SOURCES: [&str; 9] = [
@@ -229,11 +229,11 @@ fn a_data_picture_stays_the_checkers_to_refuse() {
     let mut s = session();
     run(&mut s, "signature.set", json!({"name": "Card", "text": "Ana Pereira"}));
     run(&mut s, "signature.open", json!({"name": "Card"}));
-    assert_eq!(edited_then_saved(&mut s, &page), (ONE_ERROR.to_string(), true), "the save is refused by the checker");
+    assert_eq!(edited_then_saved(&mut s, &page), (ERRORS.to_string(), true), "the save is refused by the checker");
 
     // Straight to the mailbox: the checker's refusal.
     run(&mut s, "signature.close", json!({"discard": true}));
-    assert_eq!(judged(&mut s, "signature.html", json!({"name": "Card", "html": page})), (ONE_ERROR.to_string(), true), "refused by the checker");
+    assert_eq!(judged(&mut s, "signature.html", json!({"name": "Card", "html": page})), (ERRORS.to_string(), true), "refused by the checker");
 }
 
 /// Web addresses spelled otherwise than plainly: white space around them, the scheme in capitals.

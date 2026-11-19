@@ -13,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 use mailcraft_mime_model::signature_import::{PictureSource, picture_source};
 use mailcraft_model::RichBody;
 use mailcraft_model::rich::{Paragraph, RichText, Run, Style};
-use mailcraft_model::signature::{Layout, Signature};
+use mailcraft_model::signature::{Layout, Signature, html_fits};
 use mailcraft_model::{AccountKind, Id, clean_name};
 use serde_json::{Value, json};
 
@@ -143,14 +143,14 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// That `html` may be kept in the mailbox: the email-compatibility checker read it and found no
-/// error in it (its warnings and notes never stop a save). Refused, with a text the window matches
-/// on, while an error is left to fix or when the HTML could not be checked at all.
+/// error in it (its warnings never stop a save). Refused, with a text the window matches on,
+/// while an error is left to fix or when the HTML could not be checked at all. The text is the
+/// same for any count of errors, since it has no plural forms: the window says how many.
 /// `signature.import` keeps such a document anyway, so that it can be fixed in the editor.
 fn email_compatible(html: &str) -> Result<(), CmdError> {
     let findings = mailcraft_html::compat::check(html).map_err(|_| fail("this signature's HTML could not be checked for email compatibility"))?;
-    let n = findings.iter().filter(|f| f.severity == mailcraft_html::compat::Severity::Error).count();
-    if n > 0 {
-        return Err(failed!("this signature has {n} email compatibility error(s) to fix before it can be saved", n));
+    if findings.iter().any(|f| f.severity == mailcraft_html::compat::Severity::Error) {
+        return Err(fail("this signature has email compatibility errors to fix before it can be saved"));
     }
     Ok(())
 }
@@ -160,7 +160,7 @@ fn email_compatible(html: &str) -> Result<(), CmdError> {
 /// `data:` one is the email-compatibility checker's (`OL-IMG-004`); a `cid:` must name one of the
 /// signature's own pictures; anything else (a file's name or path, a `file:` address, another
 /// scheme) is refused, since no file is kept beside a signature and the picture would be sent
-/// broken. Checked where HTML is kept, as [`email_compatible`] is: at the save, and when HTML is
+/// broken. Checked where HTML is kept, as `email_compatible` is: at the save, and when HTML is
 /// written straight to a signature that is not open. The window asks it of the open signature
 /// (`SignatureEdit::signature`, whose pictures are those the save keeps and maybe more) before
 /// Save and when its page is left, so that it says why the save would be refused. Reads nothing
@@ -463,8 +463,10 @@ fn html(s: &mut Session, v: &Value) -> CmdResult {
     let open = names_open(s, v);
     // Changed whole or not at all.
     let sig = named(s, v)?;
-    // A signature that is not open is written straight to the mailbox: kept only as a save would be.
+    // A signature that is not open is written straight to the mailbox: kept only as a save would be,
+    // and first only when it fits, so that the checker never reads what can't be kept.
     if !open && let Some(h) = html.as_deref() {
+        html_fits(h).map_err(|e| fail(e.to_string()))?;
         email_compatible(h)?;
         sendable_pictures(sig, h)?;
     }

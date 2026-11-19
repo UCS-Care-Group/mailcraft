@@ -24,6 +24,15 @@ const DROPPED: [&str; 6] = ["script", "style", "title", "iframe", "noembed", "no
 /// Elements whose content is text, not markup, and is shown.
 const RAW_TEXT: [&str; 2] = ["textarea", "xmp"];
 
+/// Where `part`, a slice of `whole` (one this tokenizer gave of the text it read, say), sits in
+/// it: its byte range, checked against `whole` itself; `None` when `part` is no slice of it.
+pub(crate) fn span_of(whole: &str, part: &str) -> Option<std::ops::Range<usize>> {
+    let start = (part.as_ptr() as usize).checked_sub(whole.as_ptr() as usize)?;
+    let end = start.checked_add(part.len())?;
+    let found = whole.get(start..end)?;
+    (found.as_ptr() == part.as_ptr()).then_some(start..end)
+}
+
 /// A start tag.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Tag<'a> {

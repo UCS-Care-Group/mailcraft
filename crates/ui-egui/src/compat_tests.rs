@@ -396,8 +396,9 @@ fn save_is_disabled_while_an_error_remains_and_says_why() {
     assert_eq!(h.state().session.signature_edit, editor, "pressing the disabled Save changed the signature open in the editor");
 }
 
-/// The engine's refusal of a signature with one error (its contract's exact words).
-const REFUSED: &str = "this signature has 1 email compatibility error(s) to fix before it can be saved";
+/// The engine's refusal of a signature with errors (its contract's exact words, the same for
+/// any count).
+const REFUSED: &str = "this signature has email compatibility errors to fix before it can be saved";
 
 /// A signature with nothing to report: its picture has its size as attributes too.
 const CLEAN: &str = "<p>Priya Raman</p>\n<img width=\"120\" height=\"40\" src=\"https://example.org/m.png\">\n<p>Studio Two</p>";

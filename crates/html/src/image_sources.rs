@@ -13,7 +13,7 @@
 use std::ops::Range;
 
 use crate::entities::unescape;
-use crate::tokenizer::{Token, Tokenizer};
+use crate::tokenizer::{Token, Tokenizer, span_of};
 
 /// Most pictures one document may name ([`image_sources`]); one that names more is refused rather
 /// than read in part.
@@ -107,7 +107,9 @@ pub fn image_sources(html: &str) -> Result<Vec<ImageSource>, ImageSourceError> {
         if raw.is_empty() {
             continue;
         }
-        let value_range = range_of(html, raw).ok_or(ImageSourceError::BadRange)?;
+        // The value the tokenizer gives is a slice of the document it read, so its own address
+        // says where it starts; the answer is checked against the document.
+        let value_range = span_of(html, raw).ok_or(ImageSourceError::BadRange)?;
         // The value is a part of the start tag it was read from, before that tag's `>`.
         if value_range.end > tokens.pos().saturating_sub(1) {
             return Err(ImageSourceError::BadRange);
@@ -118,14 +120,4 @@ pub fn image_sources(html: &str) -> Result<Vec<ImageSource>, ImageSourceError> {
         sources.push(ImageSource { src: unescape(raw), value_range });
     }
     Ok(sources)
-}
-
-/// Where `raw` sits in `html`: the value the tokenizer gives is a slice of the document it read, so
-/// its own address says where it starts. The answer is checked against the document first.
-fn range_of(html: &str, raw: &str) -> Option<Range<usize>> {
-    let start = (raw.as_ptr() as usize).checked_sub(html.as_ptr() as usize)?;
-    let end = start.checked_add(raw.len())?;
-    let range = start..end;
-    let found = html.get(range.clone())?;
-    (found.as_ptr() == raw.as_ptr()).then_some(range)
 }

@@ -127,7 +127,6 @@ pub(crate) struct Look {
     pub line_height: f32,
     pub error: Color32,
     pub warning: Color32,
-    pub info: Color32,
 }
 
 impl Look {
@@ -138,24 +137,25 @@ impl Look {
         let style: egui::widget_style::TextEditStyle = ui.widget_style(id, &egui::class::Classes::default());
         let color = ui.visuals().override_text_color.unwrap_or(style.atom_layout.text_style.color);
         let line_height = ui.fonts_mut(|f| f.row_height(&font)) + ui.spacing().extra_text_line_spacing;
-        Self { font, color, line_height, error: t.red, warning: t.orange, info: t.blue }
+        Self { font, color, line_height, error: t.red, warning: t.orange }
     }
 
     fn colour(&self, severity: Severity) -> Color32 {
         match severity {
             Severity::Error => self.error,
             Severity::Warning => self.warning,
-            Severity::Info => self.info,
         }
     }
 }
 
-/// The more serious first.
-fn rank(severity: Severity) -> u8 {
+/// The severities, the more serious first: a severity's place here is its [`rank`].
+const BY_RANK: [Severity; 2] = [Severity::Error, Severity::Warning];
+
+/// Where `severity` is in [`BY_RANK`].
+fn rank(severity: Severity) -> usize {
     match severity {
         Severity::Error => 0,
         Severity::Warning => 1,
-        Severity::Info => 2,
     }
 }
 
@@ -164,18 +164,36 @@ fn rank(severity: Severity) -> u8 {
 /// are not of this text (a range past its end or off a character boundary) underline nothing.
 pub(crate) fn layout_job(text: &str, marks: &[Mark], look: &Look, wrap_width: f32) -> LayoutJob {
     let plain = TextFormat { font_id: look.font.clone(), color: look.color, line_height: Some(look.line_height), ..Default::default() };
-    let usable = |m: &&Mark| m.bytes.start < m.bytes.end && text.get(m.bytes.clone()).is_some();
+    let usable: Vec<&Mark> = marks.iter().filter(|m| m.bytes.start < m.bytes.end && text.get(m.bytes.clone()).is_some()).collect();
     let mut cuts: Vec<usize> = vec![0, text.len()];
-    for m in marks.iter().filter(usable) {
+    for m in &usable {
         cuts.extend([m.bytes.start, m.bytes.end]);
     }
     cuts.sort_unstable();
     cuts.dedup();
+    // One sweep over the cuts: a mark is counted from the cut it starts at to the one it ends at,
+    // so each part knows how many marks of each severity cover it without looking at them all.
+    let mut starts: Vec<(usize, usize)> = usable.iter().map(|m| (m.bytes.start, rank(m.severity))).collect();
+    let mut ends: Vec<(usize, usize)> = usable.iter().map(|m| (m.bytes.end, rank(m.severity))).collect();
+    starts.sort_unstable();
+    ends.sort_unstable();
+    let (mut starts, mut ends) = (starts.into_iter().peekable(), ends.into_iter().peekable());
+    let mut covering = [0usize; BY_RANK.len()];
     let mut job = LayoutJob::default();
     for pair in cuts.windows(2) {
         let [from, to] = pair else { continue };
+        while let Some((_, level)) = starts.next_if(|(at, _)| at <= from) {
+            if let Some(n) = covering.get_mut(level) {
+                *n = n.saturating_add(1);
+            }
+        }
+        while let Some((_, level)) = ends.next_if(|(at, _)| at <= from) {
+            if let Some(n) = covering.get_mut(level) {
+                *n = n.saturating_sub(1);
+            }
+        }
         let Some(part) = text.get(*from..*to) else { continue };
-        let worst = marks.iter().filter(usable).filter(|m| m.bytes.start <= *from && *to <= m.bytes.end).map(|m| m.severity).min_by_key(|s| rank(*s));
+        let worst = BY_RANK.iter().zip(&covering).find(|(_, n)| **n > 0).map(|(severity, _)| *severity);
         let mut format = plain.clone();
         if let Some(severity) = worst {
             format.underline = Stroke::new(1.0, look.colour(severity));
@@ -192,24 +210,42 @@ pub(crate) fn layout_job(text: &str, marks: &[Mark], look: &Look, wrap_width: f3
     job
 }
 
-/// The on-screen rectangles of the characters `chars` of `galley` painted at `pos`, one for each
-/// row they are on.
-pub(crate) fn rects(galley: &egui::Galley, pos: egui::Pos2, chars: &Range<usize>) -> Vec<egui::Rect> {
-    let mut out = Vec::new();
+/// The on-screen rectangles of each of `marks` in `galley` painted at `pos`: for each mark, one
+/// rectangle for each row its characters are on. The rows' first characters are counted once,
+/// and each mark looks only at the rows and glyphs it is on, so a frame's work is the galley's
+/// rows and the marks' own characters, not every glyph again for every mark.
+pub(crate) fn mark_rects(galley: &egui::Galley, pos: egui::Pos2, marks: &[Mark]) -> Vec<Vec<egui::Rect>> {
+    let mut starts = Vec::with_capacity(galley.rows.len());
     let mut at = 0usize;
     for row in &galley.rows {
+        starts.push(at);
+        at = at.saturating_add(row.glyphs.len()).saturating_add(usize::from(row.ends_with_newline));
+    }
+    marks.iter().map(|m| rects(galley, pos, &starts, &m.chars)).collect()
+}
+
+/// The rectangles of the characters `chars` of `galley` at `pos`, one for each row they are on;
+/// `starts` is where each row's first character is, counting a row's newline as a character.
+fn rects(galley: &egui::Galley, pos: egui::Pos2, starts: &[usize], chars: &Range<usize>) -> Vec<egui::Rect> {
+    let mut out = Vec::new();
+    // The last row that starts at or before the first character: the rows before it end before it.
+    let first = starts.partition_point(|start| *start <= chars.start).saturating_sub(1);
+    for (row, start) in galley.rows.iter().zip(starts).skip(first) {
+        if *start >= chars.end {
+            break;
+        }
+        let from = chars.start.saturating_sub(*start);
+        let to = chars.end.saturating_sub(*start).min(row.glyphs.len());
+        let Some(glyphs) = row.glyphs.get(from..to) else { continue };
         let mut span: Option<(f32, f32)> = None;
-        for (i, glyph) in row.glyphs.iter().enumerate() {
-            if chars.contains(&at.saturating_add(i)) {
-                let x = pos.x + row.pos.x + glyph.pos.x;
-                span = Some(span.map_or((x, x + glyph.advance_width), |(l, r)| (l.min(x), r.max(x + glyph.advance_width))));
-            }
+        for glyph in glyphs {
+            let x = pos.x + row.pos.x + glyph.pos.x;
+            span = Some(span.map_or((x, x + glyph.advance_width), |(l, r)| (l.min(x), r.max(x + glyph.advance_width))));
         }
         if let Some((left, right)) = span {
             let top = pos.y + row.pos.y;
             out.push(egui::Rect::from_min_max(egui::pos2(left, top), egui::pos2(right, top + row.size.y)));
         }
-        at = at.saturating_add(row.glyphs.len()).saturating_add(usize::from(row.ends_with_newline));
     }
     out
 }
@@ -387,7 +423,7 @@ pub(crate) fn save_refusal(checked: &Checked) -> Option<String> {
 pub(crate) fn popup(app: &mut MailApp, ui: &Ui, t: &Tokens, out: &egui::text_edit::TextEditOutput, source: &str) -> Option<String> {
     let ctx = ui.ctx().clone();
     let checked = checked(&ctx, source);
-    let places: Vec<Vec<egui::Rect>> = checked.marks().iter().map(|m| rects(&out.galley, out.galley_pos, &m.chars)).collect();
+    let places = mark_rects(&out.galley, out.galley_pos, checked.marks());
     for (i, place) in places.iter().enumerate() {
         if let Some(first) = place.first() {
             app.hit.add("signatureCompatMark", i as u64, *first);
@@ -427,7 +463,6 @@ pub(crate) fn popup(app: &mut MailApp, ui: &Ui, t: &Tokens, out: &egui::text_edi
                 let colour = match mark.severity {
                     Severity::Error => t.red,
                     Severity::Warning => t.orange,
-                    Severity::Info => t.text,
                 };
                 let shown = egui::Area::new(key.with("area")).order(egui::Order::Foreground).fixed_pos(o.at).constrain(true).show(&ctx, |ui| {
                     egui::Frame::popup(ui.style()).show(ui, |ui| {
@@ -487,3 +522,7 @@ fn remember_for_undo(ctx: &egui::Context, before: &str, caret: usize) {
 #[cfg(test)]
 #[path = "compat_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "compat_sweep_tests.rs"]
+mod sweep_tests;

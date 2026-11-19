@@ -45,6 +45,15 @@ pub const MAX_TEXT: usize = 10_000;
 /// Most bytes of an HTML signature's own HTML.
 pub const MAX_HTML: usize = 64 * 1024;
 
+/// That `html` is short enough to be an HTML signature's ([`MAX_HTML`]): what
+/// [`Signature::set_html`] refuses, for a caller that asks before reading the HTML for anything else.
+pub fn html_fits(html: &str) -> Result<(), ModelError> {
+    if html.len() > MAX_HTML {
+        return Err(ModelError::Invalid(format!("an HTML signature is at most {} KB", MAX_HTML / 1024)));
+    }
+    Ok(())
+}
+
 /// How a signature lays out its first picture against its text.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -373,10 +382,8 @@ impl Signature {
     /// the stand-in text nor its pictures. Refused over [`MAX_HTML`]. Its own pictures
     /// stay beside the HTML; callers must bind its picture references to those payloads.
     pub fn set_html(&mut self, html: Option<String>) -> Result<(), ModelError> {
-        if let Some(h) = &html
-            && h.len() > MAX_HTML
-        {
-            return Err(ModelError::Invalid(format!("an HTML signature is at most {} KB", MAX_HTML / 1024)));
+        if let Some(h) = &html {
+            html_fits(h)?;
         }
         self.html = html;
         Ok(())

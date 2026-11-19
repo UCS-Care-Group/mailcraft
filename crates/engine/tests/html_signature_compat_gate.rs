@@ -27,10 +27,9 @@ const ONE_PIXEL_PNG: &[u8] = &[
     0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
 ];
 
-/// The refusal for one error, as the window matches on it.
-const ONE_ERROR: &str = "this signature has 1 email compatibility error(s) to fix before it can be saved";
-/// The refusal for two errors.
-const TWO_ERRORS: &str = "this signature has 2 email compatibility error(s) to fix before it can be saved";
+/// The refusal for a signature with errors, as the window matches on it: the same words for any
+/// count, which the window gives in the owner's language itself.
+const ERRORS: &str = "this signature has email compatibility errors to fix before it can be saved";
 /// The refusal for HTML the checker could not check.
 const UNCHECKED: &str = "this signature's HTML could not be checked for email compatibility";
 
@@ -109,7 +108,7 @@ fn a_picture_sized_by_its_style_alone_keeps_the_signature_from_being_saved() {
     let mut s = session();
     open_as_html(&mut s, "Card", CSS_SIZED);
     let before = s.mailbox.signature("Card").cloned().expect("the signature");
-    assert_save_refused(&mut s, ONE_ERROR);
+    assert_save_refused(&mut s, ERRORS);
     assert_eq!(s.mailbox.signature("Card"), Some(&before), "the mailbox's signature is the rich one it was");
     let e = s.signature_edit.as_ref().expect("still open");
     assert!(e.dirty, "the editor still has its unsaved HTML");
@@ -121,14 +120,14 @@ fn the_refusal_counts_every_error() {
     assert_eq!(errors(TWO_CSS_SIZED).len(), 2, "two errors in the document");
     let mut s = session();
     open_as_html(&mut s, "Card", TWO_CSS_SIZED);
-    assert_save_refused(&mut s, TWO_ERRORS);
+    assert_save_refused(&mut s, ERRORS);
 }
 
 #[test]
 fn with_the_checkers_fix_applied_the_signature_saves() {
     let mut s = session();
     open_as_html(&mut s, "Card", CSS_SIZED);
-    assert_save_refused(&mut s, ONE_ERROR);
+    assert_save_refused(&mut s, ERRORS);
 
     // The finding's own edit, applied as the window applies it, then given to the open signature.
     let finding = errors(CSS_SIZED).into_iter().next().expect("the error");
@@ -184,7 +183,7 @@ fn html_written_straight_to_a_signature_that_is_not_open_is_refused_the_same_way
     let editor = s.signature_edit.clone().expect("the other signature is open");
     assert!(editor.dirty, "the open editor has unsaved words");
 
-    for (html, said) in [(CSS_SIZED, ONE_ERROR), (TWO_CSS_SIZED, TWO_ERRORS), (TRUNCATED, UNCHECKED)] {
+    for (html, said) in [(CSS_SIZED, ERRORS), (TWO_CSS_SIZED, ERRORS), (TRUNCATED, UNCHECKED)] {
         assert_eq!(refusal(&mut s, "signature.html", json!({"name": "Card", "html": html})), said, "the refusal's exact text for {html}");
         assert!(s.mailbox == mailbox, "the refused write left the mailbox exactly as it was ({html})");
         assert_eq!(s.signature_edit.as_ref(), Some(&editor), "and the open editor as it was ({html})");
@@ -213,7 +212,24 @@ fn an_import_with_an_error_is_kept_and_saving_it_unchanged_is_refused() {
 
     run(&mut s, "signature.open", json!({"name": "Imported"}));
     assert!(!s.signature_edit.as_ref().expect("open").dirty, "opened, unchanged");
-    assert_save_refused(&mut s, ONE_ERROR);
+    assert_save_refused(&mut s, ERRORS);
     assert_eq!(s.mailbox.signature("Imported"), Some(&stored), "the imported signature is as the import made it");
     assert!(!s.signature_edit.as_ref().expect("still open").dirty, "and the editor is still unchanged");
+}
+
+/// HTML longer than a signature holds, written straight to a signature that is not open, is
+/// refused for its length before it is checked: the checker never reads what can't be kept. The
+/// document would have an error to fix too, which is not what is said.
+#[test]
+fn html_too_long_for_a_signature_is_refused_for_its_length_before_it_is_checked() {
+    let mut html = CSS_SIZED.to_string();
+    html.push_str(&"x".repeat(mailcraft_model::signature::MAX_HTML + 1 - html.len()));
+    assert!(!errors(&html).is_empty(), "fixture guard: the checker finds an error in it");
+
+    let mut s = session();
+    run(&mut s, "signature.set", json!({"name": "Card", "text": "Ana Pereira\nLisbon Bindery"}));
+    assert!(s.signature_edit.is_none(), "fixture guard: no signature is open");
+    let mailbox = s.mailbox.clone();
+    assert_eq!(refusal(&mut s, "signature.html", json!({"name": "Card", "html": html})), "an HTML signature is at most 64 KB");
+    assert!(s.mailbox == mailbox, "the refusal left the mailbox exactly as it was");
 }
