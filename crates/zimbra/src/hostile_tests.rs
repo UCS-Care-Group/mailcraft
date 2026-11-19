@@ -95,6 +95,31 @@ fn faults_are_read_by_their_code_alone() {
 }
 
 #[test]
+fn ambiguous_values_and_incomplete_pages_are_refused() {
+    for token in [json!(true), json!(["5", "6"]), json!({"_content": "1\u{0}2"})] {
+        let response = answer(200, &json!({"Body": {"SyncResponse": {"token": token}}}));
+        assert_eq!(delta::answer(&response, false), Err(Error::Unreadable));
+    }
+    for more in [json!("garbage"), json!(2), json!(-1), json!(null), json!("tr\u{0}ue")] {
+        let search = answer(200, &json!({"Body": {"SearchResponse": {"more": more}}}));
+        assert_eq!(items::answer(&search), Err(Error::Unreadable));
+        let sync = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "more": more}}}));
+        assert_eq!(delta::answer(&sync, false), Err(Error::Unreadable));
+    }
+    for location in [json!(null), json!({}), json!("a:b:c"), json!("2\u{0}3")] {
+        let response = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "257", "l": location}]}}}));
+        assert_eq!(items::answer(&response), Err(Error::Unreadable));
+    }
+    let messages: Vec<_> = (0..=items::PAGE).map(|n| json!({"id": (257 + n).to_string(), "l": "2"})).collect();
+    let response = answer(200, &json!({"Body": {"SearchResponse": {"m": messages}}}));
+    assert_eq!(items::answer(&response), Err(Error::Unreadable));
+    for entry in [json!(null), json!({}), json!({"m": null}), json!({"m": 7})] {
+        let response = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "deleted": [entry]}}}));
+        assert_eq!(delta::answer(&response, false), Err(Error::Unreadable));
+    }
+}
+
+#[test]
 fn a_two_factor_account_and_odd_tokens_give_no_token() {
     let two = answer(200, &json!({"Body": {"AuthResponse": {"twoFactorAuthRequired": {"_content": true}}}}));
     assert_eq!(auth::answer(&two).map(|_| ()), Err(Error::TwoFactor));

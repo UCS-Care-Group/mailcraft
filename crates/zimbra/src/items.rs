@@ -96,6 +96,9 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
         return Err(Error::Unreadable);
     }
     let listed = json::list(answer.get("m"));
+    if listed.len() > PAGE {
+        return Err(Error::Unreadable);
+    }
     let mut messages = Vec::new();
     for m in listed.iter().take(PAGE) {
         // An item of another mailbox is passed over; a hit whose id is no id at all can't be
@@ -122,9 +125,7 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
         if json::bad_list(m.get("e")) {
             return Err(Error::Unreadable);
         }
-        if let Some(message) = message(m) {
-            messages.push(message);
-        }
+        messages.push(message(m).ok_or(Error::Unreadable)?);
     }
     let cursor = listed.iter().take(PAGE).next_back().and_then(|m| {
         let id = json::raw(m.get("id")).unwrap_or_default().trim().to_string();
@@ -132,7 +133,10 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
         // `sortVal` continues from), its `d` when it has none: a last item with neither is no
         // cursor to go on from — a sort value made up as 0 could end the folder early or read it
         // again from its start.
-        let sort = json::number(m.get("sf")).or_else(|| json::number(m.get("d")))?;
+        let sort = match m.get("sf") {
+            Some(value) => json::number(Some(value))?,
+            None => json::number(m.get("d"))?,
+        };
         (!id.is_empty() && id.len() <= 128 && !id.chars().any(char::is_control)).then_some((id, sort))
     });
     // A `more` that is no flag can't tell the page ends the folder: read off it would end the
@@ -155,13 +159,19 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
             .filter(|a| !a.email.is_empty())
             .collect()
     };
-    let categories: Vec<String> =
-        json::raw(m.get("tn")).unwrap_or_default().split(',').map(str::trim).filter(|t| !t.is_empty()).take(MAX_CATEGORIES).map(String::from).collect();
+    let categories: Vec<String> = json::raw(m.get("tn"))
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .take(MAX_CATEGORIES)
+        .map(String::from)
+        .collect();
     let arrived = json::number(m.get("d")).map_or(0, |ms| i64::try_from(ms / 1000).unwrap_or(0));
     let sent = json::number(m.get("sd")).map_or(arrived, |ms| i64::try_from(ms / 1000).unwrap_or(arrived));
     let server = ServerMessage {
         id,
-        folder: json::own_id(m.get("l")).unwrap_or_default(),
+        folder: json::own_id(m.get("l"))?,
         read: !has('u'),
         answered: has('r'),
         forwarded: has('w'),
