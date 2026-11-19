@@ -102,7 +102,7 @@ impl Lang {
                 };
                 Conventions { twelve_hour, week_start, pad_numeric: true, day_first: true }
             }
-            Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::Georgian => {
+            Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::Georgian | Lang::Hebrew => {
                 Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true }
             }
             Lang::Polish => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
@@ -450,7 +450,7 @@ mod tests {
     fn each_language_has_its_own_clock_and_week() {
         assert_eq!(Lang::English.conventions(), Conventions { twelve_hour: true, week_start: 6, pad_numeric: false, day_first: false });
         assert_eq!(Lang::Pseudo.conventions(), Lang::English.conventions());
-        for lang in [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::Georgian] {
+        for lang in [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::Georgian, Lang::Hebrew] {
             let c = lang.conventions();
             assert_eq!((c.twelve_hour, c.week_start, c.pad_numeric), (false, 0, true), "{lang:?}");
         }

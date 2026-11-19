@@ -74,6 +74,7 @@ pub enum Lang {
     Czech,
     ChineseSimplified,
     Georgian,
+    Hebrew,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -81,7 +82,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 13] = [
+    pub const ALL: [Lang; 14] = [
         Lang::English,
         Lang::French,
         Lang::German,
@@ -94,6 +95,7 @@ impl Lang {
         Lang::Czech,
         Lang::ChineseSimplified,
         Lang::Georgian,
+        Lang::Hebrew,
         Lang::Pseudo,
     ];
 
@@ -112,6 +114,7 @@ impl Lang {
             Lang::Czech => "cs",
             Lang::ChineseSimplified => "zh_CN",
             Lang::Georgian => "ka",
+            Lang::Hebrew => "he",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -153,6 +156,7 @@ impl Lang {
             "pl" => Some(Lang::Polish),
             "cs" => Some(Lang::Czech),
             "ka" => Some(Lang::Georgian),
+            "he" | "iw" => Some(Lang::Hebrew),
             _ => None,
         }
     }
@@ -172,6 +176,7 @@ impl Lang {
             Lang::Czech => "Čeština",
             Lang::ChineseSimplified => "简体中文",
             Lang::Georgian => "ქართული",
+            Lang::Hebrew => "עברית",
             Lang::Pseudo => "Pseudo",
         }
     }
@@ -191,6 +196,7 @@ impl Lang {
                 | Lang::Czech
                 | Lang::ChineseSimplified
                 | Lang::Georgian
+                | Lang::Hebrew
         )
     }
 
@@ -492,6 +498,7 @@ mod tests {
             expected.push("简体中文（预览）");
         }
         expected.push("ქართული (საცდელი)");
+        expected.push("עברית (תצוגה מקדימה)");
         assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
@@ -505,6 +512,10 @@ mod tests {
         assert_eq!(Lang::from_pref("hu", None), Lang::Hungarian);
         assert_eq!(Lang::from_pref("auto", Some("ka_GE.UTF-8")), Lang::Georgian);
         assert_eq!(Lang::from_pref("ka", None), Lang::Georgian);
+        assert_eq!(Lang::from_pref("auto", Some("he_IL.UTF-8")), Lang::Hebrew);
+        assert_eq!(Lang::from_pref("auto", Some("iw_IL.UTF-8")), Lang::Hebrew);
+        assert_eq!(Lang::from_pref("he", None), Lang::Hebrew);
+        assert_eq!(Lang::from_pref("iw", None), Lang::Hebrew);
     }
 
     #[test]
