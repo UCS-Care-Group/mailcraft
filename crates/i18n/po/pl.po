@@ -22382,7 +22382,7 @@ msgstr "najpierw wybierz termin"
 #, fuzzy
 msgctxt "sensitivity"
 msgid "Confidential"
-msgstr "Poufne"
+msgstr "Poufna"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -22396,14 +22396,14 @@ msgstr "Normalna"
 #, fuzzy
 msgctxt "sensitivity"
 msgid "Personal"
-msgstr "Osobiste"
+msgstr "Osobista"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgctxt "sensitivity"
 msgid "Private"
-msgstr "Prywatne"
+msgstr "Prywatna"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
@@ -23177,7 +23177,7 @@ msgstr "serwer nie potrafi sprawdzać dnia nadejścia poczty"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server can't look at whether you flagged mail"
-msgstr "serwer nie potrafi sprawdzić, czy oflagowano pocztę"
+msgstr "serwer nie potrafi sprawdzić, czy oznaczyłeś pocztę flagą"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
