@@ -98,9 +98,9 @@ pub enum OnExit {
 #[serde(rename_all = "camelCase")]
 pub enum UpdateCheck {
     /// The owner hasn't answered yet: off.
-    #[default]
     NotAsked,
     On,
+    #[default]
     Off,
 }
 

@@ -1370,16 +1370,14 @@ fn services(
         google_client_secret: google_client_secret(),
         // ponytail: false once Google has verified the app (#232).
         google_testers_only: true,
-        // Whether a new version is out: GitHub is asked about this build's repository and told
-        // nothing else, once a day when the owner wants that, or when they press Check for Updates.
-        update_check: Some(Box::new(move |pre_releases| {
-            background(&update_ctx, "update check", move || mailcraft_net::update::latest(pre_releases).map_err(|e| e.to_string()))
-        })),
-        // A build that isn't one of the project's packages (they name their commit) never asks.
-        development_build: build_sha() == "dev",
-        // A copy that updates itself downloads a newer release, checked by its signature.
-        update_download: updates.map(|updates| update_download(&download_ctx, updates.clone())),
-        updates_turned_off_by_organisation: updater::turned_off_by_organisation(),
+        // Whether a new version is out: disabled for custom portable build.
+        update_check: {
+            let _ = (update_ctx, download_ctx);
+            None
+        },
+        development_build: false,
+        update_download: None,
+        updates_turned_off_by_organisation: true,
         // The system's language, for an interface language left on Automatic.
         system_locale: system_locale::system_locale(),
         // And its regional format, whose region English dates are written for (#978).
