@@ -1586,8 +1586,9 @@ fn body_of(c: &Compose, message_id: &str, strict: bool) -> Result<Body, CmdError
                 Ok(Some((_, fragment, _))) => (fragment.head, fragment.body),
                 Ok(None) => (String::new(), mailcraft_mime_model::rich::signature_html(&sig, &cid)),
                 // What the owner wrote is never lost for the signature's styles: the draft keeps
-                // the signature's simpler copy, and no snapshot of it ([`draft_signature_of`]).
-                Err(_) if !strict => (String::new(), mailcraft_mime_model::rich::signature_html(&sig, &cid)),
+                // the signature's simpler copy, and the signature as it went in bound to that copy
+                // ([`draft_signature_of`]), so that opened again it is still refused at Send.
+                Err(_) if !strict => (String::new(), stand_in_html(&sig, message_id)),
                 Err(e) => return Err(e),
             };
             let html = [before.as_ref().map(|t| to_html_with(t, &img)), Some(signature), after.as_ref().map(|t| to_html_with(t, &img))];
@@ -1645,12 +1646,31 @@ fn signature_scope(message_id: &str) -> Result<AuthoredScope, CmdError> {
 
 /// What a draft keeps of the HTML signature it is saved with ([`Message::draft_signature`]): the
 /// signature as it went in, with the owner's own HTML, the very fragment the draft's HTML holds
-/// and its pictures' Content-IDs. `None` unless an unedited HTML signature goes out as HTML, so
-/// that one edited or taken out leaves no snapshot of it behind.
+/// and its pictures' Content-IDs. `None` unless an unedited HTML signature goes into an HTML
+/// message, so that one edited or taken out leaves no snapshot of it behind. One whose styles
+/// can't be sent is kept bound to the simpler copy the draft's HTML holds in its place
+/// ([`body_of`]): opened again, the draft holds the HTML signature, and Send is refused as it was
+/// until the signature is inserted again or edited as text. Either way it stays on this computer
+/// ([`Message::for_server`]).
 fn draft_signature_of(c: &Compose, message_id: &str) -> Option<DraftSignature> {
-    let (mut sig, fragment, content_ids) = sent_html_signature(c, message_id).ok().flatten()?;
+    let (mut sig, rendered, content_ids) = match sent_html_signature(c, message_id) {
+        Ok(Some((sig, fragment, content_ids))) => (sig, fragment.body, content_ids),
+        Ok(None) => return None,
+        Err(_) => {
+            let (_, sig, _) = sent_signature(c)?;
+            let content_ids = sig.pictures().iter().map(|p| signature_cid(p, message_id)).collect();
+            let rendered = stand_in_html(&sig, message_id);
+            (sig, rendered, content_ids)
+        }
+    };
     sig.set_html(c.signature_html().map(str::to_string)).ok()?;
-    DraftSignature::new(sig, fragment.body, content_ids)
+    DraftSignature::new(sig, rendered, content_ids)
+}
+
+/// The simpler copy of an HTML signature whose styles can't be sent, as a draft's HTML holds it in
+/// the signature's place ([`body_of`]) and its snapshot is bound to ([`draft_signature_of`]).
+fn stand_in_html(sig: &Signature, message_id: &str) -> String {
+    mailcraft_mime_model::rich::signature_html(sig, &|p: &Picture| signature_cid(p, message_id))
 }
 
 /// A signature picture's Content-ID: unique to the message, and naming nothing of the owner.

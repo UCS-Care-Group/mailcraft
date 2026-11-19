@@ -5,8 +5,11 @@
 //! mailbox, past that gate), or one imported with a sheet the writer refuses (`@font-face`).
 //! Sending it is refused with one plain sentence, and nothing changes: the message being written
 //! and the mailbox stay as they were. The signature's styles are never silently stripped and sent
-//! without them. A draft is always saved: with the signature as its simpler copy (as if it were
-//! edited as text), the owner's words kept, no sheet and no snapshot of the HTML signature. A
+//! without them. A draft is always saved: its HTML holds the signature as its simpler copy (as if
+//! it were edited as text), the owner's words kept and no sheet, and on this computer only it keeps
+//! the signature as it went in, bound to that copy. Closed and opened again, the draft holds the
+//! HTML signature again, so Send is still refused until the signature is inserted again or edited
+//! as text; the copy that goes to a server carries neither the sheet nor what is kept here. A
 //! control with a clean sheet saves, with its scoped rule in the document's head, and sends.
 //!
 //! The people, hosts and styles are invented. Nothing here reads a file, fetches or sends.
@@ -47,6 +50,33 @@ fn writing_with(sheet: &str) -> Session {
     s
 }
 
+/// The draft keeps the signature as it went in (`own`, its HTML), bound to the simpler copy its
+/// HTML holds once, with nothing of a sheet; its copy for a server has the same HTML and none of
+/// it.
+fn assert_kept_bound_to_stand_in(draft: &mailcraft_model::Message, own: &str) {
+    let html = draft.body.html.clone().expect("an HTML draft");
+    let kept = draft.draft_signature.as_ref().expect("the draft keeps, on this computer, the signature as it went in");
+    assert_eq!(kept.signature().html(), Some(own), "kept as it went in, its HTML whole");
+    assert_eq!(html.matches(kept.rendered()).count(), 1, "bound to the simpler copy the draft's HTML holds once: {html}");
+    assert!(!kept.rendered().to_ascii_lowercase().contains("<style"), "the copy it is bound to has no sheet: {}", kept.rendered());
+    let server = draft.clone().for_server();
+    assert!(server.draft_signature.is_none(), "nothing of it goes to a server");
+    assert_eq!(server.body.html.as_deref(), Some(html.as_str()), "the server's copy is the simpler copy");
+}
+
+/// A draft saved with a signature using `sheet`, closed, and opened again with Open Draft: the
+/// session, the draft's id and the signature's own HTML.
+fn reopened(sheet: &str) -> (Session, u64, String) {
+    let mut s = writing_with(sheet);
+    let own = s.compose.as_ref().and_then(|c| c.signature_html()).map(str::to_string).expect("fixture guard: an HTML signature");
+    let saved = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().expect("the saved draft's id");
+    run(&mut s, "compose.close", json!({}));
+    assert!(s.compose.is_none(), "fixture guard: the draft was closed");
+    run(&mut s, "mail.editDraft", json!({"id": saved}));
+    assert_eq!(s.compose.as_ref().and_then(|c| c.signature_html()), Some(own.as_str()), "opened again, the draft holds the HTML signature");
+    (s, saved, own)
+}
+
 /// `id` is refused with [`REFUSAL`], and neither the message being written nor the mailbox changed.
 fn assert_refused(sheet: &str, id: &str) {
     let mut s = writing_with(sheet);
@@ -59,9 +89,11 @@ fn assert_refused(sheet: &str, id: &str) {
 }
 
 /// The draft saved with the signature's simpler copy in place of its HTML: the owner's words and
-/// the signature's words are kept, and nothing of the refused sheet, nor a snapshot of the HTML
-/// signature, goes with it. Sending stays refused, and the message being written is as it was.
+/// the signature's words are kept, and nothing of the refused sheet goes with it. The draft keeps
+/// the signature as it went in, bound to that copy, and its copy for a server keeps nothing of
+/// it. Sending stays refused, and the message being written is as it was.
 fn assert_draft_saved_with_stand_in(mut s: Session, typed: &str, words: &[&str], sheet_marks: &[&str]) {
+    let own = s.compose.as_ref().and_then(|c| c.signature_html()).map(str::to_string).expect("fixture guard: an HTML signature");
     let saved = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().expect("the saved draft's id");
     let draft = s.mailbox.message(saved).expect("the draft is kept").clone();
     assert!(draft.draft, "kept as a draft");
@@ -76,7 +108,7 @@ fn assert_draft_saved_with_stand_in(mut s: Session, typed: &str, words: &[&str],
     for mark in sheet_marks {
         assert!(!html.contains(mark), "nothing of the refused sheet ({mark}): {html}");
     }
-    assert!(draft.draft_signature.is_none(), "no snapshot of the HTML signature is kept with the draft");
+    assert_kept_bound_to_stand_in(&draft, &own);
     let compose = s.compose.clone();
     let err = s.run("compose.send", &json!({})).expect_err("sending is still refused");
     assert_eq!(err.to_string(), REFUSAL, "the refusal says what to do");
@@ -167,4 +199,71 @@ fn the_refusals_remedies_let_the_message_being_written_be_sent() {
     run(&mut s, "compose.signatureAsText", json!({"value": true}));
     let sent = run(&mut s, "compose.send", json!({}));
     assert!(sent["id"].as_u64().is_some(), "sent with the signature edited as text: {sent}");
+}
+
+/// D1: a draft saved while its signature's styles can't be sent, closed and opened again, is still
+/// refused at Send with the same words, and nothing changes: neither the message being written nor
+/// the mailbox.
+#[test]
+fn a_reopened_draft_whose_signature_styles_cant_be_sent_is_still_refused() {
+    for sheet in [IMPORTING, FETCHING] {
+        let (mut s, _, _) = reopened(sheet);
+        let (compose, mailbox) = (s.compose.clone(), s.mailbox.clone());
+        let err = s.run("compose.send", &json!({})).expect_err("the reopened draft holds the signature as it went in");
+        assert_eq!(err.to_string(), REFUSAL, "the refusal says what to do");
+        assert_eq!(s.compose, compose, "the message being written is as it was");
+        assert!(s.mailbox == mailbox, "the mailbox is as it was");
+    }
+}
+
+/// The refusal's first remedy works on a reopened draft: once the signature is fixed in File ›
+/// Signatures and inserted again, the message goes, with the fixed signature's sheet.
+#[test]
+fn a_reopened_draft_sends_once_the_fixed_signature_is_inserted_again() {
+    let (mut s, _, _) = reopened(IMPORTING);
+    run(&mut s, "signature.open", json!({"name": NAME}));
+    let fixed = format!("<html><head>{CLEAN}</head><body><div class=\"studio-card\">Northwind Studio card</div><div>Priya Raman</div></body></html>");
+    run(&mut s, "signature.html", json!({"html": fixed}));
+    run(&mut s, "signature.save", json!({}));
+    run(&mut s, "signature.close", json!({}));
+    let err = s.run("compose.send", &json!({})).expect_err("the draft still holds the signature as it went in");
+    assert_eq!(err.to_string(), REFUSAL, "fixing the signature alone does not let the draft go");
+    run(&mut s, "compose.signature", json!({"name": NAME}));
+    let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().expect("sent with the fixed signature inserted again");
+    let m = s.mailbox.message(sent).expect("the message sent is kept").clone();
+    let html = m.body.html.clone().expect("sent as HTML");
+    assert!(html.contains("font-weight: bold") && !html.contains("@import"), "the fixed signature's sheet went: {html}");
+    assert!(m.clone().for_server().draft_signature.is_none(), "nothing kept here goes with it");
+}
+
+/// The refusal's second remedy works on a reopened draft: edited as text, it goes as the simpler
+/// copy, with nothing of the refused sheet.
+#[test]
+fn a_reopened_draft_sends_once_its_signature_is_edited_as_text() {
+    let (mut s, _, _) = reopened(IMPORTING);
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
+    let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().expect("sent with the signature edited as text");
+    let m = s.mailbox.message(sent).expect("the message sent is kept").clone();
+    let html = m.body.html.clone().expect("sent as HTML");
+    assert!(html.contains("Northwind Studio card") && html.contains("Priya Raman"), "the simpler copy went: {html}");
+    assert!(!html.to_ascii_lowercase().contains("<style") && !html.contains("styles.example.net"), "nothing of the refused sheet: {html}");
+    assert!(m.draft_signature.is_none(), "edited as text, nothing of the HTML signature is kept with it");
+}
+
+/// Saved again after it was opened again, the draft still holds the simpler copy for the server
+/// and keeps the signature as it went in here, bound to that copy; opened once more, Send is
+/// still refused.
+#[test]
+fn a_reopened_draft_saved_again_keeps_the_simpler_copy_and_the_refusal() {
+    let (mut s, saved, own) = reopened(FETCHING);
+    let again = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().expect("the saved draft's id");
+    assert_eq!(again, saved, "saved over the same draft");
+    let draft = s.mailbox.message(again).expect("the draft is kept").clone();
+    let html = draft.body.html.clone().expect("an HTML draft");
+    assert!(!html.contains("url(") && !html.contains("track.example.net"), "nothing of the refused sheet: {html}");
+    assert_kept_bound_to_stand_in(&draft, &own);
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": again}));
+    let err = s.run("compose.send", &json!({})).expect_err("still the HTML signature");
+    assert_eq!(err.to_string(), REFUSAL);
 }

@@ -90,10 +90,10 @@ fn named<'a>(s: &'a mut Session, v: &Value) -> Result<&'a mut Signature, CmdErro
 
 /// The open signature's text is what `set` gave the signature of that name.
 fn reopen(s: &mut Session, name: &str) {
-    if let Some(e) = s.signature_edit.as_mut().filter(|e| e.signature.name.eq_ignore_ascii_case(name))
-        && let Some(sig) = s.mailbox.signature(name)
-    {
-        *e = SignatureEdit { signature: sig.clone(), body: RichBody::new(sig.body().clone()), dirty: false };
+    let open = s.signature_edit.as_ref().is_some_and(|e| e.signature.name.eq_ignore_ascii_case(name));
+    if let Some(sig) = s.mailbox.signature(name).cloned().filter(|_| open) {
+        let generation = s.next_signature_editor();
+        s.signature_edit = Some(SignatureEdit { body: RichBody::new(sig.body().clone()), signature: sig, dirty: false, generation });
     }
 }
 
@@ -138,7 +138,8 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     if s.signature_edit.as_ref().is_some_and(|e| e.signature.name == sig.name) {
         return done();
     }
-    s.signature_edit = Some(SignatureEdit { body: RichBody::new(sig.body().clone()), signature: sig, dirty: false });
+    let generation = s.next_signature_editor();
+    s.signature_edit = Some(SignatureEdit { body: RichBody::new(sig.body().clone()), signature: sig, dirty: false, generation });
     done()
 }
 
@@ -365,8 +366,12 @@ fn rename(s: &mut Session, v: &Value) -> CmdResult {
     let found =
         s.mailbox.signatures.iter_mut().find(|x| x.name.eq_ignore_ascii_case(&from)).ok_or_else(|| failed!("no signature named \"{from}\"", from))?;
     found.name = to.clone();
-    if let Some(e) = s.signature_edit.as_mut().filter(|e| e.signature.name.eq_ignore_ascii_case(&from)) {
-        e.signature.name = to.clone();
+    if s.signature_edit.as_ref().is_some_and(|e| e.signature.name.eq_ignore_ascii_case(&from)) {
+        let generation = s.next_signature_editor();
+        if let Some(e) = s.signature_edit.as_mut() {
+            e.signature.name = to.clone();
+            e.generation = generation;
+        }
     }
     for a in s.mailbox.accounts.iter_mut().filter(|a| a.kind != AccountKind::Unknown) {
         let reply = a.reply_signature().to_string();

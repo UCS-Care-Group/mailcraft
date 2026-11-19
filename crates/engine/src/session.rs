@@ -821,6 +821,12 @@ pub struct SignatureEdit {
     pub body: RichBody,
     /// Changed since it was opened or last saved.
     pub dirty: bool,
+    /// Which opening of the editor this is: set from the session's count of them (it wraps)
+    /// each time a command gives the editor a signature anew
+    /// (`signature.open`, a rename, `signature.set` of the one open), so that a front end can tell
+    /// what it asked for in one editor's time from the next one's, the same signature's included.
+    /// Never saved.
+    pub generation: u64,
 }
 
 /// The text the editing commands work on ([`Session::doc_mut`]).
@@ -1148,6 +1154,9 @@ pub struct Session {
     pub(crate) kept_for_now: std::collections::HashSet<Id>,
     /// How many times a mailbox took the place of the one before ([`Session::replace_mailbox`]).
     openings: u64,
+    /// How many times the signature editor was given a signature anew ([`SignatureEdit::generation`]);
+    /// it wraps. Never saved.
+    pub(crate) signature_editors: u64,
     /// How many times an undo or redo put another version of the mailbox in place.
     restored: u64,
     /// Messages being moved out of a Microsoft account that were whole in the mailbox file when
@@ -1364,6 +1373,7 @@ impl Session {
             graph_unfetchable: Default::default(),
             kept_for_now: Default::default(),
             openings: 0,
+            signature_editors: 0,
             restored: 0,
             saved_whole: Default::default(),
             graph_said: Vec::new(),
@@ -1601,6 +1611,12 @@ impl Session {
     /// something once a mailbox is opened looks for it to change.
     pub fn openings(&self) -> u64 {
         self.openings
+    }
+
+    /// The generation for the signature editor given a signature anew ([`SignatureEdit::generation`]).
+    pub(crate) fn next_signature_editor(&mut self) -> u64 {
+        self.signature_editors = self.signature_editors.wrapping_add(1);
+        self.signature_editors
     }
 
     /// Changes each time an undo or redo puts another version of the mailbox in place: what a

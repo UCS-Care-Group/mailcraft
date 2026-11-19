@@ -16,9 +16,11 @@
 //! Every pick has a request token of its own ([`State::last_ticket`]): an answer is taken only
 //! for the one request still outstanding with that purpose and token, and only once. A request
 //! remembers the window it was made in ([`Origin`]: the mailbox open and the signature in the
-//! editor); an answer that comes once either has changed is let go of, and so is Import. At most
-//! one pick is outstanding, and Import waits while it is. Cancel lets go of the job and of the
-//! answer still outstanding, which keeps its place until it has come and is then ignored.
+//! editor, by its name and the editor's generation, so that the same signature closed and opened
+//! again is another editor); an answer that comes once either has changed is let go of, and so is
+//! Import. At most one pick is outstanding, and Import waits while it is. Cancel lets go of the job
+//! and of the answer still outstanding, which keeps its place until it has come and is then
+//! ignored.
 //!
 //! The document is at most [`MAX_HTML`] bytes of UTF-8, and is kept exactly as it came; each
 //! picture at most [`MAX_PICTURE_BYTES`], and the pictures together at most [`MAX_PICTURES_BYTES`].
@@ -69,16 +71,17 @@ impl Kind {
 }
 
 /// The window a request was made in: the mailbox open (counted by the session's openings) and
-/// the name of the signature open in the editor, if any. Not the mailbox's revision: an unrelated
-/// change keeps it.
+/// the signature open in the editor, if any: its name and the editor's generation
+/// (`SignatureEdit::generation`, new each time the editor is given a signature, the same one
+/// again included). Not the mailbox's revision: an unrelated change keeps it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Origin {
     openings: u64,
-    editor: Option<String>,
+    editor: Option<(String, u64)>,
 }
 
 fn origin(app: &MailApp) -> Origin {
-    Origin { openings: app.session.openings(), editor: app.session.signature_edit.as_ref().map(|e| e.signature.name.clone()) }
+    Origin { openings: app.session.openings(), editor: app.session.signature_edit.as_ref().map(|e| (e.signature.name.clone(), e.generation)) }
 }
 
 /// Whether the window is still the one `was` was taken in, with no other mailbox on its way in.

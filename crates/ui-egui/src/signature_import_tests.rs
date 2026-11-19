@@ -807,3 +807,56 @@ fn the_first_document_pick_can_be_cancelled() {
     press(&mut h, "signatureHtmlImport", 0);
     assert_eq!(asked(&picks).len(), 2, "Import HTML… asked nothing once the cancelled pick was answered");
 }
+
+/// The signature open in the editor, closed and opened again by the owner: the same name, another
+/// opening of the editor.
+fn reopen_same_signature(h: &mut Harness<'static, MailApp>) {
+    let name = h.state().session.signature_edit.as_ref().map(|e| e.signature.name.clone()).expect("fixture: a signature is open");
+    h.state_mut().execute("signature.close", json!({})).expect("the editor closes");
+    h.state_mut().execute("signature.open", json!({"name": name})).expect("the same signature opens again");
+    assert_eq!(h.state().session.signature_edit.as_ref().map(|e| e.signature.name.clone()), Some(name), "fixture: the same signature is open");
+}
+
+/// D2: a document that arrives once the same signature was closed and opened again is not staged,
+/// and nothing changes: it was asked for in the editor's earlier time.
+#[test]
+fn a_document_for_the_same_signature_opened_again_is_ignored() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let (mut h, picks, picked) = window();
+    press(&mut h, "signatureHtmlImport", 0);
+    let ticket = last_ticket(&picks);
+    reopen_same_signature(&mut h);
+    let before = kept(&h);
+    deliver(&mut h, &picked, Delivered::picked("doc.html".into(), TWO.as_bytes().to_vec(), HTML, ticket, 1));
+    assert!(rows(&h).is_none(), "a document asked for in the editor's earlier time was staged");
+    assert!(kept(&h) == before, "the mailbox or the editor changed");
+}
+
+/// D2: a picture that arrives once the same signature was closed and opened again fills nothing.
+#[test]
+fn a_picture_for_the_same_signature_opened_again_is_ignored() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let (mut h, picks, picked) = window();
+    staged(&mut h, &picks, &picked, TWO);
+    press(&mut h, "signatureHtmlImportAsset", 0);
+    let ticket = last_ticket(&picks);
+    reopen_same_signature(&mut h);
+    deliver(&mut h, &picked, Delivered::picked("logo.png".into(), PNG.to_vec(), ASSET, ticket, 2));
+    assert!(rows(&h).is_none_or(|r| r.iter().all(Option::is_none)), "a picture asked for in the editor's earlier time was staged");
+}
+
+/// D2's control: a change of the mailbox that leaves the editor alone (a message flagged) between
+/// the pick and its answer keeps the answer.
+#[test]
+fn a_document_after_an_unrelated_mailbox_change_is_staged() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let (mut h, picks, picked) = window();
+    press(&mut h, "signatureHtmlImport", 0);
+    let ticket = last_ticket(&picks);
+    let rev = h.state().session.rev();
+    let message = h.state().session.mailbox.messages.keys().next().copied().expect("fixture: a message");
+    h.state_mut().execute("mail.flag", json!({"id": message})).expect("a message is flagged");
+    assert_ne!(h.state().session.rev(), rev, "fixture: the mailbox changed");
+    deliver(&mut h, &picked, Delivered::picked("doc.html".into(), TWO.as_bytes().to_vec(), HTML, ticket, 1));
+    assert_eq!(rows(&h), Some(vec![None, None]), "an answer was let go of for a change that left the editor alone");
+}

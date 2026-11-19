@@ -550,3 +550,42 @@ fn a_signature_in_the_fixed_width_font_is_kept_in_it() {
     let first = back.signature("Standard").unwrap().body().paragraphs().first().unwrap().runs.first().unwrap().style.font;
     assert_eq!(first.map(|f| f.label()), Some("Courier New"));
 }
+
+/// Each time the editor is given a signature anew (opened, the same one after a close included,
+/// renamed, or set again from outside) it has another generation, so that what the window asked
+/// for in one editor's time is told from the next one's. Opening the signature already open, an
+/// unrelated change and a refused command keep it.
+#[test]
+fn each_opening_of_the_signature_editor_has_a_generation_of_its_own() {
+    let mut s = session();
+    run(&mut s, "signature.set", json!({"name": "Card", "text": "Avery"}));
+    let generation = |s: &Session| s.signature_edit.as_ref().map(|e| e.generation);
+    run(&mut s, "signature.open", json!({"name": "Card"}));
+    let first = generation(&s).unwrap();
+    run(&mut s, "signature.open", json!({"name": "Card"}));
+    assert_eq!(generation(&s), Some(first), "opening the signature already open keeps it");
+    run(&mut s, "signature.set", json!({"name": "Other", "text": "Other words"}));
+    assert_eq!(generation(&s), Some(first), "another signature set keeps it");
+    assert!(s.run("signature.open", &json!({"name": "Missing"})).is_err());
+    assert_eq!(generation(&s), Some(first), "a refused command keeps it");
+    run(&mut s, "signature.close", json!({}));
+    run(&mut s, "signature.open", json!({"name": "Card"}));
+    let second = generation(&s).unwrap();
+    assert_ne!(second, first, "the same signature opened again is another editor");
+    run(&mut s, "signature.rename", json!({"name": "Card", "to": "Card 2"}));
+    let third = generation(&s).unwrap();
+    assert!(third != second && third != first, "renamed, it is another editor");
+    run(&mut s, "signature.set", json!({"name": "Card 2", "text": "Avery Lee"}));
+    let fourth = generation(&s).unwrap();
+    assert!(![first, second, third].contains(&fourth), "set again from outside, it is another editor");
+}
+
+/// The session's count of editors wraps rather than overflowing.
+#[test]
+fn the_count_of_signature_editors_wraps() {
+    let mut s = session();
+    s.signature_editors = u64::MAX;
+    run(&mut s, "signature.set", json!({"name": "Card", "text": "Avery"}));
+    run(&mut s, "signature.open", json!({"name": "Card"}));
+    assert_eq!(s.signature_edit.as_ref().map(|e| e.generation), Some(0));
+}
