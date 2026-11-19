@@ -961,6 +961,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     // through the selection rather than being replaced by it.
     // (With a bar in the accent instead of the outline, #1203, the card runs to the list's edge.)
     let card = if t.row_bar { body.shrink2(vec2(0.0, 1.0)) } else { body.shrink2(vec2(4.0, 1.0)) };
+    // Where mail of several accounts is listed together, its account's colour (#893): painted below.
+    let stripe_color = account_stripe(&app.session, &m);
     let corner = f32::from(t.control_radius);
     let flag_tint = matches!(follow_up, FollowUp::Flagged | FollowUp::Overdue);
     if flag_tint {
@@ -975,8 +977,11 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         p.rect_filled(card, corner, if flag_tint { fill.gamma_multiply(0.72) } else { fill });
         let edge = if focus { t.selection_edge } else { t.selection_edge_unfocused };
         if t.row_bar {
-            let bar = Rect::from_min_max(card.min, pos2(card.min.x + ROW_BAR_W, card.max.y));
+            // (Beside the account's stripe when there is one, never over it.)
+            let left = if stripe_color.is_some() { (rect.min.x + 2.0 + ACCOUNT_STRIPE).max(card.min.x) } else { card.min.x };
+            let bar = Rect::from_min_max(pos2(left, card.min.y), pos2(left + ROW_BAR_W, card.max.y));
             p.rect_filled(bar, corner.min(ROW_BAR_W / 2.0), edge);
+            app.hit.add("messageSelectionBar", row.id, bar);
         } else {
             p.rect_stroke(card, corner, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
         }
@@ -1003,7 +1008,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     }
     // Where mail of several accounts is listed together, a stripe of its account's colour down
     // the row's left edge (#893), left of the selection's card so that it shows on a selected row too.
-    if let Some(color) = account_stripe(&app.session, &m) {
+    if let Some(color) = stripe_color {
         let stripe = Rect::from_min_max(pos2(rect.min.x + 1.0, rect.min.y + 3.0), pos2(rect.min.x + 1.0 + ACCOUNT_STRIPE, rect.max.y - 3.0));
         p.rect_filled(stripe, 1.5, crate::theme::c32(color));
         // (In High Contrast an edge in the text's colour, so that a mid-tone stays in sight.)
