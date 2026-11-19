@@ -201,7 +201,9 @@ fn copied_files_wait_for_the_owner_and_keep_their_original_draft() {
         super::offer(h.state_mut(), vec![path.clone()], os);
         h.run_steps(2);
         assert!(attached(&h).is_empty());
-        assert!(matches!(&h.state().dialog, Some(crate::dialogs::Dialog::PasteAttachments { paths, .. }) if paths == &[path.clone()]));
+        assert!(
+            matches!(&h.state().dialog, Some(crate::dialogs::Dialog::PasteAttachments { paths, .. }) if paths.as_slice() == std::slice::from_ref(&path))
+        );
         key_with(&mut h, Modifiers::NONE, Key::Escape);
         h.run_steps(2);
         assert!(attached(&h).is_empty());

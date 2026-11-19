@@ -1619,6 +1619,8 @@ pub struct MailApp {
     signatures_shown: bool,
     /// What File › Signatures last said of a picture (a refusal, or that it was made smaller).
     signature_note: Option<signatures::Note>,
+    /// File › Signatures › Rename: the name being typed for a signature, until it is kept.
+    signature_rename: Option<signatures::Rename>,
     /// The last input the window was given, by kind only (never what was typed), for
     /// `ui.inspect`: what a script looks at when typing or the keyboard goes astray.
     pub(crate) input_trail: std::collections::VecDeque<String>,
@@ -1993,6 +1995,7 @@ impl MailApp {
             signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
+            signature_rename: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
             reveal_centered: false,
@@ -5020,6 +5023,13 @@ impl MailApp {
             // egui closes the window on Mod+Q by itself; here that is Mark as Read. A Mac quits
             // from its app menu (craft-quit).
             ctx.options_mut(|o| o.quit_shortcuts.clear());
+            // A wheel notch arrives as one line, which egui makes 40 points on the desktop: not
+            // two lines of text, half a message row (#1513). Three lines, as other programs
+            // scroll. Touchpads send points and are unchanged; the browser keeps egui's own.
+            // lean: fixed step; read the desktop's wheel setting (lines per notch) if asked for.
+            if !cfg!(target_arch = "wasm32") {
+                ctx.options_mut(|o| o.input_options.line_scroll_speed = 56.0);
+            }
             self.styled = true;
         }
         // Settled from the main window's input, so every window has the same theme.
@@ -5189,6 +5199,8 @@ impl MailApp {
     /// Keep what was changed in the signature open in File › Signatures, and close it.
     fn leave_signature(&mut self) {
         self.signature_note = None;
+        // A name still being typed is kept, as a change in the signature is (#1651).
+        signatures::finish_rename(self, true);
         if self.session.signature_edit.as_ref().is_some_and(|e| e.dirty)
             && let Err(e) = self.execute("signature.save", json!({}))
         {

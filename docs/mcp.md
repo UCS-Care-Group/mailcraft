@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-16 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar. Each message is one line of at most
@@ -254,10 +254,19 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-16 | minor | #1544: `mail.react` (sends a reaction to the sender of a message) is `send` and refused without `id` or `ids` for an agent |
+| 2026-11-15 | minor | #1472: `read_message` and `mail.get` answer `authentication` (SPF, DKIM, DMARC as the account's own server wrote them, from its topmost `Authentication-Results` only); `list_commands` `query` also searches the params text, so `header` finds `mail.viewSource`; `dkimDomain` comes framed as untrusted |
 | 2026-11-14 | minor | #1153: messages of a Gmail account carry `gmailLabels`, framed as message content |
+| 2026-11-13 | minor | #1208: four new sender warning kinds, `brandName`, `brandLookalike`, `domainInName` and `madeUpDomain` |
 | 2026-11-13 | minor | #1200: `list_messages` takes a folder's kind (`inbox`, `sent`, `drafts`, `deleted`, `junk`, `archive`, `outbox`), which works whatever the mailbox's language calls the folder, beside its id and path; `account` says whose, goes with `folder`, and is an account that is there whose folder it has to be |
+| 2026-11-12 | minor | #873: `ui.dropOnModule` (safe): what a message let go over Calendar, Tasks or People does, opening the new item's form; a message of which only the server's short preview is here is downloaded first; `mail.itemFromMessage` gives the plain text when the HTML reads as empty and drops the characters that show nothing |
+| 2026-11-11 | patch | #661: a rule call asked as `send` or `delete`, and an undo or redo that puts back rules, signatures or Safe and Blocked Senders whatever it is asked as, needs `settings` too, in the same question |
+| 2026-11-11 | patch | #661: a rule switched on or off, deleted, moved or kept on its server asks `send` too while the rules that run on the same mail may then put a name new on a list kept in step with Outlook, naming it, with `delete` in the same question when the call is a delete too; so does an undo or redo that puts back such rules |
+| 2026-11-11 | patch | #661: a new or changed to-do or event, a meeting with a contact, and a rule made, switched on or run that put a name new on a list kept in step with Outlook on an item ask `send`, naming the categories; an undo or redo that would make a category in Outlook again or give one there another colour asks `send`, naming it |
+| 2026-11-11 | patch | #661: making a category in Outlook or giving one there another colour (New Category, Categorize with a new name) asks `send`, naming it; a change of a list MailCraft may not change in Outlook is refused at once; an undo or redo that writes a name in other letters in Outlook asks `delete`; deleting a category a to-do in a shared list has needs `delete` too when it goes from Outlook |
 | 2026-11-11 | minor | #30 part 4a: `mail.digitalSignature` checks OpenPGP too (`format`); `keys.list` (safe), `keys.import` and `keys.remove` (settings; a path only from the owner) |
 | 2026-11-11 | minor | #30 part 4b: the window's key commands (`ui.importPrivateKey`, `ui.removePrivateKey`, `ui.refreshOwnKeys`, `ui.importPublicKey`, `ui.verifyKey`, `ui.markKeyVerified`) are never for agents |
+| 2026-11-10 | patch | #661: an undo or redo that would send a category kept on this computer only to Outlook asks `send`, naming it |
 | 2026-11-09 | minor | #30 part 2: `mail.digitalSignature` (and `digitalSignature` in `mail.get`) says what checking an S/MIME Digital signature found, read only |
 | 2026-11-09 | patch | #911: `mail.setGmailCategory` moves the messages named and their copies of the same Gmail message, never the rest of their conversations |
 | 2026-11-08 | minor | #30: `mail.checkAgain` (safe) downloads a signed or encrypted message's own bytes again; those bytes are never in an answer to an agent |
@@ -268,7 +277,11 @@ parameters.
 | 2026-11-08 | patch | AU3-R1: what is framed as untrusted also covers a message's source, the searches built from a message, an online meeting's link, categories, identifiers and a contact's details |
 | 2026-11-08 | patch | AU3-R2: with `--connect`, a request is sent again only when it never reached the app; a lost answer is an error that says the app may have run it |
 | 2026-11-08 | patch | AU3-R4: a message on stdio is at most 1 MiB; a longer line is answered with an error and the next one served |
+| 2026-11-07 | minor | #873: `mail.itemFromMessage` (safe; makes nothing: the fields a new appointment, task or contact made of a message starts with, framed as untrusted); a contact's `first` and `last` names are framed as untrusted in every answer |
 | 2026-11-07 | patch | AU3-14: a new sender warning kind, `linksUnchecked`, for a message with more looks than are checked |
+| 2026-11-06 | patch | #661: sending a category kept on this computer only to Outlook, and renaming a category in Outlook, ask `send`; an undo or redo that has a category deleted in Outlook and puts back accounts or a change that writes to people is asked about once, as #801's are |
+| 2026-11-06 | minor | #509: send warnings (outsiders never for personal accounts only): with the window the owner is asked every time and an agent's `confirmed`/`moveToBcc` is dropped; headless a send with one is refused unless the call says `confirmed` or `moveToBcc` (`send_message` takes both) |
+| 2026-11-04 | patch | #661: an undo or redo that would have a category deleted in Outlook asks `delete`, naming it, and is refused to an agent without `delete` |
 | 2026-11-04 | patch | #473 follow-up: `safe`, `delete` and `edit.undo` name messages among what an undo or redo removes (a server copy of a Microsoft or Exchange server account goes to Deleted Items instead); an undo or redo that puts back accounts or a change that writes to people and takes messages away is asked once, the question names the messages, and a yes covers Delete too |
 | 2026-11-03 | patch | #566 follow-up: `rules.move` of a rule its server has that deletes mail (or moves it to Deleted Items, or has parts MailCraft doesn't know) is `delete`, as `rules.enable` is |
 | 2026-11-02 | minor | #566: `delete` also covers deleting a rule its server has or may have, a rule that deletes mail or moves it to Deleted Items or a folder under it going to its server or switched on there, and a server's rule with parts MailCraft doesn't know switched on |
