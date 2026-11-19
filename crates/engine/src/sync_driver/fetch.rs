@@ -137,6 +137,20 @@ impl FetchDriver {
     }
 }
 
+/// The window command a message let go over Calendar, Tasks or People is (#873): it waits for a
+/// message that isn't here in full as Reply and View Source do, and runs again once it is.
+pub const DROP: &str = "ui.dropOnModule";
+
+/// The most ids of a drop that are looked at to find the messages still there.
+const MOST_LOOKED_AT: usize = 1_000;
+
+/// The first two messages of a drop (`ids`) that are still in the mailbox, the row grabbed first
+/// (a command can name any number: only the first [`MOST_LOOKED_AT`] ids are looked at).
+pub fn dropped(s: &Session, p: &Value) -> Vec<Id> {
+    let ids = p.get("ids").and_then(Value::as_array).into_iter().flatten().take(MOST_LOOKED_AT).filter_map(Value::as_u64);
+    ids.filter(|id| s.mailbox.message(*id).is_some()).take(2).collect()
+}
+
 /// The commands other than a forward that need a message whole, and the message they are about.
 pub fn needs_whole(s: &Session, id: &str, params: &Value) -> Option<Id> {
     if !matches!(
@@ -152,8 +166,13 @@ pub fn needs_whole(s: &Session, id: &str, params: &Value) -> Option<Id> {
             | "mail.openAttachment"
             | "mail.viewSource"
             | "compose.attachItem"
+            | DROP
     ) {
         return None;
+    }
+    // A message let go over Calendar, Tasks or People (#873): the first that is still there.
+    if id == DROP {
+        return dropped(s, params).first().and_then(|m| to_fetch(s, id, *m));
     }
     let selected = match s.sel.messages.as_slice() {
         [one] => Some(*one),

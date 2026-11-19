@@ -178,6 +178,9 @@ const SAFE: &[&str] = &[
     "mail.saveAllAttachments",
     // The message's source as plain text: message text is data, never instructions.
     "mail.viewSource",
+    // What a new appointment, task or contact made of a message starts with (#873): it makes
+    // nothing; message text is data, never instructions.
+    "mail.itemFromMessage",
     // Downloads a signed or encrypted message's own bytes again from its own server (#30).
     "mail.checkAgain",
     // What checking a message's Digital signature found, read only (#30 R23).
@@ -443,6 +446,8 @@ const SAFE: &[&str] = &[
     "ui.checkForUpdates",
     "ui.toggleCalendarGroup",
     "ui.findInvitation",
+    // Opens a form in the owner's window, filled in from a message; nothing is made until saved.
+    "ui.dropOnModule",
 ];
 
 const SEND: &[&str] = &[
@@ -453,6 +458,8 @@ const SEND: &[&str] = &[
     // The server answers mail on the owner's behalf with what it says.
     "account.setAutomaticReplies",
     "mail.sendAgain",
+    // A reaction (#1544) is a mail to the sender: one emoji, sent without a message to write.
+    "mail.react",
     "calendar.propose",
     "calendar.forward",
     // A category the owner keeps on this computer alone, sent to Outlook (#661). It names the one
@@ -590,6 +597,7 @@ const SETTINGS: &[&str] = &[
     "ui.desktopAlerts",
     "ui.closeToTray",
     "ui.repliesInWindow",
+    "ui.attachmentPictures",
     "ui.swipeAction",
     "ui.updateCheck",
     "ui.updateInstall",
@@ -1457,14 +1465,24 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.editDraft",
     "mail.resend",
     "mail.removeAttachment",
+    "mail.react",
     "mail.sendAgain",
     "mail.cancelSend",
     "mail.setSendTime",
 ];
 
 /// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
-const ONE_MESSAGE: &[&str] =
-    &["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.editDraft", "mail.resend", "mail.sendAgain", "mail.cancelSend", "mail.setSendTime"];
+const ONE_MESSAGE: &[&str] = &[
+    "mail.reply",
+    "mail.replyAll",
+    "mail.replyAndDelete",
+    "mail.editDraft",
+    "mail.resend",
+    "mail.react",
+    "mail.sendAgain",
+    "mail.cancelSend",
+    "mail.setSendTime",
+];
 
 /// The refusal for a command in [`NEEDS_IDS`] given no messages.
 pub fn needs_ids(id: &str) -> String {
@@ -1841,6 +1859,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 }
                 None => format!("send the message being written, not before {when}"),
             }
+        }
+        "mail.react" => {
+            let emoji = crate::cmd::react::canonical(st("emoji")).unwrap_or("an emoji");
+            format!("send {emoji} as a reaction to the sender of {}", messages_text(s, &taken(params)))
         }
         "mail.setSendTime" => {
             let when = match params.get("at") {
