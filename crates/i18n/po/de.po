@@ -17831,7 +17831,10 @@ msgid ""
 "To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, your automatic replies aren't changed."
-msgstr "Arbeitswoche"
+msgstr ""
+"Um die automatischen Antworten von {address} mit Outlook synchron zu halten, benötigt MailCraft Ihre Erlaubnis, Ihre Postfacheinstellungen zu ändern. Dazu wird einmalig eine Microsoft-Seite in Ihrem Browser geöffnet.\n"
+"\n"
+"Bis Sie dies erlauben, werden Ihre automatischen Antworten nicht geändert."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -17839,7 +17842,10 @@ msgid ""
 "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
-msgstr "Arbeitswoche"
+msgstr ""
+"Um die Regeln, automatischen Antworten und Kategorien von {address} mit Outlook synchron zu halten, benötigt MailCraft Ihre Erlaubnis, Ihre Postfacheinstellungen zu ändern. Dazu wird einmalig eine Microsoft-Seite in Ihrem Browser geöffnet.\n"
+"\n"
+"Bis Sie dies erlauben, bleiben Regeln auf diesem Computer und werden nicht an Microsoft gesendet, Ihre automatischen Antworten werden nicht geändert und die Kategorien dieses Postfachs können hier nicht geändert werden."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -17847,7 +17853,10 @@ msgid ""
 "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
-msgstr "Arbeitswoche"
+msgstr ""
+"Um die Aufgaben und automatischen Antworten von {address} mit Outlook synchron zu halten, benötigt MailCraft Ihre Erlaubnis, Ihre To-Do-Listen und Postfacheinstellungen zu ändern. Dazu wird einmalig eine Microsoft-Seite in Ihrem Browser geöffnet.\n"
+"\n"
+"Bis Sie dies erlauben, bleiben Aufgaben auf diesem Computer und werden nicht an Microsoft gesendet. Ihre automatischen Antworten werden nicht geändert."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -17857,7 +17866,7 @@ msgid ""
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
 msgstr ""
-"ArbeitswocheUm die Aufgaben von {address} mit Microsoft To Do synchron zu halten, benötigt MailCraft Ihre Zustimmung, Ihre To-Do-Listen und Aufgaben zu lesen und zu ändern. Dazu wird einmalig eine Microsoft-Seite in Ihrem Browser geöffnet, auf der Sie um Erlaubnis gebeten werden.\n"
+"Um die Aufgaben von {address} mit Microsoft To Do synchron zu halten, benötigt MailCraft Ihre Zustimmung, Ihre To-Do-Listen und Aufgaben zu lesen und zu ändern. Dazu wird einmalig eine Microsoft-Seite in Ihrem Browser geöffnet, auf der Sie um Erlaubnis gebeten werden.\n"
 "\n"
 "Bis Sie dies erlauben, bleiben die Aufgaben auf diesem Computer. Es werden keine Aufgaben an Microsoft gesendet."
 
@@ -17867,7 +17876,10 @@ msgid ""
 "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
-msgstr "Arbeitswoche"
+msgstr ""
+"Um die Aufgaben, Regeln, automatischen Antworten und Kategorien von {address} mit Outlook synchron zu halten, benötigt MailCraft Ihre Erlaubnis, Ihre To-Do-Listen und Postfacheinstellungen zu ändern. Dazu wird einmalig eine Microsoft-Seite in Ihrem Browser geöffnet.\n"
+"\n"
+"Bis Sie dies erlauben, bleiben Aufgaben und Regeln auf diesem Computer und werden nicht an Microsoft gesendet, Ihre automatischen Antworten werden nicht geändert und die Kategorien dieses Postfachs können hier nicht geändert werden."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
