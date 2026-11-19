@@ -3826,9 +3826,9 @@ impl Session {
     /// The categories the rules that undoing (`redo`: redoing) puts back give mail and put on a list
     /// kept in step with Outlook that hasn't got them, each with that list's account, so that the
     /// next job makes them there (#661); and those the rules give the mail that a step putting back
-    /// what they read (the Safe or Blocked Senders, an account's address) lets reach them, and
-    /// those a list then has no more (a category renamed), as the call itself is asked (#566).
-    /// None when the step leaves the rules, what they read and the lists as they are.
+    /// what they read (the Safe or Blocked Senders, an account's address) lets reach them, or
+    /// all of them when it changes a list of categories (#566). None when the step leaves the
+    /// rules, what they read and the lists as they are.
     pub fn undo_rules_make_categories(&self, redo: bool) -> Vec<(String, Id)> {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
         if step.mailbox.rules == self.mailbox.rules && !crate::agent::undo_changes_what_rules_read(&self.mailbox, &step.mailbox) {
