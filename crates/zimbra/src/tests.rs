@@ -644,7 +644,9 @@ fn a_folder_mounted_from_another_mailbox_is_read_whole_and_refreshed_on_every_ru
 
     // A server that takes only the mountpoint's own local id in `inid:` is read under that one —
     // the pages still go out under the qualified id the items' `l` names.
-    server.state.borrow_mut().mounts.get_mut(&mount).map(|m| (m.broken, m.qualified_inid) = (false, false));
+    if let Some(m) = server.state.borrow_mut().mounts.get_mut(&mount) {
+        (m.broken, m.qualified_inid) = (false, false);
+    }
     let pieces = run(&server, &request(&all.token), PASSWORD);
     let fourth = whole(&pieces);
     assert_eq!(fourth.errors, Vec::<String>::new());

@@ -91,7 +91,7 @@ pub fn kind_of(id: &str) -> FolderKind {
 pub fn answer(response: &HttpResponse) -> Result<Listing, Error> {
     let answer = soap::answer("GetFolderRequest", response)?;
     let mut out = Listing { complete: true, ..Listing::default() };
-    if json::bad_list(answer.get("folder")) {
+    if json::bad_list(answer.get("folder")) || json::bad_list(answer.get("link")) {
         return Err(Error::Unreadable);
     }
     let tops = json::list(answer.get("folder"));
@@ -115,23 +115,29 @@ pub fn answer(response: &HttpResponse) -> Result<Listing, Error> {
 /// another mailbox's mail is never lost from a listing of this one.
 fn mount(link: &Value, parent: &str, out: &mut Listing) {
     if out.mounted.len() >= MAX_LISTED_FOLDERS {
+        out.complete = false;
         return;
     }
-    let id_text = json::line(link.get("id"));
-    let (zid, rid) = match (json::line(link.get("zid")), json::own_id(link.get("rid"))) {
+    let id_text = json::raw(link.get("id")).unwrap_or_default().trim().to_string();
+    let (zid, rid) = match (json::raw(link.get("zid")).map(|z| z.trim().to_string()).unwrap_or_default(), json::own_id(link.get("rid"))) {
         (zid, Some(rid)) if !zid.is_empty() => (zid, rid),
         _ => match id_text.split_once(':') {
             Some((zid, rid)) if !zid.is_empty() => (zid.to_string(), rid.to_string()),
-            _ => return,
+            _ => {
+                out.complete = false;
+                return;
+            }
         },
     };
-    if zid.len() > 64 || !zid.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b)) {
+    if zid.len() > 64 || json::item_id(Some(&json!(format!("{zid}:{rid}")))).is_none() {
+        out.complete = false;
         return;
     }
     let local = json::own_id(link.get("id")).unwrap_or_default();
     let id = format!("{zid}:{rid}");
     let name: String = json::line(link.get("name")).chars().take(MAX_NAME).collect();
     if name.is_empty() {
+        out.complete = false;
         return;
     }
     if !out.seen.insert(id.clone()) {
@@ -142,7 +148,15 @@ fn mount(link: &Value, parent: &str, out: &mut Listing) {
         }
         return;
     }
-    let view = json::line(link.get("view"));
+    let view = json::raw(link.get("view")).unwrap_or_default();
+    let view = view.trim();
+    // A view that is no word can't be told mail from contacts, like a folder's can't: the
+    // listing isn't one that answers for what it lists.
+    if !view.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+        out.complete = false;
+        return;
+    }
+    let view = view.to_string();
     out.mounted.push(Mountpoint {
         id: id.clone(),
         local,
@@ -246,7 +260,7 @@ fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
     };
     // Children that came in no shape a folder comes in mean part of the tree can't be read: the
     // listing is not a complete one — a folder unseen would have its messages taken for deleted.
-    if json::bad_list(folder.get("folder")) {
+    if json::bad_list(folder.get("folder")) || json::bad_list(folder.get("link")) {
         out.complete = false;
         return;
     }

@@ -224,7 +224,7 @@ fn ids_of_other_mailboxes_and_odd_ids_are_passed_over() {
     let found = answer(
         200,
         &json!({"Body": {"SearchResponse": {"m": [
-            {"id": "a1b2:12", "l": "x:2", "su": "shared"}, {"id": "257", "l": "a b", "su": "no folder"}, {"id": "300", "l": "2", "su": "ok\u{0}\r\nyes"}
+            {"id": "a1b2:12", "l": "x:2", "su": "shared"}, {"id": "300", "l": "2", "su": "ok\u{0}\r\nyes"}
         ]}}}),
     );
     let page = items::answer(&found).unwrap();
@@ -284,7 +284,7 @@ fn an_item_with_no_folder_is_unreadable_not_removed() {
     assert_eq!(items::answer(&found), Err(Error::Unreadable));
     // A folder the server names in no item's id shape passes the item over, like a bad id does.
     let foreign = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "257", "l": "a:b:c", "su": "not a folder"}]}}}));
-    assert_eq!(items::answer(&foreign).unwrap().messages.len(), 0);
+    assert_eq!(items::answer(&foreign), Err(Error::Unreadable));
     // A `more` that is no flag can't tell the page ends the read either: read off, the run
     // would count what it never listed as gone.
     let tail = answer(200, &json!({"Body": {"SearchResponse": {"more": {}, "m": [{"id": "257", "l": "2"}]}}}));
@@ -315,7 +315,7 @@ fn a_mounted_folder_of_another_mailbox_is_kept_apart() {
     let folders: Vec<(&str, &str, &str)> = listed.folders.iter().map(|f| (f.id.as_str(), f.name.as_str(), f.parent.as_str())).collect();
     assert_eq!(folders, [("2", "Inbox", ""), ("300", "Parent", ""), ("abc123:257", "shared-inbox", "300"), ("def456:2", "top-level", "")]);
     assert!(listed.folders.iter().all(|f| !f.well_known || !f.id.contains(':')));
-    assert!(listed.complete);
+    assert!(!listed.complete);
     let mounted: Vec<(&str, &str, &str, &str)> =
         listed.mounted.iter().map(|m| (m.id.as_str(), m.name.as_str(), m.owner.as_str(), m.view.as_str())).collect();
     assert_eq!(
@@ -326,6 +326,43 @@ fn a_mounted_folder_of_another_mailbox_is_kept_apart() {
             ("def456:2", "top-level", "", "message"),
         ]
     );
+}
+
+#[test]
+fn malformed_mounts_and_tags_do_not_authorize_replacement() {
+    for link in [json!(7), json!([null]), json!([{"id": "abc:x", "name": "broken"}])] {
+        let response = answer(200, &json!({"Body": {"GetFolderResponse": {"folder": {"id": "1"}, "link": link}}}));
+        assert!(folders::answer(&response).map_or(true, |listing| !listing.complete));
+    }
+    for tags in [json!(7), json!([null]), json!([{"name": "a\u{0}b"}]), json!([{"name": "x".repeat(16385)}])] {
+        let response = answer(200, &json!({"Body": {"GetTagResponse": {"tag": tags}}}));
+        assert_eq!(crate::tags::answer(&response), Err(Error::Unreadable));
+    }
+    for token in [json!(true), json!(["5", "6"]), json!({"_content": "1\u{0}2"})] {
+        let response = answer(200, &json!({"Body": {"SyncResponse": {"token": token}}}));
+        assert_eq!(delta::answer(&response, false), Err(Error::Unreadable));
+    }
+}
+
+#[test]
+fn incomplete_or_malformed_pages_never_become_complete() {
+    for more in [json!("garbage"), json!(2), json!(-1), json!(null), json!("tr\u{0}ue")] {
+        let search = answer(200, &json!({"Body": {"SearchResponse": {"more": more}}}));
+        assert_eq!(items::answer(&search), Err(Error::Unreadable));
+        let sync = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "more": more}}}));
+        assert_eq!(delta::answer(&sync, false), Err(Error::Unreadable));
+    }
+    for location in [json!(null), json!({}), json!("a:b:c"), json!("2\u{0}3")] {
+        let search = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "257", "l": location}]}}}));
+        assert_eq!(items::answer(&search), Err(Error::Unreadable));
+    }
+    let messages: Vec<_> = (0..=items::PAGE).map(|n| json!({"id": (257 + n).to_string(), "l": "2"})).collect();
+    let search = answer(200, &json!({"Body": {"SearchResponse": {"m": messages}}}));
+    assert_eq!(items::answer(&search), Err(Error::Unreadable));
+    for entry in [json!(null), json!({}), json!({"m": null}), json!({"m": 7})] {
+        let sync = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "deleted": [entry]}}}));
+        assert_eq!(delta::answer(&sync, false), Err(Error::Unreadable));
+    }
 }
 
 #[test]
