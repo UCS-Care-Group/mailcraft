@@ -101,6 +101,10 @@ pub struct Message {
     pub read_receipt: bool,
     /// `Keywords`.
     pub categories: Vec<String>,
+    /// Written as a reaction (RFC 9078): its text, one emoji, also goes as a part marked
+    /// `Content-Disposition: reaction`. Only ever set for the owner's own message; the reader
+    /// never sets it, so mail that comes in is not taken for one.
+    pub reaction: bool,
     /// `X-Status` has `A`.
     pub answered: bool,
     /// Written from its parts even when it keeps an [`original`](Message::original).

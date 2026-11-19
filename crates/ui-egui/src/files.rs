@@ -54,6 +54,9 @@ pub struct PendingDialog {
     after: AfterPick,
     /// The extension of the name a Save dialog suggested, put back on a name typed without one.
     ext: Option<String>,
+    /// The window of the system the dialog was asked from, which comes forward again once it is
+    /// answered (#1282).
+    from: Option<u64>,
 }
 
 /// Commands that write a file, and the name they suggest.
@@ -194,7 +197,7 @@ fn ask(app: &mut MailApp, req: FileDialogRequest, after: AfterPick) -> Result<Va
         FileDialogRequest::Save { name } => std::path::Path::new(name).extension().map(|e| e.to_string_lossy().into_owned()),
         _ => None,
     };
-    app.file_dialog = Some(PendingDialog { rx: show(req), after, ext });
+    app.file_dialog = Some(PendingDialog { rx: show(req), after, ext, from: app.windows.focused });
     // A host that answered at once is handled right away.
     poll(app).unwrap_or(Ok(json!({"pending": "fileDialog"})))
 }
@@ -221,6 +224,7 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
         Some(Err(TryRecvError::Disconnected)) => None,
     };
     let d = app.file_dialog.take()?;
+    app.windows.refocus = d.from;
     let mut picked = picked.unwrap_or_default();
     // Several files to attach: each in turn, and one that can't be (too large, unreadable) doesn't
     // keep the others out.

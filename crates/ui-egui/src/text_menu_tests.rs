@@ -1770,7 +1770,8 @@ fn left_signature_name() -> Left {
     frame(&mut h, vec![Event::Text("Formal".into())]);
     settle(&mut h, 2);
     let field = text_field(&h, "Formal").expect("the new name, as typed");
-    let kept = |h: &Window| text_field(h, "Formal").is_none() && h.state().session.mailbox.signature("Standard").is_some();
+    // Left, the field keeps the name typed (#1651).
+    let kept = |h: &Window| text_field(h, "Formal").is_none() && h.state().session.mailbox.signature("Formal").is_some();
     (h, field.center(), field.right_center() + vec2(10.0, 0.0), kept)
 }
 

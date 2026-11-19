@@ -190,6 +190,13 @@ pub struct Windows {
     /// Whether places are in points, as the host lists the monitors ([`window_places::POINTS`]
     /// when `None`; a test sets it to try both).
     pub(crate) points: Option<bool>,
+    /// The window of the system that had the keyboard at the last frame (none: the main window,
+    /// or another program). A file dialog remembers it ([`crate::files`]).
+    pub(crate) focused: Option<u64>,
+    /// The window a file dialog was asked from, to come forward again now the dialog is answered:
+    /// the dialog is parented to the main window, which the system brings forward when it closes
+    /// (#1282).
+    pub(crate) refocus: Option<u64>,
 }
 
 /// Where a message being written that a command opens goes (#286).
@@ -898,11 +905,34 @@ pub(crate) fn viewports(app: &MailApp) -> Vec<egui::ViewportId> {
     app.windows.open.iter().map(|w| viewport_of(w.id)).collect()
 }
 
+/// Remember which window of the system has the keyboard, and give it back to the window a file
+/// dialog was asked from (#1282): the dialog's parent is the main window, so the system brings that
+/// one forward when the dialog closes, whichever window asked.
+fn note_focus(app: &mut MailApp, ctx: &egui::Context) {
+    if ctx.embed_viewports() {
+        app.windows.refocus = None;
+        return;
+    }
+    if let Some(id) = app.windows.refocus.take()
+        && let Some(cmd) = refocus_command(app, id)
+    {
+        ctx.send_viewport_cmd_to(cmd.0, cmd.1);
+    }
+    let focused = |v: egui::ViewportId| ctx.input(|i| i.raw.viewports.get(&v).and_then(|info| info.focused)).unwrap_or(false);
+    app.windows.focused = app.windows.open.iter().find(|w| focused(viewport_of(w.id))).map(|w| w.id);
+}
+
+/// The command that brings window `id` forward, when it is still open.
+pub(crate) fn refocus_command(app: &MailApp, id: u64) -> Option<(egui::ViewportId, egui::ViewportCommand)> {
+    app.windows.open.iter().any(|w| w.id == id).then(|| (viewport_of(id), egui::ViewportCommand::Focus))
+}
+
 /// Show the windows that are open, and close the ones whose subject is gone. Once a frame,
 /// before the main window's shortcuts: where the windows are inside the main one, the keys of
 /// the active one (Escape closes it) are not also the main window's.
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     crate::reading::tick(app, ctx);
+    note_focus(app, ctx);
     // The message being written in the window that has the keyboard is the current one (#286).
     compose_window::follow_focus(app, ctx);
     if app.windows.open.is_empty() {

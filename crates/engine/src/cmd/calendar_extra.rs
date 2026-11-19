@@ -23,7 +23,7 @@ const DAY_MINUTES: i64 = 24 * 60;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("calendar.copy", "Copy Event", "Appointment", copy)
-            .params(r#"{"start": "YYYY-MM-DDTHH:MM" (a date alone for whole days), "end"?: same (default: keep the length; for whole days it names the last day), "allDay"?: bool (default: as the original), "calendar"?: number (default: the original's), "id"?: number} — the copy happens once, whatever the original does, and nobody is invited to it"#)
+            .params(r#"{"start": "YYYY-MM-DDTHH:MM" (a date alone for whole days), "end"?: same (default: keep the length; for whole days it names the last day), "allDay"?: bool (default: as the original), "calendar"?: number (default: the original's), "id"?: number} — the copy happens once, whatever the original does, and nobody is invited to it; an item with files attached is refused (only its server keeps them, so a copy would be without them)"#)
             .selection(needs_event),
         CommandSpec::new("view.days", "Number of Days", "Home › Arrange", days)
             .reads()
@@ -62,6 +62,12 @@ fn copy(s: &mut Session, v: &Value) -> CmdResult {
     // nothing in one to copy.
     if s.mailbox.calendar(source.calendar).is_some_and(|c| c.rights == mailcraft_model::Rights::FreeBusy) {
         return Err(fail("A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."));
+    }
+    // Its files stay on its server: a copy made from here would be without them (#1664).
+    if source.has_attachments {
+        return Err(fail(
+            "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here.",
+        ));
     }
     let start = p::datetime(v, "start")?.ok_or_else(|| bad("`start` is required"))?;
     let end = p::datetime(v, "end")?;
