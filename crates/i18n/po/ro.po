@@ -24246,6 +24246,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} nu este o cutie poștală partajată: eliminați-o cu account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} nu se află printre favorite"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24316,6 +24322,12 @@ msgstr "{name} v-a partajat un calendar."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} v-a partajat un calendar. Este în lista dvs. de calendare."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} rămâne în partea de sus a folderelor contului"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

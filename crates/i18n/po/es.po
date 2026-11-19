@@ -24177,6 +24177,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} no es un buzón compartido: quítelo con account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} no está entre los favoritos"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24247,6 +24253,12 @@ msgstr "{name} compartió un calendario con usted."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} compartió un calendario con usted. Está en su lista de calendarios."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} se queda arriba en las carpetas de la cuenta"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

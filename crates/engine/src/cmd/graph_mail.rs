@@ -667,7 +667,7 @@ pub(super) fn change_done(
                     format!("Couldn't rename the folder \"{was}\" on the server: {why}")
                 }
                 _ => {
-                    f.parent = back;
+                    f.set_parent(back);
                     format!("Couldn't move the folder \"{was}\" on the server: {why}")
                 }
             };
@@ -842,7 +842,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         f.name = name.to_string();
     }
     if !moved_here && can_go {
-        f.parent = parent_here;
+        f.set_parent(parent_here);
     }
     if f.kind == FolderKind::Custom && there.kind != FolderKind::Custom {
         f.kind = there.kind;

@@ -1013,7 +1013,7 @@ fn folders(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>
             Some(Some(_)) if c.server.is_some() => {
                 let mut f = c.clone();
                 if let Some(deleted) = now.folder_of_kind(c.account, FolderKind::Deleted).filter(|d| *d != c.id) {
-                    f.parent = Some(deleted);
+                    f.set_parent(Some(deleted));
                 }
                 kept.push(f);
             }

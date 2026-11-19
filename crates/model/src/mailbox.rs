@@ -318,6 +318,15 @@ fn is_false(b: &bool) -> bool {
 }
 
 impl Folder {
+    /// Put the folder under `parent`. Moved to another parent it goes last there: its place among
+    /// the old siblings means nothing among the new ones (#1514).
+    pub fn set_parent(&mut self, parent: Option<Id>) {
+        if self.parent != parent {
+            self.place = None;
+        }
+        self.parent = parent;
+    }
+
     /// It is one of its server's own folders ([`ServerFolder::well_known`]), which can't be
     /// renamed, moved or deleted. Only known once a listing has said so (#756): until the first
     /// run after the update, a folder of that kind is still taken for one the owner made.
@@ -1899,12 +1908,11 @@ impl Mailbox {
     }
 
     /// Top-level folders of an account (`parent` `None`) or a folder's subfolders, standard
-    /// folders first in their usual order, then the others by name.
+    /// folders first in their usual order, then the others by name; as the folder pane lists
+    /// them (#1514), the owner's places first.
     pub fn children(&self, account: Id, parent: Option<Id>) -> Vec<&Folder> {
         let mut v: Vec<&Folder> = self.folders.iter().filter(|f| f.account == account && f.parent == parent).collect();
-        let rank = |f: &Folder| FolderKind::STANDARD.iter().position(|k| *k == f.kind).unwrap_or(usize::MAX);
-        // (Then where the owner put them, #1514.)
-        v.sort_by_cached_key(|f| (rank(f), f.place.unwrap_or(u32::MAX), f.name.to_lowercase()));
+        sort_as_listed(&mut v, parent.is_none());
         v
     }
 
@@ -2057,7 +2065,7 @@ impl Mailbox {
         self.folders.retain(|f| !gone.contains(&f.id));
         for f in &mut self.folders {
             if f.parent.is_some_and(|p| gone.contains(&p)) {
-                f.parent = None;
+                f.set_parent(None);
             }
         }
         self.messages.retain(|_, m| !gone.contains(&m.folder));
@@ -2171,11 +2179,7 @@ impl Mailbox {
             return Err(invalid(format!("a folder named \"{}\" already exists there", f.name)));
         }
         let f = self.folder_mut(id)?;
-        // (Last among the folders it now shares a parent with, #1514.)
-        if f.parent != parent {
-            f.place = None;
-        }
-        f.parent = parent;
+        f.set_parent(parent);
         Ok(())
     }
 
@@ -2211,9 +2215,10 @@ impl Mailbox {
                     name = format!("{} ({n})", f.name);
                 }
                 let folder = self.folder_mut(id)?;
-                folder.parent = Some(d);
+                folder.set_parent(Some(d));
                 folder.name = name;
                 folder.favorite = false;
+                folder.favorite_place = None;
                 Ok(false)
             }
             _ => {
@@ -4622,7 +4627,7 @@ impl Mailbox {
                 cur = grandparent;
             };
             if !ok {
-                f.parent = None;
+                f.set_parent(None);
                 fixed.push(format!("folder \"{}\" moved to the top level", f.name));
             }
             // A nested or duplicate standard folder is an ordinary one.

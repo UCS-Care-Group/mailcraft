@@ -24221,6 +24221,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} není sdílená poštovní schránka: odeberte ji pomocí account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} není mezi oblíbenými"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24291,6 +24297,12 @@ msgstr "{name} s vámi sdílí kalendář."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} s vámi sdílí kalendář. Je ve vašem seznamu kalendářů."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} zůstává nahoře ve složkách účtu"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

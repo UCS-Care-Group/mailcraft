@@ -101,6 +101,11 @@ fn opt_id(v: &Value, key: &str) -> Result<Option<Id>, CmdError> {
 fn reorder(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
     let before = opt_id(v, "before")?;
+    for named in std::iter::once(Some(id)).chain([before]).flatten() {
+        if let Some(f) = s.mailbox.folder(named).filter(|f| mailcraft_model::leads(f)) {
+            return Err(failed!("{name} stays at the top of its account's folders", name = f.name.as_str()));
+        }
+    }
     let moved = s.mailbox.reorder_folder(id, before)?;
     let (account, parent) = s.mailbox.folder(id).map(|f| (f.account, f.parent)).unwrap_or_default();
     let mut siblings: Vec<&Folder> = s.mailbox.folders.iter().filter(|f| f.account == account && f.parent == parent).collect();
@@ -119,7 +124,7 @@ fn reorder_favorite(s: &mut Session, v: &Value) -> CmdResult {
             return Err(fail(FROM_OUTLOOK));
         }
         if !f.favorite {
-            return Err(fail(format!("{} isn't among the Favorites", f.name)));
+            return Err(failed!("{name} isn't among the Favorites", name = f.name.as_str()));
         }
         Ok(())
     };

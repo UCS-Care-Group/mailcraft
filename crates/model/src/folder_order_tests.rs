@@ -103,3 +103,25 @@ fn a_bad_place_in_a_file_is_passed_over() {
     assert!(read.folders.iter().all(|f| f.place.is_none() && f.favorite_place.is_none()));
     assert_eq!(listed(&read, account, Some(projects)), ["A", "B"]);
 }
+
+/// A folder deleted into Deleted Items goes last there, whatever place it had, and is no longer
+/// a favourite in any place; `children` lists as the pane does.
+#[test]
+fn a_deleted_folder_goes_last_and_leaves_the_favorites() {
+    let (mut mb, account, [projects, clients, ..]) = mailbox();
+    assert_eq!(mb.reorder_folder(clients, Some(projects)), Ok(true));
+    assert!(mb.folder(clients).unwrap().place.is_some());
+    mb.folder_mut(clients).unwrap().favorite = true;
+    mb.folder_mut(clients).unwrap().favorite_place = Some(0);
+    let deleted = mb.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    mb.add_folder(account, Some(deleted), "Aaa").unwrap();
+    assert_eq!(mb.delete_folder(clients), Ok(false));
+    let f = mb.folder(clients).unwrap();
+    assert_eq!((f.parent, f.place, f.favorite, f.favorite_place), (Some(deleted), None, false, None));
+    assert_eq!(listed(&mb, account, Some(deleted)), ["Aaa", "Clients"]);
+    // A standard folder moved by the owner shows its place in `children` as in the pane.
+    let archive = mb.folder_of_kind(account, FolderKind::Archive).unwrap();
+    assert_eq!(mb.reorder_folder(archive, None), Ok(true));
+    let names: Vec<&str> = mb.children(account, None).iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(names.last(), Some(&"Archive"));
+}

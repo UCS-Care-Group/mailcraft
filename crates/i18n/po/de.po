@@ -22694,6 +22694,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} ist kein freigegebenes Postfach: Entfernen Sie es mit account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} gehört nicht zu den Favoriten"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 msgid "{name} isn't an Exchange server account"
 msgstr "{name} ist kein Exchange-Server-Konto"
@@ -22757,6 +22763,12 @@ msgstr "{name} hat einen Kalender für Sie freigegeben."
 #: crates/ui-egui/src/reading/sharing.rs
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} hat einen Kalender für Sie freigegeben. Er befindet sich in Ihrer Kalenderliste."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} bleibt oben in den Ordnern des Kontos"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

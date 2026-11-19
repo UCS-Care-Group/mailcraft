@@ -24173,6 +24173,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "A(z) {name} nem megosztott postafiók. Az account.remove paranccsal távolíthatja el."
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} nincs a kedvencek között"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24243,6 +24249,12 @@ msgstr "{name} megosztotta veled a naptárat."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} megosztotta veled a naptárat, benne van a naptárlistádban."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} a fiók mappáinak tetején marad"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
