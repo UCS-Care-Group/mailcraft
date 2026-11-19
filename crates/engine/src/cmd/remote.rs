@@ -62,7 +62,8 @@
 //! ([`Dropped`]), and what it changed is put back.
 //!
 //! Undo: a change that hasn't been sent yet is undone like any other, and the note goes with it
-//! (the mailbox is put back whole, the notes included). Once the server has been told, the undo
+//! (the events the change touched are put back as they were, with their notes; what downloads
+//! brought for the others since stays, #1674, `crate::undo`). Once the server has been told, the undo
 //! history is forgotten, as it is when mail was moved on the server: the mailbox of before is
 //! not what the server has any more. Should an answer arrive for a change that was undone while
 //! it was on its way, the server is told the opposite ([`apply_event_outcomes`]).
@@ -3965,3 +3966,9 @@ mod cross_move_tests;
 
 #[cfg(test)]
 mod fallback_offset_tests;
+
+#[cfg(test)]
+mod undo_events_tests;
+
+#[cfg(test)]
+mod undo_gate_tests;

@@ -303,7 +303,7 @@ impl std::fmt::Debug for Recipients {
 }
 
 /// The request `GetItem` for the recipients of several items: for a server whose `SyncFolderItems`
-/// won't give them ([`Shape::Bare`], #1349).
+/// won't give them ([`Shape::Bare`], #1349), or leaves them out (Exchange 2013 to 2019, #1151).
 #[derive(Clone, PartialEq, Eq)]
 pub struct GetItemRecipients {
     ids: Vec<String>,
