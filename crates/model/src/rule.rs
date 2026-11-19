@@ -328,9 +328,12 @@ impl Condition {
             Condition::SizeBetween { .. } => !m.size_known(),
             // Nor what the headers said past what was kept of them ([`Message::headers_cut`]), nor
             // the header of a message whose lines MailCraft reads into it weren't kept as they came
-            // ([`Message::read_header`]: one read before they were, or made here), nor lines kept
-            // outside memory ([`Message::header_block`]; Run Rules Now brings them in first).
-            Condition::HeaderContains(_) => m.unfetched || m.incomplete || m.headers_cut || m.read_header.is_empty() || !m.header_block.is_loaded(),
+            // ([`Message::read_header`]: one read before they were, or made here), or were kept
+            // only in part ([`Message::read_header_cut`]), nor lines kept outside memory
+            // ([`Message::header_block`]; Run Rules Now brings them in first).
+            Condition::HeaderContains(_) => {
+                m.unfetched || m.incomplete || m.headers_cut || m.read_header_cut || m.read_header.is_empty() || !m.header_block.is_loaded()
+            }
             Condition::Sensitivity(_) => m.unfetched || m.incomplete || m.headers_cut,
             // Nor a mark kept outside memory with the lines of its header block, as a build from
             // before the mark stayed on the message kept it (Run Rules Now brings them in first).

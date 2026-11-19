@@ -531,6 +531,7 @@ fn message() -> impl Strategy<Value = Message> {
             headers,
             header_block: Default::default(),
             read_header: "X-Priority: 9 (not carried)\n".into(),
+            read_header_cut: false,
             fresh_stamps: false,
             id: 7,
             account: 3,
@@ -966,4 +967,36 @@ fn an_automatic_reply_mark_kept_in_the_header_block_is_read_there() {
         ..m
     };
     assert!(Condition::AutomaticReply.unread_in(&kept) && !rule.matches(&kept));
+}
+
+/// Mail to 1,900 people from a boss, read whole: only the lines kept as they came for a header
+/// rule ran past 64 KB. A rule with words in the header can't tell of a word it doesn't find in
+/// what was kept (and finds one that is there); every other condition reads the message as it is,
+/// so a rule about who it is from, who it went to, its subject, categories, sensitivity or whether
+/// it is an automatic reply decides on it (#566).
+#[test]
+fn lines_kept_as_they_came_cut_short_leave_only_a_header_rule_unable_to_tell() {
+    use mailcraft_model::Condition;
+    let list = |prefix: &str, n: usize| (0..n).map(|i| format!("{prefix}-long-recipient-name-{i:04}@example.org")).collect::<Vec<_>>().join(",\r\n ");
+    let raw = format!(
+        "From: Boss <boss@example.org>\r\nTo: ada@example.org,\r\n {}\r\nCc: {}\r\nSubject: All staff\r\nX-Gateway: far-down\r\n\r\nHello.\r\n",
+        list("to", 1000),
+        list("cc", 899)
+    );
+    let m = parse(raw.as_bytes());
+    assert!(m.read_header_cut && !m.headers_cut);
+    let words = |w: &str| vec![w.to_string()];
+    assert!(Condition::HeaderContains(words("no-such-word")).unread_in(&m));
+    assert!(m.header_contains("boss@example.org") && m.header_contains("far-down"));
+    for told in [
+        Condition::AutomaticReply,
+        Condition::ToMe,
+        Condition::NotToMe,
+        Condition::SentTo(words("ada@example.org")),
+        Condition::Category(words("Red")),
+        Condition::Sensitivity(mailcraft_model::Sensitivity::Private),
+        Condition::SubjectContains(words("staff")),
+    ] {
+        assert!(!told.unread_in(&m), "{told:?}");
+    }
 }

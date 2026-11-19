@@ -40,8 +40,8 @@ pub const MAX_RECIPIENTS: usize = 2000;
 /// Most categories (`Keywords`) kept from one message.
 pub const MAX_CATEGORIES: usize = 500;
 
-/// Most bytes [`Message::read_header`] keeps: past them, the message says its header was cut
-/// ([`Message::headers_cut`]).
+/// Most bytes [`Message::read_header`] keeps: past them, the message says those lines were cut
+/// ([`Message::read_header_cut`]).
 pub const MAX_READ_HEADER: usize = 64 * 1024;
 
 /// Most message ids read from `References`.
@@ -241,14 +241,16 @@ fn read_headers(headers: &Headers, m: &mut Message) {
 }
 
 /// A line of the header read into the message itself (or kept only decoded), kept as it came in
-/// [`Message::read_header`]; past [`MAX_READ_HEADER`] the header says it was cut (#566).
+/// [`Message::read_header`]; past [`MAX_READ_HEADER`] the message says those lines were cut, which
+/// only a rule with words in the header reads (#566): what is read into the message has caps of
+/// its own, and says when it runs past them ([`Message::headers_cut`]).
 fn read_as_it_came(m: &mut Message, name: &str, value: &str) {
     let line = format!("{name}: {}", value.replace(['\r', '\n'], " "));
     if m.read_header.len().saturating_add(line.len()).saturating_add(1) <= MAX_READ_HEADER {
         m.read_header.push_str(&line);
         m.read_header.push('\n');
     } else {
-        m.headers_cut = true;
+        m.read_header_cut = true;
     }
 }
 

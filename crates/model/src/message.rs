@@ -264,8 +264,8 @@ pub fn size_label_in(lang: mailcraft_i18n::Lang, bytes: u64) -> String {
 /// The most text of what a sender hid ([`Message::hidden_text`]) that is kept, in bytes.
 pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
 
-/// Most bytes [`Message::read_header`] keeps: past them, the message says its header was cut
-/// ([`Message::headers_cut`]).
+/// Most bytes [`Message::read_header`] keeps: past them, the message says those lines were cut
+/// ([`Message::read_header_cut`]).
 pub const MAX_READ_HEADER: usize = 64 * 1024;
 
 /// A message body. `text` is always there (readers derive it from the HTML when a message has no
@@ -363,6 +363,12 @@ pub struct Message {
     /// ([`crate::Condition::unread_in`]).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub read_header: String,
+    /// [`Message::read_header`] ran past [`MAX_READ_HEADER`] as it was read: a rule with words in
+    /// the header can't tell of a word it doesn't find there (#566). Kept and dropped with the
+    /// lines. What else of the header was left out is [`Message::headers_cut`], which every rule
+    /// that reads it reads.
+    #[serde(skip_serializing_if = "is_false")]
+    pub read_header_cut: bool,
     /// Whether Exchange's stamps in [`Message::headers`] were read from the message by a MailCraft
     /// that leaves them behind when mail goes to another account (#781). Only then are they
     /// believed: one saved before may be a sender's own, carried in from another account.

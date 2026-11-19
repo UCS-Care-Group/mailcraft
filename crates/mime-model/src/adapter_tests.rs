@@ -63,6 +63,7 @@ fn what_the_format_carries_goes_both_ways() {
         headers: vec![("List-Id".into(), "<news.example.org>".into())],
         header_block: mailcraft_model::headers::split(vec![("X-A".into(), "b".into()), ("List-Id".into(), "<news.example.org>".into())]).1,
         read_header: "Subject: Hi\n".into(),
+        read_header_cut: true,
         headers_cut: true,
         fresh_stamps: true,
         original: Original::new(b"Content-Type: multipart/signed\r\n\r\n".to_vec()),

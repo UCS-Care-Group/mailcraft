@@ -113,6 +113,9 @@ pub struct Message {
     /// decoded, as they came, one `name: value` to a line, at most [`crate::MAX_READ_HEADER`]
     /// bytes: with [`Message::headers`], the header as it came. Never written.
     pub read_header: String,
+    /// [`Message::read_header`] ran past [`crate::MAX_READ_HEADER`]: what the lines after said
+    /// can't be told from them.
+    pub read_header_cut: bool,
     /// Some of its header fields, recipients (To, Cc) or categories were left out as it was
     /// read, past what is kept of one message: what they said can't be told from it.
     pub headers_cut: bool,

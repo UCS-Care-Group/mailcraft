@@ -2214,7 +2214,7 @@ impl Mailbox {
         let folder = self.folder(m.folder).ok_or(not_found("folder", m.folder))?;
         m.account = folder.account;
         if !m.read_header.is_empty() && !self.keeps_header_as_it_came(m.account) {
-            m.read_header = String::new();
+            (m.read_header, m.read_header_cut) = (String::new(), false);
         }
         // Within what the mailbox keeps of originals in all (#30).
         if m.original.as_ref().is_some_and(|o| !self.room_for_original(o.size())) {

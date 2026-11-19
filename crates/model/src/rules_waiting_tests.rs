@@ -267,3 +267,15 @@ fn a_message_whose_server_has_another_version_of_it_says_so_in_the_file() {
     assert!(!serde_json::from_str::<Message>(r#"{"id": 3}"#).unwrap().stale);
     assert!(!serde_json::to_string(&Message::default()).unwrap().contains("stale"));
 }
+
+/// A message whose header lines kept as they came ran past 64 KB says so in the file, beside the
+/// lines ([`Message::read_header_cut`]); a file from before has none.
+#[test]
+fn a_message_whose_lines_kept_as_they_came_were_cut_says_so_in_the_file() {
+    let m = Message { id: 3, read_header: "To: a@example.org\n".into(), read_header_cut: true, ..Default::default() };
+    let json = serde_json::to_string(&m).unwrap();
+    assert!(json.contains(r#""readHeaderCut":true"#), "{json}");
+    assert!(serde_json::from_str::<Message>(&json).unwrap().read_header_cut);
+    assert!(!serde_json::from_str::<Message>(r#"{"id": 3, "readHeader": "To: a@example.org\n"}"#).unwrap().read_header_cut);
+    assert!(!serde_json::to_string(&Message::default()).unwrap().contains("readHeaderCut"));
+}

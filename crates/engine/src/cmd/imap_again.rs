@@ -144,7 +144,7 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     // header, for a message read before they were kept, while a rule of its account looks for
     // words in the header (#566).
     if m.read_header.is_empty() && keeps_header {
-        m.read_header = read.read_header;
+        (m.read_header, m.read_header_cut) = (read.read_header, read.read_header_cut);
     }
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
