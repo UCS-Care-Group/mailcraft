@@ -94,7 +94,9 @@ flag isn't read from the server.
 ## Not yet tried
 
 Exchange Server Subscription Edition, SmarterMail, changes sent up and sending against Exchange Server itself, NTLM against a real server, Kerberos
-and modern sign-in (not built), a shared mailbox, and Autodiscover from an address.
+and modern sign-in (not built), a shared mailbox, Autodiscover from an address, and a search on the server (#1725: More results on the
+server asks `FindItem` with a `QueryString`, folder by folder, and with a `Restriction` on the subject, the body and the people when
+a server won't take the query string; the tests use a stand-in held to the schema).
 
 ## Revision history
 

@@ -51,6 +51,8 @@ mod ews_mail_flow;
 #[cfg(test)]
 mod ews_resolve_flow;
 mod ews_runner;
+#[cfg(test)]
+mod ews_search_flow;
 mod ews_setup;
 #[cfg(test)]
 mod ews_setup_flow;
@@ -1103,6 +1105,7 @@ fn services(
     let approval_ctx = ctx.clone();
     let fetch_ctx = ctx.clone();
     let (ews_ctx, ews_fetch_ctx, ews_setup_ctx, ews_resolve_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone());
+    let ews_search_ctx = ctx.clone();
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
     let rules_ctx = ctx.clone();
@@ -1212,6 +1215,8 @@ fn services(
         ews_setup: Some(Box::new(move |job| ews_setup::run_setup(job, &ews_setup_ctx))),
         // Names looked up in its address list, on the owner's Check Names (#1262).
         ews_resolve: Some(Box::new(move |job| ews_runner::run_resolve(job, &ews_resolve_ctx))),
+        // Its mailbox searched on its server, a page at a time, on the owner's click (#1725).
+        ews_search: Some(Box::new(move |job| ews_runner::run_search(job, &ews_search_ctx))),
         // A Microsoft mailbox searched on its server, a page at a time (R6.2). One thread per mailbox.
         graph_search: Some(Box::new({
             let search_ctx = search_ctx.clone();

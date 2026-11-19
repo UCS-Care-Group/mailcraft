@@ -36,10 +36,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 
 use mailcraft_jmap::fetch::{failed_fetch, fetch_messages};
+use mailcraft_jmap::search::{failed_search, search_messages};
 use mailcraft_jmap::{Connection, Credentials, Error, TransportError, failed_run, sync_mail};
-use mailcraft_model::sync::{GraphFetchResult, JmapMailRequest, JmapMailResult};
+use mailcraft_model::sync::{GraphFetchResult, GraphSearchResult, JmapMailRequest, JmapMailResult};
 use mailcraft_model::{Account, AccountKind};
 use mailcraft_ui_egui::jmap_mail::{JmapFetchJob, JmapJob};
+use mailcraft_ui_egui::server_search::JmapSearchJob;
 use mailcraft_ui_egui::{MailApp, Services};
 use serde_json::json;
 use wasm_bindgen::{JsCast as _, JsValue};
@@ -151,6 +153,13 @@ pub(crate) fn install(services: &mut Services, ctx: &egui::Context, hook: Option
         wasm_bindgen_futures::spawn_local(fetch_whole(job, hook_fetch.clone(), ctx_fetch.clone(), tx));
         rx
     }));
+    // A mailbox searched on its server, a page at a time, on the owner's click (#1725).
+    let (ctx_search, hook_search) = (ctx.clone(), hook.clone());
+    services.jmap_search = Some(Box::new(move |job: JmapSearchJob| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        wasm_bindgen_futures::spawn_local(search(job, hook_search.clone(), ctx_search.clone(), tx));
+        rx
+    }));
     if let Some(hook) = hook.filter(|hook| hook.secret.is_some()) {
         services.jmap_host_credentials = Some(Box::new(move |a: &Account| hook.holds(a)));
     }
@@ -235,6 +244,42 @@ fn said_in_a_browser(errors: &mut Vec<String>, error: &Error, downloading: bool)
     if let Some(line) = redirect_line(error, downloading) {
         *errors = vec![line.to_string()];
     }
+}
+
+/// One page of a search of one account on its server, with the typed secret or the page's.
+async fn search(job: JmapSearchJob, hook: Option<Rc<Hook>>, ctx: egui::Context, tx: Sender<GraphSearchResult>) {
+    let JmapSearchJob { request, secret, cancel } = job;
+    let found = match signed_in(hook.as_deref(), &request.email, &request.session, request.bearer, secret, &cancel).await {
+        Ok(Some(connection)) => search_messages(&connection, &request, &cancel).await,
+        // Called off while the page was asked: nothing is searched, and nothing said.
+        Ok(None) => GraphSearchResult { account: request.account, email: request.email.clone(), ticket: request.ticket, ..Default::default() },
+        Err(error) => {
+            let mut failed = failed_search(&request, &error);
+            said_in_a_browser(&mut failed.errors, &error, false);
+            failed
+        }
+    };
+    let _ = tx.send(found);
+    ctx.request_repaint();
+}
+
+/// A connection to the server at `session` for the account at `email`, signed in with the secret
+/// typed (`typed`) or, when that is empty, the page's. `None` when `cancel` was set while the page
+/// was asked; no credential to send is [`Error::CredentialsRefused`].
+async fn signed_in(
+    hook: Option<&Hook>,
+    email: &str,
+    session: &str,
+    bearer: bool,
+    typed: String,
+    cancel: &Arc<AtomicBool>,
+) -> Result<Option<Connection<Fetch>>, Error> {
+    let secret = if typed.is_empty() { asked(hook, email, session).await } else { Some(typed) };
+    let credentials = secret.and_then(|secret| credentials(email, bearer, &secret)).ok_or(Error::CredentialsRefused)?;
+    if cancel.load(Ordering::Relaxed) {
+        return Ok(None);
+    }
+    Connection::connect(Fetch::new(cancel.clone()), session, credentials).await.map(Some)
 }
 
 /// Messages of one account fetched whole, with the typed secret or the page's.

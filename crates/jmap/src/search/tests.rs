@@ -138,7 +138,10 @@ fn a_search_of_the_account_finds_mail_in_every_mailbox_but_the_ones_left_out() {
     assert_eq!(folders, [ids.projects.as_str(), ids.inbox.as_str()]);
     // What a list shows of each, as a run brings it.
     let first = &found.messages[1];
-    assert_eq!((first.from.email.as_str(), first.preview.as_str(), first.server.read), ("zoe@example.org", "Hello about Budget for the spring.", true));
+    assert_eq!(
+        (first.from.email.as_str(), first.preview.as_str(), first.server.read),
+        ("zoe@example.org", "Hello about Budget for the spring.", true)
+    );
     assert!(first.received > 0 && first.server.size > 0 && !first.message_id.is_empty());
     // Two calls, nothing that changes anything.
     assert_eq!(stand_in.calls(), ["Email/query", "Email/get"]);
@@ -294,8 +297,10 @@ fn search_scripted(replies: Vec<Reply>, request: &JmapSearchRequest) -> GraphSea
 #[test]
 fn a_server_that_lists_more_than_was_asked_or_lies_about_its_place_is_held_to_the_page() {
     let many: Vec<String> = (0..500).map(|n| format!("E{n}")).collect();
-    let emails: Vec<Value> = (0..500).map(|n| json!({"id": format!("E{n}"), "mailboxIds": {"M1": true}, "receivedAt": "2026-01-01T00:00:00Z"})).collect();
-    let found = search_scripted(vec![answer("Email/query", json!({"ids": many, "total": 10_000})), answer("Email/get", json!({"list": emails}))], &asked());
+    let emails: Vec<Value> =
+        (0..500).map(|n| json!({"id": format!("E{n}"), "mailboxIds": {"M1": true}, "receivedAt": "2026-01-01T00:00:00Z"})).collect();
+    let found =
+        search_scripted(vec![answer("Email/query", json!({"ids": many, "total": 10_000})), answer("Email/get", json!({"list": emails}))], &asked());
     assert_eq!(found.messages.len(), PAGE);
     assert_eq!(found.next, "50");
     // A total that says there is more after a page that listed nothing: the search ends.

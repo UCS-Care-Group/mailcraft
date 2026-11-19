@@ -91,7 +91,8 @@ fn a_word_never_carries_syntax_into_the_query_or_the_restriction() {
     let element = restriction(&terms).unwrap().write();
     assert!(element.contains("Value=\"budget OR x\"") && !element.contains('\\') && !element.contains('\u{1}'), "{element}");
     // A value is an attribute, escaped as one.
-    let terms = vec![mailcraft_model::search::ServerTerm::Words { field: Some(mailcraft_model::search::ServerField::Subject), words: vec!["a<b>&c".into()] }];
+    let terms =
+        vec![mailcraft_model::search::ServerTerm::Words { field: Some(mailcraft_model::search::ServerField::Subject), words: vec!["a<b>&c".into()] }];
     let element = restriction(&terms).unwrap().write();
     assert!(element.contains("a&lt;b&gt;&amp;c") && !element.contains("<b>"), "{element}");
 }
@@ -294,11 +295,13 @@ fn hostile_answers_to_a_search_are_passed_over_or_said_and_never_trusted() {
     standin.state().hostile = Some(Hostile::BadItems);
     let found = search(&standin, &request(&[&inbox, &projects], "budget", ""));
     assert!(found.messages.iter().all(|m| m.server.id.len() <= 1024), "{found:?}");
-    // Every other kind of answer that isn't one: an error at the most, never a panic.
-    for how in [Hostile::BadId] {
+    // Every other kind of answer that isn't one: an error at the most, never a panic, and
+    // nothing taken from it.
+    for how in [Hostile::BadId, Hostile::Dtd, Hostile::CutShort, Hostile::NotXml, Hostile::Deep, Hostile::Fault, Hostile::TooFew] {
         standin.state().hostile = Some(how);
         let found = search(&standin, &request(&[&inbox, &projects], "budget", ""));
-        assert!(found.messages.len() <= 3);
+        assert!(found.messages.len() <= 3, "{how:?}");
+        assert!(found.messages.iter().all(|m| m.server.id.len() <= 1024 && [&inbox, &projects].contains(&&m.server.folder)), "{how:?}");
     }
 }
 
@@ -322,10 +325,13 @@ fn an_answer_that_lists_nothing_or_lies_about_its_place_ends_the_folder() {
     assert!(empty.last && empty.messages.is_empty());
     // A next page that isn't further on is not followed back.
     let item = "<t:Message><t:ItemId Id=\"one\" ChangeKey=\"k\"/><t:Subject>Budget</t:Subject></t:Message>";
-    let back = answer(&format!("<m:RootFolder IncludesLastItemInRange=\"false\" IndexedPagingOffset=\"3\"><t:Items>{item}</t:Items></m:RootFolder>")).unwrap();
+    let back = answer(&format!("<m:RootFolder IncludesLastItemInRange=\"false\" IndexedPagingOffset=\"3\"><t:Items>{item}</t:Items></m:RootFolder>"))
+        .unwrap();
     assert_eq!((back.last, back.next_offset, back.messages.len()), (false, 11, 1));
     // An item with no id is passed over, and an answer with no folder is none.
-    let unnamed = answer("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Items><t:Message><t:Subject>x</t:Subject></t:Message></t:Items></m:RootFolder>").unwrap();
+    let unnamed =
+        answer("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Items><t:Message><t:Subject>x</t:Subject></t:Message></t:Items></m:RootFolder>")
+            .unwrap();
     assert!(unnamed.messages.is_empty() && unnamed.last);
     assert!(answer("").is_err());
 }

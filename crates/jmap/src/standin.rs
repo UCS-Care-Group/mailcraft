@@ -796,7 +796,8 @@ impl Data {
         }
         let text = String::from_utf8_lossy(&email.raw).to_lowercase();
         let (fields, body) = split_message(&text);
-        let field = |name: &str| fields.iter().filter(|(have, _)| have.eq_ignore_ascii_case(name)).map(|(_, value)| value.as_str()).collect::<String>();
+        let field =
+            |name: &str| fields.iter().filter(|(have, _)| have.eq_ignore_ascii_case(name)).map(|(_, value)| value.as_str()).collect::<String>();
         let needle = |value: &Value| value.as_str().unwrap_or_default().trim_matches('"').to_lowercase();
         filter.iter().all(|(name, value)| match name.as_str() {
             "inMailbox" => value.as_str().is_some_and(|mailbox| email.mailboxes.contains(mailbox) && !self.hollow.contains(mailbox)),

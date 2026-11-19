@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A search of the mailboxes in view on their own servers (R6.2). Mail already on this computer
 //! is found at once; a message that was never downloaded is found because the mailbox's server
-//! is asked. A Microsoft account goes through Graph, an IMAP account through its own server.
+//! is asked. A Microsoft account goes through Graph, an IMAP account through its own server, an
+//! Exchange server account through Exchange Web Services and a JMAP account through JMAP
+//! ([`super::search_requests`] says what their hosts are asked, #1725).
 //!
 //! As for a run, the engine never talks to a server: [`requests`] (`sync.graphSearchRequest`)
 //! says which page of which mailbox to ask for, a host with sockets asks
@@ -10,7 +12,7 @@
 //! [`apply`] (`sync.applyGraphSearch`) takes in what came back.
 //!
 //! - **The scope is the one in view.** Current Folder asks for that folder. All Mailboxes asks
-//!   each Microsoft account and each IMAP account once.
+//!   each Microsoft, IMAP, Exchange server and JMAP account once.
 //! - **What goes** is the part of the query Graph's search understands
 //!   ([`mailcraft_model::search::Query::for_server`]); the rest is checked here against what
 //!   comes back ([`ServerSearch::checked_here`]). An IMAP account is asked with the field the
@@ -28,7 +30,7 @@
 //!
 //! Nothing of the query or of what was found goes into a log line.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::search::Query;
 use mailcraft_model::sync::{GraphMessage, GraphSearchRequest, GraphSearchResult};
@@ -146,8 +148,8 @@ fn key_of(s: &Session) -> (String, Scope, Id, Option<(Date, Weekday)>, Option<St
     (s.view.search.clone(), s.view.scope, place, day, zone)
 }
 
-/// The mailboxes the search in view would go to. For a Microsoft account the second string is the
-/// folder's server id (empty for the whole mailbox). For an IMAP account it is the folder's name
+/// The mailboxes the search in view would go to. For a Microsoft, Exchange server or JMAP
+/// account the second string is the folder's server id (empty for the whole mailbox). For an IMAP account it is the folder's name
 /// on the server (empty for every mail folder of the account).
 pub fn mailboxes_for(s: &Session) -> Vec<(Id, String)> {
     let mb = &s.mailbox;
@@ -160,7 +162,7 @@ pub fn mailboxes_for(s: &Session) -> Vec<(Id, String)> {
         }
         let a = mb.account(f.account)?;
         match a.kind {
-            AccountKind::Microsoft => f.server.as_ref().map(|server| (a.id, server.id.clone())),
+            AccountKind::Microsoft | AccountKind::Exchange | AccountKind::Jmap => f.server.as_ref().map(|server| (a.id, server.id.clone())),
             AccountKind::Imap => (!f.remote.is_empty()).then(|| (a.id, f.remote.clone())),
             _ => None,
         }
@@ -176,11 +178,14 @@ pub fn mailboxes_for(s: &Session) -> Vec<(Id, String)> {
 }
 
 /// Whether a search may be asked of `account`'s server: a Microsoft account (a shared mailbox
-/// only when its owner is here and it has an address), or an IMAP account with a server.
+/// only when its owner is here and it has an address), an IMAP account with a server, or an
+/// Exchange server or JMAP account whose server's address can be used (#1725).
 fn account_can_be_searched(mb: &mailcraft_model::Mailbox, a: &mailcraft_model::Account) -> bool {
     match a.kind {
         AccountKind::Microsoft => !a.is_shared() || (mb.owner_of(a.id).is_some() && mailcraft_model::mailbox_address(&a.email).is_some()),
         AccountKind::Imap => a.incoming.is_some(),
+        AccountKind::Exchange => a.ews.as_ref().is_some_and(|server| server.problem().is_none()),
+        AccountKind::Jmap => a.jmap.as_ref().is_some_and(|server| server.problem().is_none()),
         _ => false,
     }
 }
@@ -291,8 +296,12 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
         }
     };
     // What this mailbox has here already: shown once, among the local results.
-    let here: HashSet<&str> =
-        mb.messages.values().filter(|m| m.account == account).filter_map(|m| m.server.as_ref().map(|s| s.id.as_str())).collect();
+    let here: HashMap<&str, &Message> =
+        mb.messages.values().filter(|m| m.account == account).filter_map(|m| m.server.as_ref().map(|s| (s.id.as_str(), m.as_ref()))).collect();
+    // An Exchange server or JMAP account has older mail here as headers and a preview, or not
+    // at all: a message the server finds by its text is hidden only when the search here shows
+    // it already (#1725).
+    let by_what_shows = matches!(a.kind, AccountKind::Exchange | AccountKind::Jmap);
     let held: HashSet<&str> = s.server_search.results.iter().filter(|r| r.account == account).map(|r| r.found.server.id.as_str()).collect();
     let query = s.search_query();
     let local = query.for_server().local;
@@ -314,6 +323,7 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
         // An IMAP uid is only unique inside its folder. The same number in Archive is another
         // message than INBOX's. A Microsoft id is the server's own, unique in the mailbox.
         let uid = imap_uid(&found.server.id);
+        let shows = |m: &Message| query.is_empty() || query.matches_in(m, |at| s.offset_at(at));
         let already = match uid {
             Some(uid) => {
                 // A local copy hides the hit only when it is the same message (the folder's
@@ -322,7 +332,6 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
                 // so the server's copy of it stays.
                 let validity = imap_validity(&found.server.id);
                 let epoch = validity.is_none_or(|v| mb.folder(folder).is_none_or(|f| f.uid_validity == 0 || f.uid_validity == v));
-                let shows = |m: &Message| query.is_empty() || query.matches_in(m, |at| s.offset_at(at));
                 let here = epoch && mb.messages.values().any(|m| m.account == account && m.folder == folder && m.uid == uid && shows(m));
                 let held = s.server_search.results.iter().any(|r| {
                     r.account == account
@@ -336,7 +345,7 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
                 };
                 here || held || !seen.insert(key)
             }
-            None => here.contains(id) || held.contains(id) || !seen.insert(id.to_string()),
+            None => here.get(id).is_some_and(|m| !by_what_shows || shows(m)) || held.contains(id) || !seen.insert(id.to_string()),
         };
         if already {
             continue;

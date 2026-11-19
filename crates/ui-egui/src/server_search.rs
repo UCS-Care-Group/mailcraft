@@ -7,13 +7,20 @@
 //! still good; an IMAP account the password or access token this session has. Without one, or
 //! when the last try couldn't reach the server, nothing is asked and the list is what is already
 //! here. Opening a result fetches it into its folder and keeps it in that row.
+//!
+//! An Exchange server account and a JMAP account are asked the same way (#1725): on the same
+//! click, each through its own host ([`crate::Services::ews_search`],
+//! [`crate::Services::jmap_search`]), with the password this session has for it, a page at a time.
+//! One whose password isn't at hand, or was turned down, is not asked.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::cmd::search_server;
 use mailcraft_model::Id;
-use mailcraft_model::sync::{GraphSearchRequest, GraphSearchResult};
+use mailcraft_model::sync::{EwsSearchRequest, GraphSearchRequest, GraphSearchResult, JmapSearchRequest};
 use serde_json::json;
 
 use crate::MailApp;
@@ -73,6 +80,8 @@ pub struct ServerSearching {
     auto_pages: u8,
     /// The message a search row opened, being fetched whole.
     pub(crate) opening: Option<Opening>,
+    /// What calls off the searches of Exchange server and JMAP accounts that are under way.
+    cancels: Vec<Arc<AtomicBool>>,
 }
 
 /// One IMAP message asked for because its search row was opened. The account, folder and uid
@@ -97,6 +106,52 @@ impl ServerSearching {
         self.pending.clear();
         self.auto_pages = 0;
         self.opening = None;
+        self.call_off();
+    }
+
+    /// The searches of Exchange server and JMAP accounts under way stop before their next request.
+    fn call_off(&mut self) {
+        for cancel in self.cancels.drain(..) {
+            cancel.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// A flag for a search about to start, which [`ServerSearching::call_off`] sets.
+    fn cancel(&mut self) -> Arc<AtomicBool> {
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.cancels.push(cancel.clone());
+        cancel
+    }
+}
+
+/// An Exchange server account searched on its server ([`crate::Services::ews_search`], #1725).
+/// The secret is the account's password: never written out and never shown.
+pub struct EwsSearchJob {
+    pub request: EwsSearchRequest,
+    pub secret: String,
+    /// Set when the search is called off (another search, another mailbox): it stops before its
+    /// next request.
+    pub cancel: Arc<AtomicBool>,
+}
+
+/// A JMAP account searched on its server ([`crate::Services::jmap_search`], #1725). The secret
+/// is the password or the bearer token, empty when the host holds the credential itself.
+pub struct JmapSearchJob {
+    pub request: JmapSearchRequest,
+    pub secret: String,
+    /// As for [`EwsSearchJob::cancel`].
+    pub cancel: Arc<AtomicBool>,
+}
+
+impl std::fmt::Debug for EwsSearchJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EwsSearchJob").field("request", &self.request).finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for JmapSearchJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JmapSearchJob").field("request", &self.request).finish_non_exhaustive()
     }
 }
 
@@ -195,7 +250,7 @@ impl MailApp {
             && mailboxes
                 .iter()
                 .any(|(account, _)| self.session.mailbox.account(*account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Imap));
-        let reachable = graph || imap;
+        let reachable = graph || imap || mailboxes.iter().any(|(account, _)| self.other_host_ready(*account));
         match (reachable, held && search.offline) {
             (false, _) => Link::NotConnected { retry: false },
             (true, true) => Link::NotConnected { retry: true },
@@ -210,17 +265,17 @@ impl MailApp {
         // A new search, not the next page of the one already asked.
         if !search_server::is_current(&self.session) || !self.session.server_search.asked() {
             self.server_searching.auto_pages = 0;
+            self.server_searching.call_off();
         }
         let requests = match search_server::requests(&mut self.session) {
             Ok(requests) => requests,
             Err(e) => return self.status(e.to_string()),
         };
         for request in requests {
-            let kind = self.session.mailbox.account(request.account).map(|a| a.kind);
-            if kind == Some(mailcraft_model::AccountKind::Imap) {
-                self.start_imap_search(request);
-            } else {
-                self.start_graph_search(request);
+            match self.session.mailbox.account(request.account).map(|a| a.kind) {
+                Some(mailcraft_model::AccountKind::Imap) => self.start_imap_search(request),
+                Some(mailcraft_model::AccountKind::Exchange | mailcraft_model::AccountKind::Jmap) => self.start_other_search(request),
+                _ => self.start_graph_search(request),
             }
         }
     }
@@ -252,6 +307,51 @@ impl MailApp {
         let gmail_all = request.folder.is_empty() && is_gmail(&account);
         let rx = search(ImapSearchJob { account, secret, ticket: request.ticket, folders, query: request.query, known, gmail_all });
         self.server_searching.pending.push(Pending { unreached, rx, settled: false });
+    }
+
+    /// Whether the Exchange server or JMAP account `account` can be asked now: its host is there
+    /// and its password is at hand and wasn't turned down.
+    fn other_host_ready(&self, account: Id) -> bool {
+        let secret = match self.session.mailbox.account(account).map(|a| a.kind) {
+            Some(mailcraft_model::AccountKind::Exchange) if self.services.ews_search.is_some() => self.ews_secret(account),
+            Some(mailcraft_model::AccountKind::Jmap) if self.services.jmap_search.is_some() => self.jmap_secret(account),
+            _ => None,
+        };
+        secret.is_some() && !self.jmap_refused.contains(&account)
+    }
+
+    /// A page of an Exchange server or JMAP account's search, through its host; answered here as
+    /// not reached when it can't be asked now.
+    fn start_other_search(&mut self, page: GraphSearchRequest) {
+        let unreached = self.unreached(&page);
+        let ready = self.other_host_ready(page.account) && !self.offline();
+        match ready.then(|| self.hand_to_host(&page)).flatten() {
+            Some(rx) => self.server_searching.pending.push(Pending { unreached, rx, settled: false }),
+            None => {
+                let _ = search_server::apply(&mut self.session, unreached);
+            }
+        }
+    }
+
+    /// The host's answer to come for `page`, once the host of the account's kind has it: what
+    /// the engine says the host is asked, with the account's password beside it.
+    fn hand_to_host(&mut self, page: &GraphSearchRequest) -> Option<Receiver<GraphSearchResult>> {
+        use mailcraft_engine::cmd::search_requests;
+        match self.session.mailbox.account(page.account).map(|a| a.kind)? {
+            mailcraft_model::AccountKind::Exchange => {
+                let request = search_requests::ews(&self.session, page).ok()?;
+                let secret = self.ews_secret(page.account)?;
+                let cancel = self.server_searching.cancel();
+                Some(self.services.ews_search.as_ref()?(EwsSearchJob { request, secret, cancel }))
+            }
+            mailcraft_model::AccountKind::Jmap => {
+                let request = search_requests::jmap(&self.session, page).ok()?;
+                let secret = self.jmap_secret(page.account)?;
+                let cancel = self.server_searching.cancel();
+                Some(self.services.jmap_search.as_ref()?(JmapSearchJob { request, secret, cancel }))
+            }
+            _ => None,
+        }
     }
 
     fn unreached(&self, request: &GraphSearchRequest) -> GraphSearchResult {
@@ -290,6 +390,10 @@ impl MailApp {
             if let Err(e) = search_server::apply(&mut self.session, result) {
                 self.status(e.to_string());
             }
+        }
+        // Every search has ended: there is none left to call off.
+        if !self.server_searching.busy() {
+            self.server_searching.cancels.clear();
         }
         // A Microsoft mailbox's next page, while the owner is still on this search. A few pages,
         // not the whole mailbox: a specific word is among the first. A page that failed is not
@@ -388,6 +492,10 @@ fn known_uids(session: &mailcraft_engine::Session, account: Id, folders: &[Strin
     }
     known
 }
+
+#[cfg(test)]
+#[path = "server_search_hosts_tests.rs"]
+mod hosts_tests;
 
 #[cfg(test)]
 mod tests {

@@ -70,6 +70,15 @@ sync` refuses it.
   computer's own copy is let go of, so after sending nothing here records who got a blind copy
   (an IMAP account's copy in Sent keeps them).
 
+**Searching on the server** (#1725). More results on the server, below the results of a search, asks the
+account's server for mail that isn't on this computer: `Email/query` (RFC 8621 §4.4) with the words of
+the search as a filter (`text`, `from`, `to`, `cc`, `subject`, `body`, `hasAttachment`, and the
+`Importance` header), newest first, 50 at a time, then `Email/get` for what the list shows. A search of
+the mailbox leaves Deleted Items and Junk E-mail out (`inMailboxOtherThan`); a search of one folder asks
+that mailbox (`inMailbox`). The standard has no condition for an attachment's name, so a search with
+`attachment:` is not asked. Nothing is asked before the click, and what is found is held in the window
+until a result is opened, which puts it in its folder and fetches it whole.
+
 Not yet: what you change in an account's folders doesn't go up.
 Renaming, moving or deleting one of the server's mailboxes, deleting a folder that holds the
 server's mail, and moving the server's mail into a folder the server hasn't got (one made here,

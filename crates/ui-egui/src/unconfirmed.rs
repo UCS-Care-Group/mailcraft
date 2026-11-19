@@ -44,6 +44,8 @@ pub(crate) struct Held {
     graph_search: Option<Box<dyn Fn(crate::server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
     imap_search: Option<Box<dyn Fn(crate::server_search::ImapSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
     imap_fetch: Option<Box<dyn Fn(crate::server_search::ImapFetchJob) -> Receiver<Result<mailcraft_model::Message, String>>>>,
+    ews_search: Option<Box<dyn Fn(crate::server_search::EwsSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
+    jmap_search: Option<Box<dyn Fn(crate::server_search::JmapSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
     graph_tasks: Option<Box<dyn Fn(crate::task_sync::TasksJob) -> Receiver<crate::task_sync::TasksResult>>>,
     graph_rules: Option<Box<dyn Fn(crate::rule_sync::RulesJob) -> Receiver<crate::rule_sync::RulesResult>>>,
     graph_auto_replies: Option<Box<dyn Fn(crate::auto_replies::AutoRepliesJob) -> Receiver<crate::auto_replies::AutoRepliesResult>>>,
@@ -166,6 +168,8 @@ impl MailApp {
             graph_search: s.graph_search.take(),
             imap_search: s.imap_search.take(),
             imap_fetch: s.imap_fetch.take(),
+            ews_search: s.ews_search.take(),
+            jmap_search: s.jmap_search.take(),
             graph_tasks: s.graph_tasks.take(),
             graph_rules: s.graph_rules.take(),
             graph_auto_replies: s.graph_auto_replies.take(),
@@ -188,6 +192,8 @@ impl MailApp {
         s.graph_search = held.graph_search.or(s.graph_search.take());
         s.imap_search = held.imap_search.or(s.imap_search.take());
         s.imap_fetch = held.imap_fetch.or(s.imap_fetch.take());
+        s.ews_search = held.ews_search.or(s.ews_search.take());
+        s.jmap_search = held.jmap_search.or(s.jmap_search.take());
         s.graph_tasks = held.graph_tasks.or(s.graph_tasks.take());
         s.graph_rules = held.graph_rules.or(s.graph_rules.take());
         s.graph_auto_replies = held.graph_auto_replies.or(s.graph_auto_replies.take());

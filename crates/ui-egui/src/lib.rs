@@ -399,6 +399,13 @@ pub struct Services {
     /// Desktop: fetch one IMAP message whole when its search row is opened, so the reading pane
     /// has it without waiting for the next Send/Receive.
     pub imap_fetch: Option<Box<dyn Fn(server_search::ImapFetchJob) -> Receiver<Result<mailcraft_model::Message, String>>>>,
+    /// Desktop: search an Exchange server account on its server, one page (`FindItem` in its
+    /// folders, `mailcraft_ews::search_messages`), on a background thread (#1725). Started by the
+    /// same click as the others.
+    pub ews_search: Option<Box<dyn Fn(server_search::EwsSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
+    /// Search a JMAP account on its server, one page (`Email/query`,
+    /// `mailcraft_jmap::search::search_messages`; #1725). Started by the same click as the others.
+    pub jmap_search: Option<Box<dyn Fn(server_search::JmapSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
     /// Keep a Microsoft account's tasks in step with Microsoft To Do (#248; [`task_sync`]).
     pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
     /// Keep a Microsoft account's rules on its server (#566; [`rule_sync`]).
