@@ -47,11 +47,21 @@ fn the_account_name_field_is_on_the_settings_page() {
         let mut h = open(a, json!({"id": id}));
         h.run_steps(2);
         assert!(says(&h, "Account name"));
+        assert!(says(&h, "Your name"));
         assert!(says(&h, "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."));
         if let Ok(dir) = std::env::var("MAILCRAFT_SHOTS_DIR") {
             h.render().unwrap().save(std::path::Path::new(&dir).join(format!("account-name-{theme}.png"))).unwrap();
         }
     }
+}
+
+/// The "Your name" hint says what the name is for (#1429). A hint is not in the accessibility
+/// tree, so this reads the two places (setup and Account Settings) that give it from the source.
+#[test]
+fn the_your_name_hint_says_what_it_is_for() {
+    let src = include_str!("../../account_setup.rs");
+    assert_eq!(src.matches(r#"tl!("The name people you write to will see")"#).count(), 2);
+    assert!(!src.contains("As the people you write to see it"));
 }
 
 /// A shared mailbox opened under a Microsoft account (#70).

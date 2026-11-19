@@ -2021,7 +2021,7 @@ impl AccountSetup {
             if self.advanced {
                 indented(ui, |ui| {
                     ui.checkbox(&mut self.manual, tl!("Let me set up my account manually"));
-                    field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("As the people you write to see it"), LINE);
+                    field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("The name people you write to will see"), LINE);
                 });
             }
         });
@@ -2439,7 +2439,7 @@ impl AccountSetup {
             let address = shown(self.email.trim(), 120);
             field(ui, pass, "accountName", tl!("Account name"), &mut self.account_name, &address, LINE);
             note(ui, tl!("Shown in the folder pane, such as Work or Home. Leave it empty to show the address."), t.text_dim);
-            field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("As the people you write to see it"), LINE);
+            field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("The name people you write to will see"), LINE);
             if asks {
                 self.password_field(ui, pass, app.secret_watch(), tl!("Leave empty to keep the one in use"));
             }
