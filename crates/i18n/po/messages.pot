@@ -1518,11 +1518,6 @@ msgid "As recipients see it"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "As the people you write to see it"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Ask again"
 msgstr ""
@@ -14126,6 +14121,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "The name of someone you know."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The name people you write to will see"
 msgstr ""
 
 #. interface
