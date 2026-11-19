@@ -77,17 +77,30 @@ pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
     delta.changed = changed_ids;
     let mut deleted_ids = 0usize;
     for deleted in json::list(answer.get("deleted")) {
-        if !deleted.is_object() || deleted.get("m").is_none_or(|m| m.is_null()) || json::bad_list(deleted.get("m")) {
+        if !deleted.is_object() {
             return Err(Error::Unreadable);
         }
-        for m in json::list(deleted.get("m")) {
-            let room = DELETES.saturating_sub(delta.deleted.len());
-            let Some(ids) = json::ids(m.get("ids"), room + 1) else { return Err(Error::Unreadable) };
-            deleted_ids += ids.len();
-            if deleted_ids > DELETES {
+        let mut typed = false;
+        for kind in ["folder", "search", "link", "tag", "c", "chat", "m", "cn", "appt"] {
+            let Some(list) = deleted.get(kind) else { continue };
+            if list.is_null() || json::bad_list(Some(list)) {
                 return Err(Error::Unreadable);
             }
-            delta.deleted.extend(ids);
+            for entry in json::list(Some(list)) {
+                let room = DELETES.saturating_sub(deleted_ids);
+                let ids = json::ids(entry.get("ids"), room + 1).ok_or(Error::Unreadable)?;
+                deleted_ids += ids.len();
+                if deleted_ids > DELETES {
+                    return Err(Error::Unreadable);
+                }
+                typed = true;
+                if kind == "m" {
+                    delta.deleted.extend(ids);
+                }
+            }
+        }
+        if !typed {
+            return Err(Error::Unreadable);
         }
     }
     Ok(delta)
