@@ -69,6 +69,16 @@ fn shows_parts(html: &str) -> bool {
         || mailcraft_html::bg_pictures(&blocks).iter().any(|p| cid(&p.src))
 }
 
+/// Whether `html` shows anything at all: words, or a picture of any kind. HTML that shows
+/// nothing (empty paragraphs, a bare `&nbsp;`) would go out as a blank signature.
+fn shows_anything(html: &str, rich: &RichText) -> bool {
+    if !rich.to_plain().trim().is_empty() {
+        return true;
+    }
+    let blocks = mailcraft_html::parse_text(html);
+    !mailcraft_html::images(&blocks).is_empty() || !mailcraft_html::bg_pictures(&blocks).is_empty()
+}
+
 /// Take in the signature the server gave for `account`: the name of the signature it wrote, or
 /// `None` when the mailbox is as it was.
 pub(crate) fn take(mb: &mut Mailbox, account: Id, found: &EwsSignature) -> Option<String> {
@@ -89,19 +99,18 @@ pub(crate) fn take(mb: &mut Mailbox, account: Id, found: &EwsSignature) -> Optio
         None => (1..=MAX_NAMES).filter_map(|n| name_of(&a.email, n)).find(|name| mb.signature(name).is_none())?,
     };
     let (html, text) = (found.html.trim(), found.text.trim());
-    // HTML sent as written, unless it shows pictures it would have to be sent with.
-    let as_written = !html.is_empty() && !shows_parts(html);
+    let rich = (!html.is_empty()).then(|| mailcraft_mime_model::rich::from_html(html));
+    // HTML sent as written, unless it shows pictures it would have to be sent with, or shows
+    // nothing at all (then the plain text goes, as it does in the body below).
+    let as_written = rich.as_ref().is_some_and(|rich| !shows_parts(html) && shows_anything(html, rich));
     // Its words and look as rich text; HTML with no words (a logo alone) shows its pictures'
     // descriptions, as `signature.html` does.
-    let body = if html.is_empty() {
-        RichText::from_plain(text)
-    } else {
-        let rich = mailcraft_mime_model::rich::from_html(html);
-        if rich.to_plain().trim().is_empty() {
+    let body = match rich {
+        None => RichText::from_plain(text),
+        Some(rich) if rich.to_plain().trim().is_empty() => {
             RichText::from_plain(if text.is_empty() { mailcraft_html::to_text(html) } else { text.to_owned() }.trim())
-        } else {
-            rich
         }
+        Some(rich) => rich,
     };
     let at = mb.signatures.iter().position(|x| x.name.eq_ignore_ascii_case(&name));
     if at.is_none() && mb.signatures.len() >= MAX_SIGNATURES {

@@ -490,7 +490,7 @@ pub async fn sync_mail<E: HttpExchange>(
     };
     // And the signature the server keeps for the owner (#484), on the same terms: never worth failing the run for.
     let signature = if request.signature && !request.inbox_pass && !out.stopped && out.busy_for.is_none() && !out.auth_refused {
-        run.signature().await
+        run.signature(&mut out).await
     } else {
         None
     };
@@ -516,13 +516,18 @@ pub async fn sync_mail<E: HttpExchange>(
 impl<E: HttpExchange> Run<'_, E> {
     /// The signature the server keeps in the owner's options ([`GetUserOptions`]), or none: the
     /// server has none, refuses to say, or was not asked for now. Whatever goes wrong is told in
-    /// the log alone; a signature is a convenience.
-    async fn signature(&mut self) -> Option<EwsSignature> {
+    /// the log alone; a signature is a convenience. What stops a run (a busy server, Cancel, a
+    /// password turned down) stops it here too, and is said in `outcome` as for any request.
+    async fn signature(&mut self, outcome: &mut Outcome) -> Option<EwsSignature> {
         let op = GetUserOptions;
         match self.ask(&op.element(), &|reply| op.answer(reply)).await {
             Ok(found) => {
                 log::info!("ews mail: the server {}", if found.is_some() { "has a signature" } else { "has no signature" });
                 found
+            }
+            Err(Asked::Stop(why)) => {
+                outcome.stop(why);
+                None
             }
             Err(_) => {
                 log::info!("ews mail: the signature wasn't read now; a later run asks again");

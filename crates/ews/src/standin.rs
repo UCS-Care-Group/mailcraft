@@ -183,6 +183,8 @@ pub struct State {
     pub lacks_conversation: bool,
     /// Every `GetItem` is told that the server is busy, as [`State::busy`] tells it.
     pub busy_get_item: bool,
+    /// Every request of these operations (`GetUserConfiguration`) is told so too.
+    pub busy_ops: Vec<String>,
     /// A server that ignores `MaxChangesReturned` and gives every change it has in one answer.
     pub ignores_max: bool,
     /// With [`Hostile::BadItems`]: only the items of this folder (its id) are bad; empty for all.
@@ -289,6 +291,7 @@ impl Default for State {
             lacks_preview: false,
             lacks_conversation: false,
             busy_get_item: false,
+            busy_ops: Vec::new(),
             ignores_max: false,
             bad_items_in: String::new(),
             issued: 0,
@@ -474,7 +477,7 @@ impl State {
             ));
             return Ok((500, "ErrorServerBusy".into(), body));
         }
-        if self.busy_get_item && operation.name == "GetItem" {
+        if (self.busy_get_item && operation.name == "GetItem") || self.busy_ops.contains(&operation.name) {
             self.busy.0 = self.busy.0.max(1);
         }
         if self.busy.0 > 0 {

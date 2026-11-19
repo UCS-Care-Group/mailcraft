@@ -716,3 +716,15 @@ fn a_run_that_was_stopped_does_not_ask_for_it() {
     assert!(last(&pieces).stopped && last(&pieces).signature.is_none());
     assert_eq!(asked_for_the_signature(&standin), 0);
 }
+
+#[test]
+fn a_busy_server_asked_for_the_signature_says_so_in_the_run() {
+    // (The mail was read; the server asked to be left alone at the signature: the run says how long.)
+    let standin = with_signature();
+    standin.state().busy = (0, 30_000);
+    standin.state().busy_ops = vec!["GetUserConfiguration".into()];
+    let (pieces, _) = run(&standin, &EwsMailRequest { signature: true, ..request() });
+    assert!(last(&pieces).signature.is_none());
+    assert!(last(&pieces).busy_for.is_some(), "{:?}", last(&pieces));
+    assert!(!last(&pieces).whole);
+}

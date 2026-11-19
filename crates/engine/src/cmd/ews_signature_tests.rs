@@ -264,3 +264,13 @@ fn another_mailbox_starts_again_and_the_old_ones_signature_stays_the_owners() {
     assert_eq!(s.mailbox.signature("ada@example.org (Exchange 2)").unwrap().plain().trim(), "Ada at the other");
     assert_ne!(seen(&s, account), 0);
 }
+
+#[test]
+fn html_that_shows_nothing_is_not_sent_as_written_and_the_text_goes_instead() {
+    let (mut s, account) = session();
+    let blank = EwsSignature { html: "<div><p>&nbsp;</p><p></p></div>".into(), text: "Ada Lovelace".into(), on_new: true, on_reply: true };
+    apply_ews_mail(&mut s, result(account, Some(blank))).unwrap();
+    let signature = s.mailbox.signature(NAME).unwrap();
+    assert!(signature.html().is_none(), "no blank HTML for recipients who read HTML");
+    assert_eq!(signature.plain().trim(), "Ada Lovelace");
+}
