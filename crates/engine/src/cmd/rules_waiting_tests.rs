@@ -1292,6 +1292,8 @@ fn new_exchange_2010_mail_whose_recipients_werent_given_waits_for_the_download()
 /// from it, and the server doesn't give the recipients of what it is now (its GetItem failed): it
 /// is listed `cut`, with no To. A rule deletes mail when my address isn't in To: Run Rules Now
 /// leaves it alone until it is downloaded, and doesn't take the recipients it had before as known.
+/// (Exchange gives a draft sent from a phone a new id: the half that sends it is how a Microsoft
+/// 365 or JMAP account lists one, through the same code.)
 #[test]
 fn a_downloaded_draft_relisted_without_its_recipients_isnt_deleted_by_a_rule_about_them() {
     for sent in [false, true] {
@@ -1479,6 +1481,33 @@ fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until
         Condition::Flagged,
         Condition::ReceivedBetween { from: None, to: None },
     ];
+    // Every kind of condition is in the list: the match has no catch-all, so a new kind can't be
+    // left out of it.
+    let kind = |c: &Condition| match c {
+        Condition::FromContains(_) => 0,
+        Condition::ToContains(_) => 1,
+        Condition::SubjectContains(_) => 2,
+        Condition::BodyContains(_) => 3,
+        Condition::SubjectOrBodyContains(_) => 4,
+        Condition::HasAttachment => 5,
+        Condition::Importance(_) => 6,
+        Condition::From(_) => 7,
+        Condition::SentTo(_) => 8,
+        Condition::SentOnlyToMe => 9,
+        Condition::ToMe => 10,
+        Condition::CcMe => 11,
+        Condition::ToOrCcMe => 12,
+        Condition::NotToMe => 13,
+        Condition::Sensitivity(_) => 14,
+        Condition::SizeBetween { .. } => 15,
+        Condition::MeetingRequest => 16,
+        Condition::AutomaticReply => 17,
+        Condition::HeaderContains(_) => 18,
+        Condition::Category(_) => 19,
+        Condition::Flagged => 20,
+        Condition::ReceivedBetween { .. } => 21,
+    };
+    assert_eq!(conditions.iter().map(kind).collect::<Vec<_>>(), (0..conditions.len()).collect::<Vec<_>>());
     for sent in [false, true] {
         let mut s = Session::empty();
         let url = "https://exchange.example.org/EWS/Exchange.asmx";
@@ -1572,4 +1601,20 @@ Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encod
         s.run("rules.run", &json!({"folder": in_folder})).unwrap();
         assert!(binned(&s), "sent {sent}: the rules don't go by the version downloaded");
     }
+}
+
+/// A Microsoft account made an IMAP one keeps no message waiting for its server's other version:
+/// IMAP never fetches it again, so the rules read it as it is here (#566).
+#[test]
+fn an_account_that_no_longer_fetches_again_keeps_nothing_waiting_for_it() {
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let id = s.mailbox.add_message(Message { folder: inbox, account, subject: "Plan".into(), stale: true, ..Default::default() }).unwrap();
+    s.run("account.edit", &json!({"id": account, "kind": "jmap", "jmap": {"url": "https://jmap.example.org/.well-known/jmap"}})).ok();
+    s.run("account.edit", &json!({"id": account, "kind": "exchange", "ews": {"url": "https://exchange.example.org/EWS/Exchange.asmx"}})).ok();
+    assert!(s.mailbox.message(id).unwrap().stale, "an account that fetches again keeps it waiting");
+    s.run("account.edit", &json!({"id": account, "kind": "imap", "incoming": {"host": "imap.example.org"}})).unwrap();
+    assert_eq!(s.mailbox.account(account).unwrap().kind, mailcraft_model::AccountKind::Imap);
+    assert!(!s.mailbox.message(id).unwrap().stale);
 }

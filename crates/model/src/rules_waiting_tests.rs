@@ -291,3 +291,19 @@ fn the_mark_that_the_lines_were_cut_goes_with_them() {
         assert!(m.read_header.is_empty() && !m.read_header_cut, "{lines:?}");
     }
 }
+
+/// A copy of a message waiting for its server's other version ([`Message::stale`]) has no server's
+/// version of its own to wait for: the rules read it as it is here, as they read any copy (#566).
+#[test]
+fn a_copy_of_a_message_waiting_for_its_new_version_doesnt_wait() {
+    let rule = Rule { conditions: vec![Condition::BodyContains(words("report"))], actions: vec![Action::MarkRead], ..Default::default() };
+    let (mut mb, inbox, kept) = mailbox(vec![rule]);
+    let id = listed(&mut mb, inbox);
+    fetched(&mut mb, id, "The report");
+    mb.message_mut(id).unwrap().stale = true;
+    let copy = mb.copy_message_marked(id, kept, 1).unwrap();
+    let copy = mb.message(copy).unwrap();
+    assert!(!copy.stale && mb.message(id).unwrap().stale);
+    let how = Matching { me: "ada@example.org", ..Default::default() };
+    assert!(mb.rules[0].matches_in(copy, &how) && !mb.rules[0].undecided_in(copy, &how));
+}

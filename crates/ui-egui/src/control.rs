@@ -80,7 +80,8 @@ impl HitMap {
     }
 
     /// Record that the `kind` (`message`, `messageRead` for a row's read/unread switch, `folder`,
-    /// `event`, `contact`, `task`) with `id` is at `rect`.
+    /// `event`, `contact`, `task`; `module` for the module bar's icons, numbered from 0 as Mail,
+    /// Calendar, People, Tasks) with `id` is at `rect`.
     pub fn add(&mut self, kind: &'static str, id: u64, rect: egui::Rect) {
         // A list far longer than a screen can show isn't worth recording.
         if self.items.len() < 4000 {

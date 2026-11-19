@@ -481,6 +481,10 @@ pub struct Account {
     /// Empty for every other account, and in a file from before there were any.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub listed_twice: Vec<crate::ListedTwice>,
+    /// Its other sender addresses (#797; [`crate::senders`]): used only by an account that takes
+    /// them ([`Account::takes_sender_addresses`]). Empty in a file from before there were any.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub sender_addresses: Vec<crate::SenderAddress>,
     /// For a [`AccountKind::Jmap`] account: where its server's session resource is and how the
     /// secret is sent ([`JmapServer`]). Plain settings: the secret is never kept here. `None` for
     /// every other account, and in a file from before there were any.
@@ -2929,6 +2933,8 @@ impl Mailbox {
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned, copy.rule_alert) = (None, None, 0, false);
             copy.rules_waiting = None;
+            // (Made on the other server from what is here: nothing of it waits to be fetched again.)
+            copy.stale = false;
             (copy.snooze, copy.follow_up) = (None, None);
             copy.placed.clear();
             copy.left_gmail_inbox();
@@ -2962,6 +2968,9 @@ impl Mailbox {
         // rules waiting for it to be here whole.
         copy.rule_alert = false;
         copy.rules_waiting = None;
+        // A copy has no server's version of its own to wait for: the rules read it as it is here
+        // (#566).
+        copy.stale = false;
         copy.placed.clear();
         copy.left_gmail_inbox();
         hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
@@ -4820,6 +4829,7 @@ impl Mailbox {
         }
         for a in &mut self.accounts {
             a.clamp_opened_calendars();
+            a.clamp_sender_addresses();
             if a.id == 0 || !sane(&a.id) || !seen.insert(a.id) {
                 let old = a.id;
                 a.id = self.next_id;

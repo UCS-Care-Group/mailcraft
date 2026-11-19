@@ -526,6 +526,7 @@ fn message() -> impl Strategy<Value = Message> {
             flag,
             importance,
             read_receipt: false,
+            reaction: false,
             categories,
             answered,
             headers,
@@ -999,4 +1000,29 @@ fn lines_kept_as_they_came_cut_short_leave_only_a_header_rule_unable_to_tell() {
     ] {
         assert!(!told.unread_in(&m), "{told:?}");
     }
+}
+
+/// A reaction (#1544) goes out with its part marked, and what is read back is an ordinary message
+/// whose text is the emoji: the mark is never read into the model, so mail that comes in is not
+/// taken for a reaction.
+#[test]
+fn a_reaction_is_written_marked_and_read_back_as_plain_text() {
+    let m = Message {
+        from: a("", "ada@example.org"),
+        to: vec![a("", "bo@example.org")],
+        subject: "RE: Plans".into(),
+        in_reply_to: "plans@example.org".into(),
+        body: Body { text: "\u{1F44D}".into(), html: None },
+        reaction: true,
+        ..Default::default()
+    };
+    let bytes = write(&m, &WriteOptions::default());
+    let text = String::from_utf8(bytes.clone()).unwrap();
+    assert_eq!(text.matches("Content-Disposition: reaction").count(), 1, "{text}");
+    let back = parse(&bytes);
+    assert_eq!(back.body.text, "\u{1F44D}");
+    assert!(back.attachments.is_empty());
+    assert!(!back.reaction);
+    // Not marked, not written as one.
+    assert!(!String::from_utf8(write(&Message { reaction: false, ..m }, &WriteOptions::default())).unwrap().contains("reaction"));
 }

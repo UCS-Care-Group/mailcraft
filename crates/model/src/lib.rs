@@ -51,6 +51,9 @@ mod rule;
 pub mod search;
 pub mod send_warnings;
 pub mod sender_warnings;
+pub mod senders;
+#[cfg(test)]
+mod senders_tests;
 pub mod shown;
 pub mod signature;
 pub mod subscription;
@@ -101,6 +104,7 @@ pub use rule::{
     Action, Condition, FlagDue, Keep, MAX_RULE_GONE, MAX_WORD, MAX_WORDS_EACH, Marks, Matching, Rule, RuleClock, RuleGone, RuleWaiting, RulesWaiting,
     ServerRule, Words, fold_exceptions, same_word,
 };
+pub use senders::{MAX_SENDER_ADDRESSES, SenderAddress, SenderProblem, clean_sender_addresses};
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
 pub use thread_index::{ThreadIndex, ThreadKey};
