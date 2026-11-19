@@ -67,6 +67,7 @@ pub mod zoned;
 
 use serde::{Deserialize, Serialize};
 
+mod zimbra_server;
 pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, mailbox_address};
 pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
@@ -105,6 +106,7 @@ pub use senders::{MAX_SENDER_ADDRESSES, SenderAddress, SenderProblem, clean_send
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
 pub use thread_index::{ThreadIndex, ThreadKey};
+pub use zimbra_server::ZimbraServer;
 
 /// An item's identity inside one mailbox. 0 means "not assigned yet".
 pub type Id = u64;

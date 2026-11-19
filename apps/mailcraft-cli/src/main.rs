@@ -105,7 +105,14 @@ fn sample() -> Session {
 /// has them: a Digital signature is checked here as there.
 fn trusting(mut s: Session) -> Session {
     s.set_trust_anchors(mailcraft_net::system_trust_anchors());
+    s.zimbra = zimbra_switch();
     s
+}
+
+/// Zimbra accounts may be added and kept in step: `MAILCRAFT_ZIMBRA=1`, for testing. Read here, by
+/// the host, and never from a command's params.
+fn zimbra_switch() -> bool {
+    std::env::var("MAILCRAFT_ZIMBRA").is_ok_and(|value| value.trim() == "1")
 }
 
 /// Every `--allow` value, split at commas: what the owner lets an agent do without asking.
@@ -480,7 +487,13 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     accounts
                         .iter()
                         .find(|a| {
-                            a.kind.has_server() && !matches!(a.kind, mailcraft_model::AccountKind::Jmap | mailcraft_model::AccountKind::Exchange)
+                            a.kind.has_server()
+                                && !matches!(
+                                    a.kind,
+                                    mailcraft_model::AccountKind::Jmap
+                                        | mailcraft_model::AccountKind::Exchange
+                                        | mailcraft_model::AccountKind::Zimbra
+                                )
                         })
                         .or_else(|| accounts.iter().find(|a| a.kind.has_server()))
                         .map(|a| a.id)

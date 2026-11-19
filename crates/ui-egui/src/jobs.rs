@@ -70,7 +70,7 @@ impl MailApp {
         match kind {
             JobKind::Imap => matches!(self.sync_rx, Some(MailRun::Imap { .. })),
             JobKind::Graph => graph_for(false) || self.graph_pieces.is_some() || self.send_gate.is_some(),
-            JobKind::Ews => matches!(self.sync_rx, Some(MailRun::Ews { .. })),
+            JobKind::Ews => matches!(self.sync_rx, Some(MailRun::Ews { .. }) | Some(MailRun::Zimbra { .. })),
             JobKind::Jmap => matches!(self.sync_rx, Some(MailRun::Jmap { .. })),
             JobKind::Inbox => self.inbox_run.is_some() || self.inbox_check.under_way() || self.inbox_check.gave_way_waiting(),
             JobKind::Shared => graph_for(true) || !self.shared_checking.is_empty(),

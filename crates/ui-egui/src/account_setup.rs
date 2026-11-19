@@ -22,6 +22,7 @@
 mod exchange;
 mod help;
 mod senders;
+mod zimbra;
 
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
@@ -97,6 +98,8 @@ pub enum Page {
     ExchangeCertificate,
     /// The mailbox is in Microsoft 365: it is added as a Microsoft account.
     ExchangeOnline,
+    /// A Zimbra account: the password, the server's address and the user name.
+    Zimbra,
 }
 
 /// The kinds of account the owner can pick by hand.
@@ -113,6 +116,8 @@ pub enum Kind {
     Local,
     /// An Exchange server the owner's organisation runs itself (#252).
     Exchange,
+    /// A Zimbra server, through its own web service (while Zimbra accounts are being tested).
+    Zimbra,
 }
 
 impl Kind {
@@ -121,9 +126,12 @@ impl Kind {
 
     /// The tiles of the Choose page: the kinds with servers, and the Exchange server (found from
     /// the domain's Autodiscover records when it publishes them, and chosen here otherwise).
-    fn tiles() -> Vec<Kind> {
+    fn tiles(zimbra: bool) -> Vec<Kind> {
         let mut tiles = Kind::HOSTED.to_vec();
         tiles.push(Kind::Exchange);
+        if zimbra {
+            tiles.push(Kind::Zimbra);
+        }
         tiles
     }
 
@@ -135,7 +143,7 @@ impl Kind {
             Kind::Google => Some("google"),
             Kind::Yahoo => Some("yahoo"),
             Kind::ICloud => Some("icloud"),
-            Kind::Other | Kind::Local | Kind::Exchange => None,
+            Kind::Other | Kind::Local | Kind::Exchange | Kind::Zimbra => None,
         }
     }
 
@@ -149,6 +157,7 @@ impl Kind {
             Kind::Other => "Other (IMAP)",
             Kind::Local => "This device only",
             Kind::Exchange => "Exchange server (your organisation's own)",
+            Kind::Zimbra => "Zimbra",
         }
     }
 
@@ -162,6 +171,7 @@ impl Kind {
             Kind::Other => "Any other mail server",
             Kind::Local => "A mailbox kept here, with no mail server",
             Kind::Exchange => "A mail server your organisation runs itself",
+            Kind::Zimbra => "Zimbra Collaboration 8.8 or later, through its web service",
         }
     }
 
@@ -171,6 +181,7 @@ impl Kind {
             Kind::Microsoft365 => "work",
             Kind::OutlookCom | Kind::Google | Kind::Yahoo | Kind::ICloud => "mail",
             Kind::Other | Kind::Exchange => "server",
+            Kind::Zimbra => "zimbra",
             Kind::Local => "device",
         }
     }
@@ -559,6 +570,10 @@ pub struct AccountSetup {
     reveal: bool,
     /// What the Exchange server pages keep (#252).
     exchange: exchange::Exchange,
+    /// What the Zimbra page keeps.
+    zimbra: zimbra::Zimbra,
+    /// The settings are of a Zimbra account: its one server is its web client's address.
+    zimbra_account: bool,
     /// The settings are of an Exchange server account: where it connects is shown, not changed.
     ews: Option<mailcraft_model::EwsServer>,
 }
@@ -668,6 +683,8 @@ impl AccountSetup {
             ctx: None,
             reveal: false,
             exchange: Default::default(),
+            zimbra: Default::default(),
+            zimbra_account: false,
             ews: None,
         }
     }
@@ -754,6 +771,16 @@ impl AccountSetup {
         }
         if a.kind == AccountKind::Exchange {
             w.ews = Some(a.ews.clone().unwrap_or_default());
+        }
+        if a.kind == AccountKind::Zimbra {
+            w.zimbra_account = true;
+            let server = a.zimbra.clone().unwrap_or_default();
+            w.zimbra.url = line(&server.url, mailcraft_model::ZimbraServer::MAX_URL);
+            w.username = line(&server.username, LINE);
+            let baseline = w.fields();
+            if let Some(edit) = w.edit.as_mut() {
+                edit.baseline = baseline;
+            }
         }
         w
     }
@@ -902,6 +929,9 @@ impl AccountSetup {
 
     /// The fields Account Settings can change, as `account.edit` takes them.
     fn fields(&self) -> Map<String, Value> {
+        if self.zimbra_account {
+            return self.zimbra_fields_map();
+        }
         let mut m = object(json!({
             "name": self.account_name.trim(),
             "displayName": self.name.trim(),
@@ -921,6 +951,9 @@ impl AccountSetup {
     /// What keeps the servers from being used, in the interface language; nothing when they can be. A new
     /// account needs its incoming server (`connected`); an existing one may have none.
     fn settings_problem(&self, connected: bool) -> Option<String> {
+        if self.zimbra_account {
+            return self.zimbra_settings_problem();
+        }
         let (incoming, outgoing) = (&self.incoming, &self.outgoing);
         if incoming.host.trim().is_empty() {
             if connected {
@@ -1042,6 +1075,11 @@ impl AccountSetup {
             return close;
         }
         match (self.page, action) {
+            (Page::Zimbra, Action::Go) => self.zimbra_connect(app),
+            (Page::Zimbra, Action::Back) => {
+                self.forget_password();
+                self.go(Page::Choose);
+            }
             (Page::Address, Action::Go) => self.connect(app),
             (Page::Detecting, Action::Back) => {
                 (self.lookup, self.autodiscover) = (None, None);
@@ -1285,6 +1323,15 @@ impl AccountSetup {
 
     /// A tile of the Choose page.
     fn pick(&mut self, app: &mut MailApp, kind: Kind) {
+        if kind == Kind::Zimbra {
+            if address(&self.email).is_none() {
+                self.error = self.not_an_address();
+                return;
+            }
+            self.picked = true;
+            self.zimbra_page_from();
+            return;
+        }
         if kind == Kind::Exchange {
             // (The address typed already is the account's; nothing is sent yet.)
             if address(&self.email).is_none() {
@@ -1954,7 +2001,7 @@ impl AccountSetup {
         let action = match self.page {
             Page::Address => self.address_page(ui, &mut pass),
             Page::Detecting => waiting_page(ui, &pass, self.page, tl!("Finding your account settings…"), &shown(self.email.trim(), 120)),
-            Page::Choose => self.choose_page(ui, &pass),
+            Page::Choose => self.choose_page(app.session.zimbra, ui, &pass),
             Page::ApplicationId => self.application_id_page(ui, &mut pass),
             Page::SignIn if self.waiting => self.signing_in_page(app, ui, &pass),
             Page::SignIn => self.sign_in_ended_page(app, ui, &pass),
@@ -1974,6 +2021,7 @@ impl AccountSetup {
             Page::ExchangeConsent => self.exchange_consent(ui, &pass),
             Page::ExchangeCertificate => self.exchange_certificate(ui, &pass),
             Page::ExchangeOnline => self.exchange_online(ui, &pass),
+            Page::Zimbra => self.zimbra_form(app, ui, &mut pass),
         };
         action.is_some_and(|action| self.act(app, action))
     }
@@ -2052,7 +2100,7 @@ impl AccountSetup {
         (ready && (go || pass.submit)).then_some(Action::Go)
     }
 
-    fn choose_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
+    fn choose_page(&mut self, zimbra: bool, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
         let mut action = None;
         page(ui, &t, |ui| {
@@ -2061,7 +2109,7 @@ impl AccountSetup {
             ui.add_space(4.0);
             let gap = ui.spacing().item_spacing.x;
             let half = ((ui.available_width() - gap) / 2.0).max(40.0);
-            for pair in Kind::tiles().chunks(2) {
+            for pair in Kind::tiles(zimbra).chunks(2) {
                 ui.horizontal(|ui| {
                     for kind in pair {
                         if tile(ui, *kind, half, &t).clicked() {
@@ -2386,7 +2434,9 @@ impl AccountSetup {
         let t = pass.t;
         let exchange = self.ews.is_some();
         let asks = self.oauth.is_none()
-            && if exchange {
+            && if self.zimbra_account {
+                app.services.zimbra.is_some()
+            } else if exchange {
                 app.services.ews_setup.is_some() || app.services.ews.is_some()
             } else {
                 app.services.test_account.is_some() || app.services.sync.is_some()
@@ -2404,6 +2454,9 @@ impl AccountSetup {
         let configured = app.google_registration_ready();
         let how = match &self.oauth {
             None if exchange => tl!("Signs in to an Exchange server with a user name and password").to_string(),
+            None if self.zimbra_account => {
+                tl!("Zimbra · signs in with a user name and password, and a code when the account asks for one").to_string()
+            }
             Some(oauth) => fmt(tl!("Signs in on the {provider} page in your browser"), &[("provider", oauth.provider.label())]),
             None if self.incoming.host.trim().is_empty() && self.outgoing.host.trim().is_empty() => {
                 tl!("On this device only: no mail server").to_string()
@@ -2466,7 +2519,10 @@ impl AccountSetup {
                 self.password_field(ui, pass, app.secret_watch(), tl!("Leave empty to keep the one in use"));
             }
             // (An account still on IMAP that signs in with Microsoft keeps them: it uses them.)
-            if exchange {
+            if self.zimbra_account {
+                zimbra::technology_note(ui, &t);
+                self.zimbra_fields(ui, pass);
+            } else if exchange {
                 let server = self.ews.clone();
                 self.exchange_settings(ui, &t, server.as_ref());
             } else if !self.graph {
@@ -2491,20 +2547,27 @@ impl AccountSetup {
                     ui.label(crate::keep_offline::label(*keep));
                 });
             }
-            if let Some((_, ask)) = self.ask_conversation.as_mut() {
-                caption(ui, tl!("Deleting"), &t);
-                ui.checkbox(ask, tl!("Ask before deleting a conversation"))
-                    .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
+            // Deleting and the colour side by side, so that the page ends above the buttons in a
+            // window of a usual height.
+            if self.ask_conversation.is_some() || self.color.is_some() {
+                ui.columns(2, |columns| {
+                    if let (Some((_, ask)), Some(ui)) = (self.ask_conversation.as_mut(), columns.get_mut(0)) {
+                        caption(ui, tl!("Deleting"), &t);
+                        ui.checkbox(ask, tl!("Ask before deleting a conversation"))
+                            .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
+                    }
+                    if let (Some((_, color)), Some(ui)) = (self.color.as_mut(), columns.get_mut(1)) {
+                        caption(ui, tl!("Colour"), &t);
+                        let shown_where = tl!("Beside its name and on its mail");
+                        if let Some(picked) = crate::widgets::color_swatch(ui, 24.0, *color, Some(tl!("No colour"))) {
+                            *color = picked;
+                        }
+                        note(ui, shown_where, t.text_dim);
+                    }
+                });
             }
             if let Some(senders) = self.senders.as_mut() {
                 senders.show(ui, &t, &signatures);
-            }
-            if let Some((_, color)) = self.color.as_mut() {
-                caption(ui, tl!("Colour"), &t);
-                if let Some(picked) = crate::widgets::color_swatch(ui, 24.0, *color, Some(tl!("No colour"))) {
-                    *color = picked;
-                }
-                note(ui, tl!("Shown beside the account's name, and on its mail where mail of several accounts is listed together."), t.text_dim);
             }
             if let Some(gmail) = self.gmail.as_mut() {
                 caption(ui, tl!("Gmail categories"), &t);

@@ -113,7 +113,11 @@ impl Touched {
 /// whose changes go up as the difference to what the server last said: kept in step through
 /// Graph, through Exchange Web Services, or over JMAP.
 fn graph_accounts(mb: &Mailbox) -> BTreeSet<Id> {
-    mb.accounts.iter().filter(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange | AccountKind::Jmap)).map(|a| a.id).collect()
+    mb.accounts
+        .iter()
+        .filter(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange | AccountKind::Jmap | AccountKind::Zimbra))
+        .map(|a| a.id)
+        .collect()
 }
 
 /// Whether `m` is one of those accounts' (or is being moved out of one).

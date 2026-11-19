@@ -64,6 +64,7 @@ mod file_dialogs;
 mod file_launcher;
 #[cfg(windows)]
 mod recent_attachments;
+mod zimbra_runner;
 // OpenPGP keys kept in GnuPG, through gpg-agent (#30): signing and decrypting (parts 5 and 6) use it.
 #[cfg_attr(not(test), expect(dead_code, reason = "#30 part 5 signs through it"))]
 mod gpg_agent;
@@ -343,6 +344,18 @@ fn opened_files() -> Option<&'static opened_files::Opened> {
 /// Where the log files live: `logs` in the preferences folder (see `logging`).
 fn log_dir() -> Option<PathBuf> {
     Some(prefs_path()?.parent()?.join("logs"))
+}
+
+/// The switch for testing Zimbra accounts: `MAILCRAFT_ZIMBRA=1`. Off, Add Account doesn't offer
+/// them, `account.add` and every `sync.zimbra*` command refuse, and a Zimbra account already in a
+/// mailbox opens, shows its mail and isn't kept in step.
+fn zimbra_switch() -> bool {
+    let on = std::env::var("MAILCRAFT_ZIMBRA").is_ok_and(|value| value.trim() == "1");
+    static SAID: std::sync::Once = std::sync::Once::new();
+    if on {
+        SAID.call_once(|| log::info!("Zimbra accounts may be added and kept in step (MAILCRAFT_ZIMBRA=1, for testing)"));
+    }
+    on
 }
 
 /// Runs without preferences (`MAILCRAFT_NO_PREFS`, agents' test runs) neither read nor write them,
@@ -1103,6 +1116,7 @@ fn services(
     let approval_ctx = ctx.clone();
     let fetch_ctx = ctx.clone();
     let (ews_ctx, ews_fetch_ctx, ews_setup_ctx, ews_resolve_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone());
+    let (zimbra_ctx, zimbra_fetch_ctx) = (ctx.clone(), ctx.clone());
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
     let rules_ctx = ctx.clone();
@@ -1209,6 +1223,8 @@ fn services(
         // An Exchange server account (#252): read through Exchange Web Services, and its messages fetched whole.
         ews: Some(Box::new(move |job| ews_runner::run_mail(job, &ews_ctx))),
         ews_fetch: Some(Box::new(move |job| ews_runner::run_fetch(job, &ews_fetch_ctx))),
+        zimbra: Some(Box::new(move |job| zimbra_runner::run_mail(job, &zimbra_ctx))),
+        zimbra_fetch: Some(Box::new(move |job| zimbra_runner::run_fetch(job, &zimbra_fetch_ctx))),
         ews_setup: Some(Box::new(move |job| ews_setup::run_setup(job, &ews_setup_ctx))),
         // Names looked up in its address list, on the owner's Check Names (#1262).
         ews_resolve: Some(Box::new(move |job| ews_runner::run_resolve(job, &ews_resolve_ctx))),
@@ -1702,6 +1718,7 @@ fn main() -> eframe::Result {
                 let (mailbox, path, unavailable, unchecked, damaged) =
                     (arrival.mailbox, arrival.path, arrival.unavailable, arrival.unchecked, arrival.damaged);
                 let mut session = Session::new(mailbox);
+                session.zimbra = zimbra_switch();
                 let kept = path.is_some();
                 session.path = path;
                 // Search answers from a word index kept beside the mailbox file, built in the

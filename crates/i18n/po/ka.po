@@ -1666,6 +1666,11 @@ msgid "Apply Downloaded To-dos"
 msgstr "ჩამოტვირთული დავალებების გამოყენება"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Apply Downloaded Zimbra Messages"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -1694,6 +1699,11 @@ msgstr "გაგზავნა/მიღების გამოყენე�
 #, fuzzy
 msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "გაგზავნა/მიღების გამოყენება Microsoft Graph-ით"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Apply Send/Receive with Zimbra"
+msgstr "Zimbra-ით გაგზავნის/მიღების გამოყენება"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -2320,7 +2330,7 @@ msgid "Available formats:"
 msgstr "ხელმისაწვდომი ფორმატები:"
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Back"
 msgstr "უკან"
@@ -2384,6 +2394,11 @@ msgstr "ამ წერილთან ფრთხილად იყავი
 #, fuzzy
 msgid "Before anything changes, a copy of your whole mailbox is saved next to it, with today's date in its name."
 msgstr "სანამ რამე შეიცვლება, თქვენი მთელი საფოსტო ყუთის ასლი მის გვერდით ინახება, სახელში დღევანდელი თარიღით."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Beside its name and on its mail"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -3417,6 +3432,11 @@ msgstr "გვერდი დაიხურა? ეს პროვაიდ�
 msgid "Closes this window. Nothing is kept."
 msgstr "ხურავს ამ ფანჯარას. არაფერი შეინახება."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Code from your authenticator app for {account}"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -3513,7 +3533,7 @@ msgid "Confirm servers"
 msgstr "სერვერების დადასტურება"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Connect"
 msgstr "დაკავშირება"
@@ -4721,6 +4741,11 @@ msgstr "სურათების ჩამოტვირთვა მთე�
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "ფოსტაში სურათების ავტომატურად ჩამოტვირთვა"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Download Zimbra Messages in Full"
+msgstr "Zimbra-ის შეტყობინებების სრულად ჩამოტვირთვა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6878,6 +6903,11 @@ msgstr "თუ თქვენი საკუთარი ადმინის
 msgid "If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts."
 msgstr "თუ გაქვთ, აქ ჩასვით მისი აპლიკაციის (კლიენტის) ID. ის Microsoft Entra-ს აპლიკაციის რეგისტრაციიდან მოდის: საჯარო კლიენტი გადამისამართების URI-ით http://localhost, ნებისმიერი დირექტორიის ანგარიშებისა და პირადი ანგარიშებისთვის."
 
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "If your account signs in with a second step, MailCraft asks for the code of your authenticator app when it first connects."
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8398,6 +8428,11 @@ msgstr "MailCraft ამ სერვერზე ამ გზით შეს�
 #, fuzzy
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
 msgstr "MailCraft შეიცავს ქვემოთ ჩამოთვლილ პროგრამებს. მისი ბირთვის Rust ბიბლიოთეკები ვერსიებით ჩამოთვლილია წყაროს რეპოზიტორიაში."
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "MailCraft connects to Zimbra through its own web service over HTTPS: the SOAP API (in JSON) and REST, not IMAP or SMTP. It needs Zimbra Collaboration 8.8 or later."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -13913,7 +13948,7 @@ msgid "Send & Receive"
 msgstr "გაგზავნა და მიღება"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "გაგზავნა / მიღება"
@@ -14211,7 +14246,7 @@ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
 msgstr "გაგზავნა/მიღება Microsoft-ში შედის; შემდეგ სერვერზე ძიება შესაძლებელი გახდება."
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Send/Receive stopped unexpectedly"
 msgstr "გაგზავნა/მიღება მოულოდნელად შეწყდა"
@@ -14233,6 +14268,11 @@ msgstr "გაგზავნა/მიღება JMAP-ით"
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "გაგზავნა/მიღება Microsoft Graph-ით"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Send/Receive with Zimbra"
+msgstr "გაგზავნა/მიღება Zimbra-ით"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -14265,7 +14305,7 @@ msgid "Sending"
 msgstr "გაგზავნა"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "Sending and receiving…"
 msgstr "გაგზავნა და მიღება…"
@@ -15473,7 +15513,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "შეჩერდა ბოლომდე მისვლამდე. დანარჩენის შემოსატანად ფაილი ხელახლა შემოიტანეთ."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "შეჩერდა; შემდეგ ჯერზე აქედან გაგრძელდება"
@@ -16159,6 +16199,11 @@ msgstr "ციფრულ ხელმოწერას ვადა გაუ
 msgid "The Entire Series"
 msgstr "მთელი სერია"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The Zimbra server is asked to trust this computer, so that it doesn't ask for a code every time."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -16178,7 +16223,7 @@ msgid "The account could not be removed. It and its sign-in are still here. Try 
 msgstr "ანგარიშის წაშლა ვერ მოხერხდა. ის და მისი შესვლა ისევ აქაა. კიდევ სცადეთ."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "The account couldn't be added"
 msgstr "ანგარიში ვერ დაემატა"
@@ -16272,6 +16317,11 @@ msgstr "მისამართების სიაში ამ სახე
 #, fuzzy
 msgid "The address of the calendar"
 msgstr "კალენდრის მისამართი"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The address your browser opens Zimbra's web client at. It must begin with https://."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -17375,7 +17425,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "სერვერმა ამ ანგარიშით შესვლა უარყო. ხელახლა შესასვლელად გამოიყენეთ „გაგზავნა/მიღება“."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "სერვერმა ანგარიშით {name} შესვლა უარყო: ხელახლა შედით"
@@ -17391,6 +17441,11 @@ msgstr "სერვერის მისამართი უნდა იწ
 #, fuzzy
 msgid "The server's address or the user name can't be used. Check them in Server settings."
 msgstr "სერვერის მისამართის ან მომხმარებლის სახელის გამოყენება შეუძლებელია. შეამოწმეთ ისინი სერვერის პარამეტრებში."
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The server's address {why}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -17697,6 +17752,11 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "მომხმარებლის სახელი ზედმეტად გრძელია ან შეიცავს სიმბოლოს, რომელიც სახელში არ შეიძლება იყოს"
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "The user name {why}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
@@ -17985,7 +18045,7 @@ msgid "This build can't connect to Microsoft"
 msgstr "ამ ანაწყობს Microsoft-თან დაკავშირება არ შეუძლია"
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/zimbra_mail.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "ამ ანაწყობს ფოსტის სერვერებთან დაკავშირება არ შეუძლია"
@@ -19190,6 +19250,11 @@ msgid "Type a name in the search box to search the organisation's address list"
 msgstr "ორგანიზაციის მისამართების სიაში მოსაძებნად საძიებო ველში აკრიფეთ სახელი"
 
 #. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Type the address of your Zimbra server, as your browser opens its web client"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Type the name of the incoming mail server"
@@ -19367,7 +19432,7 @@ msgid "Up to 50 MB"
 msgstr "50 მბ-მდე"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "განახლებულია"
@@ -19523,7 +19588,7 @@ msgid "Use {address}"
 msgstr "გამოყენება: {address}"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/account_setup/zimbra.rs
 #, fuzzy
 msgid "User name"
 msgstr "მომხმარებლის სახელი"
@@ -19545,6 +19610,11 @@ msgstr "მომხმარებლის სახელი"
 #, fuzzy
 msgid "Usually the whole address"
 msgstr "როგორც წესი, მთლიანი მისამართი"
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Usually the whole address; empty for your address"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -20517,6 +20587,56 @@ msgstr "თქვენი სახელი."
 msgid "Z on top"
 msgstr "ჯერ Z"
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra Collaboration 8.8 or later, through its web service"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra account"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr "Zimbra-ის ანგარიშები მოწმდება: გაუშვით MailCraft MAILCRAFT_ZIMBRA=1-ით, რომ სცადოთ"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/zimbra.rs
+msgid "Zimbra server address (web client, HTTPS)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Zimbra {host} · not kept in step yet: this part is not built"
+msgstr "Zimbra {host} · ჯერ არ სინქრონიზდება: ეს ნაწილი ჯერ არ არის აგებული"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr "Zimbra {host} · არ სინქრონიზდება: Zimbra-ის ანგარიშები გამორთულია (გაუშვით MailCraft MAILCRAFT_ZIMBRA=1-ით, რომ სცადოთ)"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Zimbra · no usable server address"
+msgstr "Zimbra · გამოყენებადი სერვერის მისამართი არ არის"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Zimbra · signs in with a user name and password, and a code when the account asks for one"
+msgstr ""
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -20642,6 +20762,11 @@ msgstr "Microsoft-ის ან Exchange-ის ანგარიში სხ�
 #, fuzzy
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "Microsoft-ით შესვლა მხოლოდ Microsoft-ის საკუთარ საფოსტო სერვერებთან გამოიყენება: ეს ანგარიში სხვა სერვერს ასახელებს"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "Zimbra-ის ანგარიშის სერვერის, მისამართისა და მომხმარებლის სახელის შეცვლა შეუძლებელია, როცა მისი ფოსტა უკვე აქ არის: წაშალეთ და დაამატეთ მეორე"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -20926,6 +21051,11 @@ msgstr "S/MIME სერტიფიკატი სანდოა თავი
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
 msgstr "ანგარიში JMAP ანგარიში ხდება ან აღარ არის ასეთი მხოლოდ წაშლითა და ხელახლა დამატებით"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr "ანგარიში Zimbra-ის ანგარიში ხდება ან წყვეტს ასეთი ყოფნა მხოლოდ წაშლითა და ხელახლა დამატებით"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21488,6 +21618,11 @@ msgid "no account here keeps its rules on its server"
 msgstr "აქ არცერთი ანგარიში თავის წესებს სერვერზე არ ინახავს"
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "no account is a Zimbra account"
+msgstr "არც ერთი ანგარიში არ არის Zimbra-ის ანგარიში"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -21524,7 +21659,7 @@ msgid "no account with id {account}"
 msgstr "ანგარიში id-ით {account} არ არსებობს"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "ანგარიში id-ით {id} არ არსებობს"
@@ -21626,7 +21761,7 @@ msgid "no message with id {id}"
 msgstr "წერილი id-ით {id} არ არსებობს"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "{name}: წერილი id-ით {id} არ არსებობს"
@@ -22606,7 +22741,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "შედეგის გამო ეს ანგარიში იმაზე მეტ სინქრონიზაციის მდგომარეობას შეინახავდა, ვიდრე მიიღება"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "შედეგი {why}"
@@ -23163,16 +23298,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "ამ Exchange სერვერის ანგარიშს სერვერის პარამეტრები არ აქვს"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "ეს „გაგზავნა/მიღება“ სხვა ანგარიშისთვის იყო და არა ანგარიშისთვის {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "ეს „გაგზავნა/მიღება“ იყო სერვერისთვის, რომელსაც {name} ადრე ასახელებდა"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -23970,6 +24110,11 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name}: JMAP სერვერის გამოსადეგი მისამართი არ არის"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "{name} has no Zimbra server address that can be used"
+msgstr "{name}-ს არ აქვს გამოყენებადი Zimbra-ის სერვერის მისამართი"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -24040,6 +24185,11 @@ msgstr "{name} არ არის IMAP-ით სინქრონიზებ
 #, fuzzy
 msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "{name} არ არის Microsoft ან Exchange სერვერის ანგარიში"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "{name} isn't a Zimbra account"
+msgstr "{name} არ არის Zimbra-ის ანგარიში"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -25353,6 +25503,11 @@ msgstr "{why}, ამიტომ შესვლები არ ინახ�
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. მასში აქ შეტანილი ცვლილებები ({n}) ამ კომპიუტერზე ელოდება."
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "{why}: send this message from another account, or save it as a draft"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 msgid "ΔLines"
@@ -25401,6 +25556,9 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Zimbra-ის ანგარიშებით ჯერ ვერ იგზავნება და ვერ მიიღება: ეს ნაწილი ჯერ არ არის აგებული"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"
