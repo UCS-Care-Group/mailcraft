@@ -42,6 +42,8 @@ pub mod io;
 mod launchable_tests;
 pub mod list;
 #[cfg(test)]
+mod load_where_tests;
+#[cfg(test)]
 mod mailbox_readers_tests;
 pub mod mark;
 #[cfg(test)]
@@ -369,11 +371,13 @@ pub mod p {
         if v.is_object() || v.is_null() { Ok(()) } else { Err(CmdError::Params("the parameters are an object".into())) }
     }
     /// Refuses any parameter but `known`: a caller that names what the command doesn't take
-    /// means something by it that the command would not do.
+    /// means something by it that the command would not do. `confirmed` is always taken: it is
+    /// the window's note that the owner said yes to the question asked before the command, and
+    /// it changes nothing the command does (a yes to Remove Imported Duplicates was refused).
     pub fn only(v: &Value, known: &[&str]) -> Result<(), CmdError> {
         match v {
             Value::Null => Ok(()),
-            Value::Object(map) => match map.keys().find(|k| !known.contains(&k.as_str())) {
+            Value::Object(map) => match map.keys().find(|k| k.as_str() != "confirmed" && !known.contains(&k.as_str())) {
                 Some(k) => Err(CmdError::Params(format!(
                     "`{k}` isn't a parameter of this command (it takes {})",
                     known.iter().map(|k| format!("`{k}`")).collect::<Vec<_>>().join(", ")

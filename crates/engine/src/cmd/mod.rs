@@ -23,6 +23,9 @@ pub mod calendar_extra;
 pub mod calendar_opened;
 pub mod calendar_settings;
 pub mod calendar_subscribed;
+pub mod categories_remote;
+#[cfg(test)]
+mod categories_remote_tests;
 pub mod category;
 #[cfg(test)]
 mod category_tests;
@@ -44,6 +47,8 @@ pub mod edit;
 mod ews_down;
 pub mod ews_mail;
 mod ews_up;
+#[cfg(test)]
+mod failing_messages_tests;
 #[cfg(test)]
 mod favorites_tests;
 pub mod file;
@@ -89,6 +94,9 @@ mod imap_outbox_tests;
 pub mod imported_dupes;
 #[cfg(test)]
 mod imported_dupes_tests;
+pub mod item_from_message;
+#[cfg(test)]
+mod item_from_message_tests;
 mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
@@ -130,6 +138,9 @@ mod protected_moves_tests;
 mod quote_tests;
 #[cfg(test)]
 mod range_select_tests;
+pub mod react;
+#[cfg(test)]
+mod react_tests;
 #[cfg(test)]
 mod read_receipt_tests;
 #[cfg(test)]
@@ -152,6 +163,9 @@ pub mod search_server;
 mod search_suggest_tests;
 pub mod send_later;
 pub mod send_receive;
+pub mod senders;
+#[cfg(test)]
+mod senders_tests;
 pub mod shared;
 pub mod signature;
 #[cfg(test)]
@@ -222,6 +236,7 @@ pub fn registry() -> Registry {
     v.extend(people_merge::specs());
     v.extend(imported_dupes::specs());
     v.extend(tasks::specs());
+    v.extend(item_from_message::specs());
     v.extend(notes::specs());
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
@@ -229,13 +244,16 @@ pub fn registry() -> Registry {
     v.extend(unsubscribe::specs());
     v.extend(keys::specs());
     v.extend(category::specs());
+    v.extend(categories_remote::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());
     v.extend(offline::specs());
     v.extend(device_limits::specs());
     v.extend(send_receive::specs());
     v.extend(send_later::specs());
+    v.extend(react::specs());
     v.extend(signature::specs());
+    v.extend(senders::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
     v.extend(ews_mail::specs());

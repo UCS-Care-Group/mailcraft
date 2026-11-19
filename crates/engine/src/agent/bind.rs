@@ -78,6 +78,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "mail.copy"
         | "mail.removeAttachment"
         | "mail.sendAgain"
+        | "mail.react"
         | "mail.setSendTime"
         | "mail.dismissWarnings"
         | "junk.blockSender"
@@ -88,18 +89,19 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.unsubscribe"
         | "mail.unsubscribe"
         | "ui.retryPictures"
-        | "ui.alwaysDownloadPictures" => Messages,
+        | "ui.alwaysDownloadPictures"
+        | "mail.categorize" => Messages,
         "folder.empty" | "folder.delete" => FolderContent,
         // (The clean-up of #1401 reaches every folder when it names none: its question counts
         // what goes, and is described again on the yes.)
         "rules.run" | "file.import" | "calendar.deleteAnsweredRequests" | "mail.removeImportedDuplicates" => Folder,
-        "people.delete" | "people.merge" => Contact,
+        "people.delete" | "people.merge" | "people.categorize" => Contact,
         "tasks.delete" | "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.new" | "tasks.fromMessage" => Task,
         // A calendar command that writes to people is asked about whatever it is (`classify`).
         "calendar.forward" | "calendar.propose" | "calendar.delete" | "people.meeting" | "ui.joinMeeting" => Event,
         _ if id.starts_with("calendar.") && !CALENDARS.contains(&id) => Event,
         _ if CALENDARS.contains(&id) => Calendar,
-        "category.remove" | "category.rename" => Category,
+        "category.remove" | "category.rename" | "category.addToOutlook" | "category.set" => Category,
         "account.setAutomaticReplies"
         | "account.add"
         | "account.edit"
@@ -110,6 +112,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "account.graphSwitch"
         | "account.addSharedMailbox"
         | "account.removeSharedMailbox"
+        | "account.setSenderAddresses"
         | "account.thinOffline"
         | "account.deviceLimits"
         | "account.trimDevice"
@@ -122,6 +125,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.allowTasks"
         | "ui.allowRules"
         | "ui.allowAutomaticReplies"
+        | "ui.allowSync"
         | "ui.adminConsent"
         | "ui.signInAgain"
         | "ui.microsoftClientId"
@@ -147,6 +151,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.desktopAlerts"
         | "ui.closeToTray"
         | "ui.repliesInWindow"
+        | "ui.attachmentPictures"
+        | "ui.swipeAction"
         | "ui.updateCheck"
         | "ui.updateInstall"
         | "ui.dismissUpdateNotice"

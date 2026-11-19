@@ -1,1 +1,0 @@
-| 2026-11-16 | Headline numbers gain the essentials, mainstream and full-target estimates with hours left, and the catalog row is named feature breadth (251 / 316); a By dimension table; the areas gain Ready and Hours columns; Parity themes is headed Upcoming |
