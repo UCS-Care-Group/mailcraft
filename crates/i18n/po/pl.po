@@ -14587,7 +14587,7 @@ msgstr "Wysyła raport zespołowi MailCraft w postaci pokazanej w tym oknie."
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Sensitivity is"
-msgstr "Poufność to"
+msgstr "Charakter to"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -22382,28 +22382,28 @@ msgstr "najpierw wybierz termin"
 #, fuzzy
 msgctxt "sensitivity"
 msgid "Confidential"
-msgstr "Poufna"
+msgstr "Poufny"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgctxt "sensitivity"
 msgid "Normal"
-msgstr "Normalna"
+msgstr "Normalny"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgctxt "sensitivity"
 msgid "Personal"
-msgstr "Osobista"
+msgstr "Osobisty"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgctxt "sensitivity"
 msgid "Private"
-msgstr "Prywatna"
+msgstr "Prywatny"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
@@ -23177,7 +23177,7 @@ msgstr "serwer nie potrafi sprawdzać dnia nadejścia poczty"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server can't look at whether you flagged mail"
-msgstr "serwer nie potrafi sprawdzić, czy oflagowałeś pocztę"
+msgstr "serwer nie potrafi sprawdzić, czy oflagowano pocztę"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
