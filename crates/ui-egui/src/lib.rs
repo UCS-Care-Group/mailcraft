@@ -4990,6 +4990,13 @@ impl MailApp {
             // egui closes the window on Mod+Q by itself; here that is Mark as Read. A Mac quits
             // from its app menu (craft-quit).
             ctx.options_mut(|o| o.quit_shortcuts.clear());
+            // A wheel notch arrives as one line, which egui makes 40 points on the desktop: not
+            // two lines of text, half a message row (#1513). Three lines, as other programs
+            // scroll. Touchpads send points and are unchanged; the browser keeps egui's own.
+            // lean: fixed step; read the desktop's wheel setting (lines per notch) if asked for.
+            if !cfg!(target_arch = "wasm32") {
+                ctx.options_mut(|o| o.input_options.line_scroll_speed = 56.0);
+            }
             self.styled = true;
         }
         // Settled from the main window's input, so every window has the same theme.
