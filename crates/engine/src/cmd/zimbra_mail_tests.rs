@@ -58,6 +58,21 @@ fn apply(s: &mut Session, r: ZimbraMailResult) -> Value {
     s.run("sync.applyZimbra", &json!({"result": r})).unwrap()
 }
 
+#[test]
+fn an_incomplete_listing_prevents_a_later_piece_advancing_the_token() {
+    let (mut s, account) = session();
+    let mut partial = result(account, "");
+    partial.listing = Some(FolderListing { folders: listing().folders, complete: false });
+    partial.partial = true;
+    apply(&mut s, partial);
+    let mut end = result(account, "");
+    end.whole = true;
+    end.token = "5".into();
+    end.resume = Some(Vec::new());
+    apply(&mut s, end);
+    assert!(s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap().token.is_empty());
+}
+
 fn subjects(s: &Session, account: Id, kind_or_name: &str) -> Vec<String> {
     let folder = s.mailbox.folders.iter().find(|f| f.account == account && f.name == kind_or_name).map(|f| f.id).unwrap();
     let mut out: Vec<String> = s.mailbox.messages.values().filter(|m| m.folder == folder).map(|m| m.subject.clone()).collect();

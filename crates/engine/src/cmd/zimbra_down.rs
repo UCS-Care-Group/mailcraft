@@ -98,7 +98,7 @@ pub(crate) fn bounded(mut result: ZimbraMailResult) -> (ZimbraMailResult, bool) 
         let whole = listing.folders.len() == before;
         // (A listing with no folder is not one: an account always has an Inbox.)
         listing.complete &= whole && !listing.folders.is_empty();
-        cut |= !whole;
+        cut |= !listing.complete;
     }
     result.well_known.retain(|id| zimbra_id_ok(id));
     cut |= result.pages.len() > MAX_PAGES;
