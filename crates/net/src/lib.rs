@@ -53,6 +53,8 @@ pub mod idle;
 #[cfg(test)]
 mod idle_tests;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod imap_search;
+#[cfg(not(target_arch = "wasm32"))]
 mod kept;
 #[cfg(not(target_arch = "wasm32"))]
 mod kinds;
