@@ -113,3 +113,29 @@ fn an_item_of_a_menu_with_a_field_still_shuts_it() {
     harness.run_steps(3);
     assert!(!egui::Popup::is_any_open(&harness.ctx), "Automatic, chosen, shuts the menu");
 }
+
+/// File › Signatures › Colour holds the same field, and keeps a click in it too: it shut on that
+/// click, so a colour of the owner's own could not be typed (#1464).
+#[test]
+fn the_signature_colour_menu_keeps_a_click_in_its_field() {
+    let mut harness = window(1400.0);
+    let app = harness.state_mut();
+    app.run("signature.set", json!({"name": "Mine", "text": "Avery"})).unwrap();
+    app.run("signature.open", json!({"name": "Mine"})).unwrap();
+    app.run("ui.backstage", json!({"value": true, "page": "signatures"})).unwrap();
+    harness.run_steps(3);
+    harness.state_mut().run("compose.select", json!({"from": 0, "to": 5})).unwrap();
+    harness.run_steps(3);
+    let under = harness.get_by_label("Colour").rect();
+    click(&mut harness, under.center());
+    assert!(egui::Popup::is_any_open(&harness.ctx), "the Colour menu is open");
+    let box_rect = field(&mut harness, under);
+    click(&mut harness, box_rect.center());
+    assert!(egui::Popup::is_any_open(&harness.ctx), "clicking the field keeps the menu open");
+    type_text(&mut harness, "#fdb200");
+    harness.get_by_label_contains("Apply").click();
+    harness.run_steps(3);
+    let body = harness.state().session.signature_edit.as_ref().unwrap().body.text().clone();
+    let first = body.paragraphs().first().and_then(|p| p.runs.first()).and_then(|r| r.style.color.clone());
+    assert_eq!(first.as_deref(), Some("#fdb200"), "the colour typed was applied: {body:?}");
+}

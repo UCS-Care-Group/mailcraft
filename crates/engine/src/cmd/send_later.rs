@@ -152,6 +152,8 @@ pub fn cancel_send(s: &mut Session, id: Id) -> Result<(), CmdError> {
     // with that signature as it was sent.
     m.draft = true;
     m.draft_signature = snapshot;
+    // Written again it is an ordinary message, whose text is the emoji (#1544).
+    m.reaction = false;
     m.held.clear();
     (m.send_at, m.date, m.received) = (None, now, now);
     if s.undo_send == Some(id) {
