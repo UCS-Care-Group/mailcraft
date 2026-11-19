@@ -149,6 +149,12 @@ pub fn probe(data: &[u8]) -> Option<[u32; 2]> {
     probe_as(data, KINDS)
 }
 
+/// [`probe`] for raster pictures only: an SVG drawing is `None`. For a caller on the window's
+/// thread that has no thread of its own to read a drawing on (the pictures of attachments).
+pub fn probe_raster(data: &[u8]) -> Option<[u32; 2]> {
+    probe_as(data, KINDS)
+}
+
 /// Whether bytes that came from the web may be a picture, as the window can tell without reading
 /// a drawing (that is done on a thread of its own, [`Pictures`]): a raster picture is probed, a
 /// drawing is one by how it begins and within [`svg::MAX_SVG_BYTES`].
@@ -184,6 +190,11 @@ pub fn decode(data: &[u8], max_side: u32, max_width: u32) -> Option<egui::ColorI
     if svg::is_svg(data) {
         return svg::decode(data, max_side, max_width);
     }
+    decode_as(data, max_side, max_width, KINDS)
+}
+
+/// [`decode`] for raster pictures only: an SVG drawing is `None` (see [`probe_raster`]).
+pub fn decode_raster(data: &[u8], max_side: u32, max_width: u32) -> Option<egui::ColorImage> {
     decode_as(data, max_side, max_width, KINDS)
 }
 
