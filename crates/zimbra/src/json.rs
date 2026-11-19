@@ -25,10 +25,9 @@ pub(crate) fn raw(value: Option<&Value>) -> Option<String> {
         match value {
             Value::String(text) => Some(text.clone()),
             Value::Number(n) => Some(n.to_string()),
-            Value::Bool(b) => Some(b.to_string()),
             Value::Object(map) => map.get("_content").and_then(|v| raw_in(v, depth + 1)),
-            Value::Array(list) => list.first().and_then(|v| raw_in(v, depth + 1)),
-            Value::Null => None,
+            Value::Array(list) if list.len() == 1 => list.first().and_then(|v| raw_in(v, depth + 1)),
+            Value::Bool(_) | Value::Array(_) | Value::Null => None,
         }
     }
     raw_in(value?, 0)
@@ -68,20 +67,28 @@ pub(crate) fn number(value: Option<&Value>) -> Option<u64> {
 /// Whether a flag is on, when the value is a flag at all: `None` for one that is there but in
 /// no shape a flag is written — reading one off would end a read or a check before its end.
 pub(crate) fn checked_on(value: Option<&Value>) -> Option<bool> {
-    match value {
-        Some(Value::Bool(b)) => Some(*b),
-        Some(Value::Number(n)) => match n.as_u64() {
-            Some(1) => Some(true),
-            Some(0) => Some(false),
+    fn flag(value: &Value, depth: u8) -> Option<bool> {
+        if depth > 4 {
+            return None;
+        }
+        match value {
+            Value::Bool(b) => Some(*b),
+            Value::Number(n) => match n.as_u64() {
+                Some(1) => Some(true),
+                Some(0) => Some(false),
+                _ => None,
+            },
+            Value::String(text) => match text.trim() {
+                "1" | "true" | "TRUE" => Some(true),
+                "0" | "false" | "FALSE" => Some(false),
+                _ => None,
+            },
+            Value::Object(map) => flag(map.get("_content")?, depth + 1),
+            Value::Array(list) if list.len() == 1 => flag(list.first()?, depth + 1),
             _ => None,
-        },
-        Some(other) => match raw(Some(other))?.trim() {
-            "1" | "true" | "TRUE" => Some(true),
-            "0" | "false" | "FALSE" => Some(false),
-            _ => None,
-        },
-        None => Some(false),
+        }
     }
+    value.map_or(Some(false), |value| flag(value, 0))
 }
 
 /// An item's or a folder's id in the account's own mailbox: digits, and not zero. An id of
@@ -89,16 +96,7 @@ pub(crate) fn checked_on(value: Option<&Value>) -> Option<bool> {
 /// the value as it was sent: [`text`] takes control characters out, and a cleaned-up copy of an
 /// id that isn't one could pass for a different id that is.
 pub(crate) fn own_id(value: Option<&Value>) -> Option<String> {
-    let raw = match value? {
-        Value::String(text) => text.as_str(),
-        Value::Number(n) => {
-            return Some(n.to_string())
-                .filter(|s| !s.is_empty() && s.len() <= 10 && s.bytes().all(|b| b.is_ascii_digit()) && s.bytes().any(|b| b != b'0'));
-        }
-        Value::Object(map) => return own_id(map.get("_content")),
-        Value::Array(list) => return own_id(list.first()),
-        _ => return None,
-    };
+    let raw = raw(value)?;
     let text = raw.trim();
     (!text.is_empty() && text.len() <= 10 && text.bytes().all(|b| b.is_ascii_digit()) && text.bytes().any(|b| b != b'0')).then(|| text.to_string())
 }
@@ -107,15 +105,15 @@ pub(crate) fn own_id(value: Option<&Value>) -> Option<String> {
 /// the owner, where [`own_id`] is `None` for the same reason. The same shapes [`own_id`] accepts
 /// are read, on the value as sent.
 pub(crate) fn foreign_id(value: Option<&Value>) -> bool {
-    let raw = match value {
-        Some(Value::String(text)) => text.as_str(),
-        Some(Value::Object(map)) => return foreign_id(map.get("_content")),
-        Some(Value::Array(list)) => return foreign_id(list.first()),
-        _ => return false,
-    };
+    let Some(raw) = raw(value) else { return false };
     let raw = raw.trim();
     match raw.split_once(':') {
-        Some((a, b)) => !a.is_empty() && !b.is_empty() && raw.len() <= 128 && !raw.chars().any(char::is_control),
+        Some((a, b)) => {
+            !a.is_empty()
+                && a.bytes().all(|c| c.is_ascii_alphanumeric() || b"-_".contains(&c))
+                && raw.len() <= 96
+                && own_id(Some(&Value::String(b.to_string()))).is_some()
+        }
         None => false,
     }
 }
