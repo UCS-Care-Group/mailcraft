@@ -1596,6 +1596,8 @@ pub struct MailApp {
     signatures_shown: bool,
     /// What File › Signatures last said of a picture (a refusal, or that it was made smaller).
     signature_note: Option<signatures::Note>,
+    /// File › Signatures › Rename: the name being typed for a signature, until it is kept.
+    signature_rename: Option<signatures::Rename>,
     /// The last input the window was given, by kind only (never what was typed), for
     /// `ui.inspect`: what a script looks at when typing or the keyboard goes astray.
     pub(crate) input_trail: std::collections::VecDeque<String>,
@@ -1963,6 +1965,7 @@ impl MailApp {
             signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
+            signature_rename: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
             reveal_centered: false,
@@ -5157,6 +5160,8 @@ impl MailApp {
     /// Keep what was changed in the signature open in File › Signatures, and close it.
     fn leave_signature(&mut self) {
         self.signature_note = None;
+        // A name still being typed is kept, as a change in the signature is (#1651).
+        signatures::finish_rename(self, true);
         if self.session.signature_edit.as_ref().is_some_and(|e| e.dirty)
             && let Err(e) = self.execute("signature.save", json!({}))
         {
