@@ -1092,8 +1092,16 @@ pub(crate) fn rules_in_outlook(mb: &Mailbox) -> Vec<(String, Id)> {
 /// rename, a deletion, a colour: what a rule then gives may be new on a list, or a rule may take
 /// other mail; counted whole, as the rules are, which may ask more than the call did); when it
 /// changes only what they read (the Safe or Blocked Senders letting more mail through, an
-/// account's address a rule reads: [`changed_accounts`]), the rules for that mail.
+/// account's address a rule reads: [`changed_accounts`]), the rules for that mail. What the step
+/// makes new comes first: a question names three, and that is why it is asked.
 pub(crate) fn undo_rules_in_outlook(now: &Mailbox, back: &Mailbox) -> Vec<(String, Id)> {
+    let before = rules_in_outlook(now);
+    let (new, rest): (Vec<_>, Vec<_>) = undo_reaches_in_outlook(now, back).into_iter().partition(|made| !had(&before, made));
+    new.into_iter().chain(rest).collect()
+}
+
+/// [`undo_rules_in_outlook`], in the rules' order.
+fn undo_reaches_in_outlook(now: &Mailbox, back: &Mailbox) -> Vec<(String, Id)> {
     if back.rules != now.rules {
         return rules_in_outlook(back);
     }
@@ -2609,8 +2617,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             if with_settings {
                 does.push(format!("puts {SETTINGS_PUT_BACK} back as they were{rules_made}"));
             } else if !rules_made.is_empty() && rule_onto.is_empty() {
-                // What it puts back beside the rules (#566): the Safe or Blocked Senders or an
-                // account, which may let other mail reach them, or a list of categories.
+                // What it puts back beside the rules (#566), when it isn't said with the settings
+                // above: an account or its address, which may let other mail reach them, or a list
+                // of categories.
                 let step = if redo { s.redo.last() } else { s.history.last() };
                 if step.is_some_and(|step| !changed_accounts(&s.mailbox, &step.mailbox).is_empty()) {
                     does.push(format!("may let other new mail reach the rules{rules_made}"));
