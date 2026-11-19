@@ -67,7 +67,7 @@ fn folders_are_made_renamed_and_deleted_and_the_servers_own_stay() {
     assert!(matches!(outcomes[0], ChangeOutcome::Done { folder } if folder.name == "Projects" && folder.parent == "2" && !folder.id.is_empty()));
     assert!(matches!(outcomes[1], ChangeOutcome::Done { folder } if folder.name == "Renamed"));
     assert!(matches!(outcomes[2], ChangeOutcome::OwnFolder { .. }));
-    assert!(matches!(outcomes[3], ChangeOutcome::Gone));
+    assert!(matches!(outcomes[3], ChangeOutcome::Refused { .. }));
     let s = server.state.borrow();
     assert!(s.folders.values().any(|(parent, name, _)| *parent == 2 && name == "Projects"));
     assert_eq!(s.folders.get(&old).map(|f| f.1.as_str()), Some("Renamed"));
@@ -105,7 +105,7 @@ fn messages_are_marked_tagged_moved_and_deleted_by_their_ids() {
     assert!(matches!(outcomes[0], MessageOutcome::Done { categories: Some(c), .. } if c.len() == 2));
     assert!(matches!(outcomes[1], MessageOutcome::Done { folder, id, .. } if *folder == projects.to_string() && *id == moved.to_string()));
     assert!(matches!(outcomes[2], MessageOutcome::Gone));
-    assert!(matches!(outcomes[3], MessageOutcome::Gone));
+    assert!(matches!(outcomes[3], MessageOutcome::Refused { .. }));
     let s = server.state.borrow();
     let m = s.items.get(&marked).unwrap();
     assert!(!m.flags.contains('u') && m.flags.contains('f'));
