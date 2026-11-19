@@ -21312,11 +21312,6 @@ msgstr ""
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-msgid "{why}: send this message from another account, or save it as a draft"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/credits.rs
 msgid "ΔLines"

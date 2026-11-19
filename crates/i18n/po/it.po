@@ -25577,11 +25577,6 @@ msgstr "{why}, quindi gli accessi non vengono memorizzati: MailCraft li richiede
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modifiche apportate qui sono in attesa su questo computer."
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-msgid "{why}: send this message from another account, or save it as a draft"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy

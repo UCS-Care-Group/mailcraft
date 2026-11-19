@@ -25791,11 +25791,6 @@ msgstr "{why}, deci conectările nu sunt memorate: MailCraft întreabă din nou 
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modificări făcute în el aici așteaptă pe acest computer."
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-msgid "{why}: send this message from another account, or save it as a draft"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy

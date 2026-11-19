@@ -24062,12 +24062,6 @@ msgstr "{why}, daher werden Anmeldungen nicht gespeichert: MailCraft fragt bei j
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} hier darin vorgenommene Änderungen warten auf diesem Computer."
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "{why}: send this message from another account, or save it as a draft"
-msgstr "{why}: Senden Sie diese Nachricht von einem anderen Konto, oder speichern Sie sie als Entwurf"
-
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -24119,6 +24113,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Zeilen"
+
+#, fuzzy
+#~ msgid "{why}: send this message from another account, or save it as a draft"
+#~ msgstr "{why}: Senden Sie diese Nachricht von einem anderen Konto, oder speichern Sie sie als Entwurf"
 
 #, fuzzy
 #~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
