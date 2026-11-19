@@ -160,11 +160,11 @@ fn a_microsoft_download_keeps_the_header_as_it_came_only_for_a_header_rule() {
     assert!(kept(&s, "L2").contains("Subject: L2") && marks(&s, "L2") == (true, false), "{:?}", marks(&s, "L2"));
 }
 
-/// Check again on IMAP brings a garbled message down again (its subject read wrongly before): the
-/// header as it came is taken from that download only for an account a rule looks for words in the
-/// header for, as for new mail.
+/// A garbled IMAP message (its subject read wrongly before) is downloaded whole again, by itself or
+/// with Check again: the header as it came is taken from that download only for an account a rule
+/// looks for words in the header for, as for new mail.
 #[test]
-fn imap_check_again_keeps_the_header_as_it_came_only_for_a_header_rule() {
+fn an_imap_message_downloaded_again_keeps_the_header_as_it_came_only_for_a_header_rule() {
     let bytes = b"From: Bo <bo@example.org>\r\nSubject: Caf\xc3\xa9\r\nMessage-ID: <m1@example.org>\r\n\r\nHello.\r\n";
     for rule in [false, true] {
         let mut s = Session::empty();
