@@ -95,6 +95,38 @@ fn faults_are_read_by_their_code_alone() {
 }
 
 #[test]
+fn typed_deletions_without_messages_keep_their_token() {
+    for group in [
+        json!({"ids": "500", "cn": [{"ids": "500"}]}),
+        json!({"ids": "500", "folder": [{"ids": "500"}]}),
+        json!({"ids": "500", "appt": {"ids": "500"}}),
+        json!({"cn": [{"ids": "500"}], "m": []}),
+    ] {
+        let response = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "deleted": [group]}}}));
+        let delta = delta::answer(&response, false).unwrap();
+        assert_eq!(delta.token, "5");
+        assert!(delta.deleted.is_empty());
+    }
+    let response = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "deleted": [{"cn": [{"ids": "500"}], "m": [{"ids": "501"}]}]}}}));
+    assert_eq!(delta::answer(&response, false).unwrap().deleted, ["501"]);
+    for group in [
+        json!({}),
+        json!({"cn": null}),
+        json!({"cn": 7}),
+        json!({"cn": []}),
+        json!({"cn": [{}]}),
+        json!({"cn": [{"ids": "bad"}]}),
+        json!({"cn": [{"ids": "500"}], "m": null}),
+    ] {
+        let response = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "deleted": [group]}}}));
+        assert_eq!(delta::answer(&response, false), Err(Error::Unreadable));
+    }
+    let ids = (1..=1001).map(|id| id.to_string()).collect::<Vec<_>>().join(",");
+    let response = answer(200, &json!({"Body": {"SyncResponse": {"token": "5", "deleted": [{"cn": [{"ids": ids}]}]}}}));
+    assert_eq!(delta::answer(&response, false), Err(Error::Unreadable));
+}
+
+#[test]
 fn ambiguous_values_and_incomplete_pages_are_refused() {
     for id in ["a:b:c", ":2", "a b:2", "a:0"] {
         let response = answer(200, &json!({"Body": {"GetFolderResponse": {"folder": {"id": "1", "folder": [{"id": id, "name": "bad"}]}}}}));
