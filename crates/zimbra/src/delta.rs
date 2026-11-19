@@ -62,7 +62,19 @@ pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
         // comes with must never be kept, or what it dropped is gone for good.
         return Err(Error::Unreadable);
     }
-    delta.changed = changed.iter().filter_map(|m| json::own_id(m.get("id"))).collect();
+    let mut changed_ids = Vec::with_capacity(changed.len());
+    for m in changed.iter() {
+        let id = m.get("id");
+        match json::own_id(id) {
+            Some(id) => changed_ids.push(id),
+            // A change of another mailbox's item is passed over; an id that is no id at all
+            // can't be told from one the page dropped — the token it comes with must never
+            // be kept, or the change is gone for good.
+            None if json::foreign_id(id) => {}
+            None => return Err(Error::Unreadable),
+        }
+    }
+    delta.changed = changed_ids;
     let mut deleted_ids = 0usize;
     for deleted in json::list(answer.get("deleted")) {
         if json::bad_list(deleted.get("m")) {
