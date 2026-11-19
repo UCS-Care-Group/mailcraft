@@ -59,6 +59,37 @@ fn apply(s: &mut Session, r: ZimbraMailResult) -> Value {
 }
 
 #[test]
+fn a_completed_zimbra_round_sorts_later_inbox_arrivals() {
+    for delta in [false, true] {
+        let (mut s, account) = session();
+        s.mailbox.junk_lists_mut(account).blocked.push("bob@example.org".into());
+        first_read(&mut s, account);
+        assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
+        let inbox = s.mailbox.folder_by_server(account, "2").unwrap();
+        let server = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap();
+        assert!(server.caught_up && server.round_ended);
+        assert!(server.delta.is_empty());
+        let mut listed = result(account, "4711");
+        let mut folders = listing();
+        folders.folders.push(folder("4", "", "Junk", FolderKind::Junk));
+        listed.listing = Some(folders);
+        listed.partial = true;
+        apply(&mut s, listed);
+        let mut next = result(account, "4711");
+        next.partial = true;
+        next.pages.push(ZimbraMessagePage {
+            folder: if delta { String::new() } else { "2".into() },
+            messages: vec![mail("260", "2", "Blocked arrival", false)],
+            last: true,
+            ..Default::default()
+        });
+        apply(&mut s, next);
+        assert_eq!(subjects(&s, account, "Junk"), ["Blocked arrival"]);
+        assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
+    }
+}
+
+#[test]
 fn an_incomplete_listing_prevents_a_later_piece_advancing_the_token() {
     let (mut s, account) = session();
     let mut partial = result(account, "");
