@@ -1443,8 +1443,9 @@ msgstr "პირადად მონიშნული ჩანაწერ�
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "An attachment can't be copied here: save it with Save As instead."
-msgstr ""
+msgstr "აქ დანართის კოპირება შეუძლებელია. შესანახად გამოიყენეთ „შენახვა როგორც“."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3625,8 +3626,9 @@ msgstr "მიმოწერები"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "Copied {name}"
-msgstr ""
+msgstr "დაკოპირდა {name}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -3658,8 +3660,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Copy Attachment"
-msgstr ""
+msgstr "დანართის კოპირება"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -5552,8 +5555,9 @@ msgstr "ფაილი:"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Files can't be put on the clipboard here."
-msgstr ""
+msgstr "აქ ფაილების გაცვლის ბუფერში მოთავსება შეუძლებელია."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -11139,8 +11143,9 @@ msgstr "მხოლოდ მაშინ, როცა MailCraft წინა 
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
-msgstr ""
+msgstr "დანართის კოპირება მხოლოდ თქვენ შეგიძლიათ, მისი მენიუდან „კოპირების“ არჩევით ან Ctrl+C-ის დაჭერით."
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
@@ -13897,8 +13902,9 @@ msgstr "დანართის წინასწარ ნახვამდ�
 
 #. ribbon location
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Selection"
-msgstr ""
+msgstr "მონიშნული ელემენტები"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
