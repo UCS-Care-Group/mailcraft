@@ -858,6 +858,8 @@ pub struct Prefs {
     /// Typing `* `, `- `, `1. ` or `1) ` at the start of a paragraph of an HTML message starts a
     /// list (#973; `compose.type` with `autoList`, which only the keyboard sends).
     pub auto_lists: bool,
+    /// Capitalize the first word of a sentence in the message editor.
+    pub auto_capitalize: bool,
     /// Lines of body text under each message in the list (0–3).
     pub preview_lines: u8,
     /// The list has group headings (Today, Yesterday…; `view.groups`). Off: one continuous list.
@@ -945,6 +947,7 @@ impl Default for Prefs {
             default_reminder: Some(15),
             quote_on_reply: true,
             auto_lists: true,
+            auto_capitalize: true,
             preview_lines: 1,
             show_groups: true,
             one_line: false,

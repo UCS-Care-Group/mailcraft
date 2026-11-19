@@ -2753,6 +2753,18 @@ msgstr "取消本次会议？"
 msgid "Cancelled"
 msgstr "已取消"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalize the first word of sentences"
+msgstr "句首单词自动大写"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+msgstr "输入完单词后会自动添加大写字母。撤销可恢复原来的输入。"
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -25435,14 +25447,6 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
-
-#, fuzzy
-#~ msgid "Capitalize the first word of sentences"
-#~ msgstr "句首单词自动大写"
-
-#, fuzzy
-#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-#~ msgstr "输入完单词后会自动添加大写字母。撤销可恢复原来的输入。"
 
 #, fuzzy
 #~ msgid "Spelling & Grammar"

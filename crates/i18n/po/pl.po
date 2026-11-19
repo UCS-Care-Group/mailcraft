@@ -2759,6 +2759,18 @@ msgstr "Anulować to spotkanie?"
 msgid "Cancelled"
 msgstr "Anulowano"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalize the first word of sentences"
+msgstr "Zaczynaj zdania wielką literą"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+msgstr "Wielka litera pojawia się po wpisaniu słowa. Cofnięcie przywraca wpisany tekst."
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -25758,14 +25770,6 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Wiersze"
-
-#, fuzzy
-#~ msgid "Capitalize the first word of sentences"
-#~ msgstr "Zaczynaj zdania wielką literą"
-
-#, fuzzy
-#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-#~ msgstr "Wielka litera pojawia się po wpisaniu słowa. Cofnięcie przywraca wpisany tekst."
 
 #, fuzzy
 #~ msgid "Spelling & Grammar"

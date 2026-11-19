@@ -132,7 +132,7 @@ fn spelling_off_preserves_the_selected_writing_language() {
         d.insert_temp(editor.with("spelling-off"), true);
     });
     assert_eq!(locale(&app, &ctx), None);
-    assert_eq!(preference(&app, &ctx), "tr-TR");
+    assert_eq!(writing_locale(&app, &ctx).as_deref(), Some("tr-TR"));
 }
 
 #[test]
