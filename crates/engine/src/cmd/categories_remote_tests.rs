@@ -3460,12 +3460,16 @@ fn undoing_or_redoing_a_change_beside_a_rule_that_gives_a_category_new_in_outloo
     for (allowed, class) in [(vec![Class::Accounts], Class::Send), (vec![], Class::Accounts)] {
         match check(&s, "edit.undo", &json!({}), &allowed) {
             Verdict::Ask(c, text) if c == class => {
-                assert!(text.contains("address that a rule reads") && text.contains("“Zed”") && text.contains("Outlook"), "{text}")
+                assert!(text.contains("may let other new mail reach the rules") && text.contains("“Zed”") && text.contains("Outlook"), "{text}")
             }
             other => panic!("the undo of the address, with {allowed:?} allowed, was {other:?}"),
         }
     }
     assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Accounts, Class::Send]), Verdict::Run);
+    // The redo that puts the new address back makes nothing in Outlook: the list of another
+    // mailbox is kept on this computer alone until its server is read (`restart_category_sync`).
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(check(&s, "edit.redo", &json!({}), &[Class::Accounts]), Verdict::Run);
 }
 
 /// A rename widens a rule's condition on the category to both names (#566): on a Microsoft
@@ -3498,4 +3502,92 @@ fn a_rename_that_widens_a_rules_condition_asks_for_what_the_rule_gives() {
     let m = s.mailbox.add_message(tagged()).unwrap();
     s.mailbox.apply_rules(m, &s.rule_clock());
     assert!(s.mailbox.categories_to_write(a).iter().any(|(n, made)| n == "Zed" && *made), "{:?}", s.mailbox.categories_to_write(a));
+}
+
+/// A rename on a Microsoft account's list of a category kept on this computer alone, beside a rule
+/// for every account's mail that gives the old name: that rule keeps the old name (only the list
+/// the rest share rewrites its Categorize), which the list renamed then hasn't got, so it is made
+/// in Outlook. Asked as a send; and so whether or not the rule's condition names it (#566, #661).
+#[test]
+fn a_rename_that_leaves_a_rule_for_every_account_giving_the_old_name_asks_as_a_send() {
+    for condition in [Condition::Category(vec!["Old local".into(), "Urgent".into()]), Condition::SubjectContains(vec!["x".into()])] {
+        let (mut s, a) = rig_with_local();
+        s.mailbox.rules.push(Rule {
+            id: 9001,
+            name: "Tag".into(),
+            enabled: true,
+            account: 0,
+            conditions: vec![condition.clone()],
+            actions: vec![Action::Categorize("Old local".into())],
+            ..Default::default()
+        });
+        let rename = json!({"account": a, "from": "Old local", "to": "New local"});
+        let asked = check(&s, "category.rename", &rename, &[]);
+        let Verdict::Ask(Class::Send, said) = &asked else { panic!("with {condition:?}, the rename was {asked:?}") };
+        assert!(said.contains("“Old local”") && said.contains("made in Outlook too"), "{said}");
+        s.run("category.rename", &rename).unwrap();
+        let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+        let m = s
+            .mailbox
+            .add_message(Message { folder: inbox, account: a, subject: "x".into(), categories: vec!["New local".into()], ..Default::default() })
+            .unwrap();
+        s.mailbox.apply_rules(m, &s.rule_clock());
+        assert!(s.mailbox.categories_to_write(a).iter().any(|(n, made)| n == "Old local" && *made), "{:?}", s.mailbox.categories_to_write(a));
+    }
+}
+
+/// A rename whose exception the rule with "stop processing more rules" then reads by both names
+/// leaves alone mail that comes with the new name, which a rule after it then gives a category new
+/// in Outlook: asked as a send that names it (#566, #661).
+#[test]
+fn a_rename_that_widens_an_exception_before_a_rule_that_gives_a_category_asks_as_a_send() {
+    let (mut s, a) = rig_with_local();
+    let rule = |id: Id, exceptions: Vec<Condition>, actions: Vec<Action>, stop: bool| Rule {
+        id,
+        name: format!("R{id}"),
+        enabled: true,
+        account: a,
+        conditions: vec![Condition::SubjectContains(vec!["x".into()])],
+        exceptions,
+        actions,
+        stop,
+        ..Default::default()
+    };
+    s.mailbox.rules.push(rule(9001, vec![Condition::Category(vec!["Old local".into()])], vec![Action::Flag], true));
+    s.mailbox.rules.push(rule(9002, vec![], vec![Action::Categorize("Zed".into())], false));
+    let rename = json!({"account": a, "from": "Old local", "to": "New local"});
+    let asked = check(&s, "category.rename", &rename, &[]);
+    let Verdict::Ask(Class::Send, said) = &asked else { panic!("the rename was {asked:?}") };
+    assert!(said.contains("“Zed”") && said.contains("made in Outlook too"), "{said}");
+    s.run("category.rename", &rename).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let m = s
+        .mailbox
+        .add_message(Message { folder: inbox, account: a, subject: "x".into(), categories: vec!["New local".into()], ..Default::default() })
+        .unwrap();
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert!(s.mailbox.categories_to_write(a).iter().any(|(n, made)| n == "Zed" && *made), "{:?}", s.mailbox.categories_to_write(a));
+}
+
+/// The rename's name as the command reads it: spaces round it, or another letters' case (#566).
+#[test]
+fn a_rename_is_read_as_the_command_reads_it() {
+    let (mut s, a) = rig_with_local();
+    s.mailbox.rules.push(Rule {
+        id: 9001,
+        name: "Tag".into(),
+        enabled: true,
+        account: a,
+        conditions: vec![Condition::Category(vec!["Old local".into()])],
+        actions: vec![Action::Categorize("Zed".into())],
+        ..Default::default()
+    });
+    let padded = json!({"account": a, "from": " Old local ", "to": " New local "});
+    assert!(matches!(check(&s, "category.rename", &padded, &[]), Verdict::Ask(Class::Send, _)));
+    // Only the letters' case: the rule reads the same mail, and nothing is new in Outlook.
+    let case = json!({"account": a, "from": "Old local", "to": "OLD LOCAL"});
+    assert_eq!(check(&s, "category.rename", &case, &[]), Verdict::Run);
+    // One the command refuses changes nothing, and is asked nothing for it.
+    let refused = json!({"account": a, "from": "Not there", "to": "New local"});
+    assert_eq!(check(&s, "category.rename", &refused, &[]), Verdict::Run);
 }
