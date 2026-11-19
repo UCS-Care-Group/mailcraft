@@ -2969,17 +2969,6 @@ impl MailApp {
                     None => Err(tl!("There is no such account").to_string()),
                 }
             }
-            "ui.allowSharedCalendars" => {
-                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
-                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
-                }
-                let Some(shared) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
-                if self.session.mailbox.account(shared).is_some_and(mailcraft_model::Account::is_shared) {
-                    self.begin_shared_calendars_sign_in(shared)
-                } else {
-                    self.begin_opened_calendars_sign_in(shared)
-                }
-            }
             "ui.automaticRepliesSignIn" => {
                 let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
                 if let Err(e) = mailcraft_engine::cmd::auto_replies::can_reply(&self.session.mailbox, account) {
