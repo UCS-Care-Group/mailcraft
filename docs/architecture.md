@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-17 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -312,7 +312,13 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-17 | patch | MB3.18: `host` holds the calendar's and the to-dos' jobs in flight (`calendar_job`, `tasks_job`), driven by the desktop and the phone alike |
+| 2026-11-17 | patch | MB3.15: the Android app row names its end-to-end run on an emulator against the Graph stand-in ([android.md](android.md)) |
+| 2026-11-15 | patch | 29 crates and 4 apps; rows for `smime` and `mobile` |
+| 2026-11-15 | patch | #209 D3: the `dav_discovery` fuzz target joins the list |
+| 2026-11-15 | patch | #209 D2: the `dav_answers` fuzz target joins the list |
 | 2026-11-14 | patch | #1376: header blocks packed in a few files in the content folder (`store_pack.rs`), not one file each; a block that can't be read fails the fresh pack, Undo-held blocks count as named, packs a kept-aside file names stay |
+| 2026-11-13 | minor | #1232: `tnef`, L2: a reader of TNEF streams (`winmail.dat`) from [MS-OXTNEF], used by `mime` and using `pst`; a `tnef` fuzz target; 29 crates, and the layering exceptions name `mime-model` too |
 | 2026-11-13 | minor | MB3.1: the Android app (`apps/mailcraft-android`, Gradle, Kotlin and Compose over `crates/mobile`) and the rule for Kotlin and Swift: only under their app folders, for the interface and platform layer, never for parsing, lint-enforced never-crash |
 | 2026-11-13 | minor | MB1.9 (last part): `sync_driver` gains `auto_replies` (`Session::auto_replies_due`/`auto_replies_started`/`auto_replies_answered`/`auto_replies_change`, the `Trouble` and `Denied` states), `free_busy` (`free_busy_look`/`free_busy_noted`/`free_busy_answered`/`free_busy_stand_in`), `sending` (the send gate and the marks as sending, `send_marking`, `send_gate_step`, `send_run_answered`, `send_hold_unanswered`, the shared mailboxes' Outbox that waits for the permission to send) and `ask` (`tasks_question`, `rules_question`, `shared_calendars_question`, from an `AskWindow`); `Driver::auto_sync` is the host's setting and survives `Driver::reset`; `Driver::forget_accounts` covers every part and runs on account removal; the window's `Facts` say only whether the host has a way to reach the server (`reachable`), and the to-dos' and rules' looks stop while working offline in the engine; the window keeps the Send/Receive round scheduler and the per-account-kind run flows, the dialogs, the provider's pages, the tokens, the job handles and the words |
 | 2026-11-13 | minor | MB1.9 (second part): `sync_driver` gains `calendar_plan` (`Session::calendar_due`, `calendar_started`, `calendar_answered`), `fetch_flow` (the waiting command, the answer's next step, the message shown, the background's accounts), `tasks` and `rules` (`tasks_due`/`tasks_answered`, `rules_due`/`rules_answered`, the permission maps); `Driver::reset` clears everything on a mailbox replace (the calendar consent, wide-stretch and shared-calendar permission state and the Favorites state too, which survived File > Open before); `calendar_answered` keeps the owner's permission state (`CalendarCame::consent_needed`, `token_refused`, `sign_in_refused`) and, with the host's own job errors (`job_errors`), the wide stretch's bookkeeping, as `tasks_answered` and `rules_answered` do; the window starts jobs, keeps tokens, dialogs and words, and the engine says what is due and takes the answer in |

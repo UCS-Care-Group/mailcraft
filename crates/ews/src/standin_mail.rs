@@ -601,6 +601,12 @@ impl State {
                 response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyForOperation")),
             ));
         }
+        // (Asked for and left out, with nothing said.)
+        let extra: Vec<String> = if self.omits_recipients {
+            extra.into_iter().filter(|e| e != "message:ToRecipients" && e != "message:CcRecipients").collect()
+        } else {
+            extra
+        };
         // Where the read goes on from: the state it was given, or the start.
         enum From {
             Listing { done: usize, rev: u64 },

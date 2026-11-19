@@ -1117,6 +1117,11 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rounded(&[(14.0, 3.0), (14.0, 5.5), (10.0, 10.0), (14.0, 14.5), (14.0, 17.0)], false, 1.0, c);
             pen.line_c(&[(8.0, 15.5), (12.0, 15.5)], a);
         }
+        "spelling" => {
+            pen.line(&[(3.0, 5.0), (17.0, 5.0)]);
+            pen.line(&[(3.0, 8.0), (11.0, 8.0)]);
+            pen.line_c(&[(3.0, 14.0), (5.0, 12.0), (7.0, 14.0), (9.0, 12.0), (11.0, 14.0), (13.0, 12.0), (15.0, 14.0), (17.0, 12.0)], a);
+        }
         // Review › Word Count: lines of text and a tally of four strokes and one across them.
         "wordCount" => {
             pen.line(&[(2.5, 4.5), (17.5, 4.5)]);
@@ -1459,6 +1464,7 @@ pub const NAMES: &[&str] = &[
     "clock",
     "time",
     "dateTime",
+    "spelling",
     "wordCount",
     "pending",
     "picture",
