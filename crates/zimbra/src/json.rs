@@ -163,10 +163,7 @@ pub(crate) fn ids(value: Option<&Value>, most: usize) -> Option<Vec<String>> {
         // A mounted share's item is deleted under its `<zid>:<rid>` id too, so [`item_id`] is
         // the shape asked for here; what is no id at all would be dropped while the page's
         // token is kept — a deletion the server did send, lost.
-        match item_id(Some(&Value::String(id.to_string()))) {
-            Some(id) => out.push(id),
-            None => return None,
-        }
+        out.push(item_id(Some(&Value::String(id.to_string())))?);
         if out.len() >= most {
             break;
         }
