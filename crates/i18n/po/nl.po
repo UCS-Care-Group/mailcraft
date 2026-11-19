@@ -21231,8 +21231,9 @@ msgstr "geen dergelijke alinea"
 
 #. what a command says
 #: crates/model/src/rich.rs
+#, fuzzy
 msgid "no such signature"
-msgstr ""
+msgstr "geen dergelijke handtekening"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
