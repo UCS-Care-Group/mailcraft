@@ -452,8 +452,9 @@ fn insert_link_in_a_forwards_window_comes_up_over_that_window() {
     assert_eq!(crate::windows::dialog_compose(h.state()), Some(forward));
     assert_eq!(h.state().session.compose_id(), Some(forward));
     // Answered, it belongs to nobody.
-    h.state_mut().dialog = None;
+    h.key_press(Key::Escape);
     h.run_steps(2);
+    assert!(h.state().dialog.is_none(), "Escape closes it");
     assert_eq!(h.state().windows.dialog_for, None);
     // One opened from the reading pane's message is the main window's.
     script(&mut h, "ui.closeWindow", json!({"compose": forward, "discard": true}));
