@@ -11823,6 +11823,11 @@ msgid "Paste Picture"
 msgstr "Lipire imagine"
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+msgid "Paste Text Only"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste or write the signature's HTML"
