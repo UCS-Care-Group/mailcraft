@@ -3288,7 +3288,8 @@ fn changing_the_time_zone_beside_a_rule_that_gives_a_category_new_in_outlook_ask
     let tokyo = json!({"zone": "Asia/Tokyo"});
     let asked = check(&s, "view.timeZone", &tokyo, &[]);
     let Verdict::Ask(Class::Send, said) = &asked else { panic!("the zone change was {asked:?}") };
-    assert!(said.contains("Asia/Tokyo") && said.contains("“Zed”") && said.contains("“a@example.org”") && said.contains("Outlook"), "{said}");
+    assert!(said.contains("Asia/Tokyo") && said.contains("a rule reads the days mail came by it"), "{said}");
+    assert!(said.contains("“Zed”") && said.contains("“a@example.org”") && said.contains("Outlook"), "{said}");
     assert_eq!(check(&s, "view.timeZone", &tokyo, &[Class::Send]), Verdict::Run);
     // What the owner is asked about is what happens: in Tokyo's zone the rule takes such mail, and
     // Zed goes to Outlook.
@@ -3357,6 +3358,7 @@ fn changing_the_address_beside_a_rule_that_gives_a_category_new_in_outlook_asks_
     let edit = json!({"id": a, "email": "new@example.org"});
     let asked = check(&s, "account.edit", &edit, &[Class::Accounts]);
     let Verdict::Ask(Class::Send, said) = &asked else { panic!("the address change was {asked:?}") };
+    assert!(said.contains("its address changes to “new@example.org”, which a rule for its mail reads"), "{said}");
     assert!(said.contains("“Zed”") && said.contains("made in Outlook too"), "{said}");
     assert!(matches!(check(&s, "account.edit", &edit, &[Class::Send]), Verdict::Ask(Class::Accounts, _)));
     assert_eq!(check(&s, "account.edit", &edit, &[Class::Accounts, Class::Send]), Verdict::Run);
@@ -3387,6 +3389,70 @@ fn a_safe_sender_beside_a_rule_that_gives_a_category_new_in_outlook_is_asked_as_
     assert_eq!(check(&s, "junk.add", &safe, &[Class::Settings, Class::Send]), Verdict::Run);
     // Headless, the refusal names both, so that one start of the server covers it.
     assert_eq!(crate::agent::also(&s, "junk.add", &safe, Class::Send), vec![Class::Settings]);
+    // Taking a sender off the Blocked Senders lets more through too.
+    s.run("junk.add", &json!({"list": "blocked", "entry": "bob@example.org", "account": a})).unwrap();
+    let unblock = json!({"list": "blocked", "entry": "bob@example.org", "account": a});
+    assert!(matches!(check(&s, "junk.remove", &unblock, &[Class::Settings]), Verdict::Ask(Class::Send, _)));
     // Blocking a sender lets nothing more through.
     assert_eq!(check(&s, "junk.add", &json!({"list": "blocked", "entry": "zoe@example.org", "account": a}), &[Class::Settings]), Verdict::Run);
+}
+
+/// A rename on a Microsoft account's list of a category kept on this computer alone rewrites the
+/// rule for that account's mail to give the new name, which the list then has, kept here alone
+/// too: nothing goes to Outlook, and nothing is asked (#661).
+#[test]
+fn renaming_a_category_kept_here_alone_that_a_rule_gives_asks_nothing() {
+    let (mut s, a) = rig_with_local();
+    assert!(s.mailbox.category_is_local(a, "Old local") && s.mailbox.category_of(a, "Old local").is_some());
+    s.mailbox.rules.push(Rule {
+        id: 9001,
+        name: "Tag".into(),
+        enabled: true,
+        account: a,
+        conditions: vec![Condition::SubjectContains(vec!["x".into()])],
+        actions: vec![Action::Categorize("Old local".into())],
+        ..Default::default()
+    });
+    let rename = json!({"account": a, "from": "Old local", "to": "New local"});
+    assert_eq!(check(&s, "category.rename", &rename, &[]), Verdict::Run);
+    s.run("category.rename", &rename).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let m = s.mailbox.add_message(Message { folder: inbox, account: a, subject: "x".into(), ..Default::default() }).unwrap();
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert!(s.mailbox.message(m).unwrap().categories.iter().any(|c| c == "New local"));
+    assert!(s.mailbox.categories_to_write(a).iter().all(|(n, _)| n != "New local"), "{:?}", s.mailbox.categories_to_write(a));
+}
+
+/// An undo or redo that puts back a Safe Sender, or an account's address a rule reads, beside a
+/// rule that gives mail a category new on the list kept in step with Outlook, is asked as the call
+/// itself is: a send that names the category, with the settings or the accounts too (#566, #661).
+#[test]
+fn undoing_or_redoing_a_change_beside_a_rule_that_gives_a_category_new_in_outlook_asks_as_a_send() {
+    use crate::agent::{Access, classify};
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let rule = |id: Id, condition: Condition| Rule {
+        id,
+        name: format!("R{id}"),
+        enabled: true,
+        account: a,
+        conditions: vec![condition],
+        actions: vec![Action::Categorize("Zed".into())],
+        ..Default::default()
+    };
+    s.mailbox.rules = vec![rule(9001, Condition::SubjectContains(vec!["report".into()]))];
+    let safe = json!({"list": "safe", "entry": "zoe@example.org", "account": a});
+    s.run("junk.add", &safe).unwrap();
+    // Taking the sender off again lets no more mail through: asked as before.
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Settings));
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(classify(&s, "edit.redo", &json!({})), Access::Owner(Class::Send));
+    match check(&s, "edit.redo", &json!({}), &[Class::Send]) {
+        Verdict::Ask(Class::Settings, text) => assert!(text.contains("“Zed”") && text.contains("Outlook"), "{text}"),
+        other => panic!("the redo of the Safe Sender was {other:?}"),
+    }
+    s.mailbox.rules = vec![rule(9002, Condition::ToMe)];
+    s.run("account.edit", &json!({"id": a, "email": "new@example.org"})).unwrap();
+    let undo = check(&s, "edit.undo", &json!({}), &[Class::Accounts]);
+    assert!(matches!(undo, Verdict::Ask(Class::Send, _)), "the undo of the address was {undo:?}");
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Accounts, Class::Send]), Verdict::Run);
 }

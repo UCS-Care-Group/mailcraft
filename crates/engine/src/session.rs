@@ -3825,14 +3825,17 @@ impl Session {
 
     /// The categories the rules that undoing (`redo`: redoing) puts back give mail and put on a list
     /// kept in step with Outlook that hasn't got them, each with that list's account, so that the
-    /// next job makes them there (#661); none when the step leaves the rules as they are.
+    /// next job makes them there (#661); and those the rules give the mail that a step putting back
+    /// what they read (the Safe or Blocked Senders, an account's address) lets reach them, as the
+    /// call itself is asked (#566). None when the step leaves the rules, and what they read, as
+    /// they are.
     pub fn undo_rules_make_categories(&self, redo: bool) -> Vec<(String, Id)> {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
-        if step.mailbox.rules == self.mailbox.rules {
+        if step.mailbox.rules == self.mailbox.rules && !crate::agent::undo_changes_what_rules_read(&self.mailbox, &step.mailbox) {
             return Vec::new();
         }
         let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox, self.interface_language);
-        crate::agent::rules_in_outlook(&back)
+        crate::agent::undo_rules_in_outlook(&self.mailbox, &back)
     }
 
     /// The accounts on whose servers undoing the last step (or redoing, `redo`) puts a message on
