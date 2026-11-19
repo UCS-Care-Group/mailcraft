@@ -2093,7 +2093,7 @@ msgid "AutoArchive"
 msgstr "AutoArchive"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automatisch"
@@ -3032,6 +3032,12 @@ msgstr "Controleren op updates"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Controleren op nieuwe versies"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Spelling controleren met een lokaal woordenboek"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5437,6 +5443,12 @@ msgstr "Gerelateerde berichten zoeken"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Een tijd zoeken"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Volgende spelfout zoeken"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -9976,6 +9988,24 @@ msgid "No signatures yet"
 msgstr "Nog geen handtekeningen"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Geen spelfouten gevonden"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "Geen spelfouten in het gecontroleerde deel"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Geen spellingsuggesties"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10486,7 +10516,7 @@ msgid "October"
 msgstr "oktober"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Uit"
@@ -12487,6 +12517,12 @@ msgstr "Vervangen"
 #, fuzzy
 msgid "Replace All"
 msgstr "Alles vervangen"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Tekst op de aangegeven positie vervangen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -14884,8 +14920,27 @@ msgstr "Ruimte voor e-mail, maximaal"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-msgid "Spelling & Grammar"
-msgstr "Spelling & grammatica"
+#, fuzzy
+msgid "Spelling"
+msgstr "Spelling"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "Spellingcontrole is niet beschikbaar op dit platform"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "Taal voor spellingcontrole"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Spellingsuggesties"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17150,6 +17205,12 @@ msgstr "De ruimte die de map en de mappen daaronder op deze computer innemen"
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "De ruimte die de eigen berichten van de map op deze computer innemen"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Het woordenboek voor spellingcontrole is niet beschikbaar"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20592,6 +20653,12 @@ msgstr "voer een gebruikersnaam in om u aan te melden"
 msgid "everybody at @{domain}"
 msgstr "iedereen bij @{domain}"
 
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "de te zoeken en de vervangende tekst moeten op één regel staan"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -21212,8 +21279,9 @@ msgstr "geen dergelijke alinea"
 
 #. what a command says
 #: crates/model/src/rich.rs
+#, fuzzy
 msgid "no such signature"
-msgstr ""
+msgstr "geen dergelijke handtekening"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -22497,6 +22565,12 @@ msgstr "naar de tekst kan niet op de server worden gezocht"
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "de tekst bevat een teken dat niet kan worden verzonden"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "de te vervangen tekst is gewijzigd"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24913,6 +24987,17 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "Het eerste woord van een zin met een hoofdletter beginnen"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "De hoofdletter verschijnt zodra je het woord afmaakt. Met Ongedaan maken herstel je de getypte tekst."
+
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Spelling & grammatica"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"
