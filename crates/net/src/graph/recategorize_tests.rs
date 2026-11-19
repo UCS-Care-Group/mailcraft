@@ -1,0 +1,458 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! A renamed category given to the mail and the events that only the server has (#851), through
+//! the strict Graph stand-in. Nothing leaves this machine and everything is invented.
+
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::time::Duration;
+
+use mailcraft_model::remote::{CategoryRename, CategoryRenamed, EventsUpload};
+use mailcraft_model::sync::GraphMailRequest;
+
+use super::mail::whole_run;
+use super::pace::{Gate, Retry};
+use super::recategorize::renamed_list;
+use super::standin::{StandIn, TOKEN};
+use super::{EventOptions, push_events_at};
+
+const QUICK: Retry = Retry { tries: 4, first_wait: Duration::from_millis(5), longest_wait: Duration::from_secs(60) };
+const NOW: i64 = 1_790_000_000;
+
+fn names(list: &[&str]) -> Vec<String> {
+    list.iter().map(|n| n.to_string()).collect()
+}
+
+fn rename(from: &str, to: &str) -> CategoryRename {
+    CategoryRename { from: from.into(), to: to.into(), calendars: Vec::new() }
+}
+
+/// A message in `folder` (a well-known name) that carries `categories`: its id.
+fn message(server: &StandIn, folder: &str, subject: &str, categories: &[&str]) -> String {
+    let mut state = server.state();
+    let folder = state.well_known(folder);
+    let id = state.mailbox.add(&folder, subject, NOW);
+    state.mailbox.messages.get_mut(&id).unwrap().categories = names(categories);
+    id
+}
+
+fn categories_of(server: &StandIn, id: &str) -> Vec<String> {
+    server.state().mailbox.messages.get(id).unwrap().categories.clone()
+}
+
+/// A whole mail run that carries `rename`: what the server made of it.
+fn mail_run(server: &StandIn, rename: Option<CategoryRename>) -> Option<CategoryRenamed> {
+    let request = GraphMailRequest { account: 3, email: "owner@example.org".into(), rename, ..Default::default() };
+    let pieces = whole_run(&server.url(), TOKEN, &request, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    pieces.into_iter().filter_map(|piece| piece.renamed).next_back()
+}
+
+#[test]
+fn the_new_name_stands_where_the_old_one_stood_and_only_once() {
+    assert_eq!(renamed_list(&names(&["Red", "Holiday", "Blue"]), "Holiday", "Holiday 2026"), names(&["Red", "Holiday 2026", "Blue"]));
+    assert_eq!(renamed_list(&names(&["holiday 2026", "HOLIDAY"]), "Holiday", "Holiday 2026"), names(&["Holiday 2026"]));
+    assert_eq!(renamed_list(&names(&["Red"]), "Holiday", "Holiday 2026"), names(&["Red"]));
+}
+
+#[test]
+fn mail_in_every_folder_takes_the_new_name_and_other_mail_is_left_alone() {
+    let server = StandIn::start().unwrap();
+    let old = message(&server, "inbox", "Flights", &["Red", "Holiday"]);
+    let deleted = message(&server, "deleteditems", "Old hotel", &["Holiday"]);
+    let junk = message(&server, "junkemail", "Cheap trips", &["Holiday", "Holiday 2026"]);
+    let other = message(&server, "inbox", "Invoice", &["Holidays", "Red"]);
+    let came = mail_run(&server, Some(rename("Holiday", "Holiday 2026"))).unwrap();
+    assert!(came.done && !came.denied && !came.refused, "{came:?}");
+    assert_eq!((came.changed, came.skipped), (3, 0));
+    assert_eq!(categories_of(&server, &old), names(&["Red", "Holiday 2026"]));
+    assert_eq!(categories_of(&server, &deleted), names(&["Holiday 2026"]));
+    assert_eq!(categories_of(&server, &junk), names(&["Holiday 2026"]));
+    assert_eq!(categories_of(&server, &other), names(&["Holidays", "Red"]), "a name that only begins the same is another category");
+    // Nothing carries the old name any more: a second run changes nothing and is done.
+    let again = mail_run(&server, Some(rename("Holiday", "Holiday 2026"))).unwrap();
+    assert!(again.done && again.changed == 0, "{again:?}");
+}
+
+#[test]
+fn a_run_without_a_rename_asks_for_none_and_a_shared_mailbox_is_never_asked() {
+    let server = StandIn::start().unwrap();
+    let kept = message(&server, "inbox", "Flights", &["Holiday"]);
+    assert_eq!(mail_run(&server, None), None);
+    // A shared mailbox's run goes to its end, and asks for no rename: only the owner's own mailbox.
+    server.state().add_other("team@example.org", true);
+    let request = GraphMailRequest {
+        account: 4,
+        email: "team@example.org".into(),
+        shared: true,
+        rename: Some(rename("Holiday", "Holiday 2026")),
+        ..Default::default()
+    };
+    let pieces = whole_run(&server.url(), TOKEN, &request, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    let last = pieces.last().unwrap();
+    assert!(last.whole, "{:?}", last.errors);
+    assert!(pieces.iter().all(|piece| piece.renamed.is_none()));
+    assert_eq!(categories_of(&server, &kept), names(&["Holiday"]));
+}
+
+#[test]
+fn more_than_a_batch_goes_in_several_and_a_quote_in_the_name_is_found() {
+    let server = StandIn::start().unwrap();
+    let ids: Vec<String> = (0..45).map(|n| message(&server, "inbox", &format!("Note {n}"), &["Kids' stuff"])).collect();
+    let came = mail_run(&server, Some(rename("Kids' stuff", "Family"))).unwrap();
+    assert!(came.done, "{came:?}");
+    assert_eq!(came.changed, 45);
+    assert!(ids.iter().all(|id| categories_of(&server, id) == names(&["Family"])));
+    // A name with what a web address reads as its own (%, #, &, +, a space) is asked for as it is.
+    let odd = message(&server, "inbox", "Sale", &["50% off #1 & more + less"]);
+    let came = mail_run(&server, Some(rename("50% off #1 & more + less", "Sales"))).unwrap();
+    assert!(came.done && came.changed == 1, "{came:?}");
+    assert_eq!(categories_of(&server, &odd), names(&["Sales"]));
+    // How far it got went out as it went: found, then after each batch of twenty.
+    let request = GraphMailRequest { account: 3, email: "owner@example.org".into(), rename: Some(rename("Family", "Kin")), ..Default::default() };
+    let pieces = whole_run(&server.url(), TOKEN, &request, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    let went: Vec<(u32, u32)> = pieces.iter().filter_map(|piece| piece.renaming.filter(|_| piece.partial)).map(|r| (r.done, r.total)).collect();
+    assert_eq!(went, [(0, 45), (20, 45), (40, 45), (45, 45)]);
+}
+
+#[test]
+fn a_server_that_takes_no_batch_is_asked_one_message_at_a_time() {
+    let server = StandIn::start().unwrap();
+    let ids: Vec<String> = (0..3).map(|n| message(&server, "inbox", &format!("Note {n}"), &["Holiday"])).collect();
+    server.state().refuse_batches = true;
+    let graph = super::Graph::for_mail(&server.url(), TOKEN, Arc::new(Gate::new()), super::pace::Priority::Owner, QUICK).unwrap();
+    let items = super::recategorize::Items { lists: vec![graph.mail_path("/messages")], item: graph.batch_path("/messages/") };
+    let came = super::recategorize::rename(&graph, &items, &rename("Holiday", "Holiday 2026"), None, &mut |_, _| {}).renamed;
+    assert!(came.done, "{came:?}");
+    assert_eq!(came.changed, 3);
+    assert!(ids.iter().all(|id| categories_of(&server, id) == names(&["Holiday 2026"])));
+}
+
+#[test]
+fn a_refused_sign_in_leaves_the_rename_for_a_later_run() {
+    let server = StandIn::start().unwrap();
+    let kept = message(&server, "inbox", "Flights", &["Holiday"]);
+    let graph =
+        super::Graph::for_mail(&server.url(), "not-the-token-0123456789", Arc::new(Gate::new()), super::pace::Priority::Owner, QUICK).unwrap();
+    let items = super::recategorize::Items { lists: vec![graph.mail_path("/messages")], item: graph.batch_path("/messages/") };
+    let came = super::recategorize::rename(&graph, &items, &rename("Holiday", "Holiday 2026"), None, &mut |_, _| {});
+    assert!(came.token_refused && !came.renamed.done && !came.renamed.denied && !came.renamed.refused);
+    assert_eq!(categories_of(&server, &kept), names(&["Holiday"]));
+    // A mail run says so, as for any other part of it that the sign-in stops.
+    let mut last = mailcraft_model::sync::GraphMailResult::default();
+    let request =
+        GraphMailRequest { account: 3, email: "owner@example.org".into(), rename: Some(rename("Holiday", "Holiday 2026")), ..Default::default() };
+    super::mail::renamed_into(&graph, &request, &AtomicBool::new(false), &mut last, &mut |_| {});
+    assert!(last.errors.iter().any(|e| e.contains("Couldn't rename the category on Microsoft's server")), "{:?}", last.errors);
+}
+
+/// An event of `calendar` that carries `categories`: its id.
+fn event(server: &StandIn, calendar: &str, subject: &str, categories: &[&str]) -> String {
+    let mut state = server.state();
+    let id = state.add_event(calendar, subject, NOW);
+    state.events.iter_mut().find(|e| e.id == id).unwrap().categories = names(categories);
+    id
+}
+
+fn event_categories(server: &StandIn, id: &str) -> Vec<String> {
+    server.state().events.iter().find(|e| e.id == id).unwrap().categories.clone()
+}
+
+fn events_run(server: &StandIn, rename: CategoryRename, shared: &str) -> Option<CategoryRenamed> {
+    let upload = EventsUpload { account: 3, email: "owner@example.org".into(), rename: Some(rename), ..Default::default() };
+    let uploaded = push_events_at(&server.url(), TOKEN, &upload, &EventOptions { shared: shared.into(), ..Default::default() });
+    assert!(!uploaded.token_refused && uploaded.outcomes.is_empty());
+    uploaded.renamed
+}
+
+#[test]
+fn events_of_the_main_calendar_and_of_the_calendars_named_take_the_new_name() {
+    let server = StandIn::start().unwrap();
+    let main = server.state().main_calendar();
+    let projects = server.state().add_calendar("Projects", true, false);
+    let family = server.state().add_calendar("Family", true, false);
+    let in_main = event(&server, &main, "Flight out", &["Holiday", "Red"]);
+    let in_projects = event(&server, &projects, "Book hotel", &["Holiday"]);
+    let not_named = event(&server, &family, "Pack", &["Holiday"]);
+    let other = event(&server, &main, "Dentist", &["Red"]);
+    let came = events_run(&server, CategoryRename { calendars: vec![projects.clone()], ..rename("Holiday", "Holiday 2026") }, "").unwrap();
+    assert!(came.done, "{came:?}");
+    assert_eq!((came.changed, came.skipped), (2, 0));
+    assert_eq!(event_categories(&server, &in_main), names(&["Holiday 2026", "Red"]));
+    assert_eq!(event_categories(&server, &in_projects), names(&["Holiday 2026"]));
+    assert_eq!(event_categories(&server, &not_named), names(&["Holiday"]), "a calendar the request doesn't name is not asked");
+    assert_eq!(event_categories(&server, &other), names(&["Red"]));
+}
+
+#[test]
+fn an_event_the_server_wont_change_is_counted_and_holds_nothing_up() {
+    let server = StandIn::start().unwrap();
+    let main = server.state().main_calendar();
+    let read_only = server.state().add_calendar("Rota", false, false);
+    let mine = event(&server, &main, "Flight out", &["Holiday"]);
+    let theirs = event(&server, &read_only, "Shift", &["Holiday"]);
+    let came = events_run(&server, CategoryRename { calendars: vec![read_only.clone()], ..rename("Holiday", "Holiday 2026") }, "").unwrap();
+    assert!(came.done, "{came:?}");
+    assert_eq!((came.changed, came.skipped), (1, 1));
+    assert_eq!(event_categories(&server, &mine), names(&["Holiday 2026"]));
+    assert_eq!(event_categories(&server, &theirs), names(&["Holiday"]));
+}
+
+#[test]
+fn a_shared_mailboxs_upload_renames_nothing() {
+    let server = StandIn::start().unwrap();
+    let main = server.state().main_calendar();
+    let mine = event(&server, &main, "Flight out", &["Holiday"]);
+    server.state().add_other("support@example.org", true);
+    assert_eq!(events_run(&server, rename("Holiday", "Holiday 2026"), "support@example.org"), None);
+    assert_eq!(event_categories(&server, &mine), names(&["Holiday"]));
+}
+
+#[test]
+fn a_calendar_that_is_gone_doesnt_end_the_others() {
+    let server = StandIn::start().unwrap();
+    let main = server.state().main_calendar();
+    let mine = event(&server, &main, "Flight out", &["Holiday"]);
+    let came =
+        events_run(&server, CategoryRename { calendars: vec!["AAMkAGone-calendar=".into()], ..rename("Holiday", "Holiday 2026") }, "").unwrap();
+    assert!(came.done && !came.denied && !came.refused, "{came:?}");
+    assert_eq!(came.changed, 1);
+    assert_eq!(event_categories(&server, &mine), names(&["Holiday 2026"]));
+}
+
+// ---- what the server refuses or puts off, against a scripted server ----
+
+/// A scripted Graph: `main` and `other` are two lists of events; what each answers is set by
+/// the test.
+#[derive(Default)]
+struct Script {
+    /// The status the first page of the main list (`/me/calendar/events`) is answered with (0: its items).
+    main_status: u16,
+    /// The same for the other list (`/me/calendars/other/events`).
+    other_status: u16,
+    /// The main list has a second page, answered with this status.
+    second_page: Option<u16>,
+    /// The status each PATCH of an item is answered with, by its id (none: 200).
+    item_status: Vec<(&'static str, u16)>,
+    /// The status the whole `$batch` is answered with (0: an answer for each item).
+    batch_status: u16,
+    /// The `$batch` is answered 200 with nothing about any item.
+    batch_empty: bool,
+    /// The `$batch` answers for its first item alone.
+    batch_first_only: bool,
+    /// The main list is this many pages of a hundred items each (0: the one item).
+    pages: usize,
+    /// The status every PATCH is answered with (0: by `item_status`).
+    every_item: u16,
+    /// The ids that were changed.
+    changed: Vec<String>,
+}
+
+fn status_line(status: u16) -> Vec<u8> {
+    format!("HTTP/1.1 {status} Other\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").into_bytes()
+}
+
+fn scripted(script: &Arc<std::sync::Mutex<Script>>) -> crate::fake::FakeHttp {
+    use serde_json::{Value, json};
+    let script = script.clone();
+    crate::fake::FakeHttp::start(move |_, request| {
+        let mut script = script.lock().unwrap();
+        let (head, body) = request.split_once("\r\n\r\n").unwrap_or((request, ""));
+        let mut line = head.lines().next().unwrap_or("").split(' ');
+        let (method, target) = (line.next().unwrap_or(""), line.next().unwrap_or(""));
+        let host = head.lines().find_map(|l| l.strip_prefix("Host: ")).unwrap_or("");
+        let item = |id: &str| json!({"id": id, "categories": ["Holiday"]});
+        let answer =
+            |status: u16, value: Value| if status == 0 { crate::fake::json_answer("200 OK", &value.to_string()) } else { status_line(status) };
+        match (method, target.split('?').next().unwrap_or("")) {
+            ("GET", "/v1.0/me/calendar/events") if script.pages > 0 => {
+                let n = target.split("page=").nth(1).and_then(|n| n.parse::<usize>().ok()).unwrap_or(1);
+                let mut page = json!({"value": (0..100).map(|i| item(&format!("p{n}i{i}"))).collect::<Vec<_>>()});
+                if n < script.pages {
+                    page["@odata.nextLink"] = json!(format!("http://{host}/v1.0/me/calendar/events?page={}", n + 1));
+                }
+                answer(0, page)
+            }
+            ("GET", "/v1.0/me/calendar/events") if target.contains("page=2") => {
+                answer(script.second_page.unwrap_or(0), json!({"value": [item("m2")]}))
+            }
+            ("GET", "/v1.0/me/calendar/events") => {
+                let mut page = json!({"value": [item("m1")]});
+                if script.second_page.is_some() {
+                    page["@odata.nextLink"] = json!(format!("http://{host}/v1.0/me/calendar/events?page=2"));
+                }
+                answer(script.main_status, page)
+            }
+            ("GET", "/v1.0/me/calendars/other/events") => answer(script.other_status, json!({"value": [item("o1")]})),
+            ("POST", "/v1.0/$batch") if script.batch_status != 0 => status_line(script.batch_status),
+            ("POST", "/v1.0/$batch") if script.batch_empty => crate::fake::json_answer("200 OK", "{}"),
+            ("POST", "/v1.0/$batch") => {
+                let asked = serde_json::from_str::<Value>(body).unwrap_or(Value::Null);
+                let mut responses = Vec::new();
+                for one in asked["requests"].as_array().cloned().unwrap_or_default() {
+                    let id = one["url"].as_str().unwrap_or("").rsplit('/').next().unwrap_or("").to_string();
+                    assert_eq!(one["method"], "PATCH");
+                    assert_eq!(one["body"], json!({"categories": ["Holiday 2026"]}));
+                    let status = script.item_status.iter().find(|(have, _)| *have == id).map_or(200, |(_, status)| *status);
+                    let status = if script.every_item != 0 { script.every_item } else { status };
+                    if script.batch_first_only && !responses.is_empty() {
+                        continue;
+                    }
+                    if status == 200 {
+                        script.changed.push(id);
+                    }
+                    responses.push(json!({"id": one["id"], "status": status, "body": {}}));
+                }
+                crate::fake::json_answer("200 OK", &json!({"responses": responses}).to_string())
+            }
+            _ => status_line(404),
+        }
+    })
+}
+
+/// A rename of the events of both lists against `script`: what came of it, and what was changed.
+fn scripted_run(script: Script, both: bool) -> (CategoryRenamed, Vec<String>) {
+    let script = Arc::new(std::sync::Mutex::new(script));
+    let server = scripted(&script);
+    let graph = super::Graph::at(&server.url(""), TOKEN).unwrap();
+    let mut lists = vec!["/v1.0/me/calendar/events".to_string()];
+    if both {
+        lists.push("/v1.0/me/calendars/other/events".to_string());
+    }
+    let items = super::recategorize::Items { lists, item: "/me/events/".into() };
+    let came = super::recategorize::rename(&graph, &items, &rename("Holiday", "Holiday 2026"), None, &mut |_, _| {}).renamed;
+    let changed = script.lock().unwrap().changed.clone();
+    (came, changed)
+}
+
+#[test]
+fn a_calendar_the_server_wont_list_is_counted_and_the_others_are_renamed() {
+    for status in [403, 400] {
+        let (came, changed) = scripted_run(Script { other_status: status, ..Default::default() }, true);
+        assert!(came.done && !came.denied && !came.refused, "{status}: {came:?}");
+        assert_eq!((came.changed, came.lists_refused), (1, 1), "{status}");
+        assert_eq!(changed, ["m1"], "{status}");
+    }
+    // The main one refused, the other not: the same the other way round.
+    let (came, changed) = scripted_run(Script { main_status: 403, ..Default::default() }, true);
+    assert!(came.done && came.lists_refused == 1, "{came:?}");
+    assert_eq!(changed, ["o1"]);
+}
+
+#[test]
+fn when_no_list_says_it_nothing_is_changed_and_it_isnt_asked_again() {
+    let (came, changed) = scripted_run(Script { main_status: 403, ..Default::default() }, false);
+    assert!(came.denied && !came.refused && !came.done && changed.is_empty(), "{came:?}");
+    let (came, changed) = scripted_run(Script { main_status: 400, ..Default::default() }, false);
+    assert!(came.refused && !came.denied && !came.done && changed.is_empty(), "{came:?}");
+    let (came, _) = scripted_run(Script { main_status: 403, other_status: 400, ..Default::default() }, true);
+    assert!(came.denied && !came.done, "{came:?}");
+    // The main list answering "not found" is no list that is gone (only a calendar named by its
+    // id can be that): the server won't say, which is said, and the old name stays.
+    let (came, changed) = scripted_run(Script { main_status: 404, other_status: 410, ..Default::default() }, true);
+    assert!(came.refused && !came.done && !came.denied && changed.is_empty(), "{came:?}");
+    // With another calendar that does answer: the main one is counted as not said, and said.
+    let (came, changed) = scripted_run(Script { main_status: 404, ..Default::default() }, true);
+    assert!(came.done && came.lists_refused == 1 && !came.refused, "{came:?}");
+    assert_eq!(changed, ["o1"]);
+    let (came, _) = scripted_run(Script { main_status: 404, other_status: 400, ..Default::default() }, true);
+    assert!(came.refused && !came.done, "{came:?}");
+}
+
+#[test]
+fn a_busy_or_failing_server_leaves_it_for_a_later_run() {
+    for status in [429, 503, 500] {
+        let (came, changed) = scripted_run(Script { main_status: status, ..Default::default() }, true);
+        assert!(!came.done && !came.denied && !came.refused && changed.is_empty(), "{status}: {came:?}");
+        // Its own failure counts against the tries a rename is given; being busy doesn't.
+        assert_eq!(came.failed, status == 500, "{status}");
+    }
+}
+
+#[test]
+fn an_item_the_server_puts_off_is_counted_and_the_rename_isnt_done() {
+    for status in [412, 409, 500] {
+        let (came, changed) = scripted_run(Script { item_status: vec![("o1", status)], ..Default::default() }, true);
+        assert!(!came.done, "{status}: {came:?}");
+        assert_eq!((came.changed, came.stuck, came.skipped), (1, 1, 0), "{status}");
+        assert_eq!(changed, ["m1"], "{status}");
+    }
+    // One it won't change for good is counted otherwise, and holds nothing up; one that is gone is nothing.
+    let (came, _) = scripted_run(Script { item_status: vec![("o1", 403), ("m1", 404)], ..Default::default() }, true);
+    assert!(came.done, "{came:?}");
+    assert_eq!((came.changed, came.stuck, came.skipped), (0, 0, 1));
+}
+
+#[test]
+fn trouble_on_a_later_page_changes_what_was_read_and_leaves_the_rest_for_a_later_run() {
+    let (came, changed) = scripted_run(Script { second_page: Some(0), ..Default::default() }, false);
+    assert!(came.done && changed == ["m1", "m2"], "{came:?} {changed:?}");
+    for status in [403, 400] {
+        let (came, changed) = scripted_run(Script { second_page: Some(status), ..Default::default() }, false);
+        assert!(!came.done && !came.denied && !came.refused && came.failed, "{status}: {came:?}");
+        assert_eq!((came.changed, came.lists_refused), (1, 0), "{status}");
+        assert_eq!(changed, ["m1"], "{status}");
+        // Not done either when nothing of what was read could be changed.
+        let (came, _) = scripted_run(Script { second_page: Some(status), item_status: vec![("m1", 403)], ..Default::default() }, false);
+        assert!(!came.done && came.failed, "{status}: {came:?}");
+    }
+}
+
+#[test]
+fn a_batch_the_server_fails_at_or_answers_with_nothing_counts_its_items_as_stuck() {
+    for script in [Script { batch_status: 500, ..Default::default() }, Script { batch_empty: true, ..Default::default() }] {
+        let (came, changed) = scripted_run(script, false);
+        assert!(!came.done && !came.denied && !came.refused && changed.is_empty(), "{came:?}");
+        assert_eq!((came.changed, came.stuck), (0, 1), "{came:?}");
+    }
+    // Busy is waited out, not counted.
+    let (came, _) = scripted_run(Script { batch_status: 503, ..Default::default() }, false);
+    assert_eq!((came.done, came.changed, came.stuck, came.failed), (false, 0, 0, false), "{came:?}");
+    // An answer that leaves an item out: that one is counted, so that it isn't asked for ever.
+    let (came, changed) = scripted_run(Script { batch_first_only: true, ..Default::default() }, true);
+    assert_eq!((came.done, came.changed, came.stuck), (false, 1, 1), "{came:?}");
+    assert_eq!(changed, ["m1"]);
+}
+
+#[test]
+fn a_runs_fill_that_the_server_wont_change_is_the_end_and_says_there_may_be_more() {
+    // More items than a run changes, and the server refuses each: asking again would list the
+    // same, so it is done, and it says that more may keep the name.
+    let (came, changed) = scripted_run(Script { pages: 21, every_item: 403, ..Default::default() }, false);
+    assert!(came.done && came.more && changed.is_empty(), "{came:?}");
+    assert_eq!((came.changed, came.skipped), (0, 2_000), "{came:?}");
+    // Each of them gone meanwhile: a later run lists others, so it isn't the end.
+    let (came, _) = scripted_run(Script { pages: 21, every_item: 404, ..Default::default() }, false);
+    assert_eq!((came.done, came.more, came.changed, came.skipped), (false, false, 0, 0), "{came:?}");
+    assert!(came.failed, "a server that goes on listing what it says is gone is counted, and given up in the end");
+    // All of them listed: the end, and nothing more to say.
+    let (came, _) = scripted_run(Script { pages: 2, every_item: 403, ..Default::default() }, false);
+    assert_eq!((came.done, came.more, came.skipped), (true, false, 200), "{came:?}");
+}
+
+#[test]
+fn an_item_with_many_categories_keeps_them_all_and_one_too_long_to_write_back_is_left_and_said() {
+    let server = StandIn::start().unwrap();
+    // Thirty names, the old one among them: each is there afterwards, the old one renamed.
+    let mut many: Vec<String> = (0..29).map(|n| format!("C{n}")).collect();
+    many.insert(27, "Holiday".into());
+    let id = message(&server, "inbox", "Many", &many.iter().map(String::as_str).collect::<Vec<_>>());
+    // More than is written back (the stand-in keeps a hundred at most): left whole, and counted.
+    let mut long: Vec<String> = (0..100).map(|n| format!("L{n}")).collect();
+    long[99] = "Holiday".into();
+    let kept = message(&server, "inbox", "Long", &long.iter().map(String::as_str).collect::<Vec<_>>());
+    server.state().mailbox.messages.get_mut(&kept).unwrap().categories.push("One more".into());
+    let came = mail_run(&server, Some(rename("Holiday", "Holiday 2026"))).unwrap();
+    many[27] = "Holiday 2026".into();
+    assert_eq!(categories_of(&server, &id), many);
+    assert_eq!(categories_of(&server, &kept).len(), 101, "a cut copy was written");
+    assert!(categories_of(&server, &kept).iter().any(|c| c == "Holiday"));
+    assert_eq!((came.done, came.changed, came.skipped, came.passed), (true, 1, 0, 1), "{came:?}");
+    // One whose list holds what isn't a plain name is left as it is too: no change is sent.
+    let server = StandIn::start().unwrap();
+    let odd = message(&server, "inbox", "Odd", &["Holiday", "Bell\u{7}"]);
+    let wide = message(&server, "inbox", "Wide", &["Holiday", &"w".repeat(256)]);
+    let came = mail_run(&server, Some(rename("Holiday", "Holiday 2026"))).unwrap();
+    assert_eq!((came.done, came.changed, came.skipped, came.passed), (true, 0, 0, 2), "{came:?}");
+    assert_eq!(categories_of(&server, &odd), names(&["Holiday", "Bell\u{7}"]));
+    assert_eq!(categories_of(&server, &wide).len(), 2);
+}

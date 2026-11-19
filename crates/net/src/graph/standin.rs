@@ -2193,6 +2193,8 @@ impl State {
             }
             ["messages"] if method == "POST" => self.create_message(asked),
             ["messages"] if method == "GET" && asked.param("$search").is_some() => self.search_messages(asked, None),
+            // What carries a category, in the whole mailbox (#851): the owner's own alone.
+            ["messages"] if method == "GET" && asked.param("$filter").is_some() => self.messages_with_category(asked),
             ["sendMail"] if method == "POST" => self.send_mail(asked),
             ["messages", id, "send"] if method == "POST" => self.send_draft(asked, id),
             ["messages", id, "$value"] if method == "GET" => self.message_value(id),
@@ -2309,6 +2311,23 @@ impl State {
                 let made = self.json_of(&event, &look);
                 self.events.push(event);
                 Ok((201, Some(made)))
+            }
+            // The calendar's single events and series themselves ("List events"), those that
+            // carry a category when one is asked for (#851).
+            ("GET", []) => {
+                let home = calendar.map(str::to_string).unwrap_or_else(|| self.main_calendar());
+                let name = match asked.param("$filter") {
+                    None => None,
+                    Some(text) => Some(
+                        changes::category_filter(text)
+                            .ok_or_else(|| bad("The only filter this stand-in answers here is categories/any(c:c eq '…')."))?,
+                    ),
+                };
+                let listed = |event: &&Stored| {
+                    event.calendar == home && event.series.is_empty() && name.as_ref().is_none_or(|name| event.categories.contains(name))
+                };
+                let list = self.events.iter().filter(listed).map(|event| self.json_of(event, &look)).collect();
+                self.page(asked, list)
             }
             ("GET", [id]) => match self.find(calendar, id) {
                 Ok(at) => Ok((200, self.events.get(at).map(|event| self.json_of(event, &look)))),
