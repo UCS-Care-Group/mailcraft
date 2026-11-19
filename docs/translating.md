@@ -1,10 +1,10 @@
 # Translating MailCraft
 
-> **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-19 · **Change:** minor
+> **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-16 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
 Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese, Georgian and Hebrew. Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
-Simplified Chinese is offered on desktop only until the browser build has a CJK font.
+Simplified Chinese and Hebrew are offered on desktop only until the browser build has a CJK or Hebrew font.
 File › Options names each preview in its own words ("Français (aperçu)", "Deutsch (Vorschau)"). Reviewing
 one, or adding another, needs no Rust.
 
@@ -71,7 +71,6 @@ Agreement](../CLA.md).
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-19 | minor | #1492/#1585: added complete Hebrew preview catalogue (`he.po`), `iw` alias support, macOS `SFHebrew.ttf` fallback, and Android `he` locale support. |
 | 2026-11-16 | minor | added the Czech preview catalogue (`cs.po`), with its three plural forms. |
 | 2026-11-15 | minor | #1357: added the Polish preview catalogue (`pl.po`), with its three plural forms. |
 | 2026-11-14 | minor | Added the Hungarian preview catalogue (`hu.po`). |

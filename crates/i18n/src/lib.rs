@@ -215,9 +215,9 @@ impl Lang {
     }
 
     /// A catalogue can be used for the interface when its glyphs are available on the target.
-    /// The browser has no system CJK fallback font yet.
+    /// The browser has no system CJK or Hebrew fallback font yet.
     fn supported_on(self, browser: bool) -> bool {
-        self.has_catalogue() && !(browser && self == Lang::ChineseSimplified)
+        self.has_catalogue() && !(browser && matches!(self, Lang::ChineseSimplified | Lang::Hebrew))
     }
 
     fn supported(self) -> bool {
@@ -498,7 +498,9 @@ mod tests {
             expected.push("简体中文（预览）");
         }
         expected.push("ქართული (საცდელი)");
-        expected.push("עברית (תצוגה מקדימה)");
+        if !cfg!(target_arch = "wasm32") {
+            expected.push("עברית (תצוגה מקדימה)");
+        }
         assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
@@ -512,10 +514,11 @@ mod tests {
         assert_eq!(Lang::from_pref("hu", None), Lang::Hungarian);
         assert_eq!(Lang::from_pref("auto", Some("ka_GE.UTF-8")), Lang::Georgian);
         assert_eq!(Lang::from_pref("ka", None), Lang::Georgian);
-        assert_eq!(Lang::from_pref("auto", Some("he_IL.UTF-8")), Lang::Hebrew);
-        assert_eq!(Lang::from_pref("auto", Some("iw_IL.UTF-8")), Lang::Hebrew);
-        assert_eq!(Lang::from_pref("he", None), Lang::Hebrew);
-        assert_eq!(Lang::from_pref("iw", None), Lang::Hebrew);
+        let expected_he = if cfg!(target_arch = "wasm32") { Lang::English } else { Lang::Hebrew };
+        assert_eq!(Lang::from_pref("auto", Some("he_IL.UTF-8")), expected_he);
+        assert_eq!(Lang::from_pref("auto", Some("iw_IL.UTF-8")), expected_he);
+        assert_eq!(Lang::from_pref("he", None), expected_he);
+        assert_eq!(Lang::from_pref("iw", None), expected_he);
     }
 
     #[test]
