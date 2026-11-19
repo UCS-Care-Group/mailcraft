@@ -72,7 +72,7 @@ pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
 pub use rule::{
-    Action, Condition, Keep, MAX_PATTERN_CONDITIONS, MAX_PATTERN_LENGTH, MAX_RULE_GONE, MAX_TEXT_LENGTH, Pattern, Rule, RuleGone, ServerRule,
+    Action, Condition, Keep, MAX_BODY_PATTERN_CHARS, MAX_PATTERN_CONDITIONS, MAX_PATTERN_LENGTH, MAX_RULE_GONE, MAX_TEXT_LENGTH, Pattern, Rule, RuleGone, ServerRule,
     clean_condition_text, count_pattern_conditions, regex_is_ok,
 };
 pub use signature::Signature;

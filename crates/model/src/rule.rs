@@ -31,6 +31,26 @@ pub const MAX_TEXT_LENGTH: usize = 200;
 /// Each pattern is individually limited to 2MB via regex::RegexBuilder::size_limit.
 pub const MAX_PATTERN_CONDITIONS: usize = 100;
 
+/// Maximum body text length that a regex pattern can match against (counted in characters).
+/// This prevents performance issues with very large bodies.
+pub const MAX_BODY_PATTERN_CHARS: usize = 10_000;
+
+/// Cap body text at MAX_BODY_PATTERN_CHARS characters for regex matching.
+/// Truncates at character boundary (not byte boundary).
+pub fn cap_body_text(text: &str) -> String {
+    let char_count = text.chars().count();
+    if char_count <= MAX_BODY_PATTERN_CHARS {
+        return text.to_string();
+    }
+    // Find the byte position of the Nth character
+    let end_byte = text
+        .char_indices()
+        .nth(MAX_BODY_PATTERN_CHARS)
+        .map(|(idx, _)| idx)
+        .unwrap_or(text.len());
+    text[..end_byte].to_string()
+}
+
 /// Clean text for a condition: trim whitespace, cap at MAX_TEXT_LENGTH (characters, not bytes).
 pub fn clean_condition_text(text: &str) -> String {
     let trimmed = text.trim();
@@ -191,7 +211,13 @@ impl Condition {
             // A pattern the owner wrote is the rule's, not the message's: a message with a bad
             // pattern in its text does nothing here (the pattern is what it is, or is not).
             Condition::SubjectMatches(p) => p.is_match(&m.subject),
-            Condition::BodyMatches(p) => p.is_match(&m.body.text) || p.is_match(&m.hidden_text),
+            // Body text is capped to prevent performance issues with very large bodies.
+            // Only the first MAX_BODY_PATTERN_CHARS characters are checked.
+            Condition::BodyMatches(p) => {
+                let capped_body = cap_body_text(&m.body.text);
+                let capped_hidden = cap_body_text(&m.hidden_text);
+                p.is_match(&capped_body) || p.is_match(&capped_hidden)
+            }
             Condition::HasAttachment => m.has_attachments(),
             Condition::Importance(i) => m.importance == *i,
         }

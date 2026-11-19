@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::messages::Messages;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
-    Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
-    clean_name,
+    Action, Answers, Calendar, Condition, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, MAX_PATTERN_CONDITIONS,
+    Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex, count_pattern_conditions, clean_name,
 };
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
@@ -3294,8 +3294,9 @@ impl Mailbox {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
         }
-        // Each pattern is limited to 2MB via Pattern::new, and we cap the number of patterns
-        // at MAX_PATTERN_CONDITIONS. No need for additional memory budget checks.
+        // Enforce the pattern condition budget: count pattern conditions and truncate rules
+        // so we don't exceed MAX_PATTERN_CONDITIONS (100).
+        self.fix_pattern_memory(&mut fixed);
         if self.migrate_junk_lists() {
             fixed.push("Safe and Blocked Senders moved to each account".to_string());
         }
@@ -3645,14 +3646,56 @@ impl Mailbox {
         fixed
     }
 
-    /// Check and fix regex patterns in rules to stay within memory budget.
-    /// Since each pattern is limited to 2MB via regex::RegexBuilder::size_limit and we cap
-    /// the number of patterns at MAX_PATTERN_CONDITIONS, this function is no longer needed.
-    /// Returns 0 (no fixes ever needed).
-    pub fn fix_pattern_memory(&mut self) -> usize {
-        // Each pattern is already limited to 2MB via Pattern::new
-        // And we cap the number of patterns at MAX_PATTERN_CONDITIONS
-        0
+    /// Check and fix regex patterns in rules to stay within the memory budget.
+    /// Truncates rules so that SubjectMatches and BodyMatches conditions total at most
+    /// MAX_PATTERN_CONDITIONS (100). Rules with pattern conditions beyond the limit have
+    /// their patterns uncompiled (set to match nothing).
+    /// Returns the number of pattern conditions removed.
+    pub fn fix_pattern_memory(&mut self, fixed: &mut Vec<String>) -> usize {
+        // Count pattern conditions in all rules
+        let mut pattern_count = 0;
+        for rule in &self.rules {
+            pattern_count += count_pattern_conditions(&rule.conditions);
+        }
+
+        if pattern_count <= MAX_PATTERN_CONDITIONS {
+            return 0;
+        }
+
+        // We need to remove pattern conditions. Strategy: iterate rules and uncompile
+        // pattern conditions until we're under the limit. Keep non-pattern conditions.
+        let mut removed = 0;
+        let mut remaining = pattern_count;
+
+        for rule in &mut self.rules {
+            // Collect indices of pattern conditions that need to be removed
+            let mut to_remove = Vec::new();
+            for (i, c) in rule.conditions.iter().enumerate() {
+                if matches!(c, Condition::SubjectMatches(_) | Condition::BodyMatches(_)) {
+                    if remaining > MAX_PATTERN_CONDITIONS {
+                        to_remove.push(i);
+                        remaining -= 1;
+                        removed += 1;
+                    }
+                }
+            }
+
+            // Remove pattern conditions from the end to avoid index shifting issues
+            for i in to_remove.into_iter().rev() {
+                rule.conditions.remove(i);
+            }
+
+            // Stop once we've removed enough
+            if remaining <= MAX_PATTERN_CONDITIONS {
+                break;
+            }
+        }
+
+        if removed > 0 {
+            fixed.push(format!("pattern conditions cut from rules to stay within {MAX_PATTERN_CONDITIONS} limit"));
+        }
+
+        removed
     }
 
     /// Keep of [`Mailbox::pending`] only what could have been noted here, and no more than

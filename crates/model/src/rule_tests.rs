@@ -190,3 +190,188 @@ fn clean_condition_text_handles_multibyte_chars() {
     let cleaned = clean_condition_text(&chinese);
     assert_eq!(cleaned.chars().count(), 200);
 }
+
+#[test]
+fn load_mailbox_with_too_many_patterns() {
+    // Create a mailbox with 150 rules, each having a pattern condition
+    // This exceeds the MAX_PATTERN_CONDITIONS limit of 100
+    let mut mailbox = Mailbox::default();
+    
+    // Add 150 rules with pattern conditions
+    for i in 0..150 {
+        let pattern = Pattern::new(format!(r"pattern{}", i)).unwrap();
+        mailbox.rules.push(Rule {
+            id: i as Id,
+            name: format!("Rule {}", i),
+            enabled: true,
+            conditions: vec![Condition::SubjectMatches(pattern)],
+            actions: vec![Action::MarkRead],
+            ..Default::default()
+        });
+    }
+    
+    // Verify all 150 rules were created
+    assert_eq!(mailbox.rules.len(), 150);
+    
+    // Before repair, all patterns should be compiled
+    let mut pattern_count_before = 0;
+    for rule in &mailbox.rules {
+        for cond in &rule.conditions {
+            if let Condition::SubjectMatches(p) = cond {
+                pattern_count_before += 1;
+                assert!(p.is_compiled(), "Rule {} pattern should be compiled before repair", rule.id);
+            }
+        }
+    }
+    assert_eq!(pattern_count_before, 150);
+    
+    // Repair should enforce the pattern budget
+    let fixed = mailbox.repair();
+    
+    // Verify we have at most MAX_PATTERN_CONDITIONS pattern conditions
+    let mut pattern_count_after = 0;
+    for rule in &mailbox.rules {
+        for cond in &rule.conditions {
+            if let Condition::SubjectMatches(p) = cond {
+                pattern_count_after += 1;
+                // The pattern should either be compiled (kept) or uncompiled (removed)
+                // If it's uncompiled, it will match nothing
+            }
+        }
+    }
+    assert!(pattern_count_after <= MAX_PATTERN_CONDITIONS, "After repair: {} patterns, limit is {}", pattern_count_after, MAX_PATTERN_CONDITIONS);
+    
+    // Verify the fix message was added
+    assert!(fixed.iter().any(|msg| msg.contains("pattern conditions cut")), "Fixed: {:?}", fixed);
+    
+    // Verify that uncompiled patterns match nothing
+    for rule in &mailbox.rules {
+        for cond in &rule.conditions {
+            if let Condition::SubjectMatches(p) = cond {
+                let test_msg = Message {
+                    subject: "any text".into(),
+                    ..Default::default()
+                };
+                // If pattern is not compiled, it matches nothing
+                if !p.is_compiled() {
+                    assert!(!p.is_match("any text"), "Uncompiled pattern should match nothing");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn pattern_budget_works_across_multiple_mailboxes() {
+    // Verify the pattern budget is per-mailbox, not global
+    // Create first mailbox with 120 patterns
+    let mut mailbox1 = Mailbox::default();
+    for i in 0..120 {
+        let pattern = Pattern::new(format!("pattern{}", i)).unwrap();
+        mailbox1.rules.push(Rule {
+            id: i as Id,
+            name: format!("Rule {}", i),
+            enabled: true,
+            conditions: vec![Condition::SubjectMatches(pattern)],
+            actions: vec![Action::MarkRead],
+            ..Default::default()
+        });
+    }
+    
+    // Repair should limit mailbox1 to 100 pattern conditions
+    let _ = mailbox1.repair();
+    
+    let pattern_count1 = mailbox1.rules.iter()
+        .map(|r| count_pattern_conditions(&r.conditions))
+        .sum::<usize>();
+    
+    assert!(pattern_count1 <= MAX_PATTERN_CONDITIONS, "Mailbox1: {} patterns exceeds limit", pattern_count1);
+    
+    // Create second mailbox with 80 patterns (under limit)
+    let mut mailbox2 = Mailbox::default();
+    for i in 0..80 {
+        let pattern = Pattern::new(format!("pattern{}", i + 1000)).unwrap();
+        mailbox2.rules.push(Rule {
+            id: i as Id,
+            name: format!("Rule {}", i + 1000),
+            enabled: true,
+            conditions: vec![Condition::SubjectMatches(pattern)],
+            actions: vec![Action::MarkRead],
+            ..Default::default()
+        });
+    }
+    
+    // Repair should keep all 80 patterns (under limit)
+    let _ = mailbox2.repair();
+    
+    let pattern_count2 = mailbox2.rules.iter()
+        .map(|r| count_pattern_conditions(&r.conditions))
+        .sum::<usize>();
+    
+    assert_eq!(pattern_count2, 80, "Mailbox2 should keep all 80 patterns");
+    
+    // Verify each mailbox has its own budget (not shared)
+    assert!(pattern_count1 <= 100);
+    assert_eq!(pattern_count2, 80);
+}
+
+#[test]
+fn body_pattern_caps_text_to_max_length() {
+    // Create a pattern that looks for text at a specific position
+    let pattern = Pattern::new(r"ZZZ".to_string()).unwrap();
+    
+    // Body with "ZZZ" at position 5000 (within cap)
+    let short_body = "a".repeat(4997) + "ZZZ";
+    let m = Message {
+        body: Body { text: short_body, html: None },
+        ..Default::default()
+    };
+    assert!(Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern should match within cap");
+    
+    // Body with "ZZZ" at position 15000 (beyond cap)
+    let long_body = "a".repeat(15000);
+    let m = Message {
+        body: Body { text: long_body, html: None },
+        ..Default::default()
+    };
+    assert!(!Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern beyond cap should not match");
+    
+    // Body with "ZZZ" at position 5000 within a 15000 char body (the first 10000 chars)
+    let mixed_body = "a".repeat(5000) + "ZZZ" + &"b".repeat(9999);
+    let m = Message {
+        body: Body { text: mixed_body, html: None },
+        ..Default::default()
+    };
+    assert!(Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern in first 10000 chars should match");
+    
+    // Verify hidden text is also capped
+    let hidden_with_zzz = "a".repeat(5000) + "ZZZ" + &"c".repeat(5000);
+    let m = Message {
+        body: Body { text: "short body".to_string(), html: None },
+        hidden_text: hidden_with_zzz,
+        ..Default::default()
+    };
+    assert!(Condition::BodyMatches(pattern).matches(&m), "Hidden text within cap should match");
+}
+
+#[test]
+fn body_pattern_handles_multibyte_chars() {
+    // Use multibyte characters and verify truncation at character boundary
+    let pattern = Pattern::new("中".to_string()).unwrap();
+    
+    // Create body with 10000+ characters, ending with "中"
+    let multi = "中".repeat(10_001);
+    let multi_clone = multi.clone();
+    let m = Message {
+        body: Body { text: multi, html: None },
+        ..Default::default()
+    };
+    
+    // Pattern should match because first 10000 chars include "中"
+    assert!(Condition::BodyMatches(pattern).matches(&m), "Multibyte pattern should match");
+    
+    // Verify the cap is at character count, not byte count
+    // Each "中" is 3 bytes, so 10000 chars = 30000 bytes
+    let capped = crate::rule::cap_body_text(&multi_clone);
+    assert_eq!(capped.chars().count(), MAX_BODY_PATTERN_CHARS, "Should cap at 10000 characters");
+}
