@@ -432,6 +432,7 @@ pub(crate) fn describe_tab(app: &MailApp, name: &str) -> Tab {
             Module::People => (home_people(app), "Home people"),
             Module::Tasks => (home_tasks(app), "Home tasks"),
             Module::Notes => (home_notes(app), "Home notes"),
+            Module::Journal => (home_notes(app), "Home journal"),
         },
     };
     if app.services.recent_attachments.is_some() {

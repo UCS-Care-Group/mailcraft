@@ -66,10 +66,11 @@ pub enum Module {
     People,
     Tasks,
     Notes,
+    Journal,
 }
 
 impl Module {
-    pub const ALL: [Module; 5] = [Module::Mail, Module::Calendar, Module::People, Module::Tasks, Module::Notes];
+    pub const ALL: [Module; 6] = [Module::Mail, Module::Calendar, Module::People, Module::Tasks, Module::Notes, Module::Journal];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -78,6 +79,7 @@ impl Module {
             Module::People => "People",
             Module::Tasks => "Tasks",
             Module::Notes => "Notes",
+            Module::Journal => "Journal",
         }
     }
 }

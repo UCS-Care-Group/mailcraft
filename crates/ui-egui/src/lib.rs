@@ -283,6 +283,7 @@ pub mod task_sync;
 mod task_sync_tests;
 pub mod tasks_view;
 pub mod notes_view;
+pub mod journal_view;
 mod text_menu;
 #[cfg(test)]
 mod text_menu_gesture_tests;
@@ -1548,6 +1549,7 @@ pub struct MailApp {
     /// command is given the ids (Merge Contacts…, #506).
     pub people_picked: Vec<Id>,
     pub notes: notes_view::NotesState,
+    pub journal: journal_view::JournalState,
     pub status_msg: Option<(String, f64)>,
     /// macOS: the window has no title bar; leave room for the traffic lights.
     pub integrated_titlebar: bool,
@@ -1928,6 +1930,7 @@ impl MailApp {
             dialog: None,
             people_picked: Vec::new(),
             notes: notes_view::NotesState::load(),
+            journal: journal_view::JournalState::load(),
             status_msg: None,
             integrated_titlebar: false,
             search_text: String::new(),
@@ -3008,7 +3011,8 @@ impl MailApp {
                     .or_else(|| attachment_open::ui_command(self, id, p))
                     .or_else(|| report_problem::ui_command(self, id, p))
                     .or_else(|| sender_images::ui_command(self, id, p))
-                    .or_else(|| notes_view::ui_command(self, id, p));
+                    .or_else(|| notes_view::ui_command(self, id, p))
+                    .or_else(|| journal_view::ui_command(self, id, p));
             }
         })
     }
@@ -5534,6 +5538,7 @@ impl MailApp {
                 mailcraft_engine::Module::People => people_view::show(self, ui),
                 mailcraft_engine::Module::Tasks => tasks_view::show(self, ui),
                 mailcraft_engine::Module::Notes => notes_view::show(self, ui),
+                mailcraft_engine::Module::Journal => journal_view::show(self, ui),
             });
         }
         windows::compose_window::back(self, fronted);

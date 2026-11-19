@@ -86,13 +86,7 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
                 let _ = app.run(id, json!({}));
             }
         }
-        // What a .pst file's journal entries will be read in: kept, with no view yet.
-        for (icon, name) in [("journal", tl!("Journal"))] {
-            let (r, resp) = ui.allocate_exact_size(vec2(RAIL_W, RAIL_PITCH), Sense::hover());
-            let ink = t.icon.linear_multiply(0.45);
-            icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(24.0, 24.0)), icon, ink, ink);
-            resp.on_hover_text(format!("{name}: {}", tl!("Pending development")));
-        }
+
     });
 }
 
@@ -104,13 +98,14 @@ const FOOT_NAME: f32 = 12.0;
 const FOOT_NAME_ROOM: f32 = 22.0;
 
 /// The icon and command id of each module, in the order both the bar and the foot show them.
-fn module_buttons() -> [(Module, &'static str, &'static str); 5] {
+fn module_buttons() -> [(Module, &'static str, &'static str); 6] {
     [
         (Module::Mail, "mail", "view.mail"),
         (Module::Calendar, "calendar", "view.calendar"),
         (Module::People, "people", "view.people"),
         (Module::Tasks, "tasks", "view.tasks"),
         (Module::Notes, "notes", "view.notes"),
+        (Module::Journal, "journal", "view.journal"),
     ]
 }
 
@@ -120,7 +115,7 @@ fn module_buttons() -> [(Module, &'static str, &'static str); 5] {
 /// and Tasks always have theirs. Without a pane the bar down the window's edge stays, so the
 /// switch is never out of reach.
 pub fn foot_in_use(s: &mailcraft_engine::Session) -> bool {
-    s.view.nav_foot && (s.view.folder_pane || matches!(s.view.module, Module::People | Module::Tasks | Module::Notes))
+    s.view.nav_foot && (s.view.folder_pane || matches!(s.view.module, Module::People | Module::Tasks | Module::Notes | Module::Journal))
 }
 
 /// Whether a module's name is written beside its icon in the row (#1174): all four or none, so
