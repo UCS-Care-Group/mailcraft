@@ -51,7 +51,7 @@ pub fn mark_unreadable(mb: &mut Mailbox) -> usize {
             && !m.unfetched
             && !m.incomplete
             && m.moving_out.is_none();
-        if candidate && (unreadable(m) || m.not_downloaded > 0) {
+        if candidate && (unreadable(m) || m.not_downloaded > 0 || m.has_header(NOT_DOWNLOADED)) {
             std::sync::Arc::make_mut(m).refetch = true;
             marked = marked.saturating_add(1);
         }
@@ -111,7 +111,8 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     // for text read wrongly before (U+FFFD), which is taken from the same download too, as it
     // would have been had it been marked for that. (One being moved into another account, asked
     // for from the copy it came from, alike.)
-    if wanted && (m.draft || (!unreadable(m) && m.not_downloaded == 0)) {
+    let placeholder = m.not_downloaded > 0 || m.has_header(NOT_DOWNLOADED);
+    if wanted && (m.draft || (!unreadable(m) && !placeholder)) {
         if !m.parts_removed && read.original.is_some() {
             m.original = read.original;
         }
@@ -140,7 +141,7 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     m.hidden_text = read.hidden_text;
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
-    if m.not_downloaded > 0 {
+    if placeholder {
         m.not_downloaded = 0;
         m.remove_header(NOT_DOWNLOADED);
         m.attachments = read.attachments;

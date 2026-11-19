@@ -555,9 +555,6 @@ fn rich_from_html_candidates(
 ) -> mailcraft_model::RichText {
     let mut cid_map: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
     let mut held: std::collections::HashSet<u32> = body_pictures.clone();
-    for p in pictures.iter() {
-        held.insert(p.id);
-    }
 
     mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img| {
         if let Some(&id) = cid_map.get(&img.cid) {
