@@ -908,7 +908,16 @@ pub(crate) fn info_tiles(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         return;
     }
     ui.add_space(10.0);
-    ui.label(RichText::new(tl!("Automatic Replies")).font(crate::theme::semibold(14.0)).color(t.accent_text));
+    let section_title = RichText::new(tl!("Automatic Replies")).font(crate::theme::semibold(14.0)).color(t.accent_text);
+    if crate::i18n::current().code() == "he" {
+        // Keep the section heading on the same reading edge as the Hebrew tiles.
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(section_title);
+        });
+    } else {
+        // Preserve the existing LTR layout and native label sizing.
+        ui.label(section_title);
+    }
     let now = app.session.now();
     for account in accounts {
         let on = app.auto_replies_known(account).is_some_and(|k| k.on_at(now));
