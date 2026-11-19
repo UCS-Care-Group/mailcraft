@@ -1810,7 +1810,9 @@ msgstr "Düzenle"
 msgid ""
 "Arrange\n"
 "By"
-msgstr "Şuna Göre\\nDüzenle"
+msgstr ""
+"Şuna Göre\n"
+"Düzenle"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -2058,7 +2060,9 @@ msgstr "Ekle"
 msgid ""
 "Attach\n"
 "File"
-msgstr "Dosya\\nEkle"
+msgstr ""
+"Dosya\n"
+"Ekle"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
@@ -2698,7 +2702,9 @@ msgstr "İptal"
 msgid ""
 "Cancel\n"
 "All"
-msgstr "Tümünü\\nİptal Et"
+msgstr ""
+"Tümünü\n"
+"İptal Et"
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
@@ -2910,7 +2916,9 @@ msgstr "Sertifikalar"
 msgid ""
 "Change\n"
 "View"
-msgstr "Görünümü\\nDeğiştir"
+msgstr ""
+"Görünümü\n"
+"Değiştir"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -3056,7 +3064,9 @@ msgstr "Grafik"
 msgid ""
 "Check\n"
 "Names"
-msgstr "Adları\\nDenetle"
+msgstr ""
+"Adları\n"
+"Denetle"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9582,7 +9592,9 @@ msgstr "Gezinti"
 msgid ""
 "Navigation\n"
 "Bar"
-msgstr "Gezinti\\nÇubuğu"
+msgstr ""
+"Gezinti\n"
+"Çubuğu"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -9662,7 +9674,9 @@ msgstr "Yeni"
 msgid ""
 "New\n"
 "Appointment"
-msgstr "Yeni\\nRandevu"
+msgstr ""
+"Yeni\n"
+"Randevu"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9670,7 +9684,9 @@ msgstr "Yeni\\nRandevu"
 msgid ""
 "New\n"
 "Contact"
-msgstr "Yeni\\nKişi"
+msgstr ""
+"Yeni\n"
+"Kişi"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9678,7 +9694,9 @@ msgstr "Yeni\\nKişi"
 msgid ""
 "New\n"
 "Email"
-msgstr "Yeni\\nE-posta"
+msgstr ""
+"Yeni\n"
+"E-posta"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9686,7 +9704,9 @@ msgstr "Yeni\\nE-posta"
 msgid ""
 "New\n"
 "Folder"
-msgstr "Yeni\\nKlasör"
+msgstr ""
+"Yeni\n"
+"Klasör"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9694,7 +9714,9 @@ msgstr "Yeni\\nKlasör"
 msgid ""
 "New\n"
 "Items"
-msgstr "Yeni\\nÖğeler"
+msgstr ""
+"Yeni\n"
+"Öğeler"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9702,7 +9724,9 @@ msgstr "Yeni\\nÖğeler"
 msgid ""
 "New\n"
 "Meeting"
-msgstr "Yeni\\nToplantı"
+msgstr ""
+"Yeni\n"
+"Toplantı"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9710,7 +9734,9 @@ msgstr "Yeni\\nToplantı"
 msgid ""
 "New\n"
 "Task"
-msgstr "Yeni\\nGörev"
+msgstr ""
+"Yeni\n"
+"Görev"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -9862,7 +9888,9 @@ msgstr "Sonraki"
 msgid ""
 "Next 7\n"
 "Days"
-msgstr "Sonraki 7\\nGün"
+msgstr ""
+"Sonraki 7\n"
+"Gün"
 
 #. command label
 #: crates/engine/src/cmd/calendar_extra.rs
@@ -18886,7 +18914,9 @@ msgstr "Posta kutusunun içerik klasörü düzenleniyor…"
 msgid ""
 "Tighter\n"
 "Spacing"
-msgstr "Daha Sıkı\\nAralık"
+msgstr ""
+"Daha Sıkı\n"
+"Aralık"
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
@@ -18906,7 +18936,9 @@ msgstr "Saat"
 msgid ""
 "Time\n"
 "Scale"
-msgstr "Zaman\\nÖlçeği"
+msgstr ""
+"Zaman\n"
+"Ölçeği"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/ribbon.rs
@@ -18987,7 +19019,10 @@ msgid ""
 "To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, your automatic replies aren't changed."
-msgstr "{address} adresinin otomatik yanıtlarını Outlook ile uyumlu tutmak için MailCraft'ın posta kutusu ayarlarınızı değiştirme izninize ihtiyacı var. İzninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\\n\\nSiz izin verene kadar otomatik yanıtlarınız değiştirilmez."
+msgstr ""
+"{address} adresinin otomatik yanıtlarını Outlook ile uyumlu tutmak için MailCraft'ın posta kutusu ayarlarınızı değiştirme izninize ihtiyacı var. İzninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\n"
+"\n"
+"Siz izin verene kadar otomatik yanıtlarınız değiştirilmez."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -18996,7 +19031,10 @@ msgid ""
 "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
-msgstr "{address} adresinin kurallarını, otomatik yanıtlarını ve kategorilerini Outlook ile uyumlu tutmak için MailCraft'ın posta kutusu ayarlarınızı değiştirme izninize ihtiyacı var. İzninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\\n\\nSiz izin verene kadar kurallar bu bilgisayarda kalır ve Microsoft'a gönderilmez, otomatik yanıtlarınız değiştirilmez ve bu posta kutusunun kategorileri burada değiştirilemez."
+msgstr ""
+"{address} adresinin kurallarını, otomatik yanıtlarını ve kategorilerini Outlook ile uyumlu tutmak için MailCraft'ın posta kutusu ayarlarınızı değiştirme izninize ihtiyacı var. İzninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\n"
+"\n"
+"Siz izin verene kadar kurallar bu bilgisayarda kalır ve Microsoft'a gönderilmez, otomatik yanıtlarınız değiştirilmez ve bu posta kutusunun kategorileri burada değiştirilemez."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -19005,7 +19043,10 @@ msgid ""
 "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
-msgstr "{address} adresinin görevlerini ve otomatik yanıtlarını Outlook ile uyumlu tutmak için MailCraft'ın To Do listelerinizi ve posta kutusu ayarlarınızı değiştirme izninize ihtiyacı var. İzninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\\n\\nSiz izin verene kadar görevler bu bilgisayarda kalır ve Microsoft'a gönderilmez, otomatik yanıtlarınız da değiştirilmez."
+msgstr ""
+"{address} adresinin görevlerini ve otomatik yanıtlarını Outlook ile uyumlu tutmak için MailCraft'ın To Do listelerinizi ve posta kutusu ayarlarınızı değiştirme izninize ihtiyacı var. İzninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\n"
+"\n"
+"Siz izin verene kadar görevler bu bilgisayarda kalır ve Microsoft'a gönderilmez, otomatik yanıtlarınız da değiştirilmez."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -19014,7 +19055,10 @@ msgid ""
 "To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
-msgstr "{address} adresinin görevlerini Microsoft To Do ile uyumlu tutmak için MailCraft'ın To Do listelerinizi ve görevlerinizi okuma ve değiştirme izninize ihtiyacı var. İzninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\\n\\nSiz izin verene kadar görevler bu bilgisayarda kalır ve Microsoft'a gönderilmez."
+msgstr ""
+"{address} adresinin görevlerini Microsoft To Do ile uyumlu tutmak için MailCraft'ın To Do listelerinizi ve görevlerinizi okuma ve değiştirme izninize ihtiyacı var. İzninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\n"
+"\n"
+"Siz izin verene kadar görevler bu bilgisayarda kalır ve Microsoft'a gönderilmez."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -19023,7 +19067,10 @@ msgid ""
 "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
-msgstr "{address} adresinin görevlerini, kurallarını, otomatik yanıtlarını ve kategorilerini Outlook ile uyumlu tutmak için MailCraft'ın To Do listelerinizi ve posta kutusu ayarlarınızı değiştirme izninize ihtiyacı var. İzninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\\n\\nSiz izin verene kadar görevler ve kurallar bu bilgisayarda kalır ve Microsoft'a gönderilmez, otomatik yanıtlarınız değiştirilmez ve bu posta kutusunun kategorileri burada değiştirilemez."
+msgstr ""
+"{address} adresinin görevlerini, kurallarını, otomatik yanıtlarını ve kategorilerini Outlook ile uyumlu tutmak için MailCraft'ın To Do listelerinizi ve posta kutusu ayarlarınızı değiştirme izninize ihtiyacı var. İzninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\n"
+"\n"
+"Siz izin verene kadar görevler ve kurallar bu bilgisayarda kalır ve Microsoft'a gönderilmez, otomatik yanıtlarınız değiştirilmez ve bu posta kutusunun kategorileri burada değiştirilemez."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
@@ -19038,7 +19085,10 @@ msgid ""
 "To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"
 "\n"
 "Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
-msgstr "{address} ile açtığınız paylaşılan posta kutularından ileti okuyup göndermek ve sizinle paylaşılan takvimleri göstermek için MailCraft'ın izninize ihtiyacı var. MailCraft'ın kullandığı ve henüz izin vermediğiniz her şey için izninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\\n\\nSiz izin verene kadar bu posta kutularından ve takvimlerden hiçbir şey okunmaz, paylaşılan bir posta kutusundan gelen posta ve toplantı yanıtları bu bilgisayarda bekler ve bunların yerine kendi adresinizden hiçbir şey gönderilmez."
+msgstr ""
+"{address} ile açtığınız paylaşılan posta kutularından ileti okuyup göndermek ve sizinle paylaşılan takvimleri göstermek için MailCraft'ın izninize ihtiyacı var. MailCraft'ın kullandığı ve henüz izin vermediğiniz her şey için izninizi bir kez sormak üzere tarayıcınızda Microsoft sayfası açılır.\n"
+"\n"
+"Siz izin verene kadar bu posta kutularından ve takvimlerden hiçbir şey okunmaz, paylaşılan bir posta kutusundan gelen posta ve toplantı yanıtları bu bilgisayarda bekler ve bunların yerine kendi adresinizden hiçbir şey gönderilmez."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19340,7 +19390,9 @@ msgstr "Klasörün kendisindeki okunmamış iletiler"
 msgid ""
 "Unread/\n"
 "Read"
-msgstr "Okunmamış/\\nOkunmuş"
+msgstr ""
+"Okunmamış/\n"
+"Okunmuş"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
