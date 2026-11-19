@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Title bar (Quick Access Toolbar, search, account) and status bar.
 
-use egui::{Align2, Rect, Sense, Stroke, Ui, pos2, vec2};
+use egui::{Align2, Color32, Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::{Module, Pane, Scope};
 use serde_json::json;
 
@@ -507,6 +507,9 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     Module::Notes => {
                         let count = app.notes.notes.len();
                         st(ui, &tln!(count, "{n} note", "{n} notes"), t.text_dim);
+                        if !app.notes.last_sync_time.is_empty() {
+                            st(ui, &format!("● Sincronizado ({})", app.notes.last_sync_time), Color32::from_rgb(76, 175, 80));
+                        }
                     }
                     Module::Journal => {
                         let count = app.journal.entries.len();

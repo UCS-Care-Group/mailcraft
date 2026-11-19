@@ -708,19 +708,6 @@ fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         }
     });
-
-    // Bottom Sync status indicator matching screenshot
-    ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-        ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            ui.add_space(8.0);
-            let dot = RichText::new("●").size(12.0).color(Color32::from_rgb(46, 125, 50));
-            ui.label(dot);
-            let time_str = format!("Sincronizado ( {} )", app.notes.last_sync_time);
-            ui.label(RichText::new(time_str).size(11.0).color(t.text_dim));
-        });
-        ui.separator();
-    });
 }
 
 fn nav_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, t: &Tokens) -> bool {
