@@ -2968,5 +2968,9 @@ mod window_identity_tests;
 #[path = "window_places_show_tests.rs"]
 mod window_places_show_tests;
 
+#[cfg(test)]
+#[path = "window_dialog_tests.rs"]
+mod window_dialog_tests;
+
 #[path = "compose_window.rs"]
 pub(crate) mod compose_window;
