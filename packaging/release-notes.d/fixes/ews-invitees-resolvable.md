@@ -1,0 +1,1 @@
+- An appointment made in MailCraft sends only invitees a server can name: an address as `SMTP`, a directory name as `EX`, and nothing for a blank field or a bare name. A blank one made Grommunio answer that not all participants could be resolved.

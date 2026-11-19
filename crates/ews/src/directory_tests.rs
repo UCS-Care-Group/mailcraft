@@ -3,7 +3,7 @@
 //! What the directory operations read: the shapes of `FindItem`, `FindFolder` and the three kinds
 //! of item, held to what the model keeps.
 
-use mailcraft_model::remote::RemoteEventKind;
+use mailcraft_model::remote::{EventFields, RemoteEventKind};
 
 use super::*;
 use crate::reply::Reply;
@@ -120,4 +120,51 @@ fn an_all_day_event_keeps_the_instant_and_the_day_of_its_zone() {
     assert_eq!((event.start, event.end), (1_795_388_400, 1_795_474_800), "the instants the server gave");
     let day = all_day_day("2026-11-22T23:00:00Z", "W. Europe Standard Time");
     assert_eq!(day.map(|day| (day.year, day.month, day.day)), Some((2026, 11, 23)), "midnight there, not UTC's date");
+}
+
+/// Only the people a server can name go in a meeting: an address in SMTP form, or a directory
+/// name as `EX`. A blank field or a bare name is not sent (a server answers that the people
+/// couldn't be resolved, as Grommunio does).
+#[test]
+fn only_the_people_a_server_can_name_are_written() {
+    let people = vec![
+        Attendee { address: Address::new("Ada", "ada@example.org"), optional: false, response: Response::None },
+        Attendee { address: Address::new("No Address", ""), optional: false, response: Response::None },
+        Attendee {
+            address: Address::new("Directory", "/o=example/ou=Exchange Administrative Group/cn=Someone"),
+            optional: true,
+            response: Response::None,
+        },
+    ];
+    let event = RemoteEvent { title: "Review".into(), start: 1_795_000_000, end: 1_795_001_800, attendees: people, ..Default::default() };
+    let written = calendar_item(&event, "").write();
+    assert!(written.contains("<t:EmailAddress>ada@example.org</t:EmailAddress>"), "the address: {written}");
+    assert!(written.contains("<t:RoutingType>SMTP</t:RoutingType>"), "as SMTP: {written}");
+    assert!(written.contains("<t:RoutingType>EX</t:RoutingType>"), "the directory name as EX: {written}");
+    assert!(!written.contains("<t:EmailAddress></t:EmailAddress>"), "no blank invitee: {written}");
+    assert!(!written.contains("No Address"), "nothing of one without an address: {written}");
+}
+
+/// The same for a change: only the people the server can name are set, and a list that has none
+/// of them is cleared rather than written half.
+#[test]
+fn a_change_writes_only_the_people_a_server_can_name() {
+    let fields = EventFields {
+        attendees: Some(vec![
+            Attendee { address: Address::new("Ada", "ada@example.org"), optional: false, response: Response::None },
+            Attendee { address: Address::new("No Address", ""), optional: false, response: Response::None },
+        ]),
+        ..Default::default()
+    };
+    let written = update_event(&fields, "event-1", "key-1", false, "").write();
+    assert!(written.contains("calendar:RequiredAttendees"), "the list is set: {written}");
+    assert!(written.contains("ada@example.org"), "the address: {written}");
+    assert!(!written.contains("No Address"), "nothing of one without an address: {written}");
+    let none = EventFields { attendees: Some(vec![people_without_an_address()]), ..Default::default() };
+    let written = update_event(&none, "event-1", "key-1", false, "").write();
+    assert!(written.contains("calendar:RequiredAttendees") && written.contains("DeleteItemField"), "cleared, not half written: {written}");
+}
+
+fn people_without_an_address() -> Attendee {
+    Attendee { address: Address::new("No Address", ""), optional: false, response: Response::None }
 }

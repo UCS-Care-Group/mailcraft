@@ -750,8 +750,9 @@ pub fn calendar_item(event: &RemoteEvent, zone: &str) -> Element {
     let required: Vec<&Attendee> = event.attendees.iter().filter(|a| !a.optional).collect();
     let optional: Vec<&Attendee> = event.attendees.iter().filter(|a| a.optional).collect();
     for (name, people) in [("t:RequiredAttendees", required), ("t:OptionalAttendees", optional)] {
-        if people.iter().any(|a| !a.address.email.trim().is_empty()) {
-            item = item.child(people.into_iter().fold(Element::new(name), |list, attendee| list.child(attendee_element(&attendee.address))));
+        let list: Vec<Element> = people.iter().filter_map(|attendee| attendee_element(&attendee.address)).collect();
+        if !list.is_empty() {
+            item = item.child(list.into_iter().fold(Element::new(name), |list, attendee| list.child(attendee)));
         }
     }
     if !zone.trim().is_empty() {
@@ -763,13 +764,33 @@ pub fn calendar_item(event: &RemoteEvent, zone: &str) -> Element {
     item
 }
 
-fn attendee_element(address: &Address) -> Element {
+/// How a name goes to a server as one of the people invited: an address in SMTP form, or a
+/// directory name (Exchange's `/o=…`), which goes as `EX`. Anything else — an empty field, a bare
+/// name — is not sent: a server would answer that the people couldn't be resolved (Grommunio
+/// says so in its window).
+fn routing(address: &Address) -> Option<(&'static str, &str)> {
+    let email = address.email.trim();
+    if email.is_empty() {
+        return None;
+    }
+    if Address::new("", email).is_valid() {
+        return Some(("SMTP", email));
+    }
+    if email.starts_with('/') {
+        return Some(("EX", email));
+    }
+    None
+}
+
+/// One of the people invited, when the server can name them.
+fn attendee_element(address: &Address) -> Option<Element> {
+    let (kind, email) = routing(address)?;
     let mut mailbox = Element::new("t:Mailbox");
     if !address.name.trim().is_empty() {
         mailbox = mailbox.child(Element::new("t:Name").text(&line(&address.name, 256)));
     }
-    mailbox = mailbox.child(Element::new("t:EmailAddress").text(address.email.trim())).child(Element::new("t:RoutingType").text("SMTP"));
-    Element::new("t:Attendee").child(mailbox)
+    mailbox = mailbox.child(Element::new("t:EmailAddress").text(email)).child(Element::new("t:RoutingType").text(kind));
+    Some(Element::new("t:Attendee").child(mailbox))
 }
 
 /// The `t:Recurrence` element of a rule, when the mailbox can say it.
@@ -1178,17 +1199,15 @@ pub fn update_event(fields: &mailcraft_model::remote::EventFields, id: &str, cha
         }
     }
     if let Some(people) = &fields.attendees {
-        let required: Vec<&Attendee> = people.iter().filter(|a| !a.optional).collect();
-        let optional: Vec<&Attendee> = people.iter().filter(|a| a.optional).collect();
-        for (name, list) in [("t:RequiredAttendees", required), ("t:OptionalAttendees", optional)] {
+        for (name, uri, optional) in
+            [("t:RequiredAttendees", "calendar:RequiredAttendees", false), ("t:OptionalAttendees", "calendar:OptionalAttendees", true)]
+        {
+            let list: Vec<Element> =
+                people.iter().filter(|a| a.optional == optional).filter_map(|attendee| attendee_element(&attendee.address)).collect();
             let field = if list.is_empty() {
-                delete_field(if name == "t:RequiredAttendees" { "calendar:RequiredAttendees" } else { "calendar:OptionalAttendees" })
+                delete_field(uri)
             } else {
-                set_field(
-                    "t:CalendarItem",
-                    if name == "t:RequiredAttendees" { "calendar:RequiredAttendees" } else { "calendar:OptionalAttendees" },
-                    list.into_iter().fold(Element::new(name), |list, attendee| list.child(attendee_element(&attendee.address))),
-                )
+                set_field("t:CalendarItem", uri, list.into_iter().fold(Element::new(name), |list, attendee| list.child(attendee)))
             };
             put(field);
         }
