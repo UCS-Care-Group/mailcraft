@@ -141,6 +141,18 @@ pub(crate) fn take_folders(
     removed
 }
 
+fn take_folder_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &MessagePage, down: &mut Down) {
+    graph_down::take_page(mb, index, account, page, down);
+    if let Some(id) = mb.folder_by_server(account, &page.folder)
+        && let Ok(folder) = mb.folder_mut(id)
+        && let Some(server) = folder.server.as_mut()
+    {
+        let ended = server.round_ended || server.caught_up;
+        server.caught_up = page.caught_up;
+        server.round_ended = page.caught_up || (!page.afresh && ended);
+    }
+}
+
 /// Take in one page of a run. A folder's page goes as a Graph page of that folder; a page of
 /// changes is cut into one page per folder its messages are in, and what it says was deleted is
 /// marked gone wherever it is.
@@ -154,7 +166,7 @@ pub(crate) fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, 
             caught_up: page.last,
             ..MessagePage::default()
         };
-        graph_down::take_page(mb, index, account, &as_page, down);
+        take_folder_page(mb, index, account, &as_page, down);
         return;
     }
     let mut by_folder: BTreeMap<&str, Vec<GraphMessage>> = BTreeMap::new();
@@ -162,8 +174,8 @@ pub(crate) fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, 
         by_folder.entry(m.server.folder.as_str()).or_default().push(m.clone());
     }
     for (folder, messages) in by_folder {
-        let as_page = MessagePage { folder: folder.to_string(), messages, ..MessagePage::default() };
-        graph_down::take_page(mb, index, account, &as_page, down);
+        let as_page = MessagePage { folder: folder.to_string(), messages, caught_up: page.last, ..MessagePage::default() };
+        take_folder_page(mb, index, account, &as_page, down);
     }
     for id in &page.removed {
         let Some(m) = index.find(mb, account, id) else { continue };
