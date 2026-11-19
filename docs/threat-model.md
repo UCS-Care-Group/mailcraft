@@ -171,6 +171,23 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   `dmarc` that is the server's word, judged from the full list; a signer chooses its own
   `header.d`, so a suffix missing from the short list (`uk.com`, `eu.org`) could sign for every
   name under it. Only whoever holds that suffix's own DNS can publish a key for it.
+- **A picture that comes as an attachment is decoded only as one in the body is** (#834). With
+  the owner's choice (`ui.attachmentPictures`, a checkbox in File › Options, on by default as
+  pictures written into a message are) an attached file is shown as a
+  picture only when it is a PNG, JPEG, GIF or WebP by its own bytes (`images::probe`: never by its
+  name or declared type, so never SVG or HTML), within the reading pane's caps on a picture's
+  bytes, sides and pixels, decoded by the same capped decoder off the window's thread (in the
+  browser, one a frame), one at a time, into a small texture (at most 24 a message, 64 kept). Nothing is fetched. A file kept on
+  disk beside the mailbox is brought in for it only when its declared type or name says it may be
+  a picture, at most 24 a message and 96 MB (what is in memory already counts by its length, so the
+  cap holds from one frame to the next), through the session's memory budget. Only the first 24 files
+  of a message that may be pictures are looked at in a frame, and no more than 4 MB are compared by
+  content in a frame to tell a picture read again from a new one, so a message with a thousand
+  attachments costs no more a frame than one with a few
+  (`crates/ui-egui/src/reading/attachment_pictures.rs`). Anything else, or a picture that fails to
+  decode, stays a chip. Mail in Junk E-mail, or in a folder under it, is shown by names only: no
+  attachment there is looked at, brought in or decoded for a picture. An agent asks before it turns
+  the switch over (`settings`).
 - **Sender warnings say what the server said, and what MailCraft can see, nothing more** (#508).
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above, and like it never from a last clause
@@ -300,6 +317,28 @@ Gets the request for a picture the owner asked for.
   reader above.
 - The picture cache (`apps/mailcraft/src/picture_cache.rs`) names files by hashes and never writes
   the address; it is capped and read back through the same checks as a download.
+
+### A reaction sent by one click
+
+React (#1544, `mail.react`) sends mail from one click: an emoji, as a reply (RFC 9078) to the
+sender of a message. It is the one thing that sends mail without a message to read through before
+Send, so it is held narrow. The emoji is one of six fixed ones (anything else is refused, so
+nothing a caller or a message writes reaches the mail's text), the recipient is one address (the
+message's sender, never its Reply-To: a message from `boss@company.example` with a Reply-To of
+another domain must not tell that domain the address is read, and the owner is shown the recipient
+beside the emoji), and nothing of the original is
+quoted. It is refused for a message with a warning about its sender (a failed check, a name that shows another address, a look-alike, made-up or brand-copying domain; not a warning about a link in the body, nor the External tag; an answer would confirm the address to whoever is behind it), for drafts, for the owner's own mail, for Junk E-mail (an answer would tell a
+spammer the address is read), for automated mail (`Auto-Submitted` other than `no`,
+`Precedence: bulk`, `list` or `junk`, a no-reply or `mailer-daemon` sender, a list's own address as
+the sender: nobody reads an answer, and a list could echo it to its members; only the headers
+MailCraft keeps by name are looked at, so mail read before this was added is judged by its sender
+alone) and for a second identical reaction (also when the server's copy in Sent Items has lost the
+mark). It waits as long as the owner's Undo Send says, like any sent mail, and can be taken back
+in that time. An agent is asked about it in the window (`send`) and must name the message. A reaction tells the sender the mail was read,
+as a read receipt does, but only when the owner clicks (PRIVACY.md says so). It goes through the account's normal
+sending over TLS like any mail, and a Microsoft or Exchange server account is refused rather than
+given a path of its own. The message text is never read into a reaction: `Content-Disposition:
+reaction` is written, never taken from mail that comes in.
 
 ### A hostile or compromised mail server
 

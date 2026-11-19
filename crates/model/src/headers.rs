@@ -37,6 +37,10 @@ pub const WORKING: &[&str] = &[
     // A mailing list, whose name a member's name may carry (`sender_warnings`).
     "List-Id",
     "List-Post",
+    // Mail a program wrote (RFC 3834) or that goes out in bulk, which a reaction is not sent to
+    // (`react`).
+    "Auto-Submitted",
+    "Precedence",
     // How a list says it is left (`unsubscribe`), and the signatures that say whether those
     // lines are the list's own (RFC 8058, 4).
     "List-Unsubscribe",

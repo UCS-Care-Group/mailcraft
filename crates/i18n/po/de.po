@@ -2716,6 +2716,12 @@ msgid "Cc: {names}"
 msgstr "Cc: {names}"
 
 #. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Celebrate"
+msgstr "Feiern"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 msgid "Certificates"
 msgstr "Zertifikate"
@@ -6324,7 +6330,7 @@ msgid "Hold Unsent Mail"
 msgstr "Nicht gesendete E-Mails zurückhalten"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Start"
@@ -6998,6 +7004,12 @@ msgstr "Kursiv"
 msgid "Item"
 msgstr "Element"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
+msgid "Item from Message"
+msgstr "Element aus Nachricht"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -7404,6 +7416,12 @@ msgid "Later keeps this account on IMAP for now. You can switch whenever you lik
 msgstr "„Später“ belässt dieses Konto vorerst bei IMAP. Sie können jederzeit wechseln: Suchen Sie in den Befehlen nach „Zu Microsoft Graph wechseln“."
 
 #. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Laugh"
+msgstr "Lachen"
+
+#. interface
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Lavender"
@@ -7477,6 +7495,12 @@ msgstr "Lizenzen"
 #, fuzzy
 msgid "Light"
 msgstr "Hell"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Like"
+msgstr "Gefällt mir"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -7655,6 +7679,12 @@ msgstr "Suche läuft … bisher {folders} Ordner, {files} Dateien und {messages}
 #, fuzzy
 msgid "Looks like a brand."
 msgstr "Sieht aus wie eine Marke."
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Love"
+msgstr "Liebe"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -8106,6 +8136,12 @@ msgstr "Postfach"
 #, fuzzy
 msgid "Make a signature with New."
 msgstr "Erstellen Sie eine Signatur mit „Neu“."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Make an Item from a Message"
+msgstr "Ein Element aus einer Nachricht erstellen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8569,6 +8605,12 @@ msgstr "Im Dock ablegen"
 msgid "Mobile"
 msgstr "Mobiltelefon"
 
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Module bar"
+msgstr "Modulleiste"
+
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
 #, fuzzy
@@ -8909,7 +8951,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "Namen oder Adressen, getrennt durch ;"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Navigation"
 msgstr "Navigation"
@@ -9711,6 +9753,12 @@ msgstr "Keiner oder mehrere Ihrer Kontakte passen: {names}"
 #, fuzzy
 msgid "None"
 msgstr "Keine"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "None of those messages is in this mailbox any more."
+msgstr "Keine dieser Nachrichten ist noch in diesem Postfach."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10733,6 +10781,12 @@ msgid "Otherwise a notification shows the sender and the subject, never the mess
 msgstr "Andernfalls zeigt eine Benachrichtigung den Absender und den Betreff, nie den Nachrichtentext oder seine Bilder. Was auf dem Sperrbildschirm erscheint, richtet sich nach der Datenschutzeinstellung des Telefons."
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Sonst werden sie mit ihren Namen angezeigt. In Junk werden sie immer mit ihren Namen angezeigt."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
 msgstr "Andernfalls werden diese zunächst im Lesebereich geöffnet. Mit „In neuem Fenster öffnen“ können Sie diese in ein eigenes Fenster verschieben."
@@ -11403,6 +11457,12 @@ msgstr "Fällige Erinnerungen auslösen"
 #, fuzzy
 msgid "Range"
 msgstr "Seriendauer"
+
+#. command label, interface
+#: crates/engine/src/cmd/react.rs crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "React"
+msgstr "Reagieren"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -12113,7 +12173,7 @@ msgid "Reset View"
 msgstr "Ansicht zurücksetzen"
 
 #. command label, ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Respond"
 msgstr "Antworten"
@@ -12388,6 +12448,12 @@ msgstr "Diese Regel auf eingehende E-Mails anwenden"
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "SHA-256 fingerprint"
 msgstr "SHA-256-Fingerabdruck"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Sad"
+msgstr "Traurig"
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -13631,6 +13697,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Favoriten von Outlook anzeigen"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Bildanlagen als Bilder anzeigen"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -13749,6 +13821,12 @@ msgstr "Mehr Aufgaben anzeigen"
 #: crates/ui-egui/src/secret_field.rs
 msgid "Show password"
 msgstr "Passwort anzeigen"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Bildanlagen als Bilder anzeigen"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -14581,6 +14659,12 @@ msgstr "So."
 #, fuzzy
 msgid "Sunday"
 msgstr "Sonntag"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Surprised"
+msgstr "Überrascht"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -17091,6 +17175,12 @@ msgid "This item has changes that aren't saved. Save them?"
 msgstr "Dieses Element enthält nicht gespeicherte Änderungen. Speichern?"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
+msgstr "Dieses Element hat Dateianlagen, die nur der Server aufbewahrt und die einer Kopie fehlen würden: Es kann von hier aus nicht kopiert werden."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This item has files attached, which only the server keeps and which would be lost: it can't be moved to another calendar from here."
@@ -19386,6 +19476,30 @@ msgid "a picture in a message is at most {mb} MB"
 msgstr "Ein Bild in einer Nachricht ist höchstens {mb} MB groß"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction can't be sent to a draft or to mail you wrote"
+msgstr "auf einen Entwurf oder eine selbst geschriebene Nachricht kann nicht reagiert werden"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account"
+msgstr "eine Reaktion wird nur von IMAP-, JMAP- und lokalen Konten gesendet, nicht von einem Microsoft- oder Exchange-Server-Konto"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to automated mail (a no-reply address, a mailing list, bulk mail)"
+msgstr "auf automatische Nachrichten (eine No-Reply-Adresse, eine Mailingliste, Massenmail) wird nicht reagiert"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to mail in Junk E-mail"
+msgstr "auf Nachrichten im Junk-E-Mail-Ordner wird nicht reagiert"
+
+#. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 msgid "a reply may be {most} characters long at most"
 msgstr "Eine Antwort darf höchstens {most} Zeichen lang sein"
@@ -20160,7 +20274,7 @@ msgid "no message is being written"
 msgstr "es wird keine Nachricht geschrieben"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "keine Nachricht mit der ID {id}"
@@ -20485,7 +20599,7 @@ msgid "select a conversation in conversation view first"
 msgstr "wählen Sie zuerst eine Unterhaltung in der Unterhaltungsansicht aus"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "wählen Sie zuerst eine Nachricht aus"
@@ -20707,7 +20821,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "das Konto hat keinen Benutzernamen und keine E-Mail-Adresse für die Anmeldung"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 msgid "the account is gone"
 msgstr "das Konto ist nicht mehr vorhanden"
 
@@ -21113,7 +21227,7 @@ msgid "the sender has no address to put on the list"
 msgstr "der Absender hat keine Adresse, die auf die Liste gesetzt werden kann"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "der Absender hat keine verwendbare E-Mail-Adresse"
@@ -21658,7 +21772,7 @@ msgid "this account has no signature; add one in File › Options"
 msgstr "dieses Konto hat keine Signatur; fügen Sie eine unter Datei › Optionen hinzu"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/react.rs
 #, fuzzy
 msgid "this account has no {folder} folder"
 msgstr "dieses Konto hat keinen Ordner „{folder}“"
@@ -21737,14 +21851,32 @@ msgid "this message already has as many attachments as it can carry"
 msgstr "diese Nachricht hat bereits so viele Anlagen, wie sie aufnehmen kann"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has a warning about its sender, so no reaction is sent to it"
+msgstr "diese Nachricht hat eine Warnung zu ihrem Absender, deshalb wird keine Reaktion gesendet"
+
+#. what a command says
 #: crates/model/src/pictures.rs
 msgid "this message has had as many pictures as it can"
 msgstr "diese Nachricht enthält bereits die maximal zulässige Anzahl an Bildern"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has no Message-ID, so a reaction can't say what it answers"
+msgstr "diese Nachricht hat keine Message-ID, daher kann die Reaktion nicht angeben, worauf sie sich bezieht"
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 msgid "this message has no sender address to look for"
 msgstr "diese Nachricht enthält keine Absenderadresse, nach der gesucht werden kann"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has no sender to send a reaction to"
+msgstr "diese Nachricht hat keinen Absender, an den eine Reaktion gesendet werden könnte"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -21781,6 +21913,12 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "Termin"
 msgstr[1] "Terminen"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "to {recipient}"
+msgstr "an {recipient}"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -21937,6 +22075,12 @@ msgstr "Offline-Modus"
 #: crates/model/src/calendar.rs
 msgid "year"
 msgstr "Jahr"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "you already reacted to this message with {emoji}"
+msgstr "Sie haben auf diese Nachricht bereits mit {emoji} reagiert"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -23061,6 +23205,14 @@ msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "{n} Nachricht war bereits hier"
 msgstr[1] "{n} Nachrichten waren bereits hier"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] "{n} Nachricht wurde gezogen: nur die erste wurde geöffnet."
+msgstr[1] "{n} Nachrichten wurden gezogen: nur die erste wurde geöffnet."
 
 #. interface
 #: crates/ui-egui/src/left_out.rs

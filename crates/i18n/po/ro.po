@@ -2878,6 +2878,12 @@ msgid "Cc: {names}"
 msgstr "Cc: {names}"
 
 #. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Celebrate"
+msgstr "Sărbătorește"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
@@ -6759,7 +6765,7 @@ msgid "Hold Unsent Mail"
 msgstr "Reținere e-mail netrimis"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Pornire"
@@ -7511,6 +7517,12 @@ msgstr "Cursiv"
 msgid "Item"
 msgstr "Element"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
+msgid "Item from Message"
+msgstr "Element din mesaj"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -7935,6 +7947,12 @@ msgid "Later keeps this account on IMAP for now. You can switch whenever you lik
 msgstr "Mai târziu păstrează deocamdată acest cont pe IMAP. Puteți schimba oricând: căutați în comenzi „Trecere la Microsoft Graph”."
 
 #. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Laugh"
+msgstr "Râs"
+
+#. interface
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Lavender"
@@ -8011,6 +8029,12 @@ msgstr "Licențe"
 #, fuzzy
 msgid "Light"
 msgstr "Luminos"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Like"
+msgstr "Îmi place"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -8209,6 +8233,12 @@ msgstr "Se caută… {folders}, {files}, {messages} până acum"
 #, fuzzy
 msgid "Looks like a brand."
 msgstr "Seamănă cu o marcă."
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Love"
+msgstr "Ador"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -8699,6 +8729,12 @@ msgstr "Cutie poștală"
 msgid "Make a signature with New."
 msgstr "Creați o semnătură cu Nou."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Make an Item from a Message"
+msgstr "Creează un element dintr-un mesaj"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -9186,6 +9222,12 @@ msgstr "Minimizare"
 msgid "Mobile"
 msgstr "Mobil"
 
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Module bar"
+msgstr "Bara de module"
+
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
 #, fuzzy
@@ -9533,7 +9575,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "Nume sau adrese, separate prin ;"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Navigation"
 msgstr "Navigare"
@@ -10401,6 +10443,12 @@ msgstr "Nu se potrivește niciunul sau se potrivesc mai multe contacte: {names}"
 #, fuzzy
 msgid "None"
 msgstr "Niciunul"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "None of those messages is in this mailbox any more."
+msgstr "Niciunul dintre aceste mesaje nu mai este în această căsuță poștală."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11511,6 +11559,12 @@ msgid "Otherwise a notification shows the sender and the subject, never the mess
 msgstr "Altfel, o notificare arată expeditorul și subiectul, niciodată textul mesajului sau imaginile lui. Ce apare pe ecranul de blocare urmează setarea de confidențialitate a telefonului."
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "În caz contrar, sunt afișate cu numele lor. În Mesaje nedorite sunt afișate întotdeauna cu numele lor."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
@@ -12243,6 +12297,12 @@ msgstr "Declanșează mementourile scadente"
 #, fuzzy
 msgid "Range"
 msgstr "Interval"
+
+#. command label, interface
+#: crates/engine/src/cmd/react.rs crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "React"
+msgstr "Reacționează"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -12993,7 +13053,7 @@ msgid "Reset View"
 msgstr "Resetare vizualizare"
 
 #. command label, ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Respond"
 msgstr "Răspuns"
@@ -13279,6 +13339,12 @@ msgstr "Rulați această regulă asupra e-mailurilor la sosire"
 #, fuzzy
 msgid "SHA-256 fingerprint"
 msgstr "Amprentă SHA-256"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Sad"
+msgstr "Trist"
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -14592,6 +14658,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Afișare Favorite Outlook"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Afișează atașamentele imagine ca imagini"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -14714,6 +14786,12 @@ msgstr "Afișează mai multe sarcini"
 #, fuzzy
 msgid "Show password"
 msgstr "Afișare parolă"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Afișează atașamentele imagine ca imagini"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -15588,6 +15666,12 @@ msgstr "dum."
 #, fuzzy
 msgid "Sunday"
 msgstr "duminică"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Surprised"
+msgstr "Surprins"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -18311,6 +18395,12 @@ msgid "This item has changes that aren't saved. Save them?"
 msgstr "Acest element are modificări nesalvate. Le salvați?"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
+msgstr "Acest element are fișiere atașate, pe care doar serverul le păstrează și pe care o copie nu le-ar avea: nu poate fi copiat de aici."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This item has files attached, which only the server keeps and which would be lost: it can't be moved to another calendar from here."
@@ -20743,6 +20833,30 @@ msgid "a picture in a message is at most {mb} MB"
 msgstr "o imagine dintr-un mesaj are cel mult {mb} MB"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction can't be sent to a draft or to mail you wrote"
+msgstr "nu se poate reacționa la o ciornă sau la un mesaj scris de dumneavoastră"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account"
+msgstr "o reacție se trimite doar din conturi IMAP, JMAP și locale, nu dintr-un cont de server Microsoft sau Exchange"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to automated mail (a no-reply address, a mailing list, bulk mail)"
+msgstr "nu se reacționează la mesajele automate (o adresă no-reply, o listă de corespondență, e-mail în masă)"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to mail in Junk E-mail"
+msgstr "nu se reacționează la mesajele din E-mail nedorit"
+
+#. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
 msgid "a reply may be {most} characters long at most"
@@ -21581,7 +21695,7 @@ msgid "no message is being written"
 msgstr "nu se scrie niciun mesaj"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "nu există mesaj cu ID-ul {id}"
@@ -21921,7 +22035,7 @@ msgid "select a conversation in conversation view first"
 msgstr "selectați întâi o conversație în vizualizarea pe conversații"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "selectați întâi un mesaj"
@@ -22155,7 +22269,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "contul nu are nume de utilizator sau adresă de e-mail cu care să se conecteze"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "contul nu mai există"
@@ -22593,7 +22707,7 @@ msgid "the sender has no address to put on the list"
 msgstr "expeditorul nu are o adresă de pus în listă"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "expeditorul nu are o adresă de e-mail utilizabilă"
@@ -23156,7 +23270,7 @@ msgid "this account has no signature; add one in File › Options"
 msgstr "acest cont nu are semnătură; adăugați una din Fișier › Opțiuni"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/react.rs
 #, fuzzy
 msgid "this account has no {folder} folder"
 msgstr "acest cont nu are dosarul {folder}"
@@ -23240,16 +23354,34 @@ msgid "this message already has as many attachments as it can carry"
 msgstr "acest mesaj are deja câte atașamente poate conține"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has a warning about its sender, so no reaction is sent to it"
+msgstr "acest mesaj are un avertisment despre expeditor, așa că nu se trimite nicio reacție"
+
+#. what a command says
 #: crates/model/src/pictures.rs
 #, fuzzy
 msgid "this message has had as many pictures as it can"
 msgstr "acest mesaj a avut deja câte imagini poate avea"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has no Message-ID, so a reaction can't say what it answers"
+msgstr "acest mesaj nu are Message-ID, deci reacția nu poate spune la ce răspunde"
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "this message has no sender address to look for"
 msgstr "acest mesaj nu are o adresă de expeditor de căutat"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has no sender to send a reaction to"
+msgstr "acest mesaj nu are expeditor căruia să i se trimită o reacție"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -23289,6 +23421,12 @@ msgid_plural "times"
 msgstr[0] "dată"
 msgstr[1] "ori"
 msgstr[2] "de ori"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "to {recipient}"
+msgstr "către {recipient}"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -23461,6 +23599,12 @@ msgstr "offline"
 #, fuzzy
 msgid "year"
 msgstr "an"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "you already reacted to this message with {emoji}"
+msgstr "ați reacționat deja la acest mesaj cu {emoji}"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -24721,6 +24865,15 @@ msgid_plural "{n} messages were already here"
 msgstr[0] "{n} mesaj era deja aici"
 msgstr[1] "{n} mesaje erau deja aici"
 msgstr[2] "{n} de mesaje erau deja aici"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] "{n} mesaj a fost tras: doar primul a fost deschis."
+msgstr[1] "{n} mesaje au fost trase: doar primul a fost deschis."
+msgstr[2] "{n} de mesaje au fost trase: doar primul a fost deschis."
 
 #. interface
 #: crates/ui-egui/src/left_out.rs

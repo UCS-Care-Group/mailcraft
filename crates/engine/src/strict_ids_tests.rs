@@ -50,11 +50,17 @@ fn a_reply_or_send_again_named_wrongly_is_refused_and_changes_nothing() {
     let mut s = sample();
     let (selected, _) = two(&s);
     s.sel.messages = vec![selected];
-    for command in ["mail.reply", "mail.replyAll", "mail.editDraft", "mail.sendAgain"] {
-        for params in wrong("id").into_iter().chain(wrong("ids")).chain([json!({"ids": [selected, selected]})]) {
+    for command in ["mail.reply", "mail.replyAll", "mail.editDraft", "mail.sendAgain", "mail.react"] {
+        for mut params in wrong("id").into_iter().chain(wrong("ids")).chain([json!({"ids": [selected, selected]})]) {
+            // (React also needs its emoji, so that it is the naming that is refused.)
+            if command == "mail.react" {
+                params["emoji"] = json!("\u{1F44D}");
+            }
+            let before = s.mailbox.messages.len();
             let r = s.run(command, &params);
             assert!(matches!(r, Err(CmdError::Params(_))), "{command} {params}: {r:?}");
             assert!(s.compose.is_none(), "{command} {params}");
+            assert_eq!(s.mailbox.messages.len(), before, "{command} {params}: nothing was made");
         }
     }
     // Left out, it is the selection; named as a list of one, that one.
@@ -128,7 +134,7 @@ fn the_gate_asks_about_what_the_command_acts_on() {
     let said = describe(&s, "mail.reply", &json!({"ids": [named]}));
     assert!(said.contains(&subject(named)), "{said}");
     for params in wrong("id").into_iter().chain(wrong("ids")).chain([json!({"ids": [selected, named]})]) {
-        for command in ["mail.reply", "mail.replyAll", "mail.sendAgain"] {
+        for command in ["mail.reply", "mail.replyAll", "mail.sendAgain", "mail.react"] {
             assert!(matches!(check(&s, command, &params, &Class::ALL), Verdict::Refuse(_)), "{command} {params}");
         }
     }

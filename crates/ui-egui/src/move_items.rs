@@ -117,7 +117,8 @@ impl MoveItems {
         crate::text_menu::hold(&resp);
         let wanted = mailcraft_model::words::fold(&self.query);
         // (Every folder is searched; the rows drawn stop at the most a list shows.)
-        let shown: Vec<usize> = (0..self.rows.len()).filter(|i| wanted.is_empty() || self.rows[*i].fold.contains(&wanted)).take(ROWS_MAX).collect();
+        let words = mailcraft_model::words::words(&self.query);
+        let shown: Vec<usize> = (0..self.rows.len()).filter(|i| wanted.is_empty() || self.rows[*i].matches(&wanted, &words)).take(ROWS_MAX).collect();
         let choosable: Vec<Id> = shown.iter().map(|i| self.rows[*i].id).filter(|f| Some(*f) != here).collect();
         // A search marks its first match; a folder that is no longer listed isn't marked.
         if resp.changed() {

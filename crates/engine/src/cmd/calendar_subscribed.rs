@@ -342,16 +342,15 @@ fn replace(s: &mut Session, id: Id, text: &str, etag: &str, last_modified: &str,
     capped |= file.events.len() > room;
     let mut keyed: Vec<(String, Event)> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
-    for mut event in file.events.into_iter().take(room) {
+    for event in file.events.into_iter().take(room) {
+        // (Tidied first: the key must be made of what is kept, as the key of a kept event is.)
+        let event = tidy(event, id);
         let key = key_of(&event);
         // (Two of one key: the first stands.)
         if !seen.insert(key.clone()) {
             continue;
         }
-        if !event.uid.is_empty() {
-            event.uid = key.clone();
-        }
-        keyed.push((key, tidy(event, id)));
+        keyed.push((key, event));
     }
     if capped {
         log::warn!("a subscribed calendar holds more events than are kept ({room} at most): the rest are left out");

@@ -42,6 +42,8 @@ pub mod io;
 mod launchable_tests;
 pub mod list;
 #[cfg(test)]
+mod load_where_tests;
+#[cfg(test)]
 mod mailbox_readers_tests;
 pub mod mark;
 #[cfg(test)]
