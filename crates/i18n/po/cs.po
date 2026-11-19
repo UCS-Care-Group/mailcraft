@@ -2041,8 +2041,8 @@ msgstr ""
 "Připojit\n"
 "soubor"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "Připojit soubor"
@@ -2064,6 +2064,12 @@ msgstr "Připojit kartu kontaktu"
 #, fuzzy
 msgid "Attach a file"
 msgstr "Připojit soubor"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "Připojit zkopírované soubory?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -13175,6 +13181,12 @@ msgstr "Revize"
 #, fuzzy
 msgid "Review certificate…"
 msgstr "Zkontrolovat certifikát…"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "Před připojením souborů k této zprávě zkontrolujte jejich cesty."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -24989,7 +25001,7 @@ msgstr[1] "{n} další byly vynechány: najednou nejvýše {mb} MB"
 msgstr[2] "{n} dalších bylo vynecháno: najednou nejvýše {mb} MB"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"

@@ -106,6 +106,17 @@ fn writing(board: &Files) -> Window {
     h
 }
 
+fn confirm(h: &mut Window) {
+    let action = h.state().hit.rect("pasteAttachmentsAction", 0).unwrap().center();
+    h.event(Event::PointerMoved(action));
+    h.step();
+    for pressed in [true, false] {
+        h.event(Event::PointerButton { pos: action, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        h.step();
+    }
+    h.run_steps(2);
+}
+
 fn attached(h: &Window) -> Vec<(String, Vec<u8>)> {
     h.state().session.compose.as_ref().unwrap().attachments.iter().map(|a| (a.name.clone(), a.data.to_vec())).collect()
 }
@@ -120,6 +131,10 @@ fn a_paste_of_files_attaches_them_and_leaves_the_text() {
     // (A file manager on Linux or macOS puts the names beside the files, as text.)
     h.event(Event::Paste(format!("{}\n{}", folder.0.join("report.pdf").display(), folder.0.join("notes.txt").display())));
     h.run_steps(2);
+    if Os::here() != Os::Windows {
+        assert!(attached(&h).is_empty());
+        confirm(&mut h);
+    }
     assert_eq!(attached(&h), vec![("report.pdf".to_string(), b"one".to_vec()), ("notes.txt".to_string(), b"two".to_vec())]);
     assert_eq!(plain(&h), "Here:", "the names aren't pasted as text");
     // With no files on the clipboard, a paste is text again.
@@ -167,9 +182,45 @@ fn what_cant_be_attached_is_said_and_the_rest_goes_in() {
     *board.0.borrow_mut() = vec![gone, folder.0.clone(), ok];
     h.event(Event::Paste(names));
     h.run_steps(2);
+    if Os::here() != Os::Windows {
+        confirm(&mut h);
+    }
     assert_eq!(attached(&h), vec![("ok.txt".to_string(), b"ok".to_vec())]);
     let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
-    assert!(said.contains("Attached 1 file") && said.contains("gone.pdf"), "{said}");
+    assert!(said.contains("Attached 1 file") && said.contains("gone.pdf") && said.ends_with("(ok.txt)"), "{said}");
+}
+
+#[test]
+fn copied_files_wait_for_the_owner_and_keep_their_original_draft() {
+    let folder = Folder::new("confirm");
+    let copied = folder.file("report.txt", b"report");
+    let path = copied.to_str().unwrap().to_owned();
+    let mut h = writing(&Files::default());
+    let original = h.state().session.compose_id().unwrap();
+    for os in [Os::Mac, Os::Other] {
+        super::offer(h.state_mut(), vec![path.clone()], os);
+        h.run_steps(2);
+        assert!(attached(&h).is_empty());
+        assert!(matches!(&h.state().dialog, Some(crate::dialogs::Dialog::PasteAttachments { paths, .. }) if paths == &[path.clone()]));
+        key_with(&mut h, Modifiers::NONE, Key::Escape);
+        h.run_steps(2);
+        assert!(attached(&h).is_empty());
+        assert!(h.state().dialog.is_none());
+    }
+    super::offer(h.state_mut(), vec![path], Os::Other);
+    h.state_mut().execute("mail.new", json!({"to": "ada@example.org"})).unwrap();
+    assert_ne!(h.state().session.compose_id(), Some(original));
+    h.run_steps(2);
+    h.state_mut().driven = true;
+    confirm(&mut h);
+    assert!(h.state().session.composing_by_id(original).unwrap().attachments.is_empty());
+    assert!(h.state().dialog.is_some());
+    h.state_mut().driven = false;
+    h.run_steps(2);
+    confirm(&mut h);
+    let original = h.state().session.composing_by_id(original).unwrap();
+    assert_eq!(original.attachments.first().unwrap().data.as_ref(), b"report");
+    assert!(attached(&h).is_empty());
 }
 
 #[test]
@@ -302,6 +353,9 @@ fn a_paste_names_the_files_it_attaches_and_no_others() {
     *board.0.borrow_mut() = vec![folder.file("report.pdf", b"one"), folder.file("private.pdf", b"two")];
     h.event(Event::Paste(folder.0.join("report.pdf").display().to_string()));
     h.run_steps(2);
+    if Os::here() != Os::Windows {
+        confirm(&mut h);
+    }
     assert_eq!(attached(&h), vec![("report.pdf".to_string(), b"one".to_vec())]);
 }
 
@@ -313,6 +367,9 @@ fn the_status_line_names_the_files_a_paste_attached() {
     *board.0.borrow_mut() = vec![folder.file("report.pdf", b"one")];
     h.event(Event::Paste(folder.0.join("report.pdf").display().to_string()));
     h.run_steps(2);
+    if Os::here() != Os::Windows {
+        confirm(&mut h);
+    }
     let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
     assert!(said.contains("Attached 1 file") && said.contains("(report.pdf)"), "{said}");
 }

@@ -908,9 +908,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                     let menu = crate::text_menu::taken_paste(&ctx, id);
                     // Files copied in a file manager are attached, not their names pasted as text (#807).
                     if menu.is_none()
+                        && !app.driven
                         && let Some(files) = file_paste::files(app, which, &text)
                     {
-                        file_paste::attach(app, &files);
+                        file_paste::offer(app, files, file_paste::Os::here());
                         reveal = true;
                         continue;
                     }
@@ -978,7 +979,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             }
         }
         if lost_paste && let Some(files) = file_paste::files(app, which, "") {
-            file_paste::attach(app, &files);
+            file_paste::offer(app, files, file_paste::Os::here());
             reveal = true;
         }
         resync(&mut layout, app);
@@ -1300,6 +1301,8 @@ fn pictures_only(html: &str) -> bool {
             _ => b.text().trim().is_empty(),
         })
 }
+
+pub(crate) use file_paste::attach as attach_pasted;
 
 #[path = "file_paste.rs"]
 mod file_paste;

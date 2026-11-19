@@ -53,6 +53,8 @@ send ([Problem reports](#problem-reports)).
   can read, in MailCraft's cache folder, so that a paste in your file manager finds them. They stay
   there after you quit, until a later start finds them a day old, and no more than 512 MB are kept
   (the oldest go first; the one you copied last is always kept, however large).
+- **Files you paste into a draft** on macOS, Linux and FreeBSD are listed by path for you to
+  confirm before MailCraft checks or reads them.
 - **A downloaded new version** (only for a copy that updates itself) is kept in the `updates`
   folder of MailCraft's settings folder until it is installed (when you press Restart to update,
   or when you quit), and is deleted when it doesn't pass MailCraft's release signature or when a

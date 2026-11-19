@@ -1974,8 +1974,8 @@ msgstr ""
 "Bestand\n"
 "bijvoegen"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 msgid "Attach File"
 msgstr "Bestand bijvoegen"
 
@@ -1995,6 +1995,12 @@ msgstr "Een visitekaartje bijvoegen"
 #, fuzzy
 msgid "Attach a file"
 msgstr "Een bestand bijvoegen"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "Gekopieerde bestanden bijvoegen?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -12683,6 +12689,12 @@ msgstr "Controleren"
 #, fuzzy
 msgid "Review certificate…"
 msgstr "Certificaat controleren…"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "Controleer de bestandspaden voordat u de bestanden aan dit bericht toevoegt."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -24239,7 +24251,7 @@ msgstr[0] "nog {n} is weggelaten: hoogstens {mb} MB per keer"
 msgstr[1] "nog {n} zijn weggelaten: hoogstens {mb} MB per keer"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"

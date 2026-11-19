@@ -2042,8 +2042,8 @@ msgstr ""
 "Joindre un\n"
 "fichier"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "Joindre un fichier"
@@ -2065,6 +2065,12 @@ msgstr "Joindre une carte de contact"
 #, fuzzy
 msgid "Attach a file"
 msgstr "Joindre un fichier"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "Joindre les fichiers copiés ?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -13093,6 +13099,12 @@ msgstr "Révision"
 #, fuzzy
 msgid "Review certificate…"
 msgstr "Examiner le certificat…"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "Vérifiez les chemins des fichiers avant de les joindre à ce message."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -24770,7 +24782,7 @@ msgstr[0] "{n} autre a été laissé de côté : {mb} Mo au maximum à la fois"
 msgstr[1] "{n} autres ont été laissés de côté : {mb} Mo au maximum à la fois"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"

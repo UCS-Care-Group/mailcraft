@@ -79,8 +79,9 @@ impl Keys {
 /// files as text. A bare file name (`id_rsa`) names a file only on macOS, where Finder leaves
 /// nothing else: a page could set that text beside a list of guessed paths and get every listed
 /// file of that name attached with only the name showing. Elsewhere the text must be the path or
-/// the `file://` address of each file, which is then what the owner would see. And on Windows a
-/// path of the network (`\\host\share\…`) is left out: looking at it would contact that host.
+/// the `file://` address of each file. Outside Windows the owner must confirm the full paths
+/// before the app checks or reads any file. On Windows a path of the network (`\\host\share\…`)
+/// is left out: looking at it would contact that host.
 pub(super) fn files(app: &MailApp, which: super::Which, text: &str) -> Option<Vec<String>> {
     files_on(app, which, text, Os::here())
 }
@@ -202,18 +203,35 @@ fn decoded_address(line: &str) -> String {
     }
 }
 
-/// Attach `paths`, as a pick of Attach File's would be: at most so many and so large, each in
-/// turn, and said once how many went in, and which: so that files that came from the clipboard
-/// are seen for what they are.
-pub(super) fn attach(app: &mut MailApp, paths: &[String]) {
-    if crate::files::attach_all(app, paths, None).is_err() {
+/// Windows supplies its own file clipboard format. Other systems require an owner's click
+/// before inspecting a path, since the text and file list can come from the same web page.
+pub(super) fn offer(app: &mut MailApp, paths: Vec<String>, os: Os) {
+    let Some(compose) = app.session.compose_id() else { return };
+    if app.driven {
         return;
     }
-    let shown: Vec<&str> = paths.iter().take(3).map(|p| p.rsplit(['/', '\\']).next().unwrap_or(p)).collect();
-    if let Some((said, _)) = app.status_msg.clone() {
-        let more = paths.len().saturating_sub(shown.len());
-        let names = if more > 0 { format!("{}, …", shown.join(", ")) } else { shown.join(", ") };
-        app.status(format!("{said} ({names})"));
+    if os == Os::Windows {
+        attach(app, compose, &paths);
+    } else if app.dialog.is_none() {
+        app.dialog = Some(crate::dialogs::Dialog::PasteAttachments { compose, paths });
+    }
+}
+
+/// Attach the confirmed paths to the named message. Report the names that actually went in.
+pub(crate) fn attach(app: &mut MailApp, compose: u64, paths: &[String]) {
+    let Some(before) = app.session.composing_by_id(compose).map(|draft| draft.attachments.len()) else { return };
+    if app.driven || crate::files::attach_all(app, paths, Some(compose)).is_err() {
+        return;
+    }
+    let Some(draft) = app.session.composing_by_id(compose) else { return };
+    let shown: Vec<&str> = draft.attachments.iter().skip(before).take(3).map(|a| a.name.as_str()).collect();
+    if let Some((said, _)) = app.status_msg.as_ref()
+        && !shown.is_empty()
+    {
+        let more = draft.attachments.len().saturating_sub(before) > shown.len();
+        let names = shown.join(", ");
+        let more = if more { ", …" } else { "" };
+        app.status(format!("{said} ({names}{more})"));
     }
 }
 

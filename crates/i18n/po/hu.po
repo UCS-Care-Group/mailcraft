@@ -2048,8 +2048,8 @@ msgstr ""
 "Fájl\n"
 "csatolása"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "Fájl csatolása"
@@ -2071,6 +2071,12 @@ msgstr "Kapcsolattartó kártya csatlakoztatása"
 #, fuzzy
 msgid "Attach a file"
 msgstr "Fájl csatolása"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "Csatolja a másolt fájlokat?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -13149,6 +13155,12 @@ msgstr "Felülvizsgálat"
 #, fuzzy
 msgid "Review certificate…"
 msgstr "Áttekintési bizonyítvány…"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "Mielőtt a fájlokat ehhez az üzenethez csatolja, ellenőrizze az elérési útjukat."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -24865,7 +24877,7 @@ msgstr[0] "További {n} kimaradt: egyszerre legfeljebb {mb} MB adható hozzá"
 msgstr[1] "További {n} kimaradt: egyszerre legfeljebb {mb} MB adható hozzá"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"

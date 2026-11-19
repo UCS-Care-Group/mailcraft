@@ -1944,8 +1944,8 @@ msgstr ""
 "Datei\n"
 "anfügen"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "Datei anfügen"
@@ -1965,6 +1965,12 @@ msgstr "Eine Kontaktkarte anhängen"
 #, fuzzy
 msgid "Attach a file"
 msgstr "Datei anhängen"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "Kopierte Dateien anhängen?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -12307,6 +12313,12 @@ msgstr "Überprüfen"
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Review certificate…"
 msgstr "Zertifikat überprüfen…"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "Prüfen Sie die Dateipfade, bevor Sie die Dateien an diese Nachricht anhängen."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -23339,7 +23351,7 @@ msgstr[0] "{n} weiteres wurde ausgelassen: höchstens {mb} MB auf einmal"
 msgstr[1] "{n} weitere wurden ausgelassen: höchstens {mb} MB auf einmal"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"
 msgstr[0] "{n} weiteres wurde ausgelassen: höchstens {most} Dateien auf einmal"

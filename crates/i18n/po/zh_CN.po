@@ -2046,8 +2046,8 @@ msgstr ""
 "附加\n"
 "文件"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "附加文件"
@@ -2069,6 +2069,12 @@ msgstr "附上名片"
 #, fuzzy
 msgid "Attach a file"
 msgstr "附加文件"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "附加复制的文件？"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -13152,6 +13158,12 @@ msgstr "审阅"
 #, fuzzy
 msgid "Review certificate…"
 msgstr "查看证书…"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "请先检查文件路径，再将文件附加到此邮件。"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -24777,7 +24789,7 @@ msgid_plural "{n} more were left out: at most {mb} MB at a time"
 msgstr[0] "另有 {n} 项被跳过：每次最多 {mb} MB"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"

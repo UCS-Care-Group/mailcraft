@@ -511,16 +511,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   with them lists files, and then only those: their paths or `file://` addresses on every system,
   and a bare file name on macOS alone (Finder leaves nothing else); files with no text beside
   them (Explorer's) on Windows alone, where the clipboard's file list is a format a web page
-  cannot write. A page may be able to put a list of `file://` addresses (`text/uri-list`) on the
-  clipboard and set the text beside it (whether Firefox and Chromium do is not relied on): with
-  names accepted everywhere, a page that sets the text `id_rsa` beside guessed
-  `/home/<name>/.ssh/id_rsa` paths would get every one that exists attached on one Ctrl+V with
-  only the name showing; so off macOS the text must be the path or address itself, and a page can attach only a file
-  whose whole path it guessed (a residual risk: the status line names the file attached and the
-  owner can remove it before sending). macOS keeps the bare-name case on purpose (Finder needs it), with the same mitigation: the status line names each file attached and the owner can remove it. Text that names
-  anything else is pasted as text. The status line names the files attached, and a path of the
-  network (`\\host\share`) on Windows is left out before it is looked at. The rule is one function
-  taking the system as a value, tested for all three (`crates/ui-egui/src/compose/file_paste.rs`).
+  cannot write. On macOS, Linux and FreeBSD a page may supply both the text and a list of files
+  through the clipboard. MailCraft shows the full paths and waits for the owner to click Attach
+  File before checking or reading them. The question belongs to the message where the paste
+  happened, and control input cannot confirm it. Text that names anything else is pasted as text.
+  The status line names the files attached, and a network path on Windows is left out before it is
+  looked at. The matching and confirmation rules are tested with the system passed as a value.
 - **Secrets are in the operating system's credential store** (Windows Credential Manager, the macOS
   keychain, the Secret Service: GNOME Keyring, KWallet; `apps/mailcraft/src/secrets.rs`), never in
   the mailbox file, `ui.json`, a command line, a URL or a log line. They are `#[serde(skip)]` and redacted

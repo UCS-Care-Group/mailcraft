@@ -2050,8 +2050,8 @@ msgstr ""
 "Dołącz\n"
 "plik"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "Dołącz plik"
@@ -2073,6 +2073,12 @@ msgstr "Dołącz wizytówkę kontaktu"
 #, fuzzy
 msgid "Attach a file"
 msgstr "Załącz plik"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "Dołączyć skopiowane pliki?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -13197,6 +13203,12 @@ msgstr "Recenzja"
 #, fuzzy
 msgid "Review certificate…"
 msgstr "Przejrzyj certyfikat…"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "Sprawdź ścieżki plików przed dołączeniem ich do tej wiadomości."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -25024,7 +25036,7 @@ msgstr[1] "Pominięto jeszcze {n}: najwyżej {mb} MB naraz"
 msgstr[2] "Pominięto jeszcze {n}: najwyżej {mb} MB naraz"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"

@@ -2048,8 +2048,8 @@ msgstr ""
 "Atașare\n"
 "fișier"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "Atașare fișier"
@@ -2071,6 +2071,12 @@ msgstr "Atașare fișă de contact"
 #, fuzzy
 msgid "Attach a file"
 msgstr "Atașați un fișier"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "Atașați fișierele copiate?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -13193,6 +13199,12 @@ msgstr "Revizuire"
 #, fuzzy
 msgid "Review certificate…"
 msgstr "Examinare certificat…"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "Verificați căile fișierelor înainte de a le atașa la acest mesaj."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -25017,7 +25029,7 @@ msgstr[1] "Încă {n} au fost omise: cel mult {mb} MB odată"
 msgstr[2] "Încă {n} au fost omise: cel mult {mb} MB odată"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"
