@@ -113,6 +113,14 @@ pub fn object(id: &str) -> Option<Object> {
         | "account.addSharedMailbox"
         | "account.removeSharedMailbox"
         | "account.setSenderAddresses"
+        // Another person's address book, opened by address (#252): it reaches that person's
+        // mailbox with the owner's sign-in, and removing one removes what is kept of it here.
+        | "contacts.openShared"
+        | "contacts.removeShared"
+        // A calendar or an address book of the public folders (#1263): read with the owner's
+        // sign-in, and removing one removes what is kept of it here.
+        | "publicFolders.open"
+        | "publicFolders.close"
         | "account.thinOffline"
         | "account.deviceLimits"
         | "account.trimDevice"

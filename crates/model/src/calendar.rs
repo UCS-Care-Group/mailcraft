@@ -110,6 +110,70 @@ pub struct OpenedCalendar {
 /// Most calendars one account may have opened by address.
 pub const MAX_OPENED_CALENDARS: usize = 20;
 
+/// An address book opened by its owner's address (Open Shared Address Book), for an Exchange
+/// server account whose contacts folders can be read at another mailbox's address: the person
+/// whose book it is, and what it is called here. Kept on this computer only.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OpenedAddressBook {
+    /// The person's address: what it is read through.
+    pub address: String,
+    /// What it is called (the person's name).
+    pub name: String,
+}
+
+/// Most address books one account may have opened by address.
+pub const MAX_OPENED_ADDRESS_BOOKS: usize = 20;
+
+/// What a public folder that the owner picked holds (#1263).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PublicFolderKind {
+    /// A calendar (`IPF.Appointment`).
+    #[default]
+    Calendar,
+    /// An address book (`IPF.Contact`).
+    Contacts,
+}
+
+/// A calendar or an address book in the public folders of an Exchange server account's
+/// organisation (#1263): one the owner picked to be shown, or one a listing of the public folders
+/// found. Read with the owner's own sign-in, as the server lets them, and never written. Kept on
+/// this computer only.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PublicFolder {
+    /// The server's id of the folder: opaque, at most [`crate::sync::MAX_EWS_ID`] bytes.
+    pub id: String,
+    /// What it is called, after the folders it lies in (`Team / Holidays`).
+    pub name: String,
+    pub kind: PublicFolderKind,
+}
+
+impl std::fmt::Debug for PublicFolder {
+    /// The kind alone: the id and the name are the organisation's.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PublicFolder").field("kind", &self.kind).finish()
+    }
+}
+
+/// Most public folders one account may show.
+pub const MAX_PUBLIC_FOLDERS: usize = 20;
+/// Most calendars and address books a listing of the public folders holds.
+pub const MAX_PUBLIC_LISTING: usize = 300;
+/// The longest name of a public folder kept, with the folders it lies in.
+pub const MAX_PUBLIC_NAME: usize = 240;
+/// How far back from today a public calendar is read at each Send/Receive, in days: a team's
+/// holidays are looked back at, and the stretch on screen alone would leave them out until the
+/// owner pressed Send/Receive with that month in view.
+pub const PUBLIC_DAYS_BEHIND: i64 = 92;
+/// How far ahead of today a public calendar is read at each Send/Receive, in days.
+pub const PUBLIC_DAYS_AHEAD: i64 = 366;
+/// The longest stretch a public calendar is read for at once, in days: the stretch on screen is
+/// added to the one around today only when both together are no longer than this (Exchange
+/// refuses a calendar view of more than two years).
+pub const MAX_PUBLIC_STRETCH_DAYS: i64 = 700;
+
 /// A shared mailbox open under an account whose calendar the account's server lists among the
 /// account's own calendars too (#70: a sharing invitation accepted in Outlook puts it there, under
 /// Shared Calendars), and what the owner said when MailCraft offered, once, to hide that copy:

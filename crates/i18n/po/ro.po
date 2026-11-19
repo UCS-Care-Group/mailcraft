@@ -799,9 +799,8 @@ msgstr "Nume cont"
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "Account's signature"
-msgstr "Semnătura contului"
+msgstr ""
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
@@ -977,9 +976,8 @@ msgstr "Adăugare cont"
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "Add address"
-msgstr "Adăugare adresă"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -1120,6 +1118,11 @@ msgid "Address Book"
 msgstr "Agendă"
 
 #. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Address list"
@@ -1145,9 +1148,8 @@ msgstr "Adrese separate prin ; (lăsați gol ca răspunsurile să vină la dvs.)
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "Addresses your mail server lets this account send from with the same sign-in, such as aliases. Replies are sent from the address a message came to."
-msgstr "Adresele de la care serverul de poștă permite acestui cont să trimită cu aceeași autentificare, de exemplu aliasuri. Răspunsurile sunt trimise de la adresa la care a ajuns mesajul."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -1427,9 +1429,8 @@ msgstr "Un cont nu a putut trimite și primi."
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "An address this account may send from"
-msgstr "O adresă de la care acest cont poate trimite"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1667,6 +1668,11 @@ msgstr "Aplicare reguli descărcate"
 #, fuzzy
 msgid "Apply Downloaded To-dos"
 msgstr "Aplicare sarcini descărcate"
+
+#. command label
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "Apply Read Exchange Calendar, Contacts and To-dos"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
@@ -2009,6 +2015,11 @@ msgid "At most {max} contacts can be merged at once."
 msgstr "Se pot îmbina cel mult {max} contacte odată."
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "At most {n} address books can be opened by address: remove one first."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
 msgid "At most {n} calendars can be opened by address: remove one first."
@@ -2019,6 +2030,11 @@ msgstr "Se pot deschide după adresă cel mult {n} calendare: eliminați întâi
 #, fuzzy
 msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Se pot abona cel mult {n} calendare: dezabonați-vă mai întâi de la unul."
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "At most {n} public folders can be shown: remove one first."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -2550,7 +2566,7 @@ msgid "By Subject"
 msgstr "După subiect"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/public_folders.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Calendar"
@@ -2602,6 +2618,11 @@ msgstr "Calendar și contacte"
 #, fuzzy
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "Calendarul și contactele au nevoie de permisiunea dvs.: Fișier › Informații › Conectare calendar și contacte"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Calendars and address books in your organisation's public folders, read with {owner}'s sign-in. The ones you tick are read at each Send/Receive, read-only, and the list of them is kept on this computer only."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
@@ -2897,9 +2918,8 @@ msgstr "Cc: {names}"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Celebrate"
-msgstr "Sărbătorește"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
@@ -3366,7 +3386,7 @@ msgid "Clipboard"
 msgstr "Clipboard"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/public_folders.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Închidere"
@@ -3948,6 +3968,11 @@ msgstr "Nu s-au putut citi categoriile Gmail ale „{name}”"
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "Lista de dosare nu a putut fi citită"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Couldn't read the list of public folders from the server."
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -5398,6 +5423,11 @@ msgstr "Tot ce era păstrat pe acest telefon a fost eliminat."
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Tot ce face interfața este o comandă: {commands} în total, acoperind {percent}% din catalogul de funcții. Linia de comandă, canalul de control și serverul MCP rulează aceleași comenzi."
 
+#. command label
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "Exchange Calendar, Contacts and To-dos to Read"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -5569,7 +5599,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Mai puțin de două dintre aceste contacte mai sunt aici, deci nu e nimic de îmbinat."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/public_folders.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Fișier"
@@ -7494,6 +7524,11 @@ msgid "It is on this device only: nothing is sent to or fetched from a server."
 msgstr "Este doar pe acest dispozitiv: nu se trimite și nu se preia nimic de pe un server."
 
 #. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "It is read at the next Send/Receive."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "It is removed from the mail server too, and that can't be undone."
@@ -7549,9 +7584,8 @@ msgstr "Element"
 
 #. command label
 #: crates/engine/src/cmd/item_from_message.rs
-#, fuzzy
 msgid "Item from Message"
-msgstr "Element din mesaj"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7978,9 +8012,8 @@ msgstr "Mai târziu păstrează deocamdată acest cont pe IMAP. Puteți schimba 
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Laugh"
-msgstr "Râs"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -8062,9 +8095,8 @@ msgstr "Luminos"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Like"
-msgstr "Îmi place"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -8120,6 +8152,11 @@ msgstr "Linkuri"
 msgid "List Accounts"
 msgstr "Listare conturi"
 
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "List Again"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 #, fuzzy
@@ -8161,6 +8198,11 @@ msgstr "Listare mesaje"
 #, fuzzy
 msgid "List Notes"
 msgstr "Listare note"
+
+#. command label, interface
+#: crates/engine/src/cmd/public_folders.rs crates/ui-egui/src/public_folders.rs
+msgid "List Public Folders"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -8266,9 +8308,8 @@ msgstr "Seamănă cu o marcă."
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Love"
-msgstr "Ador"
+msgstr ""
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -8761,9 +8802,8 @@ msgstr "Creați o semnătură cu Nou."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Make an Item from a Message"
-msgstr "Creează un element dintr-un mesaj"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9254,9 +9294,8 @@ msgstr "Mobil"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Module bar"
-msgstr "Bara de module"
+msgstr ""
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -10494,9 +10533,8 @@ msgstr "Niciunul"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
-#, fuzzy
 msgid "None of those messages is in this mailbox any more."
-msgstr "Niciunul dintre aceste mesaje nu mai este în această căsuță poștală."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11247,7 +11285,7 @@ msgstr ""
 "calendar"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/public_folders.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Open & Export"
 msgstr "Deschidere și export"
@@ -11317,6 +11355,18 @@ msgstr "Deschidere răspunsuri și redirecționări în fereastră nouă"
 #, fuzzy
 msgid "Open Result from the Server"
 msgstr "Deschidere rezultat de pe server"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Open Shared\n"
+"Address Book"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/contacts_opened.rs crates/ui-egui/src/dialogs.rs
+msgid "Open Shared Address Book"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -11449,6 +11499,11 @@ msgstr "Deschideți acest calendar"
 #, fuzzy
 msgid "Open {name}? {why}"
 msgstr "Deschideți {name}? {why}"
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Opened the address book of {address}. It is read at the next Send/Receive, and kept on this computer only."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -11596,9 +11651,8 @@ msgstr "Alte conturi și Pe acest computer"
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "Other addresses you send from"
-msgstr "Alte adrese de la care trimiteți"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -11614,9 +11668,8 @@ msgstr "Altfel, o notificare arată expeditorul și subiectul, niciodată textul
 
 #. interface
 #: crates/ui-egui/src/reading/attachment_pictures.rs
-#, fuzzy
 msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
-msgstr "În caz contrar, sunt afișate cu numele lor. În Mesaje nedorite sunt afișate întotdeauna cu numele lor."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11847,7 +11900,7 @@ msgid "Pending development"
 msgstr "În dezvoltare"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/contacts_opened.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "People"
 msgstr "Persoane"
@@ -12262,6 +12315,23 @@ msgstr "Început propus"
 msgid "Proposed time"
 msgstr "Oră propusă"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Public\n"
+"Folders"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Public Folders"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Public Folders Listed"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/keys.rs
 #, fuzzy
@@ -12273,6 +12343,11 @@ msgstr "Chei publice"
 #, fuzzy
 msgid "Public folder"
 msgstr "Folder public"
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Public folders can be shown under an Exchange server account"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -12354,9 +12429,8 @@ msgstr "Interval"
 
 #. command label, interface
 #: crates/engine/src/cmd/react.rs crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "React"
-msgstr "Reacționează"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -12387,6 +12461,16 @@ msgstr "Stare citire"
 #, fuzzy
 msgid "Read the Favorites from Outlook again now"
 msgstr "Citiți acum din nou Favoritele din Outlook"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their address book with you. It is kept on this computer only, and read at the next Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only, and read at the next Send/Receive."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -12451,6 +12535,11 @@ msgstr "Citirea răspunsurilor automate s-a oprit neașteptat"
 #, fuzzy
 msgid "Reading the calendar from Microsoft…"
 msgstr "Se citește calendarul de la Microsoft…"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Reading the list of public folders from the server…"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt
@@ -12745,6 +12834,11 @@ msgid "Remove Picture"
 msgstr "Eliminare imagine"
 
 #. command label
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Remove Public Folder"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/keys.rs
 #, fuzzy
 msgid "Remove Public Key"
@@ -12761,6 +12855,11 @@ msgstr "Eliminare recurență"
 #, fuzzy
 msgid "Remove Reminder"
 msgstr "Elimină mementoul"
+
+#. command label
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "Remove Shared Address Book"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -12876,9 +12975,8 @@ msgstr "Eliminați această acțiune"
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "Remove this address"
-msgstr "Eliminare adresă"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -13408,9 +13506,8 @@ msgstr "Amprentă SHA-256"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Sad"
-msgstr "Trist"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -14044,7 +14141,7 @@ msgid "Send & Receive"
 msgstr "Trimitere și primire"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Trimitere / primire"
@@ -14368,9 +14465,8 @@ msgstr "Trimitere/primire prin Microsoft Graph"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
-#, fuzzy
 msgid "Sender Addresses"
-msgstr "Adrese expeditor"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
@@ -14539,9 +14635,8 @@ msgstr "Server: {address}"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
-#, fuzzy
 msgid "Set Sender Addresses"
-msgstr "Setare adrese expeditor"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14737,15 +14832,19 @@ msgstr "Afișare Favorite Outlook"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Show Picture Attachments as Pictures"
-msgstr "Afișează atașamentele imagine ca imagini"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
 msgstr "Afișare progres"
+
+#. command label
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Show Public Folder"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -14867,9 +14966,8 @@ msgstr "Afișare parolă"
 
 #. interface
 #: crates/ui-egui/src/reading/attachment_pictures.rs
-#, fuzzy
 msgid "Show picture attachments as pictures"
-msgstr "Afișează atașamentele imagine ca imagini"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -15765,9 +15863,8 @@ msgstr "duminică"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "Surprised"
-msgstr "Surprins"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -16250,6 +16347,11 @@ msgid "That is not a sender's address"
 msgstr "Aceasta nu este adresa unui expeditor"
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "That is this account's own address: its own address book is there already."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
 msgid "That is this account's own address: its own calendar is there already."
@@ -16267,6 +16369,11 @@ msgstr "Este prea lung pentru un raport: scurtați-l"
 msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at most. Leave the box empty if you have none."
 msgstr "Acesta nu este un nume de utilizator GitHub: litere, cifre și cratime simple, cel mult 39. Lăsați caseta goală dacă nu aveți unul."
 
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "That isn't a calendar or an address book of the last listing of the public folders: list them first."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
@@ -16278,6 +16385,16 @@ msgstr "Aceasta nu este parola acestui fișier."
 #, fuzzy
 msgid "That key is on the card already"
 msgstr "Cheia aceea este deja pe card"
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "That public folder is shown already."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "That public folder isn't shown."
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -16428,6 +16545,31 @@ msgstr "Serverul contului nu i-a dat încă acestei întâlniri un link de parti
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "Serverul contului îl creează când se trimite întâlnirea; linkul de participare vine odată cu ea."
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "The address book of {address} is open already."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from is no longer in the account's list, so changes here could not reach the server. Send/Receive may bring it back."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
@@ -16788,6 +16930,11 @@ msgstr "Domeniul {domain} indică un server pentru configurarea automată (Autod
 #, fuzzy
 msgid "The download was called off."
 msgstr "Descărcarea a fost anulată."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The e-mail address of the person whose address book you want to open"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17190,15 +17337,13 @@ msgstr "Numele cuiva pe care îl cunoașteți."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "The name people you write to will see"
-msgstr "Numele pe care îl vor vedea persoanele cărora le scrieți"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "The name recipients see; your own when empty"
-msgstr "Numele pe care îl văd destinatarii; al dumneavoastră, când este gol"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17289,6 +17434,11 @@ msgstr "Cheia privată din acest fișier nu este criptată, deci MailCraft nu o 
 #, fuzzy
 msgid "The proposed end has to be after the proposed start."
 msgstr "Sfârșitul propus trebuie să fie după începutul propus."
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "The public folders have no calendar or address book that you can see."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18510,9 +18660,8 @@ msgstr "Acest element are modificări nesalvate. Le salvați?"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_extra.rs
-#, fuzzy
 msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
-msgstr "Acest element are fișiere atașate, pe care doar serverul le păstrează și pe care o copie nu le-ar avea: nu poate fi copiat de aici."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -19412,6 +19561,11 @@ msgstr "Scrieți adresa de e-mail și MailCraft găsește restul: Microsoft 365,
 #, fuzzy
 msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
 msgstr "Dacă scrieți * sau - și un spațiu la începutul unui rând, începe o listă cu marcatori, iar 1. sau 1) începe una numerotată. Anulare readuce ce ați scris."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Unavailable"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -20834,9 +20988,8 @@ msgstr "serverul și adresa unui cont JMAP nu pot fi schimbate după ce i-au ven
 
 #. what a command says
 #: crates/engine/src/cmd/senders.rs
-#, fuzzy
 msgid "a Microsoft or Exchange account sends from other addresses only as its server allows, which MailCraft doesn't ask for yet"
-msgstr "Un cont Microsoft sau Exchange trimite de la alte adrese doar cât permite serverul său, lucru pe care MailCraft nu îl solicită încă"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -20954,27 +21107,23 @@ msgstr "o imagine dintr-un mesaj are cel mult {mb} MB"
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "a reaction can't be sent to a draft or to mail you wrote"
-msgstr "nu se poate reacționa la o ciornă sau la un mesaj scris de dumneavoastră"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account"
-msgstr "o reacție se trimite doar din conturi IMAP, JMAP și locale, nu dintr-un cont de server Microsoft sau Exchange"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "a reaction isn't sent to automated mail (a no-reply address, a mailing list, bulk mail)"
-msgstr "nu se reacționează la mesajele automate (o adresă no-reply, o listă de corespondență, e-mail în masă)"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "a reaction isn't sent to mail in Junk E-mail"
-msgstr "nu se reacționează la mesajele din E-mail nedorit"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -21008,9 +21157,8 @@ msgstr "o regulă care așteaptă să ajungă pe server vine după cele de acolo
 
 #. interface, what a command says
 #: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "a sender address has no e-mail address"
-msgstr "o adresă de expeditor nu conține o adresă de e-mail"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -21102,6 +21250,11 @@ msgstr "adăugați întâi un cont (Fișier › Adăugare cont)"
 msgid "add at least one recipient"
 msgstr "adăugați cel puțin un destinatar"
 
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "address books open under an Exchange server account"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -21146,9 +21299,8 @@ msgstr "un cont nu poate fi pus înaintea lui însuși"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
-#, fuzzy
 msgid "an account has {max} sender addresses at most"
-msgstr "un cont are cel mult {max} adrese de expeditor"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21701,7 +21853,7 @@ msgid "no account here keeps its rules on its server"
 msgstr "niciun cont de aici nu își păstrează regulile pe server"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
 msgstr "niciun cont nu este cont de server Exchange"
@@ -21737,10 +21889,20 @@ msgid "no account with id {account}"
 msgstr "nu există cont cu ID-ul {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nu există cont cu ID-ul {id}"
+
+#. why a command can't run
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "no address book was opened by address"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "no address book {address} is open"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -21861,6 +22023,11 @@ msgstr "fără server de ieșire"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "nu există imaginea {id} în această semnătură"
+
+#. why a command can't run
+#: crates/engine/src/cmd/public_folders.rs
+msgid "no public folder is shown"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -22061,9 +22228,8 @@ msgstr "doar un mesaj trimis de dvs. poate fi retrimis"
 
 #. what a command says
 #: crates/engine/src/cmd/senders.rs
-#, fuzzy
 msgid "only an IMAP account sends from other addresses"
-msgstr "doar un cont IMAP trimite de la alte adrese"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
@@ -22135,6 +22301,11 @@ msgstr "past"
 #, fuzzy
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "imaginile de pe web nu se descarcă: salvați imaginea și adăugați-o din fișier"
+
+#. why a command can't run
+#: crates/engine/src/cmd/public_folders.rs
+msgid "public folders open under an Exchange server account"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -22243,6 +22414,11 @@ msgstr "este necesară autentificarea"
 #, fuzzy
 msgid "someone@example.org or @example.org"
 msgstr "cineva@example.org sau @example.org"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "that account can't open an address book by address"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22413,7 +22589,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "contul nu are nume de utilizator sau adresă de e-mail cu care să se conecteze"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_opened.rs crates/engine/src/cmd/public_folders.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "contul nu mai există"
@@ -22821,7 +22997,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "rezultatul ar face ca acest cont să păstreze mai multă stare de sincronizare decât se poate prelua"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "rezultatul {why}"
@@ -23456,6 +23632,11 @@ msgid "this contact has no e-mail address"
 msgstr "acest contact nu are adresă de e-mail"
 
 #. what a command says
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "this directory was for another account, not for {name}"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "this download was for another account, not for {name}"
@@ -23505,9 +23686,8 @@ msgstr "acest mesaj are deja câte atașamente poate conține"
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "this message has a warning about its sender, so no reaction is sent to it"
-msgstr "acest mesaj are un avertisment despre expeditor, așa că nu se trimite nicio reacție"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/pictures.rs
@@ -23517,9 +23697,8 @@ msgstr "acest mesaj a avut deja câte imagini poate avea"
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "this message has no Message-ID, so a reaction can't say what it answers"
-msgstr "acest mesaj nu are Message-ID, deci reacția nu poate spune la ce răspunde"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -23529,9 +23708,8 @@ msgstr "acest mesaj nu are o adresă de expeditor de căutat"
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "this message has no sender to send a reaction to"
-msgstr "acest mesaj nu are expeditor căruia să i se trimită o reacție"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -23574,9 +23752,8 @@ msgstr[2] "de ori"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
-#, fuzzy
 msgid "to {recipient}"
-msgstr "către {recipient}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -23752,9 +23929,8 @@ msgstr "an"
 
 #. what a command says
 #: crates/engine/src/cmd/react.rs
-#, fuzzy
 msgid "you already reacted to this message with {emoji}"
-msgstr "ați reacționat deja la acest mesaj cu {emoji}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -23857,9 +24033,8 @@ msgstr "{address} este deja configurat"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "{address} is no longer one of this account's sender addresses: choose another From"
-msgstr "{address} nu mai este una dintre adresele de expeditor ale acestui cont: alegeți alt expeditor"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -23881,9 +24056,8 @@ msgstr "{address} nu este o cutie poștală partajată deschisă aici."
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "{address} isn't one of this account's sender addresses (add it in Account Settings)"
-msgstr "{address} nu este una dintre adresele de expeditor ale acestui cont (adăugați-o în Setări cont)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
@@ -24186,7 +24360,12 @@ msgid "{name} has declined this meeting."
 msgstr "{name} a refuzat această întâlnire."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "{name} has no Exchange server account it is opened through"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} has no Exchange server address that can be used"
 msgstr "{name} nu are o adresă de server Exchange utilizabilă"
@@ -24288,7 +24467,7 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} nu este o cutie poștală partajată: eliminați-o cu account.remove"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
 msgstr "{name} nu este un cont de server Exchange"
@@ -25030,12 +25209,11 @@ msgstr[2] "{n} de mesaje erau deja aici"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
-#, fuzzy
 msgid "{n} message was dragged: only the first was opened."
 msgid_plural "{n} messages were dragged: only the first was opened."
-msgstr[0] "{n} mesaj a fost tras: doar primul a fost deschis."
-msgstr[1] "{n} mesaje au fost trase: doar primul a fost deschis."
-msgstr[2] "{n} de mesaje au fost trase: doar primul a fost deschis."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/left_out.rs
@@ -25681,6 +25859,11 @@ msgstr "{what} ({already})"
 #, fuzzy
 msgid "{who} was added by a newer version of MailCraft, {then}"
 msgstr "{who} a fost adăugat de o versiune mai nouă a MailCraft, {then}"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "{why} The list is read at the next Send/Receive."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
