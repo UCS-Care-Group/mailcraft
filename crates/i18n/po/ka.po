@@ -1413,8 +1413,9 @@ msgstr "მისამართი დომენის გარეშე."
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
+#, fuzzy
 msgid "An agent made this contact or gave it an address. Until you edit it, its addresses don't bring pictures in mail from your contacts."
-msgstr ""
+msgstr "ეს კონტაქტი აგენტმა შექმნა ან მისამართი დაუმატა. სანამ კონტაქტს არ ჩაასწორებთ, მისი მისამართებიდან მიღებულ წერილებში სურათები ავტომატურად არ ჩამოიტვირთება."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -4693,8 +4694,9 @@ msgstr "სურათების ჩამოტვირთვა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download Pictures from Contacts"
-msgstr ""
+msgstr "კონტაქტებისგან მიღებული სურათების ჩამოტვირთვა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4710,13 +4712,15 @@ msgstr "ფოსტაში სურათების ავტომატ�
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Download Pictures in Mail from Contacts"
-msgstr ""
+msgstr "კონტაქტებისგან მიღებულ წერილებში სურათების ჩამოტვირთვა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download from contacts"
-msgstr ""
+msgstr "კონტაქტებისგან ჩამოტვირთვა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4756,8 +4760,9 @@ msgstr "ფოსტაში სურათების ავტომატ�
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Download pictures in mail from people in my contacts"
-msgstr ""
+msgstr "ჩემს კონტაქტებში მყოფი ადამიანების წერილებში სურათების ჩამოტვირთვა"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11845,8 +11850,9 @@ msgstr "სურათები ფოსტაში"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
-msgstr ""
+msgstr "თქვენს კონტაქტებში შენახული მისამართიდან მიღებულ წერილებში სურათები დაუკითხავად ჩამოიტვირთება მხოლოდ მაშინ, როცა მისამართი ზუსტად ემთხვევა და თქვენი ფოსტის სერვერი ადასტურებს, რომ წერილი ამ მისამართის დომენიდან მოვიდა (თავად მისამართს სერვერი ვერ ადასტურებს). არასასურველ ფოსტაში სურათები ასე არ ჩამოიტვირთება. თითოეული ასეთი გამომგზავნის სერვერი იგებს, რომ წერილი გახსენით, როდის გახსენით და რომელი ინტერნეტმისამართიდან. თუ კონტაქტი აგენტმა შექმნა ან მისამართი დაუმატა, ის არ გაითვალისწინება, სანამ კონტაქტს არ ჩაასწორებთ."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
@@ -11874,8 +11880,9 @@ msgstr "ვებში არსებული სურათები ჩა
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
-msgstr ""
+msgstr "თქვენს კონტაქტებში მყოფი ადამიანების წერილებში ინტერნეტში განთავსებული სურათები ჩამოიტვირთება. მათი სერვერები გაიგებენ, როდის გახსენით წერილი და რომელი ინტერნეტმისამართიდან."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -20154,8 +20161,9 @@ msgstr "წვდომა არ გაქვთ: {address}. თუ წვდ�
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
-msgstr ""
+msgstr "თქვენი კონტაქტების წერილებიდან სურათებს ჩამოტვირთავთ, მაგრამ ფოსტის სერვერმა ვერ დაადასტურა, რომ ეს წერილი ამ კონტაქტისგან მოვიდა. ამიტომ ჩამოტვირთვამდე თანხმობას გთხოვთ."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
