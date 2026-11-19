@@ -10,6 +10,9 @@
 
 use mailcraft_ui_egui::MAX_PICTURE_SIDE;
 
+/// The text formats accepted by the pinned winit reader, for its offer query.
+pub const TEXT_MIMES: [&str; 5] = ["text/plain;charset=utf-8", "UTF8_STRING", "text/plain", "TEXT", "STRING"];
+
 /// HTML, in the order asked for.
 pub const HTML_MIMES: [&str; 2] = ["text/html;charset=utf-8", "text/html"];
 

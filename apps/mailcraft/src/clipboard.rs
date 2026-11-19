@@ -28,7 +28,7 @@ use mailcraft_ui_egui::{RichClipboard, clipboard_picture_png as png};
 use winit::platform::wayland::Clipboard as WaylandBoard;
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-use crate::clipboard_mime::{HTML_MIMES, IMAGE_MIMES, MAX_HTML_BYTES, MAX_PICTURE_BYTES, decode_html, png_fits};
+use crate::clipboard_mime::{HTML_MIMES, IMAGE_MIMES, MAX_HTML_BYTES, MAX_PICTURE_BYTES, TEXT_MIMES, decode_html, png_fits};
 
 /// The most HTML one paste takes, in bytes (the engine's own limit).
 const MAX_HTML: usize = 4 << 20;
@@ -115,13 +115,7 @@ impl RichClipboard for Board {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         if self.wayland_display {
             let Some(wayland) = &self.wayland else { return Ok(None) };
-            return match wayland.load_text() {
-                Ok(text) => Ok(Some(text)),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-                // Retrying a timed-out or broken transfer on the window thread would wait on
-                // the same unresponsive owner again, through a different clipboard reader.
-                Err(e) => Err(e),
-            };
+            return wayland_text(wayland.load_text(), |mimes| wayland.offers(mimes));
         }
         // All of it, as Ctrl+V has it: what is too much for a message is refused where the paste
         // is made (`edit.paste`), the same for both.
@@ -153,6 +147,21 @@ impl RichClipboard for Board {
             return self.wayland.as_ref().is_some_and(|w| w.offers(&IMAGE_MIMES));
         }
         self.image().is_some()
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+fn wayland_text(read: std::io::Result<String>, offers: impl FnOnce(&[&str]) -> bool) -> std::io::Result<Option<String>> {
+    match read {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        // Winit also reports a picture-only selection as InvalidData. Query its announced
+        // formats without reading again: oversized text has the same error kind and must stay
+        // a failed transfer, even when a picture is offered beside it.
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData && !offers(&TEXT_MIMES) => Ok(None),
+        // Retrying a timed-out or broken transfer on the window thread would wait on
+        // the same unresponsive owner again, through a different clipboard reader.
+        Err(e) => Err(e),
     }
 }
 
