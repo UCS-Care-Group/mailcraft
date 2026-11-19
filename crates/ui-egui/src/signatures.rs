@@ -178,30 +178,28 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
             }
         }
     });
-    let renaming_id = egui::Id::unique("mailcraft-signature-rename");
-    let mut renaming: Option<String> = ui.data(|d| d.get_temp(renaming_id));
-    let field = renaming_id.with("field");
+    let field = egui::Id::unique("mailcraft-signature-rename-field");
     // Whether the field was open when this frame began: the Rename button below keeps what
     // was typed while it is (#1156), and opens the field while it isn't.
-    let was_open = renaming.is_some();
-    // The field's text after this frame's typing, even when leaving clears `renaming` below
-    // (a click on Rename takes the keyboard first, in the same frame as the click).
-    let mut typed: Option<String> = None;
+    let was_open = app.signature_rename.is_some();
     let mut entered = false;
-    if let (Some(text), Some(from)) = (renaming.as_mut(), open) {
-        let r = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).id(field).desired_width(172.0).char_limit(100)));
-        typed = Some(text.clone());
-        // Enter keeps the name; a click elsewhere or Escape lets go of it (the keyboard is asked
-        // for once, by Rename, not every frame, or nothing could take it away).
-        if (r.has_focus() || r.lost_focus()) && crate::keys::enter(ui.ctx(), ui.layer_id()) {
-            if !text.trim().is_empty() {
-                let _ = app.run("signature.rename", json!({"name": from, "to": text.trim()}));
-            }
+    if let Some(rename) = app.signature_rename.as_mut() {
+        // Escape is the field's (it lets go of the name), never File's, which would close.
+        let keys = egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: true };
+        let edit = egui::TextEdit::singleline(&mut rename.text).id(field).desired_width(172.0).char_limit(100).event_filter(keys);
+        let r = crate::text_menu::field(ui.add(edit));
+        // Enter, or leaving the field any other way (a click elsewhere, Tab, choosing another
+        // signature, Save; Back is `MailApp::leave_signature`), keeps the name; Escape lets go of
+        // it (#1651). The keyboard is asked for once, by Rename, or nothing could take it away.
+        if crate::keys::take_escape_in(ui.ctx(), ui.layer_id(), field) {
             ui.memory_mut(|m| m.surrender_focus(field));
-            renaming = None;
+            finish_rename(app, false);
+        } else if (r.has_focus() || r.lost_focus()) && crate::keys::enter(ui.ctx(), ui.layer_id()) {
+            ui.memory_mut(|m| m.surrender_focus(field));
+            finish_rename(app, true);
             entered = true;
         } else if crate::text_menu::left(&r) {
-            renaming = None;
+            finish_rename(app, true);
         }
     }
     ui.horizontal(|ui| {
@@ -222,29 +220,39 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
             if was_open && !entered {
                 // Pressed while the field holds the new name: keep what was typed (#1156),
                 // rather than resetting the field to the old name and losing it.
-                let to = typed.as_deref().or(renaming.as_deref()).unwrap_or("").trim().to_string();
-                if !to.is_empty() {
-                    let _ = app.run("signature.rename", json!({"name": from, "to": to}));
-                }
                 ui.memory_mut(|m| m.surrender_focus(field));
-                renaming = None;
+                finish_rename(app, true);
             } else if !was_open {
-                renaming = Some(from.to_string());
+                app.signature_rename = Some(Rename { from: from.to_string(), text: from.to_string() });
                 ui.memory_mut(|m| m.request_focus(field));
             }
         }
+        // The open one as it is named now: leaving the field may have just renamed it.
+        let current = app.session.signature_edit.as_ref().map(|e| e.signature.name.clone());
         if ui.add_enabled(open.is_some(), egui::Button::new(tl!("Delete"))).clicked()
-            && let Some(name) = open
+            && let Some(name) = current
         {
             let _ = app.run("signature.remove", json!({"name": name}));
         }
     });
-    ui.data_mut(|d| match renaming {
-        Some(text) => {
-            d.insert_temp(renaming_id, text);
-        }
-        None => d.remove::<String>(renaming_id),
-    });
+}
+
+/// A name being typed in File › Signatures › Rename: for the signature it was opened on (even
+/// when another is chosen meanwhile), and the text so far.
+#[derive(Clone, Debug)]
+pub(crate) struct Rename {
+    from: String,
+    text: String,
+}
+
+/// Close the Rename field: rename the signature it was opened on to what was typed when `keep`
+/// (and that is a new name, not empty); let go of it otherwise.
+pub(crate) fn finish_rename(app: &mut MailApp, keep: bool) {
+    let Some(Rename { from, text }) = app.signature_rename.take() else { return };
+    let to = text.trim();
+    if keep && !to.is_empty() && to != from {
+        let _ = app.run("signature.rename", json!({"name": from, "to": to}));
+    }
 }
 
 /// The open signature: rich text or HTML, then its formatting bar, the editor, the selected
@@ -316,7 +324,10 @@ fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.horizontal_wrapped(|ui| {
         ui.menu_button(tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
         ui.menu_button(tl!("Size"), |ui| crate::ribbon::size_menu(ui, app));
-        ui.menu_button(tl!("Colour"), |ui| crate::ribbon::color_menu(ui, app));
+        // The colour menu holds a field for a colour of the owner's own: a click in it is for the
+        // field, not a way out of the menu, as on the ribbon (#1493, #1464).
+        let colour = ui.button(tl!("Colour"));
+        egui::Popup::menu(&colour).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| crate::ribbon::color_menu(ui, app));
         for (label, on, command) in [("B", look.bold, "format.bold"), ("I", look.italic, "format.italic"), ("U", look.underline, "format.underline")]
         {
             if ui.add(egui::Button::selectable(on, egui::RichText::new(label).strong())).on_hover_text(tl!(command_label(command))).clicked() {
