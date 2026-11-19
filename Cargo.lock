@@ -3125,6 +3125,7 @@ dependencies = [
  "mailcraft-proto",
  "mailcraft-time",
  "mailcraft-ui-egui",
+ "mailcraft-zimbra",
  "muda",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
@@ -3576,6 +3577,17 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "mailcraft-zimbra"
+version = "0.13.0"
+dependencies = [
+ "log",
+ "mailcraft-ews",
+ "mailcraft-model",
+ "proptest",
+ "serde_json",
 ]
 
 [[package]]

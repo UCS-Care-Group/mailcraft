@@ -190,6 +190,7 @@ pub(crate) fn timings_report(app: &MailApp) -> String {
             mailcraft_model::AccountKind::Imap => "mail server",
             mailcraft_model::AccountKind::Jmap => "JMAP",
             mailcraft_model::AccountKind::Exchange => "Exchange Web Services",
+            mailcraft_model::AccountKind::Zimbra => "Zimbra",
             _ => "other",
         };
         let t = &run.timings;

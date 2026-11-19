@@ -16,7 +16,7 @@ use mailcraft_model::sync::{
 };
 use mailcraft_model::{
     Account, AccountKind, Directory, EwsServer, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider,
-    Pending, Queued, Rgb, Security, Server, clean_name,
+    Pending, Queued, Rgb, Security, Server, ZimbraServer, clean_name,
 };
 use serde_json::{Value, json};
 
@@ -48,7 +48,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "outgoingWithoutSignIn"?: bool (the outgoing server takes mail without a sign-in, a relay: it is never shown the password; not for an account that signs in on the provider's page), "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
+const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "outgoingWithoutSignIn"?: bool (the outgoing server takes mail without a sign-in, a relay: it is never shown the password; not for an account that signs in on the provider's page), "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange"|"zimbra" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers; zimbra: a Zimbra account, kept in step through the Zimbra server's web service, no mail servers, only while Zimbra accounts are being tested: MAILCRAFT_ZIMBRA=1), "zimbra"?: {"url": string (the https:// address of the server's web client), "username"?: string (default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (a Zimbra account's server; the password is never a setting), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -346,14 +346,15 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(k) if k == "microsoft" || k == "graph" => AccountKind::Microsoft,
         Some(k) if k == "jmap" => AccountKind::Jmap,
         Some(k) if k == "exchange" => AccountKind::Exchange,
+        Some(k) if k == "zimbra" => AccountKind::Zimbra,
         Some(k) if k == "imap" || k == "local" => AccountKind::Imap,
-        Some(_) => return Err(bad("`kind` is imap, local, microsoft, jmap or exchange")),
+        Some(_) => return Err(bad("`kind` is imap, local, microsoft, jmap, exchange or zimbra")),
     };
     match kind {
         AccountKind::Microsoft => {
             // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
             a.kind = AccountKind::Microsoft;
-            (a.incoming, a.outgoing, a.jmap, a.ews, a.dav) = (None, None, None, None, None);
+            (a.incoming, a.outgoing, a.jmap, a.ews, a.dav, a.zimbra) = (None, None, None, None, None, None);
             let o = a.oauth.get_or_insert_with(OAuth::default);
             o.provider = OAuthProvider::Microsoft;
         }
@@ -362,7 +363,7 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
             // server's session resource is (RFC 8620 §2) and how the secret goes.
             a.jmap = Some(jmap_server(v, a.jmap.as_ref())?);
             a.kind = AccountKind::Jmap;
-            (a.incoming, a.outgoing, a.oauth, a.ews) = (None, None, None, None);
+            (a.incoming, a.outgoing, a.oauth, a.ews, a.zimbra) = (None, None, None, None, None);
         }
         AccountKind::Exchange => {
             // Exchange Web Services and nothing else (#252): no mail servers and no sign-in with
@@ -370,11 +371,18 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
             // server's services are and who signs in.
             a.ews = Some(ews_server(v, a.ews.as_ref())?);
             a.kind = AccountKind::Exchange;
-            (a.incoming, a.outgoing, a.oauth, a.jmap) = (None, None, None, None);
+            (a.incoming, a.outgoing, a.oauth, a.jmap, a.zimbra) = (None, None, None, None, None);
+        }
+        AccountKind::Zimbra => {
+            // Zimbra's web service and nothing else: no mail servers and no sign-in with a
+            // provider, but where the server's web client is and who signs in.
+            a.zimbra = Some(zimbra_server(v, a.zimbra.as_ref())?);
+            a.kind = AccountKind::Zimbra;
+            (a.incoming, a.outgoing, a.oauth, a.jmap, a.ews) = (None, None, None, None, None);
         }
         _ => {
             a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
-            (a.jmap, a.ews) = (None, None);
+            (a.jmap, a.ews, a.zimbra) = (None, None, None);
             // An account that only lives here has no calendar and contacts server.
             if a.kind == AccountKind::Local {
                 a.dav = None;
@@ -459,6 +467,42 @@ fn ews_server(v: &Value, before: Option<&EwsServer>) -> Result<EwsServer, CmdErr
     Ok(server)
 }
 
+/// A Zimbra account's server from `zimbra` in a command's params, over `before` (what it has, when
+/// it has a server): `url`, the address of its web client, `username` and `trusted`, the
+/// fingerprint of the one certificate trusted besides the system's. What is given, or what a new
+/// server has, must be what the model takes ([`ZimbraServer::problem`]); nothing is sent to it.
+/// Where its changes go on from is never a setting, and stays as it is.
+fn zimbra_server(v: &Value, before: Option<&ZimbraServer>) -> Result<ZimbraServer, CmdError> {
+    let mut server = before.cloned().unwrap_or_default();
+    let mut given = false;
+    match v.get("zimbra") {
+        None => {}
+        Some(settings @ Value::Object(_)) => {
+            for (key, field) in [("url", &mut server.url), ("username", &mut server.username), ("trusted", &mut server.trusted)] {
+                match settings.get(key) {
+                    None => {}
+                    Some(Value::String(text)) => (*field, given) = (text.trim().to_string(), true),
+                    Some(_) => return Err(bad(format!("`zimbra.{key}` is a string"))),
+                }
+            }
+        }
+        Some(_) => return Err(bad("`zimbra` is {\"url\": string, \"username\"?: string, \"trusted\"?: string}")),
+    }
+    if (given || before.is_none())
+        && let Some(why) = server.problem()
+    {
+        let word = if ZimbraServer::check_url(&server.url).is_err() {
+            "url"
+        } else if ZimbraServer::check_username(&server.username).is_err() {
+            "username"
+        } else {
+            "trusted"
+        };
+        return Err(bad(format!("`zimbra.{word}` {why}")));
+    }
+    Ok(server)
+}
+
 /// An account's address must be one, but for the account on this computer that has none and keeps
 /// it so (`before`: what an edited account was), which holds imported mail, when nothing else of it
 /// changes but its question before deleting a conversation (#503) or its colour (#893): it is no
@@ -526,6 +570,15 @@ pub fn servers_text(a: &Account) -> String {
             None => "exchange, no server address that can be used".to_string(),
         };
     }
+    if a.kind == AccountKind::Zimbra {
+        return match a.zimbra.as_ref().filter(|server| server.problem().is_none()) {
+            Some(server) if !server.trusted.is_empty() => {
+                format!("zimbra {}, trusting the certificate {}", jmap_origin(&server.url), pin_text(&server.trusted))
+            }
+            Some(server) => format!("zimbra {}", jmap_origin(&server.url)),
+            None => "zimbra, no server address that can be used".to_string(),
+        };
+    }
     let parts: Vec<String> = [one("imap", &a.incoming), one("smtp", &a.outgoing)].into_iter().flatten().collect();
     if parts.is_empty() { "no server".to_string() } else { parts.join(", ") }
 }
@@ -560,7 +613,25 @@ fn ews_shown(a: &Account) -> Option<Value> {
     })
 }
 
+/// What `account.list` says of a Zimbra account's server: where it connects and the name it signs
+/// in with, not the rest of the address, and never where its changes go on from.
+fn zimbra_shown(a: &Account) -> Option<Value> {
+    a.zimbra.as_ref().map(|server| {
+        json!({"server": server.problem().is_none().then(|| jmap_origin(&server.url)), "username": server.username, "trustsCertificate": !server.trusted.is_empty()})
+    })
+}
+
+/// Whether `v` asks for a Zimbra account or names a Zimbra server: what is refused while the
+/// switch for testing them is off.
+fn asks_for_zimbra(v: &Value) -> bool {
+    v.get("zimbra").is_some() || p::str(v, "kind").is_some_and(|k| k.trim().eq_ignore_ascii_case("zimbra"))
+}
+
 fn add(s: &mut Session, v: &Value) -> CmdResult {
+    // Zimbra accounts are being tested: not made while the switch is off.
+    if !s.zimbra && asks_for_zimbra(v) {
+        return Err(fail(super::zimbra_mail::SWITCHED_OFF));
+    }
     // A new account keeps a year of mail in full (#143); one from before keeps all of it.
     let mut a = Account { keep_offline: mailcraft_model::KeepOffline::NEW_ACCOUNT, ..Default::default() };
     apply_fields(&mut a, v)?;
@@ -602,11 +673,34 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     let before = a.clone();
     let named_by_address = before.named_by_address();
+    // The settings of a Zimbra account are not changed while the switch is off.
+    if !s.zimbra && asks_for_zimbra(v) {
+        return Err(fail(super::zimbra_mail::SWITCHED_OFF));
+    }
     apply_fields(&mut a, v)?;
     check_address(&a, Some(&before))?;
+    // A Zimbra account is the same: its ids are the server's.
+    if (before.kind == AccountKind::Zimbra) != (a.kind == AccountKind::Zimbra) {
+        return Err(fail("an account becomes a Zimbra account, or stops being one, only by being removed and added again"));
+    }
     // An Exchange server account is the same: its ids are the server's.
     if (before.kind == AccountKind::Exchange) != (a.kind == AccountKind::Exchange) {
         return Err(fail("an account becomes an Exchange server account, or stops being one, only by being removed and added again"));
+    }
+    // And once its mail is here, those ids are one mailbox's at one server: another server, address
+    // or user name may be another mailbox under the same ids.
+    let zimbra_url = |x: &Account| x.zimbra.as_ref().filter(|server| server.problem().is_none()).map(|server| server.base().to_string());
+    let zimbra_login = |x: &Account| {
+        let name = x.zimbra.as_ref().map(|server| server.username.trim()).filter(|name| !name.is_empty()).unwrap_or(x.email.trim());
+        name.to_lowercase()
+    };
+    if listed_ews(s, id) && a.kind == AccountKind::Zimbra {
+        let moved = zimbra_url(&before).is_some_and(|was| Some(was) != zimbra_url(&a));
+        if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) || zimbra_login(&before) != zimbra_login(&a) {
+            return Err(fail(
+                "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one",
+            ));
+        }
     }
     // A JMAP account's folders and mail are known to its server by the ids it hands out, and any
     // other account's by paths and UIDs, or by nobody: an account doesn't turn from one to the other.
@@ -867,7 +961,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts_in_order()
         .into_iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "outgoingWithoutSignIn": a.outgoing_without_sign_in, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "outgoingWithoutSignIn": a.outgoing_without_sign_in, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a), "zimbra": zimbra_shown(a)})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
@@ -894,6 +988,11 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     // So is an Exchange server account (`sync.ewsRequest`).
     if a.kind == AccountKind::Exchange {
         return Err(fail(super::ews_mail::NOT_IMAP));
+    }
+    // And a Zimbra account (`sync.zimbraRequest`), where the switch is on, and it is not run at all
+    // where it is off.
+    if a.kind == AccountKind::Zimbra {
+        return Err(fail(super::zimbra_mail::refusal_text(s)));
     }
     if a.kind != AccountKind::Imap {
         return Err(failed!("{name} isn't connected to a mail server", name = a.name));
@@ -1090,6 +1189,10 @@ pub fn unpushed(s: &Session, account: Id) -> usize {
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Jmap) {
         return super::jmap_up::unpushed(&s.mailbox, account);
     }
+    // (Nothing of a Zimbra account goes up yet.)
+    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Zimbra) {
+        return 0;
+    }
     remote_ops(s, account, 0).1 + place_ops(s, account, 0).1
 }
 
@@ -1266,6 +1369,10 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     // So has one of an Exchange server account (`sync.ewsRequest`).
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Exchange) {
         return Err(fail(super::ews_mail::NOT_IMAP));
+    }
+    // And one of a Zimbra account (`sync.zimbraRequest`).
+    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Zimbra) {
+        return Err(fail(super::zimbra_mail::refusal_text(s)));
     }
     let req = sync_request(s, account)?;
     serde_json::to_value(&req).map_err(|e| fail(e.to_string()))

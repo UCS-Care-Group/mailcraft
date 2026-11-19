@@ -20,6 +20,7 @@ mod place;
 mod problems_tests;
 mod progress;
 mod search;
+mod zimbra;
 pub use directory::*;
 pub use drafts::*;
 pub use ews::*;
@@ -27,6 +28,7 @@ pub use jmap::*;
 pub use place::*;
 pub use progress::*;
 pub use search::*;
+pub use zimbra::*;
 
 /// A folder as the mailbox knows it, for the server side to continue from.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

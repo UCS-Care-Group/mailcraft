@@ -92,6 +92,7 @@ enum Way {
     Graph(String),
     Jmap(String),
     Ews(String),
+    Zimbra(String, Option<(String, String)>),
 }
 
 fn way(app: &MailApp, account: Id) -> Option<Way> {
@@ -100,6 +101,9 @@ fn way(app: &MailApp, account: Id) -> Option<Way> {
         // (Not with a credential its server turned down: the next Send/Receive the owner asks for first.)
         AccountKind::Jmap if app.services.jmap_fetch.is_some() && !app.jmap_refused.contains(&account) => app.jmap_secret(account).map(Way::Jmap),
         AccountKind::Exchange if app.services.ews_fetch.is_some() && !app.jmap_refused.contains(&account) => app.ews_secret(account).map(Way::Ews),
+        AccountKind::Zimbra if app.session.zimbra && app.services.zimbra_fetch.is_some() && !app.jmap_refused.contains(&account) => {
+            app.zimbra_secret(account).map(|secret| Way::Zimbra(secret, app.zimbra_trusted(account)))
+        }
         _ => None,
     }
 }
@@ -110,6 +114,7 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
         AccountKind::Microsoft => app.services.graph_fetch.is_some(),
         AccountKind::Jmap => app.services.jmap_fetch.is_some(),
         AccountKind::Exchange => app.services.ews_fetch.is_some(),
+        AccountKind::Zimbra => app.services.zimbra_fetch.is_some(),
         _ => false,
     }
 }
@@ -224,6 +229,15 @@ impl MailApp {
                 let fetch = self.services.ews_fetch.as_ref()?;
                 let request = asked(messages, |m| ews_mail::ews_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
                 Some(fetch(EwsFetchJob { request, secret, cancel }))
+            }
+            Way::Zimbra(secret, trusted) => {
+                let fetch = self.services.zimbra_fetch.as_ref()?;
+                let request = asked(
+                    messages,
+                    |m| mailcraft_engine::cmd::zimbra_mail::zimbra_fetch_request(&self.session, account, m, most).ok(),
+                    |r| &mut r.ids,
+                )?;
+                Some(fetch(crate::zimbra_mail::ZimbraFetchJob { request, secret, trusted, cancel }))
             }
         }
     }
