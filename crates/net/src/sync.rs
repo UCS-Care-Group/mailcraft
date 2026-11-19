@@ -43,7 +43,7 @@ const MAX_RUN_BYTES: usize = 256 * 1024 * 1024;
 const MAX_RUN_MESSAGES: usize = 100_000;
 /// The largest message that is downloaded whole. Of a larger one only the header is, and a note
 /// takes the place of its text ([`too_large`]).
-const MAX_MESSAGE: u64 = 25 * 1024 * 1024;
+const MAX_MESSAGE: u64 = 150 * 1024 * 1024;
 /// Most messages of a Gmail account's Inbox whose Gmail category is read in one run, the newest
 /// (#911); older ones keep what they had.
 const MAX_GMAIL_SORTED: usize = 200_000;
@@ -1884,25 +1884,25 @@ mod tests {
             gmail_id: None,
             gmail_labels: None,
         };
-        let m = too_large(fetched, 60 * 1024 * 1024 + 1, MAX_MESSAGE);
+        let m = too_large(fetched, 160 * 1024 * 1024 + 1, MAX_MESSAGE);
         assert_eq!(
             (m.uid, m.subject.as_str(), m.from.email.as_str(), m.message_id.as_str()),
             (7, "Große Datei", "bob@example.org", "big@example.org")
         );
         assert_eq!((m.read, m.flag, m.date, m.received), (true, FlagStatus::Flagged, 1_057_049_557, 1_057_053_157));
         assert!(
-            m.body.text.starts_with("This message is too large to download: it is 61 MB on the server, and MailCraft takes messages of up to 25 MB.")
+            m.body.text.starts_with("This message is too large to download: it is 161 MB on the server, and MailCraft takes messages of up to 150 MB.")
         );
         assert!(m.body.html.is_none() && m.attachments.is_empty());
         // Its mark says how large it is, once: a sender can't plant another.
         let marks: Vec<&str> =
             m.headers.iter().filter(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED)).map(|(_, size)| size.as_str()).collect();
-        assert_eq!(marks, ["62914561"]);
+        assert_eq!(marks, ["167772161"]);
         assert!(m.all_headers().iter().any(|(name, value)| name == "X-Other" && value == "kept"));
         // A header that is none still makes a message that says what it is.
         let m = too_large(Fetched { uid: 8, body: Some(vec![0xFF, 0x00, b'x']), ..Default::default() }, u64::MAX, 0);
         assert!(m.uid == 8 && m.body.text.contains("too large to download") && m.body.text.contains("up to 0 MB"));
-        assert_eq!((megabytes(0), megabytes(1), megabytes(25 * 1024 * 1024)), ("0 MB".to_string(), "1 MB".to_string(), "25 MB".to_string()));
+        assert_eq!((megabytes(0), megabytes(1), megabytes(150 * 1024 * 1024)), ("0 MB".to_string(), "1 MB".to_string(), "150 MB".to_string()));
     }
 
     #[test]

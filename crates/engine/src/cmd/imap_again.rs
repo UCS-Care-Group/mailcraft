@@ -50,9 +50,8 @@ pub fn mark_unreadable(mb: &mut Mailbox) -> usize {
             && !m.draft
             && !m.unfetched
             && !m.incomplete
-            && m.not_downloaded == 0
             && m.moving_out.is_none();
-        if candidate && unreadable(m) {
+        if candidate && (unreadable(m) || m.not_downloaded > 0) {
             std::sync::Arc::make_mut(m).refetch = true;
             marked = marked.saturating_add(1);
         }
@@ -141,6 +140,10 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     m.hidden_text = read.hidden_text;
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
+    if m.not_downloaded > 0 {
+        m.not_downloaded = 0;
+        m.attachments = read.attachments;
+    }
     // Digitally signed or Encrypted: the bytes it came as (#30), unless a part was removed here:
     // its files aren't taken from this download, so its original would bring a removed one back.
     if read.original.is_some() && !m.parts_removed {

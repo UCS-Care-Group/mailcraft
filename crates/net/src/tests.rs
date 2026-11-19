@@ -909,7 +909,7 @@ fn a_lost_connection_keeps_what_arrived() {
 #[test]
 fn of_a_message_too_large_to_take_the_header_is_kept_with_a_note() {
     let imap = Fake::imap(imap_world());
-    inbox(&mut imap.world()).messages[1].claimed_size = Some(60 * 1024 * 1024);
+    inbox(&mut imap.world()).messages[1].claimed_size = Some(160 * 1024 * 1024);
     let account = account(Some(&imap), None);
     let result = sync(&request(account.clone(), local_folders()));
     // Not a problem to tell: the message is there, and says what it is.
@@ -920,14 +920,14 @@ fn of_a_message_too_large_to_take_the_header_is_kept_with_a_note() {
     assert_eq!((two.subject.as_str(), two.from.email.as_str(), two.message_id.as_str()), ("Two", "bob@example.org", "two@example.org"));
     assert_eq!((two.date, two.received, two.flag, two.answered, two.read), (SENT_AT, ARRIVED_AT, FlagStatus::Flagged, true, false));
     // In place of its text, for the reading pane to show.
-    assert!(two.body.text.starts_with("This message is too large to download: it is 60 MB on the server"), "{}", two.body.text);
-    assert!(two.body.text.contains("up to 25 MB") && two.body.text.contains("still on the server"), "{}", two.body.text);
+    assert!(two.body.text.starts_with("This message is too large to download: it is 160 MB on the server"), "{}", two.body.text);
+    assert!(two.body.text.contains("up to 150 MB") && two.body.text.contains("still on the server"), "{}", two.body.text);
     assert!(!two.body.text.contains("The body of Two") && two.body.html.is_none() && two.attachments.is_empty());
     // A program knows it by its header, which says how large the message is.
-    assert_eq!(two.headers.iter().find(|(name, _)| name == "X-MailCraft-Not-Downloaded").map(|(_, size)| size.as_str()), Some("62914560"));
+    assert_eq!(two.headers.iter().find(|(name, _)| name == "X-MailCraft-Not-Downloaded").map(|(_, size)| size.as_str()), Some("167772160"));
     assert!(result.folders[0].new[0].headers.iter().all(|(name, _)| name != "X-MailCraft-Not-Downloaded"));
     // And by its size on the server, kept apart from the header for the list (#300).
-    assert_eq!((two.not_downloaded, two.list_size()), (62_914_560, Some(62_914_560)));
+    assert_eq!((two.not_downloaded, two.list_size()), (167_772_160, Some(167_772_160)));
     assert_eq!(result.folders[0].new[0].not_downloaded, 0);
     // Only its header was asked for.
     assert_eq!(sent(&imap, "UID FETCH 2 (UID FLAGS INTERNALDATE BODY.PEEK[HEADER])"), 1);

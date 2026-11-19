@@ -299,6 +299,24 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
             signature(app, ui);
             if c.quote {
                 ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(tl!("Original message")).italics().color(t.text_dim));
+                    ui.label("•");
+                    let remove = ui
+                        .link(format!("🗑 {}", tl!("Remove")))
+                        .on_hover_text(tl!("Remove quoted conversation from this reply"));
+                    if remove.clicked() {
+                        let _ = app.execute("compose.removeQuote", json!({}));
+                    }
+                    ui.label("•");
+                    let as_text = ui
+                        .link(format!("✏ {}", tl!("Edit as text")))
+                        .on_hover_text(tl!("Convert quoted message to editable text to delete or change parts of it"));
+                    if as_text.clicked() {
+                        let _ = app.execute("compose.quoteAsText", json!({}));
+                    }
+                });
+                ui.add_space(4.0);
                 // The original senses the pointer over all of the view it is drawn in: kept to
                 // below where it begins, so that it doesn't lie over the owner's text and take a
                 // click meant for it (the body then never got the keyboard back, #158).

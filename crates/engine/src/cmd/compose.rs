@@ -67,6 +67,8 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"value": bool} (true: an HTML signature's simpler copy is shown and sent in place of the HTML; false: the HTML again, while that copy is unedited)"#)
             .when_writing(needs_compose),
+        CommandSpec::new("compose.removeQuote", "Remove Quoted Message", "Message › Include", remove_quote).pure().when_writing(needs_compose),
+        CommandSpec::new("compose.quoteAsText", "Edit Quoted Message as Text", "Message › Include", quote_as_text).pure().when_writing(needs_compose),
         CommandSpec::new("compose.checkNames", "Check Names", "Message › Names", check_names)
             .pure()
             .key("Mod+K")
@@ -1226,6 +1228,29 @@ fn signature_as_text(s: &mut Session, v: &Value) -> CmdResult {
     }
     inserted.as_text = value;
     c.dirty = true;
+    done()
+}
+
+/// Remove the quoted previous message from this reply.
+fn remove_quote(s: &mut Session, _: &Value) -> CmdResult {
+    let c = compose_mut(s)?;
+    c.quote = None;
+    c.dirty = true;
+    done()
+}
+
+/// Convert the quoted previous message into editable text appended to the body.
+fn quote_as_text(s: &mut Session, _: &Value) -> CmdResult {
+    let c = compose_mut(s)?;
+    if let Some(q) = c.quote.take() {
+        let mut plain = c.body.plain();
+        if !plain.is_empty() && !plain.ends_with('\n') {
+            plain.push('\n');
+        }
+        plain.push_str(&q.text);
+        c.body = RichBody::from_plain(&plain);
+        c.dirty = true;
+    }
     done()
 }
 
