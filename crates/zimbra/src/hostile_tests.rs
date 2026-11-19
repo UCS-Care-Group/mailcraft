@@ -98,12 +98,19 @@ fn faults_are_read_by_their_code_alone() {
 fn a_two_factor_account_and_odd_tokens_give_no_token() {
     let two = answer(200, &json!({"Body": {"AuthResponse": {"twoFactorAuthRequired": {"_content": true}}}}));
     assert_eq!(auth::answer(&two).map(|_| ()), Err(Error::TwoFactor));
+    // A flag that is no flag can't be read off either: the sign-in's answer is refused.
+    let odd = answer(200, &json!({"Body": {"AuthResponse": {"twoFactorAuthRequired": {"_content": "tr\u{0}ue"}}}}));
+    assert_eq!(auth::answer(&odd).map(|_| ()), Err(Error::Unreadable));
     for token in ["", "with space", "a\"b", &"x".repeat(5000)] {
         let odd = answer(200, &json!({"Body": {"AuthResponse": {"authToken": [{"_content": token}]}}}));
         assert_eq!(auth::answer(&odd).map(|_| ()), Err(Error::Unreadable), "{token:?}");
     }
-    let odd = answer(200, &json!({"Body": {"SyncResponse": {"token": "12 34"}}}));
-    assert_eq!(delta::answer(&odd, false), Err(Error::Unreadable));
+    for token in ["12 34", "1\u{0}2"] {
+        // A character cleaning would take out must never make a token it wasn't pass for the
+        // one the server sent: the page it comes with is refused, its token never kept.
+        let odd = answer(200, &json!({"Body": {"SyncResponse": {"token": token}}}));
+        assert_eq!(delta::answer(&odd, false), Err(Error::Unreadable), "{token:?}");
+    }
 }
 
 #[test]

@@ -13,11 +13,12 @@ use serde_json::Value;
 /// text of many-byte characters can't pass here and be refused there.
 pub(crate) const MAX_TEXT: usize = 16 * 1024;
 
-/// The text of a value as Zimbra writes it: a string, a number, `{"_content": …}`, or a list of
-/// those (the first). Control characters but tab and line breaks are taken out, and it is held to
-/// [`MAX_TEXT`] bytes, whole characters only.
-pub(crate) fn text(value: Option<&Value>) -> Option<String> {
-    fn raw(value: &Value, depth: u8) -> Option<String> {
+/// The text of a value in the shapes Zimbra writes it, as it was sent — before [`text`]'s
+/// cleaning, so a check on an id, a token or a value compared with the server's word sees the
+/// real one: a character [`text`] would take out must never make a value it wasn't pass for one
+/// it was.
+pub(crate) fn raw(value: Option<&Value>) -> Option<String> {
+    fn raw_in(value: &Value, depth: u8) -> Option<String> {
         if depth > 4 {
             return None;
         }
@@ -25,12 +26,19 @@ pub(crate) fn text(value: Option<&Value>) -> Option<String> {
             Value::String(text) => Some(text.clone()),
             Value::Number(n) => Some(n.to_string()),
             Value::Bool(b) => Some(b.to_string()),
-            Value::Object(map) => map.get("_content").and_then(|v| raw(v, depth + 1)),
-            Value::Array(list) => list.first().and_then(|v| raw(v, depth + 1)),
+            Value::Object(map) => map.get("_content").and_then(|v| raw_in(v, depth + 1)),
+            Value::Array(list) => list.first().and_then(|v| raw_in(v, depth + 1)),
             Value::Null => None,
         }
     }
-    let text = raw(value?, 0)?;
+    raw_in(value?, 0)
+}
+
+/// The text of a value as Zimbra writes it: a string, a number, `{"_content": …}`, or a list of
+/// those (the first). Control characters but tab and line breaks are taken out, and it is held to
+/// [`MAX_TEXT`] bytes, whole characters only.
+pub(crate) fn text(value: Option<&Value>) -> Option<String> {
+    let text = raw(value)?;
     let mut bytes = 0;
     Some(
         text.chars()
@@ -58,8 +66,7 @@ pub(crate) fn number(value: Option<&Value>) -> Option<u64> {
 }
 
 /// Whether a flag is on, when the value is a flag at all: `None` for one that is there but in
-/// no shape a flag is written — [`on`] would read it off, and a read flag's off can end a read
-/// before its end.
+/// no shape a flag is written — reading one off would end a read or a check before its end.
 pub(crate) fn checked_on(value: Option<&Value>) -> Option<bool> {
     match value {
         Some(Value::Bool(b)) => Some(*b),
@@ -68,22 +75,12 @@ pub(crate) fn checked_on(value: Option<&Value>) -> Option<bool> {
             Some(0) => Some(false),
             _ => None,
         },
-        Some(other) => match text(Some(other))?.trim() {
+        Some(other) => match raw(Some(other))?.trim() {
             "1" | "true" | "TRUE" => Some(true),
             "0" | "false" | "FALSE" => Some(false),
             _ => None,
         },
         None => Some(false),
-    }
-}
-
-/// Whether a flag is on: `true`, `1` or `"1"`, `"true"`.
-pub(crate) fn on(value: Option<&Value>) -> bool {
-    match value {
-        Some(Value::Bool(b)) => *b,
-        Some(Value::Number(n)) => n.as_u64() == Some(1),
-        Some(other) => text(Some(other)).is_some_and(|t| matches!(t.trim(), "1" | "true" | "TRUE")),
-        None => false,
     }
 }
 

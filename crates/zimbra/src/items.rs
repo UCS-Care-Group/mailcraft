@@ -127,7 +127,7 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
         }
     }
     let cursor = listed.iter().take(PAGE).next_back().and_then(|m| {
-        let id = json::line(m.get("id"));
+        let id = json::raw(m.get("id")).unwrap_or_default().trim().to_string();
         // The cursor's sort value is the hit's `sf` (what the server sorted the page by, what a
         // `sortVal` continues from), its `d` when it has none: a last item with neither is no
         // cursor to go on from — a sort value made up as 0 could end the folder early or read it
@@ -144,19 +144,19 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
 /// A message as the model has one, from its summary; `None` for one that has no own id.
 pub fn message(m: &Value) -> Option<GraphMessage> {
     let id = json::own_id(m.get("id"))?;
-    let flags = json::line(m.get("f"));
+    let flags = json::raw(m.get("f")).unwrap_or_default();
     let has = |c: char| flags.contains(c);
     let people = |kind: &str| -> Vec<Address> {
         json::list(m.get("e"))
             .iter()
-            .filter(|e| json::line(e.get("t")) == kind)
+            .filter(|e| json::raw(e.get("t")).is_some_and(|t| t.trim() == kind))
             .take(MAX_PEOPLE)
-            .map(|e| Address::new(json::line(e.get("p")), json::line(e.get("a"))))
+            .map(|e| Address::new(json::line(e.get("p")), json::raw(e.get("a")).map(|a| a.trim().to_string()).unwrap_or_default()))
             .filter(|a| !a.email.is_empty())
             .collect()
     };
     let categories: Vec<String> =
-        json::line(m.get("tn")).split(',').map(str::trim).filter(|t| !t.is_empty()).take(MAX_CATEGORIES).map(String::from).collect();
+        json::raw(m.get("tn")).unwrap_or_default().split(',').map(str::trim).filter(|t| !t.is_empty()).take(MAX_CATEGORIES).map(String::from).collect();
     let arrived = json::number(m.get("d")).map_or(0, |ms| i64::try_from(ms / 1000).unwrap_or(0));
     let sent = json::number(m.get("sd")).map_or(arrived, |ms| i64::try_from(ms / 1000).unwrap_or(arrived));
     let server = ServerMessage {
@@ -180,7 +180,7 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
     };
     Some(GraphMessage {
         server,
-        message_id: json::line(m.get("mid")).trim_matches(['<', '>']).to_string(),
+        message_id: json::raw(m.get("mid")).unwrap_or_default().trim().trim_matches(['<', '>']).to_string(),
         subject: json::line(m.get("su")),
         from: people("f").into_iter().next().unwrap_or_default(),
         to: people("t"),

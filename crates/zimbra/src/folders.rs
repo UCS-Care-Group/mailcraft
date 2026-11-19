@@ -81,7 +81,7 @@ fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
         // A folder shared from another mailbox is named by a foreign id (`<account>:<id>`): it
         // isn't one of this mailbox's, and leaving it out loses nothing of ours. An id of no
         // shape at all, or none, means a folder we can't account for: the listing isn't complete.
-        if !json::line(folder.get("id")).contains(':') {
+        if !json::raw(folder.get("id")).unwrap_or_default().contains(':') {
             out.complete = false;
         }
         return;
@@ -91,8 +91,15 @@ fn walk(folder: &Value, parent: &str, depth: usize, out: &mut Listing) {
         // one that answers for what it lists.
         out.complete = false;
     }
-    let view = json::line(folder.get("view"));
-    if !matches!(view.as_str(), "" | "message" | "conversation") || id == CHATS {
+    let view = json::raw(folder.get("view")).unwrap_or_default();
+    let view = view.trim();
+    // A view that is no word can't be told mail from contacts: the listing isn't one that
+    // answers for what it lists.
+    if !view.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+        out.complete = false;
+        return;
+    }
+    if !matches!(view, "" | "message" | "conversation") || id == CHATS {
         return;
     }
     let here = if id == ROOT {
