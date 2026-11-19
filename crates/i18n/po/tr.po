@@ -2163,7 +2163,7 @@ msgid "AutoArchive"
 msgstr "Otomatik Arşivle"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Otomatik"
@@ -3133,6 +3133,12 @@ msgstr "Güncellemeleri Denetle"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Yeni sürümleri denetle"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Yerel sözlükle yazım denetimi yap"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5637,6 +5643,12 @@ msgstr "İlgili İletileri Bul"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Zaman Bul"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Sonraki yazım hatasını bul"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -10349,6 +10361,24 @@ msgid "No signatures yet"
 msgstr "Henüz imza yok"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Yazım hatası bulunamadı"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "Denetlenen kısımda yazım hatası yok"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Yazım önerisi yok"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10865,7 +10895,7 @@ msgid "October"
 msgstr "Ekim"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Kapalı"
@@ -12931,6 +12961,12 @@ msgstr "Değiştir"
 #, fuzzy
 msgid "Replace All"
 msgstr "Tümünü Değiştir"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Konumdaki Metni Değiştir"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15415,8 +15451,26 @@ msgstr "Posta için en fazla alan"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Yazım ve Dil Bilgisi"
+msgid "Spelling"
+msgstr "Yazım Denetimi"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "Yazım denetimi bu platformda kullanılamıyor"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "Yazım dili"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Yazım önerileri"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17705,6 +17759,12 @@ msgstr "Klasörün ve altındaki klasörlerin bu bilgisayarda kapladığı alan"
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "Klasörün kendi iletilerinin bu bilgisayarda kapladığı alan"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Yazım sözlüğü kullanılamıyor"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -21202,6 +21262,12 @@ msgstr "oturum açmak için bir kullanıcı adı girin"
 msgid "everybody at @{domain}"
 msgstr "@{domain} alanındaki herkes"
 
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "beklenen ve değiştirilecek metin aynı satırda olmalıdır"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -23117,6 +23183,12 @@ msgstr "metin sunucuda aranamıyor"
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "metin gönderilemeyen bir karakter içeriyor"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "değiştirilecek yerdeki metin değişmiş"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25537,4 +25609,8 @@ msgstr "−İkili"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Satır"
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Yazım ve Dil Bilgisi"
 
