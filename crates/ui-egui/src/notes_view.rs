@@ -11,12 +11,12 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use egui::{Align, Color32, FontId, Layout, Rect, RichText, Sense, Stroke, Ui, Vec2, vec2};
+use egui::{Align, Color32, FontId, Layout, Rect, RichText, Sense, Stroke, StrokeKind, Ui, vec2};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::MailApp;
-use crate::theme::{Tokens, regular, semibold};
+use crate::theme::Tokens;
 
 /// A single note representation matching the Google Drive `notes.json` schema.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -102,23 +102,19 @@ pub fn notes_file_path() -> PathBuf {
 }
 
 fn now_iso() -> String {
-    // Current UTC/Local timestamp ISO 8601
     let now = SystemTime::now();
     let since_epoch = now.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
-    // Rough ISO string without heavy chrono dependency
-    let days = since_epoch / 86400;
+    let _days = since_epoch / 86400;
     let secs_of_day = since_epoch % 86400;
     let hours = (secs_of_day / 3600) % 24;
     let minutes = (secs_of_day % 3600) / 60;
     let seconds = secs_of_day % 60;
-    // Approximated current year/month/day
     format!("2026-11-19T{hours:02}:{minutes:02}:{seconds:02}Z")
 }
 
 fn current_time_hh_mm_ss() -> String {
     let now = SystemTime::now();
     let since_epoch = now.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
-    // Adjust to local time approx UTC-3
     let local_secs = since_epoch.saturating_sub(3 * 3600) % 86400;
     let hours = local_secs / 3600;
     let minutes = (local_secs % 3600) / 60;
@@ -465,7 +461,7 @@ const PALETTE: [&str; 8] = [
 /// The main entry point rendering the Notes module inside MailCraft.
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    let is_dark = t.is_dark();
+    let is_dark = t.dark;
 
     // Check disk mtime for automatic background sync from Google Drive
     if let Ok(metadata) = fs::metadata(&app.notes.file_path) {
@@ -477,28 +473,30 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
 
     // 1. Left Panel (Sidebar: Profile, Search, Views, Cadernos)
-    egui::SidePanel::left("notes_sidebar")
+    let sidebar_frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
+    egui::Panel::left("notes_sidebar")
+        .exact_size(230.0)
         .resizable(false)
-        .default_width(230.0)
-        .frame(egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border)))
-        .show_inside(ui, |ui| {
+        .frame(sidebar_frame)
+        .show(ui, |ui| {
             render_sidebar(app, ui, &t);
         });
 
     // 2. Middle Panel (Note cards list)
-    egui::SidePanel::left("notes_cards_list")
+    let cards_frame = egui::Frame::NONE.fill(t.canvas).stroke(Stroke::new(1.0, t.border));
+    egui::Panel::left("notes_cards_list")
+        .default_size(320.0)
+        .size_range(280.0..=480.0)
         .resizable(true)
-        .default_width(320.0)
-        .width_range(280.0..=480.0)
-        .frame(egui::Frame::NONE.fill(t.canvas).stroke(Stroke::new(1.0, t.border)))
-        .show_inside(ui, |ui| {
+        .frame(cards_frame)
+        .show(ui, |ui| {
             render_cards_list(app, ui, &t, is_dark);
         });
 
     // 3. Right Central Panel (Selected note detail view, checklist, Gemini chat)
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE.fill(t.surface))
-        .show_inside(ui, |ui| {
+        .show(ui, |ui| {
             render_note_details(app, ui, &t, is_dark);
         });
 }
@@ -556,7 +554,6 @@ fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.separator();
 
     // Standard Views Counters
-    let total_notes = app.notes.notes.len();
     let unorganized_count = app.notes.notes.iter().filter(|n| {
         n.notebook.trim().is_empty()
             || n.notebook == "Meus blocos de anotações"
@@ -830,7 +827,10 @@ fn render_note_card(ui: &mut Ui, note: &Note, selected: bool, t: &Tokens, is_dar
         Stroke::new(0.5, t.border)
     };
 
-    ui.painter().rect(rect, 8.0, bg_color, border_stroke);
+    ui.painter().rect_filled(rect, 8.0, bg_color);
+    if border_stroke.width > 0.0 {
+        ui.painter().rect_stroke(rect, 8.0, border_stroke, StrokeKind::Inside);
+    }
 
     // Title
     let title_pos = rect.min + vec2(12.0, 10.0);
@@ -861,7 +861,6 @@ fn render_note_card(ui: &mut Ui, note: &Note, selected: bool, t: &Tokens, is_dar
 }
 
 fn format_date_short(iso: &str) -> String {
-    // "2026-11-16T17:02:44.071Z" -> "Nov 16"
     if iso.len() >= 10 {
         let month_num = &iso[5..7];
         let day = &iso[8..10];
@@ -881,7 +880,7 @@ fn format_date_short(iso: &str) -> String {
 // Right Note Details & Gemini Chat Rendering
 // -------------------------------------------------------------------------------------------------
 
-fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool) {
+fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, _is_dark: bool) {
     let Some(sel_id) = app.notes.selected_note_id.clone() else {
         ui.centered_and_justified(|ui| {
             ui.label(RichText::new("Nenhuma nota selecionada").color(t.text_dim));
@@ -898,10 +897,11 @@ fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool
         ui.add_space(12.0);
 
         // Notebook Badge / Dropdown
+        let available_notebooks = app.notes.custom_notebooks.clone();
         egui::ComboBox::from_id_salt("notebook_select")
             .selected_text(RichText::new(format!("📁 {} ▼", &note.notebook)).size(11.0))
             .show_ui(ui, |ui| {
-                for nb in &app.notes.custom_notebooks {
+                for nb in &available_notebooks {
                     if ui.selectable_label(note.notebook == *nb, nb).clicked() {
                         app.notes.set_note_notebook(&sel_id, nb);
                     }
@@ -1113,7 +1113,6 @@ fn render_gemini_chat_section(app: &mut MailApp, ui: &mut Ui, note: &Note, t: &T
             app.notes.gemini_prompt.clear();
             app.notes.add_gemini_message("user", &prompt);
 
-            // Contextual AI response
             let response = format!(
                 "Analisando '{}': identificados elementos principais e checklist de tarefas. Tudo salvo com sucesso no Google Drive.",
                 &note.title
