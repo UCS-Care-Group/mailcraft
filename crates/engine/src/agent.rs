@@ -1088,19 +1088,20 @@ pub(crate) fn rules_in_outlook(mb: &Mailbox) -> Vec<(String, Id)> {
 }
 
 /// [`rules_in_outlook`] of `back`, the mailbox an undo or redo from `now` puts back, as the step
-/// reaches the rules: all of them when it changes them; when it changes only what they read (the
-/// Safe or Blocked Senders letting more mail through, an account's address a rule reads:
-/// [`changed_accounts`]), the rules for that mail, as the call it undoes or redoes is asked
-/// (#566, #661).
+/// reaches the rules (#566, #661): all of them when it changes them or a list of categories (a
+/// rename, a deletion, a colour: what a rule then gives may be new on a list, or a rule may take
+/// other mail; counted whole, as the rules are, which may ask more than the call did); when it
+/// changes only what they read (the Safe or Blocked Senders letting more mail through, an
+/// account's address a rule reads: [`changed_accounts`]), the rules for that mail.
 pub(crate) fn undo_rules_in_outlook(now: &Mailbox, back: &Mailbox) -> Vec<(String, Id)> {
     if back.rules != now.rules {
         return rules_in_outlook(back);
     }
+    let mut out = if lists_differ(now, back) { rules_in_outlook(back) } else { Vec::new() };
     let changed = changed_accounts(now, back);
-    let mut out = Vec::new();
     // An account given another address has its list kept on this computer alone until its new
     // server's is read, and what a rule gives its mail is made there then: judged on the list as
-    // it is kept in step, as the call that changes the address is.
+    // it is kept in step.
     let lists = |a: Id| if back.synced_list_owner(a).is_none() && now.synced_list_owner(a).is_some() { now } else { back };
     for r in back.rules.iter().filter(|r| runs_on_new_mail(r) && reached(&changed, r)) {
         match one_account(r) {
@@ -1113,12 +1114,6 @@ pub(crate) fn undo_rules_in_outlook(now: &Mailbox, back: &Mailbox) -> Vec<(Strin
                 }
             }
         }
-    }
-    // And a name the rules give that a list has no more (a category renamed or taken away), as
-    // the call that changes the list is asked (#566).
-    if lists_differ(now, back) {
-        let before = rules_in_outlook(now);
-        out.extend(rules_in_outlook(back).into_iter().filter(|made| !had(&before, made)));
     }
     out
 }
@@ -2614,9 +2609,14 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             if with_settings {
                 does.push(format!("puts {SETTINGS_PUT_BACK} back as they were{rules_made}"));
             } else if !rules_made.is_empty() && rule_onto.is_empty() {
-                // An account, or its address a rule reads, put back with the accounts, or a list of
-                // categories (#566): the categories the rules then give mail are made in Outlook.
-                does.push(format!("may let other new mail reach the rules{rules_made}"));
+                // What it puts back beside the rules (#566): the Safe or Blocked Senders or an
+                // account, which may let other mail reach them, or a list of categories.
+                let step = if redo { s.redo.last() } else { s.history.last() };
+                if step.is_some_and(|step| !changed_accounts(&s.mailbox, &step.mailbox).is_empty()) {
+                    does.push(format!("may let other new mail reach the rules{rules_made}"));
+                } else {
+                    does.push(format!("puts the categories back as they were{rules_made}"));
+                }
             }
             if !places.is_empty() {
                 // Send for a message (#566): it waits again to be made on another account's server.
