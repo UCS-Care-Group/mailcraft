@@ -103,7 +103,7 @@ impl<E: HttpExchange> Run<'_, E> {
         if let Some(upload) = &request.changes {
             let mut uploaded = EventsUploaded { account: request.account, email: request.email.clone(), ..Default::default() };
             for op in upload.ops.iter().take(MAX_CHANGES) {
-                uploaded.outcomes.push(self.push_event(op, &upload.zone).await);
+                uploaded.outcomes.push(self.push_event(op, &upload.zone, &request.email).await);
             }
             out.uploaded = Some(uploaded);
         }
@@ -436,7 +436,7 @@ impl<E: HttpExchange> Run<'_, E> {
         Ok(download)
     }
 
-    async fn push_event(&mut self, op: &mailcraft_model::remote::EventOp, zone: &str) -> EventOutcome {
+    async fn push_event(&mut self, op: &mailcraft_model::remote::EventOp, zone: &str, email: &str) -> EventOutcome {
         let zone = op.fields.zones.as_ref().map(|zones| zones.start.as_str()).filter(|zone| !zone.trim().is_empty()).unwrap_or(zone);
         let mut outcome = EventOutcome { op: op.clone(), ..Default::default() };
         if op.remote.is_empty() && op.kind != mailcraft_model::remote::EventChangeKind::Create {
@@ -475,8 +475,33 @@ impl<E: HttpExchange> Run<'_, E> {
                 let event = event_from_fields(op, zone);
                 if op.kind == mailcraft_model::remote::EventChangeKind::Create {
                     let folder = (!op.calendar.is_empty()).then_some(op.calendar.as_str());
-                    let element = directory::create_item(Kind::Calendar, folder, directory::calendar_item(&event, zone), op.send);
-                    self.ask_once(&element, &|reply| directory::saved(reply, "CreateItem")).await
+                    // The appointment is the account's own: its organizer is its owner, which a
+                    // server doesn't always fill in by itself (see `calendar_item`).
+                    let sender = mailcraft_model::Address::new(email, email);
+                    let element = directory::create_item(Kind::Calendar, folder, directory::calendar_item(&event, zone, Some(&sender)), op.send);
+                    let made = self.ask_once(&element, &|reply| directory::saved(reply, "CreateItem")).await;
+                    let made = match made {
+                        // A server that doesn't take those properties still takes the appointment.
+                        Err(Asked::Code(
+                            ResponseCode::InvalidPropertyRequest | ResponseCode::InvalidPropertyForOperation | ResponseCode::SchemaValidation,
+                        )) => {
+                            log::info!("ews calendar: the server refused an appointment's sender properties; it is made without them");
+                            let element = directory::create_item(Kind::Calendar, folder, directory::calendar_item(&event, zone, None), op.send);
+                            self.ask_once(&element, &|reply| directory::saved(reply, "CreateItem")).await
+                        }
+                        other => other,
+                    };
+                    match made {
+                        // Once more as a change: a server that ignored them in the create (some
+                        // Grommunio versions do) then keeps the organizer, and the appointment is
+                        // not left without one.
+                        Ok((id, key)) if !id.is_empty() => {
+                            let change = directory::sender_change(&id, &key, &sender);
+                            let _ = self.ask_once(&change, &|reply| directory::saved(reply, "UpdateItem")).await;
+                            Ok((id, key))
+                        }
+                        other => other,
+                    }
                 } else {
                     let element = directory::update_event(&op.fields, &op.remote, "", op.send, zone);
                     self.ask(&element, &|_reply| Ok::<_, Error>(())).await.map(|()| (String::new(), String::new()))

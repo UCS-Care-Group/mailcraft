@@ -137,7 +137,7 @@ fn only_the_people_a_server_can_name_are_written() {
         },
     ];
     let event = RemoteEvent { title: "Review".into(), start: 1_795_000_000, end: 1_795_001_800, attendees: people, ..Default::default() };
-    let written = calendar_item(&event, "").write();
+    let written = calendar_item(&event, "", None).write();
     assert!(written.contains("<t:EmailAddress>ada@example.org</t:EmailAddress>"), "the address: {written}");
     assert!(written.contains("<t:RoutingType>SMTP</t:RoutingType>"), "as SMTP: {written}");
     assert!(written.contains("<t:RoutingType>EX</t:RoutingType>"), "the directory name as EX: {written}");
@@ -167,4 +167,19 @@ fn a_change_writes_only_the_people_a_server_can_name() {
 
 fn people_without_an_address() -> Attendee {
     Attendee { address: Address::new("No Address", ""), optional: false, response: Response::None }
+}
+
+/// An appointment made here names this account as its sender (`PR_SENT_REPRESENTING_*`), so that
+/// the server keeps an organizer: Grommunio keeps none for a plain appointment made over EWS,
+/// and then its window says the participants can't be resolved.
+#[test]
+fn an_appointment_made_here_names_this_account_as_its_sender() {
+    let event = RemoteEvent { title: "Review".into(), start: 1_795_000_000, end: 1_795_001_800, ..Default::default() };
+    let written = calendar_item(&event, "", Some(&Address::new("", "ada@example.org"))).write();
+    assert!(written.contains("PropertyTag=\"0x0042\""), "the name: {written}");
+    assert!(written.contains("PropertyTag=\"0x0065\""), "the address: {written}");
+    assert!(written.contains("PropertyTag=\"0x0064\""), "how it is named: {written}");
+    assert!(written.contains("<t:Value>ada@example.org</t:Value>"), "the account: {written}");
+    let plain = calendar_item(&event, "", None).write();
+    assert!(!plain.contains("ExtendedProperty"), "nothing when there is no sender: {plain}");
 }

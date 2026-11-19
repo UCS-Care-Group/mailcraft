@@ -707,10 +707,18 @@ impl std::fmt::Debug for ItemUp {
 }
 
 /// The `t:CalendarItem` element of an event: the whole of it, for a new one or a change.
-pub fn calendar_item(event: &RemoteEvent, zone: &str) -> Element {
+pub fn calendar_item(event: &RemoteEvent, zone: &str, sender: Option<&Address>) -> Element {
     let mut item = Element::new("t:CalendarItem")
         .child(Element::new("t:Subject").text(&line(&event.title, MAX_LINE)))
-        .child(Element::new("t:Body").attr("BodyType", "Text").text(&text(&event.description, MAX_TEXT)))
+        .child(Element::new("t:Body").attr("BodyType", "Text").text(&text(&event.description, MAX_TEXT)));
+    // The sender's properties belong to the item's own part of the schema, before the calendar's
+    // (`Start`, `End`, …): a server that validates the order refuses them at the end.
+    if let Some(sender) = sender {
+        for property in sender_properties(sender) {
+            item = item.child(property);
+        }
+    }
+    item = item
         .child(Element::new("t:Start").text(&mailcraft_time::format_iso_utc(event.start)))
         .child(Element::new("t:End").text(&mailcraft_time::format_iso_utc(event.end.max(event.start))))
         .child(Element::new("t:IsAllDayEvent").text(if event.all_day { "true" } else { "false" }))
@@ -791,6 +799,63 @@ fn attendee_element(address: &Address) -> Option<Element> {
     }
     mailbox = mailbox.child(Element::new("t:EmailAddress").text(email)).child(Element::new("t:RoutingType").text(kind));
     Some(Element::new("t:Attendee").child(mailbox))
+}
+
+/// The `PR_SENT_REPRESENTING_*` properties, saying whose appointment it is: the account's own
+/// address. A server that keeps an organizer for it (as Grommunio keeps none for a plain
+/// appointment made over EWS, and then its window says the participants can't be resolved).
+fn sender_properties(sender: &Address) -> Vec<Element> {
+    sender_values(sender)
+        .into_iter()
+        .map(|(tag, value)| {
+            Element::new("t:ExtendedProperty")
+                .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", tag).attr("PropertyType", "String"))
+                .child(Element::new("t:Value").text(value))
+        })
+        .collect()
+}
+
+/// The tags and values of the sender's properties ([`sender_properties`]).
+fn sender_values(sender: &Address) -> [(&'static str, &str); 8] {
+    let email = sender.email.trim();
+    let name = if sender.name.trim().is_empty() { email } else { sender.name.trim() };
+    let _ = name;
+    // Who sent it and whom it represents: the same account. A server that keeps no organizer of
+    // its own for a plain appointment over EWS (Grommunio) then has both, as one made in its
+    // window has.
+    [
+        ("0x0042", name),
+        ("0x0065", email),
+        ("0x0064", "SMTP"),
+        ("0x5D02", email),
+        ("0x0C1A", name),
+        ("0x0C1F", email),
+        ("0x0C1E", "SMTP"),
+        ("0x5D01", email),
+    ]
+}
+
+/// `UpdateItem` setting only the sender's properties on the item the server just made: a server
+/// that ignored them in the create (some Grommunio versions do) still takes them here.
+pub fn sender_change(id: &str, change_key: &str, sender: &Address) -> Element {
+    let mut updates = Element::new("t:Updates");
+    for (tag, value) in sender_values(sender) {
+        let property = Element::new("t:ExtendedProperty")
+            .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", tag).attr("PropertyType", "String"))
+            .child(Element::new("t:Value").text(value));
+        updates = updates.child(
+            Element::new("t:SetItemField")
+                .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", tag).attr("PropertyType", "String"))
+                .child(Element::new("t:CalendarItem").child(property)),
+        );
+    }
+    let id = match change_key.trim().is_empty() {
+        true => Element::new("t:ItemId").attr("Id", id),
+        false => Element::new("t:ItemId").attr("Id", id).attr("ChangeKey", change_key),
+    };
+    Element::new("m:UpdateItem")
+        .attr("SendMeetingInvitationsOrCancellations", "SendToNone")
+        .child(Element::new("m:ItemChanges").child(Element::new("t:ItemChange").child(id).child(updates)))
 }
 
 /// The `t:Recurrence` element of a rule, when the mailbox can say it.
@@ -1095,7 +1160,7 @@ pub fn update_item(kind: Kind, item: &ItemUp, id: &str, change_key: &str, send: 
         Kind::Tasks => "t:Task",
     };
     let full = match item {
-        ItemUp::Event(event) => calendar_item(event, zone),
+        ItemUp::Event(event) => calendar_item(event, zone, None),
         ItemUp::Contact(contact) => contact_item(contact),
         ItemUp::Task(task) => task_item(task),
     };
