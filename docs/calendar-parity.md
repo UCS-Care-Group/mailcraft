@@ -235,6 +235,9 @@ item's original zone when another program made the item.
 
 | Date | Change |
 |---|---|
+| 2026-11-18 | #1664: a copy of an item with files attached is refused, as a move of one is, rather than made without its files |
+| 2026-11-16 | #1130: an item without a zone of its own goes to Microsoft 365 by the clock of the calendar's zone, not in UTC; one in the hour the clocks show twice goes in UTC |
+| 2026-11-15 | #209 D1: Internet Calendars (subscribed calendars): the row after Free/busy of other people |
 | 2026-11-04 | #755: an answered meeting request goes from the Inbox to Deleted Items by default in a new install (`calendar.deleteAnsweredRequests`), off for the command line and headless MCP; only from an Inbox of the owner's own accounts |
 | 2026-10-31 | Email Calendar, Insert › Calendar, Search Calendar, Contact Attendees, Reply by Email and Tracking (`calendar.email`, `insert.calendar`, `calendar.search`, `calendar.contactAttendees`, `calendar.respondEmail`, `calendar.tracking`) |
 | 2026-10-26 | #521: the Scheduling Assistant is called Find a Time |

@@ -170,6 +170,9 @@ pub mod search_server;
 mod search_suggest_tests;
 pub mod send_later;
 pub mod send_receive;
+pub mod senders;
+#[cfg(test)]
+mod senders_tests;
 pub mod shared;
 pub mod signature;
 #[cfg(test)]
@@ -257,6 +260,7 @@ pub fn registry() -> Registry {
     v.extend(send_later::specs());
     v.extend(react::specs());
     v.extend(signature::specs());
+    v.extend(senders::specs());
     v.extend(graph_mail::specs());
     v.extend(imap_fetch::specs());
     v.extend(jmap_mail::specs());

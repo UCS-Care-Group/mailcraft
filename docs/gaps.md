@@ -1,6 +1,6 @@
 # Where MailCraft falls short of Outlook
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-14 · **Change:** minor
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-18 · **Change:** minor
 
 The ranked list of shortfalls and rough edges. The direction is in [`ROADMAP.md`](../ROADMAP.md):
 where MailCraft stands, the beta checklist and the steps to it, and what comes after beta; the order
@@ -77,9 +77,33 @@ this code base.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-18 | patch | #1581: gap 2: File › Info says how many messages of an account are left out for failing to download, with Try again (`sync.retryFailed`) |
+| 2026-11-17 | patch | #1581: gap 2: a message that fails to download over IMAP is passed over after a fresh connection and left out after three runs; Retry Skipped Messages (`sync.retryFailed`) takes it up again, and nothing shows the left-out messages beyond the one line the run said; an Exchange server or JMAP account that loses its secure connection on a message still stops that fetch |
+| 2026-11-17 | minor | Gap 19: the phone runs the calendar, To Do and message-fetch sync on its own, in the background too (MB3.18), and sends the Outbox; what is not on the phone yet is listed |
+| 2026-11-17 | minor | Gap 5: the shared mailboxes' permissions are on a sign-in's page with everything else; none is asked for by itself (#1594) |
+| 2026-11-17 | patch | #1561 part 1: gap 16: Save Message As writes the bytes a signed or encrypted message came as whole, header and all |
+| 2026-11-16 | minor | #544: Gap 11: the system tray icon indicates unread Inbox mail in the owner’s own server accounts with a red circle; shared, local, imported and filed mail do not count; numbered counts remain absent |
+| 2026-11-16 | minor | Gap 19: Android calendar and task reminders while the app is closed (MB3.11); Dismiss and Snooze stay on the phone, and a snooze of a started event does not survive a restart |
+| 2026-11-16 | patch | Gap 19: `mailto:` links and sharing into a new message on Android (MB3.10) |
+| 2026-11-16 | minor | Czech as a preview language (Čeština (náhled)). |
+| 2026-11-16 | patch | Gap 10: a zone Microsoft 365 has no name for is sent by the calendar's clock, UTC only when that has none either (#1130) |
+| 2026-11-15 | patch | Gaps 14, 17 and 18: twenty-two releases to v0.13.0, the template's 3,623 texts, 68 of 315 in-scope rows, Snooze's first part (commands only) |
+| 2026-11-15 | minor | #1357: Polish as a preview language (Polski (wersja zapoznawcza)). |
+| 2026-11-15 | minor | Gap 17: Delay Delivery and Undo Send are done (#950). |
+| 2026-11-15 | minor | #948: gap 11 names follow-up reminders (Add Reminder, remind me if nobody replies) in the reminders window; the time is kept on this computer only |
+| 2026-11-15 | minor | Gap 5: a calendar on the web can be subscribed to (#209 D1); CalDAV and CardDAV are still missing |
+| 2026-11-14 | minor | Gap 14: Hungarian is available as a preview language. |
+| 2026-11-14 | patch | #1262: gap 17 names what is left of the organisation's directory: the suggestions while addressing; 66 of 315 catalog features lack a command |
+| 2026-11-14 | minor | Gap 7: #1197 preserves bounded spreadsheet tables pasted into the HTML composer, with selection and removal as a block |
 | 2026-11-14 | patch | Gap 5: a JMAP account sends as its own address only, and keeps no record of Bcc recipients after sending |
 | 2026-11-14 | patch | #1401: gap 2: mail imported into an account's folder is kept on this computer, in Imported |
 | 2026-11-14 | minor | #911, #1153: Gmail's inbox categories are read for every Gmail account and moving between them waits for Google's review; a message's Gmail labels show read only, `label:` searches them |
+| 2026-11-13 | patch | Gap 19: the Android app's composer (MB3.9) |
+| 2026-11-13 | patch | Gap 19: the Android app's attachments (MB3.8) |
+| 2026-11-13 | patch | Gap 19: the Android app's pictures (MB3.7) and the follow-up that merges the phone's picture rules with the desktop's (MB3.16) |
+| 2026-11-13 | minor | Gap 19: the Android app's reading pane (MB3.6) and what it does not do yet |
+| 2026-11-13 | minor | Gap 17: one message has Unsubscribe (#1207); a selection and many senders at once are still to come |
+| 2026-11-13 | minor | Gap 14: Georgian as a preview language; Automatic follows `ka-GE` |
 | 2026-11-13 | minor | Gap 8: the header lines nothing reads by name are kept beside the mailbox file (HS), with the bench numbers |
 | 2026-11-13 | minor | #276: gap 2 no longer lists a missing IDLE: new mail on the Inbox of an IMAP account whose server offers IDLE arrives within moments |
 | 2026-11-13 | minor | #276: an IMAP account reads its Inbox before listing its folders, unless something waits to be sent or pushed |
@@ -87,10 +111,14 @@ this code base.
 | 2026-11-13 | patch | Gap 8: the Undo and Redo steps let go of what the memory budget lets go of |
 | 2026-11-13 | patch | #1235: rich text is `mailcraft_mime_model::rich` |
 | 2026-11-13 | minor | Gap 11: the main window can close to the tray while the program continues running; alerts after actually quitting and unread-count badges remain absent |
+| 2026-11-12 | minor | #1232: gap 17: attachments inside `winmail.dat` are read; rough edges: what is left of TNEF (its rich text, attached messages, mail already stored) |
 | 2026-11-12 | patch | Gap 17: the parity count is in-scope features only; 17 catalog rows are out of scope |
 | 2026-11-12 | minor | Gap 14: Romanian as a preview language; Automatic follows `ro-RO`; a Romanian reply keeps `RE:` and `FW:`, which already thread |
 | 2026-11-12 | patch | #1121: gap 16: on Linux without a mail bundle (Debian, Ubuntu, Linux Mint) and on FreeBSD, the authorities for mail are the roots Mozilla trusts for mail in NSS's own list, only where no bundle for mail is there at all; an authority deselected on Debian is still trusted through it |
 | 2026-11-12 | minor | Gap 14: Simplified Chinese as a preview language; the initial catalogue was reviewed by its contributor |
+| 2026-11-11 | patch | #661: a deleted category leaves the server once the items that carried it there no longer do; items given a category kept on this computer only still carry its name to the server |
+| 2026-11-11 | patch | #661: Outlook's changes to the categories show here when MailCraft starts and with the calendar's wider look every quarter of an hour, not every few minutes |
+| 2026-11-11 | patch | #661: the question for keeping in step with Outlook, once closed, isn't put again by itself until MailCraft starts again or another mailbox is opened; what keeps a renamed category's old name on the server is named |
 | 2026-11-11 | minor | #1074 part 2: gap 5: a JMAP account sends its mail |
 | 2026-11-11 | minor | #1074 part 1: gap 5: a JMAP account's marks, moves and deletions go up; nothing is sent yet |
 | 2026-11-11 | minor | #815 part 5: gap 12: a `.pst` file's notes and journal entries import, HTML kept in rich text comes in as HTML, and the import is no longer a preview |
@@ -104,9 +132,13 @@ this code base.
 | 2026-11-09 | patch | #30 part 3: gap 16: OpenPGP Digital signatures can be checked by a library (`mailcraft-openpgp`), not yet shown in the window; the row is unchanged until it is |
 | 2026-11-09 | patch | #30 key holders: gap 16: the keys for signing and decrypting are reached where the system keeps them, not wired yet; a PKCS#11 key that asks for its PIN at every use (a PIV card's signing key) is refused for now |
 | 2026-11-09 | patch | #620: rough edges: what an agent and the owner still share in one window (the message being written, Undo) |
+| 2026-11-08 | minor | #603: gaps 6 and 13: Hebrew and Arabic paragraphs stand at the right of the reading pane (`dir` or `direction` in HTML, as in a browser; the first strong letter in plain text); a line's mixed runs in visual order stay open with #483 |
 | 2026-11-08 | patch | #30 part 1: gap 16: signed and encrypted messages keep the bytes they came as (well-formed only; 64 MB a message, 1 GB a mailbox), and a move onto another IMAP server, Save Message As and Forward as Attachment write their body as it came under a header written from the message; rough edges: the move note says so, that a moved copy carries no DKIM signature or ARC seal, and that a copy into a Microsoft mailbox is still made from its parts; the bytes stay named until a download brings them, are asked for again once, and a move waits for them from the copy it came from, which stays until it has brought them (a refusal is asked again, ever less often, over at least a day; a refusal past that, bytes too big to take or no room here hold the move, the status bar says why, and Check again asks once more; the copy it came from goes only once the bytes were written into the copy where it is now, are read whole from the disk here then (in memory only once saved), or that copy brought none, also when it is moved on, and an undo of a move on that can't put it back says why); a message with a part sent as `binary` goes onto an IMAP server made from its parts |
 | 2026-11-07 | patch | Gap 14: why an IMAP or SMTP server couldn't be used is said in the interface language wherever the window shows it, a server's own reason as the server wrote it, #872 |
 | 2026-11-07 | patch | AU3-V1: gap 5: Autodiscover asks before the sign-in goes to any host in the owner's domain but its Autodiscover host and the hosts its SRV record names, naming the host whole |
+| 2026-11-05 | minor | #842: gap 6: a link is underlined unless the message says otherwise for it, a link or span written as a block with a look of its own is a box as wide as its line, `display: table` is a box, full-width boxes and narrow tables keep their width, a border in its box's own colour shows no edge, and tables nest 20 deep |
+| 2026-11-05 | minor | #601: gap 6: a picture behind a table, a cell, a block or the body is shown when attached to the message or written into it, never one from the web |
+| 2026-11-05 | minor | #509: gap 17: warnings before sending (a lookalike recipient, outsiders who would see each other) are there; Report Phishing stays among the smaller things |
 | 2026-11-05 | minor | Gap 6: a reply or forward carries the pictures written into the original (`data:`) as parts of their own (#602) |
 | 2026-11-05 | minor | #815 part 3: gap 12: a `.pst` file's contacts and distribution lists import too; calendar, tasks and notes left for a later part |
 | 2026-11-05 | minor | #815 part 2: gap 12: a `.pst` file's mail imports (preview), with its report; calendar, contacts, tasks and notes left for a later part |
@@ -114,6 +146,7 @@ this code base.
 | 2026-11-05 | minor | #600: gap 6: a message is drawn in the first of its fonts installed on this computer; no font is fetched |
 | 2026-11-04 | minor | #232: state the primary-address limit for Workspace OAuth while retaining public release requirements |
 | 2026-11-04 | patch | #795: conversations are threads, not subjects; legacy mail fills its server's thread id a run at a time |
+| 2026-11-03 | minor | #661: rough edges: a Microsoft account's list of categories kept in step with its server both ways, read-only until its owner allows it |
 | 2026-11-03 | minor | #232: reconcile Google desktop setup, explicit conversion, credential boundaries and verified acceptance scope with current main; retain public release requirements |
 | 2026-11-03 | minor | #757: gap 6: tables floated left and right that are all their holder holds stand side by side; an empty column of a layout table is dropped only when it is empty in every row, a cell spanning columns counted; tables laid out as boxes by `inline-block` stand in one line; the `align` of a cell, a row, a `<div>` or a `<p>` and a `<center>` stop at a table inside them |
 | 2026-11-03 | patch | #488: the update switches are in File › About, not File › Options |
