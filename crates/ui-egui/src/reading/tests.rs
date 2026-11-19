@@ -2515,8 +2515,6 @@ fn what_is_kept_of_pictures_is_said_and_cleared_in_the_options() {
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
     assert!(says(&harness, "12 downloaded pictures are kept on this computer (3.2 MB)."));
-    // The scroll is applied on the next frame: let it settle before the click, as the other
-    // Options tests do.
     harness.get_by_label("Clear").scroll_to_me();
     harness.run_steps(3);
     harness.get_by_label("Clear").click();

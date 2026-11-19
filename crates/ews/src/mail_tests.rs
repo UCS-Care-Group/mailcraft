@@ -433,6 +433,48 @@ fn meeting_messages_come_with_their_times_sender_and_size() {
 }
 
 #[test]
+fn recipients_a_server_leaves_out_of_the_changes_are_asked_for_with_get_item() {
+    // Exchange 2013 to 2019 take the recipients in the listing's shape and answer without them
+    // (#1151): what was sent says who it went to all the same, first read and changed since.
+    let standin = StandIn::new();
+    let sent = {
+        let mut s = standin.state();
+        s.omits_recipients = true;
+        s.deliver("inbox", "Kickoff", false);
+        s.deliver("sentitems", "Sent one", true)
+    };
+    let (pieces, _) = run(&standin, &request());
+    assert!(last(&pieces).whole, "{:?}", last(&pieces).errors);
+    let messages: Vec<_> = pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).collect();
+    assert_eq!(messages.len(), 2);
+    for message in &messages {
+        assert_eq!(message.to.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["ada@example.org"], "{}", message.subject);
+        assert!(!message.preview.is_empty(), "the listing keeps the rest of its shape");
+    }
+    let asked =
+        |standin: &StandIn| standin.state().requests.iter().filter(|r| r.operation == "GetItem" && r.body.contains("message:ToRecipients")).count();
+    assert!(asked(&standin) > 0);
+    // A change since (the subject edited elsewhere) comes without them too, and is asked again.
+    standin.state().edit_subject(&sent, "Sent one (edited)");
+    let before = asked(&standin);
+    let hierarchy = pieces.iter().find_map(|p| (!p.hierarchy.is_empty()).then(|| p.hierarchy.clone())).unwrap();
+    let (delta, _) = run(&standin, &EwsMailRequest { hierarchy, states: states_of(&pieces), ..request() });
+    let changed = delta.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).next().unwrap();
+    assert_eq!((changed.subject.as_str(), changed.to.len()), ("Sent one (edited)", 1));
+    assert_eq!(asked(&standin), before + 1);
+}
+
+#[test]
+fn a_server_that_lists_the_recipients_is_not_asked_for_them_again() {
+    let standin = StandIn::new();
+    standin.state().deliver("sentitems", "Sent one", true);
+    let (pieces, _) = run(&standin, &request());
+    assert!(last(&pieces).whole);
+    assert_eq!(pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).map(|m| m.to.len()).collect::<Vec<_>>(), [1]);
+    assert!(!standin.state().requests.iter().any(|r| r.operation == "GetItem" && r.body.contains("message:ToRecipients")));
+}
+
+#[test]
 fn a_refused_sign_in_ends_the_run_and_says_so() {
     let standin = StandIn::new();
     let wrong = Client::new(URL, Secret::basic("ada", "not-the-password").unwrap()).unwrap();

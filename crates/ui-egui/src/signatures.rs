@@ -324,7 +324,10 @@ fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.horizontal_wrapped(|ui| {
         ui.menu_button(tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
         ui.menu_button(tl!("Size"), |ui| crate::ribbon::size_menu(ui, app));
-        ui.menu_button(tl!("Colour"), |ui| crate::ribbon::color_menu(ui, app));
+        // The colour menu holds a field for a colour of the owner's own: a click in it is for the
+        // field, not a way out of the menu, as on the ribbon (#1493, #1464).
+        let colour = ui.button(tl!("Colour"));
+        egui::Popup::menu(&colour).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| crate::ribbon::color_menu(ui, app));
         for (label, on, command) in [("B", look.bold, "format.bold"), ("I", look.italic, "format.italic"), ("U", look.underline, "format.underline")]
         {
             if ui.add(egui::Button::selectable(on, egui::RichText::new(label).strong())).on_hover_text(tl!(command_label(command))).clicked() {
