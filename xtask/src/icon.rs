@@ -49,7 +49,7 @@ impl Drawing {
     fn parse(svg: &[u8]) -> Result<Drawing, String> {
         let tree = resvg::usvg::Tree::from_data(svg, &resvg::usvg::Options::default()).map_err(|e| format!("reading the icon's SVG: {e}"))?;
         // What it draws, without its shadows' and filters' reach: the tile.
-        let bbox = tree.root().abs_bounding_box();
+        let bbox = tree.root().abs_bounding_box().ok_or("the icon's SVG draws nothing")?;
         let side = bbox.width().max(bbox.height());
         if !side.is_finite() || side <= 0.0 {
             return Err("the icon's SVG draws nothing".to_string());

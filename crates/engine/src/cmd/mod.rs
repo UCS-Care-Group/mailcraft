@@ -62,6 +62,8 @@ mod folder_kind_tests;
 #[cfg(test)]
 mod folder_new_tests;
 #[cfg(test)]
+mod folder_order_tests;
+#[cfg(test)]
 mod folder_properties_tests;
 pub mod followup;
 #[cfg(test)]

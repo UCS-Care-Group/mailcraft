@@ -5771,7 +5771,7 @@ msgstr ""
 "du dossier"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Volet des dossiers"
@@ -9334,11 +9334,23 @@ msgstr "Descendre"
 msgid "Move Event"
 msgstr "Déplacer l'événement"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Monter ou descendre un favori"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Déplacer le dossier"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Monter ou descendre un dossier"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -20740,6 +20752,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "Un brouillon ne peut pas avoir de rappel : envoyez-le d'abord, ou utilisez Suivi dans le message lui-même"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "un favori ne peut pas être placé avant lui-même"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "un dossier ne peut pas être placé avant lui-même"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20750,6 +20774,12 @@ msgstr "un dossier ne peut pas être déplacé dans lui-même"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "un dossier ne peut pas être déplacé vers un autre compte"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "un dossier se place parmi les dossiers à côté de lui : indiquez-en un ayant le même parent"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -24158,6 +24188,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} n'est pas une boîte aux lettres partagée : supprimez-le avec account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} ne fait pas partie des favoris"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24240,6 +24276,12 @@ msgstr "{name} a partagé un calendrier avec vous."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} a partagé un calendrier avec vous. Il figure dans votre liste de calendriers."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} reste en haut des dossiers du compte"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

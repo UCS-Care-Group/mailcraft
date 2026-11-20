@@ -1137,6 +1137,13 @@ fn folders(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>
                 if t.favorite != a.favorite {
                     f.favorite = t.favorite;
                 }
+                // (The owner's order, #1514: kept here alone.)
+                if t.place != a.place {
+                    f.place = t.place;
+                }
+                if t.favorite_place != a.favorite_place {
+                    f.favorite_place = t.favorite_place;
+                }
                 kept.push(f);
             }
             // Taken away by the change but put back since (the server refused).
@@ -1154,7 +1161,7 @@ fn folders(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>
             Some(Some(_)) if c.server.is_some() => {
                 let mut f = c.clone();
                 if let Some(deleted) = now.folder_of_kind(c.account, FolderKind::Deleted).filter(|d| *d != c.id) {
-                    f.parent = Some(deleted);
+                    f.set_parent(Some(deleted));
                 }
                 kept.push(f);
             }
