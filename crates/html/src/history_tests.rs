@@ -110,3 +110,25 @@ fn a_message_longer_than_what_is_looked_at_is_shown_whole() {
     html.push_str("<p>Answer at the end.</p>");
     assert_eq!(start(&parse(&html)), None);
 }
+
+#[test]
+fn an_answer_after_many_blank_lines_is_the_senders_own() {
+    let html = format!(
+        "<p>See below.</p><blockquote><p>What happened?</p></blockquote><pre>{}Answer</pre>",
+        "
+"
+        .repeat(40)
+    );
+    assert_eq!(start(&parse(&html)), None);
+    // In plain text too.
+    let text = format!(
+        "See below.
+> What happened?
+{}Answer
+",
+        "
+"
+        .repeat(40)
+    );
+    assert_eq!(start(&text_blocks(&text)), None);
+}

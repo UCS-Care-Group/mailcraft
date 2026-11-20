@@ -17,7 +17,9 @@
 //!   [`Open::collapse_all`]).
 //! - **Read by selecting.** The messages a selection marked read weren't read until then, so they
 //!   are opened, once per selection, even of the same message, and what the owner closed after
-//!   stays closed ([`Open::take_in_reads`]).
+//!   stays closed ([`Open::take_in_reads`]). A selection reads only what is shown whole
+//!   ([`mailcraft_engine::stack::read_by_selecting`]); opening a row reads its message too
+//!   (`super::conversation`), so what is read and what was shown agree.
 //! - **Quoted text.** Each message's quoted earlier messages are hidden until the owner asks for
 //!   them ([`Open::toggle_quoted`]).
 //!
@@ -29,9 +31,10 @@ use std::sync::{Arc, Weak};
 use mailcraft_model::{Id, Message};
 
 /// Most messages listed in the column (the selected one and the newest).
-pub(crate) const MAX_STACKED: usize = 200;
+pub(crate) const MAX_STACKED: usize = mailcraft_engine::stack::LISTED;
 /// Most messages shown whole at once besides the selected one.
-pub(crate) const MAX_OPEN: usize = 48;
+pub(crate) const MAX_OPEN: usize = mailcraft_engine::stack::WHOLE;
+pub(crate) use mailcraft_engine::stack::listed;
 
 /// What is open in the column, for the message it was shown for.
 #[derive(Clone, Default)]
@@ -54,30 +57,33 @@ pub(crate) struct Open {
 }
 
 impl Open {
-    /// The state for frame `frame` of the column of `focus` in `thread`, from what was kept
+    /// The state for frame `frame` of the column of `focus` listing `listed`, from what was kept
     /// (`kept`): kept when it is of the same selection, shown in the frame before; else afresh,
     /// with the messages the selection read (`reads`: its count and its messages) open. Then the
     /// reads of a newer selection are taken in ([`Open::take_in_reads`]).
-    pub(crate) fn for_frame(kept: Option<Open>, focus: Id, frame: u64, reads: (u64, &[Id]), thread: &[Id]) -> Open {
+    pub(crate) fn for_frame(kept: Option<Open>, focus: Id, frame: u64, reads: (u64, &[Id]), listed: &[Id]) -> Open {
         let mut open = match kept {
             Some(kept) if kept.focus == focus && kept.frame.saturating_add(1) >= frame => kept,
             _ => {
-                let opened = reads.1.iter().copied().filter(|id| thread.contains(id)).collect();
-                Open { focus, opened, read_count: reads.0, ..Open::default() }
+                let mut open = Open { focus, ..Open::default() };
+                open.read_count = reads.0.wrapping_sub(1);
+                open
             }
         };
-        open.take_in_reads(reads, thread);
+        open.take_in_reads(reads, listed);
         open.frame = frame;
         open
     }
 
-    /// The messages a selection newer than the last taken in read (`reads`) are opened, once.
-    pub(crate) fn take_in_reads(&mut self, (count, ids): (u64, &[Id]), thread: &[Id]) {
+    /// The messages a selection newer than the last taken in read (`reads`) are opened, once:
+    /// those the column lists (`listed`), at most as many as it lists.
+    pub(crate) fn take_in_reads(&mut self, (count, ids): (u64, &[Id]), listed: &[Id]) {
         if self.read_count == count {
             return;
         }
         self.read_count = count;
-        for id in ids.iter().copied().filter(|id| thread.contains(id)) {
+        let listed: HashSet<Id> = listed.iter().copied().collect();
+        for id in ids.iter().copied().filter(|id| listed.contains(id)).take(MAX_STACKED) {
             self.open(id);
         }
     }
@@ -148,16 +154,4 @@ impl Open {
             self.quoted.insert(id);
         }
     }
-}
-
-/// The messages of `thread` the column lists: the newest [`MAX_STACKED`], or, when the selected
-/// one is older than those, it and the newest but one; oldest first.
-pub(crate) fn listed(thread: &[Id], focus: Id) -> Vec<Id> {
-    let newest = |n: usize| thread.get(thread.len().saturating_sub(n)..).unwrap_or(thread);
-    if thread.len() <= MAX_STACKED || newest(MAX_STACKED).contains(&focus) {
-        return newest(MAX_STACKED).to_vec();
-    }
-    let mut ids = vec![focus];
-    ids.extend_from_slice(newest(MAX_STACKED - 1));
-    ids
 }

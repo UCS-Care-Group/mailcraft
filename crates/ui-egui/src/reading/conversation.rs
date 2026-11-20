@@ -60,8 +60,8 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, thread:
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     let kept = ui.data(|d| d.get_temp::<Open>(key()));
     let reads = (app.session.read_on_open_count(), app.session.read_on_open());
-    let mut open = Open::for_frame(kept, focus.id, ui.ctx().cumulative_frame_nr(), reads, thread);
     let listed = listed(thread, focus.id);
+    let mut open = Open::for_frame(kept, focus.id, ui.ctx().cumulative_frame_nr(), reads, &listed);
     title(app, ui, focus, &listed, thread.len(), &t, &mut open);
     let older = thread.len().saturating_sub(listed.len());
     let whole = open.shown_whole(&listed, |id| app.session.mailbox.message(id));
@@ -98,6 +98,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, thread:
                         }
                     } else if row(app, ui, &m, &t, &mut open).clicked() {
                         open.open(m.id);
+                        read_opened(app, &[m.id]);
                     }
                     rule(ui, &t);
                 }
@@ -140,6 +141,8 @@ fn title(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, listed: &[Id], to
             app.hit.add("conversationExpandAll", 0, expand.rect);
             if expand.clicked() {
                 open.expand_all(listed);
+                let whole: Vec<Id> = open.shown_whole(listed, |id| app.session.mailbox.message(id)).into_iter().collect();
+                read_opened(app, &whole);
             }
             let collapse = ui.link(egui::RichText::new(tl!("Collapse All")).font(regular(11.5)));
             app.hit.add("conversationCollapseAll", 0, collapse.rect);
@@ -222,6 +225,18 @@ fn preview(open: &mut Open, m: &Arc<Message>) -> Arc<str> {
     let line: Arc<str> = mailcraft_engine::list::preview(m, PREVIEW_CHARS).into();
     open.previews.insert(m.id, (Arc::downgrade(m), line.clone()));
     line
+}
+
+/// The messages the owner opened in the column (`ids`) are read, as a selection reads what it
+/// shows whole, when File › Options marks what is opened as read: what is read is what was shown.
+fn read_opened(app: &mut MailApp, ids: &[Id]) {
+    if !app.session.prefs.mark_read_on_open {
+        return;
+    }
+    let unread: Vec<Id> = ids.iter().copied().filter(|id| app.session.mailbox.message(*id).is_some_and(|m| !m.read && !m.draft)).collect();
+    if !unread.is_empty() {
+        let _ = app.run("mail.markRead", json!({"ids": unread}));
+    }
 }
 
 /// The line between two parts of the column.

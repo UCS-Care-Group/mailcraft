@@ -330,3 +330,96 @@ fn the_column_state_follows_its_rules_without_a_window() {
     let open = Open::for_frame(Some(open), 60, 9, (2, &[]), &thread);
     assert_eq!(open.shown_whole(&thread, find), std::collections::HashSet::from([60, 3]));
 }
+
+/// A window on a mailbox whose Inbox holds one conversation of `n` messages, none read, linked
+/// by their headers, oldest first; `long` makes one message's text far longer than a frame lays
+/// out. Show Whole Conversation is on, and nothing is selected yet. The ids, oldest first.
+fn long_conversation(n: u64, long: Option<u64>) -> (testing::Window, Vec<Id>) {
+    use mailcraft_model::{Address, Body, Mailbox, Message};
+    let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@example.org");
+    let inbox = mailbox.inbox().unwrap();
+    let mut ids = Vec::new();
+    for i in 1..=n {
+        let text = if Some(i) == long {
+            "A line of the long message, again and again.
+"
+            .repeat(20_000)
+        } else {
+            format!("Message {i}.")
+        };
+        let m = Message {
+            folder: inbox,
+            subject: if i == 1 { "Plan".into() } else { "RE: Plan".into() },
+            message_id: format!("<m{i}@example.org>"),
+            in_reply_to: if i == 1 { String::new() } else { format!("<m{}@example.org>", i - 1) },
+            references: (1..i).map(|j| format!("<m{j}@example.org>")).rev().take(30).collect::<Vec<_>>().into_iter().rev().collect(),
+            from: Address { name: format!("Sender {i}"), email: format!("s{i}@example.org") },
+            date: 1_791_000_000 + i as i64 * 60,
+            body: Body { text, html: None },
+            read: false,
+            ..Default::default()
+        };
+        ids.push(mailbox.add_message(m).unwrap());
+    }
+    let mut app = crate::MailApp::new(mailcraft_engine::Session::at(mailbox, 1_791_993_600, 0), crate::Services::default());
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
+    app.execute("view.conversationSettings", json!({"wholeConversation": true})).unwrap();
+    app.execute("view.sort", json!({"by": "date"})).unwrap();
+    (super::tests::window(app, (1280.0, 900.0)), ids)
+}
+
+#[test]
+fn selecting_reads_only_what_the_pane_shows_whole_and_a_row_opened_is_read() {
+    use super::conversation_state::MAX_OPEN;
+    let (mut w, ids) = long_conversation(60, None);
+    let newest = *ids.last().unwrap();
+    w.state_mut().execute("mail.select", json!({"id": newest})).unwrap();
+    w.run_steps(3);
+    let read = |w: &testing::Window, id: Id| w.state().session.mailbox.message(id).unwrap().read;
+    // The selected one and the newest MAX_OPEN others are read and shown whole; the oldest stay
+    // unread rows.
+    let (left, shown) = ids.split_at(ids.len() - MAX_OPEN - 1);
+    assert!(shown.iter().all(|id| read(&w, *id)), "a message shown whole isn't read");
+    assert!(left.iter().all(|id| !read(&w, *id)), "a message left a row was read");
+    assert!(left.iter().all(|id| drawn(&w, "conversationRow", *id) || w.state().hit.rect("conversationRow", *id).is_some()));
+    // A row opened reads its message.
+    let oldest = ids[0];
+    // The column scrolled to its top, where the oldest messages are.
+    let pane = w.state().hit.rect("conversationExpandAll", 0).unwrap().center() + egui::vec2(0.0, 200.0);
+    w.event(egui::Event::PointerMoved(pane));
+    for _ in 0..40 {
+        w.event(egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, 2_000.0),
+            phase: egui::TouchPhase::Move,
+            modifiers: egui::Modifiers::NONE,
+            source: egui::MouseWheelSource::Unknown,
+        });
+        w.run_steps(1);
+    }
+    w.run_steps(3);
+    click(&mut w, "conversationRow", oldest);
+    assert!(read(&w, oldest));
+}
+
+#[test]
+fn a_stacked_body_longer_than_a_frame_lays_out_to_its_end_with_many_open() {
+    use super::conversation_state::MAX_OPEN;
+    // 60 messages, none read: selecting the newest opens it and MAX_OPEN others, one of them far
+    // longer than a frame lays out.
+    let (mut w, ids) = long_conversation(60, Some(55));
+    let long = ids[54];
+    w.state_mut().execute("mail.select", json!({"id": *ids.last().unwrap()})).unwrap();
+    let done = |w: &testing::Window| view::kept_at(&w.ctx, Place::Thread(long), long, |laid, _| laid.done).unwrap_or(false);
+    w.step();
+    assert!(!done(&w), "the body was meant to need more than a frame");
+    let mut frames = 1;
+    while !done(&w) && frames < 400 {
+        w.step();
+        frames += 1;
+    }
+    assert!(done(&w), "the long body was still being laid out after {frames} frames");
+    let open = ids.iter().filter(|id| w.state().hit.rect("conversationCard", **id).is_some()).count();
+    assert_eq!(open, MAX_OPEN, "every message read on opening is shown whole");
+}

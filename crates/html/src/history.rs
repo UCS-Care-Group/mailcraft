@@ -46,8 +46,12 @@ pub fn start(blocks: &[Block]) -> Option<usize> {
 
 /// Whether a block shows something of its own: text, or a picture or a table, whose words are
 /// not in its spans (a rule or an empty paragraph shows nothing).
+/// The block's whole text is looked at, not only the lines sampled for headers: a block that
+/// begins with many blank lines still has what follows them.
 fn has_content(b: &Block, lines: &[String]) -> bool {
-    matches!(b.kind, BlockKind::Image { .. } | BlockKind::Table(_)) || lines.iter().any(|l| !l.is_empty())
+    matches!(b.kind, BlockKind::Image { .. } | BlockKind::Table(_))
+        || lines.iter().any(|l| !l.is_empty())
+        || b.spans.iter().any(|s| s.text.chars().any(|c| !c.is_whitespace()))
 }
 
 /// Whether, from block `from` on, the sender wrote something between or after quoted text: a
@@ -97,7 +101,8 @@ fn lines_of(b: &Block) -> Vec<String> {
             break;
         }
     }
-    text.lines().take(HEADER_LINES * 2).map(|l| l.trim().chars().take(MAX_LINE_CHARS).collect::<String>()).collect()
+    // Blank lines are left out: what is looked for is in the lines with text.
+    text.lines().map(str::trim).filter(|l| !l.is_empty()).take(HEADER_LINES * 2).map(|l| l.chars().take(MAX_LINE_CHARS).collect::<String>()).collect()
 }
 
 /// The first block at or after `from` with any text, by index.
