@@ -185,14 +185,27 @@ pub struct Windows {
     /// A window of the system drew the dialog this frame, over itself: the main window doesn't.
     pub(crate) dialog_shown: bool,
     /// The message being written whose window opened the dialog that is open (Insert Link, Word
-    /// Count…): it comes up over that window, not over the main one behind it. It belongs to that
-    /// dialog only: [`MailApp::set_dialog`] clears it, and [`Windows::claim_dialog`] sets it again
-    /// for the window that opened the replacement.
+    /// Count…): it comes up over that window, not over the main one behind it. Only
+    /// [`dialog_compose`] reads it, and these rules keep it right:
+    /// - It belongs to one dialog. A new dialog (or none) goes in through [`MailApp::set_dialog`],
+    ///   which clears it and bumps [`Windows::dialog_gen`]. `MailApp::dialog` is written directly
+    ///   only to put back the dialog just taken out (to draw it, or to set a form aside while an
+    ///   agent's command runs), and that dialog keeps its owner.
+    /// - Only [`Windows::claim_dialog`] sets it, for the window that opened the dialog: a compose
+    ///   window whose contents opened or replaced one this frame ([`compose_window::contents`]),
+    ///   one whose dialog, drawn over it, opened another in its place ([`show_native`]), and the
+    ///   form an agent's command set aside, put back over its window (`agent_gate`).
+    /// - It is cleared when the dialog closes: answered ([`crate::dialogs::show`]), given up with
+    ///   the mailbox it was for (`jobs`), or found gone at the start of a frame ([`show`]).
+    /// - The owner is only where the dialog is drawn: the window draws it and sets
+    ///   [`Windows::dialog_shown`], and when that window has closed, nobody does and the main
+    ///   window draws it ([`MailApp::ui`]).
     pub(crate) dialog_for: Option<u64>,
-    /// [`Windows::dialog_gen`] at the time [`Windows::dialog_for`] was set. A replacement bumps
-    /// the generation, so a dialog opened since is not drawn over that window.
+    /// [`Windows::dialog_gen`] at the time [`Windows::dialog_for`] was set: an owner noted before
+    /// the dialog was last replaced doesn't count, even where it wasn't cleared.
     pub(crate) dialog_owner_gen: u64,
-    /// Bumped each time the open dialog is replaced ([`MailApp::set_dialog`]).
+    /// Bumped each time the open dialog is replaced ([`MailApp::set_dialog`]), so a compose window
+    /// also sees a dialog it opened in place of one already open.
     pub(crate) dialog_gen: u64,
     /// The monitors connected now, in the system's pixels, as the host listed them this frame for a window
     /// about to open ([`MailApp::set_monitors`]); `None` when it didn't.

@@ -2238,6 +2238,7 @@ impl MailApp {
     /// that window's only until the dialog is replaced: the window that opened this one claims it
     /// afterwards ([`windows::compose_window`]), and any other replacement is the main window's,
     /// drawn over the main window rather than over the compose window the previous one belonged to.
+    /// The rules for that owner are on [`windows::Windows::dialog_for`].
     pub(crate) fn set_dialog(&mut self, next: Option<dialogs::Dialog>) {
         self.windows.dialog_gen = self.windows.dialog_gen.wrapping_add(1);
         self.windows.dialog_for = None;
