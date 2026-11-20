@@ -33,6 +33,7 @@ pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
 pub(crate) mod conversation;
+mod conversation_state;
 #[cfg(test)]
 mod conversation_tests;
 pub(crate) mod fonts;

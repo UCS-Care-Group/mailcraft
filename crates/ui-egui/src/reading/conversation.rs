@@ -22,51 +22,22 @@
 //!
 //! [`Session::conversation`]: mailcraft_engine::Session::conversation
 
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
 use egui::{Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_model::{Id, Message};
+
 use serde_json::json;
 
+use super::conversation_state::{Open, listed};
 use super::{ACTIONS, Place, react, select, view};
 use crate::MailApp;
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
 
-/// Most messages of one conversation stacked: the selected one and the newest. A row says how
-/// many older ones there are.
-pub(crate) const MAX_STACKED: usize = 200;
-/// Most messages shown whole at once besides the selected one: those the owner opened last
-/// first, then the newest of those not read yet. The rest are rows. Fewer than the layouts kept
-/// for the column ([`super::view::KEPT_IN_STACK`]), so that each is laid out once.
-pub(crate) const MAX_OPEN: usize = 48;
 /// A closed message's row.
 pub(crate) const ROW_HEIGHT: f32 = 54.0;
 /// Most characters of a closed message's text its row shows.
 const PREVIEW_CHARS: usize = 200;
-
-/// What is open in the column, for the message it was shown for. Kept in egui's memory under
-/// one key: another selection starts again.
-#[derive(Clone, Default)]
-struct Open {
-    focus: Id,
-    /// The frame it was last shown in: a selection that comes back to the same message after
-    /// another starts again.
-    frame: u64,
-    /// Opened by the owner (a row clicked, Expand All) or read by selecting, the last last.
-    opened: Vec<Id>,
-    /// [`Session::read_on_open_count`](mailcraft_engine::Session::read_on_open_count) as last
-    /// taken in: the messages a newer selection read are opened once.
-    read_count: u64,
-    /// Closed by the owner (its header clicked, Collapse All), though not read yet or selected.
-    closed: BTreeSet<Id>,
-    /// Messages whose quoted earlier messages the owner asked to see.
-    quoted: BTreeSet<Id>,
-    /// The column was scrolled to the selected message once.
-    scrolled: bool,
-    /// The beginnings of the closed messages' text, by the message they were made of.
-    previews: HashMap<Id, (Weak<Message>, Arc<str>)>,
-}
 
 fn key() -> egui::Id {
     egui::Id::unique("mailcraft-conversation-stack")
@@ -83,86 +54,17 @@ pub(crate) fn stacked(app: &mut MailApp, focus: Id) -> Option<Arc<Vec<Id>>> {
     (thread.len() > 1 && thread.contains(&focus)).then_some(thread)
 }
 
-impl Open {
-    /// `id` is opened (last), and no longer closed.
-    fn open(&mut self, id: Id) {
-        self.closed.remove(&id);
-        self.opened.retain(|x| *x != id);
-        self.opened.push(id);
-        if self.opened.len() > MAX_STACKED {
-            self.opened.remove(0);
-        }
-    }
-
-    /// `id` is closed.
-    fn close(&mut self, id: Id) {
-        self.opened.retain(|x| *x != id);
-        self.closed.insert(id);
-    }
-}
-
-/// Whether `m` would be shown whole in the column of `focus`, room aside ([`shown_whole`]).
-fn is_open(open: &Open, m: &Message, focus: Id) -> bool {
-    !open.closed.contains(&m.id) && (m.id == focus || open.opened.contains(&m.id) || !m.read)
-}
-
-/// The messages of `thread` the column lists: the newest [`MAX_STACKED`], or, when the selected
-/// one is older than those, it and the newest but one; oldest first.
-pub(crate) fn listed(thread: &[Id], focus: Id) -> Vec<Id> {
-    let newest = |n: usize| thread.get(thread.len().saturating_sub(n)..).unwrap_or(thread);
-    if thread.len() <= MAX_STACKED || newest(MAX_STACKED).contains(&focus) {
-        return newest(MAX_STACKED).to_vec();
-    }
-    let mut ids = vec![focus];
-    ids.extend_from_slice(newest(MAX_STACKED - 1));
-    ids
-}
-
-/// Of the messages listed, those shown whole: the selected one, and at most [`MAX_OPEN`] others
-/// that would be open, those the owner opened last first, then the newest.
-fn shown_whole(app: &MailApp, open: &Open, listed: &[Id], focus: Id) -> HashSet<Id> {
-    let would = |id: &Id| *id != focus && app.session.mailbox.message(*id).is_some_and(|m| is_open(open, m, focus));
-    let mut others: HashSet<Id> = HashSet::new();
-    let by_owner = open.opened.iter().rev().filter(|id| listed.contains(id) && would(id));
-    let newest = listed.iter().rev().filter(|id| would(id));
-    for id in by_owner.chain(newest) {
-        if others.len() >= MAX_OPEN {
-            break;
-        }
-        others.insert(*id);
-    }
-    // The selected one, unless the owner closed it.
-    if !open.closed.contains(&focus) {
-        others.insert(focus);
-    }
-    others
-}
-
 /// The column: the conversation's subject and actions, then its messages, oldest first.
 pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, thread: &[Id]) {
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-    let mut open = ui.data(|d| d.get_temp::<Open>(key())).unwrap_or_default();
-    let frame = ui.ctx().cumulative_frame_nr();
-    if open.focus != focus.id || open.frame.saturating_add(1) < frame {
-        // Those selecting it just read with it weren't read until then: they are open, as the
-        // ones not read yet are.
-        let opened = app.session.read_on_open().iter().copied().filter(|id| thread.contains(id)).collect();
-        open = Open { focus: focus.id, opened, read_count: app.session.read_on_open_count(), ..Open::default() };
-    }
-    // The same message selected again, reading others with it: those are opened, once, and what
-    // the owner closed since stays closed.
-    if open.read_count != app.session.read_on_open_count() {
-        open.read_count = app.session.read_on_open_count();
-        for id in app.session.read_on_open().iter().copied().filter(|id| thread.contains(id)).collect::<Vec<_>>() {
-            open.open(id);
-        }
-    }
-    open.frame = frame;
+    let kept = ui.data(|d| d.get_temp::<Open>(key()));
+    let reads = (app.session.read_on_open_count(), app.session.read_on_open());
+    let mut open = Open::for_frame(kept, focus.id, ui.ctx().cumulative_frame_nr(), reads, thread);
     let listed = listed(thread, focus.id);
     title(app, ui, focus, &listed, thread.len(), &t, &mut open);
     let older = thread.len().saturating_sub(listed.len());
-    let whole = shown_whole(app, &open, &listed, focus.id);
+    let whole = open.shown_whole(&listed, |id| app.session.mailbox.message(id));
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
         egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt(("conversation", thread.first().copied().unwrap_or_default())).show(
@@ -237,17 +139,12 @@ fn title(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, listed: &[Id], to
             let expand = ui.link(egui::RichText::new(tl!("Expand All")).font(regular(11.5)));
             app.hit.add("conversationExpandAll", 0, expand.rect);
             if expand.clicked() {
-                // The newest last: those are shown whole first when there are more than room.
-                open.closed.clear();
-                for id in listed {
-                    open.open(*id);
-                }
+                open.expand_all(listed);
             }
             let collapse = ui.link(egui::RichText::new(tl!("Collapse All")).font(regular(11.5)));
             app.hit.add("conversationCollapseAll", 0, collapse.rect);
             if collapse.clicked() {
-                open.opened.clear();
-                open.closed = listed.iter().copied().filter(|id| *id != focus.id).collect();
+                open.collapse_all(listed);
             }
         });
     });
@@ -260,7 +157,7 @@ fn title(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, listed: &[Id], to
 /// clicked its header to close it.
 fn card(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, open: &mut Open) -> bool {
     let (access, close) = super::above_body(app, ui, m, place, true);
-    let whole = open.quoted.contains(&m.id);
+    let whole = open.quoted(m.id);
     view::page(app, place, ui).show(ui, |ui| {
         ui.set_width(ui.available_width());
         egui::ScrollArea::horizontal().auto_shrink([false, true]).id_salt(("body", place, m.id)).show(ui, |ui| {
@@ -277,8 +174,8 @@ fn card(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, open: &m
             let said = if whole { tl!("Hide quoted text") } else { tl!("··· Show quoted text") };
             let link = ui.link(egui::RichText::new(said).font(regular(11.5)).color(t.text_dim));
             app.hit.add("conversationQuoted", m.id, link.rect);
-            if link.clicked() && !open.quoted.remove(&m.id) {
-                open.quoted.insert(m.id);
+            if link.clicked() {
+                open.toggle_quoted(m.id);
             }
         });
     }

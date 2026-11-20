@@ -43,7 +43,7 @@ const KEPT_IN_WINDOWS: usize = 16;
 
 /// How many layouts are kept for the messages of a conversation stacked in the reading pane
 /// ([`Place::Thread`], #1778): more than it shows whole at once
-/// ([`super::conversation::MAX_OPEN`]), so that none of them is laid out again every frame.
+/// ([`super::conversation_state::MAX_OPEN`]), so that none of them is laid out again every frame.
 pub(crate) const KEPT_IN_STACK: usize = 64;
 
 /// Which layouts make room for each other: the pane's, a stacked conversation's, and those of

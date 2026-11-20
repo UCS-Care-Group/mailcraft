@@ -259,7 +259,7 @@ fn selecting_the_same_message_again_opens_what_it_reads_and_keeps_what_the_owner
 
 #[test]
 fn the_selected_message_is_listed_however_long_its_conversation() {
-    use super::conversation::{MAX_STACKED, listed};
+    use super::conversation_state::{MAX_STACKED, listed};
     let thread: Vec<Id> = (1..=250).collect();
     // The newest, when the selected one is among them.
     let newest = listed(&thread, 240);
@@ -277,7 +277,7 @@ fn the_layouts_of_many_stacked_messages_are_kept_from_frame_to_frame() {
     let message = |id: Id| {
         Arc::new(mailcraft_model::Message { id, body: mailcraft_model::Body { text: format!("Message {id}"), html: None }, ..Default::default() })
     };
-    let messages: Vec<_> = (1..=super::conversation::MAX_OPEN as Id + 1).map(message).collect();
+    let messages: Vec<_> = (1..=super::conversation_state::MAX_OPEN as Id + 1).map(message).collect();
     // Every message the column shows whole, frame after frame: each one's blocks are made once.
     for _ in 0..3 {
         for m in &messages {
@@ -291,4 +291,42 @@ fn the_layouts_of_many_stacked_messages_are_kept_from_frame_to_frame() {
         let _ = view::doc(&ctx, m, Place::Thread(m.id));
     }
     assert!(view::kept_count(&ctx) <= super::view::KEPT_IN_STACK);
+}
+
+#[test]
+fn the_column_state_follows_its_rules_without_a_window() {
+    use super::conversation_state::{MAX_OPEN, Open};
+    let read = |id: Id| mailcraft_model::Message { id, read: true, ..Default::default() };
+    let unread = |id: Id| mailcraft_model::Message { id, read: false, ..Default::default() };
+    let messages: Vec<mailcraft_model::Message> = (1..=60).map(|id| if id == 3 { unread(id) } else { read(id) }).collect();
+    let find = |id: Id| messages.iter().find(|m| m.id == id);
+    let thread: Vec<Id> = (1..=60).collect();
+    // Afresh for message 60: it and the unread one are shown whole; what selecting read too.
+    let open = Open::for_frame(None, 60, 1, (1, &[10]), &thread);
+    let whole = open.shown_whole(&thread, find);
+    assert!(whole.contains(&60) && whole.contains(&3) && whole.contains(&10) && whole.len() == 3);
+    // Kept into the next frame; the same reads aren't taken in twice, so a close stays.
+    let mut open = Open::for_frame(Some(open), 60, 2, (1, &[10]), &thread);
+    open.close(10);
+    let mut open = Open::for_frame(Some(open), 60, 3, (1, &[10]), &thread);
+    assert!(!open.shown_whole(&thread, find).contains(&10));
+    // A newer selection of the same message that reads it again opens it again.
+    open = Open::for_frame(Some(open), 60, 4, (2, &[10]), &thread);
+    assert!(open.shown_whole(&thread, find).contains(&10));
+    // Expand All: the selected one and MAX_OPEN others, the newest.
+    open.expand_all(&thread);
+    let whole = open.shown_whole(&thread, find);
+    assert_eq!(whole.len(), MAX_OPEN + 1);
+    assert!(whole.contains(&59) && !whole.contains(&1));
+    // Collapse All: the selected one alone, even the unread one closed.
+    open.collapse_all(&thread);
+    assert_eq!(open.shown_whole(&thread, find), std::collections::HashSet::from([60]));
+    // Quoted text, on and off.
+    open.toggle_quoted(60);
+    assert!(open.quoted(60));
+    open.toggle_quoted(60);
+    assert!(!open.quoted(60));
+    // Off screen for a frame, or another selection: afresh.
+    let open = Open::for_frame(Some(open), 60, 9, (2, &[]), &thread);
+    assert_eq!(open.shown_whole(&thread, find), std::collections::HashSet::from([60, 3]));
 }
