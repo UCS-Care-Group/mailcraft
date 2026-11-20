@@ -3075,5 +3075,9 @@ mod window_places_show_tests;
 #[path = "window_dialog_tests.rs"]
 mod window_dialog_tests;
 
+#[cfg(test)]
+#[path = "window_drop_tests.rs"]
+mod window_drop_tests;
+
 #[path = "compose_window.rs"]
 pub(crate) mod compose_window;
