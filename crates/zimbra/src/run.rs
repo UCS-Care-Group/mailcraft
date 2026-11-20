@@ -124,7 +124,7 @@ pub async fn sync_mail<E: HttpExchange>(
 ) {
     let mut last = blank(request);
     match run(exchange, request, password, cancel, emit).await {
-        Ok((token, resume)) => (last.token, last.resume, last.whole) = (token, Some(resume), true),
+        Ok((token, resume, whole)) => (last.token, last.resume, last.whole) = (token, Some(resume), whole),
         Err(Stop::Cancelled) => last.stopped = true,
         Err(Stop::Failed(e)) => {
             match e {
@@ -146,7 +146,7 @@ async fn run<E: HttpExchange>(
     password: &Secret,
     cancel: &AtomicBool,
     emit: &mut dyn FnMut(ZimbraMailResult),
-) -> Result<(String, Vec<ZimbraResume>), Stop> {
+) -> Result<(String, Vec<ZimbraResume>, bool), Stop> {
     let base = request.url.trim().trim_end_matches('/').to_string();
     let mut run = Run { exchange, cancel, base, token: Secret::new("") };
     let user = login(&request.username, &request.email);
@@ -158,9 +158,10 @@ async fn run<E: HttpExchange>(
         match changes(&run, request, &listing, emit).await {
             Err(Stop::Failed(Error::MustResync)) => {}
             done => {
-                let since = done?;
+                let (since, listing, complete) = done?;
                 let resume = resume_folders(&run, request, &listing, emit).await?;
-                return Ok((since, resume));
+                let whole = complete && resume.is_empty();
+                return Ok((since, resume, whole));
             }
         }
     }
@@ -191,7 +192,7 @@ async fn changes<E: HttpExchange>(
     request: &ZimbraMailRequest,
     listing: &folders::Listing,
     emit: &mut dyn FnMut(ZimbraMailResult),
-) -> Result<String, Stop> {
+) -> Result<(String, folders::Listing, bool), Stop> {
     let mut listing = listing.clone();
     let mut relisted = 0;
     // A folder a listing was asked about again and still doesn't name is no folder of mail — the
@@ -202,6 +203,9 @@ async fn changes<E: HttpExchange>(
     for _ in 0..MAX_ROUNDS {
         let answered = run.ask(delta::request(&run.base, &run.token, &since)).await?;
         let page = delta::answer(&answered, false).map_err(Stop::Failed)?;
+        if page.more && page.token == since {
+            return Err(Stop::Failed(Error::Unreadable));
+        }
         let mut messages: Vec<GraphMessage> = Vec::new();
         let mut named: Vec<String> = Vec::new();
         let mut probed_gone: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -225,7 +229,7 @@ async fn changes<E: HttpExchange>(
             let before: std::collections::HashSet<String> = mail.iter().map(|id| id.to_string()).collect();
             relisted += 1;
             if relisted > MAX_RELISTS {
-                return Ok(since);
+                return Ok((since, listing, false));
             }
             let listed = run.ask(folders::request(&run.base, &run.token)).await?;
             let again = folders::answer(&listed).map_err(Stop::Failed)?;
@@ -267,12 +271,12 @@ async fn changes<E: HttpExchange>(
         emit(piece);
         since = page.token;
         if !page.more {
-            return Ok(since);
+            return Ok((since, listing, true));
         }
     }
     // More changes wait than one run reads: the token of the last whole page is kept, and the next
     // run goes on from it, so a mailbox that changes faster than a run follows still moves on.
-    Ok(since)
+    Ok((since, listing, false))
 }
 
 /// The messages `ids` names: one request for the chunk, unless the server faults it as holding a
@@ -283,7 +287,8 @@ async fn changes<E: HttpExchange>(
 async fn messages_by_id<E: HttpExchange>(run: &Run<'_, E>, ids: &[String]) -> Result<(Vec<GraphMessage>, Vec<String>), Stop> {
     let found = run.ask(items::by_id(&run.base, &run.token, ids)).await?;
     let mut messages = match items::answer(&found) {
-        Ok(page) => page.messages,
+        Ok(page) if page.messages.iter().all(|m| ids.contains(&m.server.id)) => page.messages,
+        Ok(_) => return Err(Stop::Failed(Error::Unreadable)),
         // The chunk is faulted for an id it no longer has — or for `is:anywhere` walking a folder
         // the server already dropped, which faults any id.
         Err(Error::NoSuchItem) => Vec::new(),
@@ -300,7 +305,7 @@ async fn messages_by_id<E: HttpExchange>(run: &Run<'_, E>, ids: &[String]) -> Re
     let mut gone = Vec::new();
     for id in ids.iter().filter(|id| !have.contains(id.as_str())) {
         let one = run.ask(items::probe(&run.base, &run.token, id)).await?;
-        match items::probe_answer(&one) {
+        match items::probe_answer(&one, id) {
             Ok(Some(message)) => messages.push(message),
             Ok(None) => gone.push(id.clone()),
             Err(e) => return Err(Stop::Failed(e)),
@@ -324,6 +329,9 @@ async fn folder_tail<E: HttpExchange>(
     for page_number in 0..MAX_FOLDER_PAGES {
         let answered = run.ask(items::folder_page(&run.base, &run.token, folder, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort)))).await?;
         let page = items::answer(&answered).map_err(Stop::Failed)?;
+        if page.messages.iter().any(|m| m.server.folder != folder) {
+            return Err(Stop::Failed(Error::Unreadable));
+        }
         // A page that says more and neither brings a message nor a cursor to follow is no
         // page to go on from: without one, whatever lies behind it is never read.
         if page.more && (page.messages.is_empty() || page.cursor.is_none()) {
@@ -388,7 +396,7 @@ async fn afresh<E: HttpExchange>(
     run: &Run<'_, E>,
     request: &ZimbraMailRequest,
     emit: &mut dyn FnMut(ZimbraMailResult),
-) -> Result<(String, Vec<ZimbraResume>), Stop> {
+) -> Result<(String, Vec<ZimbraResume>, bool), Stop> {
     let started = run.ask(delta::request(&run.base, &run.token, "")).await?;
     let token = delta::answer(&started, true).map_err(Stop::Failed)?.token;
     let listing = folder_listing(run, request, emit).await?;
@@ -411,7 +419,8 @@ async fn afresh<E: HttpExchange>(
             capped = true;
         }
     }
-    Ok((token, left))
+    let whole = left.is_empty();
+    Ok((token, left, whole))
 }
 
 /// Fetch the messages `request` names whole, signing in with `password`.
@@ -467,7 +476,11 @@ pub async fn fetch_messages<E: HttpExchange>(exchange: &E, request: &ZimbraFetch
         };
         match answer {
             Ok(mime) => {
-                held = held.saturating_add(mime.len() as u64);
+                let total = held.saturating_add(mime.len() as u64);
+                if total > MAX_FETCH_BYTES {
+                    break;
+                }
+                held = total;
                 out.fetched.push(GraphFetched { id: id.clone(), mime });
             }
             Err(Error::NoSuchItem) => out.missing.push(id.clone()),

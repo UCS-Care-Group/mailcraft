@@ -354,7 +354,7 @@ fn zimbra_switch() -> bool {
     let on = std::env::var("MAILCRAFT_ZIMBRA").is_ok_and(|value| value.trim() == "1");
     static SAID: std::sync::Once = std::sync::Once::new();
     if on {
-        SAID.call_once(|| log::info!("Zimbra accounts may be added and kept in step (MAILCRAFT_ZIMBRA=1, for testing)"));
+        SAID.call_once(|| log::info!("Zimbra account setup is enabled for testing only; Send/Receive sync is not available (MAILCRAFT_ZIMBRA=1)"));
     }
     on
 }
