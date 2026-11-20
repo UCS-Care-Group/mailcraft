@@ -867,6 +867,36 @@ fn notice(ui: &mut Ui, t: &Tokens, text: &str, add: impl FnOnce(&mut Ui)) {
     ui.add_space(4.0);
 }
 
+/// The same 52-pixel tile footprint in both directions, with the icon on its
+/// leading reading edge and a separate safe caption region away from the icon.
+fn auto_reply_tile_geometry(tile: egui::Rect, rtl: bool) -> (egui::Rect, egui::Rect) {
+    let icon_x = if rtl { tile.max.x - 26.0 } else { tile.min.x + 26.0 };
+    let icon = egui::Rect::from_center_size(egui::pos2(icon_x, tile.center().y), vec2(24.0, 24.0));
+    let caption = if rtl {
+        egui::Rect::from_min_max(egui::pos2(tile.min.x + 12.0, tile.min.y), egui::pos2(tile.max.x - 52.0, tile.max.y))
+    } else {
+        egui::Rect::from_min_max(egui::pos2(tile.min.x + 52.0, tile.min.y), egui::pos2(tile.max.x - 12.0, tile.max.y))
+    };
+    (icon, caption)
+}
+
+/// Preserve the existing clipped left-aligned drawing for LTR; clip and
+/// right-anchor Hebrew text without painting underneath the reply icon.
+fn paint_auto_reply_tile_line(painter: &egui::Painter, caption: egui::Rect, y: f32, text: &str, font: egui::FontId, color: egui::Color32, rtl: bool) {
+    if !rtl {
+        crate::theme::paint_clipped(painter, egui::pos2(caption.min.x, y), caption.width(), text, font, color);
+        return;
+    }
+    if caption.width() <= 4.0 || text.is_empty() {
+        return;
+    }
+    let mut job = egui::text::LayoutJob::single_section(text.to_string(), egui::text::TextFormat { font_id: font, color, ..Default::default() });
+    job.wrap = egui::text::TextWrapping { max_width: caption.width(), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+    let galley = painter.layout_job(job);
+    let size = galley.size();
+    painter.galley(egui::pos2(caption.max.x - size.x, y - size.y / 2.0), galley, color);
+}
+
 /// File › Info's Automatic Replies: a tile for each account that has them here, filled while
 /// replies go out, as Outlook's is; a click opens the dialog. Nothing for a mailbox without one.
 pub(crate) fn info_tiles(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
@@ -878,7 +908,16 @@ pub(crate) fn info_tiles(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         return;
     }
     ui.add_space(10.0);
-    ui.label(RichText::new(tl!("Automatic Replies")).font(crate::theme::semibold(14.0)).color(t.accent_text));
+    let section_title = RichText::new(tl!("Automatic Replies")).font(crate::theme::semibold(14.0)).color(t.accent_text);
+    if crate::i18n::current().code() == "he" {
+        // Keep the section heading on the same reading edge as the Hebrew tiles.
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(section_title);
+        });
+    } else {
+        // Preserve the existing LTR layout and native label sizing.
+        ui.label(section_title);
+    }
     let now = app.session.now();
     for account in accounts {
         let on = app.auto_replies_known(account).is_some_and(|k| k.on_at(now));
@@ -901,17 +940,13 @@ pub(crate) fn info_tiles(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             (false, false) => t.panel,
         };
         ui.painter().rect(r, 6.0, fill, egui::Stroke::new(1.0, if on { t.orange } else { t.border }), egui::StrokeKind::Inside);
-        let icon = egui::Rect::from_center_size(egui::pos2(r.min.x + 26.0, r.center().y), vec2(24.0, 24.0));
+        // Hebrew's visual reading edge is the right edge of this painted (non-widget) tile.
+        // Keep the account hit region and all mailbox actions independent of the layout.
+        let rtl = crate::i18n::current().code() == "he";
+        let (icon, caption) = auto_reply_tile_geometry(r, rtl);
         crate::icons::paint(ui.painter(), icon, "reply", t.icon, t.accent);
-        crate::theme::paint_clipped(
-            ui.painter(),
-            egui::pos2(r.min.x + 52.0, r.min.y + 18.0),
-            r.width() - 64.0,
-            &title,
-            crate::theme::semibold(13.0),
-            t.text,
-        );
-        crate::theme::paint_clipped(ui.painter(), egui::pos2(r.min.x + 52.0, r.min.y + 36.0), r.width() - 64.0, &detail, regular(11.5), t.text_dim);
+        paint_auto_reply_tile_line(ui.painter(), caption, r.min.y + 18.0, &title, crate::theme::semibold(13.0), t.text, rtl);
+        paint_auto_reply_tile_line(ui.painter(), caption, r.min.y + 36.0, &detail, regular(11.5), t.text_dim, rtl);
         app.hit.add("autoRepliesTile", account, r);
         if resp.clicked() {
             let _ = app.run("ui.dialog", json!({"name": "automaticReplies", "account": account}));
@@ -930,3 +965,7 @@ pub(crate) fn status_item(app: &mut MailApp, ui: &mut Ui, t: &Tokens, size: f32)
     }
     ui.add_space(10.0);
 }
+
+#[cfg(test)]
+#[path = "auto_replies_rtl_tests.rs"]
+mod rtl_tests;
