@@ -1632,13 +1632,13 @@ fn recipients_are_suggested_as_they_are_typed() {
     assert_eq!(completed(true, &who("Nair, Priya", "priya@lumen.example")), "\"Nair, Priya\" <priya@lumen.example>; ");
     assert_eq!(completed(true, &who("Evil\" <evil@x.example>\r\n", "priya@lumen.example")), "Evil evil@x.example <priya@lumen.example>; ");
 
-    // The engine's answer: contacts by any word of the name or the address, then people mail was
-    // exchanged with, never the owner, never twice.
+    // The engine's answer: by any word of the name or the address, the owner's own addresses
+    // included, never twice.
     let a = app();
     let found = suggest(&a.session, "pri", 6);
     assert_eq!(found.first().map(|s| (s.name.as_str(), s.contact)), Some(("Priya Nair", true)));
     assert!(suggest(&a.session, "NAIR", 6).iter().any(|s| s.email == "priya@lumen.example"));
-    assert!(suggest(&a.session, "avery", 6).iter().all(|s| s.email != "avery@lumen.example"), "not the owner");
+    assert!(suggest(&a.session, "avery", 6).iter().any(|s| s.email == "avery@lumen.example"), "the owner is offered");
     let all = suggest(&a.session, "l", 20);
     let mut emails: Vec<String> = all.iter().map(|s| s.email.to_lowercase()).collect();
     emails.sort();
