@@ -124,7 +124,7 @@ msgstr "\"{shown}\" bir e-posta adresi değil"
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
-msgstr "Gönderilenler (veya Taslaklar) klasöründeki kopyası hâlâ taslak olarak işaretli olsa da '{subject}' gönderilmiş olabilir. Giden Kutusu'nda tutuluyor."
+msgstr "Gönderilen Öğeler (veya Taslaklar) klasöründeki kopyası hâlâ taslak olarak işaretli olsa da '{subject}' gönderilmiş olabilir. Giden Kutusu'nda tutuluyor."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
@@ -1188,7 +1188,7 @@ msgstr "Gönder'den sonra ileti Giden Kutusu'nda bu süre boyunca bekler ve Geri
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
-msgstr "Postadaki bir toplantı isteğini kabul ettikten, belirsiz olarak kabul ettikten veya reddettikten ya da iptal edilen bir toplantıyı takviminizden kaldırdıktan sonra ileti Silinen Öğeler klasörüne gider. Kapalı bırakılırsa olduğu yerde kalır ve yanıtınızı gösterir."
+msgstr "Postadaki bir toplantı isteğini kabul ettikten, geçici olarak kabul ettikten veya reddettikten ya da iptal edilen bir toplantıyı takviminizden kaldırdıktan sonra ileti Silinen Öğeler klasörüne gider. Kapalı bırakılırsa olduğu yerde kalır ve yanıtınızı gösterir."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
@@ -1538,7 +1538,7 @@ msgstr "Hesabın sunucusunda tutulan bir toplantı için veya postadaki davetten
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "Another time is proposed with a tentative answer or with a decline."
-msgstr "Başka bir zaman, belirsiz yanıt veya ret yanıtı ile birlikte önerilir."
+msgstr "Başka bir zaman, geçici yanıt veya ret yanıtı ile birlikte önerilir."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -1748,7 +1748,7 @@ msgstr "Randevu"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Appointment Recurrence"
-msgstr "Randevu Yinelenmesi"
+msgstr "Randevu Yinelemesi"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -1842,7 +1842,7 @@ msgstr "Düzen"
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "As Folders"
-msgstr "Klasörler Olarak"
+msgstr "Klasör Olarak"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -8874,19 +8874,19 @@ msgstr "Okundu İşaretle"
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as Unread"
-msgstr "Okunmadı İşaretle"
+msgstr "Okunmadı Olarak İşaretle"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Mark as read"
-msgstr "Okundu işaretle"
+msgstr "Okundu olarak işaretle"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as unread"
-msgstr "Okunmadı işaretle"
+msgstr "Okunmadı olarak işaretle"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -12218,7 +12218,7 @@ msgstr "Yeni Saat Öner…"
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Propose another time to the organizer, with a tentative answer or a decline. Nothing is sent until you say so there."
-msgstr "Düzenleyiciye belirsiz yanıtla veya ret yanıtıyla başka bir saat önerin. Siz orada onaylayana kadar hiçbir şey gönderilmez."
+msgstr "Düzenleyiciye geçici yanıtla veya ret yanıtıyla başka bir saat önerin. Siz orada onaylayana kadar hiçbir şey gönderilmez."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -12538,7 +12538,7 @@ msgstr "Oturum açma süreniz dolduysa veya erişim iptal edildiyse Google ile y
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Recurrence"
-msgstr "Yinelenme"
+msgstr "Yineleme"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -12616,19 +12616,19 @@ msgstr "Şu tarihe kadar kimse yanıtlamazsa bana hatırlat:"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Reminder"
-msgstr "Hatırlatıcı"
+msgstr "Anımsatıcı"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Reminder for new appointments"
-msgstr "Yeni randevular için hatırlatıcı"
+msgstr "Yeni randevular için anımsatıcı"
 
 #. android, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Reminders"
-msgstr "Hatırlatıcılar"
+msgstr "Anımsatıcılar"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12637,14 +12637,14 @@ msgid ""
 "Reminders\n"
 "Window"
 msgstr ""
-"Hatırlatıcılar\n"
+"Anımsatıcılar\n"
 "Penceresi"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Reminders Window"
-msgstr "Hatırlatıcılar Penceresi"
+msgstr "Anımsatıcılar Penceresi"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -12742,13 +12742,13 @@ msgstr "Açık Anahtarı Kaldır"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Remove Recurrence"
-msgstr "Yinelenmeyi Kaldır"
+msgstr "Yinelemeyi Kaldır"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Remove Reminder"
-msgstr "Hatırlatıcıyı Kaldır"
+msgstr "Anımsatıcıyı Kaldır"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -12948,7 +12948,7 @@ msgstr "Oturum yenileniyor…"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Repeats"
-msgstr "Yinelenme"
+msgstr "Yinelenir"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/ribbon.rs
@@ -16034,31 +16034,31 @@ msgstr "Kiracı"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Tentative"
-msgstr "Belirsiz"
+msgstr "Geçici"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "Tentative and Propose"
-msgstr "Belirsiz ve Öner"
+msgstr "Geçici ve Öner"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "Tentative: {title}"
-msgstr "Belirsiz: {title}"
+msgstr "Geçici: {title}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
 #, fuzzy
 msgid "Tentatively accepted"
-msgstr "Belirsiz olarak kabul edildi"
+msgstr "Geçici olarak kabul edildi"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Tentatively accepted on {when}"
-msgstr "{when} tarihinde belirsiz olarak kabul edildi"
+msgstr "{when} tarihinde geçici olarak kabul edildi"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -25289,8 +25289,8 @@ msgstr[1] "{n} görev yalnızca bu telefonda. Sonraki eşitlemede Yapılacaklar'
 #, fuzzy
 msgid "{n} tentative"
 msgid_plural "{n} tentative"
-msgstr[0] "{n} belirsiz"
-msgstr[1] "{n} belirsiz"
+msgstr[0] "{n} geçici"
+msgstr[1] "{n} geçici"
 
 #. interface
 #: crates/ui-egui/src/opening.rs
