@@ -63,6 +63,10 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
   ([`docs/log.d/README.md`](docs/log.d/README.md)), and a release-notes line in
   `packaging/release-notes.d/` ([its README](packaging/release-notes.d/README.md)), never in the
   table or the notes themselves: they are joined in at release, so pull requests don't conflict there.
+- **New interface texts are translated in every catalogue, marked `#, fuzzy`** (a draft; a
+  best-effort translation is fine), after `cargo xtask i18n`
+  ([`docs/translating.md`](docs/translating.md#new-texts-in-a-pull-request)). Left empty, they
+  don't block a review.
 - **Every crash fix and every data-loss fix comes with a regression test.**
 - **Security fixes: a fix for a security finding comes with a test that covers every site of its
   root cause**, not only the one that was reported: a table over every command, reader or writer
