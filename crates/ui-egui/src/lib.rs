@@ -2259,6 +2259,17 @@ impl MailApp {
         }
     }
 
+    /// Put `next` in place of the dialog that is open. A dialog a compose window opened stays
+    /// that window's only until the dialog is replaced: the window that opened this one claims it
+    /// afterwards ([`windows::compose_window`]), and any other replacement is the main window's,
+    /// drawn over the main window rather than over the compose window the previous one belonged to.
+    /// The rules for that owner are on [`windows::Windows::dialog_for`].
+    pub(crate) fn set_dialog(&mut self, next: Option<dialogs::Dialog>) {
+        self.windows.dialog_gen = self.windows.dialog_gen.wrapping_add(1);
+        self.windows.dialog_for = None;
+        self.dialog = next;
+    }
+
     /// Run a command the user asked for (ribbon, shortcut, menu, file drop). A command that needs
     /// input the user hasn't given yet opens its dialog; one that writes a file asks where (or, in
     /// the browser, downloads it); a failure shows in the status bar.
@@ -2279,7 +2290,7 @@ impl MailApp {
         let params = dialogs::as_opened(self, id, params);
         // A message being written isn't let go of without a word (#442).
         if dialogs::leaves_message(self, id, &params) {
-            self.dialog = Some(dialogs::leaving(id, params));
+            self.set_dialog(Some(dialogs::leaving(id, params)));
             return Ok(json!({"pending": "discardDraft"}));
         }
         // What is selected is what the reading pane shows (#727): the message being written there
@@ -2306,7 +2317,8 @@ impl MailApp {
                 ("folder.rename", Value::Null) => json!({"mode": "rename"}),
                 (_, asked) => asked,
             };
-            self.dialog = dialogs::open_dialog(self, name, &asked);
+            let dialog = dialogs::open_dialog(self, name, &asked);
+            self.set_dialog(dialog);
             // Folder Properties asks the engine first: when the engine refuses, there is no
             // dialog, and the command runs below so that the refusal is said as any command's is.
             if self.dialog.is_some() || !matches!(name, "folderProperties" | "wordCount") {
@@ -2342,7 +2354,7 @@ impl MailApp {
             if let Some(map) = params.as_object_mut() {
                 map.insert(send_warnings::ASKED_ABOUT.into(), asked);
             }
-            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
+            self.set_dialog(Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask }));
             return Ok(json!({"pending": "confirm"}));
         }
         // What can't be taken back is asked about first, once.
@@ -2354,7 +2366,7 @@ impl MailApp {
             // What the question named is what goes ahead, though the selection changes while it
             // is open (#620).
             let params = dialogs::pin_targets(self, id, params);
-            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
+            self.set_dialog(Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask }));
             return Ok(json!({"pending": "confirm"}));
         }
         // Check Names pressed by the owner looks names up in the address list too ([`check_names`]).
@@ -2763,7 +2775,7 @@ impl MailApp {
                 }
                 match dialogs::open_dialog(self, name, p) {
                     Some(d) => {
-                        self.dialog = Some(d);
+                        self.set_dialog(Some(d));
                         self.sync_panel = None;
                         Ok(json!({"dialog": name}))
                     }
@@ -2771,7 +2783,7 @@ impl MailApp {
                 }
             }
             "ui.closeDialog" => {
-                self.dialog = None;
+                self.set_dialog(None);
                 self.sync_panel = None;
                 Ok(json!({}))
             }
@@ -3803,7 +3815,8 @@ impl MailApp {
                 self.passwords.insert(account, pw);
             }
             let Some(password) = self.passwords.get(&account).cloned() else {
-                self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+                let dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+                self.set_dialog(dialog);
                 return Ok(json!({"pending": "password"}));
             };
             request.password = password;
@@ -3955,7 +3968,7 @@ impl MailApp {
             // A question about the mailbox that was open goes with it: it names messages and
             // accounts by ids, which the other mailbox may have too (#503).
             if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. })) {
-                self.dialog = None;
+                self.set_dialog(None);
             }
             // An agent's too.
             agent_gate::forget(self);
@@ -4596,7 +4609,8 @@ impl MailApp {
     fn sign_in_came_to_nothing(&mut self, account: Id, error: &str, asked_for: bool) {
         log::warn!("sign-in, account {account}: ended without signing in ({:?})", approval::SignInEnd::of(error));
         if approval::SignInEnd::of(error) == approval::SignInEnd::Approval && asked_for && self.dialog.is_none() {
-            self.dialog = dialogs::Dialog::open("account", self, &json!({"id": account, "page": "approval"}));
+            let dialog = dialogs::Dialog::open("account", self, &json!({"id": account, "page": "approval"}));
+            self.set_dialog(dialog);
         }
         self.status(tl!(error));
     }
@@ -4967,7 +4981,7 @@ impl MailApp {
     fn refusal(&mut self) {
         let Some(text) = self.refused.take() else { return };
         if self.dialog.is_none() {
-            self.dialog = Some(dialogs::Dialog::Refused { text });
+            self.set_dialog(Some(dialogs::Dialog::Refused { text }));
         }
     }
 
@@ -5049,7 +5063,7 @@ impl MailApp {
         if let Some(dialogs::Dialog::ImportPst(mut d)) = self.dialog.take_if(|d| matches!(d, dialogs::Dialog::ImportPst(d) if d.is_importing())) {
             d.pump(self, ctx);
             if self.dialog.is_none() {
-                self.dialog = Some(dialogs::Dialog::ImportPst(d));
+                self.set_dialog(Some(dialogs::Dialog::ImportPst(d)));
             }
         }
         if !self.styled {
@@ -5191,7 +5205,8 @@ impl MailApp {
         // What was done in the Reminders window, which has passes of its own (#771).
         reminders::carry_out(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {
-            self.dialog = dialogs::Dialog::open("account", self, &json!({}));
+            let dialog = dialogs::Dialog::open("account", self, &json!({}));
+            self.set_dialog(dialog);
         }
         self.poll_graph_switch_copy();
         self.tick_graph_switch();
@@ -5714,7 +5729,7 @@ impl MailApp {
         // Every message being written goes to Drafts, unasked (#286); one that can't be is asked
         // about, as before.
         if !windows::compose_window::save_all_for_quit(self) && dialogs::unsaved_closed_by(self, "file.new", &json!({})) > 0 {
-            self.dialog = Some(dialogs::leaving("quit", json!({})));
+            self.set_dialog(Some(dialogs::leaving("quit", json!({}))));
             return false;
         }
         // An appointment window with unsaved changes asks about them first.

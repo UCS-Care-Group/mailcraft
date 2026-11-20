@@ -240,7 +240,7 @@ fn imported(app: &mut MailApp, result: Result<Imported, String>) {
     match result {
         Ok(Imported::System) => {
             if dialog_busy {
-                app.dialog = None;
+                app.set_dialog(None);
             }
             let said = tl!("Imported: the system keeps it, and it is listed with your certificates.").to_string();
             app.status(said.clone());
@@ -249,7 +249,7 @@ fn imported(app: &mut MailApp, result: Result<Imported, String>) {
         }
         Ok(Imported::Kept { key, public }) => {
             if dialog_busy {
-                app.dialog = None;
+                app.set_dialog(None);
             }
             let Some(key) = key.sane() else {
                 app.security.said = Some((false, tl!("The import gave back something that isn't a key's name in the credential store.").to_string()));
@@ -400,11 +400,11 @@ fn remove_private_key(app: &mut MailApp, p: &Value) -> Result<Value, String> {
             ),
             &[("format", format_name(key.format)), ("who", &crate::own_keys::clip(&who))],
         );
-        app.dialog = Some(Dialog::Confirm {
+        app.set_dialog(Some(Dialog::Confirm {
             command: "ui.removePrivateKey".to_string(),
             params: json!({"fingerprint": key.fingerprint}),
             ask: Question::new(tl!("Remove Your Key"), text, tl!("Remove"), json!({"confirmed": true})),
-        });
+        }));
         return Ok(json!({"pending": "confirm"}));
     }
     // The owner's own answer: never input the control channel injected, or one of its requests.
@@ -457,7 +457,7 @@ fn verify_key(app: &mut MailApp, address: &str, fingerprint: &str) -> Result<Val
         return Err(tl!("An S/MIME certificate is trusted through its certification authority and isn't marked Verified").to_string());
     }
     let dialog = VerifyDialog { address: address.clone(), fingerprint: key.fingerprint.clone(), verified: key.verified };
-    app.dialog = Some(Dialog::Security(Box::new(SecurityDialog::Verify(dialog))));
+    app.set_dialog(Some(Dialog::Security(Box::new(SecurityDialog::Verify(dialog)))));
     Ok(json!({"dialog": "verifyKey", "address": address}))
 }
 
@@ -476,7 +476,7 @@ fn mark_key_verified(app: &mut MailApp, address: &str, fingerprint: &str, verifi
         return Err(tl!("A key is marked Verified only in the dialog that shows its fingerprint, by you").to_string());
     }
     app.session.set_key_verified(&address, fingerprint, verified).map_err(|e| e.to_string())?;
-    app.dialog = None;
+    app.set_dialog(None);
     app.status(if verified { tl!("The key is marked as verified.") } else { tl!("The key is not marked as verified.") });
     Ok(json!({"address": address, "verified": verified}))
 }
@@ -502,7 +502,7 @@ pub(crate) fn picked(app: &mut MailApp, purpose: &str, name: &str, bytes: Result
             let format = if purpose == PURPOSE_SMIME { SignatureFormat::Smime } else { SignatureFormat::OpenPgp };
             let dialog =
                 ImportDialog { format, name, file, passphrase: Zeroizing::new(String::new()), shown: false, error: String::new(), busy: false };
-            app.dialog = Some(Dialog::Security(Box::new(SecurityDialog::Import(dialog))));
+            app.set_dialog(Some(Dialog::Security(Box::new(SecurityDialog::Import(dialog)))));
         }
         PURPOSE_PUBLIC => {
             let r = app.run("keys.import", json!({"name": name, "data": encode(&bytes)}));

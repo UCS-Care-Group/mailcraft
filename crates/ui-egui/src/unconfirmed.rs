@@ -247,7 +247,7 @@ impl MailApp {
     pub(crate) fn ask_to_confirm_servers(&mut self) -> Result<Value, String> {
         if self.dialog.is_none() {
             let ask = self.confirm_servers_question();
-            self.dialog = Some(crate::dialogs::Dialog::Confirm { command: "ui.confirmServers".into(), params: json!({}), ask });
+            self.set_dialog(Some(crate::dialogs::Dialog::Confirm { command: "ui.confirmServers".into(), params: json!({}), ask }));
         }
         Ok(json!({"pending": "confirmServers"}))
     }
