@@ -1917,6 +1917,12 @@ msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Es können höchstens {n} Kalender abonniert werden: Kündigen Sie zuerst eines."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "Höchstens {n} Anfragen per E-Mail gehen auf einmal."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "At start time"
@@ -9815,6 +9821,12 @@ msgid "None"
 msgstr "Keine"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "None of these messages can be unsubscribed from here."
+msgstr "Von keiner dieser Nachrichten kann man sich hier abmelden."
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "None of those messages is in this mailbox any more."
@@ -13120,6 +13132,12 @@ msgstr "Wählen Sie jemanden aus, um die Details zu sehen"
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Select the message before previewing its attachment."
 msgstr "Wählen Sie die Nachricht aus, bevor Sie die Anlage in der Vorschau anzeigen."
+
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Wählen Sie höchstens {n} Nachrichten zum Abmelden aus."
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -18266,6 +18284,26 @@ msgstr "Kalender abbestellen"
 msgid "Unsubscribe from Internet Calendar"
 msgstr "Internetkalender abbestellen"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Von ihren Listen abmelden"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Von den ausgewählten Nachrichten abmelden"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Von {n} Liste abmelden."
+msgstr[1] "Von {n} Listen abmelden."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -18277,6 +18315,12 @@ msgstr "Melden Sie sich auf der Seite der Liste in Ihrem Browser ab."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Abgemeldet."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Abmeldung: {click} mit einem Klick, {mail} per E-Mail, {pages} auf ihrer Seite zu erledigen, {left} ausgelassen."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -21982,6 +22026,12 @@ msgstr "die Kategorien dieses Kontos werden mit keinem Server abgeglichen"
 msgid "this account's categories aren't kept in step with its server"
 msgstr "die Kategorien dieses Kontos werden nicht mit seinem Server abgeglichen"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "diese Version kann sich nicht mit einem Klick abmelden"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -22962,6 +23012,14 @@ msgid_plural "{n} bodies or attachments are missing from the mailbox's content f
 msgstr[0] "{n} Nachrichtentext oder Anlage fehlt im Inhaltsordner des Postfachs oder ist beschädigt."
 msgstr[1] "{n} Nachrichtentexte oder Anlagen fehlen im Inhaltsordner des Postfachs oder sind beschädigt."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} per Nachricht von Ihrem Konto über den Postausgang:"
+msgstr[1] "{n} per je einer Nachricht von Ihrem Konto über den Postausgang:"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -23186,6 +23244,14 @@ msgid "{n} hour before"
 msgid_plural "{n} hours before"
 msgstr[0] "{n} Stunde vorher"
 msgstr[1] "{n} Stunden vorher"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} mit einem Klick: Ihr Server erhält die angegebene Adresse, sonst nichts."
+msgstr[1] "{n} mit einem Klick: Der Server jeder Liste erhält die angegebene Adresse, sonst nichts, eine nach der anderen."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -23469,6 +23535,14 @@ msgid_plural "{n} minutes before"
 msgstr[0] "{n} Minute vorher"
 msgstr[1] "{n} Minuten vorher"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "{n} weitere per E-Mail wird jetzt nicht gesendet: Wählen Sie weniger Nachrichten aus, um sie zu sehen."
+msgstr[1] "{n} weitere per E-Mail werden jetzt nicht gesendet: Wählen Sie weniger Nachrichten aus, um sie zu sehen."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 #, fuzzy
@@ -23705,6 +23779,14 @@ msgstr[0] "{n} ausgewählt"
 msgstr[1] "{n} ausgewählt"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} Absender wird ausgelassen: E-Mail, für die Ihr Server nicht bürgt, im Junk-E-Mail-Ordner, mit einer Warnung zum Absender oder ohne Angabe, wie."
+msgstr[1] "{n} Absender werden ausgelassen: E-Mail, für die Ihr Server nicht bürgt, im Junk-E-Mail-Ordner, mit einer Warnung zum Absender oder ohne Angabe, wie."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} stays on this computer"
@@ -23779,6 +23861,14 @@ msgid "{n} unread on the server"
 msgid_plural "{n} unread on the server"
 msgstr[0] "{n} ungelesen auf dem Server"
 msgstr[1] "{n} ungelesen auf dem Server"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} wird auf der eigenen Seite abgemeldet: Öffnen Sie die Nachricht, um es dort zu tun."
+msgstr[1] "{n} werden auf der eigenen Seite abgemeldet: Öffnen Sie jede dieser Nachrichten, um es dort zu tun."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -24036,6 +24126,12 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "• to {to}, subject “{subject}”"
+msgstr "• an {to}, Betreff „{subject}“"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

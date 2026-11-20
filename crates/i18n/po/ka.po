@@ -2014,6 +2014,12 @@ msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "შეიძლება გამოიწეროთ მაქსიმუმ {n} კალენდარი: ჯერ ერთ-ერთის გამოწერა გააუქმეთ."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "ერთდროულად იგზავნება არაუმეტეს {n} მოთხოვნა წერილით."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "At start time"
@@ -10442,6 +10448,12 @@ msgid "None"
 msgstr "არცერთი"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "None of these messages can be unsubscribed from here."
+msgstr "ამ წერილებიდან არცერთის გამოწერის გაუქმება აქედან შეუძლებელია."
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 msgid "None of those messages is in this mailbox any more."
 msgstr ""
@@ -13947,6 +13959,12 @@ msgstr "დეტალების სანახავად მონიშ�
 #, fuzzy
 msgid "Select the message before previewing its attachment."
 msgstr "დანართის წინასწარ ნახვამდე მონიშნეთ წერილი."
+
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "გამოწერის გასაუქმებლად მონიშნეთ არაუმეტეს {n} წერილი."
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -19396,6 +19414,26 @@ msgstr "კალენდრის გამოწერის გაუქმ�
 msgid "Unsubscribe from Internet Calendar"
 msgstr "ინტერნეტ-კალენდრის გამოწერის გაუქმება"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "მათი სიების გამოწერის გაუქმება"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "მონიშნული წერილების გამოწერის გაუქმება"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "{n} სიის გამოწერის გაუქმება."
+msgstr[1] "{n} სიის გამოწერის გაუქმება."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -19407,6 +19445,12 @@ msgstr "გააუქმეთ გამოწერა სიის გვე
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "გამოწერა გაუქმდა."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "გამოწერის გაუქმება: {click} ერთი დაწკაპუნებით, {mail} წერილით, {pages} მათ საკუთარ გვერდზე გასაკეთებელი, {left} გამოტოვებული."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -23330,6 +23374,12 @@ msgstr "ამ ანგარიშის კატეგორიები ს
 msgid "this account's categories aren't kept in step with its server"
 msgstr "ამ ანგარიშის კატეგორიები თავის სერვერთან არ სინქრონიზდება"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "ამ ვერსიას ერთი დაწკაპუნებით გამოწერის გაუქმება არ შეუძლია"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -24369,6 +24419,14 @@ msgid_plural "{n} bodies or attachments are missing from the mailbox's content f
 msgstr[0] "საფოსტო ყუთის შიგთავსის საქაღალდეს აკლია ან დაზიანებულია ტექსტი ან დანართი: {n}."
 msgstr[1] "საფოსტო ყუთის შიგთავსის საქაღალდეს აკლია ან დაზიანებულია ტექსტი ან დანართი: {n}."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} თქვენი ანგარიშიდან წერილით, გასაგზავნების გავლით:"
+msgstr[1] "{n} თითოეული თქვენი ანგარიშიდან წერილით, გასაგზავნების გავლით:"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -24606,6 +24664,14 @@ msgid "{n} hour before"
 msgid_plural "{n} hours before"
 msgstr[0] "{n} საათით ადრე"
 msgstr[1] "{n} საათით ადრე"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} ერთი დაწკაპუნებით: მის სერვერს ეგზავნება მხოლოდ მის მიერ მითითებული მისამართი, სხვა არაფერი."
+msgstr[1] "{n} ერთი დაწკაპუნებით: თითოეული სიის სერვერს ეგზავნება მხოლოდ მის მიერ მითითებული მისამართი, სხვა არაფერი, სათითაოდ."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -24907,6 +24973,14 @@ msgid_plural "{n} minutes before"
 msgstr[0] "{n} წუთით ადრე"
 msgstr[1] "{n} წუთით ადრე"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "კიდევ {n} წერილით მოთხოვნა ახლა არ გაიგზავნება: მის სანახავად მონიშნეთ ნაკლები წერილი."
+msgstr[1] "კიდევ {n} წერილით მოთხოვნა ახლა არ გაიგზავნება: მათ სანახავად მონიშნეთ ნაკლები წერილი."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 #, fuzzy
@@ -25156,6 +25230,14 @@ msgstr[0] "მონიშნული: {n}"
 msgstr[1] "მონიშნული: {n}"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} გამგზავნი გამოტოვებულია: ფოსტა, რომელზეც თქვენი სერვერი არ იძლევა გარანტიას, რომელიც არასასურველ ფოსტაშია, რომლის გამგზავნზეც გაფრთხილებაა, ან რომელიც არ ამბობს როგორ."
+msgstr[1] "{n} გამგზავნი გამოტოვებულია: ფოსტა, რომელზეც თქვენი სერვერი არ იძლევა გარანტიას, რომელიც არასასურველ ფოსტაშია, რომლის გამგზავნზეც გაფრთხილებაა, ან რომელიც არ ამბობს როგორ."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} stays on this computer"
@@ -25234,6 +25316,14 @@ msgid "{n} unread on the server"
 msgid_plural "{n} unread on the server"
 msgstr[0] "სერვერზე წაუკითხავი: {n}"
 msgstr[1] "სერვერზე წაუკითხავი: {n}"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} გამოწერას საკუთარ გვერდზე აუქმებს: ამისთვის გახსენით მისი წერილი."
+msgstr[1] "{n} გამოწერას საკუთარ გვერდზე აუქმებს: ამისთვის გახსენით თითოეული ეს წერილი."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -25505,6 +25595,12 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ სერვერზე ვერ მოიძებნა, ამიტომ დანართად გადაგზავნა შეუძლებელია"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "• to {to}, subject “{subject}”"
+msgstr "• ადრესატი: {to}, თემა: „{subject}“"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
