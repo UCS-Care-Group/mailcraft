@@ -1234,3 +1234,26 @@ fn gnome_graph_uses_local_rules_and_direct_graph_retains_server_features() {
         assert_eq!(shared.is_ok(), account == direct);
     }
 }
+
+#[test]
+fn account_edit_treats_null_goa_as_no_change() {
+    let (mut s, direct, _, _) = session();
+    let linked = run(
+        &mut s,
+        "account.add",
+        json!({
+            "email": "linked@example.org", "kind": "microsoft", "goa": {"id": "linked", "provider": "ms_graph"}
+        }),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    for id in [direct, linked] {
+        let before = s.mailbox.account(id).unwrap().clone();
+        run(&mut s, "account.edit", json!({"id": id, "goa": null, "displayName": "Mail owner"}));
+        let after = s.mailbox.account(id).unwrap();
+        assert_eq!(after.display_name, "Mail owner");
+        assert_eq!(after.oauth, before.oauth);
+        assert_eq!(after.goa, before.goa);
+        assert!(s.run("account.edit", &json!({"id": id, "goa": {"id": "other", "provider": "ms_graph"}})).is_err());
+    }
+}

@@ -73,7 +73,8 @@ stops new operations and directs you to GNOME Online Accounts. Other MailCraft a
 usable. You can change the local account name, sender display name, colour and signature.
 Microsoft accounts linked through GNOME keep rules locally. Opening shared mailboxes requires
 a separate Microsoft sign-in in MailCraft. The import tile checks for a running or activatable
-GOA service without listing accounts. An authorised MCP or control-channel caller can also
+GOA service without listing accounts. MailCraft repeats that check every 30 seconds so
+a service that starts later becomes available for import and scheduled sync. An authorised MCP or control-channel caller can also
 select a link explicitly through `account.add`. New GOA accounts are never added automatically.
 
 A change of address, incoming login, protocol or mail servers requires removing the account

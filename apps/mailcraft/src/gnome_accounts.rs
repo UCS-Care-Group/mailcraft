@@ -11,6 +11,7 @@ use mailcraft_i18n::{Text, said};
 use mailcraft_model::sync::{SyncRequest, SyncResult};
 use mailcraft_model::{Account as MailAccount, AccountKind, GoaAccount, OAuth, OAuthProvider, Security, Server};
 use mailcraft_ui_egui::gnome_accounts::{Account, Discovery, DiscoveryError, Provider};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use zbus::zvariant::OwnedValue;
 const OAUTH: &str = "org.gnome.OnlineAccounts.OAuth2Based";
@@ -31,6 +32,25 @@ pub fn available() -> bool {
         Some(dbus.name_has_owner(SERVICE.try_into().ok()?).ok()? || dbus.list_activatable_names().ok()?.iter().any(|name| name.as_str() == SERVICE))
     };
     probe().unwrap_or(false)
+}
+
+/// Refresh the passive probe while the window owns its result.
+pub fn watch_availability(ctx: egui::Context) -> Arc<AtomicBool> {
+    let state = Arc::new(AtomicBool::new(false));
+    let result = Arc::downgrade(&state);
+    if let Err(error) = std::thread::Builder::new().name("gnome service availability".into()).spawn(move || {
+        while let Some(state) = result.upgrade() {
+            let available = available();
+            if state.swap(available, Ordering::Relaxed) != available {
+                ctx.request_repaint();
+            }
+            drop(state);
+            std::thread::sleep(Duration::from_secs(30));
+        }
+    }) {
+        log::error!("couldn't start GNOME service availability check: {error}");
+    }
+    state
 }
 
 pub fn discover() -> Discovery {

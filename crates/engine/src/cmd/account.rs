@@ -349,7 +349,8 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(k) if k == "imap" || k == "local" => AccountKind::Imap,
         Some(_) => return Err(bad("`kind` is imap, local, microsoft, jmap or exchange")),
     };
-    if v.get("goa").is_some() && ["auth", "provider", "clientId", "tenant"].iter().any(|key| v.get(key).is_some()) {
+    let goa = v.get("goa").filter(|value| !value.is_null());
+    if goa.is_some() && ["auth", "provider", "clientId", "tenant"].iter().any(|key| v.get(key).is_some()) {
         return Err(bad("this account's sign-in is managed by GNOME Online Accounts"));
     }
     match kind {
@@ -357,7 +358,7 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
             // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
             a.kind = AccountKind::Microsoft;
             (a.incoming, a.outgoing, a.jmap, a.ews, a.dav) = (None, None, None, None, None);
-            let managed = a.goa.is_some() || v.get("goa").is_some();
+            let managed = a.goa.is_some() || goa.is_some();
             if managed {
                 a.oauth = None;
             } else {
@@ -393,7 +394,7 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
     if a.oauth.is_some() || a.outgoing.is_none() {
         a.outgoing_without_sign_in = false;
     }
-    if let Some(value) = v.get("goa") {
+    if let Some(value) = goa {
         let linked: mailcraft_model::GoaAccount = serde_json::from_value(value.clone()).map_err(|_| bad("`goa` has an id and provider"))?;
         let valid = |s: &str| !s.is_empty() && s.len() <= 128 && s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_');
         if !valid(&linked.id)
@@ -622,7 +623,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if a.kind == AccountKind::Unknown {
         return Err(added_by_newer(&a, "which keeps its settings: change them there"));
     }
-    if v.get("goa").is_some() {
+    if v.get("goa").is_some_and(|value| !value.is_null()) {
         return Err(fail("link a GNOME account through Import accounts from GNOME"));
     }
     if a.goa.is_some() && ["auth", "provider", "clientId", "tenant"].iter().any(|key| v.get(key).is_some()) {

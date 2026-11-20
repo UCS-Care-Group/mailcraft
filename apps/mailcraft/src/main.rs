@@ -1146,14 +1146,7 @@ fn services(
         platform_calls,
 
         #[cfg(target_os = "linux")]
-        gnome_service_available: Some({
-            let available = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-            let result = available.clone();
-            let _ = background(&goa_ctx, "gnome service availability", move || {
-                result.store(gnome_accounts::available(), std::sync::atomic::Ordering::Relaxed)
-            });
-            available
-        }),
+        gnome_service_available: Some(gnome_accounts::watch_availability(goa_ctx.clone())),
         #[cfg(target_os = "linux")]
         gnome_accounts: Some(Box::new(move || background(&goa_ctx, "gnome account discovery", gnome_accounts::discover))),
         file_dialog: Some(file_dialog),
