@@ -310,3 +310,27 @@ fn a_long_mailbox_still_suggests_who_matches() {
     let late = found.iter().position(|e| e == "jo.late@example.org");
     assert!(sent.is_some() && late.is_some() && sent < late, "{found:?}");
 }
+
+/// Mail from the address alone, before and after the message that names it, still dates the
+/// person that name matched: Bob X wrote last, so comes before Bob Y.
+#[test]
+fn a_bare_address_after_the_name_dates_the_person() {
+    let mut s = local("Avery Quinn", "avery@lumen.example");
+    let x = || Address::new("", "x@example.org");
+    post(&mut s, FolderKind::Inbox, Address::new("Bob Y", "y@example.org"), vec![owner()], vec![], now() - 70);
+    post(&mut s, FolderKind::Inbox, x(), vec![owner()], vec![], now() - 90);
+    post(&mut s, FolderKind::Inbox, Address::new("Bob X", "x@example.org"), vec![owner()], vec![], now() - 80);
+    post(&mut s, FolderKind::Inbox, x(), vec![owner()], vec![], now() - 60);
+    shows(&s, "bob", &["x@example.org", "y@example.org"]);
+}
+
+/// The latest message from the address alone comes before any message that names it, and still
+/// counts once the name makes it a candidate.
+#[test]
+fn a_bare_address_before_the_name_dates_the_person() {
+    let mut s = local("Avery Quinn", "avery@lumen.example");
+    post(&mut s, FolderKind::Inbox, Address::new("", "X@example.org"), vec![owner()], vec![], now() - 60);
+    post(&mut s, FolderKind::Inbox, Address::new("Bob X", "x@example.org"), vec![owner()], vec![], now() - 80);
+    post(&mut s, FolderKind::Inbox, Address::new("Bob Y", "y@example.org"), vec![owner()], vec![], now() - 70);
+    shows(&s, "bob", &["x@example.org", "y@example.org"]);
+}

@@ -2119,11 +2119,12 @@ struct Tally {
     stamp: u64,
 }
 
-/// Whether this name and address fit, and whether a non-fitting copy was already found not to be
-/// a candidate. A miss is not dated again, so a date from before the address matched can be missed.
+/// Whether this name and address fit and, when they do not, the latest message they were on. That
+/// date is given to the address once every message is read, so it reaches a candidate that another
+/// name matched, before or after.
 struct Pair {
     fits: bool,
-    looked: bool,
+    last: Option<i64>,
 }
 
 fn read_messages(
@@ -2162,6 +2163,17 @@ fn read_messages(
         person.last_sent = Some(person.last_sent.map_or(sent.last_sent, |was| was.max(sent.last_sent)));
         person.last_seen = Some(person.last_seen.map_or(sent.last_sent, |was| was.max(sent.last_sent)));
     }
+    for (&(_, email), pair) in &matched {
+        let Some(date) = pair.last else { continue };
+        if !is_valid_email(email) {
+            continue;
+        }
+        with_lower(email, |key| {
+            if let Some(person) = people.get_mut(key) {
+                see_last(person, date);
+            }
+        });
+    }
 }
 
 fn folder_sets(s: &Session) -> (HashSet<Id>, HashSet<Id>, HashSet<Id>) {
@@ -2185,21 +2197,20 @@ fn folder_sets(s: &Session) -> (HashSet<Id>, HashSet<Id>, HashSet<Id>) {
     (junk, drafts, outgoing)
 }
 
-fn recall<'a>(matched: &mut HashMap<(&'a str, &'a str), Pair>, typed: &Typed, name: &'a str, email: &'a str) -> (bool, bool) {
-    if let Some(pair) = matched.get(&(name, email)) {
-        return (pair.fits, pair.looked);
+/// Whether the pair fits, and whether it is kept in `matched`, where a miss is dated with `date`.
+fn recall<'a>(matched: &mut HashMap<(&'a str, &'a str), Pair>, typed: &Typed, name: &'a str, email: &'a str, date: i64) -> (bool, bool) {
+    if let Some(pair) = matched.get_mut(&(name, email)) {
+        if !pair.fits {
+            pair.last = Some(pair.last.map_or(date, |was| was.max(date)));
+        }
+        return (pair.fits, true);
     }
     let fits = typed.fits(name, email);
     if matched.len() < MAX_SUGGEST_TRACKED {
-        matched.insert((name, email), Pair { fits, looked: false });
+        matched.insert((name, email), Pair { fits, last: (!fits).then_some(date) });
+        return (fits, true);
     }
     (fits, false)
-}
-
-fn mark_looked<'a>(matched: &mut HashMap<(&'a str, &'a str), Pair>, name: &'a str, email: &'a str) {
-    if let Some(pair) = matched.get_mut(&(name, email)) {
-        pair.looked = true;
-    }
 }
 
 /// `email` in lower case, on the stack when it is ASCII and not over [`mailcraft_model::MAX_ADDRESS`].
@@ -2265,14 +2276,13 @@ fn see_address<'a>(
 ) {
     let name = name.trim();
     let email = email.trim();
-    let (fits, looked) = recall(matched, typed, name, email);
-    if !fits && !sent && (looked || people.is_empty()) {
+    let (fits, kept) = recall(matched, typed, name, email, date);
+    if !fits && !sent && (kept || people.is_empty()) {
         return;
     }
     if !is_valid_email(email) {
         return;
     }
-    let mut hit = false;
     with_lower(email, |key| {
         if fits {
             note_fit(people, facts, account_names, key, name, email, sent, date);
@@ -2286,24 +2296,15 @@ fn see_address<'a>(
                     }
                 }
             }
-            hit = true;
-        } else if sent {
-            let counted = people.get(key).is_some_and(|person| person.stamp == generation);
-            if !counted {
+        } else {
+            if sent && !people.get(key).is_some_and(|person| person.stamp == generation) {
                 tally_send(tally, key, generation, date);
             }
-            if !looked && let Some(person) = people.get_mut(key) {
+            if !kept && let Some(person) = people.get_mut(key) {
                 see_last(person, date);
-                hit = true;
             }
-        } else if !looked && let Some(person) = people.get_mut(key) {
-            see_last(person, date);
-            hit = true;
         }
     });
-    if !fits && !hit {
-        mark_looked(matched, name, email);
-    }
 }
 
 fn note_fit(
