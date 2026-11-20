@@ -1440,6 +1440,12 @@ msgid "An address with no domain."
 msgstr "Adres bez domeny."
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "An agent made this contact or gave it an address. Until you edit it, its addresses don't bring pictures in mail from your contacts."
+msgstr "Agent utworzył ten kontakt lub dodał do niego adres. Dopóki nie edytujesz kontaktu, obrazy w wiadomościach z jego adresów nie będą pobierane automatycznie."
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -4739,6 +4745,12 @@ msgstr "Pobierz obrazy"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Download Pictures from Contacts"
+msgstr "Pobieraj obrazy od kontaktów"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download Pictures in All Mail"
 msgstr "Pobieraj obrazy we wszystkich wiadomościach"
 
@@ -4747,6 +4759,18 @@ msgstr "Pobieraj obrazy we wszystkich wiadomościach"
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Pobieraj obrazy w wiadomościach automatycznie"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Download Pictures in Mail from Contacts"
+msgstr "Pobieraj obrazy w wiadomościach od kontaktów"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download from contacts"
+msgstr "Pobieraj od kontaktów"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4783,6 +4807,12 @@ msgstr "Pobieraj obrazy w każdej wiadomości bez pytania, z wyjątkiem Wiadomo�
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Pobieraj obrazy w wiadomościach automatycznie"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in mail from people in my contacts"
+msgstr "Pobieraj obrazy w wiadomościach od osób z moich kontaktów"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11964,6 +11994,12 @@ msgstr "Obrazy są zawsze pobierane od ({n}):"
 msgid "Pictures in mail"
 msgstr "Obrazy w poczcie"
 
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
+msgstr "Obrazy w wiadomościach z adresu zapisanego w kontaktach są pobierane bez pytania tylko wtedy, gdy adres dokładnie się zgadza, a serwer pocztowy potwierdzi domenę nadawcy. Serwer nie może potwierdzić samego adresu. Nigdy nie dotyczy to spamu. Serwer każdego takiego nadawcy dowie się, że otwarto wiadomość, kiedy i z jakiego adresu internetowego. Kontakt utworzony przez agenta lub uzupełniony przez niego o adres jest uwzględniany dopiero po Twojej edycji."
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
@@ -11987,6 +12023,12 @@ msgstr "Obrazy z sieci nie są pobierane dla wiadomości spoza skrzynki pocztowe
 #, fuzzy
 msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
 msgstr "Obrazy z sieci będą pobierane w każdej otwieranej wiadomości. Serwer każdego nadawcy dowie się wtedy, kiedy otworzono wiadomość i z jakiego adresu internetowego."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
+msgstr "W wiadomościach od osób z kontaktów będą pobierane obrazy z internetu. Ich serwery dowiedzą się, kiedy i z jakiego adresu internetowego otwarto wiadomość."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -20387,6 +20429,12 @@ msgstr "Nie masz dostępu do kalendarza {address}. Ta osoba musi Ci go udostępn
 #, fuzzy
 msgid "You don't have access to {address}. If access was just given, try again in an hour."
 msgstr "Nie masz dostępu do {address}. Jeśli dostęp dopiero co nadano, spróbuj ponownie za godzinę."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
+msgstr "Pobierasz obrazy od kontaktów, ale serwer pocztowy nie potwierdził, że ta wiadomość pochodzi od tego kontaktu. Dlatego najpierw poprosimy o zgodę."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs

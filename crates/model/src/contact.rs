@@ -193,6 +193,12 @@ pub struct Contact {
     /// never set by a command's params. Not written to a vCard.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub imported_from: String,
+    /// An agent made the contact or gave it an address, and the owner has not edited it since
+    /// (#891): its addresses are not trusted for pictures, as the owner's own contacts are. Set by
+    /// the engine after an agent's command, cleared by the owner's `people.edit`; never set by a
+    /// command's params, never written to a vCard.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub by_agent: bool,
     /// Set for a contact that an account's server keeps: it is a copy of the server's, and what
     /// the server calls it is how the next download finds it again.
     #[serde(skip_serializing_if = "Origin::is_local")]

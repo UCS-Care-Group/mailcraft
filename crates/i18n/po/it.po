@@ -1437,6 +1437,12 @@ msgid "An address with no domain."
 msgstr "Un indirizzo senza dominio."
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "An agent made this contact or gave it an address. Until you edit it, its addresses don't bring pictures in mail from your contacts."
+msgstr "Un agente ha creato questo contatto o gli ha aggiunto un indirizzo. Finché non modifichi il contatto, le immagini delle email da questi indirizzi non vengono scaricate automaticamente."
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -4727,6 +4733,12 @@ msgstr "Scarica immagini"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Download Pictures from Contacts"
+msgstr "Scarica immagini dai contatti"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download Pictures in All Mail"
 msgstr "Scarica immagini in tutta la posta"
 
@@ -4735,6 +4747,18 @@ msgstr "Scarica immagini in tutta la posta"
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Scarica automaticamente le immagini nella posta"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Download Pictures in Mail from Contacts"
+msgstr "Scarica le immagini nella posta dei contatti"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download from contacts"
+msgstr "Scarica dai contatti"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4771,6 +4795,12 @@ msgstr "Scarica le immagini di ogni messaggio senza chiedere, tranne in Posta in
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Scarica automaticamente le immagini nella posta"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in mail from people in my contacts"
+msgstr "Scarica le immagini nella posta delle persone nei miei contatti"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11922,6 +11952,12 @@ msgstr "Le immagini vengono sempre scaricate da ({n}):"
 msgid "Pictures in mail"
 msgstr "Immagini nella posta"
 
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
+msgstr "Le immagini nelle email da un indirizzo nei tuoi contatti vengono scaricate senza chiedere solo se l’indirizzo coincide esattamente e il tuo server di posta conferma il dominio di provenienza. Il server non può confermare l’indirizzo stesso. Questo non vale mai per la posta indesiderata. Il server di ogni mittente saprà che hai aperto il messaggio, quando e da quale indirizzo Internet. Un contatto creato da un agente, o a cui un agente ha aggiunto un indirizzo, viene considerato solo dopo che lo hai modificato."
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
@@ -11945,6 +11981,12 @@ msgstr "Le immagini sul web non vengono scaricate per un messaggio che non è ne
 #, fuzzy
 msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
 msgstr "Le immagini sul web verranno scaricate in ogni messaggio che apri. Il server di ogni mittente saprà allora quando hai aperto il messaggio e da quale indirizzo Internet."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
+msgstr "Nelle email delle persone nei tuoi contatti verranno scaricate le immagini da Internet. I loro server sapranno quando hai aperto il messaggio e da quale indirizzo Internet."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -20294,6 +20336,12 @@ msgstr "Non hai accesso al calendario di {address}. Deve condividerlo con te; se
 #, fuzzy
 msgid "You don't have access to {address}. If access was just given, try again in an hour."
 msgstr "Non si dispone dell'accesso a {address}. Se l'accesso è stato appena concesso, riprovare tra un'ora."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
+msgstr "Scarichi le immagini dai tuoi contatti, ma il server di posta non ha confermato che questo messaggio provenga da questo contatto, quindi viene chiesto prima."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
