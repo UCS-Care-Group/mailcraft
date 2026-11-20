@@ -150,6 +150,11 @@
       <Component Id="MailcraftCli">
         <File Id="MailcraftCliExe" Source="$(var.BinDir)\mailcraft-cli.exe" KeyPath="yes" />
       </Component>
+      <!-- Third-party notice and the spelling dictionary's copyright, beside the binaries. -->
+      <Component Id="MailcraftNotices">
+        <File Id="ThirdPartyNotice" Source="$(var.BinDir)\NOTICE" KeyPath="yes" />
+        <File Id="DictionaryNotice" Source="$(var.BinDir)\LICENSE-en_US-dictionary.txt" />
+      </Component>
     </ComponentGroup>
   </Fragment>
 </Wix>

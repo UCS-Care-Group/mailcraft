@@ -47,10 +47,18 @@ warn() {
 # Copy licence and readme files that exist into a package directory.
 copy_docs() {
   local dest="$1" f
-  for f in README.md LICENSE LICENSE-MIT LICENSE-APACHE COPYRIGHT; do
+  for f in README.md LICENSE LICENSE-MIT LICENSE-APACHE COPYRIGHT NOTICE; do
     if [ -f "$ROOT/$f" ]; then cp "$ROOT/$f" "$dest/"; fi
   done
+  copy_dictionary_notice "$dest"
   copy_font_licences "$dest"
+}
+
+# The US English spelling dictionary ships unmodified. Its README is the copyright notice a
+# binary distribution has to carry (SCOWL, and the Ispell affix file).
+copy_dictionary_notice() {
+  local dest="$1"
+  cp "$ROOT/assets/dictionaries/en_US/README_en_US.txt" "$dest/LICENSE-en_US-dictionary.txt"
 }
 
 # Builds made with craft-fonts (CRAFT_FONTS_DIR, set by the release workflow) embed its fonts, so

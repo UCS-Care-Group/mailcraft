@@ -57,6 +57,8 @@ modules:
       - install -Dm644 packaging/linux/io.github.billsecond.mailcraft.desktop /app/share/applications/io.github.billsecond.mailcraft.desktop
       - install -Dm644 packaging/linux/io.github.billsecond.mailcraft.mime.xml /app/share/mime/packages/io.github.billsecond.mailcraft.xml
       - mkdir -p /app/share/icons && cp -R assets/app-icon/hicolor /app/share/icons/
+      - install -Dm644 NOTICE /app/share/doc/mailcraft/NOTICE
+      - install -Dm644 assets/dictionaries/en_US/README_en_US.txt /app/share/doc/mailcraft/LICENSE-en_US-dictionary.txt
       - >-
         version=$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml);
         install -d /app/share/metainfo;

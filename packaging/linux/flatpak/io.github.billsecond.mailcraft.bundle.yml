@@ -50,7 +50,8 @@ modules:
       - install -Dm644 share/mime/packages/io.github.billsecond.mailcraft.xml /app/share/mime/packages/io.github.billsecond.mailcraft.xml
       # Already has the release's version and date substituted by package.sh.
       - install -Dm644 share/metainfo/io.github.billsecond.mailcraft.metainfo.xml /app/share/metainfo/io.github.billsecond.mailcraft.metainfo.xml
-      # Docs include the licences of the embedded craft-fonts (OFL-*.txt).
+      # Docs include NOTICE, the dictionary copyright (LICENSE-en_US-dictionary.txt)
+      # and the licences of the embedded craft-fonts (OFL-*.txt).
       - mkdir -p /app/share/icons /app/share/doc && cp -R share/icons/hicolor /app/share/icons/ && cp -R share/doc/mailcraft /app/share/doc/
     sources:
       - type: dir
