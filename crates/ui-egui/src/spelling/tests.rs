@@ -29,19 +29,6 @@ impl HostChecker for Italian {
 }
 
 #[test]
-fn spelling_offsets_exclude_links_addresses_and_signatures() {
-    let mut link = Run::plain("sopratutto");
-    link.style.link = Some("https://example.org".into());
-    let paragraph = Paragraph::new(vec![Run::plain("È 📧 sopratutto sopratutto@example.org "), link], ListKind::None);
-    let report = check(&Italian, "it-IT", &paragraph);
-    assert!(report.available);
-    assert_eq!(report.issues.len(), 1);
-    assert_eq!(report.issues[0].span, 4..14);
-    assert!(!check(&Italian, "fr-FR", &paragraph).available);
-    assert!(check(&Italian, "it-IT", &Paragraph { signature: true, ..paragraph }).issues.is_empty());
-}
-
-#[test]
 fn spelling_suggestion_uses_composer_undo_and_checks_the_original_word() {
     let mut app = MailApp::new(mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0), Default::default());
     app.execute("mail.new", json!({})).unwrap();
@@ -147,71 +134,6 @@ fn spelling_correction_preserves_the_formatting_of_unchanged_text() {
     body.undo();
     assert_eq!(body.plain(), "sopratutto");
     assert!(body.text().all(7, 10, |style| style.bold).unwrap());
-}
-
-#[test]
-fn an_address_split_between_plain_and_linked_text_is_not_marked() {
-    let mut suffix = Run::plain("@example.org");
-    suffix.style.link = Some("mailto:sopratutto@example.org".into());
-    let mut prefix = Run::plain("delivery@");
-    prefix.style.link = Some("mailto:delivery@sopratutto.example".into());
-    let paragraph = Paragraph::new(vec![Run::plain("sopratutto"), suffix, Run::plain(" "), prefix, Run::plain("sopratutto.example")], ListKind::None);
-    assert!(check(&Italian, "it-IT", &paragraph).issues.is_empty());
-}
-
-#[test]
-fn typo_beside_a_link_is_still_marked() {
-    let mut link = Run::plain("https://example.org");
-    link.style.link = Some("https://example.org".into());
-    let paragraph = Paragraph::new(vec![Run::plain("sopratutto—"), link], ListKind::None);
-    let report = check(&Italian, "it-IT", &paragraph);
-    assert_eq!(report.issues.len(), 1);
-    assert_eq!(report.issues[0].span, 0..10);
-}
-
-#[test]
-fn a_url_path_with_a_dash_is_protected_across_formatting_runs() {
-    for address in ["https://example.org/a—", "WWW.example.org/a—"] {
-        let mut prefix = Run::plain(address);
-        prefix.style.link = Some("https://example.org/a".into());
-        let paragraph = Paragraph::new(vec![prefix, Run::plain("sopratutto")], ListKind::None);
-        assert!(check(&Italian, "it-IT", &paragraph).issues.is_empty(), "{address}");
-    }
-}
-
-#[test]
-fn a_typo_before_a_parenthesized_address_is_still_marked() {
-    let mut link = Run::plain("info@example.org");
-    link.style.link = Some("mailto:info@example.org".into());
-    let paragraph = Paragraph::new(vec![Run::plain("sopratutto("), link, Run::plain(")")], ListKind::None);
-    let report = check(&Italian, "it-IT", &paragraph);
-    assert_eq!(report.issues.len(), 1);
-    assert_eq!(report.issues[0].span, 0..10);
-}
-
-#[test]
-fn balanced_parentheses_in_a_url_path_are_protected() {
-    for address in ["https://example.org/a(", "www.example.org/a("] {
-        let mut prefix = Run::plain(address);
-        prefix.style.link = Some("https://example.org/a".into());
-        let paragraph = Paragraph::new(vec![prefix, Run::plain("sopratutto)")], ListKind::None);
-        assert!(check(&Italian, "it-IT", &paragraph).issues.is_empty(), "{address}");
-    }
-    let mut link = Run::plain("https://example.org");
-    link.style.link = Some("https://example.org".into());
-    let paragraph = Paragraph::new(vec![Run::plain("sopratutto("), link, Run::plain(")sopratutto")], ListKind::None);
-    let spans: Vec<_> = check(&Italian, "it-IT", &paragraph).issues.into_iter().map(|issue| issue.span).collect();
-    assert_eq!(spans, [0..10, 31..41]);
-}
-
-#[test]
-fn a_typo_before_a_comma_separated_address_is_still_marked() {
-    let mut link = Run::plain("info@example.org");
-    link.style.link = Some("mailto:info@example.org".into());
-    let paragraph = Paragraph::new(vec![Run::plain("sopratutto,"), link], ListKind::None);
-    let report = check(&Italian, "it-IT", &paragraph);
-    assert_eq!(report.issues.len(), 1);
-    assert_eq!(report.issues[0].span, 0..10);
 }
 
 #[test]

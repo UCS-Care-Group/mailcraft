@@ -6,13 +6,13 @@
 use std::ops::Range;
 
 use egui::{Context, Ui};
+use mailcraft_engine::spelling::{self, Filter};
 use mailcraft_model::rich::{OBJECT, Paragraph};
 use serde_json::json;
 
 use crate::MailApp;
 use crate::compose::editor;
 
-const MAX_PARAGRAPH_BYTES: usize = 8192;
 const REVIEW_PARAGRAPHS_PER_FRAME: usize = 8;
 pub use mailcraft_spell::{HostChecker, MAX_ISSUES};
 const MAX_SUGGESTIONS: usize = 6;
@@ -72,91 +72,13 @@ fn locale_name(tag: &str) -> String {
 }
 
 pub(crate) fn check(host: &dyn HostChecker, locale: &str, paragraph: &Paragraph) -> Checked {
-    let mut report = Checked { locale: locale.to_string(), issues: Vec::new(), available: true, partial: false };
-    let bytes: usize = paragraph.runs.iter().map(|run| run.text.len()).sum();
-    if paragraph.signature || bytes == 0 {
-        return report;
+    let report = spelling::check_paragraph(host, locale, paragraph, &Filter::default());
+    Checked {
+        locale: locale.to_string(),
+        issues: report.issues.into_iter().map(|issue| Issue { span: issue.span, word: issue.word }).collect(),
+        available: report.available,
+        partial: report.partial,
     }
-    if bytes > MAX_PARAGRAPH_BYTES {
-        report.partial = true;
-        return report;
-    }
-    let text = paragraph.text();
-    let mut input = String::with_capacity(bytes);
-    for run in &paragraph.runs {
-        if run.style.link.is_some() || run.picture.is_some() {
-            input.extend(std::iter::repeat_n(' ', run.text.len()));
-        } else {
-            input.push_str(&run.text);
-        }
-    }
-    let Some(mut ranges) = host.check(locale, &input) else {
-        report.available = false;
-        return report;
-    };
-    report.partial = ranges.len() > MAX_ISSUES;
-    ranges.truncate(MAX_ISSUES);
-    ranges.sort_unstable_by_key(|range| range.start);
-    let mut last = 0;
-    let mut offset = 0;
-    for range in ranges {
-        let Some(word) = text.get(range.clone()).filter(|word| word.chars().any(char::is_alphabetic)) else { continue };
-        if range.start < last || input.get(range.clone()) != Some(word) || word.contains(OBJECT) {
-            continue;
-        }
-        if within_address(&text, &range) {
-            continue;
-        }
-        offset += text.get(last..range.start).unwrap_or_default().chars().count();
-        let end = offset + word.chars().count();
-        report.issues.push(Issue { span: offset..end, word: word.to_string() });
-        (last, offset) = (range.end, end);
-    }
-    report
-}
-
-/// Links are masked from the provider. Use the original text to find the address itself,
-/// so a change of formatting in its middle does not unprotect the visible half.
-fn within_address(text: &str, word: &Range<usize>) -> bool {
-    let boundary = |ch: char| ch.is_whitespace() || matches!(ch, '<' | '>' | '"' | OBJECT);
-    let left = text.get(..word.start).unwrap_or_default().rsplit(boundary).next().unwrap_or_default();
-    let right = text.get(word.end..).unwrap_or_default().split(boundary).next().unwrap_or_default();
-    let start = word.start - left.len();
-    let end = word.end + right.len();
-    let Some(token) = text.get(start..end) else { return false };
-    let offset = word.start - start..word.end - start;
-    let schemes = token.match_indices("://").filter_map(|(at, _)| {
-        let prefix = token.get(..at)?;
-        let scheme = prefix.rsplit(|ch: char| !(ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))).next().unwrap_or_default();
-        scheme.as_bytes().first().is_some_and(u8::is_ascii_alphabetic).then_some(at - scheme.len())
-    });
-    let punctuation = ['—', '–', '(', ')', '[', ']', ',', ';'];
-    let web_starts = std::iter::once(0)
-        .chain(token.match_indices(punctuation).map(|(at, mark)| at + mark.len()))
-        .filter(|&at| token.get(at..at + 4).is_some_and(|prefix| prefix.eq_ignore_ascii_case("www.")));
-    if schemes.chain(web_starts).any(|at| at < offset.end && offset.start < url_end(token, at)) {
-        return true;
-    }
-
-    let email_left = left.rsplit(punctuation).next().unwrap_or_default();
-    let email_right = right.split(punctuation).next().unwrap_or_default();
-    text.get(word.start - email_left.len()..word.end + email_right.len()).is_some_and(|address| address.contains('@'))
-}
-
-/// A closing parenthesis outside the URL ends a surrounding prose parenthesis.
-/// Parentheses that open inside a URL can close within its path.
-fn url_end(token: &str, start: usize) -> usize {
-    let Some(url) = token.get(start..) else { return start };
-    let mut depth = 0usize;
-    for (at, ch) in url.char_indices() {
-        match ch {
-            '(' => depth += 1,
-            ')' if depth == 0 => return start + at,
-            ')' => depth -= 1,
-            _ => {}
-        }
-    }
-    token.len()
 }
 
 impl Suggestions {

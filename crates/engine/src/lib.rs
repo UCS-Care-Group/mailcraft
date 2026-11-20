@@ -66,6 +66,7 @@ pub mod sample;
 pub mod send_warnings;
 pub mod sender_warnings;
 mod session;
+pub mod spelling;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store;
 #[cfg(not(target_arch = "wasm32"))]
@@ -471,6 +472,8 @@ mod send_warnings_tests;
 mod sender_trust_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
+#[cfg(test)]
+mod spelling_tests;
 #[cfg(test)]
 mod strict_ids_all_tests;
 #[cfg(test)]
