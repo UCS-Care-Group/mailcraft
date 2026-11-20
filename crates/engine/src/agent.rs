@@ -281,6 +281,7 @@ const SAFE: &[&str] = &[
     "view.folderPane",
     "view.navigationBar",
     "view.conversations",
+    "view.conversationSettings",
     "view.sort",
     "view.reverseSort",
     "view.filter",

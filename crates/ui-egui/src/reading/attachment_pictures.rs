@@ -144,7 +144,7 @@ pub fn fit(size: [u32; 2], room: Vec2) -> Vec2 {
 /// brought in.
 pub(super) fn looks(app: &mut MailApp, ctx: &egui::Context, m: &Message, place: Place, files: &[(usize, &Attachment)]) -> Vec<Option<[u32; 2]>> {
     let chips = || vec![None; files.len()];
-    if !matches!(place, Place::Pane | Place::Window(_)) {
+    if !matches!(place, Place::Pane | Place::Window(_) | Place::Thread(_)) {
         return chips();
     }
     // Mail in Junk E-mail, or in a folder under it, is shown by names only: no picture is looked

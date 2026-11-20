@@ -32,6 +32,9 @@ mod backdrop_tests;
 pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
+pub(crate) mod conversation;
+#[cfg(test)]
+mod conversation_tests;
 pub(crate) mod fonts;
 #[cfg(test)]
 mod header_tests;
@@ -107,6 +110,9 @@ pub enum Place {
     Pane,
     /// A window of its own, by the window's number.
     Window(u64),
+    /// A message of the conversation stacked in the reading pane with the one selected (#1778),
+    /// by its id: each has a selection and a layout of its own, as a window has.
+    Thread(u64),
     /// Under the owner's text in a reply or forward being written: the original it carries.
     Quote,
     /// File › Signatures: a sample reply with the signature, as a recipient sees it.
@@ -179,6 +185,14 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         ui.painter().text(pos2(r.center().x, r.min.y + r.height() * 0.4), Align2::CENTER_CENTER, text, semibold(15.0), t.text_dim);
         return;
     }
+    // In conversation view, the rest of its conversation is read with it (#1778), but for a file
+    // it opens in the pane.
+    if !crate::attachment_preview::showing(app, m.id)
+        && let Some(thread) = conversation::stacked(app, m.id)
+    {
+        conversation::show(app, ui, &m, &thread);
+        return;
+    }
     show_message(app, ui, &m, Place::Pane);
 }
 
@@ -203,7 +217,6 @@ fn draft_bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
 /// One message in the room `ui` has: its header, its attachments, and its body, which scrolls.
 /// The reading pane shows the selected message with it, and a message window its own.
 pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
-    let ctx = ui.ctx().clone();
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     if crate::attachment_preview::showing(app, m.id) {
         select::begin(app, ui, m, place, false);
@@ -212,6 +225,30 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
         select::settle(app, ui, place);
         return;
     }
+    let access = above_body(app, ui, m, place, false);
+    // The body gets the part of the pane that can be seen, whatever was laid out above it: a
+    // header too wide for a narrow pane must not make the text run out of sight with it.
+    let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
+    ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
+        view::page(app, place, ui).show(ui, |ui| {
+            // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
+            egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
+                egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
+                    view::show(app, ui, m, place, access);
+                });
+            });
+        });
+    });
+    select::settle(app, ui, place);
+}
+
+/// Everything of a message above its body: its header and the bars under it (a meeting, a
+/// shared calendar, what is not downloaded yet, why it is held). What it says of the pictures on
+/// the web is what the body is to show of them. `stacked`: the message is one of its
+/// conversation's in the reading pane ([`conversation`]), whose subject and actions are said once
+/// above them all.
+fn above_body(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, stacked: bool) -> Access {
+    let ctx = ui.ctx().clone();
     // A window shows its own copy of the message: what the mailbox keeps on disk is brought in
     // here, and the window takes the whole message up at its next frame.
     if place != Place::Quote && app.session.needs_load_for_display(m.id) {
@@ -231,7 +268,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     if place == Place::Pane {
         crate::send_later::queued_bar(app, ui, m);
     }
-    header(app, ui, m, place, |app, ui, t| {
+    header_of(app, ui, m, place, stacked, |app, ui, t| {
         remote::line(app, ui, m, &doc, access, progress, place, t);
         unreadable_line(ui, m, doc.from_text, t, app.windows.len());
     });
@@ -265,20 +302,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
             });
         });
     }
-    // The body gets the part of the pane that can be seen, whatever was laid out above it: a
-    // header too wide for a narrow pane must not make the text run out of sight with it.
-    let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
-    ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
-        view::page(app, place, ui).show(ui, |ui| {
-            // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
-            egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
-                egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
-                    view::show(app, ui, m, place, access);
-                });
-            });
-        });
-    });
-    select::settle(app, ui, place);
+    access
 }
 
 /// What the reading pane says of a message of which only the headers and a preview are here.
@@ -473,6 +497,13 @@ pub(crate) fn header_date_on_own_line(row: f32, date: f32) -> bool {
 }
 
 fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictures: impl FnOnce(&mut MailApp, &mut Ui, &Tokens)) {
+    header_of(app, ui, m, place, false, pictures);
+}
+
+/// [`header`]; `stacked`: of a message stacked with the rest of its conversation in the reading
+/// pane, which says the subject, the actions and the conversation's messages once above them all,
+/// so the message's own header has none of them.
+fn header_of(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, stacked: bool, pictures: impl FnOnce(&mut MailApp, &mut Ui, &Tokens)) {
     let t = Tokens::get(ui.ctx());
     // The texts that can be selected are laid out here and painted once the pointer has had its
     // say ([`select::header`]).
@@ -486,28 +517,34 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         // What checking its Digital signature found (#30).
         signature::bar(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).
-        ui.horizontal(|ui| {
-            let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
-                if place == Place::Pane {
-                    for (icon, tip, id) in ACTIONS.iter().rev() {
-                        let sc = crate::widgets::shortcut_text(app, id);
-                        if crate::widgets::icon_button(ui, icon, &format!("{} ({sc})", tl!(tip)), 17.0, true).clicked() {
-                            let _ = app.run(id, json!({}));
-                        }
-                        // React sits between Forward and Delete (#1544).
-                        if *id == "mail.delete" {
-                            ui.push_id(("react", m.id), |ui| react::button(app, ui, m));
+        if !stacked {
+            ui.horizontal(|ui| {
+                let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
+                    if place == Place::Pane {
+                        for (icon, tip, id) in ACTIONS.iter().rev() {
+                            let sc = crate::widgets::shortcut_text(app, id);
+                            if crate::widgets::icon_button(ui, icon, &format!("{} ({sc})", tl!(tip)), 17.0, true).clicked() {
+                                let _ = app.run(id, json!({}));
+                            }
+                            // React sits between Forward and Delete (#1544).
+                            if *id == "mail.delete" {
+                                ui.push_id(("react", m.id), |ui| react::button(app, ui, m));
+                            }
                         }
                     }
-                }
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
-                    fields.add(ui, select::Field::Subject, egui::Label::new(egui::RichText::new(subject).font(semibold(17.0)).color(t.text)).wrap());
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                        fields.add(
+                            ui,
+                            select::Field::Subject,
+                            egui::Label::new(egui::RichText::new(subject).font(semibold(17.0)).color(t.text)).wrap(),
+                        );
+                    });
                 });
             });
-        });
-        ui.add_space(4.0);
+            ui.add_space(4.0);
+        }
         // Who and when.
         ui.horizontal(|ui| {
             let (r, _) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::hover());
@@ -613,7 +650,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                 line(ui, select::Field::Bcc, tl!("Bcc: {names}"), &m.bcc);
             });
         });
-        notes(app, ui, m, &t, pictures);
+        notes(app, ui, m, &t, stacked, pictures);
         attachments(app, ui, m, place, &t);
     });
     select::header(app, ui, place, fields, around.response.rect);
@@ -623,7 +660,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
 
 /// Info lines under the header: the flag, importance, what was done with the message, its
 /// pictures on the web (`pictures` lays that line out), categories.
-fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures: impl FnOnce(&mut MailApp, &mut Ui, &Tokens)) {
+fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, stacked: bool, pictures: impl FnOnce(&mut MailApp, &mut Ui, &Tokens)) {
     let mut lines: Vec<(&str, String)> = Vec::new();
     match m.flag {
         FlagStatus::Flagged => {
@@ -666,9 +703,9 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
         }
     }
     gmail_labels(app, ui, m);
-    // The rest of the conversation, to jump to.
+    // The rest of the conversation, to jump to; stacked, it is all on screen already.
     // (Worked out once per change to the mailbox, not at every frame.)
-    let thread = app.session.conversation(m.id);
+    let thread = if stacked { Arc::default() } else { app.session.conversation(m.id) };
     if thread.len() > 1 {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(8.0, 6.0);

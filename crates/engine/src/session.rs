@@ -285,6 +285,11 @@ pub struct ViewState {
     pub sort_descending: bool,
     /// Show messages grouped into conversations.
     pub conversations: bool,
+    /// In conversation view, the reading pane shows the selected message's whole conversation,
+    /// one message under another, as Gmail does (`view.conversationSettings`, #1778): beyond what
+    /// Outlook does, so off unless the owner turns it on. Off: the selected message alone, with a
+    /// line of the conversation's other messages to go to.
+    pub whole_conversation: bool,
     /// The conversations opened in the list (#503), each by its account and its key
     /// ([`Session::threads`], #795): their messages are listed under their rows. Another folder, tab
     /// or search starts with all of them closed. Not kept with the view's settings, which would
@@ -346,6 +351,7 @@ impl Default for ViewState {
             sort: SortBy::Date,
             sort_descending: true,
             conversations: false,
+            whole_conversation: false,
             open: Vec::new(),
             filter: Filter::All,
             gmail: None,

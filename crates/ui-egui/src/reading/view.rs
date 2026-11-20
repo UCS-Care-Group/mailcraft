@@ -315,7 +315,7 @@ impl Store {
                 self.entries.retain(|e| e.place != place || e.message.id != message.id || message.id == 0);
                 let (kept, room) = match place {
                     Place::Pane => (self.entries.iter().filter(|e| e.place == Place::Pane).count(), KEPT),
-                    Place::Window(_) | Place::Quote | Place::Preview => {
+                    Place::Window(_) | Place::Thread(_) | Place::Quote | Place::Preview => {
                         // A window shows one message, and a window that is gone shows none.
                         self.entries.retain(|e| e.place == Place::Pane || (e.place != place && e.used.saturating_add(2) >= frame));
                         (self.entries.iter().filter(|e| e.place != Place::Pane).count(), KEPT_IN_WINDOWS)
@@ -455,6 +455,14 @@ pub fn doc_shown(ctx: &egui::Context, message: &Arc<Message>, place: Place, can_
 /// it runs. Pictures from the web are shown when `access` says the owner asked for them, as far
 /// as they have come.
 pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access) {
+    show_in(app, ui, message, place, access, false);
+}
+
+/// [`show`] for a body stacked with others of its conversation in one scrolling column
+/// (`stacked`): the pointer is sensed over the part of it that is in view, not over all the room
+/// in view as for a body that has the pane to itself, so that each body of the column, and the
+/// rows between them, have the pointer to themselves.
+pub fn show_in(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access, stacked: bool) {
     let ctx = ui.ctx().clone();
     let light = on_light_page(app, place);
     let t = if light { Tokens::light() } else { Tokens::get(&ctx) };
@@ -463,7 +471,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let width = ((ui.available_width().min(super::MAX_TEXT_WIDTH) / WIDTH_STEP).floor() * WIDTH_STEP).max(1.0);
     // Links whose text names one place and which go to another wear a mark (#508); not in a
     // quote or a preview, which are the owner's own.
-    let flagged = if matches!(place, Place::Pane | Place::Window(_)) { super::warnings::mismatched(app, message) } else { Vec::new() };
+    let flagged =
+        if matches!(place, Place::Pane | Place::Window(_) | Place::Thread(_)) { super::warnings::mismatched(app, message) } else { Vec::new() };
     let store = Store::of(&ctx);
     let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
     #[cfg(test)]
@@ -493,7 +502,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let mut pictures = pictures.lock().unwrap_or_else(|e| e.into_inner());
     let showing = access == Access::Allowed && !entry.doc.remote.is_empty();
     // The zoom is the owner's for the message being read (`view.zoom`), not for a quote or a preview.
-    let zoom = if matches!(place, Place::Pane | Place::Window(_)) { f32::from(app.session.prefs.zoom_percent()) / 100.0 } else { 1.0 };
+    let zoom =
+        if matches!(place, Place::Pane | Place::Window(_) | Place::Thread(_)) { f32::from(app.session.prefs.zoom_percent()) / 100.0 } else { 1.0 };
     let key = Key {
         width: width as u32,
         zoom: zoom.to_bits(),
@@ -557,7 +567,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let mut state = app.text_selection.state(place);
     // A copy that waited for the layout to be whole is due now.
     let due = state.as_deref_mut().and_then(|state| state.bind(&entry.doc, entry.laid.done));
-    let (origin, asked) = paint(ui, &entry.laid, &t, access, state, &flagged);
+    let (origin, asked) = paint(ui, &entry.laid, &t, access, state, &flagged, stacked);
     #[cfg(test)]
     {
         entry.origin = origin;
@@ -603,7 +613,7 @@ fn wheel_zoom(app: &mut MailApp, ui: &Ui) {
 /// window's theme: the owner asked for it, and it is a message being read (not the original
 /// under a reply being written, nor File › Signatures' sample).
 pub fn on_light_page(app: &MailApp, place: Place) -> bool {
-    app.ui.light_messages && matches!(place, Place::Pane | Place::Window(_))
+    app.ui.light_messages && matches!(place, Place::Pane | Place::Window(_) | Place::Thread(_))
 }
 
 /// What the body scrolls on: the light theme's page when [`on_light_page`] (the edges of the
@@ -693,6 +703,7 @@ pub fn paint(
     access: Access,
     mut state: Option<&mut select::PlaceState>,
     flagged: &[String],
+    stacked: bool,
 ) -> (egui::Pos2, Option<Action>) {
     let (area, _) = ui.allocate_exact_size(vec2(laid.size.x.max(1.0), laid.size.y.max(1.0)), Sense::hover());
     let origin = area.min.to_vec2();
@@ -700,7 +711,10 @@ pub fn paint(
     let ctx = ui.ctx().clone();
     // The pointer is sensed over all of the body that is in view, its margins and the room under
     // a short message too: a drag that selects begins and ends wherever the pointer happens to be.
-    let response = ui.interact(clip, ui.scope_id().with("body"), select::sense(ui));
+    // A body stacked with others of its conversation shares the room in view with them, and
+    // senses over itself alone ([`show_in`]).
+    let sensed = if stacked { area.intersect(clip) } else { clip };
+    let response = ui.interact(sensed, ui.scope_id().with("body"), select::sense(ui));
     if let Some(state) = state.as_deref_mut() {
         select::body(ui, &response, laid, area.min, state);
     }
