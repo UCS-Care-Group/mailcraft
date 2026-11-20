@@ -255,6 +255,12 @@ struct Script {
     answers_unasked: Option<&'static str>,
     /// Every page of the main list names the same hundred items.
     same_ids: bool,
+    /// What an item answered "busy" inside a `$batch` gives as its own `Retry-After`.
+    item_wait: Option<&'static str>,
+    /// Set once the first item was changed by a request of its own: the owner stops the run there.
+    stop: Option<Arc<AtomicBool>>,
+    /// Each request made for one item by itself: the method and the id.
+    singly: Vec<(String, String)>,
     /// The ids that were changed.
     changed: Vec<String>,
     /// Each change that was asked for: the id and the body.
@@ -316,7 +322,11 @@ fn scripted(script: &Arc<std::sync::Mutex<Script>>) -> crate::fake::FakeHttp {
                         }
                         let status = script.read_status.iter().find(|(have, _)| *have == id).map_or(200, |(_, status)| *status);
                         let body = script.read_body.iter().find(|(have, _)| *have == id).map_or_else(|| item(&id), |(_, body)| body.clone());
-                        responses.push(json!({"id": one["id"], "status": status, "body": if status == 200 { body } else { json!({}) }}));
+                        let mut response = json!({"id": one["id"], "status": status, "body": if status == 200 { body } else { json!({}) }});
+                        if let Some(wait) = script.item_wait.filter(|_| status == 429) {
+                            response["headers"] = json!({"retry-after": wait});
+                        }
+                        responses.push(response);
                         continue;
                     }
                     assert_eq!(one["method"], "PATCH");
@@ -332,12 +342,28 @@ fn scripted(script: &Arc<std::sync::Mutex<Script>>) -> crate::fake::FakeHttp {
                     if status == 200 {
                         script.changed.push(id);
                     }
-                    responses.push(json!({"id": one["id"], "status": status, "body": {}}));
+                    let mut response = json!({"id": one["id"], "status": status, "body": {}});
+                    if let Some(wait) = script.item_wait.filter(|_| status == 429) {
+                        response["headers"] = json!({"Retry-After": wait});
+                    }
+                    responses.push(response);
                 }
                 if let Some(place) = script.answers_unasked.filter(|_| body.contains("\"PATCH\"")) {
                     responses.push(json!({"id": place, "status": 200, "body": {}}));
                 }
                 crate::fake::json_answer("200 OK", &json!({"responses": responses}).to_string())
+            }
+            // One item by itself, for a server that takes no batch.
+            (method @ ("GET" | "PATCH"), path) if path.starts_with("/v1.0/me/events/") => {
+                let id = path.rsplit('/').next().unwrap_or("").to_string();
+                script.singly.push((method.to_string(), id.clone()));
+                if method == "PATCH" {
+                    script.changed.push(id.clone());
+                    if let Some(stop) = &script.stop {
+                        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
+                answer(0, item(&id))
             }
             _ => status_line(404),
         }
@@ -684,4 +710,51 @@ fn an_item_the_server_lists_many_times_is_changed_once() {
     let (came, changed) = scripted_run(Script { pages: 3, same_ids: true, ..Default::default() }, false);
     assert_eq!((came.done, came.changed), (true, 100), "{came:?}");
     assert_eq!(changed.len(), 100);
+}
+
+/// A rename of the events of both lists against `script`, with everything the run says.
+fn scripted_outcome(script: Script, cancel: Option<&AtomicBool>) -> (super::recategorize::Outcome, Script) {
+    let script = Arc::new(std::sync::Mutex::new(script));
+    let server = scripted(&script);
+    let graph = super::Graph::at(&server.url(""), TOKEN).unwrap();
+    let lists = vec!["/v1.0/me/calendar/events".to_string(), "/v1.0/me/calendars/other/events".to_string()];
+    let items = super::recategorize::Items { lists, item: "/me/events/".into() };
+    let came = super::recategorize::rename(&graph, &items, &rename("Holiday", "Holiday 2026"), cancel, &mut |_, _| {});
+    let script = std::mem::take(&mut *script.lock().unwrap());
+    (came, script)
+}
+
+#[test]
+fn an_item_of_a_batch_that_says_how_long_to_wait_is_heeded() {
+    // Its change is put off for two minutes; the other one's goes through and is counted.
+    let (came, script) = scripted_outcome(Script { item_status: vec![("o1", 429)], item_wait: Some("120"), ..Default::default() }, None);
+    assert_eq!(came.busy_for, Some(120));
+    assert_eq!((came.renamed.done, came.renamed.changed, came.renamed.failed), (false, 1, false), "{:?}", came.renamed);
+    assert_eq!(script.changed, ["m1"]);
+    // The same said of its read (the header's name in small letters): it isn't written.
+    let (came, script) = scripted_outcome(Script { read_status: vec![("o1", 429)], item_wait: Some("90"), ..Default::default() }, None);
+    assert_eq!(came.busy_for, Some(90));
+    assert_eq!((came.renamed.done, came.renamed.changed), (false, 1), "{:?}", came.renamed);
+    assert_eq!(script.written.len(), 1);
+    // One that names no time is busy all the same.
+    let (came, _) = scripted_outcome(Script { every_item: 429, ..Default::default() }, None);
+    assert_eq!((came.busy_for, came.renamed.done, came.renamed.changed), (Some(0), false, 0));
+    // What isn't a time is none.
+    let (came, _) = scripted_outcome(Script { every_item: 429, item_wait: Some("soon"), ..Default::default() }, None);
+    assert_eq!(came.busy_for, Some(0));
+}
+
+#[test]
+fn a_run_stopped_while_items_are_changed_one_at_a_time_asks_nothing_more() {
+    // The server takes no batch, and the owner stops the run as the first item is changed.
+    let stop = Arc::new(AtomicBool::new(false));
+    let (came, script) = scripted_outcome(Script { batch_status: 400, stop: Some(stop.clone()), ..Default::default() }, Some(&stop));
+    let singly: Vec<(&str, &str)> = script.singly.iter().map(|(method, id)| (method.as_str(), id.as_str())).collect();
+    assert_eq!(singly, [("GET", "m1"), ("PATCH", "m1")], "the second item was asked for after the run was stopped");
+    assert!(came.stopped, "a rename cut short by the owner wasn't said to be stopped");
+    assert_eq!((came.renamed.done, came.renamed.changed, came.renamed.stuck), (false, 1, 0), "{:?}", came.renamed);
+    // Not stopped: both are changed, and the run isn't said to be stopped.
+    let (came, script) = scripted_outcome(Script { batch_status: 400, ..Default::default() }, None);
+    assert!(!came.stopped && came.renamed.done && came.renamed.changed == 2, "{:?}", came.renamed);
+    assert_eq!(script.singly.len(), 4);
 }

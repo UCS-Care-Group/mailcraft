@@ -113,7 +113,9 @@ computer, for you, and for nothing else:
   or give another colour here (one of Outlook's 25) is made, deleted or recoloured in your Microsoft
   account, and a renamed one is made under its new name, given to your mail, events and to-dos there, and
   the old one deleted (your account is asked which of your mail and events carry the old name, by that
-  name, so that those MailCraft doesn't keep on this computer get the new one as well). Only your automatic
+  name, so that those MailCraft doesn't keep on this computer get the new one as well: mail in every folder,
+  and events in your main calendar and up to 64 more calendars of your own that you may change, not a
+  single occurrence of a series that lies outside the days kept here). Only your automatic
   replies, your rules and your categories are changed with it, never your working hours or other settings.
   A category kept on this computer only is not put on that list, but mail, events and to-dos you give it
   still carry its name to your account's server, as they always did;

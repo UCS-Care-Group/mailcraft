@@ -19,7 +19,7 @@
 //!   the lists were read stays (a change of a message's categories reads them just before it
 //!   writes them too, `mail/up.rs`). No `If-Match` is sent: "Update message" and "Update event"
 //!   name no such header. An item that no longer carries the old name is not written. One
-//!   request at a time from a server that takes no batch. At most [`MAX_RENAMED_ITEMS`] a run.
+//!   request at a time from a server that takes no batch, none of them after the owner stopped the run. At most [`MAX_RENAMED_ITEMS`] a run.
 //! - **What comes back** ([`CategoryRenamed`]): `done` once the lists were read to their ends and
 //!   every item was answered for good (or a run's fill was listed and none of it could be
 //!   changed: `more`). An item the server puts off (408, 409, 412, 5xx: counted as
@@ -46,6 +46,7 @@ use mailcraft_model::remote::{CategoryRename, CategoryRenamed, MAX_RENAMED_ITEMS
 use mailcraft_model::sync::same_category;
 use serde_json::{Value, json};
 
+use super::favorites::header;
 use super::pace::Kind;
 use super::tasks::valid_id;
 use super::{
@@ -349,15 +350,16 @@ pub(super) fn rename(
             (later, out.stopped) = (true, true);
             break;
         }
-        let answers = if single { one_by_one(graph, items, chunk, &rename) } else { batch(graph, items, chunk, &rename) };
+        let answers = if single { Err(None) } else { batch(graph, items, chunk, &rename) };
         let answers = match answers {
             Ok(answers) => answers,
             // A server that takes no batch: one at a time from here on.
-            Err(None) if !single => {
+            Err(None) => {
                 single = true;
-                one_by_one(graph, items, chunk, &rename).unwrap_or_else(|_| vec![Said::Stuck; chunk.len()])
+                let (answers, cut) = one_by_one(graph, items, chunk, &rename, &stopped);
+                out.stopped |= cut;
+                answers
             }
-            Err(None) => vec![Said::Stuck; chunk.len()],
             Err(Some(said)) => vec![said; chunk.len()],
         };
         for (item, said) in chunk.iter().zip(answers) {
@@ -386,7 +388,7 @@ pub(super) fn rename(
                 }
             }
         }
-        if out.busy_for.is_some() || out.token_refused {
+        if out.busy_for.is_some() || out.token_refused || out.stopped {
             later = true;
             break 'chunks;
         }
@@ -422,10 +424,15 @@ fn sub_headers(graph: &Graph<'_>, write: bool) -> Value {
     headers
 }
 
-/// One `POST /v1.0/$batch` of `requests`, each with its place in the chunk as its id: the status
-/// and the body of each one that was answered. `Err(None)`: the server takes no batch;
+/// What one request of a batch was answered with: the status, the body, and how long the server
+/// asked to be left alone (its own `Retry-After`: "Microsoft Graph throttling guidance" has each
+/// throttled request of a batch answered 429 with one).
+type Answer = (u16, Value, Option<u32>);
+
+/// One `POST /v1.0/$batch` of `requests`, each with its place in the chunk as its id: the answer
+/// of each one that was answered. `Err(None)`: the server takes no batch;
 /// `Err(Some(said))`: what became of all of them at once.
-fn batch_of(graph: &Graph<'_>, kind: Kind, requests: Vec<Value>, slots: usize) -> Result<Vec<Option<(u16, Value)>>, Option<Said>> {
+fn batch_of(graph: &Graph<'_>, kind: Kind, requests: Vec<Value>, slots: usize) -> Result<Vec<Option<Answer>>, Option<Said>> {
     let body = json!({"requests": requests}).to_string();
     let patience = if matches!(kind, Kind::Read) { ASK_TIMEOUT } else { WRITE_TIMEOUT };
     let reply = match graph.call(kind, &graph.url(BATCH), "POST", &[("Content-Type", "application/json")], Some(&body), patience, MAX_BATCH) {
@@ -445,14 +452,16 @@ fn batch_of(graph: &Graph<'_>, kind: Kind, requests: Vec<Value>, slots: usize) -
         _ => return Err(None),
     }
     let mut json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-    let mut came: Vec<Option<(u16, Value)>> = vec![None; slots];
+    let mut came: Vec<Option<Answer>> = vec![None; slots];
+    let now = mailcraft_time::now();
     let mut answered = false;
     if let Some(responses) = json.get_mut("responses").and_then(Value::as_array_mut) {
         for one in responses.iter_mut().take(BATCH_SIZE * 2) {
             let n = one.get("id").and_then(Value::as_str).and_then(|n| n.parse::<usize>().ok());
             let status = one.get("status").and_then(Value::as_u64).and_then(|s| u16::try_from(s).ok());
             if let (Some(slot), Some(status)) = (n.and_then(|n| came.get_mut(n)), status) {
-                *slot = Some((status, one.get_mut("body").map(Value::take).unwrap_or(Value::Null)));
+                let wait = wait_of(header(one, "Retry-After"), now);
+                *slot = Some((status, one.get_mut("body").map(Value::take).unwrap_or(Value::Null), wait));
                 answered = true;
             }
         }
@@ -484,8 +493,8 @@ fn batch(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRena
     let mut writes: Vec<Value> = Vec::new();
     let mut written: Vec<usize> = Vec::new();
     for (n, (item, came)) in chunk.iter().zip(batch_of(graph, Kind::Read, reads, chunk.len())?).enumerate() {
-        let Some((status, body)) = came else { continue };
-        match fresh_of(status, &body, None, rename) {
+        let Some((status, body, wait)) = came else { continue };
+        match fresh_of(status, &body, wait, rename) {
             Ok(categories) => {
                 let url = format!("{}{}", items.item, http::encode(&item.id));
                 writes.push(json!({
@@ -507,8 +516,8 @@ fn batch(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRena
         Ok(came) => {
             // (Only for what was asked: an answer for one that wasn't written says nothing of it.)
             for n in written {
-                if let (Some(slot), Some(Some((status, _)))) = (said.get_mut(n), came.get(n)) {
-                    *slot = said_of(*status, None);
+                if let (Some(slot), Some(Some((status, _, wait)))) = (said.get_mut(n), came.get(n)) {
+                    *slot = said_of(*status, *wait);
                 }
             }
         }
@@ -527,12 +536,18 @@ fn batch(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRena
     Ok(said)
 }
 
-/// The same, one request each: the read, then the change.
-fn one_by_one(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRename) -> Result<Vec<Said>, Option<Said>> {
+/// The same, one request each: the read, then the change. Nothing more is asked once the owner
+/// stopped the run (`stopped`, looked at before each request): the rest waits for a later run,
+/// and the second of the pair says so.
+fn one_by_one(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRename, stopped: &dyn Fn() -> bool) -> (Vec<Said>, bool) {
     let query = read_query();
     let now = mailcraft_time::now;
     let mut said = Vec::with_capacity(chunk.len());
     for item in chunk {
+        if stopped() {
+            said.resize(chunk.len(), Said::Later);
+            return (said, true);
+        }
         let path = format!("/v1.0{}{}", items.item, http::encode(&item.id));
         let read = match graph.call(Kind::Read, &graph.url(&format!("{path}?{query}")), "GET", &[], None, ASK_TIMEOUT, MAX_WRITTEN) {
             Ok(reply) => {
@@ -544,6 +559,11 @@ fn one_by_one(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &Categor
             Err(_) => Err(Said::Stuck),
         };
         let one = match read {
+            // (Stopped while the item was read: it isn't written, and waits.)
+            Ok(_) if stopped() => {
+                said.resize(chunk.len(), Said::Later);
+                return (said, true);
+            }
             Ok(categories) => {
                 let body = json!({"categories": categories}).to_string();
                 let headers = [("Content-Type", "application/json")];
@@ -563,5 +583,5 @@ fn one_by_one(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &Categor
             break;
         }
     }
-    Ok(said)
+    (said, false)
 }
