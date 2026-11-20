@@ -331,6 +331,29 @@ fn an_indented_paragraph_is_a_left_margin_and_comes_back_at_its_level() {
     assert_eq!(levels("<div style=\"padding-left:12px\">a</div><div style=\"margin-left:.5in\">b</div>"), [0, 1]);
 }
 
+/// An indented paragraph that is centred or right is written in its margins with `text-align`
+/// on its own `<div>`, and comes back with both (#580, #1658).
+#[test]
+fn an_indented_aligned_paragraph_keeps_its_indent_and_its_alignment() {
+    let t = RichText::from_paragraphs(vec![
+        aligned("in", Align::Center).at_level(1),
+        aligned("further", Align::Right).at_level(2),
+        aligned("back", Align::Left),
+    ]);
+    let html = to_html(&t);
+    let step = "<div style=\"margin-left:40px\">";
+    assert!(
+        html.starts_with(&format!(
+            "{step}<div style=\"text-align:center\">in</div></div>\r\n{step}{step}<div style=\"text-align:right\">further</div></div></div>\r\n"
+        )),
+        "{html}"
+    );
+    assert_in_set(&html);
+    assert_eq!(from_html(&to_html_document(&t, None)), t);
+    let back = from_html("<div style=\"margin-left:40px\"><div style=\"margin-left:40px;text-align:right\">a</div></div>");
+    assert_eq!(back.paragraphs().iter().map(|p| (p.level, p.align)).collect::<Vec<_>>(), [(2, Align::Right)]);
+}
+
 fn arb_style() -> impl Strategy<Value = Style> {
     (
         any::<bool>(),

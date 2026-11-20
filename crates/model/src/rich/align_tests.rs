@@ -296,3 +296,33 @@ fn aligning_the_selection_is_one_undo_step_and_clear_formatting_makes_it_left() 
     assert!(b.undo());
     assert_eq!(b.text().align_at(0), Right);
 }
+
+/// An ordinary paragraph can be indented (#1658) and aligned at once: Increase Indent keeps its
+/// alignment and aligning keeps its indent, a line typed after it has both, an indented centred
+/// paragraph pasted on an empty line gives it both, and Clear All Formatting takes both away.
+#[test]
+fn an_indented_paragraph_keeps_its_alignment_and_an_aligned_one_its_indent() {
+    let shape = |b: &RichBody| b.text().paragraphs().iter().map(|p| (p.level, p.align)).collect::<Vec<_>>();
+    let mut b = RichBody::from_plain("Avery\nLumen");
+    b.select(0, 0).unwrap();
+    b.set_align(Center).unwrap();
+    assert!(b.indent(1).unwrap());
+    assert_eq!(shape(&b), [(1, Center), (0, Left)]);
+    b.set_align(Right).unwrap();
+    assert_eq!(shape(&b), [(1, Right), (0, Left)]);
+    b.select(5, 5).unwrap();
+    b.type_text("\n").unwrap();
+    assert_eq!(shape(&b), [(1, Right), (1, Right), (0, Left)]);
+    check(b.text());
+
+    let copied = b.text().slice(0, 5).unwrap();
+    let mut empty = RichBody::from_plain("");
+    empty.paste(&copied).unwrap();
+    assert_eq!(shape(&empty), [(1, Right)]);
+    assert!(empty.text().has_formatting());
+
+    b.select(0, b.text().len()).unwrap();
+    b.clear_formatting().unwrap();
+    assert_eq!(shape(&b), [(0, Left), (0, Left), (0, Left)]);
+    check(b.text());
+}
