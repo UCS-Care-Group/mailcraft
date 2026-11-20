@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-07 · **Change:** minor · **Status:** releases v0.1.0 to v0.13.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-16 · **Change:** minor · **Status:** releases v0.1.0 to v0.13.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 This file is MailCraft's release recipe. The scripts in `packaging/` are WordCraft's with MailCraft's
 names, and differ from them only where the program does (what it opens, its description, its
@@ -263,6 +263,10 @@ GitHub's command line (`gh attestation verify <file> -R UCS-Care-Group/mailcraft
 online).
 ## The Android release
 
+**Off for now (since 0.14.0):** `release.yml`'s `android` and `android-e2e` jobs don't run, so a
+release has no APK and nothing goes to Google Play. Android CI on pull requests is unchanged. What
+follows is how it works when the jobs are turned back on.
+
 The same version tag builds the Android app (`.github/workflows/android.yml`, called from
 `release.yml` beside `package.yml`). It has the desktop's shape:
 
@@ -434,6 +438,9 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-11-16 | MB4.2: the Android release (signed APK in the release, signed AAB to Play's internal track with our own uploader, `cargo xtask play-upload`, which `cargo xtask workflows` lets run beside the Play key alone), its secrets, each version and release candidate its own rising Android version code (`cargo xtask version-code`), and platform markers on release-note fragments |
+| 2026-11-16 | Tagging a merge commit on its pull request's `ci-ok` holds for a pull request that ran the whole suite (the release's always does); otherwise wait for CI on `main` |
+| 2026-11-15 | Releases published: twenty-two, v0.1.0 to v0.13.0 |
 | 2026-11-07 | AU3-04: release programs are built in jobs without signing material and handed on by digest; the jobs that sign never run cargo or a built program, the programs are run in check jobs without secrets, the checksums are signed with OpenSSL, and `cargo xtask workflows` checks the shape |
 | 2026-11-06 | Pull requests leave status lines alone; the release pull request sets each one from the rows it joins in |
 | 2026-11-04 | The rows of the documents' revision histories and of the progress log are fragments, `docs/log.d/<document>/{revisions,progress}/<name>.md`, joined into their tables by `cargo xtask docs-log --write` in the release's pull request, beside the release notes' |
