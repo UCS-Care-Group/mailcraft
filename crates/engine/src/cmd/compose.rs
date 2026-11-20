@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
+use mailcraft_html::{AuthoredFragment, AuthoredScope};
 use mailcraft_mime_model::rich::{Img, to_html_with};
-use mailcraft_model::rich::RichText;
+use mailcraft_model::draft_signature::DraftSignature;
+use mailcraft_model::rich::{Paragraph, RichText};
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, DraftKind, DraftOf, DraftState, MAX_CHECK_NAMES, MAX_RESOLVE_PEOPLE, ServerDraft};
 use mailcraft_model::{
@@ -1052,7 +1054,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
     // The pictures the owner put in the text come back where they were (#547), once each, checked
     // as a new one is; they are the text's, no longer attachments.
     let mut pictures: Vec<Picture> = Vec::new();
-    let rich = own_html.as_deref().map(|html| {
+    let mut read = |html: &str| {
         mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img| {
             let id: u32 = img.cid.strip_prefix(PICTURE_CID)?.split('.').next()?.parse().ok()?;
             if pictures.iter().any(|p| p.id == id) {
@@ -1062,6 +1064,27 @@ fn reopened(s: &Session, m: &Message) -> Compose {
             let picture = mailcraft_model::pictures::take(&pictures, id, &a.name, a.data.to_vec(), &img.alt, img.width)?;
             pictures.push(picture);
             Some(id)
+        })
+    };
+    // The HTML signature it was saved with comes back in its place while the draft still holds it
+    // as it was saved; else the draft opens as it always has, with no signature.
+    let (rich, restored) = match (own_html.as_deref(), own_html.as_deref().and_then(|html| saved_signature(m, html))) {
+        (Some(html), Some((at, snapshot))) => match with_signature(&mut read, html, at, snapshot) {
+            Some(text) => (Some(text), Some(snapshot)),
+            None => (Some(read(html)), None),
+        },
+        (Some(html), None) => (Some(read(html)), None),
+        (None, _) => (None, None),
+    };
+    let signature = rich.as_ref().zip(restored).and_then(|(text, snapshot)| {
+        let sig = snapshot.signature();
+        Some(InsertedSignature {
+            name: sig.name.clone(),
+            layout: sig.layout,
+            pictures: sig.pictures().to_vec(),
+            text: text.signature()?,
+            html: sig.html().map(str::to_string),
+            as_text: false,
         })
     });
     let taken: Vec<String> = pictures
@@ -1075,6 +1098,11 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         None => m.attachments.clone(),
     };
     let attachments: Vec<Attachment> = attachments.into_iter().filter(|a| !taken.contains(&a.content_id)).collect();
+    // The signature's pictures are its own again, no longer files of the message.
+    let attachments: Vec<Attachment> = match restored.filter(|_| signature.is_some()) {
+        Some(snapshot) => attachments.into_iter().filter(|a| !(a.inline && snapshot.content_ids().contains(&a.content_id))).collect(),
+        None => attachments,
+    };
     Compose {
         account: m.account,
         // From the sender address it was from, while the account still has it (#797).
@@ -1101,8 +1129,297 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         send_at: m.send_at,
         in_reply_to: m.in_reply_to.clone(),
         references: m.references.clone(),
+        signature,
         ..Default::default()
     }
+}
+
+/// Where in `own_html` (a draft's HTML above any original quoted under it) the HTML signature the
+/// draft was saved with is, and the snapshot of it the draft keeps ([`Message::draft_signature`]),
+/// only while the draft still holds that signature as it was saved: it is a draft, its HTML holds
+/// the snapshot's fragment exactly once, and under each of the snapshot's Content-IDs is exactly
+/// one inline part, with that picture's own type and bytes. The snapshot is data, not authority: otherwise the
+/// draft was changed, and it opens with no signature. The account's signatures are never asked.
+fn saved_signature<'m>(m: &'m Message, own_html: &str) -> Option<(usize, &'m DraftSignature)> {
+    let snapshot = m.draft_signature.as_ref().filter(|_| m.draft)?;
+    let rendered = snapshot.rendered();
+    let whole = m.body.html.as_deref()?;
+    if rendered.is_empty() || whole.match_indices(rendered).nth(1).is_some() {
+        return None;
+    }
+    let at = active_signature_at(own_html, rendered)?;
+    let pictures = snapshot.signature().pictures();
+    let parts = pictures.len() == snapshot.content_ids().len()
+        && pictures.iter().zip(snapshot.content_ids()).all(|(p, id)| {
+            // With two parts under one Content-ID, which is the signature's can't be told, and
+            // taking them back as its pictures would drop the other.
+            let mut under = m.attachments.iter().filter(|a| a.inline && a.content_id == *id);
+            under.next().is_some_and(|a| a.mime == p.mime && a.data.as_slice() == p.data.as_slice()) && under.next().is_none()
+        });
+    parts.then_some((at, snapshot))
+}
+
+/// The most elements the locator follows open before and in the fragment: past it, the draft
+/// reopens as ordinary text and keeps every inline part. MailCraft's own writers emit balanced
+/// markup, so only a draft written elsewhere comes near it.
+const MAX_OPEN_ELEMENTS: usize = 256;
+
+/// Locate a complete, balanced fragment at active tag boundaries, not inside an attribute,
+/// comment, raw text or an inert element. This is deliberately conservative: uncertain markup
+/// reopens as ordinary draft text and keeps every inline part. Older unwrapped fragments may
+/// contain several balanced elements, so no particular wrapper class or tag is required; one must
+/// begin with an element (one that begins with text reopens as ordinary text).
+fn active_signature_at(html: &str, rendered: &str) -> Option<usize> {
+    if html.len() > mailcraft_html::MAX_INPUT {
+        return None;
+    }
+    let at = html.find(rendered)?;
+    let end = at.checked_add(rendered.len())?;
+    let leading = rendered.find('<')?;
+    if !rendered.get(..leading)?.bytes().all(|c| c.is_ascii_whitespace()) {
+        return None;
+    }
+    let start = at.checked_add(leading)?;
+    let lower = html.to_ascii_lowercase();
+    let mut pos = 0usize;
+    let mut stack: Vec<&str> = Vec::new();
+    let mut depth = None;
+    const VOID: &[&str] = &[
+        "area", "base", "basefont", "bgsound", "br", "col", "embed", "frame", "hr", "image", "img", "input", "isindex", "keygen", "link", "meta",
+        "param", "source", "track", "wbr",
+    ];
+    const RAW: &[&str] = &["script", "style", "title", "iframe", "noembed", "noframes", "textarea", "xmp"];
+    const INERT: &[&str] = &[
+        "head",
+        "template",
+        "svg",
+        "math",
+        "noscript",
+        "object",
+        "applet",
+        "button",
+        "select",
+        "frameset",
+        "datalist",
+        "option",
+        "optgroup",
+        "plaintext",
+    ];
+    while pos < end {
+        let lt = pos.checked_add(lower.get(pos..)?.find('<')?)?;
+        if depth.is_none() && lt > start {
+            return None;
+        }
+        let tail = lower.get(lt..)?;
+        if tail.starts_with("<!--") {
+            let after = lt.checked_add(4)?;
+            let body = lower.get(after..)?;
+            let skip = if body.starts_with('>') {
+                1
+            } else if body.starts_with("->") {
+                2
+            } else {
+                // A single pass, so repeated comments don't repeatedly search the remaining HTML.
+                let bytes = body.as_bytes();
+                let (stop, size) = bytes.windows(3).enumerate().find_map(|(p, part)| {
+                    if part == b"-->" {
+                        Some((p, 3usize))
+                    } else if part == b"--!" && bytes.get(p.saturating_add(3)) == Some(&b'>') {
+                        Some((p, 4usize))
+                    } else {
+                        None
+                    }
+                })?;
+                stop.checked_add(size)?
+            };
+            pos = after.checked_add(skip)?;
+            continue;
+        }
+        let (name, close, next) = signature_tag(&lower, lt)?;
+        if name.is_empty() {
+            pos = next;
+            continue;
+        }
+        if lt == start {
+            if close || INERT.contains(&name) || RAW.contains(&name) || stack.iter().any(|name| INERT.contains(name) || RAW.contains(name)) {
+                return None;
+            }
+            depth = Some(stack.len());
+        }
+        if next > end && depth.is_some() {
+            return None;
+        }
+        if close {
+            if depth.is_some() {
+                // The fragment itself must be balanced, even when surrounding draft markup isn't.
+                if stack.pop()? != name {
+                    return None;
+                }
+            } else if let Some(at) = stack.iter().rposition(|open| *open == name)
+                && !stack.iter().skip(at.saturating_add(1)).any(|open| INERT.contains(open) || RAW.contains(open))
+            {
+                // A harmless unknown tag before the signature needn't have an explicit end.
+                // Never let a mismatched close reach out of an inert/raw-text boundary.
+                stack.truncate(at);
+            }
+        } else if !VOID.contains(&name) {
+            if stack.len() >= MAX_OPEN_ELEMENTS {
+                return None;
+            }
+            stack.push(name);
+        }
+        pos = next;
+        if !close && RAW.contains(&name) {
+            // HTML raw text ends at this tag's end tag, not at any apparent markup in it.
+            let needle = format!("</{name}");
+            loop {
+                let found = pos.checked_add(lower.get(pos..)?.find(&needle)?)?;
+                let boundary = found.checked_add(needle.len())?;
+                if lower.as_bytes().get(boundary).is_some_and(|b| b.is_ascii_whitespace() || matches!(b, b'/' | b'>')) {
+                    pos = found;
+                    break;
+                }
+                pos = boundary;
+            }
+        }
+        if let Some(base) = depth
+            && base == stack.len()
+            && html.get(pos..end).is_some_and(|tail| tail.bytes().all(|c| c.is_ascii_whitespace()))
+        {
+            // The simpler-copy writer terminates its complete elements with CRLF.
+            return Some(at);
+        }
+    }
+    None
+}
+
+/// What the `<` at `at` starts, read as mailcraft-html's tokenizer reads it: the element's name
+/// (empty for a declaration, for `</>` and for a `<` that starts no markup), whether it is an end
+/// tag, and where reading goes on. A quote opens a value only where an attribute's value starts,
+/// after its `=` and any white space; in a name, an unquoted value, an end tag or a declaration it
+/// is an ordinary character, so it can't hide what follows. A `<` not followed by a letter, `!`,
+/// `?`, or `/` and a letter or `>`, is text. `None` for a tag that doesn't end, or for a name with
+/// characters this locator doesn't read.
+fn signature_tag(lower: &str, at: usize) -> Option<(&str, bool, usize)> {
+    let b = lower.as_bytes();
+    let past = |from: usize| from.checked_add(b.get(from..)?.iter().position(|&c| c == b'>')?)?.checked_add(1);
+    let mut i = at.checked_add(1)?;
+    let close = match b.get(i) {
+        Some(b'!' | b'?') => return Some(("", false, past(i)?)),
+        Some(b'/') => match b.get(i.checked_add(1)?) {
+            Some(c) if c.is_ascii_alphabetic() => true,
+            Some(b'>') => return Some(("", true, i.checked_add(2)?)),
+            _ => return Some(("", false, i)),
+        },
+        Some(c) if c.is_ascii_alphabetic() => false,
+        _ => return Some(("", false, i)),
+    };
+    if close {
+        i = i.checked_add(1)?;
+    }
+    let start = i;
+    while b.get(i).is_some_and(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b':')) {
+        i = i.checked_add(1)?;
+    }
+    let name = lower.get(start..i)?;
+    if !b.get(i).is_some_and(|c| c.is_ascii_whitespace() || matches!(c, b'/' | b'>')) {
+        return None;
+    }
+    if close {
+        // An end tag ends at its first `>`: nothing in it is an attribute's value.
+        return Some((name, true, past(i)?));
+    }
+    loop {
+        while b.get(i).is_some_and(|c| c.is_ascii_whitespace() || *c == b'/') {
+            i = i.checked_add(1)?;
+        }
+        if *b.get(i)? == b'>' {
+            return Some((name, false, i.checked_add(1)?));
+        }
+        // An attribute's name: its first character, whatever it is, then up to white space, `/`,
+        // `>` or `=`.
+        i = i.checked_add(1)?;
+        while b.get(i).is_some_and(|c| !(c.is_ascii_whitespace() || matches!(c, b'/' | b'>' | b'='))) {
+            i = i.checked_add(1)?;
+        }
+        let mut j = i;
+        while b.get(j).is_some_and(u8::is_ascii_whitespace) {
+            j = j.checked_add(1)?;
+        }
+        if b.get(j) != Some(&b'=') {
+            i = j;
+            continue;
+        }
+        j = j.checked_add(1)?;
+        while b.get(j).is_some_and(u8::is_ascii_whitespace) {
+            j = j.checked_add(1)?;
+        }
+        i = match b.get(j) {
+            Some(&q) if matches!(q, b'"' | b'\'') => {
+                let open = j.checked_add(1)?;
+                open.checked_add(b.get(open..)?.iter().position(|&c| c == q)?)?.checked_add(1)?
+            }
+            _ => {
+                while b.get(j).is_some_and(|c| !(c.is_ascii_whitespace() || *c == b'>')) {
+                    j = j.checked_add(1)?;
+                }
+                j
+            }
+        };
+    }
+}
+
+/// A draft's HTML read with its signature back in place: what is before the fragment at `at` and
+/// what is after it read as any draft's text is, and between them the paragraphs of the
+/// signature's own text, marked as inserting it marks them. A part that reads as no text at all
+/// (where the document opens, or closes) adds no paragraph; but an empty line the draft's HTML
+/// writes in its body above the signature (a `<br>`, the owner's text being one empty line) is
+/// kept. `None` when the whole would be more than a message holds.
+fn with_signature(read: &mut dyn FnMut(&str) -> RichText, html: &str, at: usize, snapshot: &DraftSignature) -> Option<RichText> {
+    let end = at.checked_add(snapshot.rendered().len())?;
+    let above = html.get(..at)?;
+    let before = read(above);
+    let after = read(html.get(end..)?);
+    let own = |t: &RichText, line: bool| if t.paragraphs().len() == 1 && t.is_empty() && !line { Vec::new() } else { t.paragraphs().to_vec() };
+    let marked = snapshot.signature().body().paragraphs().iter().map(|p| Paragraph { signature: true, ..p.clone() });
+    let written = line_break_in_body(above);
+    let paragraphs: Vec<Paragraph> = own(&before, written).into_iter().chain(marked).chain(own(&after, false)).collect();
+    // `from_paragraphs` cuts what is more than a message holds without saying so: what the parts
+    // hold is counted before they are joined, and the whole is kept only when nothing was cut.
+    let size = |ps: &[Paragraph]| {
+        let chars = ps.iter().map(Paragraph::chars).fold(ps.len().saturating_sub(1), usize::saturating_add);
+        let objects = ps.iter().flat_map(|p| &p.runs).filter(|r| r.picture.is_some() || r.table.is_some()).count();
+        (ps.len(), chars, objects)
+    };
+    let whole = size(&paragraphs);
+    if whole.0 > mailcraft_model::rich::MAX_PARAGRAPHS || whole.1 > mailcraft_model::rich::MAX_CHARS {
+        return None;
+    }
+    let text = RichText::from_paragraphs(paragraphs);
+    (size(text.paragraphs()) == whole).then_some(text)
+}
+
+/// Whether `above`, a draft's HTML above its signature, writes a line break in its body: a `<br>`
+/// tag by its whole name, after the `<body>` start tag when there is one (the head is no text).
+fn line_break_in_body(above: &str) -> bool {
+    let lower = above.to_ascii_lowercase();
+    let start = match start_tags(&lower, "<body").next() {
+        Some(at) => match lower.get(at..).and_then(|tag| tag.find('>')) {
+            Some(end) => at.saturating_add(end).saturating_add(1),
+            None => return false,
+        },
+        None => 0,
+    };
+    lower.get(start..).is_some_and(|body| start_tags(body, "<br").next().is_some())
+}
+
+/// Where in `lower` (HTML in lower case) a tag that opens with `open` (`<` and the name) starts: the
+/// name whole, followed by white space, `/` or `>`.
+fn start_tags<'a>(lower: &'a str, open: &'a str) -> impl Iterator<Item = usize> + 'a {
+    lower
+        .match_indices(open)
+        .map(|(at, _)| at)
+        .filter(move |at| lower.as_bytes().get(at.saturating_add(open.len())).is_some_and(|b| b.is_ascii_whitespace() || matches!(b, b'/' | b'>')))
 }
 
 fn set(s: &mut Session, v: &Value) -> CmdResult {
@@ -1433,7 +1750,7 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         subject: c.subject.trim().to_string(),
         date: now,
         received: now,
-        body: body_of(c, &message_id),
+        body: body_of(c, &message_id, strict)?,
         attachments: attachments_of(c, &message_id),
         read: true,
         importance: c.importance,
@@ -1449,14 +1766,19 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
             }
         }),
         send_at: c.send_at,
+        // Kept with a draft saved here (and by `send_now` with a message waiting in the
+        // Outbox), never in what is written or sent.
+        draft_signature: if strict { None } else { draft_signature_of(c, &message_id) },
         message_id,
         ..Default::default()
     })
 }
 
 /// What is sent of the owner's text: HTML with a plain-text part, or plain text only.
-/// The original quoted below follows it, in both forms.
-fn body_of(c: &Compose, message_id: &str) -> Body {
+/// The original quoted below follows it, in both forms. An HTML signature whose styles can't go
+/// with it safely is an error when it is to be sent (`strict`, [`sent_html_signature`]); a draft
+/// is always kept, with that signature as its simpler copy, as if it were edited as text.
+fn body_of(c: &Compose, message_id: &str, strict: bool) -> Result<Body, CmdError> {
     let text = c.body.text();
     let quote_text = c.quote.as_ref().map_or("", |q| q.text.as_str());
     let quote_html = c.quote.as_ref().map(|q| q.html.as_str());
@@ -1470,28 +1792,34 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
     };
     let Some((before, sig, after)) = sent_signature(c) else {
         let plain = format!("{}{quote_text}", text.to_plain_with(say));
-        return match c.format {
+        return Ok(match c.format {
             BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&to_html_with(text, &img), quote_html)) },
             BodyFormat::Plain => Body { text: plain, html: None },
-        };
+        });
     };
     // The signature laid out as it was made, its pictures the message's own parts.
     let parts = [before.as_ref().map(|t| t.to_plain_with(say)), Some(sig.plain()), after.as_ref().map(|t| t.to_plain_with(say))];
     let plain = format!("{}{quote_text}", parts.into_iter().flatten().collect::<Vec<_>>().join("\n"));
-    match c.format {
+    Ok(match c.format {
         BodyFormat::Html => {
             let cid = |p: &Picture| signature_cid(p, message_id);
-            // An HTML signature goes out as the owner wrote it, cleaned, unless they edited it here.
-            let own = c.signature_html();
-            let html = [
-                before.as_ref().map(|t| to_html_with(t, &img)),
-                Some(own.map_or_else(|| mailcraft_mime_model::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
-                after.as_ref().map(|t| to_html_with(t, &img)),
-            ];
-            Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
+            // An HTML signature goes out as the owner wrote it, cleaned, its style sheets scoped
+            // in the head, unless they edited it here.
+            let (head, signature) = match sent_html_signature(c, message_id) {
+                Ok(Some((_, fragment, _))) => (fragment.head, fragment.body),
+                Ok(None) => (String::new(), mailcraft_mime_model::rich::signature_html(&sig, &cid)),
+                // What the owner wrote is never lost for the signature's styles: the draft keeps
+                // the signature's simpler copy, and the signature as it went in bound to that copy
+                // ([`draft_signature_of`]), so that opened again it is still refused at Send.
+                Err(_) if !strict => (String::new(), stand_in_html(&sig, message_id)),
+                Err(e) => return Err(e),
+            };
+            let html = [before.as_ref().map(|t| to_html_with(t, &img)), Some(signature), after.as_ref().map(|t| to_html_with(t, &img))];
+            let fragment = html.into_iter().flatten().collect::<String>();
+            Body { text: plain, html: Some(mailcraft_mime_model::rich::document_with_head(&head, &fragment, quote_html)) }
         }
         BodyFormat::Plain => Body { text: plain, html: None },
-    }
+    })
 }
 
 /// The text before the signature, the signature as it goes out (only the pictures its text
@@ -1500,6 +1828,83 @@ fn sent_signature(c: &Compose) -> Option<(Option<RichText>, Signature, Option<Ri
     let inserted = c.signature.as_ref()?;
     let (before, sig, after) = c.body.text().around_signature()?;
     Some((before, Signature::assemble(&inserted.name, sig, &inserted.pictures, inserted.layout), after))
+}
+
+/// An unedited HTML signature as an HTML message holds it: the signature as it goes out, what
+/// the authored writer makes of it (the `<style>` blocks for the document's head, and the body
+/// fragment of the message's HTML that is that signature: [`body_of`] embeds these), and the
+/// Content-ID of each of its pictures, in their order ([`attachments_of`] gives them these).
+/// `None` for any other signature, and for a message in plain text. A signature whose style
+/// sheets can't be written safely is an error, never sent without them: one stored before the
+/// signature editor refused such sheets.
+fn sent_html_signature(c: &Compose, message_id: &str) -> Result<Option<(Signature, AuthoredFragment, Vec<String>)>, CmdError> {
+    let Some(own) = c.signature_html().filter(|_| c.format == BodyFormat::Html) else { return Ok(None) };
+    let Some((_, sig, _)) = sent_signature(c) else { return Ok(None) };
+    let cid = |p: &Picture| signature_cid(p, message_id);
+    let scope = signature_scope(message_id)?;
+    let fragment = mailcraft_mime_model::rich::authored_signature_html(&sig, own, &scope, &cid).map_err(|_| unsafe_signature_styles())?;
+    let content_ids: Vec<String> = sig.pictures().iter().map(cid).collect();
+    Ok(Some((sig, fragment, content_ids)))
+}
+
+/// Why a message whose HTML signature's style sheets can't go with it is not sent (its draft is
+/// saved with the signature's simpler copy). The message holds the signature as it went in, so
+/// the refusal names what lets it go: the signature inserted again once it is fixed, or its
+/// simpler copy.
+fn unsafe_signature_styles() -> CmdError {
+    fail(
+        "this signature's styles can't be sent safely: fix them in File › Signatures, then insert the signature again (Message › Include › Signature), or choose Edit Signature as Text",
+    )
+}
+
+/// The class an HTML signature's style sheets are scoped to in a message: `mc-sig-` and a
+/// digest (64-bit FNV-1a, in hex) of the Message-ID's local part, taken as [`signature_cid`]
+/// takes it. A draft saved again keeps its Message-ID, so its scope stays the same; it names
+/// nothing of the owner.
+fn signature_scope(message_id: &str) -> Result<AuthoredScope, CmdError> {
+    let local = message_id.split('@').next().unwrap_or("");
+    let digest = local.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3));
+    AuthoredScope::new(&format!("mc-sig-{digest:016x}")).map_err(|_| unsafe_signature_styles())
+}
+
+/// What a draft keeps of the HTML signature it is saved with ([`Message::draft_signature`]): the
+/// signature as it went in, with the owner's own HTML, the very fragment the draft's HTML holds
+/// and its pictures' Content-IDs. `None` unless an unedited HTML signature goes into an HTML
+/// message, so that one edited or taken out leaves no snapshot of it behind. One whose styles
+/// can't be sent is kept bound to the simpler copy the draft's HTML holds in its place
+/// ([`body_of`]): opened again, the draft holds the HTML signature, and Send is refused as it was
+/// until the signature is inserted again or edited as text. Either way it stays on this computer
+/// ([`Message::for_server`]).
+fn draft_signature_of(c: &Compose, message_id: &str) -> Option<DraftSignature> {
+    let (mut sig, rendered, content_ids) = match sent_html_signature(c, message_id) {
+        Ok(Some((sig, fragment, content_ids))) => (sig, fragment.body, content_ids),
+        Ok(None) => return None,
+        Err(_) => {
+            let (_, sig, _) = sent_signature(c)?;
+            let content_ids = sig.pictures().iter().map(|p| signature_cid(p, message_id)).collect();
+            let rendered = stand_in_html(&sig, message_id);
+            (sig, rendered, content_ids)
+        }
+    };
+    sig.set_html(c.signature_html().map(str::to_string)).ok()?;
+    DraftSignature::new(sig, rendered, content_ids)
+}
+
+/// The simpler copy of an HTML signature whose styles can't be sent, as a draft's HTML holds it in
+/// the signature's place ([`body_of`]) and its snapshot is bound to ([`draft_signature_of`]): in a
+/// `<div>` of the message's scope class ([`signature_scope`]), as the HTML signature itself goes,
+/// so that it is told from the owner's text where that text says the same (the owner's text is
+/// written with no class). Send refuses such a signature, and a message written from the draft
+/// again writes its text afresh; but a draft moved into the Outbox and sent with Send Again goes as
+/// it is, this copy in its `<div>` with it: that class is the one every HTML signature of the
+/// message carries, and nothing of the refused sheet or of what the draft keeps on this computer
+/// goes ([`Message::for_server`]).
+fn stand_in_html(sig: &Signature, message_id: &str) -> String {
+    let copy = mailcraft_mime_model::rich::signature_html(sig, &|p: &Picture| signature_cid(p, message_id));
+    match signature_scope(message_id) {
+        Ok(scope) => format!("<div class=\"{}\">{copy}</div>\r\n", scope.as_str()),
+        Err(_) => copy,
+    }
 }
 
 /// A signature picture's Content-ID: unique to the message, and naming nothing of the owner.
@@ -1642,6 +2047,13 @@ pub(super) fn send_now(s: &mut Session) -> CmdResult {
     m.send_at = wanted.or(by_wait.then(|| clock.saturating_add(i64::from(waits))));
     if let Some(at) = m.send_at {
         (m.date, m.received) = (at, at);
+    }
+    // A message waiting in the Outbox keeps its HTML signature's snapshot, so that Undo Send,
+    // Cancel Send and Open Draft give the signature back as it was (#950): never written, never
+    // handed to a host ([`Message::for_server`]), and let go of once it leaves the Outbox other
+    // than as a draft. (A local account's message is filed as sent, and keeps none.)
+    if queued {
+        m.draft_signature = draft_signature_of(&c, &m.message_id);
     }
     m.folder = s
         .mailbox

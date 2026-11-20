@@ -527,6 +527,17 @@ impl<'a> Cursor<'a> {
     }
 }
 
+/// Whether a byte is a line break to a CSS reader (CR and FF become LF), which ends a string.
+fn line_break(c: u8) -> bool {
+    matches!(c, b'\n' | b'\r' | 0x0c)
+}
+
+/// How many bytes after the backslash at `at`, in a string, its escape takes: two for a CR LF
+/// pair, which a CSS reader reads as one line break before it reads escapes, else one.
+fn escaped(b: &[u8], at: usize) -> usize {
+    if b.get(at + 1) == Some(&b'\r') && b.get(at + 2) == Some(&b'\n') { 2 } else { 1 }
+}
+
 /// Where the `close` that ends what starts at `from` is, skipping strings and nested brackets.
 fn close_at(b: &[u8], from: usize, close: u8) -> Option<usize> {
     let mut depth = 0u32;
@@ -535,8 +546,8 @@ fn close_at(b: &[u8], from: usize, close: u8) -> Option<usize> {
     while let Some(&c) = b.get(i) {
         if quote != 0 {
             if c == b'\\' {
-                i += 1;
-            } else if c == quote {
+                i += escaped(b, i);
+            } else if c == quote || line_break(c) {
                 quote = 0;
             }
         } else {
@@ -559,15 +570,15 @@ fn close_at(b: &[u8], from: usize, close: u8) -> Option<usize> {
 }
 
 /// Split at the commas outside parentheses, brackets and strings.
-fn split_commas(text: &str) -> Vec<&str> {
+pub(crate) fn split_commas(text: &str) -> Vec<&str> {
     let b = text.as_bytes();
     let (mut out, mut start, mut depth, mut quote) = (Vec::new(), 0usize, 0u32, 0u8);
     let mut i = 0;
     while let Some(&c) = b.get(i) {
         if quote != 0 {
             if c == b'\\' {
-                i += 1;
-            } else if c == quote {
+                i += escaped(b, i);
+            } else if c == quote || line_break(c) {
                 quote = 0;
             }
         } else {
@@ -711,7 +722,7 @@ fn simple(cur: &mut Cursor<'_>, depth: usize) -> Result<Option<Simple>, ()> {
                         return Err(());
                     }
                     for part in parts {
-                        let mut inner = Cursor { text: part.trim(), at: 0 };
+                        let mut inner = Cursor { text: css_trim(part), at: 0 };
                         let one = compound(&mut inner, depth + 1).ok_or(())?;
                         if !inner.done() {
                             return Err(());
@@ -759,6 +770,10 @@ fn attribute(inner: &str) -> Option<AttrSel> {
             let rest = cur.rest();
             let end = rest.find(q)?;
             let v = rest.get(..end)?.to_string();
+            // A line break ends a CSS string before its quote: no value then.
+            if v.bytes().any(line_break) {
+                return None;
+            }
             cur.at += end + 1;
             v
         }
@@ -812,7 +827,8 @@ fn compound(cur: &mut Cursor<'_>, depth: usize) -> Option<Compound> {
 
 /// One selector of a list.
 fn selector(text: &str) -> Option<Selector> {
-    let mut cur = Cursor { text: text.trim(), at: 0 };
+    // CSS's own white space round it, and no other space: one may be part of a name.
+    let mut cur = Cursor { text: css_trim(text), at: 0 };
     let (mut compounds, mut combinators) = (Vec::new(), Vec::new());
     let (mut ids, mut classes, mut tags) = (0u32, 0u32, 0u32);
     loop {
@@ -847,6 +863,62 @@ fn selector(text: &str) -> Option<Selector> {
         combinators.push(combinator);
     }
     Some(Selector { compounds, combinators, specificity: pack(ids, classes, tags) })
+}
+
+/// `text` without the CSS white space round it (space, tab, line feed, form feed, carriage
+/// return), and nothing else: another space character may be part of a name.
+pub(crate) fn css_trim(text: &str) -> &str {
+    text.trim_matches(|c: char| matches!(c, ' ' | '\t' | '\n' | '\x0c' | '\r'))
+}
+
+/// What the scoped writer of an authored signature's sheets (`crate::authored`) needs to know of
+/// one selector of a list, read by the parser the cascade reads it with: `None` when the cascade
+/// drops it. Offsets are into [`css_trim`]`(text)`.
+pub(crate) struct Shape {
+    /// Where the tag name (or `*`) that the leftmost compound selector starts with ends, and the
+    /// name (`*` for any).
+    pub tag: Option<(usize, String)>,
+    /// The leftmost compound selector is followed by `+` or `~`.
+    pub sibling: bool,
+    /// The leftmost compound selector tests where its element is among its siblings, or what it
+    /// is not.
+    pub structural: bool,
+    /// `html` or `:root` anywhere, or `body` anywhere but as the leftmost compound's tag.
+    pub outside: bool,
+    /// The leftmost compound selector tests an attribute (`[class="card"]`).
+    pub attribute: bool,
+}
+
+pub(crate) fn shape(text: &str) -> Option<Shape> {
+    let text = css_trim(text);
+    let parsed = selector(text)?;
+    let mut cur = Cursor { text, at: 0 };
+    let tag = if cur.eat('*') {
+        Some((cur.at, "*".to_string()))
+    } else if cur.peek().is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '\\' || !c.is_ascii()) {
+        let name = cur.ident()?;
+        Some((cur.at, name))
+    } else {
+        None
+    };
+    let lead = parsed.compounds.first()?;
+    let structural =
+        lead.simples.iter().any(|s| matches!(s, Simple::FirstChild | Simple::LastChild | Simple::OnlyChild | Simple::Nth { .. } | Simple::Not(_)));
+    let outside = parsed.compounds.iter().enumerate().any(|(i, c)| reaches_out(&c.simples, i == 0));
+    let sibling = matches!(parsed.combinators.first(), Some(Combinator::Next | Combinator::Later));
+    let attribute = lead.simples.iter().any(|s| matches!(s, Simple::Attr(_)));
+    Some(Shape { tag, sibling, structural, outside, attribute })
+}
+
+/// Whether simple selectors name `html` or `:root`, or `body` other than as the tag of the
+/// leftmost compound (`lead`).
+fn reaches_out(simples: &[Simple], lead: bool) -> bool {
+    simples.iter().enumerate().any(|(i, s)| match s {
+        Simple::Root => true,
+        Simple::Tag(t) => t == "html" || (t == "body" && !(lead && i == 0)),
+        Simple::Not(list) => list.iter().any(|c| reaches_out(c, false)),
+        _ => false,
+    })
 }
 
 // ---- rules ----
@@ -985,7 +1057,7 @@ fn kept(property: &str) -> bool {
 }
 
 /// Skip white space, comments and the `<!--` and `-->` that old sheets are wrapped in.
-fn skip_trivia(b: &[u8], mut i: usize) -> usize {
+pub(crate) fn skip_trivia(b: &[u8], mut i: usize) -> usize {
     loop {
         match b.get(i) {
             Some(c) if c.is_ascii_whitespace() => i += 1,
@@ -1004,13 +1076,13 @@ fn find(b: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
 }
 
 /// The first of `stops` outside strings, comments and brackets, at or after `from`.
-fn scan_to(b: &[u8], from: usize, stops: &[u8]) -> Option<usize> {
+pub(crate) fn scan_to(b: &[u8], from: usize, stops: &[u8]) -> Option<usize> {
     let (mut i, mut depth, mut quote) = (from, 0u32, 0u8);
     while let Some(&c) = b.get(i) {
         if quote != 0 {
             if c == b'\\' {
-                i += 1;
-            } else if c == quote || c == b'\n' {
+                i += escaped(b, i);
+            } else if c == quote || line_break(c) {
                 quote = 0;
             }
         } else if c == b'/' && b.get(i + 1) == Some(&b'*') {
@@ -1031,13 +1103,13 @@ fn scan_to(b: &[u8], from: usize, stops: &[u8]) -> Option<usize> {
 }
 
 /// The `}` that closes the block whose `{` is at `open`, or the end.
-fn block_end(b: &[u8], open: usize) -> usize {
+pub(crate) fn block_end(b: &[u8], open: usize) -> usize {
     let (mut i, mut depth, mut quote) = (open + 1, 1u32, 0u8);
     while let Some(&c) = b.get(i) {
         if quote != 0 {
             if c == b'\\' {
-                i += 1;
-            } else if c == quote || c == b'\n' {
+                i += escaped(b, i);
+            } else if c == quote || line_break(c) {
                 quote = 0;
             }
         } else if c == b'/' && b.get(i + 1) == Some(&b'*') {
@@ -1128,7 +1200,7 @@ pub(crate) fn rules_in(text: &str, env: &Env, media: &mut Media) -> Vec<Rule> {
 }
 
 /// The text after `@media`, when the at-rule's prelude is one.
-fn media_prelude(prelude: &str) -> Option<&str> {
+pub(crate) fn media_prelude(prelude: &str) -> Option<&str> {
     let rest = prelude.get(..6).filter(|name| name.eq_ignore_ascii_case("@media")).and_then(|_| prelude.get(6..))?;
     // `@media(…)` and `@media screen`, not `@mediaquery`.
     match rest.bytes().next() {
@@ -1174,7 +1246,7 @@ pub(crate) fn media_lists(html: &str) -> Vec<String> {
 /// message, `size` being what the sheets before it took, whatever their `media` says. `each` gets
 /// a sheet's `media` attribute and its text.
 fn take_styles(tokens: &mut Tokenizer<'_>, template: usize, size: &mut usize, mut each: impl FnMut(&str, &str)) {
-    for (media, css) in std::mem::take(&mut tokens.styles) {
+    for crate::tokenizer::Style { media, css, .. } in std::mem::take(&mut tokens.styles) {
         if template > 0 {
             continue;
         }

@@ -85,6 +85,8 @@ mod clicks_tests;
 pub mod close_to_tray;
 #[cfg(test)]
 mod close_to_tray_tests;
+/// The email-compatibility findings of an HTML signature, shown in its source editor.
+mod compat;
 pub mod compose;
 #[cfg(test)]
 mod confirm_ids_tests;
@@ -102,6 +104,8 @@ mod dialog_scrim_tests;
 pub mod dialogs;
 #[cfg(test)]
 mod draft_continue_tests;
+#[cfg(test)]
+mod draft_save_notice_tests;
 #[cfg(test)]
 mod draft_selection_tests;
 mod drag_pointer;
@@ -265,6 +269,7 @@ mod shared_mailboxes;
 mod shared_permission;
 #[cfg(test)]
 mod shared_permission_tests;
+mod signature_import;
 #[cfg(test)]
 mod signature_link_tests;
 #[cfg(test)]
@@ -346,7 +351,8 @@ pub struct Services {
     /// what the picker was opened for (`mailbox`, `import`, `attach`, …) and the message being
     /// written that asked, as given here ([`Delivered::picked`]): the picker's answer is never
     /// taken for another's, however the pickers overlap, and a cancelled one delivers nothing
-    /// and leaves nothing behind. Of files to attach, the host reads at most [`files::MOST_ATTACHED`]
+    /// and leaves nothing behind (but for a pick of File › Signatures' Import HTML…, which says it
+    /// was cancelled, [`Delivered::cancelled`], and is read only up to [`files::signature_cap`]). Of files to attach, the host reads at most [`files::MOST_ATTACHED`]
     /// of one pick, none larger than a message may carry, and none once the pick would pass
     /// [`files::MOST_ATTACHED_BYTES`]; each left unread is delivered saying why
     /// ([`Delivered::unread`]), and nothing past the caps is ever read.
@@ -513,6 +519,14 @@ pub struct Services {
     /// channel and the host wakes the UI; `file.open` then takes what was read. Absent in the
     /// browser and the tests: `file.open` reads the file there and then.
     pub read_ahead: Option<Box<dyn Fn(std::path::PathBuf, std::sync::Arc<mailcraft_engine::io::OpenProgress>) -> Receiver<Result<(), String>>>>,
+    /// Desktop: read one file the owner picked for File › Signatures' Import HTML… (the document,
+    /// or one of the pictures it names) on a background thread: [`files::SignatureRead::read`],
+    /// which reads at most what a signature takes of that kind and refuses anything that is not a
+    /// regular file. The bytes, or why there are none, arrive through the channel and the host
+    /// wakes the UI; a dropped sender is a file that couldn't be read. The window admits one such
+    /// read at a time and never reads the file itself. Absent in the browser (whose picker reads
+    /// within the same caps) and the tests: Import HTML… then asks for no desktop dialog.
+    pub read_signature_file: Option<Box<dyn Fn(files::SignatureRead) -> Receiver<Result<Vec<u8>, Unread>>>>,
     /// Desktop: take the lock of another mailbox file for this window (#517), before the window
     /// opens it or saves to it, keeping the lock of the one open until that one is let go of (the
     /// host then lets go of whichever the window no longer has open). `false`: another MailCraft
@@ -739,6 +753,9 @@ pub enum Unread {
     /// Past the most bytes of one pick together ([`files::MOST_ATTACHED_BYTES`]): never read,
     /// nor anything picked after it.
     PastTotal,
+    /// The picker was cancelled: nothing was picked ([`Delivered::cancelled`]). Only a pick for
+    /// File › Signatures' Import HTML… is answered so; nothing is said of it.
+    Cancelled,
 }
 
 impl Delivered {
@@ -756,6 +773,12 @@ impl Delivered {
     /// A file picked as [`Delivered::picked`], of which nothing was read, for `why`.
     pub fn unread(name: String, why: Unread, purpose: &str, asking: Option<u64>, pick: u64) -> Self {
         Delivered { name, bytes: Err(why), asked: Some((purpose.to_string(), asking)), pick }
+    }
+
+    /// The picker [`Services::open_async`] opened for `purpose`, on behalf of `asking`, was
+    /// cancelled: no file, and no name ([`Unread::Cancelled`]).
+    pub fn cancelled(purpose: &str, asking: Option<u64>, pick: u64) -> Self {
+        Delivered { name: String::new(), bytes: Err(Unread::Cancelled), asked: Some((purpose.to_string(), asking)), pick }
     }
 }
 
@@ -1869,6 +1892,9 @@ pub struct MailApp {
     pub(crate) ctx: Option<egui::Context>,
     /// The file dialog the host is showing, and what its answer is for ([`files`]).
     pub(crate) file_dialog: Option<files::PendingDialog>,
+    /// File › Signatures' Import HTML…: the pick asked for, and the document waiting for its
+    /// pictures and the owner's Import ([`signature_import`]). Never written anywhere.
+    pub(crate) signature_import: signature_import::State,
     /// Calendar and contact files the system asked MailCraft to open, each waiting to be asked
     /// about ([`files::ask_next`]).
     pub(crate) opened_waiting: std::collections::VecDeque<String>,
@@ -2087,6 +2113,7 @@ impl MailApp {
             running_after_save: false,
             ctx: None,
             file_dialog: None,
+            signature_import: Default::default(),
             opened_waiting: Default::default(),
             hit: Default::default(),
             reminders: Default::default(),
@@ -5140,6 +5167,7 @@ impl MailApp {
         self.poll_graph_switch_copy();
         self.tick_graph_switch();
         let _ = files::poll(self);
+        signature_import::poll(self);
         files::drain_inbox(self);
         opening::poll_ahead(self, ctx);
         files::ask_next(self);
@@ -5179,7 +5207,11 @@ impl MailApp {
         self.report_dirty();
     }
 
-    /// Keep what was changed in the signature open in File › Signatures, and close it.
+    /// Keep what was changed in the signature open in File › Signatures, and close it. When it
+    /// can't be kept (its save is refused: an email compatibility error left to fix, say), nothing
+    /// is thrown away: the window stays on the page, with the signature open as it was and why,
+    /// and for an email compatibility error asks whether to keep editing it or discard the
+    /// changes ([`signatures::ask_leave`]).
     fn leave_signature(&mut self) {
         self.signature_note = None;
         // A name still being typed is kept, as a change in the signature is (#1651).
@@ -5187,7 +5219,15 @@ impl MailApp {
         if self.session.signature_edit.as_ref().is_some_and(|e| e.dirty)
             && let Err(e) = self.execute("signature.save", json!({}))
         {
-            self.status(e);
+            self.status(e.clone());
+            self.signature_note = Some(signatures::Note { text: e, error: true });
+            // Where the owner was going, for after Discard changes.
+            let to = (self.ui.backstage, self.ui.backstage_page.clone());
+            self.ui.backstage = true;
+            self.ui.backstage_page = "signatures".into();
+            self.signatures_shown = true;
+            signatures::ask_leave(self, to);
+            return;
         }
         let _ = self.execute("signature.close", json!({"discard": true}));
     }
@@ -5230,6 +5270,9 @@ impl MailApp {
                 // was no draft before leaves Drafts again with Don't Save.)
                 if let Err(e) = self.session.save_in_background(compose) {
                     log::info!("a message being written couldn't be saved to Drafts by itself: {e}");
+                    // The owner is told too: what they wrote is not in Drafts yet.
+                    let why = e.in_lang(i18n::current());
+                    self.status(i18n::fmt(tl!("A message being written couldn't be saved to Drafts: {why}"), &[("why", &why)]));
                 }
             }
         } else if !asked {

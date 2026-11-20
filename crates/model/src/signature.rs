@@ -16,8 +16,9 @@
 //!
 //! An HTML signature also keeps the owner's own HTML ([`Signature::html`]), at most [`MAX_HTML`]
 //! bytes, as they wrote it: it is cleaned when a message goes out, never here. Its text is then a
-//! stand-in, what a message being written shows of it. It has no pictures of its own: those it
-//! shows are on the web, and the recipient's program decides whether to load them.
+//! stand-in, what a message being written shows of it. Pictures held by that stand-in stay with
+//! the HTML. Importers and writers must bind the HTML's picture references to those payloads;
+//! setting HTML alone neither creates that stand-in nor resolves its references.
 
 use std::sync::Arc;
 
@@ -43,6 +44,15 @@ pub const MAX_ALT: usize = 200;
 pub const MAX_TEXT: usize = 10_000;
 /// Most bytes of an HTML signature's own HTML.
 pub const MAX_HTML: usize = 64 * 1024;
+
+/// That `html` is short enough to be an HTML signature's ([`MAX_HTML`]): what
+/// [`Signature::set_html`] refuses, for a caller that asks before reading the HTML for anything else.
+pub fn html_fits(html: &str) -> Result<(), ModelError> {
+    if html.len() > MAX_HTML {
+        return Err(ModelError::Invalid(format!("an HTML signature is at most {} KB", MAX_HTML / 1024)));
+    }
+    Ok(())
+}
 
 /// How a signature lays out its first picture against its text.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -317,10 +327,9 @@ impl<'de> Deserialize<'de> for Signature {
             }
         }
         sig.tidy();
-        // HTML over the cap is left out, and the signature is its text; one with pictures can't be.
-        if sig.pictures.is_empty() {
-            sig.html = raw.html.filter(|h| h.len() <= MAX_HTML);
-        }
+        // HTML over the cap is left out, and the signature is its text. Its own pictures are
+        // already checked above and kept when the stand-in text holds them.
+        sig.html = raw.html.filter(|h| h.len() <= MAX_HTML);
         Ok(sig)
     }
 }
@@ -369,19 +378,12 @@ impl Signature {
         self.html.as_deref()
     }
 
-    /// Make it an HTML signature of `html` (its text is then a stand-in for it, set apart), or
-    /// with `None` a rich one again, of its text. Refused over [`MAX_HTML`], and while it has
-    /// pictures, which the HTML would lose.
+    /// Set the owner's HTML, or with `None` make it a rich signature again. This changes neither
+    /// the stand-in text nor its pictures. Refused over [`MAX_HTML`]. Its own pictures
+    /// stay beside the HTML; callers must bind its picture references to those payloads.
     pub fn set_html(&mut self, html: Option<String>) -> Result<(), ModelError> {
         if let Some(h) = &html {
-            if h.len() > MAX_HTML {
-                return Err(ModelError::Invalid(format!("an HTML signature is at most {} KB", MAX_HTML / 1024)));
-            }
-            if !self.pictures.is_empty() {
-                return Err(ModelError::Invalid(
-                    "an HTML signature shows pictures from their web address only: remove this signature's pictures first".into(),
-                ));
-            }
+            html_fits(h)?;
         }
         self.html = html;
         Ok(())
@@ -399,6 +401,18 @@ impl Signature {
         }
         self.body = body;
         self.tidy();
+        Ok(())
+    }
+
+    /// [`Signature::set_body`] for a signature open in an editor: a picture the new text no longer
+    /// holds is kept beside it rather than let go, so that an undo in the editor can bring it
+    /// back; the next [`Signature::set_body`] (the save) lets it go. A picture run naming a
+    /// picture this signature doesn't have is still left out.
+    pub fn set_body_keeping_pictures(&mut self, body: RichText) -> Result<(), ModelError> {
+        let pictures = self.pictures.clone();
+        self.set_body(body)?;
+        // The text names only pictures among these: `tidy` left out runs naming any other.
+        self.pictures = pictures;
         Ok(())
     }
 
@@ -464,7 +478,7 @@ impl Signature {
     /// Add a picture at text position `at` (the end when it is past it): its id.
     pub fn add_picture(&mut self, name: &str, data: Vec<u8>, alt: Option<&str>, at: Option<usize>) -> Result<u32, ModelError> {
         if self.html.is_some() {
-            return Err(ModelError::Invalid("an HTML signature shows pictures from their web address: switch it to rich text to add one".into()));
+            return Err(ModelError::Invalid("switch the HTML signature to rich text before inserting a picture into its text".into()));
         }
         let mime = self.check(&data, None)?;
         let id = self.pictures.iter().map(|p| p.id).max().map_or(1, |n| n.saturating_add(1));

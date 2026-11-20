@@ -24,6 +24,31 @@ const DROPPED: [&str; 6] = ["script", "style", "title", "iframe", "noembed", "no
 /// Elements whose content is text, not markup, and is shown.
 const RAW_TEXT: [&str; 2] = ["textarea", "xmp"];
 
+/// Where `part`, a slice of `whole` (one this tokenizer gave of the text it read, say), sits in
+/// it: its byte range, checked against `whole` itself; `None` when `part` is no slice of it.
+pub(crate) fn span_of(whole: &str, part: &str) -> Option<std::ops::Range<usize>> {
+    let start = (part.as_ptr() as usize).checked_sub(whole.as_ptr() as usize)?;
+    let end = start.checked_add(part.len())?;
+    let found = whole.get(start..end)?;
+    (found.as_ptr() == part.as_ptr()).then_some(start..end)
+}
+
+/// A `<style>` element the tokenizer skipped over.
+#[derive(Debug, PartialEq)]
+pub(crate) struct Style<'a> {
+    /// Its `media` attribute as an attribute reads, character references decoded and trimmed as a
+    /// media list is tested ([`crate::media::trim`]: one made only of spaces that aren't CSS white
+    /// space stays, a media type no window has). An overlong complete list is represented by a
+    /// bounded nonmatching sentinel one byte longer than the reader permits.
+    pub media: String,
+    /// The sheet's own text.
+    pub css: &'a str,
+    /// Whether the generic attribute cap was exceeded without retaining a `media`. Strict authored
+    /// export still refuses that shape conservatively. The reader nevertheless gets the complete
+    /// first condition above, independently of type, rather than widening a dropped condition.
+    pub overflowed: bool,
+}
+
 /// A start tag.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Tag<'a> {
@@ -31,6 +56,12 @@ pub(crate) struct Tag<'a> {
     pub name: String,
     /// Names and values as written.
     attrs: Vec<(&'a str, &'a str)>,
+    /// Whether attributes past [`MAX_ATTRS`] were read and dropped.
+    overflowed: bool,
+    /// The first `type` on a style tag, even when the generic attribute list is full.
+    style_type: Option<&'a str>,
+    /// The first media condition, independently of type and the generic retention cap.
+    style_media: Option<&'a str>,
     /// What the message's style sheets say about the element, set by the one who reads them
     /// (`sheet.rs`).
     pub sheet: Option<std::rc::Rc<crate::sheet::Applied>>,
@@ -57,6 +88,12 @@ impl Tag<'_> {
     pub fn has(&self, name: &str) -> bool {
         self.attrs.iter().any(|(n, _)| n.eq_ignore_ascii_case(name))
     }
+
+    /// Whether attributes past [`MAX_ATTRS`] were read and dropped: the element may say
+    /// something this reader did not keep.
+    pub fn attrs_overflowed(&self) -> bool {
+        self.overflowed
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -73,19 +110,35 @@ pub(crate) struct Tokenizer<'a> {
     pos: usize,
     /// Set after the start tag of a raw-text element: its content comes next.
     raw: Option<&'static str>,
+    /// Whether the start tag read last ended with its own `>` (not at the end of the input).
+    tag_closed: bool,
+    /// Where the start tag read last begins: its `<`.
+    tag_start: usize,
     /// The text of the `<style>` elements skipped over since the last token was given, each with its
     /// `media` attribute (at most [`MAX_STYLES`]): the one who reads style sheets takes them.
-    pub styles: Vec<(String, &'a str)>,
+    pub styles: Vec<Style<'a>>,
 }
 
 impl<'a> Tokenizer<'a> {
     pub fn new(src: &'a str) -> Tokenizer<'a> {
-        Tokenizer { src, pos: 0, raw: None, styles: Vec::new() }
+        Tokenizer { src, pos: 0, raw: None, tag_closed: false, tag_start: 0, styles: Vec::new() }
     }
 
     /// How far into the input the tokens given so far go, in bytes.
     pub fn pos(&self) -> usize {
         self.pos
+    }
+
+    /// Whether the start tag given last was ended by its own `>` rather than by the end of the
+    /// input: a tag the input cut off ends without one, even when its last byte is a `>` inside
+    /// an unclosed quoted value (`<a href="x>`).
+    pub fn tag_closed(&self) -> bool {
+        self.tag_closed
+    }
+
+    /// Where the start tag given last begins, in bytes: its `<`.
+    pub fn tag_start(&self) -> usize {
+        self.tag_start
     }
 
     fn bytes(&self) -> &'a [u8] {
@@ -158,6 +211,7 @@ impl<'a> Tokenizer<'a> {
     /// Read the start tag at `self.pos` (`<name attr=value ...>`).
     fn open_tag(&mut self) -> Tag<'a> {
         let b = self.bytes();
+        self.tag_start = self.pos;
         let start = self.pos + 1;
         let mut i = start;
         while let Some(c) = b.get(i) {
@@ -168,6 +222,10 @@ impl<'a> Tokenizer<'a> {
         }
         let name = tag_name(self.slice(start, i));
         let mut attrs = Vec::new();
+        let mut overflowed = false;
+        let mut style_type = None;
+        let mut style_media = None;
+        self.tag_closed = false;
         loop {
             while matches!(b.get(i), Some(c) if c.is_ascii_whitespace() || *c == b'/') {
                 i += 1;
@@ -175,6 +233,7 @@ impl<'a> Tokenizer<'a> {
             match b.get(i) {
                 None => break,
                 Some(b'>') => {
+                    self.tag_closed = true;
                     i += 1;
                     break;
                 }
@@ -221,12 +280,22 @@ impl<'a> Tokenizer<'a> {
             } else {
                 i = j;
             }
+            if name == "style" {
+                if attr.eq_ignore_ascii_case("type") && style_type.is_none() {
+                    style_type = Some(value);
+                }
+                if attr.eq_ignore_ascii_case("media") && style_media.is_none() {
+                    style_media = Some(value);
+                }
+            }
             if attrs.len() < MAX_ATTRS {
                 attrs.push((attr, value));
+            } else {
+                overflowed = true;
             }
         }
         self.pos = i.min(b.len());
-        Tag { name, attrs, sheet: None }
+        Tag { name, attrs, overflowed, style_type, style_media, sheet: None }
     }
 }
 
@@ -266,8 +335,21 @@ impl<'a> Iterator for Tokenizer<'a> {
                         // Skip the content and the end tag.
                         let end = find_end_tag(b, self.pos, &tag.name).unwrap_or(b.len());
                         if tag.name == "style" && self.styles.len() < MAX_STYLES && for_screen(&tag) {
-                            let media = crate::truncate(tag.raw_attr("media").unwrap_or("").trim(), crate::media::MAX_QUERY_BYTES + 1);
-                            self.styles.push((media.to_string(), self.slice(self.pos, end)));
+                            let media = tag.style_media.map(unescape).unwrap_or_default();
+                            let media = crate::media::trim(&media);
+                            // Never trim an already truncated prefix into a shorter, wider query.
+                            // A bounded nonmatching sentinel preserves the complete query's overflow
+                            // for both the strict writer and the reader's own length check.
+                            let media = if media.len() > crate::media::MAX_QUERY_BYTES {
+                                "?".repeat(crate::media::MAX_QUERY_BYTES + 1)
+                            } else {
+                                media.to_string()
+                            };
+                            self.styles.push(Style {
+                                media,
+                                css: self.slice(self.pos, end),
+                                overflowed: tag.attrs_overflowed() && !tag.has("media"),
+                            });
                         }
                         self.pos = find_byte(b, end, b'>').map_or(b.len(), |i| i + 1);
                         continue;
@@ -283,7 +365,7 @@ impl<'a> Iterator for Tokenizer<'a> {
 /// Whether a `<style>` is a style sheet: text/css. (Whether it is for this pane is for its
 /// `media` to say, when it is read.)
 fn for_screen(tag: &Tag<'_>) -> bool {
-    let kind = tag.raw_attr("type").unwrap_or("").trim();
+    let kind = tag.style_type.unwrap_or("").trim();
     kind.is_empty() || kind.eq_ignore_ascii_case("text/css")
 }
 
@@ -313,6 +395,9 @@ fn find_end_tag(b: &[u8], from: usize, name: &str) -> Option<usize> {
     }
     None
 }
+
+#[cfg(test)]
+mod style_tests;
 
 #[cfg(test)]
 mod tests {

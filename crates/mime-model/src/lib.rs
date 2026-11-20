@@ -7,6 +7,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod rich;
+pub mod signature_import;
 
 use mailcraft_mime as mime;
 use mailcraft_model::{Address, Attachment, Body, FlagStatus, Importance, Message, Original};

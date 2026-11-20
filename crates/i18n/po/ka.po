@@ -428,10 +428,16 @@ msgid "A file"
 msgstr "ფაილი"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/files.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "A file dialog is already open."
 msgstr "ფაილის დიალოგი უკვე გახსნილია."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "A file is still being chosen for the import."
+msgstr "იმპორტისთვის ფაილი ჯერ კიდევ ირჩევა."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -528,6 +534,12 @@ msgstr "განმეორებადი შეხვედრა გამ�
 #, fuzzy
 msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
 msgstr "გამოწერის გაუქმების მოთხოვნა გაიგზავნება მისამართიდან {from} მისამართზე {to}, თქვენი „გასაგზავნების“ გავლით."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "A message being written couldn't be saved to Drafts: {why}"
+msgstr "მიმდინარე წერილის მონახაზებში შენახვა ვერ მოხერხდა: {why}"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -2344,6 +2356,12 @@ msgid "Back to account settings"
 msgstr "ანგარიშის პარამეტრებზე დაბრუნება"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Background picture"
+msgstr "ფონის სურათი"
+
+#. interface
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Bar on the Left"
@@ -2537,6 +2555,12 @@ msgstr "ზომის მიხედვით"
 msgid "By Subject"
 msgstr "თემის მიხედვით"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "CSS variable"
+msgstr "CSS ცვლადი"
+
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2676,7 +2700,7 @@ msgid "Can't sign"
 msgstr "ხელმოწერა შეუძლებელია"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "გაუქმება"
@@ -3233,6 +3257,18 @@ msgid "Choose default signatures"
 msgstr "ნაგულისხმევი ხელმოწერების არჩევა"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Choose image…"
+msgstr "სურათის არჩევა…"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Choose the file for each picture the HTML names:"
+msgstr "აირჩიეთ ფაილი თითოეული სურათისთვის, რომელსაც HTML ასახელებს:"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Choose the kind of account"
@@ -3257,10 +3293,136 @@ msgid "Choose who this is sent from"
 msgstr "აირჩიეთ, ვისგან გაიგზავნოს"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Chosen: {file}"
+msgstr "არჩეულია: {file}"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "City"
 msgstr "ქალაქი"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows can't play video or audio in a message, so recipients see nothing here: link to the recording instead."
+msgstr "კლასიკურ Outlook-ს Windows-ისთვის წერილში ვიდეოს ან აუდიოს დაკვრა არ შეუძლია, ამიტომ ადრესატები აქ ვერაფერს ნახავენ: სანაცვლოდ ჩანაწერის ბმული მიუთითეთ."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows can't show SVG pictures, so this one will be missing there: use a PNG instead."
+msgstr "კლასიკურ Outlook-ს Windows-ისთვის SVG სურათების ჩვენება არ შეუძლია, ამიტომ ეს სურათი იქ არ გამოჩნდება: სანაცვლოდ PNG გამოიყენეთ."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows can't show WebP, AVIF or HEIC pictures, so this one will be missing there: use a PNG or a JPEG instead."
+msgstr "კლასიკურ Outlook-ს Windows-ისთვის WebP, AVIF ან HEIC სურათების ჩვენება არ შეუძლია, ამიტომ ეს სურათი იქ არ გამოჩნდება: სანაცვლოდ PNG ან JPEG გამოიყენეთ."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't draw gradients: give the element a plain background colour as well, for it to show there."
+msgstr "კლასიკური Outlook Windows-ისთვის გრადიენტებს არ ხატავს: ელემენტს ერთფეროვანი ფონის ფერიც მიეცით, რომ იქ გამოჩნდეს."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't draw shadows, so this one won't appear there."
+msgstr "კლასიკური Outlook Windows-ისთვის ჩრდილებს არ ხატავს, ამიტომ ეს ჩრდილი იქ არ გამოჩნდება."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't read a colour whose numbers are separated by spaces, and some mail services drop the whole style because of it: separate them with commas."
+msgstr "კლასიკური Outlook Windows-ისთვის ვერ კითხულობს ფერს, რომლის რიცხვებიც გამოტოვებით არის გამოყოფილი, ზოგი საფოსტო სერვისი კი ამის გამო მთელ სტილს უგულებელყოფს: გამოყავით ისინი მძიმეებით."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't show a picture whose data is written into the HTML, so this one will be missing there: attach the picture to the signature instead."
+msgstr "კლასიკური Outlook Windows-ისთვის არ აჩვენებს სურათს, რომლის მონაცემებიც HTML-შია ჩაწერილი, ამიტომ ეს სურათი იქ არ გამოჩნდება: სანაცვლოდ სურათი ხელმოწერას დაურთეთ."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't show background pictures, so only the background colour appears there: make sure the text can be read on it."
+msgstr "კლასიკური Outlook Windows-ისთვის ფონის სურათებს არ აჩვენებს, ამიტომ იქ მხოლოდ ფონის ფერი გამოჩნდება: დარწმუნდით, რომ ტექსტი მასზე იკითხება."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't show text or symbols that a style rule adds before or after an element, so they will be missing: write them into the HTML itself."
+msgstr "კლასიკური Outlook Windows-ისთვის არ აჩვენებს ტექსტს ან სიმბოლოებს, რომლებსაც სტილის წესი ელემენტის წინ ან შემდეგ ამატებს, ამიტომ ისინი არ გამოჩნდება: ჩაწერეთ ისინი უშუალოდ HTML-ში."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't understand CSS variables, so a style that uses one is lost there: write the value itself instead."
+msgstr "კლასიკურ Outlook-ს Windows-ისთვის CSS ცვლადები არ ესმის, ამიტომ სტილი, რომელიც ცვლადს იყენებს, იქ იკარგება: სანაცვლოდ თავად მნიშვნელობა ჩაწერეთ."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't understand sizes in rem, so this size is ignored there: use pixels instead."
+msgstr "კლასიკურ Outlook-ს Windows-ისთვის rem-ში მოცემული ზომები არ ესმის, ამიტომ ეს ზომა იქ იგნორირებულია: სანაცვლოდ პიქსელები გამოიყენეთ."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't understand sizes relative to the window (vw, vh, vmin, vmax), so this size is ignored there: use pixels or a percentage instead."
+msgstr "კლასიკურ Outlook-ს Windows-ისთვის ფანჯრის მიმართ მოცემული ზომები (vw, vh, vmin, vmax) არ ესმის, ამიტომ ეს ზომა იქ იგნორირებულია: სანაცვლოდ პიქსელები ან პროცენტი გამოიყენეთ."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows draws square corners, so these corners won't be rounded there."
+msgstr "კლასიკური Outlook Windows-ისთვის მართკუთხა კუთხეებს ხატავს, ამიტომ ეს კუთხეები იქ მომრგვალებული არ იქნება."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores a minimum or maximum width here, so this part may be as wide as the whole message there: give a table a fixed width instead."
+msgstr "კლასიკური Outlook Windows-ისთვის აქ მინიმალურ ან მაქსიმალურ სიგანეს უგულებელყოფს, ამიტომ ეს ნაწილი იქ შეიძლება მთელი წერილის სიგანისა იყოს: სანაცვლოდ ცხრილს ფიქსირებული სიგანე მიეცით."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores a picture's size when only its style sets it, and shows the picture at the file's own size."
+msgstr "კლასიკური Outlook Windows-ისთვის სურათის ზომას უგულებელყოფს, როცა მას მხოლოდ სტილი ადგენს, და სურათს ფაილის საკუთარი ზომით აჩვენებს."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores flexible box layout, so these items will be stacked or run together there: a table can put them side by side."
+msgstr "კლასიკური Outlook Windows-ისთვის მოქნილი ბლოკების განლაგებას უგულებელყოფს, ამიტომ ეს ელემენტები იქ ერთმანეთის ქვეშ დალაგდება ან ერთმანეთს მიეკვრება: ცხრილს შეუძლია ისინი გვერდიგვერდ დააწყოს."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores floating, so this element won't sit beside the others there: use table cells, or an align attribute on a picture or a table."
+msgstr "კლასიკური Outlook Windows-ისთვის მცურავ ელემენტებს უგულებელყოფს, ამიტომ ეს ელემენტი იქ სხვების გვერდით არ იქნება: გამოიყენეთ ცხრილის უჯრები ან align ატრიბუტი სურათზე ან ცხრილზე."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores grid layout, so these items will be stacked there: a table with rows and cells lays them out instead."
+msgstr "კლასიკური Outlook Windows-ისთვის ბადისებრ განლაგებას უგულებელყოფს, ამიტომ ეს ელემენტები იქ ერთმანეთის ქვეშ დალაგდება: სანაცვლოდ მათ სტრიქონებიანი და უჯრებიანი ცხრილი განალაგებს."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores positioning, so this element will be shown in the ordinary flow there: put it in a table cell instead."
+msgstr "კლასიკური Outlook Windows-ისთვის პოზიციონირებას უგულებელყოფს, ამიტომ ეს ელემენტი იქ ჩვეულებრივ ნაკადში გამოჩნდება: სანაცვლოდ ცხრილის უჯრაში მოათავსეთ."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows, like other mail programs, doesn't show frames or embedded objects, so this part will be missing: link to it instead."
+msgstr "კლასიკური Outlook Windows-ისთვის, სხვა საფოსტო პროგრამების მსგავსად, ჩარჩოებს და ჩაშენებულ ობიექტებს არ აჩვენებს, ამიტომ ეს ნაწილი არ გამოჩნდება: სანაცვლოდ ბმული მიუთითეთ."
 
 #. name
 #: crates/ui-egui/src/ribbon.rs
@@ -3440,6 +3602,18 @@ msgstr "ლენტის აკეცვა"
 #, fuzzy
 msgid "Colour"
 msgstr "ფერი"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Colour gradient"
+msgstr "ფერის გრადიენტი"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Colour written with spaces"
+msgstr "გამოტოვებებით ჩაწერილი ფერი"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -4518,6 +4692,12 @@ msgstr "პასუხების მიმართვა"
 msgid "Discard"
 msgstr "უარყოფა"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Discard changes"
+msgstr "ცვლილებების უარყოფა"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -5096,6 +5276,12 @@ msgstr "ელფოსტის მისამართი (არასავ
 msgid "Email the people of this meeting"
 msgstr "წერილის მიწერა ამ შეხვედრის მონაწილეებისთვის"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Embedded frame or object"
+msgstr "ჩაშენებული ჩარჩო ან ობიექტი"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -5548,7 +5734,7 @@ msgid "File"
 msgstr "ფაილი"
 
 #. interface
-#: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "File dialogs aren't available here"
 msgstr "ფაილის დიალოგები აქ მიუწვდომელია"
@@ -5705,6 +5891,38 @@ msgstr "სახელი"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "შესვლის მეთოდის შეცვლამდე ჯერ შეინახეთ Google-ის სტანდარტული IMAP და SMTP პარამეტრები და შესაბამისი ელფოსტის მომხმარებლის სახელი."
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Fix {n} email compatibility error to save this signature."
+msgid_plural "Fix {n} email compatibility errors to save this signature."
+msgstr[0] "ამ ხელმოწერის შესანახად გაასწორეთ ელფოსტასთან თავსებადობის {n} შეცდომა."
+msgstr[1] "ამ ხელმოწერის შესანახად გაასწორეთ ელფოსტასთან თავსებადობის {n} შეცდომა."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Fix: add the size as width and height attributes"
+msgstr "გასწორება: ზომის მითითება width და height ატრიბუტებად"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Fix: put the variable's value in its place"
+msgstr "გასწორება: ცვლადის ადგილას მისი მნიშვნელობის ჩასმა"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Fix: remove this element"
+msgstr "გასწორება: ამ ელემენტის წაშლა"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Fix: separate the colour's numbers with commas"
+msgstr "გასწორება: ფერის რიცხვების მძიმეებით გამოყოფა"
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
@@ -5734,6 +5952,18 @@ msgstr "წერილზე დროშის დასმა და შე�
 #, fuzzy
 msgid "Flagged"
 msgstr "დროშით მონიშნული"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Flexible box layout"
+msgstr "მოქნილი ბლოკების განლაგება"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Floating element"
+msgstr "მცურავი ელემენტი"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -5874,6 +6104,12 @@ msgid "Font Size"
 msgstr "შრიფტის ზომა"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Font list without a general family"
+msgstr "შრიფტების სია ზოგადი ოჯახის გარეშე"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
@@ -5950,6 +6186,12 @@ msgstr "სანდო სერტიფიკატის დავიწყ�
 msgid "Forget the pictures that are kept; they are downloaded again when you ask."
 msgstr "შენახული სურათების დავიწყება; მოთხოვნისას ისინი ხელახლა ჩამოიტვირთება."
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Form or form field"
+msgstr "ფორმა ან ფორმის ველი"
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -5979,6 +6221,12 @@ msgstr "HTML-ად ფორმატირება"
 #, fuzzy
 msgid "Format as Plain Text"
 msgstr "უბრალო ტექსტად ფორმატირება"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Forms, fields and buttons don't work in an email, and Classic Outlook for Windows drops them or shows them as plain text: use a link instead."
+msgstr "ფორმები, ველები და ღილაკები ელფოსტაში არ მუშაობს, კლასიკური Outlook Windows-ისთვის კი მათ უგულებელყოფს ან უბრალო ტექსტად აჩვენებს: სანაცვლოდ ბმული გამოიყენეთ."
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -6531,6 +6779,12 @@ msgid "Grey"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Grid layout"
+msgstr "ბადისებრი განლაგება"
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Group"
@@ -6897,7 +7151,7 @@ msgid "Illustrations"
 msgstr "ილუსტრაციები"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "Import"
 msgstr "იმპორტი"
@@ -6913,6 +7167,18 @@ msgstr "კალენდრის ფაილის იმპორტი"
 #, fuzzy
 msgid "Import Contacts"
 msgstr "კონტაქტების იმპორტი"
+
+#. command label
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "Import HTML Signature"
+msgstr "HTML ხელმოწერის იმპორტი"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Import HTML…"
+msgstr "HTML-ის იმპორტი…"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -7047,6 +7313,12 @@ msgstr "იმპორტირებულია ფაილიდან {fil
 #, fuzzy
 msgid "Imported here"
 msgstr "იმპორტირებულია აქ"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Imported the signature {name}"
+msgstr "ხელმოწერა {name} იმპორტირებულია"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7732,6 +8004,12 @@ msgstr "ანგარიშის დატოვება"
 #, fuzzy
 msgid "Keep data"
 msgstr "მონაცემების დატოვება"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Keep editing"
+msgstr "რედაქტირების გაგრძელება"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs
@@ -9192,6 +9470,12 @@ msgid "Minimize"
 msgstr "ჩაკეცვა"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Minimum or maximum width"
+msgstr "მინიმალური ან მაქსიმალური სიგანე"
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Mobile"
@@ -9507,7 +9791,7 @@ msgid "My outgoing server needs no sign-in"
 msgstr "ჩემს გამავალ სერვერს შესვლა არ სჭირდება"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "Name"
 msgstr "სახელი"
@@ -9840,6 +10124,12 @@ msgstr "ახალი წერილები"
 msgid "New rule"
 msgstr "ახალი წესი"
 
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "New signature from an HTML file"
+msgstr "ახალი ხელმოწერა HTML ფაილიდან"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
 #, fuzzy
@@ -10161,6 +10451,12 @@ msgid "No events"
 msgstr "ღონისძიებები არ არის"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "No file chosen yet"
+msgstr "ფაილი ჯერ არ არის არჩეული"
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
 msgid "No file manager could be started to show the folder."
@@ -10213,6 +10509,12 @@ msgstr "შესაბამისი წერილები არ არი
 #, fuzzy
 msgid "No messages."
 msgstr "წერილები არ არის."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "No more files can be chosen in this window."
+msgstr "ამ ფანჯარაში მეტი ფაილის არჩევა აღარ შეიძლება."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -11872,6 +12174,24 @@ msgstr "სურათი ტექსტის ზემოთ"
 msgid "Picture beside text"
 msgstr "სურათი ტექსტის გვერდით"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Picture format that may not show"
+msgstr "სურათის ფორმატი, რომელიც შეიძლება არ გამოჩნდეს"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Picture sized only by its style"
+msgstr "სურათი, რომლის ზომასაც მხოლოდ სტილი ადგენს"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Picture written into the HTML"
+msgstr "HTML-ში ჩაწერილი სურათი"
+
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -11998,6 +12318,12 @@ msgstr ""
 #, fuzzy
 msgid "Pop Out"
 msgstr "ცალკე გამოტანა"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Positioned element"
+msgstr "პოზიციონირებული ელემენტი"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12461,6 +12787,12 @@ msgstr "ბოლო დროის ფოსტა ინახება ა�
 #, fuzzy
 msgid "Recipient's address contains"
 msgstr "მიმღების მისამართი შეიცავს"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Recipients who don't have these fonts get another one, often a serif font in Classic Outlook for Windows: end the list with serif, sans-serif or monospace."
+msgstr "ადრესატები, რომლებსაც ეს შრიფტები არ აქვთ, სხვა შრიფტს მიიღებენ, კლასიკურ Outlook-ში Windows-ისთვის ხშირად სერიფიანს: დაასრულეთ სია სიტყვით serif, sans-serif ან monospace."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13207,6 +13539,12 @@ msgstr "ფორმატირებული ტექსტი"
 msgid "Right before or after: {items}"
 msgstr "უშუალოდ ადრე ან შემდეგ: {items}"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Rounded corners"
+msgstr "მომრგვალებული კუთხეები"
+
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
@@ -13330,6 +13668,12 @@ msgstr "ამ წესის გაშვება ფოსტაზე მ�
 #, fuzzy
 msgid "SHA-256 fingerprint"
 msgstr "SHA-256 ანაბეჭდი"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "SVG picture"
+msgstr "SVG სურათი"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
@@ -14383,8 +14727,8 @@ msgstr "გაგზავნილები"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "იგზავნება ისე, როგორც დაწერილია, ყოველგვარი გაშვებადი ან მეთვალყურე ელემენტის გარეშე. სურათები მოდის თავიანთი ვებმისამართიდან და მიმღებთა პროგრამები წყვეტენ, ჩატვირთონ თუ არა. თქვენ მიერ დაწერილ წერილში ამ ხელმოწერის გამარტივებული ასლი ჩანს; თუ მას იქ შეცვლით, ნაცვლად ის ასლი გაიგზავნება."
+msgid "Sent as written, with scripts and other active content removed. A picture with a web address is sent as that address; recipients' programs decide whether to load it, and loading it can tell its host it was requested. Pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr "იგზავნება ისე, როგორც დაწერილია, სკრიპტებისა და სხვა აქტიური შიგთავსის ამოშლის შემდეგ. ვებმისამართიანი სურათი ამ მისამართად იგზავნება; ადრესატების პროგრამები წყვეტენ, ჩატვირთონ თუ არა, ხოლო ჩატვირთვამ მის სერვერს შეიძლება აცნობოს, რომ სურათი მოითხოვეს. „HTML-ის იმპორტი…“-ით შემოტანილი სურათები ამ ხელმოწერისაა და ყოველ წერილთან ერთად იგზავნება. თქვენს მიერ დაწერილ წერილში ამ ხელმოწერის გამარტივებული ასლი ჩანს; თუ მას იქ შეცვლით, სანაცვლოდ ეს ასლი გაიგზავნება."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14487,6 +14831,12 @@ msgstr "პარამეტრები"
 #, fuzzy
 msgid "Settings…"
 msgstr "პარამეტრები…"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Shadow"
+msgstr "ჩრდილი"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -15215,6 +15565,18 @@ msgstr "ერთი სტრიქონი"
 msgid "Size"
 msgstr "ზომა"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Size in rem"
+msgstr "ზომა rem-ში"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Size relative to the window"
+msgstr "ზომა ფანჯრის მიმართ"
+
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -15573,6 +15935,18 @@ msgstr "ქუჩა"
 #, fuzzy
 msgid "Stronger text and edges, in the light or the dark theme."
 msgstr "უფრო მკვეთრი ტექსტი და კიდეები, ღია ან მუქ თემაში."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Style rule that can't be sent"
+msgstr "სტილის წესი, რომლის გაგზავნაც შეუძლებელია"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Style that can't be sent"
+msgstr "სტილი, რომლის გაგზავნაც შეუძლებელია"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -16004,6 +16378,12 @@ msgid "Text Highlight Color"
 msgstr "მარკერის ფერი"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Text added by a style rule"
+msgstr "სტილის წესით დამატებული ტექსტი"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Text to look for"
@@ -16020,6 +16400,24 @@ msgstr "გმადლობთ. MailCraft-ის გუნდმა ის მ
 #, fuzzy
 msgid "Thanks, Thursday at ten works for me. I'll bring the drawings."
 msgstr "გმადლობთ, ხუთშაბათი, ათ საათზე მაწყობს. ნახაზებს წამოვიღებ."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That HTML can't be made a signature: {why}"
+msgstr "ამ HTML-ისგან ხელმოწერის შექმნა შეუძლებელია: {why}"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That HTML file is larger than a signature's HTML may be (64 KB)."
+msgstr "ეს HTML ფაილი იმაზე დიდია, რამდენიც ხელმოწერის HTML შეიძლება იყოს (64 KB)."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That HTML file isn't UTF-8 text."
+msgstr "ეს HTML ფაილი UTF-8 ტექსტი არ არის."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -16124,6 +16522,12 @@ msgid "That file is larger than a key file can be."
 msgstr "ეს ფაილი იმაზე დიდია, ვიდრე გასაღების ფაილი შეიძლება იყოს."
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That file is larger than a signature may take."
+msgstr "ეს ფაილი იმაზე დიდია, რამდენსაც ხელმოწერა იტევს."
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "That file isn't a key file: it is empty, or larger than one is."
@@ -16176,6 +16580,18 @@ msgstr "ეს ამ ფაილის პაროლი არ არის.
 #, fuzzy
 msgid "That key is on the card already"
 msgstr "ეს გასაღები უკვე ბარათზეა"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That picture is larger than a signature's picture may be (256 KB)."
+msgstr "ეს სურათი იმაზე დიდია, რამდენიც ხელმოწერის სურათი შეიძლება იყოს (256 KB)."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That picture is no longer part of the import."
+msgstr "ეს სურათი აღარ არის იმპორტის ნაწილი."
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -16718,7 +17134,13 @@ msgid "The file could not be shared."
 msgstr "ფაილი ვერ გაზიარდა."
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "The file couldn't be read"
+msgstr "ფაილის წაკითხვა ვერ მოხერხდა"
+
+#. interface
+#: crates/ui-egui/src/files.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "The file couldn't be read ({why})"
 msgstr "ფაილი ვერ წაიკითხა ({why})"
@@ -16948,6 +17370,12 @@ msgid "The mailbox could not be read."
 msgstr "საფოსტო ყუთის წაკითხვა ვერ მოხერხდა."
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "The mailbox or the signature being edited changed, so the HTML import was given up."
+msgstr "საფოსტო ყუთი ან რედაქტირებადი ხელმოწერა შეიცვალა, ამიტომ HTML-ის იმპორტი შეწყდა."
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The meeting these proposals are for isn't on your calendar."
@@ -17167,6 +17595,12 @@ msgstr "ადამიანების წაკითხვა ვერ მ
 #, fuzzy
 msgid "The picture was too big, so it was made smaller ({w} px wide)."
 msgstr "სურათი ზედმეტად დიდი იყო, ამიტომ შემცირდა ({w} პქს სიგანე)."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "The pictures would be larger than a signature's pictures may be together (512 KB)."
+msgstr "სურათები ერთად იმაზე დიდი იქნებოდა, რამდენიც ხელმოწერის სურათები შეიძლება იყოს (512 KB)."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17923,6 +18357,12 @@ msgstr "ისინი შეინახება თქვენ მიერ
 #, fuzzy
 msgid "They share {what}."
 msgstr "საერთო აქვთ: {what}."
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "This HTML names no picture files."
+msgstr "ეს HTML სურათის არცერთ ფაილს არ ასახელებს."
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -18795,11 +19235,47 @@ msgstr "ამ საერთო საფოსტო ყუთის ან�
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "ამ საერთო საფოსტო ყუთის ანგარიში აღარ არსებობს: წაშალეთ საერთო საფოსტო ყუთი და ხელახლა დაამატეთ"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "This signature can't be saved until its email compatibility errors are fixed."
+msgstr "ამ ხელმოწერის შენახვა შეუძლებელია, სანამ ელფოსტასთან თავსებადობის შეცდომები არ გასწორდება."
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "This signature can't be saved: {why}"
+msgstr "ამ ხელმოწერის შენახვა შეუძლებელია: {why}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "This signature has a picture or its own layout. Change it on the computer."
 msgstr "ამ ხელმოწერას სურათი ან საკუთარი განლაგება აქვს. შეცვალეთ ის კომპიუტერზე."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "This signature's HTML could not be checked for email compatibility, so it can't be saved yet."
+msgstr "ამ ხელმოწერის HTML-ის ელფოსტასთან თავსებადობის შემოწმება ვერ მოხერხდა, ამიტომ მისი შენახვა ჯერ შეუძლებელია."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "This signature's HTML could not be checked for email compatibility."
+msgstr "ამ ხელმოწერის HTML-ის ელფოსტასთან თავსებადობის შემოწმება ვერ მოხერხდა."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "This style rule uses something MailCraft can't send safely (such as an import, a web address or an unsupported selector). Remove or simplify the rule."
+msgstr "სტილის ეს წესი იყენებს რაღაცას, რასაც MailCraft უსაფრთხოდ ვერ გაგზავნის (მაგალითად, იმპორტს, ვებმისამართს ან მხარდაუჭერელ სელექტორს). წაშალეთ ან გაამარტივეთ წესი."
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "This style uses something MailCraft can't send safely (such as a web address for a background picture), so the whole style would be left out, its colours and spacing with it. Remove that part of the style."
+msgstr "ეს სტილი იყენებს რაღაცას, რასაც MailCraft უსაფრთხოდ ვერ გაგზავნის (მაგალითად, ფონის სურათის ვებმისამართს), ამიტომ მთელი სტილი გამოტოვდებოდა, მის ფერებთან და დაშორებებთან ერთად. წაშალეთ სტილის ეს ნაწილი."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -19378,6 +19854,12 @@ msgstr "შეუნახავი ცვლილებები"
 msgid "Unsaved Message"
 msgstr "შეუნახავი წერილი"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Unsaved Signature"
+msgstr "შეუნახავი ხელმოწერა"
+
 #. command label, interface
 #: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -19684,6 +20166,12 @@ msgstr "ვერსია {version} ასწორებს უსაფრთ
 msgid "Version {version} is ready:"
 msgstr "ვერსია {version} მზადაა:"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Video or audio player"
+msgstr "ვიდეო ან აუდიო დამკვრელი"
+
 #. name, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -19745,10 +20233,22 @@ msgid "Waiting for MailCraft's Google registration"
 msgstr "MailCraft-ის Google-ში რეგისტრაციის მოლოდინი"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Waiting for the HTML file…"
+msgstr "HTML ფაილის მოლოდინი…"
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "დამტკიცების მოლოდინი მოულოდნელად შეწყდა"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Waiting for the previous file to finish being read."
+msgstr "წინა ფაილის წაკითხვის დასრულების მოლოდინი."
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -20994,16 +21494,10 @@ msgid "an Exchange server account's server, address and user name can't be chang
 msgstr "Exchange სერვერის ანგარიშის სერვერის, მისამართისა და მომხმარებლის სახელის შეცვლა შეუძლებელია, როცა მისი ფოსტა უკვე აქაა: წაშალეთ ეს ანგარიში და დაამატეთ ახალი"
 
 #. what a command says
-#: crates/model/src/signature.rs
+#: crates/engine/src/cmd/signature.rs
 #, fuzzy
-msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
-msgstr "HTML ხელმოწერა სურათებს მხოლოდ მათი ვებმისამართიდან აჩვენებს: ჯერ ამ ხელმოწერის სურათები წაშალეთ"
-
-#. what a command says
-#: crates/model/src/signature.rs
-#, fuzzy
-msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
-msgstr "HTML ხელმოწერა სურათებს მათი ვებმისამართიდან აჩვენებს: სურათის დასამატებლად გადართეთ ფორმატირებულ ტექსტზე"
+msgid "an HTML signature's pictures are sized, described and taken out in its HTML"
+msgstr "HTML ხელმოწერის სურათების ზომა, აღწერა და წაშლა მის HTML-ში ხდება"
 
 #. what a command says
 #: crates/engine/src/digital_signature.rs
@@ -22128,6 +22622,12 @@ msgid "someone@example.org or @example.org"
 msgstr "someone@example.org ან @example.org"
 
 #. what a command says
+#: crates/model/src/signature.rs
+#, fuzzy
+msgid "switch the HTML signature to rich text before inserting a picture into its text"
+msgstr "სანამ ხელმოწერის ტექსტში სურათს ჩასვამთ, HTML ხელმოწერა ფორმატირებულ ტექსტზე გადართეთ"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -22683,6 +23183,12 @@ msgstr "პლატფორმამ უარი თქვა ან შე�
 msgid "the proposed end is not after the proposed start"
 msgstr "შემოთავაზებული დასასრული შემოთავაზებული დასაწყისის შემდეგ არ არის"
 
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "the reader stopped unexpectedly"
+msgstr "წაკითხვა მოულოდნელად შეწყდა"
+
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
 #, fuzzy
@@ -23175,13 +23681,13 @@ msgid "there are too many rules"
 msgstr "ზედმეტად ბევრი წესია"
 
 #. what a command says
-#: crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signature_import.rs
 #, fuzzy
 msgid "there are too many signatures"
 msgstr "ზედმეტად ბევრი ხელმოწერაა"
 
 #. what a command says
-#: crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signature_import.rs
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "ხელმოწერა სახელით „{to}“ უკვე არსებობს"
@@ -23263,6 +23769,36 @@ msgstr "ეს .pst ფაილი ზედმეტად დიდია, �
 #, fuzzy
 msgid "this Exchange server account has no server settings"
 msgstr "ამ Exchange სერვერის ანგარიშს სერვერის პარამეტრები არ აქვს"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this HTML conversion would lose the signature's embedded pictures"
+msgstr "HTML-ად ეს გარდაქმნა ხელმოწერის ჩაშენებულ სურათებს დაკარგავდა"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this HTML hides a picture of the signature where its text can't show it"
+msgstr "ეს HTML ხელმოწერის სურათს მალავს იქ, სადაც მისი ტექსტი მას ვერ აჩვენებს"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this HTML names a picture inside a <template> that is neither on the web nor one of this signature's own: such a picture is never sent, so take it out or give it a web address (https://…)"
+msgstr "ეს HTML <template>-ის შიგნით ასახელებს სურათს, რომელიც არც ვებშია და არც ამ ხელმოწერისაა: ასეთი სურათი არასოდეს იგზავნება, ამიტომ წაშალეთ ან მიეცით ვებმისამართი (https://…)"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this HTML names a picture that is neither on the web nor one of this signature's own: give it a web address (https://…), or name the picture's file relative to the HTML file and bring both in with Import HTML…"
+msgstr "ეს HTML ასახელებს სურათს, რომელიც არც ვებშია და არც ამ ხელმოწერისაა: მიეცით მას ვებმისამართი (https://…) ან დაასახელეთ სურათის ფაილი HTML ფაილის მიმართ და ორივე შემოიტანეთ ბრძანებით „HTML-ის იმპორტი…“"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this HTML names a picture this signature doesn't have"
+msgstr "ეს HTML ასახელებს სურათს, რომელიც ამ ხელმოწერას არ აქვს"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
@@ -23440,6 +23976,42 @@ msgstr "ამ სერიას ზედმეტად ბევრი გ�
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "ამ სერიას ზედმეტად ბევრი შეცვლილი დღე აქვს"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this signature has email compatibility errors to fix before it can be saved"
+msgstr "ამ ხელმოწერას აქვს ელფოსტასთან თავსებადობის შეცდომები, რომლებიც შენახვამდე უნდა გასწორდეს"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this signature's HTML could not be checked for email compatibility"
+msgstr "ამ ხელმოწერის HTML-ის ელფოსტასთან თავსებადობის შემოწმება ვერ მოხერხდა"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this signature's HTML could not be read for its pictures"
+msgstr "ამ ხელმოწერის HTML-იდან სურათების წაკითხვა ვერ მოხერხდა"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this signature's HTML could not be read for its pictures: it may name at most {n} pictures"
+msgstr "ამ ხელმოწერის HTML-იდან სურათების წაკითხვა ვერ მოხერხდა: მას შეუძლია მაქსიმუმ {n} სურათის დასახელება"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this signature's HTML could not be read for its pictures: remove its <base> element"
+msgstr "ამ ხელმოწერის HTML-იდან სურათების წაკითხვა ვერ მოხერხდა: წაშალეთ მისი <base> ელემენტი"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this signature's styles can't be sent safely: fix them in File › Signatures, then insert the signature again (Message › Include › Signature), or choose Edit Signature as Text"
+msgstr "ამ ხელმოწერის სტილების უსაფრთხოდ გაგზავნა შეუძლებელია: გაასწორეთ ისინი აქ: ფაილი › ხელმოწერები, შემდეგ ხელმოწერა ხელახლა ჩასვით (წერილი › დართვა › ხელმოწერა), ან აირჩიეთ „ხელმოწერის რედაქტირება ტექსტად“"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -24511,6 +25083,14 @@ msgid_plural "{n} downloaded pictures are kept on this phone ({size})."
 msgstr[0] "ჩამოტვირთული სურათები ({n}) ამ ტელეფონზე ინახება ({size})."
 msgstr[1] "ჩამოტვირთული სურათები ({n}) ამ ტელეფონზე ინახება ({size})."
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "{n} email compatibility error"
+msgid_plural "{n} email compatibility errors"
+msgstr[0] "ელფოსტასთან თავსებადობის {n} შეცდომა"
+msgstr[1] "ელფოსტასთან თავსებადობის {n} შეცდომა"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -25236,6 +25816,14 @@ msgstr[0] "სერვერზე წაუკითხავი: {n}"
 msgstr[1] "სერვერზე წაუკითხავი: {n}"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "{n} warning"
+msgid_plural "{n} warnings"
+msgstr[0] "{n} გაფრთხილება"
+msgstr[1] "{n} გაფრთხილება"
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} was here already"
@@ -25515,6 +26103,22 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "იგზავნება ისე, როგორც დაწერილია, ყველაფრის გარეშე, რაც გაეშვება ან თვალს ადევნებს. ვებმისამართიანი სურათი ამ მისამართად იგზავნება და ადრესატების პროგრამები წყვეტენ, ჩატვირთონ თუ არა; „HTML-ის იმპორტი…“-ით შემოტანილი სურათები ამ ხელმოწერისაა და ყოველ წერილთან ერთად იგზავნება. თქვენს მიერ დაწერილ წერილში ამ ხელმოწერის გამარტივებული ასლი ჩანს; თუ მას იქ შეცვლით, სანაცვლოდ ეს ასლი გაიგზავნება."
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "იგზავნება ისე, როგორც დაწერილია, ყოველგვარი გაშვებადი ან მეთვალყურე ელემენტის გარეშე. სურათები მოდის თავიანთი ვებმისამართიდან და მიმღებთა პროგრამები წყვეტენ, ჩატვირთონ თუ არა. თქვენ მიერ დაწერილ წერილში ამ ხელმოწერის გამარტივებული ასლი ჩანს; თუ მას იქ შეცვლით, ნაცვლად ის ასლი გაიგზავნება."
+
+#, fuzzy
+#~ msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
+#~ msgstr "HTML ხელმოწერა სურათებს მხოლოდ მათი ვებმისამართიდან აჩვენებს: ჯერ ამ ხელმოწერის სურათები წაშალეთ"
+
+#, fuzzy
+#~ msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
+#~ msgstr "HTML ხელმოწერა სურათებს მათი ვებმისამართიდან აჩვენებს: სურათის დასამატებლად გადართეთ ფორმატირებულ ტექსტზე"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

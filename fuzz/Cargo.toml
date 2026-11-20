@@ -247,3 +247,10 @@ path = "fuzz_targets/header_block.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "signature_html"
+path = "fuzz_targets/signature_html.rs"
+test = false
+doc = false
+bench = false

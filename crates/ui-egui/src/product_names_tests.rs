@@ -70,6 +70,10 @@ const ALLOWED_PHRASES: &[(&str, &str)] = &[
     ("Outlook's colours", "the 25 colours a category takes on the mailbox's server (#661)"),
     ("what you see in Outlook", "an account kept in step through Microsoft Graph shows the same mail"),
     ("Out of Office", "the plain phrase for being away, a show-as state, not a product"),
+    (
+        "Classic Outlook for Windows",
+        "the mail program on recipients' computers that the signature compatibility check is about; owners know it by this name",
+    ),
 ];
 
 /// Every text the window shows through `tl!`, singular and plural, from the template.

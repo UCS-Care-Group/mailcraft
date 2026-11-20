@@ -21,6 +21,7 @@ pub mod device_limits;
 #[cfg(test)]
 mod device_limits_tests;
 pub mod digital_signature;
+pub mod draft_signature;
 mod ews_server;
 pub mod gmail;
 pub mod headers;

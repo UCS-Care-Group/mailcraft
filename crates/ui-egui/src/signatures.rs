@@ -28,6 +28,7 @@ pub(crate) fn page(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         .color(t.text_dim),
     );
     ui.add_space(6.0);
+    after_leave_question(app, ui.ctx());
     let names: Vec<String> = app.session.mailbox.signatures.iter().map(|s| s.name.clone()).collect();
     if app.session.signature_edit.is_none()
         && let Some(first) = names.first()
@@ -39,6 +40,8 @@ pub(crate) fn page(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         ui.vertical(|ui| {
             ui.set_width(180.0);
             list(app, ui, t, &names, open.as_deref());
+            ui.add_space(6.0);
+            crate::signature_import::panel(app, ui, t);
         });
         ui.add_space(12.0);
         ui.vertical(|ui| {
@@ -279,8 +282,22 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         None => rich(app, ui, t),
     }
     let dirty = app.session.signature_edit.as_ref().is_some_and(|e| e.dirty);
+    // An HTML signature with an email compatibility error, or whose HTML could not be checked,
+    // can't be kept, nor one naming a picture it can't be sent with: Save says why, and the
+    // engine refuses it too.
+    let saved = app.session.signature_edit.as_ref().map(as_saved);
+    let refusal = saved
+        .as_ref()
+        .and_then(|sig| sig.html())
+        .and_then(|h| crate::compat::save_refusal(&crate::compat::checked(ui.ctx(), h)))
+        .or_else(|| if dirty { picture_refusal(app) } else { None });
     ui.horizontal(|ui| {
-        if ui.add_enabled(dirty, egui::Button::new(tl!("Save"))).clicked() {
+        let save = ui.add_enabled(dirty && refusal.is_none(), egui::Button::new(tl!("Save")));
+        let save = match &refusal {
+            Some(why) => save.on_disabled_hover_text(why.as_str()),
+            None => save,
+        };
+        if save.clicked() {
             let _ = app.run("signature.save", json!({}));
         }
         if dirty {
@@ -295,23 +312,47 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 
 /// An HTML signature's source, as the owner writes it.
 fn html_source(app: &mut MailApp, ui: &mut Ui, t: &Tokens, mut source: String) {
-    let edit = egui::TextEdit::multiline(&mut source)
+    // Its own id, so that its caret and undo are found again; its layouter underlines what the
+    // email-compatibility check found in the text being laid out (`compat`).
+    let id = crate::compat::editor_id();
+    let mut layouter = |ui: &Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
+        let text = text.as_str();
+        let checked = crate::compat::checked(ui.ctx(), text);
+        let look = crate::compat::Look::of(ui, id, t);
+        ui.fonts_mut(|f| f.layout_job(crate::compat::layout_job(text, checked.marks(), &look, wrap_width)))
+    };
+    let out = egui::TextEdit::multiline(&mut source)
+        .id(id)
         .code_editor()
         .desired_rows(10)
         .desired_width(f32::INFINITY)
         .char_limit(MAX_HTML)
-        .hint_text(tl!("Paste or write the signature's HTML"));
-    if crate::text_menu::field(ui.add(edit)).changed()
+        .hint_text(tl!("Paste or write the signature's HTML"))
+        .layouter(&mut layouter)
+        .show(ui);
+    app.hit.add("signatureHtmlSource", 0, out.response.rect);
+    if crate::text_menu::field(out.response.response.clone()).changed()
         && let Err(why) = app.execute("signature.html", json!({"html": source}))
     {
         refuse(app, why);
+    }
+    // The popup of a finding pointed at, and its fix, sent as typing is sent.
+    if let Some(fixed) = crate::compat::popup(app, ui, t, &out, &source)
+        && let Err(why) = app.execute("signature.html", json!({"html": fixed}))
+    {
+        refuse(app, why);
+    }
+    // How many findings there are, below the editor.
+    let checked = crate::compat::checked(ui.ctx(), &source);
+    if let Some(line) = crate::compat::summary(&checked) {
+        ui.label(egui::RichText::new(line).color(if checked.blocks_save() { t.red } else { t.orange }));
     }
     if let Some(note) = &app.signature_note {
         ui.label(egui::RichText::new(note.text.as_str()).color(if note.error { t.red } else { t.text_dim }));
     }
     ui.label(
         egui::RichText::new(tl!(
-            "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+            "Sent as written, with scripts and other active content removed. A picture with a web address is sent as that address; recipients' programs decide whether to load it, and loading it can tell its host it was requested. Pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
         ))
         .font(regular(11.5))
         .color(t.text_dim),
@@ -492,6 +533,27 @@ pub(crate) fn message_of(
     }
 }
 
+/// Whether `message` holds exactly `pictures` as its own parts, in that order: each one inline,
+/// under the `cid:` address this preview binds it at in that message, with that picture's own file
+/// name, type and bytes. A message kept for a signature's HTML is that signature's only while this
+/// holds of the pictures it was drawn from: the HTML can name a picture whose bytes were replaced,
+/// and nothing the address alone reads tells the two apart.
+///
+/// The bytes are the same allocation in the ordinary case — the kept message holds the signature's
+/// own `Arc<Vec<u8>>` — so a frame costs a pointer each; only a part holding the same bytes of
+/// another allocation is compared as bytes, and the bytes are never hashed.
+pub(crate) fn message_holds_pictures(
+    message: &mailcraft_model::Message,
+    pictures: &[mailcraft_model::signature::Picture],
+    cid: impl Fn(&mailcraft_model::signature::Picture) -> String,
+) -> bool {
+    message.attachments.len() == pictures.len()
+        && message.attachments.iter().zip(pictures).all(|(part, p)| {
+            let bytes = std::sync::Arc::ptr_eq(&part.data, &p.data) || part.data == p.data;
+            part.inline && part.content_id == cid(p) && part.name == p.name && part.mime == p.mime && bytes
+        })
+}
+
 fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let Some(e) = app.session.signature_edit.as_ref() else { return };
     let mut sig = e.signature.clone();
@@ -500,6 +562,10 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     let ctx = ui.ctx().clone();
     let key = egui::Id::unique("mailcraft-signature-preview");
+    // The address each of its pictures is bound at in this preview, and the part the kept message
+    // must carry for it: the stamp reads the pictures' id, width and description, which the same
+    // signature with a picture's bytes replaced does not change.
+    let cid = |p: &mailcraft_model::signature::Picture| format!("sig-{}@preview.invalid", p.id);
     let stamp = (
         mailcraft_model::signature::text_hash(sig.body()),
         format!("{:?}", sig.layout),
@@ -513,13 +579,25 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         stamp.hash(&mut h);
         h.finish()
     };
-    let message = match kept.filter(|(k, _)| *k == hash) {
+    let message = match kept.filter(|(k, m)| *k == hash && message_holds_pictures(m, sig.pictures(), cid)) {
         Some((_, m)) => m,
         None => {
-            let cid = |p: &mailcraft_model::signature::Picture| format!("sig-{}@preview.invalid", p.id);
-            // An HTML signature as it is sent: cleaned.
-            let signature = sig.html().map_or_else(|| mailcraft_engine::mime::rich::signature_html(&sig, &cid), mailcraft_engine::html::quotable);
-            let html = format!("<p>{}</p>\r\n{signature}", tl!("Thanks, Thursday at ten works for me. I'll bring the drawings."));
+            // Its HTML as a message sends it: cleaned, and each picture the signature knows bound
+            // to the part this preview gives it. Both kinds are laid out by the same code, so a
+            // known picture address is at a part this message really holds. A `cid:` the signature
+            // does not hold keeps the address the HTML gives it — the existing cleaning leaves such
+            // a reference alone — and no part is invented here for it.
+            let greeting = format!("<p>{}</p>\r\n", tl!("Thanks, Thursday at ten works for me. I'll bring the drawings."));
+            // An HTML signature as a message sends it: its style sheets scoped to it in the
+            // head (`authored_signature_html`); one whose sheets can't be, as a draft keeps it.
+            let authored = sig.html().and_then(|own| {
+                let scope = preview_scope(own)?;
+                mailcraft_engine::mime::rich::authored_signature_html(&sig, own, &scope, &cid).ok()
+            });
+            let html = match authored {
+                Some(f) => mailcraft_engine::mime::rich::document_with_head(&f.head, &format!("{greeting}{}", f.body), None),
+                None => format!("{greeting}{}", mailcraft_engine::mime::rich::signature_html(&sig, &cid)),
+            };
             let m = std::sync::Arc::new(message_of(html, sig.pictures(), cid));
             ctx.data_mut(|d| d.insert_temp(key, (hash, m.clone())));
             m
@@ -538,6 +616,29 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             ui.label(egui::RichText::new(sig.plain()).font(crate::theme::mono(12.0)).color(t.text));
         });
     });
+}
+
+/// One preview scope absent from the complete, bounded signature. Collect fixed-width suffixes
+/// once; one of 0..=count must be absent, so even a signature naming every old trial still works.
+/// The authored writer's independent collision guard remains the final check.
+pub(crate) fn preview_scope(html: &str) -> Option<mailcraft_html::AuthoredScope> {
+    if html.len() > MAX_HTML {
+        return None;
+    }
+    let lower = html.to_ascii_lowercase();
+    if !lower.contains("mc-preview") {
+        return mailcraft_html::AuthoredScope::new("mc-preview").ok();
+    }
+    const PREFIX: &str = "mc-preview-";
+    let used: std::collections::HashSet<u32> = lower
+        .match_indices(PREFIX)
+        .filter_map(|(at, _)| lower.get(at.checked_add(PREFIX.len())?..at.checked_add(PREFIX.len())?.checked_add(8)?))
+        .filter_map(|digits| u32::from_str_radix(digits, 16).ok())
+        .collect();
+    (0..=used.len())
+        .filter_map(|n| u32::try_from(n).ok())
+        .find(|n| !used.contains(n))
+        .and_then(|n| mailcraft_html::AuthoredScope::new(&format!("{PREFIX}{n:08x}")).ok())
 }
 
 fn command_label(command: &str) -> &'static str {
@@ -626,4 +727,84 @@ fn defaults(app: &mut MailApp, ui: &mut Ui, names: &[String]) {
             ui.end_row();
         }
     });
+}
+
+#[cfg(test)]
+#[path = "settings_preview_tests.rs"]
+mod settings_preview_tests;
+
+#[cfg(test)]
+#[path = "signature_html_import_tests.rs"]
+mod html_import_tests;
+
+#[cfg(test)]
+#[path = "signature_picture_refusal_tests.rs"]
+mod picture_refusal_tests;
+
+/// The open signature as `signature.save` keeps it: with the text it has now, which lets its HTML
+/// go when that text is no longer the HTML's (`Signature::set_body`). Save is judged on this.
+fn as_saved(e: &mailcraft_engine::SignatureEdit) -> mailcraft_model::Signature {
+    let mut sig = e.signature.clone();
+    match sig.set_body(e.body.text().clone()) {
+        Ok(()) => sig,
+        Err(_) => e.signature.clone(),
+    }
+}
+
+/// Where the window notes that it asked [`ask_leave`]'s question, with where the owner was going
+/// (File open or not, and its page).
+fn leave_asked() -> egui::Id {
+    egui::Id::unique("mailcraft-signature-leave-asked")
+}
+
+/// Why the open signature can't be saved for a picture its HTML names, in the owner's language
+/// and as `signature.save` refuses it: the engine's own check
+/// ([`mailcraft_engine::cmd::signature::sendable_pictures`]). `None` when it isn't HTML, or every
+/// picture it names can be sent.
+fn picture_refusal(app: &MailApp) -> Option<String> {
+    let sig = as_saved(app.session.signature_edit.as_ref()?);
+    let why = mailcraft_engine::cmd::signature::sendable_pictures(&sig, sig.html()?).err()?;
+    Some(why.in_lang(crate::i18n::current()))
+}
+
+/// The page was left with a signature whose save was refused: when that is for its email
+/// compatibility errors, or for a picture it can't be sent with, the owner is asked whether to
+/// keep editing it (what Escape answers: the window stays on the page with every edit) or to
+/// discard the changes, which closes the signature without keeping them and goes on to `to`, where
+/// the owner was going (File open or not, and its page). Nothing is asked over another dialog.
+pub(crate) fn ask_leave(app: &mut MailApp, to: (bool, String)) {
+    let Some(ctx) = app.ctx.clone() else { return };
+    let Some(html) = app.session.signature_edit.as_ref().and_then(|e| e.signature.html()) else { return };
+    // The findings the editor keeps for this very text: the same answer its Save gave.
+    let why = if crate::compat::checked(&ctx, html).blocks_save() {
+        tl!("This signature can't be saved until its email compatibility errors are fixed.").to_string()
+    } else if let Some(why) = picture_refusal(app) {
+        crate::i18n::fmt(tl!("This signature can't be saved: {why}"), &[("why", &why)])
+    } else {
+        return;
+    };
+    if app.dialog.is_some() {
+        return;
+    }
+    let mut ask = crate::dialogs::Question::new(tl!("Unsaved Signature"), why, tl!("Discard changes"), json!({}));
+    ask.cancel = Some(tl!("Keep editing").to_string());
+    app.dialog = Some(crate::dialogs::Dialog::Confirm { command: "signature.close".to_string(), params: json!({"discard": true}), ask });
+    ctx.data_mut(|d| d.insert_temp(leave_asked(), to));
+}
+
+/// Once [`ask_leave`]'s question is answered: after Discard changes (the signature is closed),
+/// the page is left for where the owner was going (another page of File, or out of File); after
+/// Keep editing, nothing more.
+fn after_leave_question(app: &mut MailApp, ctx: &egui::Context) {
+    if app.dialog.is_some() {
+        return;
+    }
+    let Some((backstage, page)) = ctx.data(|d| d.get_temp::<(bool, String)>(leave_asked())) else { return };
+    ctx.data_mut(|d| d.remove::<(bool, String)>(leave_asked()));
+    if app.session.signature_edit.is_none() {
+        let to = if backstage { json!({"value": true, "page": page}) } else { json!({"value": false}) };
+        if app.run("ui.backstage", to).is_err() {
+            let _ = app.run("ui.backstage", json!({"value": false}));
+        }
+    }
 }

@@ -1111,6 +1111,7 @@ fn services(
     let categories_ctx = ctx.clone();
     let replies_ctx = ctx.clone();
     let ahead_ctx = ctx.clone();
+    let signature_ctx = ctx.clone();
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
     let report_ctx = ctx.clone();
@@ -1277,6 +1278,11 @@ fn services(
                 log::error!("couldn't start the .pst import: {e}");
             }
             rx
+        })),
+        // A file picked for File › Signatures' Import HTML…, read off the window's thread and only
+        // up to what a signature takes of it; the window never reads it itself.
+        read_signature_file: Some(Box::new(move |read: mailcraft_ui_egui::files::SignatureRead| {
+            background(&signature_ctx, "signature file", move || read.read())
         })),
         // Another mailbox file, read off the window's thread before it takes the place of the one
         // open (File › Open, #519): the window shows how far it has got and can call it off. A

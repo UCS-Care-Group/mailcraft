@@ -20,6 +20,8 @@ mod picture_tests;
 #[cfg(test)]
 mod several_tests;
 #[cfg(test)]
+mod signature_preview_tests;
+#[cfg(test)]
 mod tests;
 
 const MIN_LABEL_WIDTH: f32 = 62.0;
@@ -524,12 +526,35 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
     let key = egui::Id::unique("mailcraft-compose-signature");
     let this = egui::Id::unique(&html);
     let known = ctx.data(|d| d.get_temp::<Kept>(key)).unwrap_or_default();
-    let message = match known.iter().find(|(of, _)| *of == this) {
+    // The signature the message holds now, read before the cache is looked into: a kept message is
+    // this signature's only while it holds these pictures. The HTML alone does not tell two
+    // signatures apart — the same HTML can name a picture whose bytes were replaced — so the entry
+    // is taken by its address into the message *and* by the parts the message actually carries.
+    let Some(inserted) = app.session.compose.as_ref().and_then(|c| c.signature.as_ref()) else { return };
+    let cid = |p: &mailcraft_model::signature::Picture| format!("sig-{}@preview.invalid", p.id);
+    let message = match known.iter().find(|(of, m)| *of == this && crate::signatures::message_holds_pictures(m, &inserted.pictures, cid)) {
         Some((_, m)) => m.clone(),
         None => {
-            // As it is sent: cleaned.
-            let m = std::sync::Arc::new(crate::signatures::message_of(mailcraft_engine::html::quotable(&html), &[], |_| String::new()));
+            // As it is sent: its own HTML cleaned, each picture the signature knows bound to the
+            // part this preview gives it. The signature is the message's own snapshot of it (its
+            // name, text, pictures and layout) made a checked signature again, so a known picture
+            // address is bound to the part this message really carries. A `cid:` the snapshot does
+            // not hold keeps the address the HTML gives it — the existing cleaning leaves such a
+            // reference alone — and no part is invented here for it.
+            let sig = mailcraft_model::Signature::assemble(inserted.name.clone(), inserted.text.clone(), &inserted.pictures, inserted.layout);
+            // With its style sheets scoped to it in the head, as the message sends it
+            // (`authored_signature_html`); one whose sheets can't be, as a draft keeps it.
+            let authored = crate::signatures::preview_scope(&html)
+                .and_then(|scope| mailcraft_engine::mime::rich::authored_signature_html(&sig, &html, &scope, &cid).ok());
+            let bound = match authored {
+                Some(f) => mailcraft_engine::mime::rich::document_with_head(&f.head, &f.body, None),
+                None => mailcraft_engine::mime::rich::bound_signature_html(&sig, &html, &cid),
+            };
+            let m = std::sync::Arc::new(crate::signatures::message_of(bound, sig.pictures(), cid));
+            // One entry for each HTML: what was kept for this one goes first, so that the draw
+            // cannot find the message the draft no longer holds beside the one made now.
             let mut known = known;
+            known.retain(|(of, _)| *of != this);
             if known.len() >= KEPT.max(app.windows.len().saturating_add(2)) {
                 known.remove(0);
             }

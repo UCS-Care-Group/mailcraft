@@ -98,6 +98,9 @@ fn open_filters(d: rfd::AsyncFileDialog, purpose: &str) -> rfd::AsyncFileDialog 
         "pst" => d.add_filter(".pst files", &["pst"]).add_filter("All files", &["*"]),
         "picture" => d.add_filter("Pictures (PNG, JPEG, GIF)", &["png", "jpg", "jpeg", "gif"]),
         "bodyPicture" => d.add_filter("Pictures (PNG, JPEG, GIF, WebP)", &["png", "jpg", "jpeg", "gif", "webp"]),
+        // File › Signatures' Import HTML…: the document, then each picture it names.
+        "signatureHtml" => d.add_filter("HTML files", &["html", "htm"]).add_filter("All files", &["*"]),
+        "signatureAsset" => d.add_filter("Pictures (PNG, JPEG, GIF)", &["png", "jpg", "jpeg", "gif"]).add_filter("All files", &["*"]),
         "privateKeySmime" => d.add_filter("Certificate files (.p12, .pfx)", &["p12", "pfx"]).add_filter("All files", &["*"]),
         "privateKeyOpenpgp" => {
             d.add_filter("OpenPGP secret keys (.asc, .gpg, .key, .pgp)", &["asc", "gpg", "key", "pgp"]).add_filter("All files", &["*"])

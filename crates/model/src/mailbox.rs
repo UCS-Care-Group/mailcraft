@@ -1484,10 +1484,15 @@ pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again
 /// the message (or the copy) is not one being sent from where it was any more (AU3-26): filed in
 /// Sent Items, moved away by the owner, or a copy made of it. Nor is it a draft just sent that its
 /// server is still to file in Sent Items (#1160): the owner has put it somewhere, and that move
-/// goes up as any other.
+/// goes up as any other. Nor does a message that isn't a draft keep the HTML signature it waited
+/// in the Outbox with ([`Message::draft_signature`]): only a draft is ever opened with it (Cancel
+/// Send keeps it for the draft it makes).
 fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
     m.sending = false;
     m.sent_here = false;
+    if !m.draft {
+        m.draft_signature = None;
+    }
     if into_outbox {
         if m.held.is_empty() {
             m.held = MOVED_INTO_OUTBOX.to_string();

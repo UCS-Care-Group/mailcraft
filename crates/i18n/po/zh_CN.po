@@ -430,10 +430,16 @@ msgid "A file"
 msgstr "一个文件"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/files.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "A file dialog is already open."
 msgstr "文件对话框已打开。"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "A file is still being chosen for the import."
+msgstr "仍在为导入选择文件。"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -530,6 +536,12 @@ msgstr "无法从这里将跳过部分日期的重复会议放到服务器日历
 #, fuzzy
 msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
 msgstr "一封请求退订的邮件将通过发件箱从 {from} 发送到 {to}。"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "A message being written couldn't be saved to Drafts: {why}"
+msgstr "正在撰写的邮件无法保存到草稿：{why}"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -2348,6 +2360,12 @@ msgid "Back to account settings"
 msgstr "返回账户设置"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Background picture"
+msgstr "背景图片"
+
+#. interface
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Bar on the Left"
@@ -2545,6 +2563,12 @@ msgstr "按大小"
 msgid "By Subject"
 msgstr "按主题"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "CSS variable"
+msgstr "CSS 变量"
+
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2684,7 +2708,7 @@ msgid "Can't sign"
 msgstr "无法签名"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "取消"
@@ -3242,6 +3266,18 @@ msgid "Choose default signatures"
 msgstr "选择默认签名"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Choose image…"
+msgstr "选择图片…"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Choose the file for each picture the HTML names:"
+msgstr "为 HTML 中提到的每张图片选择文件："
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Choose the kind of account"
@@ -3266,10 +3302,136 @@ msgid "Choose who this is sent from"
 msgstr "选择发件人"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Chosen: {file}"
+msgstr "已选择：{file}"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "City"
 msgstr "城市"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows can't play video or audio in a message, so recipients see nothing here: link to the recording instead."
+msgstr "经典版 Windows Outlook 无法在邮件中播放视频或音频，因此收件人在这里什么也看不到：请改为提供录音或录像的链接。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows can't show SVG pictures, so this one will be missing there: use a PNG instead."
+msgstr "经典版 Windows Outlook 无法显示 SVG 图片，因此这张图片在那里会缺失：请改用 PNG。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows can't show WebP, AVIF or HEIC pictures, so this one will be missing there: use a PNG or a JPEG instead."
+msgstr "经典版 Windows Outlook 无法显示 WebP、AVIF 或 HEIC 图片，因此这张图片在那里会缺失：请改用 PNG 或 JPEG。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't draw gradients: give the element a plain background colour as well, for it to show there."
+msgstr "经典版 Windows Outlook 不绘制渐变：请同时给该元素设置纯色背景，使其在那里能够显示。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't draw shadows, so this one won't appear there."
+msgstr "经典版 Windows Outlook 不绘制阴影，因此这个阴影在那里不会出现。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't read a colour whose numbers are separated by spaces, and some mail services drop the whole style because of it: separate them with commas."
+msgstr "经典版 Windows Outlook 无法读取数字之间用空格分隔的颜色，一些邮件服务还会因此丢弃整个样式：请用逗号分隔这些数字。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't show a picture whose data is written into the HTML, so this one will be missing there: attach the picture to the signature instead."
+msgstr "经典版 Windows Outlook 不显示数据直接写在 HTML 中的图片，因此这张图片在那里会缺失：请改为将图片附加到签名。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't show background pictures, so only the background colour appears there: make sure the text can be read on it."
+msgstr "经典版 Windows Outlook 不显示背景图片，因此那里只会显示背景色：请确保文字在背景色上清晰可读。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't show text or symbols that a style rule adds before or after an element, so they will be missing: write them into the HTML itself."
+msgstr "经典版 Windows Outlook 不显示样式规则在元素前后添加的文字或符号，因此它们会缺失：请将其直接写入 HTML。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't understand CSS variables, so a style that uses one is lost there: write the value itself instead."
+msgstr "经典版 Windows Outlook 不支持 CSS 变量，因此使用变量的样式在那里会丢失：请直接写出该值。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't understand sizes in rem, so this size is ignored there: use pixels instead."
+msgstr "经典版 Windows Outlook 不支持以 rem 为单位的尺寸，因此该尺寸在那里会被忽略：请改用像素。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows doesn't understand sizes relative to the window (vw, vh, vmin, vmax), so this size is ignored there: use pixels or a percentage instead."
+msgstr "经典版 Windows Outlook 不支持相对于窗口的尺寸（vw、vh、vmin、vmax），因此该尺寸在那里会被忽略：请改用像素或百分比。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows draws square corners, so these corners won't be rounded there."
+msgstr "经典版 Windows Outlook 只绘制直角，因此这些角在那里不会是圆角。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores a minimum or maximum width here, so this part may be as wide as the whole message there: give a table a fixed width instead."
+msgstr "经典版 Windows Outlook 会忽略此处的最小或最大宽度，因此这部分在那里可能与整封邮件一样宽：请改为给表格设置固定宽度。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores a picture's size when only its style sets it, and shows the picture at the file's own size."
+msgstr "当图片的尺寸仅由其样式设定时，经典版 Windows Outlook 会忽略该尺寸，并按文件本身的尺寸显示图片。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores flexible box layout, so these items will be stacked or run together there: a table can put them side by side."
+msgstr "经典版 Windows Outlook 会忽略弹性盒布局，因此这些项目在那里会堆叠或挤在一起：表格可以将它们并排放置。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores floating, so this element won't sit beside the others there: use table cells, or an align attribute on a picture or a table."
+msgstr "经典版 Windows Outlook 会忽略浮动，因此该元素在那里不会位于其他元素旁边：请使用表格单元格，或在图片或表格上使用 align 属性。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores grid layout, so these items will be stacked there: a table with rows and cells lays them out instead."
+msgstr "经典版 Windows Outlook 会忽略网格布局，因此这些项目在那里会堆叠：请改用带行和单元格的表格来排列它们。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows ignores positioning, so this element will be shown in the ordinary flow there: put it in a table cell instead."
+msgstr "经典版 Windows Outlook 会忽略定位，因此该元素在那里会按普通流显示：请改为将其放入表格单元格。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Classic Outlook for Windows, like other mail programs, doesn't show frames or embedded objects, so this part will be missing: link to it instead."
+msgstr "与其他邮件程序一样，经典版 Windows Outlook 不显示框架或嵌入对象，因此这部分会缺失：请改为提供链接。"
 
 #. name
 #: crates/ui-egui/src/ribbon.rs
@@ -3450,6 +3612,18 @@ msgstr "折叠功能区"
 #, fuzzy
 msgid "Colour"
 msgstr "颜色"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Colour gradient"
+msgstr "颜色渐变"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Colour written with spaces"
+msgstr "用空格书写的颜色"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -4531,6 +4705,12 @@ msgstr "将回复发送至"
 msgid "Discard"
 msgstr "丢弃"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Discard changes"
+msgstr "放弃更改"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -5108,6 +5288,12 @@ msgstr "电子邮件地址（可选）"
 msgid "Email the people of this meeting"
 msgstr "向此会议的参与者发送邮件"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Embedded frame or object"
+msgstr "嵌入的框架或对象"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -5554,7 +5740,7 @@ msgid "File"
 msgstr "文件"
 
 #. interface
-#: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "File dialogs aren't available here"
 msgstr "文件对话框在此处不可用"
@@ -5713,6 +5899,37 @@ msgstr "名字"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "在切换登录方法之前，首先保存 Google 的标准 IMAP 和 SMTP 设置以及匹配的电子邮件用户名。"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Fix {n} email compatibility error to save this signature."
+msgid_plural "Fix {n} email compatibility errors to save this signature."
+msgstr[0] "请修复 {n} 个电子邮件兼容性错误以保存此签名。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Fix: add the size as width and height attributes"
+msgstr "修复：将尺寸写为 width 和 height 属性"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Fix: put the variable's value in its place"
+msgstr "修复：用变量的值替换它"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Fix: remove this element"
+msgstr "修复：删除此元素"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Fix: separate the colour's numbers with commas"
+msgstr "修复：用逗号分隔颜色的数字"
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
@@ -5742,6 +5959,18 @@ msgstr "标记邮件并提醒我："
 #, fuzzy
 msgid "Flagged"
 msgstr "已标记"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Flexible box layout"
+msgstr "弹性盒布局"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Floating element"
+msgstr "浮动元素"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -5880,6 +6109,12 @@ msgid "Font Size"
 msgstr "字体大小"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Font list without a general family"
+msgstr "没有通用字体族的字体列表"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
@@ -5957,6 +6192,12 @@ msgstr "取消信任证书"
 msgid "Forget the pictures that are kept; they are downloaded again when you ask."
 msgstr "清除已保存的图片；您再次请求时会重新下载。"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Form or form field"
+msgstr "表单或表单字段"
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -5986,6 +6227,12 @@ msgstr "设为 HTML 格式"
 #, fuzzy
 msgid "Format as Plain Text"
 msgstr "设为纯文本格式"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Forms, fields and buttons don't work in an email, and Classic Outlook for Windows drops them or shows them as plain text: use a link instead."
+msgstr "表单、字段和按钮在电子邮件中无法使用，经典版 Windows Outlook 会丢弃它们或将其显示为纯文本：请改用链接。"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -6538,6 +6785,12 @@ msgid "Grey"
 msgstr "灰色"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Grid layout"
+msgstr "网格布局"
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Group"
@@ -6904,7 +7157,7 @@ msgid "Illustrations"
 msgstr "插图"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "Import"
 msgstr "导入"
@@ -6920,6 +7173,18 @@ msgstr "导入日历文件"
 #, fuzzy
 msgid "Import Contacts"
 msgstr "导入联系人"
+
+#. command label
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "Import HTML Signature"
+msgstr "导入 HTML 签名"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Import HTML…"
+msgstr "导入 HTML…"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -7053,6 +7318,12 @@ msgstr "从 {file} 导入"
 #, fuzzy
 msgid "Imported here"
 msgstr "在这里导入"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Imported the signature {name}"
+msgstr "已导入签名 {name}"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7738,6 +8009,12 @@ msgstr "保留账户"
 #, fuzzy
 msgid "Keep data"
 msgstr "保留数据"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Keep editing"
+msgstr "继续编辑"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs
@@ -9210,6 +9487,12 @@ msgid "Minimize"
 msgstr "最小化"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Minimum or maximum width"
+msgstr "最小或最大宽度"
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Mobile"
@@ -9526,7 +9809,7 @@ msgid "My outgoing server needs no sign-in"
 msgstr "我的发送服务器无需登录"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "Name"
 msgstr "名称"
@@ -9863,6 +10146,12 @@ msgstr "新邮件"
 msgid "New rule"
 msgstr "新规则"
 
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "New signature from an HTML file"
+msgstr "从 HTML 文件新建签名"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
 #, fuzzy
@@ -10184,6 +10473,12 @@ msgid "No events"
 msgstr "没有事件"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "No file chosen yet"
+msgstr "尚未选择文件"
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
 msgid "No file manager could be started to show the folder."
@@ -10236,6 +10531,12 @@ msgstr "没有匹配的邮件。"
 #, fuzzy
 msgid "No messages."
 msgstr "没有邮件。"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "No more files can be chosen in this window."
+msgstr "此窗口中不能再选择更多文件。"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -11903,6 +12204,24 @@ msgstr "图片在文字上方"
 msgid "Picture beside text"
 msgstr "图片在文字旁"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Picture format that may not show"
+msgstr "可能无法显示的图片格式"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Picture sized only by its style"
+msgstr "仅由样式设定尺寸的图片"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Picture written into the HTML"
+msgstr "写在 HTML 中的图片"
+
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12028,6 +12347,12 @@ msgstr "弹出"
 #, fuzzy
 msgid "Pop Out"
 msgstr "弹出"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Positioned element"
+msgstr "定位元素"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12498,6 +12823,12 @@ msgstr "最近的邮件保存在这部手机上，较早的邮件保留在邮件
 #, fuzzy
 msgid "Recipient's address contains"
 msgstr "收件人地址包含"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Recipients who don't have these fonts get another one, often a serif font in Classic Outlook for Windows: end the list with serif, sans-serif or monospace."
+msgstr "没有这些字体的收件人会看到其他字体，在经典版 Windows Outlook 中常常是衬线字体：请在列表末尾加上 serif、sans-serif 或 monospace。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13253,6 +13584,12 @@ msgstr "富文本"
 msgid "Right before or after: {items}"
 msgstr "紧接在之前或之后：{items}"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Rounded corners"
+msgstr "圆角"
+
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
@@ -13376,6 +13713,12 @@ msgstr "在邮件到达时运行此规则"
 #, fuzzy
 msgid "SHA-256 fingerprint"
 msgstr "SHA-256 指纹"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "SVG picture"
+msgstr "SVG 图片"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
@@ -14431,8 +14774,8 @@ msgstr "已发送邮件"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "按原样发送，不包含可运行内容或跟踪内容。图片来自其网络地址，由收件人的程序决定是否加载。您撰写的邮件显示此签名的简化副本；如果您在邮件中编辑该副本，发送时将使用编辑后的版本。"
+msgid "Sent as written, with scripts and other active content removed. A picture with a web address is sent as that address; recipients' programs decide whether to load it, and loading it can tell its host it was requested. Pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr "按原样发送，但会移除脚本和其他活动内容。带网址的图片以该网址发送；由收件人的程序决定是否加载，而加载可能会让托管该图片的服务器知道图片被请求了。通过“导入 HTML…”导入的图片属于此签名，会随每封邮件一起发送。撰写邮件时会显示此签名的简化副本；如果在那里编辑，发送的将是该副本。"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14535,6 +14878,12 @@ msgstr "设置"
 #, fuzzy
 msgid "Settings…"
 msgstr "设置…"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Shadow"
+msgstr "阴影"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -15272,6 +15621,18 @@ msgstr "单行"
 msgid "Size"
 msgstr "大小"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Size in rem"
+msgstr "以 rem 为单位的尺寸"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Size relative to the window"
+msgstr "相对于窗口的尺寸"
+
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -15631,6 +15992,18 @@ msgstr "街道"
 #, fuzzy
 msgid "Stronger text and edges, in the light or the dark theme."
 msgstr "在浅色或深色主题中，文本和边缘更清晰。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Style rule that can't be sent"
+msgstr "无法发送的样式规则"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Style that can't be sent"
+msgstr "无法发送的样式"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -16065,6 +16438,12 @@ msgid "Text Highlight Color"
 msgstr "文本突出显示颜色"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Text added by a style rule"
+msgstr "由样式规则添加的文字"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Text to look for"
@@ -16081,6 +16460,24 @@ msgstr "谢谢。MailCraft 团队已收到报告，并使用此编号跟踪。"
 #, fuzzy
 msgid "Thanks, Thursday at ten works for me. I'll bring the drawings."
 msgstr "谢谢，星期四十点我有空。我会带上图纸。"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That HTML can't be made a signature: {why}"
+msgstr "该 HTML 无法成为签名：{why}"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That HTML file is larger than a signature's HTML may be (64 KB)."
+msgstr "该 HTML 文件超过了签名 HTML 允许的大小（64 KB）。"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That HTML file isn't UTF-8 text."
+msgstr "该 HTML 文件不是 UTF-8 文本。"
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -16185,6 +16582,12 @@ msgid "That file is larger than a key file can be."
 msgstr "该文件超过密钥文件的大小上限。"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That file is larger than a signature may take."
+msgstr "该文件超过了签名可容纳的大小。"
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "That file isn't a key file: it is empty, or larger than one is."
@@ -16237,6 +16640,18 @@ msgstr "这不是该文件的密码。"
 #, fuzzy
 msgid "That key is on the card already"
 msgstr "该密钥已在卡上"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That picture is larger than a signature's picture may be (256 KB)."
+msgstr "该图片超过了签名图片允许的大小（256 KB）。"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "That picture is no longer part of the import."
+msgstr "该图片已不再属于此次导入。"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -16779,7 +17194,13 @@ msgid "The file could not be shared."
 msgstr "无法共享该文件。"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "The file couldn't be read"
+msgstr "无法读取该文件"
+
+#. interface
+#: crates/ui-egui/src/files.rs crates/ui-egui/src/signature_import.rs
 #, fuzzy
 msgid "The file couldn't be read ({why})"
 msgstr "无法读取文件（{why}）"
@@ -17008,6 +17429,12 @@ msgid "The mailbox could not be read."
 msgstr "无法读取该邮箱。"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "The mailbox or the signature being edited changed, so the HTML import was given up."
+msgstr "邮箱或正在编辑的签名已更改，因此已放弃 HTML 导入。"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The meeting these proposals are for isn't on your calendar."
@@ -17228,6 +17655,12 @@ msgstr "无法读取联系人。"
 #, fuzzy
 msgid "The picture was too big, so it was made smaller ({w} px wide)."
 msgstr "图片过大，已缩小至 {w} 像素宽。"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "The pictures would be larger than a signature's pictures may be together (512 KB)."
+msgstr "这些图片合计将超过签名图片允许的总大小（512 KB）。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17990,6 +18423,12 @@ msgstr "它们将保存到您选择的文件中，您可以将该文件附加到
 #, fuzzy
 msgid "They share {what}."
 msgstr "它们共享 {what}。"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "This HTML names no picture files."
+msgstr "此 HTML 未提到任何图片文件。"
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -18856,11 +19295,47 @@ msgstr "此共享邮箱所属的账户已不存在"
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "此共享邮箱所属的账户已不存在：请移除共享邮箱后重新添加"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "This signature can't be saved until its email compatibility errors are fixed."
+msgstr "在修复电子邮件兼容性错误之前，无法保存此签名。"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "This signature can't be saved: {why}"
+msgstr "无法保存此签名：{why}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "This signature has a picture or its own layout. Change it on the computer."
 msgstr "此签名含有图片或自定义版式。请在电脑上修改。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "This signature's HTML could not be checked for email compatibility, so it can't be saved yet."
+msgstr "无法检查此签名 HTML 的电子邮件兼容性，因此暂时无法保存。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "This signature's HTML could not be checked for email compatibility."
+msgstr "无法检查此签名 HTML 的电子邮件兼容性。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "This style rule uses something MailCraft can't send safely (such as an import, a web address or an unsupported selector). Remove or simplify the rule."
+msgstr "此样式规则使用了 MailCraft 无法安全发送的内容（例如导入、网址或不支持的选择器）。请删除或简化该规则。"
+
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "This style uses something MailCraft can't send safely (such as a web address for a background picture), so the whole style would be left out, its colours and spacing with it. Remove that part of the style."
+msgstr "此样式使用了 MailCraft 无法安全发送的内容（例如背景图片的网址），因此整个样式及其颜色和间距都会被省略。请删除样式中的这一部分。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -19444,6 +19919,12 @@ msgstr "未保存的更改"
 msgid "Unsaved Message"
 msgstr "未保存的邮件"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Unsaved Signature"
+msgstr "未保存的签名"
+
 #. command label, interface
 #: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -19747,6 +20228,12 @@ msgstr "版本 {version} 修复了一个安全问题，现已准备就绪："
 msgid "Version {version} is ready:"
 msgstr "版本 {version} 已准备就绪："
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "Video or audio player"
+msgstr "视频或音频播放器"
+
 #. name, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -19808,10 +20295,22 @@ msgid "Waiting for MailCraft's Google registration"
 msgstr "等待 MailCraft 的 Google 注册"
 
 #. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Waiting for the HTML file…"
+msgstr "正在等待 HTML 文件…"
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "等待审批的过程意外停止"
+
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "Waiting for the previous file to finish being read."
+msgstr "正在等待上一个文件读取完毕。"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -21066,16 +21565,10 @@ msgid "an Exchange server account's server, address and user name can't be chang
 msgstr "Exchange 服务器账户的邮件下载到此处后，服务器、地址和用户名便无法更改：请移除原账户并添加新账户"
 
 #. what a command says
-#: crates/model/src/signature.rs
+#: crates/engine/src/cmd/signature.rs
 #, fuzzy
-msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
-msgstr "HTML 签名只能显示通过网址引用的图片：请先移除此签名中的图片"
-
-#. what a command says
-#: crates/model/src/signature.rs
-#, fuzzy
-msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
-msgstr "HTML 签名的图片使用网址引用：请切换为富文本以添加图片"
+msgid "an HTML signature's pictures are sized, described and taken out in its HTML"
+msgstr "HTML 签名中图片的尺寸、说明和删除都在其 HTML 中设置"
 
 #. what a command says
 #: crates/engine/src/digital_signature.rs
@@ -22197,6 +22690,12 @@ msgid "someone@example.org or @example.org"
 msgstr "someone@example.org 或 @example.org"
 
 #. what a command says
+#: crates/model/src/signature.rs
+#, fuzzy
+msgid "switch the HTML signature to rich text before inserting a picture into its text"
+msgstr "在向签名文本插入图片之前，请先将 HTML 签名切换为富文本"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -22754,6 +23253,12 @@ msgstr "平台拒绝或失败"
 msgid "the proposed end is not after the proposed start"
 msgstr "建议的结束时间必须晚于建议的开始时间"
 
+#. interface
+#: crates/ui-egui/src/signature_import.rs
+#, fuzzy
+msgid "the reader stopped unexpectedly"
+msgstr "读取意外停止"
+
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
 #, fuzzy
@@ -23246,13 +23751,13 @@ msgid "there are too many rules"
 msgstr "规则太多"
 
 #. what a command says
-#: crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signature_import.rs
 #, fuzzy
 msgid "there are too many signatures"
 msgstr "签名太多"
 
 #. what a command says
-#: crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signature_import.rs
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "已经有一个名为“{to}”的签名"
@@ -23334,6 +23839,36 @@ msgstr "此 .pst 文件太大，导入时需要有空间的邮箱文件：请先
 #, fuzzy
 msgid "this Exchange server account has no server settings"
 msgstr "此 Exchange 服务器账户没有服务器设置"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this HTML conversion would lose the signature's embedded pictures"
+msgstr "此 HTML 转换会丢失签名中的嵌入图片"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this HTML hides a picture of the signature where its text can't show it"
+msgstr "此 HTML 将签名的一张图片隐藏在其文本无法显示的位置"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this HTML names a picture inside a <template> that is neither on the web nor one of this signature's own: such a picture is never sent, so take it out or give it a web address (https://…)"
+msgstr "此 HTML 在 <template> 中提到了一张既不在网上、也不属于此签名的图片：这样的图片永远不会被发送，请将其删除或为其提供网址（https://…）"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this HTML names a picture that is neither on the web nor one of this signature's own: give it a web address (https://…), or name the picture's file relative to the HTML file and bring both in with Import HTML…"
+msgstr "此 HTML 提到了一张既不在网上、也不属于此签名的图片：请为其提供网址（https://…），或按相对于 HTML 文件的路径写出图片文件名，并通过“导入 HTML…”将两者一起导入"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this HTML names a picture this signature doesn't have"
+msgstr "此 HTML 提到了此签名没有的图片"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
@@ -23514,6 +24049,42 @@ msgstr "此重复日程中取消的日期过多"
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "此重复日程中更改的日期过多"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this signature has email compatibility errors to fix before it can be saved"
+msgstr "此签名有电子邮件兼容性错误，需要修复后才能保存"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this signature's HTML could not be checked for email compatibility"
+msgstr "无法检查此签名 HTML 的电子邮件兼容性"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this signature's HTML could not be read for its pictures"
+msgstr "无法读取此签名 HTML 中的图片"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this signature's HTML could not be read for its pictures: it may name at most {n} pictures"
+msgstr "无法读取此签名 HTML 中的图片：其中最多只能提到 {n} 张图片"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "this signature's HTML could not be read for its pictures: remove its <base> element"
+msgstr "无法读取此签名 HTML 中的图片：请删除其 <base> 元素"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this signature's styles can't be sent safely: fix them in File › Signatures, then insert the signature again (Message › Include › Signature), or choose Edit Signature as Text"
+msgstr "此签名的样式无法安全发送：请在“文件 › 签名”中修复，然后重新插入签名（“邮件 › 包括 › 签名”），或选择“将签名编辑为文本”"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -24560,6 +25131,13 @@ msgid "{n} downloaded picture is kept on this phone ({size})."
 msgid_plural "{n} downloaded pictures are kept on this phone ({size})."
 msgstr[0] "此手机上保存了 {n} 张已下载的图片（{size}）。"
 
+#. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "{n} email compatibility error"
+msgid_plural "{n} email compatibility errors"
+msgstr[0] "{n} 个电子邮件兼容性错误"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -25200,6 +25778,13 @@ msgid_plural "{n} unread on the server"
 msgstr[0] "服务器上有 {n} 封未读邮件"
 
 #. interface
+#: crates/ui-egui/src/compat.rs
+#, fuzzy
+msgid "{n} warning"
+msgid_plural "{n} warnings"
+msgstr[0] "{n} 个警告"
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} was here already"
@@ -25477,6 +26062,22 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "按原样发送，不含任何会运行或跟踪的内容。带网址的图片以该网址发送，由收件人的程序决定是否加载；通过“导入 HTML…”导入的图片属于此签名，会随每封邮件一起发送。撰写邮件时会显示此签名的简化副本；如果在那里编辑，发送的将是该副本。"
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "按原样发送，不包含可运行内容或跟踪内容。图片来自其网络地址，由收件人的程序决定是否加载。您撰写的邮件显示此签名的简化副本；如果您在邮件中编辑该副本，发送时将使用编辑后的版本。"
+
+#, fuzzy
+#~ msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
+#~ msgstr "HTML 签名只能显示通过网址引用的图片：请先移除此签名中的图片"
+
+#, fuzzy
+#~ msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
+#~ msgstr "HTML 签名的图片使用网址引用：请切换为富文本以添加图片"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

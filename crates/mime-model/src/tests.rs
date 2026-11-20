@@ -471,6 +471,39 @@ fn attachment() -> impl Strategy<Value = Attachment> {
     })
 }
 
+/// A small valid snapshot of an HTML signature without pictures, `marker` only in its metadata
+/// (its name, its HTML and the fragment it rendered), never in the message's own body.
+fn local_draft_signature(marker: &str) -> mailcraft_model::draft_signature::DraftSignature {
+    let mut sig = mailcraft_model::Signature::plain_text(format!("Work {marker}"), "Avery Quinn");
+    sig.set_html(Some(format!("<p title=\"{marker}\">Avery Quinn</p>"))).unwrap();
+    mailcraft_model::draft_signature::DraftSignature::new(sig, format!("<div class=\"{marker}\">Avery Quinn</div>"), Vec::new()).unwrap()
+}
+
+#[test]
+fn a_drafts_local_signature_snapshot_never_reaches_its_mime() {
+    let marker = "Qx7LocalDraftSignatureMarker";
+    let m = Message {
+        subject: "Quarterly figures".into(),
+        from: a("Avery Quinn", "avery@example.org"),
+        to: vec![a("Blake", "blake@example.org")],
+        date: 1_700_000_000,
+        body: Body { text: "Hello\n\nAvery Quinn".into(), html: Some("<p>Hello</p><p>Avery Quinn</p>".into()) },
+        draft: true,
+        draft_signature: Some(local_draft_signature(marker)),
+        ..Message::default()
+    };
+    for opts in [WriteOptions::default(), WriteOptions { include_bcc: true, offset_minutes: -330 }] {
+        let bytes = write(&m, &opts);
+        assert!(!bytes.windows(marker.len()).any(|w| w == marker.as_bytes()), "{}", String::from_utf8_lossy(&bytes));
+        let back = parse(&bytes);
+        assert_eq!(back.draft_signature, None);
+        assert!(back.attachments.is_empty());
+        assert!(!format!("{back:?}").contains(marker));
+        assert_eq!(back, expected(&m, &opts));
+    }
+    round_trip(&m);
+}
+
 fn message() -> impl Strategy<Value = Message> {
     let people = (prop_oneof![address(), Just(Address::default())], addresses(), addresses(), addresses(), addresses());
     let ids = (prop_oneof![id(), Just(String::new())], prop_oneof![id(), Just(String::new())], proptest::collection::vec(id(), 0..4));
@@ -531,6 +564,8 @@ fn message() -> impl Strategy<Value = Message> {
             folder: 5,
             uid: 11,
             draft: true,
+            // Local draft signature metadata is not carried by Internet mail.
+            draft_signature: Some(local_draft_signature("proptest")),
             pinned: true,
             snooze: Some(mailcraft_model::Snooze { until: 1_900_000_000, after_id: 5, from: 7, ..Default::default() }),
             warnings_dismissed: vec!["external".into()],

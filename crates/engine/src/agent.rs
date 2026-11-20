@@ -596,6 +596,8 @@ const SETTINGS: &[&str] = &[
     "signature.layout",
     "signature.details",
     "signature.html",
+    // A signature made from the owner's own HTML and its pictures, as data (#R4.5).
+    "signature.import",
     "signature.open",
     "signature.save",
     "signature.close",
