@@ -89,12 +89,15 @@ impl Launcher {
 fn open_filters(d: rfd::AsyncFileDialog, purpose: &str) -> rfd::AsyncFileDialog {
     match purpose {
         "mailbox" => d.add_filter("MailCraft mailbox", &["mailcraft", "json"]).add_filter("All files", &["*"]),
+        // All files first, so it is the one the dialog opens on: an mbox file often has no
+        // extension (Thunderbird's `Inbox`, `Sent`), and Import reads a file by what it holds
+        // (#1768).
         "import" => d
+            .add_filter("All files", &["*"])
             .add_filter("Mail, calendar and contact files", &["eml", "mbox", "mbx", "ics", "ical", "vcf", "vcard"])
             .add_filter("Messages", &["eml", "mbox", "mbx"])
             .add_filter("Calendars", &["ics", "ical"])
-            .add_filter("Contacts", &["vcf", "vcard"])
-            .add_filter("All files", &["*"]),
+            .add_filter("Contacts", &["vcf", "vcard"]),
         "pst" => d.add_filter(".pst files", &["pst"]).add_filter("All files", &["*"]),
         "picture" => d.add_filter("Pictures (PNG, JPEG, GIF)", &["png", "jpg", "jpeg", "gif"]),
         "bodyPicture" => d.add_filter("Pictures (PNG, JPEG, GIF, WebP)", &["png", "jpg", "jpeg", "gif", "webp"]),
