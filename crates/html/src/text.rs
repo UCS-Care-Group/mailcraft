@@ -79,7 +79,7 @@ fn split_quote(line: &str) -> (u8, &str) {
 }
 
 /// Text as spans, with web and e-mail addresses made into links.
-fn autolink(text: &str) -> Vec<Span> {
+pub fn autolink(text: &str) -> Vec<Span> {
     let b = text.as_bytes();
     let mut spans = Vec::new();
     let mut plain = 0;
