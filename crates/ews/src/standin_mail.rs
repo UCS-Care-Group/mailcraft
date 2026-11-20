@@ -29,6 +29,9 @@ const FIELD_URIS: &[&str] = &[
     "item:Flag",
     "item:ConversationId",
     "item:DateTimeReceived",
+    "item:DateTimeSent",
+    "item:Size",
+    "message:InternetMessageId",
     "item:HasAttachments",
     "item:Attachments",
 ];
@@ -87,6 +90,10 @@ pub struct Item {
     pub mime: Vec<u8>,
     /// The conversation it is in (`ConversationId`); empty: one of its own, named after it.
     pub conversation: String,
+    /// The element it is listed as: `Message`, or a meeting's `MeetingRequest`,
+    /// `MeetingResponse` or `MeetingCancellation` ([MS-OXWSMTGS]), of which the `Default` shape
+    /// gives less (#1457).
+    pub element: String,
 }
 
 impl Item {
@@ -184,11 +191,22 @@ impl State {
             files: Vec::new(),
             mime,
             conversation: String::new(),
+            element: "Message".into(),
         });
         self.item_log.push(ItemLog { rev: self.rev, folder: folder_id.clone(), id: id.clone(), kind: ItemChange::Create });
         if let Some(f) = self.folders.iter_mut().find(|f| f.id == folder_id) {
             f.total = f.total.saturating_add(1);
             f.unread = f.unread.saturating_add(u32::from(!read));
+        }
+        id
+    }
+
+    /// Makes a meeting's message arrive as [`State::deliver`] does a message: `element` is
+    /// `MeetingRequest`, `MeetingResponse` or `MeetingCancellation`. Its id.
+    pub fn deliver_meeting(&mut self, folder: &str, subject: &str, element: &str) -> String {
+        let id = self.deliver(folder, subject, false);
+        if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+            item.element = element.into();
         }
         id
     }
@@ -323,9 +341,37 @@ impl State {
             self.hostile == Some(Hostile::BadItems) && (self.bad_items_in.is_empty() || self.bad_items_in.split(',').any(|f| f == item.folder));
         let long = "x".repeat(2_000);
         let id = if hostile { long.as_str() } else { item.id.as_str() };
-        let mut xml = format!("<t:Message><t:ItemId Id=\"{}\" ChangeKey=\"{}\"/>", escape(id), escape(&item.change_key));
+        let element = item.element.as_str();
+        let mut xml = format!("<t:{element}><t:ItemId Id=\"{}\" ChangeKey=\"{}\"/>", escape(id), escape(&item.change_key));
         let wants = |uri: &str| extra.iter().any(|e| e == uri);
-        if shape != "IdOnly" {
+        if shape != "IdOnly" && element != "Message" {
+            // A meeting's message, as Exchange Server 2019 gives it in the `Default` shape: its
+            // times, size, sender, importance and `Message-ID` only when they are asked for.
+            xml.push_str(&format!("<t:Subject>{}</t:Subject><t:Sensitivity>Normal</t:Sensitivity>", escape(&item.subject)));
+            if wants("item:DateTimeReceived") {
+                xml.push_str(&format!("<t:DateTimeReceived>{}</t:DateTimeReceived>", item.received));
+            }
+            if wants("item:Size") {
+                xml.push_str(&format!("<t:Size>{}</t:Size>", item.mime.len()));
+            }
+            if wants("item:Importance") {
+                xml.push_str(&format!("<t:Importance>{}</t:Importance>", item.importance));
+            }
+            if wants("item:DateTimeSent") {
+                xml.push_str(&format!("<t:DateTimeSent>{}</t:DateTimeSent>", item.sent));
+            }
+            xml.push_str(&format!("<t:HasAttachments>{}</t:HasAttachments><t:IsAssociated>false</t:IsAssociated>", item.attachments));
+            if wants("message:From") {
+                xml.push_str(&people("From", std::slice::from_ref(&item.from)));
+            }
+            if wants("message:InternetMessageId") {
+                xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId>", escape(&item.message_id)));
+            }
+            xml.push_str(&format!("<t:IsRead>{}</t:IsRead>", item.read));
+            if element == "MeetingRequest" {
+                xml.push_str(&people("Organizer", std::slice::from_ref(&item.from)));
+            }
+        } else if shape != "IdOnly" {
             let subject = if hostile { "x".repeat(20_000) } else { item.subject.clone() };
             xml.push_str(&format!(
                 "<t:ParentFolderId Id=\"{}\" ChangeKey=\"AQAAAA==\"/><t:ItemClass>IPM.Note</t:ItemClass><t:Subject>{}</t:Subject><t:DateTimeReceived>{}</t:DateTimeReceived><t:Size>{}</t:Size><t:Importance>{}</t:Importance><t:IsSubmitted>false</t:IsSubmitted><t:IsDraft>{}</t:IsDraft><t:DateTimeSent>{}</t:DateTimeSent><t:HasAttachments>{}</t:HasAttachments>",
@@ -375,7 +421,7 @@ impl State {
                 .collect();
             xml.push_str(&format!("<t:Attachments>{all}</t:Attachments>"));
         }
-        xml.push_str("</t:Message>");
+        xml.push_str(&format!("</t:{element}>"));
         xml
     }
 
@@ -449,12 +495,13 @@ impl State {
         if !["IdOnly", "Default", "AllProperties"].contains(&base.text.trim()) {
             return Err(invalid("BaseShape is IdOnly, Default or AllProperties"));
         }
-        let asked_class = inside
-            .get(1)
-            .copied()
-            .flatten()
-            .is_some_and(|extra| extra.children.iter().any(|p| p.attribute("FieldURI") == Some("folder:FolderClass")));
-        let with_class = !self.class_only_when_asked || asked_class || base.text.trim() == "AllProperties";
+        let asked =
+            |field: &str| inside.get(1).copied().flatten().is_some_and(|extra| extra.children.iter().any(|p| p.attribute("FieldURI") == Some(field)));
+        let all = base.text.trim() == "AllProperties";
+        let with_class = !self.class_only_when_asked || asked("folder:FolderClass") || all;
+        // (Exchange leaves the folder above out of the Default shape, as [MS-OXWSCORE] has it: a
+        // request that doesn't ask for it gets every folder without one.)
+        let with_parent = asked("folder:ParentFolderId") || all;
         let root = self.sync_folder(Check::required(operation, parts.get(1).copied().flatten(), "SyncFolderId")?)?;
         if root.distinguished != "msgfolderroot" {
             return Err(Refusal { code: "ErrorInvalidRequest", why: "this stand-in synchronises the top of the mail".into() });
@@ -479,10 +526,11 @@ impl State {
                 _ => "Folder",
             };
             let class = if with_class { format!("<t:FolderClass>{}</t:FolderClass>", escape(&folder.class)) } else { String::new() };
+            let parent =
+                if with_parent { format!("<t:ParentFolderId Id=\"{}\" ChangeKey=\"AQAAAA==\"/>", escape(&folder.parent)) } else { String::new() };
             format!(
-                "<t:{tag}><t:{element}><t:FolderId Id=\"{id}\" ChangeKey=\"AQAAABYA\"/><t:ParentFolderId Id=\"{parent}\" ChangeKey=\"AQAAAA==\"/>{class}<t:DisplayName>{name}</t:DisplayName><t:TotalCount>{total}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{unread}</t:UnreadCount></t:{element}></t:{tag}>",
+                "<t:{tag}><t:{element}><t:FolderId Id=\"{id}\" ChangeKey=\"AQAAABYA\"/>{parent}{class}<t:DisplayName>{name}</t:DisplayName><t:TotalCount>{total}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{unread}</t:UnreadCount></t:{element}></t:{tag}>",
                 id = escape(&folder.id),
-                parent = escape(&folder.parent),
                 name = escape(&folder.name),
                 total = folder.total,
                 unread = folder.unread
@@ -534,6 +582,9 @@ impl State {
                 return Err(invalid("SyncScope is NormalItems or NormalAndAssociatedItems"));
             }
         }
+        if self.exchange2010 && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag") {
+            return Err(invalid("the schema has no such property"));
+        }
         if (self.lacks_preview && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag"))
             || (self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId"))
         {
@@ -543,6 +594,19 @@ impl State {
                 response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyRequest")),
             ));
         }
+        if (self.exchange2010 || self.lists_no_recipients) && extra.iter().any(|e| e == "message:ToRecipients" || e == "message:CcRecipients") {
+            return Ok((
+                200,
+                "ErrorInvalidPropertyForOperation".into(),
+                response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyForOperation")),
+            ));
+        }
+        // (Asked for and left out, with nothing said.)
+        let extra: Vec<String> = if self.omits_recipients {
+            extra.into_iter().filter(|e| e != "message:ToRecipients" && e != "message:CcRecipients").collect()
+        } else {
+            extra
+        };
         // Where the read goes on from: the state it was given, or the start.
         enum From {
             Listing { done: usize, rev: u64 },

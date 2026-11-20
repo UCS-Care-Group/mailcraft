@@ -21,7 +21,7 @@ const NOW: i64 = 1_791_993_600;
 fn app() -> MailApp {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     a.autosave = false;
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     a
 }
 
@@ -119,6 +119,9 @@ enum Setup {
     /// The account signs in with Microsoft, and the selected to-do is in its To Do list shared
     /// with other people, with a category.
     Shared,
+    /// The account is a Microsoft account whose list of categories is kept in step with
+    /// Outlook's, and MailCraft may change it there; the first contact is the account's (#661).
+    Synced,
 }
 
 /// One row for every command an agent can be asked about: its params in the sample mailbox and
@@ -127,17 +130,24 @@ enum Setup {
 const ROWS: &[(&str, &str, Setup)] = &[
     // Send.
     ("compose.send", "{}", Setup::Writing),
+    ("compose.sendLater", r#"{"at": 1900000000}"#, Setup::Writing),
+    ("mail.setSendTime", r#"{"id": $message, "at": 1900000000}"#, Setup::None),
     ("account.setAutomaticReplies", r#"{"status": "disabled"}"#, Setup::None),
     ("mail.sendAgain", r#"{"id": $message}"#, Setup::None),
+    ("mail.react", r#"{"id": $message, "emoji": "👍"}"#, Setup::None),
     ("ui.downloadPictures", "{}", Setup::None),
+    ("ui.unsubscribe", "{}", Setup::None),
+    ("mail.unsubscribe", r#"{"send": true}"#, Setup::None),
     ("ui.retryPictures", "{}", Setup::None),
     ("ui.joinMeeting", r#"{"event": $event}"#, Setup::None),
     ("ui.reportProblem", r#"{"what": "x"}"#, Setup::None),
+    ("category.addToOutlook", r#"{"name": "Purple category", "account": $account}"#, Setup::None),
     // Delete.
     ("mail.deletePermanently", r#"{"ids": [$message]}"#, Setup::None),
     ("mail.removeAttachment", r#"{"id": $message, "index": 0}"#, Setup::None),
     ("folder.delete", "{}", Setup::Folder),
     ("folder.empty", r#"{"id": $deleted}"#, Setup::None),
+    ("mail.removeImportedDuplicates", "{}", Setup::None),
     ("people.delete", "{}", Setup::None),
     ("people.merge", r#"{"keep": $contact, "others": [$contact2]}"#, Setup::None),
     ("tasks.delete", "{}", Setup::None),
@@ -149,19 +159,25 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("account.edit", r#"{"id": $account, "name": "X"}"#, Setup::None),
     ("account.remove", r#"{"id": $account}"#, Setup::None),
     ("account.forgetEwsCertificate", r#"{"id": $account}"#, Setup::None),
+    ("account.davSet", r#"{"id": $account, "calendarHomes": ["https://dav.example.org/cal/"]}"#, Setup::None),
+    ("account.davOff", r#"{"id": $account}"#, Setup::None),
     ("account.graphSwitch", r#"{"account": $account}"#, Setup::None),
     ("account.addSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
     ("account.removeSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
+    ("account.setSenderAddresses", r#"{"id": $account, "addresses": [{"email": "help@example.org"}]}"#, Setup::None),
     ("account.thinOffline", r#"{"account": $account}"#, Setup::None),
+    ("account.deviceLimits", r#"{"storage": 1073741824}"#, Setup::None),
+    ("account.trimDevice", "{}", Setup::None),
     ("ui.keepOffline", "{}", Setup::None),
     ("ui.connectMicrosoft", "{}", Setup::None),
     ("ui.automaticRepliesSignIn", r#"{"account": $account}"#, Setup::None),
     ("ui.connectFavorites", "{}", Setup::None),
-    ("ui.allowSharedSend", r#"{"account": $account}"#, Setup::None),
+    ("ui.allowSharedSend", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowSharedCalendars", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowTasks", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowRules", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowAutomaticReplies", r#"{"account": $account, "confirmed": true}"#, Setup::None),
+    ("ui.allowSync", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.adminConsent", "{}", Setup::None),
     ("ui.signInAgain", "{}", Setup::None),
     ("ui.microsoftClientId", r#"{"value": "x"}"#, Setup::None),
@@ -174,6 +190,9 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("calendar.removeCalendar", r#"{"id": $calendar}"#, Setup::None),
     ("calendar.openShared", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.removeShared", r#"{"address": "x@example.org"}"#, Setup::None),
+    ("calendar.subscribe", r#"{"address": "https://cal.example.org/private/token/x.ics"}"#, Setup::None),
+    ("calendar.unsubscribe", r#"{"id": $calendar}"#, Setup::None),
+    ("calendar.subscriptionSettings", r#"{"id": $calendar, "intervalMinutes": 30}"#, Setup::None),
     ("calendar.hideListedCopy", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.moveToAccount", "{}", Setup::None),
     ("ui.checkCalendar", "{}", Setup::None),
@@ -191,6 +210,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.dismissWarnings", r#"{"ids": [$message]}"#, Setup::None),
     ("file.options", "{}", Setup::None),
     ("sync.offline", "{}", Setup::None),
+    ("sync.waitBeforeSending", r#"{"seconds": 10}"#, Setup::None),
     ("rules.add", r#"{"name": "x"}"#, Setup::None),
     ("rules.remove", r#"{"id": $rule}"#, Setup::None),
     ("rules.enable", r#"{"id": $rule}"#, Setup::None),
@@ -205,6 +225,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("junk.add", r#"{"list": "safe", "entry": "a@example.org"}"#, Setup::None),
     ("junk.remove", r#"{"list": "safe", "entry": "a@example.org"}"#, Setup::None),
     ("junk.list", r#"{"list": "safe"}"#, Setup::None),
+    ("keys.import", r#"{"data": "AAAA"}"#, Setup::None),
+    ("keys.remove", r#"{"address": "a@example.org", "fingerprint": "00"}"#, Setup::None),
     ("signature.set", r#"{"name": "x", "text": "y"}"#, Setup::None),
     ("signature.remove", r#"{"name": "Standard"}"#, Setup::None),
     ("signature.rename", r#"{"from": "Standard", "to": "y"}"#, Setup::None),
@@ -222,11 +244,15 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.downloadPicturesAutomatically", "{}", Setup::None),
     ("ui.senderImages", "{}", Setup::None),
     ("ui.desktopAlerts", r#"{"newMail": true}"#, Setup::None),
+    ("ui.closeToTray", r#"{"value": true}"#, Setup::None),
     ("ui.repliesInWindow", "{}", Setup::None),
+    ("ui.attachmentPictures", "{}", Setup::None),
+    ("ui.swipeAction", r#"{"direction": "left", "action": "archive"}"#, Setup::None),
     ("ui.updateCheck", "{}", Setup::None),
     ("ui.updateInstall", "{}", Setup::None),
     ("ui.dismissUpdateNotice", "{}", Setup::None),
     ("ui.dismissSettingsNotice", "{}", Setup::None),
+    ("ui.dismissSoftwareNotice", "{}", Setup::None),
     // What is asked about only now and then (`agent::classify`).
     ("edit.undo", "{}", Setup::Step(false)),
     ("edit.redo", "{}", Setup::Step(true)),
@@ -244,6 +270,10 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("tasks.new", r#"{"title": "x", "account": $account}"#, Setup::Shared),
     ("tasks.fromMessage", "{}", Setup::Shared),
     ("category.rename", r#"{"from": "Shared", "to": "y"}"#, Setup::Shared),
+    // A category made in Outlook (#661).
+    ("category.set", r##"{"name": "Travel", "color": "#2E8B57", "account": $account}"##, Setup::Synced),
+    ("mail.categorize", r#"{"ids": [$message], "category": "Travel"}"#, Setup::Synced),
+    ("people.categorize", r#"{"id": $contact, "category": "Travel"}"#, Setup::Synced),
 ];
 
 /// Asked about only for a dialog with changes the owner hasn't saved, which a test can't fill in
@@ -322,6 +352,17 @@ fn set_up(a: &mut MailApp, setup: Setup, i: &Ids) {
             t.origin.id = "t1".to_string();
             t.list = "L1".to_string();
             t.categories = vec!["Shared".to_string()];
+        }
+        Setup::Synced => {
+            let mb = &mut a.session.mailbox;
+            mb.accounts[0].kind = mailcraft_model::AccountKind::Microsoft;
+            mb.accounts[0].oauth = Some(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Microsoft, ..Default::default() });
+            mb.contact_mut(i.contact).unwrap().origin.account = i.account;
+            let red = mailcraft_model::Category { name: "Red category".into(), color: mailcraft_model::outlook_colors::OUTLOOK_COLORS[0] };
+            let email = mb.accounts[0].email.clone();
+            let download = mailcraft_model::remote::CategoriesDownload { account: i.account, email, categories: vec![red], complete: true };
+            a.session.run("sync.applyCategories", &json!({"download": download})).unwrap();
+            a.session.run("sync.categoryWrites", &json!({"account": i.account, "allowed": true})).unwrap();
         }
         Setup::Step(redo) => {
             a.execute("junk.add", json!({"list": "safe", "entry": "z@example.org"})).unwrap();
@@ -569,4 +610,63 @@ fn a_meeting_sent_is_the_one_in_the_window_the_question_named() {
     answer(&mut a, true);
     assert_eq!(rx.try_recv().unwrap()["ok"], true);
     assert!(crate::windows::told(&a, second));
+}
+
+#[test]
+fn a_yes_to_a_server_change_does_not_reach_a_server_changed_since_it_was_asked() {
+    // Two questions queued: the first moves the home, the second only pins a certificate. The
+    // second's text names none of what the first changed, and the pin must not go onto the other
+    // server.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"]})).unwrap();
+    let (now, first) = agent(&mut a, "account.davSet", json!({"id": account, "calendarHomes": ["https://other.example.org/cal/"]}));
+    assert!(now.is_none());
+    let (now, second) = agent(&mut a, "account.davSet", json!({"id": account, "trusted": "ab".repeat(32)}));
+    assert!(now.is_none());
+    answer(&mut a, true);
+    assert_eq!(first.try_recv().unwrap()["ok"], true);
+    answer(&mut a, true);
+    let r = second.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    let dav = a.session.mailbox.account(account).unwrap().dav.clone().unwrap();
+    assert_eq!((dav.trusted.as_str(), dav.calendar_homes[0].as_str()), ("", "https://other.example.org/cal/"));
+}
+
+#[test]
+fn a_yes_to_a_server_change_does_not_reach_another_login_when_none_is_named() {
+    // With no user name of its own the server is signed in to as the account's address: changing
+    // that address while a question is up changes who the pin and homes are for.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"]})).unwrap();
+    let (now, rx) = agent(&mut a, "account.davSet", json!({"id": account, "trusted": "ab".repeat(32)}));
+    assert!(now.is_none());
+    a.execute("account.edit", json!({"id": account, "email": "other@example.org"})).unwrap();
+    answer(&mut a, true);
+    let r = rx.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    assert_eq!(a.session.mailbox.account(account).unwrap().dav.as_ref().unwrap().trusted, "");
+}
+
+#[test]
+fn a_yes_that_clears_the_user_name_does_not_reach_another_address() {
+    // The request asks for no user name, so it would sign in as the account's address: an address
+    // changed while the question is up changes what was approved, though the stored name didn't.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"], "username": "bo"})).unwrap();
+    let (now, rx) = agent(&mut a, "account.davSet", json!({"id": account, "username": ""}));
+    assert!(now.is_none());
+    a.execute("account.edit", json!({"id": account, "email": "other@example.org"})).unwrap();
+    answer(&mut a, true);
+    let r = rx.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    assert_eq!(a.session.mailbox.account(account).unwrap().dav.as_ref().unwrap().username, "bo");
 }

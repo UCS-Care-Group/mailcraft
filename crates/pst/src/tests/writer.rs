@@ -626,6 +626,89 @@ pub fn wrapped_entry_id(kind: u8, embedded: &[u8]) -> Vec<u8> {
     e
 }
 
+/// One changed occurrence of a series: start, end, original start, new subject.
+pub type ExceptionSpec = (u32, u32, u32, Option<String>);
+
+/// An AppointmentRecurrencePattern ([MS-OXOCAL] 2.2.1.44.5). `specific` is the PatternTypeSpecific
+/// words; dates are minutes since 1601 by the series' clock.
+#[allow(clippy::too_many_arguments)]
+pub fn recurrence_bytes(
+    frequency: u16,
+    pattern: u16,
+    period: u32,
+    specific: &[u32],
+    end: (u32, u32, u32),
+    deleted: &[u32],
+    start_date: u32,
+    offsets: (u32, u32),
+    exceptions: &[ExceptionSpec],
+) -> Vec<u8> {
+    let mut b = Vec::new();
+    let w16 = |b: &mut Vec<u8>, v: u16| b.extend_from_slice(&v.to_le_bytes());
+    let w32 = |b: &mut Vec<u8>, v: u32| b.extend_from_slice(&v.to_le_bytes());
+    w16(&mut b, 0x3004);
+    w16(&mut b, 0x3004);
+    w16(&mut b, frequency);
+    w16(&mut b, pattern);
+    w16(&mut b, 0);
+    w32(&mut b, 0);
+    w32(&mut b, period);
+    w32(&mut b, 0);
+    specific.iter().for_each(|v| w32(&mut b, *v));
+    w32(&mut b, end.0);
+    w32(&mut b, end.1);
+    w32(&mut b, 1);
+    w32(&mut b, deleted.len() as u32);
+    deleted.iter().for_each(|v| w32(&mut b, *v));
+    w32(&mut b, exceptions.len() as u32);
+    exceptions.iter().for_each(|x| w32(&mut b, x.2));
+    w32(&mut b, start_date);
+    w32(&mut b, end.2);
+    w32(&mut b, 0x3006);
+    w32(&mut b, 0x3008);
+    w32(&mut b, offsets.0);
+    w32(&mut b, offsets.1);
+    w16(&mut b, exceptions.len() as u16);
+    for (s, e, o, subject) in exceptions {
+        w32(&mut b, *s);
+        w32(&mut b, *e);
+        w32(&mut b, *o);
+        w16(&mut b, u16::from(subject.is_some()));
+        if let Some(t) = subject {
+            w16(&mut b, t.len() as u16 + 1);
+            w16(&mut b, t.len() as u16);
+            b.extend_from_slice(t.as_bytes());
+        }
+    }
+    w32(&mut b, 0);
+    for (s, e, o, subject) in exceptions {
+        w32(&mut b, 0);
+        if let Some(t) = subject {
+            w32(&mut b, *s);
+            w32(&mut b, *e);
+            w32(&mut b, *o);
+            let wide: Vec<u16> = t.encode_utf16().collect();
+            w16(&mut b, wide.len() as u16);
+            wide.iter().for_each(|u| w16(&mut b, *u));
+            w32(&mut b, 0);
+        }
+    }
+    w32(&mut b, 0);
+    b
+}
+
+/// A TZDEFINITION with a key name and no rules.
+pub fn time_zone_bytes(key: &str) -> Vec<u8> {
+    let mut b = vec![2, 1];
+    let wide: Vec<u16> = key.encode_utf16().collect();
+    b.extend_from_slice(&((6 + wide.len() * 2) as u16).to_le_bytes());
+    b.extend_from_slice(&2u16.to_le_bytes());
+    b.extend_from_slice(&(wide.len() as u16).to_le_bytes());
+    wide.iter().for_each(|u| b.extend_from_slice(&u.to_le_bytes()));
+    b.extend_from_slice(&0u16.to_le_bytes());
+    b
+}
+
 /// The bytes of a distribution list's stream ([MS-OXOCNTC] 2.2.2.2.4): the header, each member's
 /// entry id and one-off entry id (empty for none), and the two terminators.
 pub fn list_stream_bytes(members: &[(Vec<u8>, Vec<u8>)]) -> Vec<u8> {
@@ -835,6 +918,8 @@ pub struct MessageSpec {
     pub delivered: u64,
     pub extra: Vec<(u16, Value)>,
     pub recipients: Vec<(String, String, i32)>,
+    /// PidTagRecipientFlags and PidTagRecipientTrackStatus of each recipient, by position.
+    pub recipient_states: Vec<(i32, i32)>,
     pub attachments: Vec<AttachSpec>,
 }
 
@@ -950,21 +1035,23 @@ fn message(l: &Layout, m: &MessageSpec) -> (Vec<Vec<u8>>, Vec<SubNode>) {
     let mut subs = spill.subnodes;
 
     // Recipients.
-    let rcols = vec![0x0C15_0003, text_tag(l, 0x3001), text_tag(l, 0x3003), text_tag(l, 0x3002), text_tag(l, 0x39FE)];
+    let rcols = vec![0x0C15_0003, text_tag(l, 0x3001), text_tag(l, 0x3003), text_tag(l, 0x3002), text_tag(l, 0x39FE), 0x5FFD_0003, 0x5FFF_0003];
     let rrows: Vec<(u32, Vec<(u32, Value)>)> = m
         .recipients
         .iter()
         .enumerate()
         .map(|(i, (name, email, kind))| {
-            (
-                i as u32 + 1,
-                vec![
-                    (0x0C15_0003, int32(*kind)),
-                    (text_tag(l, 0x3001), text(l, name)),
-                    (text_tag(l, 0x3003), text(l, email)),
-                    (text_tag(l, 0x3002), text(l, "SMTP")),
-                ],
-            )
+            let mut row = vec![
+                (0x0C15_0003, int32(*kind)),
+                (text_tag(l, 0x3001), text(l, name)),
+                (text_tag(l, 0x3003), text(l, email)),
+                (text_tag(l, 0x3002), text(l, "SMTP")),
+            ];
+            if let Some((flags, track)) = m.recipient_states.get(i) {
+                row.push((0x5FFD_0003, int32(*flags)));
+                row.push((0x5FFF_0003, int32(*track)));
+            }
+            (i as u32 + 1, row)
         })
         .collect();
     let (rblocks, rsubs) = tc(l, &rcols, &rrows);

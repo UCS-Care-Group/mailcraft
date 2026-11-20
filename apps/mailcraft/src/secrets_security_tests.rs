@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use keyring_core::{CredentialStore, Error, mock};
-use mailcraft_ui_egui::SecretStore;
+use mailcraft_host::SecretStore;
 
 use super::os::{self, OsStore};
 
@@ -69,6 +69,8 @@ fn credential_backend_error_must_never_echo_a_private_token() {
     let attempted = secret.clone();
     let backend = OsStore::with(Box::new(move || Err(Error::PlatformFailure(Box::new(std::io::Error::other(attempted.clone()))))));
     let error = backend.set("refresh:one@example.org", &secret).unwrap_err();
+    assert!(!format!("{error:?}").contains(&secret));
+    let error = error.to_string();
     assert!(!error.contains(&secret));
     assert!(error.contains("credential store"));
 }

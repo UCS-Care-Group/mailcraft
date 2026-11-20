@@ -673,9 +673,9 @@ fn the_outbox_is_sent_in_one_session() {
         ..Default::default()
     };
     // What the message is on the wire, were its Bcc line left out.
-    let written = mailcraft_mime::write(
+    let written = mailcraft_mime_model::write(
         &lunch,
-        &mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(SENT_AT) },
+        &mailcraft_mime_model::WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(SENT_AT) },
     );
     request.outbox = vec![
         lunch,
@@ -755,6 +755,89 @@ fn one_message_is_sent() {
 }
 
 #[test]
+fn a_relay_that_needs_no_sign_in_is_never_shown_the_password() {
+    // #836: the relay offers a sign-in, and takes mail without one.
+    let smtp = Fake::smtp(SmtpWorld { auth_optional: true, ..smtp_world() });
+    let mut relay = account(None, Some(&smtp));
+    relay.outgoing_without_sign_in = true;
+    let message = Message { to: vec![Address::new("Bob", "bob@example.org")], subject: "Hello".into(), date: SENT_AT, ..Default::default() };
+    assert_eq!(send(&relay, PASSWORD, &message), Ok(()));
+    assert_eq!(test_account(&relay, PASSWORD), Ok(()));
+    {
+        let world = smtp.world();
+        assert_eq!((world.delivered.len(), world.sign_ins), (1, 0));
+        assert!(!world.log.iter().any(|line| line.starts_with("AUTH") || line.contains(PASSWORD)), "{:?}", world.log);
+    }
+    // Without the choice the same server is signed in to, as before.
+    relay.outgoing_without_sign_in = false;
+    assert_eq!(send(&relay, PASSWORD, &message), Ok(()));
+    assert_eq!(smtp.world().sign_ins, 1);
+    // A relay that turns out to want one says so, with a hint to untick the choice; the password still isn't sent.
+    smtp.world().auth_optional = false;
+    relay.outgoing_without_sign_in = true;
+    let Err(NetError::Proto(ProtoError::Rejected(why))) = send(&relay, PASSWORD, &message) else { panic!("sent without a sign-in") };
+    let why = why.to_string();
+    assert!(why.contains("530") && why.contains("untick \"My outgoing server needs no sign-in\""), "{why}");
+    assert_eq!(smtp.world().sign_ins, 1);
+    // An account that signs in on the provider's page always shows its token.
+    let (_, tokens) = token_servers();
+    let mut oauth = oauth_account(None, Some(&tokens));
+    oauth.outgoing_without_sign_in = true;
+    assert_eq!(send(&oauth, TOKEN, &message), Ok(()));
+    assert_eq!(tokens.world().sign_ins, 1);
+}
+
+#[test]
+fn a_relay_that_refuses_at_a_recipient_gets_the_hint_too() {
+    // #836: a relay usually refuses at RCPT, with 5.7.1 and not 530, and the address in front of what it said.
+    let smtp = Fake::smtp(SmtpWorld { auth: true, auth_optional: true, deny_relay: true, ..smtp_world() });
+    let mut relay = account(None, Some(&smtp));
+    relay.outgoing_without_sign_in = true;
+    let message = Message { to: vec![Address::new("Bob", "bob@example.org")], subject: "Hello".into(), date: SENT_AT, ..Default::default() };
+    let Err(NetError::Proto(ProtoError::Rejected(why))) = send(&relay, PASSWORD, &message) else { panic!("sent through a relay that denies") };
+    let why = why.to_string();
+    assert!(why.starts_with("bob@example.org: 554 5.7.1"), "{why}");
+    assert!(why.contains("untick \"My outgoing server needs no sign-in\""), "{why}");
+    // Without the tick it is signed in to, and the same server takes the mail.
+    relay.outgoing_without_sign_in = false;
+    assert_eq!(send(&relay, PASSWORD, &message), Ok(()));
+}
+
+#[test]
+fn the_hint_is_for_a_refusal_that_asks_for_a_sign_in_and_for_nothing_else() {
+    let mut relay = Account { outgoing_without_sign_in: true, ..Account::default() };
+    let hinted = |account: &Account, said: &str| {
+        let error = NetError::Proto(ProtoError::Rejected(said.into()));
+        crate::send::relay_hint(account, error.clone()) != error
+    };
+    for yes in [
+        "530 5.7.0 Authentication required",
+        "530 Authentication required",
+        "bob@example.org: 554 5.7.1 Relay access denied",
+        "bob@example.org: 550 5.7.1 Relay access denied",
+        "bob@example.org: 454 4.7.1 Relay access denied",
+        "554 5.7.1 <bob@example.org>: Relay access denied",
+    ] {
+        assert!(hinted(&relay, yes), "{yes}");
+    }
+    for no in [
+        // A mailbox that isn't there, a full one, a busy server.
+        "bob@example.org: 550 5.1.1 no such user",
+        "bob@example.org: 552 5.2.2 mailbox full",
+        "421 4.3.2 shutting down",
+        // 530 is what STARTTLS is asked for with, too.
+        "530 5.7.0 Must issue a STARTTLS command first",
+        "530 Must issue a STARTTLS command first",
+        "bob@example.org: 554 5.7.1 Relay access denied (STARTTLS needed)",
+    ] {
+        assert!(!hinted(&relay, no), "{no}");
+    }
+    // Never without the tick.
+    relay.outgoing_without_sign_in = false;
+    assert!(!hinted(&relay, "530 5.7.0 Authentication required"));
+}
+
+#[test]
 fn only_the_newest_are_downloaded_when_there_is_a_limit() {
     let imap = Fake::imap(imap_world());
     let mut request = request(account(Some(&imap), None), local_folders());
@@ -811,16 +894,16 @@ fn a_lost_connection_keeps_what_arrived() {
     let account = account(Some(&imap), None);
     let result = sync(&request(account.clone(), local_folders()));
     assert_eq!(result.errors, ["Couldn't download a message from \"INBOX\": connection problem: the server closed the connection"]);
-    // The newest came first; the rest, and the other folders, wait for the next run.
-    assert_eq!(remotes(&result), ["INBOX"]);
-    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![5], 0));
+    // The one that broke the connection is passed over for now (#1581): a fresh connection reads
+    // the one below it, and the other folders after it.
+    assert_eq!(remotes(&result), ["INBOX", "Sent Items", "Entwürfe", "Projects"]);
+    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen, result.folders[0].failed.clone()), (vec![1, 5], 1, vec![2]));
 
     imap.world().hang_up_at_uid = None;
     let again = sync(&request(account, applied(&local_folders(), &result)));
     assert_eq!(again.errors, Vec::<String>::new());
-    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen), (vec![1, 2], 6));
-    assert_eq!(remotes(&again), ["INBOX", "Sent Items", "Entwürfe", "Projects"]);
-    assert_eq!(again.new_count(), 4);
+    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen), (vec![2], 6));
+    assert_eq!(again.new_count(), 1);
 }
 
 #[test]
@@ -911,14 +994,19 @@ fn a_run_downloads_only_so_much() {
 
 #[test]
 fn a_server_that_is_not_there_is_an_error_line() {
-    // A port that was just free: nothing listens there.
-    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-    let mut nowhere = account(None, None);
-    nowhere.incoming = Some(Server { host: "127.0.0.1".into(), port, security: Security::None });
-    let result = sync(&request(nowhere.clone(), local_folders()));
-    assert_eq!(result.errors.len(), 1);
-    assert!(result.errors[0].starts_with("Couldn't check for new mail: couldn't reach 127.0.0.1: "), "{}", result.errors[0]);
-    assert!(matches!(test_account(&nowhere, PASSWORD), Err(NetError::Connect { .. })));
+    // A port that was just free: nothing listens there. Another test running at the same time can
+    // take it in between, so a few fresh ports are tried; one where nobody answered must be found.
+    // A port can't be held without listening on it, which would answer, so it's retried instead.
+    let refused = (0..5).any(|_| {
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let mut nowhere = account(None, None);
+        nowhere.incoming = Some(Server { host: "127.0.0.1".into(), port, security: Security::None });
+        let result = sync(&request(nowhere.clone(), local_folders()));
+        result.errors.len() == 1
+            && result.errors[0].starts_with("Couldn't check for new mail: couldn't reach 127.0.0.1: ")
+            && matches!(test_account(&nowhere, PASSWORD), Err(NetError::Connect { .. }))
+    });
+    assert!(refused, "a port nobody listens on was never said to be unreachable");
 }
 
 // ---- pushing what was changed here ----
@@ -1419,6 +1507,16 @@ fn a_server_that_is_not_gmail_keeps_its_ways_with_all_mail() {
         ["CREATE \"Archive\"", "SUBSCRIBE \"Archive\"", "UID MOVE 1 \"Archive\"", "UID STORE 2 +FLAGS.SILENT (\\Deleted)", "UID EXPUNGE 2"]
     );
     assert_eq!(server_uids(&imap, "[Gmail]/All Mail"), [1]);
+
+    // A Dovecot-style server with an `INBOX.` personal namespace creates top-level folders under it.
+    let imap = two_way(true, true);
+    imap.world().namespace = Some(("INBOX.".into(), ".".into()));
+    let folders = without(synced_folders(&imap), "INBOX", &[1]);
+    let result = sync(&pushing(&imap, &folders, vec![archiving(901, 1, "Archive")]));
+    assert_eq!(result.errors, Vec::<String>::new());
+    assert_eq!(result.created, [Created { folder: ARCHIVE, remote: "INBOX.Archive".into() }]);
+    assert_eq!(changes(&imap), ["CREATE \"INBOX.Archive\"", "SUBSCRIBE \"INBOX.Archive\"", "UID MOVE 1 \"INBOX.Archive\""]);
+    assert_eq!(server_uids(&imap, "INBOX.Archive"), [1]);
 
     // Gmail with a mailbox for archived mail of its own (made by the owner, or by an earlier
     // version): that one is used, as before.
@@ -2286,9 +2384,9 @@ fn a_server_that_stops_answering_ends_the_run_with_an_error() {
     let result = sync_within(&request(ada.clone(), local_folders()), patient_for(300));
     assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
     assert_eq!(result.errors, ["Couldn't download a message from \"INBOX\": connection problem: the server took too long to answer"]);
-    // What had arrived is kept; the rest, and the other folders, wait for the next run.
-    assert_eq!(remotes(&result), ["INBOX"]);
-    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![5], 0));
+    // What had arrived is kept; the one that stalled is passed over for now on a fresh connection (#1581).
+    assert_eq!(remotes(&result), ["INBOX", "Sent Items", "Entwürfe", "Projects"]);
+    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen, result.folders[0].failed.clone()), (vec![1, 5], 1, vec![2]));
     // Silence at any other point is the same: before the sign-in is answered, in the list of
     // folders, when a mailbox is opened or looked into.
     for (silent_at, said) in [
@@ -2340,19 +2438,27 @@ fn a_connection_that_drops_in_the_middle_of_a_message_keeps_what_arrived() {
     let mut result = SyncResult::default();
     all.iter().cloned().for_each(|piece| result.absorb(piece));
     assert_eq!(result.errors, ["Couldn't download a message from \"INBOX\": connection problem: the server closed the connection"]);
-    // The message that came whole was handed over before the connection went; half a message is none.
+    // The message that came whole was handed over before the connection went; half a message is
+    // none, and the one below it comes on a fresh connection (#1581).
+    assert_eq!(all[3].folders[0].new.iter().map(|m| m.uid).collect::<Vec<_>>(), [5]);
+    assert_eq!(remotes(&result), ["INBOX", "Sent Items", "Entwürfe", "Projects"]);
     assert_eq!(
-        all.iter().map(|piece| piece.progress.as_str()).collect::<Vec<_>>(),
-        ["Connecting to the mail server", "Found 4 folders", "Checking Inbox (1 of 4)", "Inbox: 1 of 3", ""]
+        (
+            {
+                let mut u = uids(&result.folders[0].new);
+                u.sort();
+                u
+            },
+            result.folders[0].uid_seen,
+            result.folders[0].failed.clone()
+        ),
+        (vec![1, 5], 1, vec![2])
     );
-    assert_eq!((uids(&all[3].folders[0].new), all[3].folders[0].uid_seen), (vec![5], 0));
-    assert_eq!(remotes(&result), ["INBOX"]);
-    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![5], 0));
 
     imap.world().cut_at_uid = None;
     let again = sync(&request(ada, applied(&local_folders(), &result)));
     assert_eq!(again.errors, Vec::<String>::new());
-    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen, again.new_count()), (vec![1, 2], 6, 4));
+    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen, again.new_count()), (vec![2], 6, 1));
 }
 
 #[test]
@@ -2565,5 +2671,12 @@ fn a_server_that_floods_one_answer_is_given_up_on() {
 #[path = "gmail_sync_tests.rs"]
 mod gmail_sync;
 
+#[path = "gmail_labels_sync_tests.rs"]
+mod gmail_labels_sync;
+
 #[path = "protected_sync_tests.rs"]
 mod protected_sync;
+
+// (Sending from an account's other addresses, #797: its own file, with these helpers.)
+#[path = "sender_address_tests.rs"]
+mod sender_address_tests;

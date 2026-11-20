@@ -39,14 +39,14 @@ fn imap_account(s: &mut Session, email: &str, new: Vec<mailcraft_model::Message>
 /// What goes onto account `to`'s server for message `bytes`, moved there from another IMAP account.
 fn moved_up(bytes: &[u8]) -> Vec<u8> {
     let mut s = Session::empty();
-    let read = mailcraft_model::Message { uid: 1, ..mailcraft_mime::parse_fetched(bytes) };
+    let read = mailcraft_model::Message { uid: 1, ..mailcraft_mime_model::parse_fetched(bytes) };
     let from = imap_account(&mut s, "avery@mail.example", vec![read]);
     let to = imap_account(&mut s, "work@mail.example", vec![]);
     let id = s.mailbox.messages.values().find(|m| m.account == from).unwrap().id;
     s.run("mail.move", &json!({"ids": [id], "folder": s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap()})).unwrap();
     let asked = sync_request(&s, to).unwrap();
     let [place] = asked.places.as_slice() else { panic!("{:?}", asked.places) };
-    mailcraft_mime::write_placed(&place.message, &mailcraft_mime::WriteOptions::default(), &place.marker)
+    mailcraft_mime_model::write_placed(&place.message, &mailcraft_mime_model::WriteOptions::default(), &place.marker)
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn a_signed_message_moved_to_another_server_leaves_the_stamps_behind() {
 fn a_signed_message_of_lf_lines_goes_up_in_crlf_with_its_body_canonical() {
     // As an mbox or a file of LF lines brings it in.
     let lf: Vec<u8> = String::from_utf8_lossy(STAMPED).replace("\r\n", "\n").into_bytes();
-    let read = mailcraft_mime::parse_mbox(&[&b"From boss@example.org Tue Jul  1 08:52:37 2003\n"[..], &lf].concat());
+    let read = mailcraft_mime_model::parse_mbox(&[&b"From boss@example.org Tue Jul  1 08:52:37 2003\n"[..], &lf].concat());
     let original = read.first().and_then(|m| m.original_bytes()).unwrap().to_vec();
     let put = moved_up(&original);
     assert!(put.windows(2).all(|w| w[1] != b'\n' || w[0] == b'\r'), "a bare LF in\n{}", String::from_utf8_lossy(&put));
@@ -94,7 +94,7 @@ fn two_imap() -> (Session, Id, Id, Id) {
 /// [`two_imap`] with `bytes` for the message.
 fn two_imap_with(bytes: &[u8]) -> (Session, Id, Id, Id) {
     let mut s = Session::empty();
-    let read = mailcraft_model::Message { uid: 1, ..mailcraft_mime::parse_fetched(bytes) };
+    let read = mailcraft_model::Message { uid: 1, ..mailcraft_mime_model::parse_fetched(bytes) };
     let from = imap_account(&mut s, "avery@mail.example", vec![read]);
     let to = imap_account(&mut s, "work@mail.example", vec![]);
     let id = s.mailbox.messages.values().find(|m| m.account == from).unwrap().id;
@@ -136,7 +136,7 @@ fn with_original_file(s: &Session, id: Id, name: &str, spoil: impl Fn(&std::path
 
 /// What the IMAP account `account`'s server gives of UID `uid` of its Inbox, downloaded again.
 fn refetched(s: &mut Session, account: Id, uid: u32, bytes: &[u8]) {
-    let read = mailcraft_model::Message { uid, ..mailcraft_mime::parse_fetched(bytes) };
+    let read = mailcraft_model::Message { uid, ..mailcraft_mime_model::parse_fetched(bytes) };
     let inbox =
         FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: uid, refetched: vec![read], ..Default::default() };
     apply_sync(s, SyncResult { account, folders: vec![inbox], ..Default::default() }).unwrap();

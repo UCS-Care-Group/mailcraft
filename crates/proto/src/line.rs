@@ -26,7 +26,25 @@ fn closed() -> ProtoError {
     ProtoError::Io(said!("the server closed the connection"))
 }
 
+/// An encrypted connection whose records failed their check in the middle (#1581): carried in an
+/// `io::Error` by the transport, said in the interface's language here.
+#[derive(Debug)]
+pub struct DamagedStream;
+
+impl std::fmt::Display for DamagedStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the encrypted connection was damaged on the way")
+    }
+}
+
+impl std::error::Error for DamagedStream {}
+
 fn io_error(e: &std::io::Error) -> ProtoError {
+    if e.get_ref().is_some_and(|inner| inner.is::<DamagedStream>()) {
+        return ProtoError::Io(said!(
+            "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+        ));
+    }
     match e.kind() {
         ErrorKind::TimedOut | ErrorKind::WouldBlock => ProtoError::Io(said!("the server took too long to answer")),
         ErrorKind::UnexpectedEof | ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset | ErrorKind::BrokenPipe => closed(),
@@ -126,6 +144,44 @@ impl<S: Read + Write> Wire<S> {
         }
     }
 
+    /// The next line if one arrives before the stream's own read timeout, `None` when the stream
+    /// had nothing for that long (IDLE waits like this, a second at a time, so that its owner can
+    /// look at the clock and at whether it was told to stop). Bytes of a line that came so far are
+    /// kept for the next call. A line over [`MAX_LINE`] is an error, as for [`Wire::read_line`].
+    pub(crate) fn poll_line(&mut self) -> Result<Option<Vec<u8>>, ProtoError> {
+        let mut interrupts = 0;
+        loop {
+            let pending = self.buf.get(self.start..).unwrap_or(&[]);
+            if let Some(end) = pending.iter().position(|b| *b == b'\n') {
+                let line = pending.get(..end).unwrap_or(&[]);
+                let line = line.strip_suffix(b"\r").unwrap_or(line);
+                if line.len() > MAX_LINE {
+                    return Err(too_long());
+                }
+                let line = line.to_vec();
+                self.start = self.start.saturating_add(end).saturating_add(1);
+                return Ok(Some(line));
+            }
+            // The limit is on the line itself; a CR may still come on top.
+            if pending.len() > MAX_LINE + 1 {
+                return Err(too_long());
+            }
+            if self.start > 0 {
+                self.buf.drain(..self.start.min(self.buf.len()));
+                self.start = 0;
+            }
+            let mut tmp = vec![0u8; CHUNK];
+            match self.stream.read(&mut tmp) {
+                Ok(0) => return Err(closed()),
+                // A stream that claims more than the buffer holds is lying.
+                Ok(n) => self.buf.extend_from_slice(tmp.get(..n.min(tmp.len())).unwrap_or(&[])),
+                Err(e) if matches!(e.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) => return Ok(None),
+                Err(e) if e.kind() == ErrorKind::Interrupted && interrupts < MAX_INTERRUPTS => interrupts += 1,
+                Err(e) => return Err(io_error(&e)),
+            }
+        }
+    }
+
     /// Exactly `n` bytes (at most [`MAX_LITERAL`]).
     pub(crate) fn read_block(&mut self, n: usize) -> Result<Vec<u8>, ProtoError> {
         if n > MAX_LITERAL {
@@ -222,6 +278,19 @@ mod tests {
         // The claim alone is refused: nothing is read or allocated.
         let mut s = Script::new("");
         assert!(matches!(Wire::new(&mut s).read_block(MAX_LITERAL + 1), Err(ProtoError::Protocol(_))));
+    }
+
+    #[test]
+    fn a_damaged_stream_is_said_in_words_that_can_be_translated() {
+        let e = std::io::Error::new(ErrorKind::InvalidData, DamagedStream);
+        let said = match io_error(&e) {
+            ProtoError::Io(said) => said.to_string(),
+            other => format!("{other:?}"),
+        };
+        assert!(said.contains("antivirus or firewall"), "{said}");
+        // Any other invalid data is as the system said it.
+        let other = std::io::Error::new(ErrorKind::InvalidData, "bad");
+        assert_eq!(io_error(&other), ProtoError::Io("bad".to_string().into()));
     }
 
     #[test]

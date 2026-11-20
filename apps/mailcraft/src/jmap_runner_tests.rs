@@ -13,8 +13,10 @@ use std::time::Duration;
 
 use mailcraft_jmap::standin::{PASSWORD, SESSION, StandIn, TOKEN, USER};
 use mailcraft_jmap::{RetryAfter, UnixTime};
-use mailcraft_model::Id;
-use mailcraft_model::sync::{JmapFetchRequest, JmapMailRequest, JmapMailResult, JmapScope};
+use mailcraft_model::sync::{
+    JmapChange, JmapChangeDone, JmapFetchRequest, JmapMailRequest, JmapMailResult, JmapOutcome, JmapScope, SendOutcome, SendUp,
+};
+use mailcraft_model::{Address, Body, Id, Message};
 use mailcraft_net::NetError;
 
 use super::*;
@@ -340,6 +342,99 @@ fn a_large_answer_has_more_time_than_a_session() {
     assert!(patience(RequestKind::Api) < patience(RequestKind::Download));
     assert!(patience(RequestKind::Download) >= Duration::from_secs(300), "as the browser gives an exchange");
     assert!(patience(RequestKind::Download) <= mailcraft_net::https::MOST_PATIENCE);
+    // A message that goes out is uploaded whole: as much time as one that comes down whole.
+    assert_eq!(patience(RequestKind::Upload), patience(RequestKind::Download));
+}
+
+/// What became of every change and every message sent in a run, in the order they came.
+fn changes_of(pieces: &[JmapMailResult]) -> Vec<JmapChangeDone> {
+    pieces.iter().flat_map(|piece| piece.changes.iter().cloned()).collect()
+}
+
+fn sent_of(pieces: &[JmapMailResult]) -> Vec<(Id, SendOutcome)> {
+    pieces.iter().flat_map(|piece| piece.sent.iter().map(|done| (done.message, done.outcome.clone()))).collect()
+}
+
+#[test]
+fn changes_made_here_go_up_over_http_before_the_mailboxes_are_read() {
+    let (server, ids) = filled();
+    let (kickoff, budget) = (ids[0].clone(), ids[1].clone());
+    let (inbox, projects, doomed) = server.with(|d| {
+        let inbox = d.mailbox_named("Inbox").unwrap().to_string();
+        let projects = d.mailbox_named("Projects").unwrap().to_string();
+        let doomed = d.deliver(&inbox, &mail("Old news", 3), &[], "2026-10-15T07:03:00Z");
+        (inbox, projects, doomed)
+    });
+    let served = serve(&server);
+    let changes = vec![
+        JmapChange::Keywords { message: 11, id: kickoff.clone(), read: Some(false), flagged: Some(true), answered: None, forwarded: None },
+        JmapChange::Move { message: 12, id: budget.clone(), from: inbox.clone(), to: projects.clone() },
+        JmapChange::Destroy { id: doomed.clone() },
+    ];
+    let request = JmapMailRequest { changes: changes.clone(), ..run_request(&served.session, "ada@example.org", true) };
+    let pieces = run(&request, TOKEN, &Arc::new(AtomicBool::new(false)));
+
+    let done = JmapOutcome::Done { id: String::new() };
+    assert_eq!(changes_of(&pieces), changes.into_iter().map(|change| JmapChangeDone { change, outcome: done.clone() }).collect::<Vec<_>>());
+    let last = pieces.last().unwrap();
+    assert!(!last.partial && last.whole && last.errors.is_empty(), "{last:?}");
+    server.with(|d| {
+        let marks: Vec<&str> = d.email(&kickoff).unwrap().keywords.iter().map(String::as_str).collect();
+        assert_eq!(marks, ["$flagged"], "unread and flagged, as changed here");
+        assert_eq!(d.email(&budget).unwrap().mailboxes.iter().collect::<Vec<_>>(), [&projects]);
+        assert!(d.email(&doomed).is_none());
+    });
+    // Up first, in one `Email/set`, then the reading.
+    let calls = server.calls();
+    assert_eq!(calls[..2], ["Email/set", "Mailbox/get"]);
+    assert_eq!(calls.iter().filter(|call| *call == "Email/set").count(), 1);
+}
+
+#[test]
+fn mail_is_uploaded_imported_into_sent_and_submitted_over_http() {
+    let (server, _) = filled();
+    let sent = server.with(|d| {
+        d.identity("ada@example.org");
+        d.mailbox_named("Sent").unwrap().to_string()
+    });
+    let served = serve(&server);
+    let message = Message {
+        id: 41,
+        from: Address::new("Ada", "ada@example.org"),
+        to: vec![Address::new("", "bob@example.org")],
+        bcc: vec![Address::new("", "erin@example.org")],
+        subject: "Lunch".into(),
+        message_id: "lunch-1@example.org".into(),
+        date: 1_791_993_600,
+        body: Body { text: "Shall we?".into(), html: None },
+        ..Default::default()
+    };
+    let sends = vec![SendUp { message: 41, draft: None, mime: Some(Box::new(message)) }];
+    let request = JmapMailRequest { sends, ..run_request(&served.session, "ada@example.org", true) };
+    let pieces = run(&request, TOKEN, &Arc::new(AtomicBool::new(false)));
+
+    assert_eq!(sent_of(&pieces), [(41, SendOutcome::Sent)]);
+    let last = pieces.last().unwrap();
+    assert!(!last.partial && last.whole && last.errors.is_empty(), "{last:?}");
+    // The upload went over the socket as a message, and the server sent it from the account's
+    // address to everybody, Bcc in the envelope only.
+    let uploads: Vec<_> = server.seen().into_iter().filter(|seen| seen.path.starts_with("/jmap/upload/")).collect();
+    assert_eq!(uploads.len(), 1);
+    server.with(|d| {
+        assert_eq!(d.submitted.len(), 1);
+        let submitted = &d.submitted[0];
+        assert_eq!(submitted.mail_from, "ada@example.org");
+        assert_eq!(submitted.rcpt_to, ["bob@example.org", "erin@example.org"]);
+        assert!(!String::from_utf8_lossy(&submitted.raw).contains("erin@example.org"));
+        let email = d.email(&submitted.email).expect("the email submitted is the one imported");
+        assert_eq!(email.mailboxes.iter().collect::<Vec<_>>(), [&sent]);
+        assert!(!email.keywords.contains("$draft"), "the draft mark is off once it went");
+    });
+    let calls = server.calls();
+    let at = |name: &str| calls.iter().position(|call| call == name).unwrap_or_else(|| panic!("{name} in {calls:?}"));
+    assert!(at("Email/import") < at("EmailSubmission/set"));
+    // Every request the server saw, the upload among them, came over a connection of its own.
+    assert_eq!(served.requests.load(Ordering::Relaxed), server.seen().len());
 }
 
 #[test]

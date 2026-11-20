@@ -107,6 +107,14 @@ pub enum Why {
     UnknownAlgorithm,
     /// The signer's Public key (certificate) isn't in the message or kept here.
     NoPublicKey,
+    /// The signer's OpenPGP key was revoked by its owner, for when the message was signed.
+    KeyRevoked,
+    /// The signer's OpenPGP key had expired when the message was signed.
+    KeyExpired,
+    /// The OpenPGP key that made it isn't one that may sign.
+    NotASigningKey,
+    /// The Digital signature itself has expired (it said until when it holds).
+    SignatureExpired,
     /// The Digital signature can't be read.
     Unreadable,
     /// The bytes the message came as aren't here (it was read before they were kept): Check
@@ -135,6 +143,10 @@ impl Why {
             Why::WeakAlgorithm => "weakAlgorithm",
             Why::UnknownAlgorithm => "unknownAlgorithm",
             Why::NoPublicKey => "noPublicKey",
+            Why::KeyRevoked => "keyRevoked",
+            Why::KeyExpired => "keyExpired",
+            Why::NotASigningKey => "notASigningKey",
+            Why::SignatureExpired => "signatureExpired",
             Why::Unreadable => "unreadable",
             Why::NoOriginal => "noOriginal",
             Why::TooMuch => "tooMuch",
@@ -158,7 +170,11 @@ impl Why {
             Why::Altered => "the message was changed after it was signed",
             Why::WeakAlgorithm => "it uses an algorithm that's no longer safe",
             Why::UnknownAlgorithm => "it uses an algorithm MailCraft doesn't know",
-            Why::NoPublicKey => "the signer's certificate isn't in the message",
+            Why::NoPublicKey => "the signer's Public key (certificate) isn't in the message or kept on this computer",
+            Why::KeyRevoked => "the signer's key was revoked by its owner",
+            Why::KeyExpired => "the signer's key had expired when the message was signed",
+            Why::NotASigningKey => "the key that made it isn't one that may sign",
+            Why::SignatureExpired => "the Digital signature has expired",
             Why::Unreadable => "the Digital signature can't be read",
             Why::NoOriginal => "the bytes the message came as aren't on this computer; Check again downloads them",
             Why::TooMuch => "there is too much to check in this Digital signature",

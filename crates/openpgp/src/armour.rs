@@ -12,6 +12,7 @@ use crate::mime;
 pub(crate) enum Kind {
     Signature,
     PublicKey,
+    PrivateKey,
 }
 
 impl Kind {
@@ -19,6 +20,7 @@ impl Kind {
         match self {
             Kind::Signature => b"SIGNATURE",
             Kind::PublicKey => b"PUBLIC KEY BLOCK",
+            Kind::PrivateKey => b"PRIVATE KEY BLOCK",
         }
     }
 }

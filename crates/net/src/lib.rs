@@ -10,7 +10,8 @@
 //! token (SASL XOAUTH2) instead of a password, and [`lookup_mx`] finds out where a domain's mail
 //! goes, which tells its provider. [`graph`] asks Microsoft Graph for what a Microsoft 365
 //! account has that IMAP and SMTP don't reach: sending where SMTP is switched off, the calendar,
-//! the contacts, and which folders the owner keeps under Favorites in Outlook. All of them
+//! the contacts, and which folders the owner keeps under Favorites in Outlook. [`report`] sends
+//! a problem report the owner wrote to the project's report relay, on their click. All of them
 //! block, so a host calls them on a background thread; every connection has timeouts.
 //!
 //! A password or a token is only ever sent inside TLS, or to a server on this machine. It never
@@ -25,8 +26,14 @@ pub const AVAILABLE: bool = false;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod anchors;
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+mod anchors_nss;
+#[cfg(not(target_arch = "wasm32"))]
+mod autoconfig;
 #[cfg(not(target_arch = "wasm32"))]
 mod cert;
+#[cfg(not(target_arch = "wasm32"))]
+mod discover;
 #[cfg(not(target_arch = "wasm32"))]
 mod dns;
 #[cfg(not(target_arch = "wasm32"))]
@@ -42,6 +49,10 @@ mod http;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod https;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod idle;
+#[cfg(test)]
+mod idle_tests;
+#[cfg(not(target_arch = "wasm32"))]
 mod kept;
 #[cfg(not(target_arch = "wasm32"))]
 mod kinds;
@@ -54,7 +65,11 @@ mod pinned;
 #[cfg(not(target_arch = "wasm32"))]
 mod push;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod report;
+#[cfg(not(target_arch = "wasm32"))]
 mod send;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod subscription;
 #[cfg(not(target_arch = "wasm32"))]
 mod sync;
 #[cfg(not(target_arch = "wasm32"))]
@@ -65,6 +80,8 @@ mod transport;
 pub mod update;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod update_download;
+#[cfg(not(target_arch = "wasm32"))]
+mod xml_text;
 
 // (`cfg(test)` on its own line: that is how clippy knows test code, which may unwrap.)
 #[cfg(test)]
@@ -100,8 +117,12 @@ mod native {
 
     pub use crate::anchors::system_trust_anchors;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
+    pub use crate::discover::{PLACES, Places, discover, discover_at};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
-    pub use crate::dns_srv::{SrvTarget, lookup_autodiscover, lookup_autodiscover_at};
+    pub use crate::dns_srv::{
+        AutodiscoverTargets, DavRecords, DavService, SrvTarget, autodiscover_hosts, autodiscover_hosts_at, autodiscover_targets,
+        autodiscover_targets_at, lookup_autodiscover, lookup_autodiscover_at, lookup_dav, lookup_dav_at,
+    };
     pub use crate::pinned::pin_check_under_way;
     pub use crate::send::send;
     pub use crate::sync::{sync, sync_with, token_may_go_to};
@@ -276,6 +297,10 @@ mod native {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod password_tests;
 
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod report_tests;
+
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod said_tests;
 
@@ -288,6 +313,9 @@ mod tls_test_support;
 #[cfg(not(target_arch = "wasm32"))]
 mod verifier_tests;
 
+#[cfg(test)]
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+mod anchors_nss_tests;
 #[cfg(test)]
 #[cfg(all(unix, not(target_os = "macos")))]
 mod anchors_tests;

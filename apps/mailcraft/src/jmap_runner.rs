@@ -17,9 +17,9 @@
 //! refused unread past it.
 //!
 //! **Patience.** Each exchange has a time of its own for connecting and the whole answer, by what
-//! it is for ([`patience`]): a session little, an API request more, a message downloaded whole the
-//! most, so that a large message on a slow line comes down instead of timing out and being asked
-//! for again and again.
+//! it is for ([`patience`]): a session little, an API request more, a message downloaded whole or
+//! uploaded to be sent the most, so that a large message on a slow line comes down (or goes up)
+//! instead of timing out and being tried again and again.
 //!
 //! **Waiting.** A server's `Retry-After` given as a date is handed to the client as the seconds until
 //! then (the client reads no clock); while this computer's clock is plainly not set yet (before
@@ -85,6 +85,8 @@ pub(crate) fn patience(kind: RequestKind) -> Duration {
         RequestKind::Api => 120,
         // (A message whole: up to the client's 50 MB, at a few hundred KB a second.)
         RequestKind::Download => 300,
+        // (A message that goes out, uploaded before it is sent: as large as one downloaded whole.)
+        RequestKind::Upload => 300,
     })
 }
 

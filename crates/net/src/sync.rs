@@ -16,17 +16,19 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use mailcraft_mime::WriteOptions;
+use mailcraft_mime_model::WriteOptions;
+use mailcraft_model::gmail::tidy_labels;
 use mailcraft_model::sync::{
-    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
+    FolderDelta, FolderState, GmailLabels, GmailSorted, MAX_GMAIL_MOVES, MAX_TRIES, RemoteFlags, RemoteOp, SyncPhase, SyncRequest, SyncResult,
+    SyncStage, SyncStep,
 };
 use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
-use mailcraft_proto::imap::{Fetched, Imap, Mailbox, uid_sets};
+use mailcraft_proto::imap::{Fetched, FolderStatus, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
 
 use crate::push::push;
-use crate::send::{Envelope, dated, deliver, open_smtp_with};
+use crate::send::{Envelope, dated, deliver, open_smtp_with, relay_hint};
 use crate::transport::{self, Patience, Service, Stream};
 use crate::{NetError, kinds, not_signed_in, scrub};
 use mailcraft_i18n::{Arg, Text, said};
@@ -49,6 +51,8 @@ const MAX_GMAIL_SORTED: usize = 200_000;
 const MAX_GMAIL_FOUND: usize = mailcraft_proto::imap::MAX_GMAIL_FOUND;
 /// Most messages of one mailbox downloaded again in one run (#650).
 const MAX_AGAIN: usize = 100;
+/// How many times a run replaces a broken connection to carry on with the next message (#1581).
+const MAX_RECONNECTS: usize = 5;
 /// Most new messages handed over in one piece, and most bytes of them...
 const BATCH_MESSAGES: usize = 50;
 const BATCH_BYTES: usize = 4 * 1024 * 1024;
@@ -164,6 +168,7 @@ pub(crate) fn sync_as(request: &SyncRequest, limits: Limits, host: Host, cancel:
         phase: SyncPhase::Sending,
         asked: 0,
         counted: 0,
+        reconnects: 0,
     };
     let sent = send_outbox(&mut run);
     let imap = exchange(&mut run, &sent, host);
@@ -201,6 +206,8 @@ pub(crate) struct Run<'a> {
     asked: u32,
     /// How many of the connection's commands `asked` has taken in.
     counted: u32,
+    /// How many times the run replaced a broken connection (#1581).
+    reconnects: usize,
 }
 
 impl Run<'_> {
@@ -296,7 +303,8 @@ const NO_SUBJECT: &str = "(no subject)";
 /// A message's subject for an error line: one line, not too long.
 pub(crate) fn subject_of(message: &Message) -> String {
     let words: Vec<&str> = message.subject.split(|c: char| c.is_whitespace() || c.is_control()).filter(|w| !w.is_empty()).collect();
-    let subject = words.join(" ");
+    // No `"` or `\` inside a name that is shown between quotes: a log's quote scrubbing pairs them.
+    let subject = words.join(" ").replace(['"', '\\'], "'");
     if subject.is_empty() {
         return NO_SUBJECT.into();
     }
@@ -305,7 +313,7 @@ pub(crate) fn subject_of(message: &Message) -> String {
 
 /// A mailbox's name for an error line.
 pub(crate) fn shown(name: &str) -> String {
-    name.chars().filter(|c| !c.is_control()).take(80).collect()
+    name.chars().filter(|c| !c.is_control()).take(80).map(|c| if matches!(c, '"' | '\\') { '\'' } else { c }).collect()
 }
 
 /// A mailbox's name for a line of progress.
@@ -350,7 +358,9 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
         // Dated once, so that the copy kept on the server says what the one that went says.
         let message = dated(message);
         run.asked = run.asked.saturating_add(1);
-        let outcome = Envelope::of(&request.account, &message).and_then(|envelope| deliver(&mut smtp, &envelope, &message));
+        let outcome = Envelope::of(&request.account, &message)
+            .and_then(|envelope| deliver(&mut smtp, &envelope, &message))
+            .map_err(|e| relay_hint(&request.account, e));
         match outcome {
             Ok(()) => {
                 run.out.sent.push(message.id);
@@ -433,7 +443,7 @@ pub fn token_may_go_to(account: &Account, server: &Server, google_host: &str) ->
 /// crate's own tests, and in the tests of the crates on it that ask for it on their thread
 /// (`graph::standin::allow_loopback_tokens`, built with the `stand-in` feature alone).
 fn microsoft_loopback_allowed() -> bool {
-    #[cfg(feature = "stand-in")]
+    #[cfg(any(test, feature = "stand-in"))]
     if crate::graph::standin::loopback_tokens_allowed() {
         return true;
     }
@@ -452,7 +462,7 @@ fn file_sent(imap: &mut Imap<Stream<'_>>, plan: &[(&Mailbox, FolderKind)], sent:
     for (at, message) in sent.iter().enumerate() {
         // The sender's own copy says who got a blind copy.
         let options = WriteOptions { include_bcc: true, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
-        if let Err(e) = imap.append(&mailbox.raw, &["\\Seen"], &mailcraft_mime::write(message, &options)) {
+        if let Err(e) = imap.append(&mailbox.raw, &["\\Seen"], &mailcraft_mime_model::write(message, &options)) {
             let e = NetError::from(e);
             result.problem(said!(
                 "Couldn't keep a copy of \"{subject}\" on the server: {error}",
@@ -655,6 +665,20 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
             return None;
         }
     };
+    // The Inbox before anything else, as a Graph account's is: its new mail is on screen before
+    // the folders are listed, and before the rest of the account is looked at (#276).
+    let states = States::of(request);
+    // A local folder takes the news of one server mailbox only.
+    let mut claimed: HashSet<Id> = HashSet::new();
+    let inbox_read = match inbox_first(run, &mut imap, &states, &owed, host) {
+        Ok(read) => {
+            if let Some(read) = read {
+                claimed.insert(read);
+            }
+            read.is_some()
+        }
+        Err(()) => return None,
+    };
     let (mailboxes, dropped) = match imap.list_counted() {
         Ok(list) => list,
         Err(e) => {
@@ -698,29 +722,142 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     }
     // From here on the server is only read: the run can be called off in the middle of a command.
     imap.get_mut().watch(Some(run.cancel));
-    // A local folder takes the news of one server mailbox only.
-    let mut claimed: HashSet<Id> = HashSet::new();
-    let states = States::of(request);
     let count = plan.len().min(MAX_FOLDERS);
+    // A folder this run changed on the server is read: a message it moved away or deleted is
+    // marked, not gone, and no count shows that (#276).
+    let touched: HashSet<&str> = request
+        .ops
+        .iter()
+        .flat_map(|op| match op {
+            RemoteOp::Move { from, to, .. } => vec![from.as_str(), to.as_str()],
+            op => vec![op.mailbox()],
+        })
+        .chain(request.places.iter().map(|place| place.to.as_str()))
+        .collect();
+    // What the server says of every folder but the Inbox, asked of all in a few round trips, so
+    // that a folder that hasn't changed isn't opened (#276).
+    let statuses = match folder_statuses(run, &mut imap, &plan) {
+        Ok(statuses) => statuses,
+        Err(()) => return None,
+    };
     for (at, (mailbox, kind)) in plan.into_iter().take(MAX_FOLDERS).enumerate() {
         if run.cancelled() {
             break;
         }
         let remote = kinds::remote_name(mailbox);
         // A folder without a name couldn't be told from one that only exists here.
-        if remote.is_empty() {
+        if remote.is_empty() || (inbox_read && kind == FolderKind::Inbox) {
             continue;
         }
         let state = states.get(&remote, kind).filter(|state| claimed.insert(state.id));
         let arrived = arrived.get(&remote).map_or(&[][..], Vec::as_slice);
         let gmail = host.gmail && kind == FolderKind::Inbox;
-        let folder = FolderSync { mailbox, remote, kind, state, max_new: request.max_per_folder as usize, arrived, place: (at + 1, count), gmail };
+        let status = statuses.get(&remote).copied();
+        if let (Some(state), Some(status)) = (state, status)
+            && unchanged(state, status, request.max_per_folder)
+            && !state.failing.values().any(|tries| *tries < MAX_TRIES)
+            && arrived.is_empty()
+            && !touched.contains(remote.as_str())
+        {
+            log::debug!("a folder is passed over: its counts are the same");
+            run.out.timings.skipped = run.out.timings.skipped.saturating_add(1);
+            continue;
+        }
+        let folder = FolderSync {
+            mailbox,
+            remote,
+            kind,
+            state,
+            max_new: request.max_per_folder as usize,
+            arrived,
+            place: (at + 1, count),
+            gmail,
+            labels: host.gmail,
+            status,
+        };
         if !folder.run(&mut imap, run) {
             // The connection is gone: the other mailboxes wait for the next run.
             return None;
         }
     }
     Some(imap)
+}
+
+/// The Inbox, read before the folders are listed (#276): `Ok(Some(id))` with the local folder
+/// that took its news, `Ok(None)` when it was left to the run's own turn, `Err` when the connection
+/// is gone (said in the run). Only for an account the mailbox has an Inbox of, and only when
+/// nothing is to be sent or pushed first: what the Inbox says is read after what was changed here
+/// has gone up, so that it shows it; a run that has such changes goes in its own order, and so
+/// does one called off or one that only tells the server what changed.
+fn inbox_first<'r>(run: &mut Run<'r>, imap: &mut Imap<Stream<'r>>, states: &States<'_>, owed: &[Id], host: Host) -> Result<Option<Id>, ()> {
+    let request = run.request;
+    if !owed.is_empty() || !request.ops.is_empty() || !request.places.is_empty() || !request.gmail_moves.is_empty() || request.push_only {
+        return Ok(None);
+    }
+    // One that follows the server's INBOX already: what is known of it is what the server said.
+    let Some(state) = states.following("INBOX") else { return Ok(None) };
+    if run.cancelled() {
+        return Ok(None);
+    }
+    let mailbox = Mailbox { name: "INBOX".into(), raw: "INBOX".into(), delimiter: None, flags: Vec::new() };
+    let folder = FolderSync {
+        mailbox: &mailbox,
+        remote: "INBOX".into(),
+        kind: FolderKind::Inbox,
+        state: Some(state),
+        max_new: request.max_per_folder as usize,
+        arrived: &[],
+        place: (1, 1),
+        gmail: host.gmail,
+        labels: host.gmail,
+        status: None,
+    };
+    if !folder.run(imap, run) {
+        return Err(());
+    }
+    // Its mail goes to the window now, not with the listing that comes next.
+    run.hand_over_in(imap, SyncStep::new(SyncStage::Checking, &label("INBOX"), 1, 1));
+    Ok(Some(state.id))
+}
+
+/// What the server's STATUS says of each folder of the plan that may be passed over, by the name
+/// it is read as (#276). The Inbox is never asked (it is read every run, and is where mail
+/// comes), nor is a folder that can't be opened. A folder the server doesn't answer for is
+/// absent, and is read. `Err` when the connection is gone (said in the run).
+fn folder_statuses(run: &mut Run, imap: &mut Imap<Stream<'_>>, plan: &[(&Mailbox, FolderKind)]) -> Result<HashMap<String, FolderStatus>, ()> {
+    let asked: Vec<(String, &str)> = plan
+        .iter()
+        .take(MAX_FOLDERS)
+        .filter(|(mailbox, kind)| *kind != FolderKind::Inbox && !mailbox.has_flag("\\Noselect"))
+        .map(|(mailbox, _)| (kinds::remote_name(mailbox), mailbox.raw.as_str()))
+        .filter(|(remote, _)| !remote.is_empty())
+        .collect();
+    if asked.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let raws: Vec<&str> = asked.iter().map(|(_, raw)| *raw).collect();
+    let answers = match imap.status_many(&raws) {
+        Ok(answers) => answers,
+        Err(e) => {
+            run.failed(said!("Couldn't read the list of folders"), &e.into());
+            return Err(());
+        }
+    };
+    run.note(imap);
+    Ok(asked.into_iter().zip(answers).filter_map(|((remote, _), status)| Some((remote, status?))).collect())
+}
+
+/// Whether a folder, last read whole when the server said `state.status` of it, is as it was
+/// when `now` is what it says (#276): the same numbering and the same counts, no message of it
+/// waiting to be read again, and the same limit on how many to have here. A flag changed from
+/// another program that no count shows is not seen until the reading in full that is due now and
+/// then ([`FolderState::status`]).
+fn unchanged(state: &FolderState, now: FolderStatus, limit: u32) -> bool {
+    let Some(was) = state.status else { return false };
+    state.again.is_empty()
+        && state.uid_validity != 0
+        && state.uid_validity == now.uid_validity
+        && (was.messages, was.uid_next, was.unseen, was.limit) == (now.messages, now.uid_next, now.unseen, limit)
 }
 
 /// Tell Gmail's API of the moves between Gmail's categories made here ([`SyncRequest::gmail_moves`],
@@ -840,6 +977,11 @@ impl<'a> States<'a> {
         states
     }
 
+    /// The folder that follows the mailbox `remote` already.
+    fn following(&self, remote: &str) -> Option<&'a FolderState> {
+        self.by_remote.get(remote).copied()
+    }
+
     /// The folder that follows `remote` already, else a standard one of `kind` that follows none.
     fn get(&self, remote: &str, kind: FolderKind) -> Option<&'a FolderState> {
         let by_name = self.by_remote.get(remote).copied();
@@ -895,7 +1037,7 @@ pub(crate) fn remote_flags(message: &Fetched) -> RemoteFlags {
 /// The message a server handed over, with what the server knows about it.
 fn message_from(fetched: Fetched) -> Message {
     let flags = remote_flags(&fetched);
-    let mut message = mailcraft_mime::parse_fetched(fetched.body.as_deref().unwrap_or_default());
+    let mut message = mailcraft_mime_model::parse_fetched(fetched.body.as_deref().unwrap_or_default());
     message.uid = fetched.uid;
     message.read = flags.read;
     message.flag = if flags.flagged { FlagStatus::Flagged } else { FlagStatus::None };
@@ -927,7 +1069,7 @@ fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
         ),
         html: None,
     };
-    message.headers.retain(|(name, _)| !name.eq_ignore_ascii_case(NOT_DOWNLOADED));
+    message.remove_header(NOT_DOWNLOADED);
     message.headers.push((NOT_DOWNLOADED.into(), size.to_string()));
     message.not_downloaded = size;
     message
@@ -949,6 +1091,12 @@ struct FolderSync<'a> {
     place: (usize, usize),
     /// It is a Gmail account's Inbox: Gmail's categories and ids of its messages are read too (#911).
     gmail: bool,
+    /// It is a folder of a Gmail account: Gmail's labels of its messages are read with their
+    /// flags (`X-GM-LABELS`, #1153), in the same command.
+    labels: bool,
+    /// What the server said of the mailbox just before it is read, for what a reading in whole
+    /// is kept with (#276).
+    status: Option<FolderStatus>,
 }
 
 impl FolderSync<'_> {
@@ -965,7 +1113,7 @@ impl FolderSync<'_> {
     /// from the first piece on, as they are when the run goes through, and below how far down
     /// the mailbox is read (`uid_from`), which only the last piece moves: when the limit grows
     /// to take them in, they are asked for.
-    fn run(&self, imap: &mut Imap<Stream<'_>>, run: &mut Run) -> bool {
+    fn run<'r>(&self, imap: &mut Imap<Stream<'r>>, run: &mut Run<'r>) -> bool {
         let name = shown(&self.remote);
         let label = label(&self.remote);
         run.hand_over_in(imap, SyncStep::new(SyncStage::Checking, &label, self.place.0, self.place.1));
@@ -986,7 +1134,15 @@ impl FolderSync<'_> {
         let uid_seen = self.state.filter(|_| !reset).map_or(0, |s| s.uid_seen);
         let uid_from = self.state.filter(|_| !reset).map_or(0, |s| s.uid_from);
 
-        let listed = match if self.gmail { imap.uid_fetch_flags_gmail("1:*") } else { imap.uid_fetch_flags("1:*") } {
+        // Gmail's ids for its Inbox alone (#911); its labels for every folder of it (#1153).
+        let listing = if self.gmail {
+            imap.uid_fetch_flags_gmail("1:*")
+        } else if self.labels {
+            imap.uid_fetch_flags_labels("1:*")
+        } else {
+            imap.uid_fetch_flags("1:*")
+        };
+        let listed = match listing {
             Ok(listed) => listed,
             // Some servers refuse `1:*` in an empty mailbox rather than answer with nothing.
             Err(ProtoError::Rejected(_)) if selected.exists == 0 => Vec::new(),
@@ -1010,8 +1166,16 @@ impl FolderSync<'_> {
         // without a word to the server (moved to another account) doesn't come back.
         let older = if self.max_new > 0 { present.len().saturating_sub(self.max_new) } else { 0 };
         let oldest = present.keys().nth(older).copied();
-        let wanted: Vec<u32> =
-            present.keys().skip(older).copied().filter(|uid| (*uid > uid_seen || *uid < uid_from) && !known.contains(uid)).collect();
+        let wanted: Vec<u32> = present
+            .keys()
+            .skip(older)
+            .copied()
+            .filter(|uid| {
+                // Numbered anew, what was counted of the old numbers means nothing (#1581).
+                let counted = !reset && self.failing(*uid);
+                (*uid > uid_seen || *uid < uid_from || counted) && !known.contains(uid) && (reset || !self.given_up(*uid))
+            })
+            .collect();
         // How far the mailbox is read while messages are still to come.
         let below = wanted.first().map_or(uid_seen, |lowest| lowest.saturating_sub(1).max(uid_seen));
         // What is said once, with the first piece: the flags of the messages already here, and
@@ -1030,16 +1194,47 @@ impl FolderSync<'_> {
                 _ => known.iter().copied().filter(|uid| !present.contains_key(uid)).collect(),
             },
             complete: false,
+            status: None,
             refetched: Vec::new(),
             refetch_done: Vec::new(),
             refetch_too_large: Vec::new(),
             refetch_refused: Vec::new(),
+            failed: Vec::new(),
+            // What failed before and is not to be asked for any more: gone from the server, or
+            // out of the window the limit leaves (the cursors bring it back when that grows).
+            failing_gone: match self.state {
+                Some(state) if !reset => state
+                    .failing
+                    .keys()
+                    .copied()
+                    .filter(|uid| !known.contains(uid) && (!present.contains_key(uid) || oldest.is_some_and(|oldest| *uid < oldest)))
+                    .collect(),
+                _ => Vec::new(),
+            },
             gmail: Vec::new(),
+            // Gmail's labels of the messages already here, said once with their flags.
+            gmail_labels: if self.labels {
+                known
+                    .iter()
+                    .filter_map(|uid| present.get(uid))
+                    .filter_map(|m| m.gmail_labels.as_ref().map(|labels| GmailLabels { uid: m.uid, labels: tidy_labels(labels) }))
+                    .collect()
+            } else {
+                Vec::new()
+            },
         };
         // The lowest UID that is wanted but didn't arrive: the next run starts again from there.
         let mut missed: Option<u32> = None;
         // Messages that were asked for and not handed over, without a word why.
         let mut silent: Vec<u32> = Vec::new();
+        // Messages that failed to download this run (#1581): those the server said no to, held
+        // against the messages only if it handed over others of this folder (else it may be
+        // refusing everything for a while); and those a lost connection is blamed on once a fresh
+        // connection has shown it was a message and not the line.
+        let mut blamed: Vec<u32> = Vec::new();
+        let mut refused: Vec<u32> = Vec::new();
+        let mut suspects: Vec<u32> = Vec::new();
+        let mut handed = false;
         let sizes = if alive { self.sizes(imap, &wanted, run, &mut alive) } else { BTreeMap::new() };
         let total = wanted.len();
         // The bytes of the messages waiting to be handed over.
@@ -1061,13 +1256,21 @@ impl FolderSync<'_> {
                 continue;
             }
             let fetched = if large { imap.uid_fetch_header(uid) } else { imap.uid_fetch_message(uid) };
+            if fetched.is_ok() {
+                // The fresh connection works: the messages before it were the trouble.
+                blamed.append(&mut suspects);
+            }
             match fetched {
                 Ok(Some(fetched)) => {
+                    handed = true;
                     let bytes = fetched.body.as_ref().map_or(0, Vec::len);
                     run.limits.messages = run.limits.messages.saturating_sub(1);
                     run.limits.bytes = run.limits.bytes.saturating_sub(bytes);
                     waiting = waiting.saturating_add(bytes);
                     let mut message = if large { too_large(fetched, size, run.limits.largest) } else { message_from(fetched) };
+                    if self.labels {
+                        message.gmail_labels = present.get(&uid).and_then(|m| m.gmail_labels.as_deref()).map(tidy_labels).unwrap_or_default();
+                    }
                     if let Some(sorted) = &sorted {
                         message.gmail_category = sorted.get(&uid).copied();
                         message.gmail_id = present.get(&uid).and_then(|m| m.gmail_id).unwrap_or(0);
@@ -1077,8 +1280,32 @@ impl FolderSync<'_> {
                 // Gone between the listing and now, as a rule (looked into below).
                 Ok(None) => silent.push(uid),
                 Err(e) => {
-                    alive = run.failed(said!("Couldn't download a message from \"{name}\"", name), &e.into());
+                    let e = NetError::from(e);
+                    alive = run.failed(said!("Couldn't download a message from \"{name}\"", name), &e);
                     missed = Some(uid);
+                    if run.cancelled() {
+                        continue;
+                    }
+                    if alive {
+                        // The server refused this one message: the others are not its business,
+                        // if it serves them (settled below).
+                        refused.push(uid);
+                    } else if run.reconnects < MAX_RECONNECTS {
+                        // One message that breaks the connection (a scanner in the way, a server
+                        // that chokes on it) must not stop the rest (#1581): a fresh connection,
+                        // and on with the next one. If that breaks too it may be the next
+                        // message, and again; all are blamed once a fetch gets through.
+                        run.reconnects += 1;
+                        suspects.push(uid);
+                        match self.reconnect(imap, run, selected.uid_validity) {
+                            Ok(()) => alive = true,
+                            Err(why) => {
+                                run.failed(said!("Couldn't reconnect to carry on with \"{name}\"", name), &why);
+                            }
+                        }
+                    }
+                    // Else no fresh connection could be had, or the run's replacements are used
+                    // up: the line is bad, not a message, and nothing is held against any.
                     continue;
                 }
             }
@@ -1099,6 +1326,21 @@ impl FolderSync<'_> {
                 run.out.folders.push(batch);
                 run.hand_over_in(imap, SyncStep::new(SyncStage::Reading, &label, at + 1, total));
                 waiting = 0;
+            }
+        }
+        if alive {
+            // Of the connection-breakers at the end, with no fetch after them to show it: one
+            // alone is the message; several, with nothing handed over, may be the line, and a
+            // message the mailbox has says which. (lean: with none to ask for, none is blamed.)
+            if !handed && suspects.len() > 1 {
+                let probe = known.iter().rev().copied().find(|uid| present.contains_key(uid));
+                if !probe.is_some_and(|uid| self.serves(imap, uid, run, &mut alive)) {
+                    suspects.clear();
+                }
+            }
+            blamed.append(&mut suspects);
+            if handed {
+                blamed.append(&mut refused);
             }
         }
         if alive && !silent.is_empty() && !run.cancelled() {
@@ -1127,6 +1369,16 @@ impl FolderSync<'_> {
         };
         // Everything wanted came: the folder is read whole (an empty one at its first reading).
         delta.complete = alive && missed.is_none();
+        // What the server said of it is kept with a reading that came to the end, if the folder
+        // was the one that was asked about.
+        delta.status =
+            self.status.filter(|status| delta.complete && status.uid_validity == selected.uid_validity).map(|status| mailcraft_model::ImapStatus {
+                messages: status.messages,
+                uid_next: status.uid_next,
+                unseen: status.unseen,
+                limit: u32::try_from(self.max_new).unwrap_or(u32::MAX),
+                at: 0,
+            });
         if let Some(sorted) = sorted {
             delta.gmail = sorted
                 .into_iter()
@@ -1134,10 +1386,78 @@ impl FolderSync<'_> {
                 .collect();
         }
         delta.new.sort_by_key(|m| m.uid);
+        blamed.sort_unstable();
+        blamed.dedup();
+        self.leave_out(&blamed, run);
+        delta.failed = blamed;
         log::debug!("a folder: {total} wanted, {} gone, read up to {}", delta.removed.len(), delta.uid_seen);
         // It goes with the next piece: the next mailbox's first line, or the end of the run.
         run.out.folders.push(delta);
         alive
+    }
+
+    /// Whether the mailbox names the message as one that failed to download and is to be tried
+    /// again, wherever the folder has been read up to (#1581).
+    fn failing(&self, uid: u32) -> bool {
+        self.state.is_some_and(|s| s.failing.get(&uid).is_some_and(|tries| *tries < MAX_TRIES))
+    }
+
+    /// Whether the message failed in [`MAX_TRIES`] runs already: it is left out until the owner
+    /// asks for it again (#1581).
+    fn given_up(&self, uid: u32) -> bool {
+        self.state.is_some_and(|s| s.failing.get(&uid).is_some_and(|tries| *tries >= MAX_TRIES))
+    }
+
+    /// Whether the server hands over a message the mailbox has (#1581): a small one, or no word.
+    fn serves(&self, imap: &mut Imap<Stream<'_>>, uid: u32, run: &mut Run, alive: &mut bool) -> bool {
+        const SMALL: u64 = 256 * 1024;
+        if !self.sizes(imap, &[uid], run, alive).get(&uid).is_some_and(|size| *size <= SMALL) || !*alive {
+            return false;
+        }
+        match imap.uid_fetch_message(uid) {
+            Ok(got) => got.is_some(),
+            Err(e) => {
+                *alive = run.failed(said!("Couldn't download a message from \"{name}\"", name = shown(&self.remote)), &NetError::from(e));
+                false
+            }
+        }
+    }
+
+    /// Say it, once, of the messages whose failing in this run is their last try (#1581).
+    fn leave_out(&self, blamed: &[u32], run: &mut Run) {
+        let last = blamed.iter().filter(|uid| self.state.is_some_and(|s| s.failing.get(uid).copied().unwrap_or(0).saturating_add(1) == MAX_TRIES));
+        let count = last.count();
+        if count > 0 {
+            let name = shown(&self.remote);
+            let tries = u32::from(MAX_TRIES);
+            run.out.problem(match count {
+                1 => said!(
+                    "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again",
+                    name,
+                    tries
+                ),
+                count => said!(
+                    "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again",
+                    count,
+                    name,
+                    tries
+                ),
+            });
+        }
+    }
+
+    /// A fresh connection in place of one that broke, the mailbox opened again as it was (#1581).
+    fn reconnect<'r>(&self, imap: &mut Imap<Stream<'r>>, run: &mut Run<'r>, validity: u32) -> Result<(), NetError> {
+        run.note(imap);
+        let fresh = open_imap_with(&run.request.account, run.request.secret(), &run.limits.patience, Some(run.cancel))?;
+        // The broken one is dropped, not said goodbye to: nothing there is worth waiting for.
+        drop(std::mem::replace(imap, fresh));
+        run.counted = 0;
+        let selected = imap.select(&self.mailbox.raw, true)?;
+        if selected.uid_validity != validity {
+            return Err(NetError::Config(said!("the folder was numbered anew while it was being read")));
+        }
+        Ok(())
     }
 
     /// Download again, whole, the messages the mailbox asks to read anew (#650: kept with U+FFFD
@@ -1333,12 +1653,28 @@ pub(crate) fn internal_date(text: &str) -> Option<Timestamp> {
 }
 
 #[cfg(test)]
+#[path = "sync_quote_tests.rs"]
+mod quote_tests;
+
+#[cfg(test)]
 #[path = "sync_size_tests.rs"]
 mod size_tests;
 
 #[cfg(test)]
 #[path = "sync_many_folders_tests.rs"]
 mod many_folders_tests;
+
+#[cfg(test)]
+#[path = "sync_skip_tests.rs"]
+mod skip_tests;
+
+#[cfg(test)]
+#[path = "sync_bad_message_tests.rs"]
+mod bad_message_tests;
+
+#[cfg(test)]
+#[path = "sync_inbox_first_tests.rs"]
+mod inbox_first_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1546,6 +1882,7 @@ mod tests {
             internal_date: Some(" 1-Jul-2003 09:52:37 +0000".into()),
             body: Some(header.to_vec()),
             gmail_id: None,
+            gmail_labels: None,
         };
         let m = too_large(fetched, 60 * 1024 * 1024 + 1, MAX_MESSAGE);
         assert_eq!(
@@ -1561,7 +1898,7 @@ mod tests {
         let marks: Vec<&str> =
             m.headers.iter().filter(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED)).map(|(_, size)| size.as_str()).collect();
         assert_eq!(marks, ["62914561"]);
-        assert!(m.headers.iter().any(|(name, value)| name == "X-Other" && value == "kept"));
+        assert!(m.all_headers().iter().any(|(name, value)| name == "X-Other" && value == "kept"));
         // A header that is none still makes a message that says what it is.
         let m = too_large(Fetched { uid: 8, body: Some(vec![0xFF, 0x00, b'x']), ..Default::default() }, u64::MAX, 0);
         assert!(m.uid == 8 && m.body.text.contains("too large to download") && m.body.text.contains("up to 0 MB"));

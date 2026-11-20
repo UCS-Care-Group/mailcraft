@@ -167,6 +167,11 @@ pub(crate) struct Reply {
     pub(crate) policy_reason: Option<String>,
     /// Its `Content-Type` header (a JMAP answer must be JSON); none when it is too long to be one.
     pub(crate) content_type: Option<String>,
+    /// The compliance classes its `DAV` headers name (RFC 4918 §10.1): one entry for each, however
+    /// the server wrote them (one header with a long list, or several).
+    pub(crate) dav: Vec<String>,
+    /// Its `ETag` header, as written.
+    pub(crate) etag: Option<String>,
 }
 
 /// Most `WWW-Authenticate` headers kept of one answer, and the longest. An NTLM challenge (#252)
@@ -176,8 +181,34 @@ const MAX_CHALLENGES: usize = 16;
 const MAX_CHALLENGE: usize = 24 * 1024;
 /// The longest `Content-Type` kept: a media type and a few parameters.
 const MAX_CONTENT_TYPE: usize = 256;
+/// The classes of a `DAV` header's value, cut at the commas outside `<…>` (a coded URL may hold one).
+fn dav_classes(value: &str) -> Vec<&str> {
+    let mut classes = Vec::new();
+    let (mut inside, mut start) = (false, 0);
+    for (at, c) in value.char_indices() {
+        match c {
+            '<' => inside = true,
+            '>' => inside = false,
+            ',' if !inside => {
+                classes.push(value.get(start..at).unwrap_or("").trim());
+                start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    classes.push(value.get(start..).unwrap_or("").trim());
+    classes
+}
+
 /// The longest `X-EWS-Policy-Reason` kept.
 const MAX_REASON: usize = 1_024;
+/// Most compliance classes kept of one answer's `DAV` headers, and the longest one (a class is a
+/// token or a `<URL>`; a longer one is dropped, never cut); and the longest `ETag`. The cap is on
+/// the classes, not on the header: Nextcloud sends one header of some forty classes.
+// Must match `mailcraft_dav::status::MAX_DAV_CLASSES` (64); D4 adds the cross-crate test.
+const MAX_DAV: usize = 64;
+const MAX_DAV_VALUE: usize = 96;
+const MAX_ETAG: usize = 1_024;
 
 /// `text` as one piece of a URL or a form: everything but letters, digits and `-._~` as `%XX`.
 pub(crate) fn encode(text: &str) -> String {
@@ -646,6 +677,8 @@ struct Head {
     challenges: Vec<String>,
     policy_reason: Option<String>,
     content_type: Option<String>,
+    dav: Vec<String>,
+    etag: Option<String>,
     content_range: Option<String>,
     /// The server closes the connection after this answer: it said so, it speaks HTTP/1.0, or
     /// the way the body ends is not one that leaves the connection fit for more (a coding
@@ -704,6 +737,8 @@ pub(crate) fn read_reply_kept<R: Read>(stream: &mut R, started: Instant, patienc
         challenges: head.challenges,
         policy_reason: head.policy_reason,
         content_type: head.content_type,
+        dav: head.dav,
+        etag: head.etag,
     };
     Ok((reply, reusable))
 }
@@ -758,6 +793,17 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
             if head.content_type.is_none() && value.len() <= MAX_CONTENT_TYPE {
                 head.content_type = Some(value.chars().filter(|c| !c.is_control()).collect());
             }
+        } else if name.eq_ignore_ascii_case("dav") {
+            for class in dav_classes(value).into_iter().filter(|class| !class.is_empty() && class.len() <= MAX_DAV_VALUE) {
+                if head.dav.len() < MAX_DAV && !class.chars().any(char::is_control) {
+                    head.dav.push(class.to_owned());
+                }
+            }
+        } else if name.eq_ignore_ascii_case("etag") {
+            // (Kept whole or not at all: a cut ETag is another ETag.)
+            // (The line was read lossily: a replacement character marks bytes that were no UTF-8, and
+            // an ETag that is not text is dropped, not repaired into another one.)
+            head.etag = Some(value.to_string()).filter(|etag| etag.len() <= MAX_ETAG && !etag.chars().any(|c| c.is_control() || c == '\u{fffd}'));
         } else if name.eq_ignore_ascii_case("content-range") {
             head.content_range = Some(value.to_string());
         }

@@ -14,6 +14,7 @@ use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message};
 use serde_json::json;
 
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
+use crate::widgets::{OVERLAY_SCROLL_INSET, overlay_scroll_style, scroll_ink};
 use crate::{MailApp, icons};
 
 mod server_rows;
@@ -57,11 +58,6 @@ const SCROLL_TRACK: f32 = 17.0;
 const SCROLL_MARGIN: f32 = 5.0;
 /// The scroll bar's handle, in the middle of its lane.
 const SCROLL_HANDLE: f32 = 9.0;
-/// Where scroll bars float over what they scroll (a Mac's): the handle, a little wider while the
-/// pointer is on it, and how far it keeps from the list's right edge.
-const OVERLAY_HANDLE: f32 = 7.0;
-const OVERLAY_HANDLE_HOVERED: f32 = 9.0;
-const OVERLAY_MARGIN: f32 = 2.0;
 /// The ends of the lane, each with an arrow in it: the handle travels between them.
 const SCROLL_END: f32 = 19.0;
 /// The time ends this far from a row's right end. What is right of it is the flag's column.
@@ -132,13 +128,24 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     if pane == Pane::Bottom {
-        let h = (ui.available_height() * 0.42).clamp(140.0, 520.0);
-        egui::Panel::top("message_list")
-            .default_size(h)
-            .size_range(120.0..=(ui.available_height() - 140.0).max(160.0))
+        let max = (ui.available_height() - 140.0).max(160.0);
+        let h = if app.ui.list_height > 0.0 { app.ui.list_height } else { (ui.available_height() * 0.42).clamp(140.0, 520.0) };
+        // The splitter under the list: egui names a panel's resize handle after the panel.
+        let splitter = ui.scope_id().with_salt(egui::IdSalt::new("message_list")).with("__resize");
+        let shown = egui::Panel::top("message_list")
+            .default_size(h.min(max))
+            .size_range(120.0..=max)
             .resizable(true)
             .frame(frame)
             .show(ui, |ui| list(app, ui));
+        app.hit.add("messageList", 0, shown.response.rect);
+        // Only the owner's resize of the splitter changes the height kept, by a drag (its last frame
+        // included) or through assistive technology: a window too short for it lays the list out
+        // shorter, and that isn't kept (#1372).
+        let dragged = ui.ctx().read_response(splitter).is_some_and(|r| r.dragged() || r.drag_stopped());
+        if dragged || splitter_asked(ui, splitter) {
+            app.ui.list_height = shown.response.rect.height();
+        }
     } else {
         let max = (ui.available_width() - 260.0).max(260.0);
         let shown = egui::Panel::left("message_list")
@@ -166,6 +173,13 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             let _ = app.run("mail.editDraft", json!({}));
         }
     }
+}
+
+/// Whether assistive technology asked the splitter `id` this frame to move (AccessKit's Increment,
+/// Decrement or SetValue, which egui's panel answers by resizing).
+fn splitter_asked(ui: &Ui, id: egui::Id) -> bool {
+    use egui::accesskit::Action;
+    ui.input(|i| [Action::Increment, Action::Decrement, Action::SetValue].into_iter().any(|a| i.has_accesskit_action_request(id, a)))
 }
 
 /// A row and the line under it: 72 with one line of preview (15 clear above the sender's
@@ -355,43 +369,10 @@ fn paint_direction(p: &egui::Painter, c: egui::Pos2, up: bool, color: Color32) {
     p.line(vec![c + vec2(-3.5, barb), c + vec2(0.0, tip), c + vec2(3.5, barb)], line);
 }
 
-/// The colour of the scroll bar's handle and arrows: half way from the list to its text.
-fn scroll_ink(t: &Tokens) -> Color32 {
-    t.surface.lerp_to_gamma(t.text, 0.53)
-}
-
 /// How much of the list's right edge its scroll bar keeps for itself: the lane, or nothing where
 /// scroll bars float over what they scroll ([`MailApp::overlay_scroll_bars`]).
 fn lane_width(app: &MailApp) -> f32 {
     if app.overlay_scroll_bars { 0.0 } else { SCROLL_LANE }
-}
-
-/// The list's scroll bar where scroll bars float over what they scroll, as a Mac's do: a slim
-/// rounded handle over the rows' right end, there while the list is scrolled or the pointer is
-/// over it and gone when it is left alone, with no lane and no arrows.
-fn overlay_scroll_style(ui: &mut Ui, t: &Tokens) {
-    let style = ui.style_mut();
-    style.spacing.scroll = egui::style::ScrollStyle {
-        bar_width: OVERLAY_HANDLE_HOVERED,
-        floating_width: OVERLAY_HANDLE,
-        bar_inner_margin: 0.0,
-        bar_outer_margin: OVERLAY_MARGIN,
-        handle_min_length: 24.0,
-        foreground_color: false,
-        dormant_background_opacity: 0.0,
-        active_background_opacity: 0.0,
-        interact_background_opacity: 0.0,
-        dormant_handle_opacity: 0.0,
-        active_handle_opacity: 0.85,
-        interact_handle_opacity: 1.0,
-        ..egui::style::ScrollStyle::floating()
-    };
-    let ink = scroll_ink(t);
-    let round = egui::CornerRadius::same(5);
-    let widgets = &mut style.visuals.widgets;
-    (widgets.inactive.bg_fill, widgets.inactive.corner_radius) = (ink, round);
-    (widgets.hovered.bg_fill, widgets.hovered.corner_radius) = (ink.lerp_to_gamma(t.text, 0.35), round);
-    (widgets.active.bg_fill, widgets.active.corner_radius) = (ink.lerp_to_gamma(t.text, 0.6), round);
 }
 
 /// The list's scroll bar: a slim rounded handle that is always there while the list is longer
@@ -474,7 +455,7 @@ fn scroll_arrows(app: &mut MailApp, ui: &mut Ui, lane: Rect, out: &egui::scroll_
 fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     let on = !app.session.view.search.trim().is_empty();
     // It fades in when a search starts; with no search it is gone at once, ready to fade again.
-    let shown = ui.ctx().animate_bool_with_time(ui.scope_id().with("search_bar_fade"), on, if on { 0.15 } else { 0.0 });
+    let shown = ui.ctx().animate_bool_with_time(ui.scope_id().with("search_bar_fade"), on, if on { crate::motion::fade(ui, 0.15) } else { 0.0 });
     if !on {
         return;
     }
@@ -578,7 +559,9 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let below = if searching { server_rows::height(app, &local, server_h) } else { 0.0 };
     let overlay = app.overlay_scroll_bars;
     let lane_w = lane_width(app);
+    let swipe_scope = crate::swipe::Scope { opening: app.session.openings(), folder: app.session.view.folder, list: ui.scope_id() };
     if rows.is_empty() {
+        crate::swipe::reconcile(ui, swipe_scope, |_, _| false);
         let r = ui.available_rect_before_wrap();
         let msg = if searching {
             tl!("Nothing matches the search.")
@@ -591,7 +574,12 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         if below > 0.0 {
             let room = Rect::from_min_max(pos2(r.min.x, r.min.y + 90.0), r.max);
             ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
+                let plain = ui.style().clone();
+                if overlay {
+                    overlay_scroll_style(ui, &t);
+                }
                 egui::ScrollArea::vertical().id_salt("message_list_server").auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
+                    ui.set_style(plain);
                     let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), below), Sense::hover());
                     let width = (area.width() - lane_w).max(0.0);
                     server_rows::show(app, ui, &local, area.min.x, area.min.y, width, server_h, viewport.translate(area.min.to_vec2()));
@@ -613,6 +601,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let rows_end = y;
     let total = y + below;
     let reveal = std::mem::take(&mut app.reveal_selection);
+    // After a new arrangement the selected row goes to the middle of the list (#1511).
+    let centered = std::mem::take(&mut app.reveal_centered);
     // The row the focus is on: the one clicked or stepped to, else the message's first (#503: a
     // newer message of its open conversation came, and its own row there is another), and for one
     // picked as its conversation, the conversation's row.
@@ -658,10 +648,17 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         {
             let above = if row.group.is_some() { GROUP_H } else { 0.0 };
             let rect = Rect::from_min_max(pos2(origin.x, origin.y + top - above), pos2(origin.x + width, origin.y + top + row_h));
-            ui.scroll_to_rect(rect, None);
+            ui.scroll_to_rect(rect, centered.then_some(egui::Align::Center));
         }
         // Only the rows in view are laid out.
         let first = tops.partition_point(|top| top + row_h < viewport.min.y).saturating_sub(1);
+        crate::swipe::reconcile(ui, swipe_scope, |id, copy| {
+            rows.iter()
+                .enumerate()
+                .skip(first)
+                .take_while(|(i, _)| tops.get(*i).is_some_and(|top| *top <= viewport.max.y))
+                .any(|(i, row)| row.id == id && row.copy == copy && tops.get(i).is_some_and(|top| *top + row_h > viewport.min.y))
+        });
         for (i, row) in rows.iter().enumerate().skip(first) {
             let Some(top) = tops.get(i).copied() else { break };
             if top - GROUP_H > viewport.max.y {
@@ -680,7 +677,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            message_row(app, ui, row, rect, &drawn, focus);
+            message_row(app, ui, row, rect, &drawn, focus, swipe_scope);
         }
         if below > 0.0 {
             server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
@@ -698,6 +695,51 @@ const FOLDER_W: f32 = TEXT_RIGHT - TIME_RIGHT;
 /// in `text_dim` (4.5:1 or more on every row's background, selected, flagged or under the
 /// pointer, in both palettes), ending at `end` and cut short with an ellipsis to the column's
 /// width. Where it starts.
+/// Most of a message's Gmail labels a row of the list shows (#1153), and the widest one's tag.
+const LIST_LABELS: usize = 2;
+const LIST_LABEL_MAX: f32 = 80.0;
+/// How much of the preview's line a row's tags leave, at the least, from the text's left.
+const PREVIEW_KEPT: f32 = 60.0;
+
+/// The Gmail labels a row shows (#1153): the first [`LIST_LABELS`] of those shown, and how many
+/// more there are.
+fn list_labels<'a>(s: &'a mailcraft_engine::Session, m: &'a Message) -> (Vec<&'a str>, usize) {
+    let folder = s.mailbox.folder(m.folder).map(|f| f.remote.as_str()).unwrap_or_default();
+    let labels: Vec<&str> = m.shown_gmail_labels(folder).take(LIST_LABELS).collect();
+    let more = if labels.is_empty() { 0 } else { m.shown_gmail_labels(folder).count().saturating_sub(labels.len()) };
+    (labels, more)
+}
+
+/// A row's Gmail label tags as they fit in `room` points: each laid out, how many more are said as
+/// "+N", and the width of the lot with the gap after it (0 when nothing is shown).
+#[derive(Default)]
+struct TagPlan {
+    tags: Vec<std::sync::Arc<egui::Galley>>,
+    more: usize,
+    width: f32,
+}
+
+/// The tags of `labels` (and `more` besides) that fit in `room`: the last tags go into "+N" first,
+/// and when not even that fits, nothing is shown.
+fn plan_tags(p: &egui::Painter, labels: &[&str], more: usize, room: f32) -> TagPlan {
+    if labels.is_empty() || room <= 0.0 {
+        return TagPlan::default();
+    }
+    let mut tags: Vec<std::sync::Arc<egui::Galley>> =
+        labels.iter().map(|label| crate::widgets::label_tag_text(p, mailcraft_model::gmail::label_leaf(label), 10.0, LIST_LABEL_MAX)).collect();
+    let plus = |n: usize| if n == 0 { 0.0 } else { p.layout_no_wrap(format!("+{n}"), regular(10.0), egui::Color32::WHITE).size().x + 4.0 };
+    loop {
+        let more_now = more.saturating_add(labels.len().saturating_sub(tags.len()));
+        let width = tags.iter().map(|t| crate::widgets::label_tag_width(t) + 4.0).sum::<f32>() + plus(more_now);
+        if width <= room {
+            return TagPlan { tags, more: more_now, width };
+        }
+        if tags.pop().is_none() {
+            return TagPlan::default();
+        }
+    }
+}
+
 fn paint_result_folder(p: &egui::Painter, end: egui::Pos2, label: &str, t: &Tokens) -> f32 {
     const ICON: f32 = 12.0;
     const GAP: f32 = 3.0;
@@ -839,7 +881,50 @@ fn drawn_selection(app: &mut MailApp, rows: &Arc<Vec<Row>>) -> Arc<Drawn> {
     drawn
 }
 
-fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>) {
+fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>, scope: crate::swipe::Scope) {
+    let over = ui.rect_contains_pointer(rect) && egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()).is_none();
+    let swipe = crate::swipe::input(ui, scope, (row.id, row.copy), &row.members, over, rect.width(), (app.ui.swipe_left, app.ui.swipe_right));
+    if let Some((action, members)) = swipe.completed
+        && let Some(command) = action.command()
+    {
+        let _ = app.run(command, json!({"ids": members}));
+        return;
+    }
+    if swipe.offset.abs() < 0.1 {
+        return message_row_content(app, ui, row, rect, drawn, focus);
+    }
+    let t = Tokens::get(ui.ctx());
+    let (background, ink) = if swipe.action == crate::swipe::Action::Delete {
+        (t.red, if ui.visuals().dark_mode { t.ink_on_light } else { Color32::WHITE })
+    } else {
+        (t.accent, t.on_accent)
+    };
+    let p = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+    p.rect_filled(rect, 0.0, background);
+    let left = swipe.offset > 0.0;
+    let edge = if left { rect.min.x } else { rect.max.x };
+    let center = pos2(edge + if left { 28.0 } else { -28.0 }, rect.center().y);
+    let icon_rect = Rect::from_center_size(center, vec2(20.0, 20.0));
+    icons::paint(&p, icon_rect, swipe.action.code(), ink, ink);
+    if swipe.offset.abs() > 90.0 {
+        let x = edge + if left { 46.0 } else { -46.0 };
+        p.text(
+            pos2(x, rect.center().y),
+            if left { Align2::LEFT_CENTER } else { Align2::RIGHT_CENTER },
+            swipe.action.label(),
+            regular(LIST_TEXT),
+            ink,
+        );
+    }
+    let moved = rect.translate(vec2(swipe.offset, 0.0));
+    p.rect_filled(moved, 0.0, t.surface);
+    ui.scope(|ui| {
+        ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+        message_row_content(app, ui, row, moved, drawn, focus);
+    });
+}
+
+fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };
@@ -879,18 +964,19 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     let over = ui.rect_contains_pointer(rect) && egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()).is_none();
     // Wide enough to hit without aiming, a gap between them, and short enough to stay off the
     // time on the subject's line.
-    let flag_rect = Rect::from_center_size(pos2(rect.max.x - QUICK_TARGET.x / 2.0, line1), QUICK_TARGET);
-    let delete_rect = flag_rect.translate(vec2(-(QUICK_TARGET.x + QUICK_GAP), 0.0));
+    let quick_inset = if app.overlay_scroll_bars { OVERLAY_SCROLL_INSET } else { 0.0 };
+    let flag_target = Rect::from_center_size(pos2(rect.max.x - quick_inset - QUICK_TARGET.x / 2.0, line1), QUICK_TARGET);
+    let delete_rect = flag_target.translate(vec2(-(QUICK_TARGET.x + QUICK_GAP), 0.0));
     let flagged = m.flag == FlagStatus::Flagged;
     let quick = over.then(|| {
         let delete = ui.interact(delete_rect, ui.scope_id().with(("msg_delete", key)), Sense::click()).on_hover_text(tl!("Delete"));
-        let flag = ui.interact(flag_rect, ui.scope_id().with(("msg_flag", key)), Sense::click()).on_hover_text(if flagged {
+        let flag = ui.interact(flag_target, ui.scope_id().with(("msg_flag", key)), Sense::click()).on_hover_text(if flagged {
             tl!("Clear flag")
         } else {
             tl!("Flag for follow-up")
         });
         app.hit.add("messageDelete", row.id, delete_rect);
-        app.hit.add("messageFlag", row.id, flag_rect);
+        app.hit.add("messageFlag", row.id, flag_target);
         (delete, flag)
     });
     // What Delete takes is what is drawn selected: an open conversation's row when it was picked
@@ -988,7 +1074,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
 
     // The sender's line. On its right, the marks: the flag in its own column at the row's end
     // (the quick actions take that place while the pointer is over the row), the others before it.
-    let mut x = time_end;
+    let flag_mark = Rect::from_center_size(flag_target.center(), vec2(12.0, 12.0));
+    let sender_line_end = if m.flag == FlagStatus::None { time_end } else { time_end.min(flag_mark.min.x - 2.0) };
+    let mut x = sender_line_end;
     let date =
         crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
     let (date_font, date_color) = match (unread, overdue) {
@@ -998,7 +1086,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     };
     if let Some((delete, flag)) = &quick {
         for (resp, at, icon, color) in
-            [(delete, delete_rect, "delete", t.text_dim), (flag, flag_rect, "flag", if flagged { t.icon } else { t.text_dim })]
+            [(delete, delete_rect, "delete", t.text_dim), (flag, flag_target, "flag", if flagged { t.icon } else { t.text_dim })]
         {
             if resp.hovered() {
                 p.rect_filled(at, 4.0, t.pressed);
@@ -1008,10 +1096,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         // The marks keep clear of delete, so a click meant for the row doesn't land on it.
         x = delete_rect.min.x - QUICK_GAP;
     } else {
-        let flag = Rect::from_center_size(flag_rect.center(), vec2(12.0, 12.0));
         match m.flag {
-            FlagStatus::Flagged => icons::paint(p, flag, "flag", t.icon, t.accent),
-            FlagStatus::Complete => icons::paint(p, flag, "complete", t.icon, t.accent),
+            FlagStatus::Flagged => icons::paint(p, flag_mark, "flag", t.icon, t.accent),
+            FlagStatus::Complete => icons::paint(p, flag_mark, "complete", t.icon, t.accent),
             FlagStatus::None => {}
         }
     }
@@ -1019,8 +1106,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     // while the pointer is over the row.
     let mut one_date_w = 0.0;
     if one && quick.is_none() {
-        one_date_w = p.text(pos2(time_end, line1), Align2::RIGHT_CENTER, &date, date_font.clone(), date_color).width();
-        x = time_end - one_date_w - 10.0;
+        one_date_w = p.text(pos2(sender_line_end, line1), Align2::RIGHT_CENTER, &date, date_font.clone(), date_color).width();
+        x = sender_line_end - one_date_w - 10.0;
     }
     // The server says its sender's checks failed, or its name hides another address (#508): the
     // first of the marks, where it is seen.
@@ -1071,8 +1158,20 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         .map(|label| p.layout_no_wrap(label, regular(LIST_TEXT), t.text_dim))
         .filter(|g| !one || x - 4.0 - (g.size().x + 6.0) >= left + ONE_LINE_SENDER_MIN);
     let size_room = if one { size.as_ref().map_or(0.0, |g| g.size().x + 6.0) } else { 0.0 };
+    // A Gmail account's labels of it (#1153), as tags at the tail: what is painted after them
+    // there (the folder in a search of every mailbox, the category marks and the size of a
+    // conversation) is kept room for, and in a single line the sender's name keeps its least
+    // width, as for the size; tags that don't fit go into "+N", and that too when it doesn't.
+    let (labels, labels_more) = list_labels(&app.session, &m);
+    let elsewhere = row.under.is_some() && m.folder != app.session.view.folder;
+    let shown_folder = (shows_folder(&app.session) || elsewhere).then(|| app.session.mailbox.folder(m.folder)).flatten();
+    let tail_after = shown_folder.map_or(0.0, |_| FOLDER_W + 6.0)
+        + m.categories.len().min(4) as f32 * 13.0
+        + if conversation { row.size().to_string().len() as f32 * 6.5 + 15.0 } else { 0.0 };
+    let one_tags =
+        if one { plan_tags(p, &labels, labels_more, x - 4.0 - size_room - tail_after - (left + ONE_LINE_SENDER_MIN)) } else { TagPlan::default() };
     let who_font = if unread { semibold(SENDER_TEXT) } else { regular(SENDER_TEXT) };
-    let who_end = if one { (left + one_line_sender_width(time_end - left)).min(x - 4.0 - size_room) } else { text_end.min(x - 4.0) };
+    let who_end = if one { (left + one_line_sender_width(time_end - left)).min(x - 4.0 - size_room - one_tags.width) } else { text_end.min(x - 4.0) };
     let mut who_x = left;
     if m.draft {
         let w = paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), tl!("[Draft]"), regular(SENDER_TEXT), t.red);
@@ -1104,12 +1203,26 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         sx = at.min.x - 6.0;
     }
     // (And under an open conversation, a message of another folder: a reply in Sent Items, #503.)
-    let elsewhere = row.under.is_some() && m.folder != app.session.view.folder;
-    if let Some(folder) = (shows_folder(&app.session) || elsewhere).then(|| app.session.mailbox.folder(m.folder)).flatten() {
+    if let Some(folder) = shown_folder {
         let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
         let end = sx;
         sx = paint_result_folder(p, pos2(end, tail_y), &label, &t) - 6.0;
         app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(end, tail_y + 7.0)));
+    }
+    // The labels' tags: planned above in a single line; under the time, in what is left down to
+    // a little of the preview's line (never over the picture at the row's left).
+    let after_folder = tail_after - shown_folder.map_or(0.0, |_| FOLDER_W + 6.0);
+    let tags = if one { one_tags } else { plan_tags(p, &labels, labels_more, sx - after_folder - (left + PREVIEW_KEPT)) };
+    if tags.more > 0 {
+        let w = p.text(pos2(sx, tail_y), Align2::RIGHT_CENTER, format!("+{}", tags.more), regular(10.0), t.text_dim).width();
+        sx -= w + 4.0;
+    }
+    for text in tags.tags.into_iter().rev() {
+        let w = crate::widgets::label_tag_width(&text);
+        let start = sx - w;
+        crate::widgets::paint_label_tag(p, pos2(start, tail_y), text, 14.0);
+        app.hit.add("messageGmailLabel", row.id, Rect::from_min_max(pos2(start, tail_y - 7.0), pos2(sx, tail_y + 7.0)));
+        sx = start - 4.0;
     }
     for c in m.categories.iter().take(4) {
         let color = crate::theme::c32(app.session.mailbox.category_color_of(m.account, c));
@@ -1160,7 +1273,11 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     // Dragging a row carries it to a folder: the whole selection when the row is part of it,
     // otherwise just what the row stands for.
     if resp.drag_started() {
-        let ids: Vec<Id> = if selected { app.session.acting_on() } else { row.members.clone() };
+        let mut ids: Vec<Id> = if selected { app.session.acting_on() } else { row.members.clone() };
+        // The row grabbed first: what a drop on the module bar opens (#873).
+        if let Some(at) = ids.iter().position(|id| *id == row.id) {
+            ids[..=at].rotate_right(1);
+        }
         resp.dnd_set_drag_payload(MessageDrag(ids));
     }
     if let Some((delete, flag)) = &quick {
@@ -1199,9 +1316,11 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         let _ = app.run("ui.openWindow", json!({"message": id}));
     }
     // A right click on a row outside the selection acts on that row (a conversation's row and
-    // its newest message's own row under it are two rows, #503).
-    if resp.secondary_clicked() && !selected {
-        let _ = app.execute("mail.select", json!({"id": id, "copy": copy}));
+    // its newest message's own row under it are two rows, #503), shown as a click shows it (#727).
+    // When the row can't be selected (the message being written can't be saved), no menu opens:
+    // its Delete would act on the selection as it was.
+    if resp.secondary_clicked() && !selected && app.run("mail.select", json!({"id": id, "copy": copy})).is_err() {
+        return;
     }
     let (read, flagged, pinned) = (m.read, m.flag == FlagStatus::Flagged, m.pinned);
     let sent = app.session.mailbox.folder(m.folder).is_some_and(|f| f.kind == mailcraft_model::FolderKind::Sent);
@@ -1224,9 +1343,22 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, "Forward", "mail.forward", json!({}));
         mi(ui, app, "Forward as Attachment", "mail.forwardAsAttachment", json!({}));
         ui.separator();
-        mi(ui, app, if read { "Mark as Unread" } else { "Mark as Read" }, if read { "mail.markUnread" } else { "mail.markRead" }, json!({}));
-        mi(ui, app, if flagged { "Clear Flag" } else { "Follow Up" }, if flagged { "mail.clearFlag" } else { "mail.flag" }, json!({}));
-        mi(ui, app, if pinned { "Unpin" } else { "Pin" }, "mail.pin", json!({}));
+        mi(
+            ui,
+            app,
+            if read { tl_later!("Mark as Unread") } else { tl_later!("Mark as Read") },
+            if read { "mail.markUnread" } else { "mail.markRead" },
+            json!({}),
+        );
+        mi(
+            ui,
+            app,
+            if flagged { tl_later!("Clear Flag") } else { tl_later!("Follow Up") },
+            if flagged { "mail.clearFlag" } else { "mail.flag" },
+            json!({}),
+        );
+        crate::ribbon::follow_up_items(ui, app);
+        mi(ui, app, if pinned { tl_later!("Unpin") } else { tl_later!("Pin") }, "mail.pin", json!({}));
         ui.menu_button(tl!("Categorize"), |ui| {
             let ids = app.session.sel.messages.clone();
             let accounts = crate::ribbon::selected_accounts(app);
@@ -1246,7 +1378,7 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         let movable = app.session.enabled("mail.move");
         ui.add_enabled_ui(movable, |ui| {
             ui.menu_button(tl!("Move"), |ui| {
-                crate::ribbon::folder_menu(ui, app, |app, folder| {
+                crate::ribbon::folder_menu_all(ui, app, |app, folder| {
                     let _ = app.run("mail.move", json!({"folder": folder}));
                 });
             });
@@ -1261,6 +1393,10 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, "Add Sender to Contacts", "people.fromMessage", json!({}));
         mi(ui, app, "Find Related Messages", "mail.findRelated", json!({}));
         mi(ui, app, "Messages from Sender", "mail.findFromSender", json!({"id": id}));
+        // Only when it can be done: the bar above the message says the same (#1207).
+        if crate::reading::unsubscribe::offered(app, m) {
+            mi(ui, app, "Unsubscribe", "ui.unsubscribe", json!({"message": id}));
+        }
         mi(ui, app, "Save Message As…", "file.exportMessage", json!({}));
         mi(ui, app, "View Source", "mail.viewSource", json!({}));
     });
@@ -1279,9 +1415,13 @@ mod from_sender_menu_tests;
 #[cfg(test)]
 mod hidden_selection_tests;
 #[cfg(test)]
+mod list_height_tests;
+#[cfg(test)]
 mod open_conversation_tests;
 #[cfg(test)]
 mod overlay_scroll_tests;
+#[cfg(test)]
+mod wheel_scroll_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1300,7 +1440,7 @@ mod tests {
     fn app() -> MailApp {
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         // The lane and its arrows, on a Mac too (`overlay_scroll_tests` has the bar that floats).
         app.overlay_scroll_bars = false;
         app

@@ -32,8 +32,12 @@ use mailcraft_model::rich::{ListKind, OBJECT, Paragraph, Selection, Style, numbe
 use mailcraft_model::signature::Picture;
 use serde_json::{Value, json};
 
+#[path = "table.rs"]
+mod table;
+
 use crate::MailApp;
 use crate::clicks::{Anchor, Unit};
+use crate::spelling;
 use crate::theme::{Tokens, regular, semibold};
 
 /// The message's own font size on screen, in points (the reading pane's).
@@ -42,9 +46,11 @@ pub const BASE_SIZE: f32 = 13.0;
 /// How far a list item's text stands in for each level, its bullet or number in the last step.
 const INDENT: f32 = 28.0;
 
-/// How far the text of a paragraph stands in: list items by their level.
+/// How far the text of a paragraph stands in: a list item by its level and its bullet or number,
+/// an ordinary paragraph by its level alone (Increase Indent, #1658).
 fn indent_of(p: &Paragraph) -> f32 {
-    if p.list == ListKind::None { 0.0 } else { INDENT * (f32::from(p.level) + 1.0) }
+    let marker = if p.list == ListKind::None { 0.0 } else { 1.0 };
+    INDENT * (f32::from(p.level) + marker)
 }
 
 /// Longest text an input method is shown composing.
@@ -131,8 +137,16 @@ pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, has: &dyn Fn(&
     }
     let size = on_screen(style.size);
     // The font chosen, from the face installed on this computer; the window's own when there is none (#582).
-    let font =
-        crate::theme::document_font(style.font, style.bold, size, has).unwrap_or_else(|| if style.bold { semibold(size) } else { regular(size) });
+    // A fixed-width font stays fixed width: its regular face for want of a bold one, else the
+    // window's own fixed-width font, so text art keeps its columns while it is written (#969).
+    let font = match crate::theme::document_font(style.font, style.bold, size, has) {
+        Some(font) => font,
+        None if style.font.is_some_and(|f| f.is_fixed_width()) => {
+            crate::theme::document_font(style.font, false, size, has).unwrap_or_else(|| egui::FontId::monospace(size))
+        }
+        None if style.bold => semibold(size),
+        None => regular(size),
+    };
     let own = style.color.as_deref().and_then(|c| egui::Color32::from_hex(c).ok()).map(|c| crate::reading::colors::readable(c, t.surface));
     let color = if style.link.is_some() { t.accent_text } else { own.unwrap_or(t.text) };
     // A highlight is drawn as it is chosen, and the text over it kept readable on it.
@@ -164,6 +178,12 @@ struct PictureBox {
     rect: Rect,
 }
 
+struct TableBox {
+    local: usize,
+    rect: Rect,
+    grid: table::TableLayout,
+}
+
 /// One paragraph, laid out.
 struct Para {
     /// What it was laid out from.
@@ -176,9 +196,24 @@ struct Para {
     start: usize,
     top: f32,
     pictures: Vec<PictureBox>,
+    spelling: Option<spelling::Checked>,
+    spelling_retry_at: f64,
+    tables: Vec<TableBox>,
 }
 
 impl Para {
+    fn needs_spelling(&self, locale: &str, now: f64) -> bool {
+        self.spelling.as_ref().is_none_or(|checked| checked.locale != locale || (!checked.available && now >= self.spelling_retry_at))
+    }
+
+    fn spelling(&mut self, host: &dyn spelling::HostChecker, locale: &str, now: f64) -> &[spelling::Issue] {
+        if self.needs_spelling(locale, now) {
+            self.spelling = Some(spelling::check(host, locale, &self.source));
+            self.spelling_retry_at = now + 5.0;
+        }
+        self.spelling.as_ref().map_or(&[], |checked| checked.issues.as_slice())
+    }
+
     fn indent(&self) -> f32 {
         indent_of(&self.source)
     }
@@ -194,6 +229,11 @@ impl Para {
     /// The picture at a place in the paragraph.
     fn picture_at(&self, local: usize) -> Option<&PictureBox> {
         self.pictures.iter().find(|b| b.local == local)
+    }
+
+    /// The rectangle reserved for a picture or table at a place in the paragraph.
+    fn object_at(&self, local: usize) -> Option<Rect> {
+        self.picture_at(local).map(|b| b.rect).or_else(|| self.tables.iter().find(|b| b.local == local).map(|b| b.rect))
     }
 
     /// The style of the character at `local` (the one after that offset).
@@ -272,13 +312,18 @@ impl Layout {
         // comes right after a character egui does not break a line after (a word, or another
         // picture).
         let mut sized = Vec::new();
+        let mut tables = std::collections::BTreeMap::new();
         let (mut local, mut last) = (0, None::<char>);
         for (r, run) in p.runs.iter().enumerate() {
             if let Some((id, size)) =
                 run.picture.filter(|_| !plain).and_then(|id| Some((id, size_of(ctx, pictures.iter().find(|x| x.id == id)?, room))))
             {
                 let glued = last.is_some_and(|c| !c.is_whitespace() || c == '\u{A0}');
-                sized.push((r, local, id, size, glued));
+                sized.push((r, local, Some(id), size, glued));
+            } else if let Some(source) = &run.table {
+                let grid = if plain { table::TableLayout::plain(ctx, source, t, room) } else { table::TableLayout::new(ctx, source, t, room) };
+                sized.push((r, local, None, grid.size, true));
+                tables.insert(r, grid);
             }
             local += run.text.chars().count();
             last = run.text.chars().last().or(last);
@@ -347,16 +392,32 @@ impl Layout {
         // Each picture is drawn where its gap is: in the gap before its character, or right of
         // its character when it starts its row (whether or not it was marked, so a picture is
         // never drawn away from its gap).
-        let pictures = sized
-            .into_iter()
-            .filter_map(|(_, local, id, size, _)| {
-                let glyph = galley.pos_from_cursor(CCursor { index: local.into(), prefer_next_row: true });
-                let left = if local == 0 || starts_row(glyph, size) { glyph.min.x } else { glyph.min.x - size.x };
-                let rect = Rect::from_min_size(pos2(left, glyph.max.y - size.y), size);
-                rect.is_finite().then_some(PictureBox { local, id, rect })
-            })
-            .collect();
-        Para { chars: p.chars(), source: p.clone(), number, galley, start: 0, top: 0.0, pictures }
+        let mut pictures = Vec::new();
+        let mut grids = Vec::new();
+        for (run, local, id, size, _) in sized {
+            let glyph = galley.pos_from_cursor(CCursor { index: local.into(), prefer_next_row: true });
+            let left = if local == 0 || starts_row(glyph, size) { glyph.min.x } else { glyph.min.x - size.x };
+            let rect = Rect::from_min_size(pos2(left, glyph.max.y - size.y), size);
+            if rect.is_finite() {
+                if let Some(id) = id {
+                    pictures.push(PictureBox { local, id, rect });
+                } else if let Some(grid) = tables.remove(&run) {
+                    grids.push(TableBox { local, rect, grid });
+                }
+            }
+        }
+        Para {
+            chars: p.chars(),
+            source: p.clone(),
+            number,
+            galley,
+            start: 0,
+            top: 0.0,
+            pictures,
+            tables: grids,
+            spelling: None,
+            spelling_retry_at: 0.0,
+        }
     }
 
     /// Characters in the text.
@@ -383,6 +444,9 @@ impl Layout {
         if let Some(b) = p.pictures.iter().find(|b| b.rect.contains(local.to_pos2())) {
             return p.start + b.local + usize::from(local.x > b.rect.center().x);
         }
+        if let Some(b) = p.tables.iter().find(|b| b.rect.contains(local.to_pos2())) {
+            return p.start + b.local + usize::from(local.x > b.rect.center().x);
+        }
         p.start + p.galley.cursor_from_pos(local).index.0.min(p.chars)
     }
 
@@ -403,6 +467,12 @@ impl Layout {
         let local = vec2(at.x - p.indent(), at.y - p.top);
         let b = p.pictures.iter().find(|b| b.rect.contains(local.to_pos2()))?;
         Some((p.start + b.local, b.id, b.rect.translate(vec2(p.indent(), p.top))))
+    }
+
+    fn table_hit(&self, at: Vec2) -> Option<usize> {
+        let p = self.para_at_y(at.y)?;
+        let local = pos2(at.x - p.indent(), at.y - p.top);
+        p.tables.iter().find(|b| b.rect.contains(local)).map(|b| p.start + b.local)
     }
 
     /// The picture that is the selection, alone: its id and where it is in the body.
@@ -437,13 +507,11 @@ impl Layout {
     fn caret(&self, pos: usize) -> Rect {
         let Some(p) = self.para_at(pos) else { return Rect::from_min_size(pos2(0.0, 0.0), vec2(0.0, BASE_SIZE * 1.3)) };
         let local = pos.saturating_sub(p.start).min(p.chars);
-        if let Some(b) = p.picture_at(local) {
-            // Before a picture is at its left, not after its gap.
-            return Rect::from_min_max(pos2(b.rect.min.x, b.rect.min.y), pos2(b.rect.min.x, b.rect.max.y)).translate(vec2(p.indent(), p.top));
+        if let Some(rect) = p.object_at(local) {
+            return Rect::from_min_max(pos2(rect.min.x, rect.min.y), pos2(rect.min.x, rect.max.y)).translate(vec2(p.indent(), p.top));
         }
-        if let Some(b) = local.checked_sub(1).and_then(|l| p.picture_at(l)) {
-            // After a picture is at its right, wherever its character stands.
-            return Rect::from_min_max(pos2(b.rect.max.x, b.rect.min.y), pos2(b.rect.max.x, b.rect.max.y)).translate(vec2(p.indent(), p.top));
+        if let Some(rect) = local.checked_sub(1).and_then(|l| p.object_at(l)) {
+            return Rect::from_min_max(pos2(rect.max.x, rect.min.y), pos2(rect.max.x, rect.max.y)).translate(vec2(p.indent(), p.top));
         }
         let r = p.galley.pos_from_cursor(CCursor::new(local)).translate(vec2(p.indent(), p.top));
         if r.height() < 1.0 { Rect::from_min_size(pos2(p.indent(), p.top), vec2(0.0, p.height())) } else { r }
@@ -553,6 +621,26 @@ fn store(ctx: &egui::Context, id: egui::Id) -> Arc<Mutex<Layout>> {
     ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Layout>>>(id.with("layout")).clone())
 }
 
+pub(crate) fn selected_spelling(app: &MailApp, ctx: &egui::Context, locale: &str) -> Option<(spelling::Issue, usize)> {
+    let (selection, _) = now(app, Which::Message)?;
+    let store = store(ctx, id(app));
+    let layout = store.lock().ok()?;
+    let paragraph = layout.para_at(selection.start())?;
+    let checked = paragraph.spelling.as_ref().filter(|checked| checked.locale == locale)?;
+    let start = paragraph.start;
+    let issue = checked.issues.iter().find(|issue| start + issue.span.start == selection.start() && start + issue.span.end == selection.end())?;
+    Some((issue.clone(), start))
+}
+
+#[cfg(test)]
+pub(crate) fn preedit(app: &MailApp, ctx: &egui::Context) -> String {
+    ctx.data(|data| data.get_temp::<State>(id(app).with("state"))).map_or_else(String::new, |state| state.preedit)
+}
+
+pub(crate) fn reveal_spelling(app: &MailApp, ctx: &egui::Context) {
+    ctx.data_mut(|data| data.insert_temp(id(app).with("reveal-spelling"), true));
+}
+
 /// How many paragraphs of the current message's body were laid out since the window opened, for tests.
 #[cfg(test)]
 pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
@@ -562,6 +650,8 @@ pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
 /// What the body remembers between frames besides its layout.
 #[derive(Clone, Default)]
 struct State {
+    spelling_menu: Option<spelling::Suggestions>,
+    spelling_typed_until: f64,
     /// Where the caret goes up and down from (the column it was in before it went up or down).
     column: Option<f32>,
     /// What the pointer took where it went down, for dragging a selection from there.
@@ -682,10 +772,12 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     // Changed since the last frame, by a command from elsewhere (an agent's or a script's
     // `compose.select`, the ribbon's): not selected by the owner here.
     own(app, which, &mut st, None);
-    if editable && (take_focus || (which == Which::Message && app.take_body_focus())) {
+    if editable && (take_focus || (which == Which::Message && app.take_body_focus()) || (which == Which::Signature && app.take_signature_focus())) {
         resp.request_focus();
     }
-    let mut reveal = false;
+    let mut reveal = ctx.data_mut(|d| d.remove_temp::<bool>(id.with("reveal-spelling")).unwrap_or_default());
+    let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
+    let spelling_time = ctx.input(|input| input.time);
 
     // A selected picture of a signature is made wider or narrower by its corner.
     if which == Which::Signature
@@ -722,13 +814,17 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         let at = layout.hit(pointer - origin);
         let on = layout.char_under(pointer - origin).unwrap_or(at);
         let (pressed, shift) = ui.input(|i| (i.pointer.primary_pressed(), i.modifiers.shift));
-        let picture = layout.picture_hit(pointer - origin).filter(|_| pressed && !shift);
+        let object = if pressed && !shift {
+            layout.picture_hit(pointer - origin).map(|(place, _, _)| place).or_else(|| layout.table_hit(pointer - origin))
+        } else {
+            None
+        };
         let under = |unit: Unit| match unit {
             Unit::Char => (at, at),
             Unit::Word => layout.word_ends(on),
             Unit::Paragraph => layout.paragraph_ends(at),
         };
-        let asked = if let Some((place, _, _)) = picture {
+        let asked = if let Some(place) = object {
             st.anchor = None;
             resp.request_focus();
             select(place, place + 1)
@@ -786,6 +882,20 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     // A right click: the caret goes where it is, unless that is on the selection; then the text's
     // menu, whose items do what their keys do (`crate::text_menu`).
     if editable {
+        let secondary = resp.secondary_clicked();
+        if secondary {
+            st.spelling_menu = (|| {
+                let locale = spelling_locale.as_deref()?;
+                let host = app.services.spelling.as_deref()?;
+                let pointer = ui.input(|input| input.pointer.interact_pos())?;
+                let at = layout.char_under(pointer - origin)?;
+                let index = layout.paras.partition_point(|p| p.start <= at).checked_sub(1)?;
+                let p = layout.paras.get_mut(index)?;
+                let start = p.start;
+                let issue = p.spelling(host, locale, spelling_time).iter().find(|issue| issue.span.contains(&(at - start)))?.clone();
+                Some(spelling::Suggestions::new(host, locale, issue, start))
+            })();
+        }
         if resp.hovered()
             && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary))
             && let (Some(pointer), Some((sel, _))) = (ui.input(|i| i.pointer.interact_pos()), now(app, which))
@@ -797,7 +907,17 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         }
         // Both take pictures: a signature, and a message's text since #547.
         let takes = crate::text_menu::Takes::Pictures;
-        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes);
+        let mut chosen = None;
+        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes, |ui| {
+            st.spelling_menu.as_ref().is_some_and(|suggestions| suggestions.show(ui, &mut chosen))
+        });
+        if let Some(word) = chosen
+            && let Some(suggestions) = st.spelling_menu.take()
+        {
+            suggestions.apply(app, word);
+            resp.request_focus();
+            resync(&mut layout, app);
+        }
     }
 
     // The keyboard.
@@ -809,9 +929,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         let seen = |to: bool| i.events.iter().any(|e| matches!(e, Event::WindowFocused(f) if *f == to));
         (seen(false), seen(true))
     });
-    if left || came_back {
+    if !focused || left || came_back {
         st.preedit.clear();
     }
+    let mut ime_composition = !st.preedit.is_empty();
     if focused {
         ctx.memory_mut(|m| {
             m.set_focus_lock_filter(id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: false })
@@ -830,6 +951,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 }
                 Event::Ime(egui::ImeEvent::Preedit { text, .. }) => {
                     st.preedit = text.chars().take(MAX_PREEDIT).collect();
+                    ime_composition |= !st.preedit.is_empty();
                     None
                 }
                 Event::Copy | Event::Cut if !sel.is_empty() => {
@@ -861,9 +983,14 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                         None => {
                             let board = app.services.clipboard.as_ref();
                             let html = board.and_then(|b| b.html()).filter(|h| !h.trim().is_empty());
-                            // Into the message, a picture only when nothing else is on the clipboard (#547).
-                            let image =
-                                (text.is_empty() && (which == Which::Signature || html.is_none())).then(|| board.and_then(|b| b.image())).flatten();
+                            // Into the message, a picture only when nothing else is on the clipboard (#547),
+                            // or when the HTML is that picture alone: a browser's Copy Image puts an
+                            // `<img>` of its web address beside the picture itself, which would paste
+                            // as a link and a caption (#1217).
+                            let alone = html.as_deref().is_some_and(pictures_only) && board.is_some_and(|b| b.has_image());
+                            let image = (alone || (text.is_empty() && (which == Which::Signature || html.is_none())))
+                                .then(|| board.and_then(|b| b.image()))
+                                .flatten();
                             (html, image)
                         }
                     };
@@ -911,14 +1038,22 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 {
                     let _ = app.run(command, params);
                 }
+                st.spelling_typed_until = if command == "compose.type" { spelling_time + 0.6 } else { 0.0 };
                 own(app, which, &mut st, Some(command));
             }
         }
         resync(&mut layout, app);
-    } else {
-        st.preedit.clear();
     }
 
+    if which == Which::Message {
+        // A pending review must not move the caret beneath an IME candidate.
+        let review_locale = if ime_composition { None } else { spelling_locale.as_deref() };
+        spelling::advance_review(app, &ctx, review_locale);
+    }
+    let typing = focused && spelling_time < st.spelling_typed_until;
+    if typing {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(st.spelling_typed_until - spelling_time));
+    }
     // Paint what is in view.
     let Some((sel, _)) = now(app, which) else { return };
     let painter = ui.painter();
@@ -926,7 +1061,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let fill = ui.visuals().selection.bg_fill;
     let fill = if focused { fill } else { fill.gamma_multiply(0.55) };
     let first = layout.paras.partition_point(|p| origin.y + p.top + p.height() < clip.min.y);
-    for p in layout.paras.iter().skip(first) {
+    let mut checks = 0;
+    for p in layout.paras.iter_mut().skip(first) {
         if origin.y + p.top > clip.max.y {
             break;
         }
@@ -935,6 +1071,36 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             paint_selection(painter, p, at, sel, fill);
         }
         painter.galley(at, p.galley.clone(), t.text);
+        if let (Some(locale), Some(host)) = (spelling_locale.as_deref(), app.services.spelling.as_deref()) {
+            if p.needs_spelling(locale, spelling_time) {
+                if checks < 8 {
+                    p.spelling(host, locale, spelling_time);
+                    checks += 1;
+                } else {
+                    ctx.request_repaint();
+                }
+            }
+            if let Some(checked) = p.spelling.as_ref().filter(|checked| checked.locale == locale) {
+                if !checked.available {
+                    ctx.request_repaint_after(std::time::Duration::from_secs_f64((p.spelling_retry_at - spelling_time).max(0.0)));
+                }
+                let mut row_cursor = (0, 0);
+                for issue in &checked.issues {
+                    let is_typing = typing && sel.is_empty() && sel.head > p.start + issue.span.start && sel.head <= p.start + issue.span.end;
+                    if !is_typing {
+                        paint_spelling(painter, p, at, issue.span.clone(), t.icon_red, &mut row_cursor);
+                    }
+                }
+            }
+        }
+        for table in &p.tables {
+            let rect = table.rect.translate(at.to_vec2());
+            table.grid.paint(painter, rect.min, &t);
+            let index = p.start + table.local;
+            if sel.start() <= index && sel.end() > index {
+                painter.rect_stroke(rect, 0.0, Stroke::new(2.0, fill), egui::StrokeKind::Inside);
+            }
+        }
         for b in &p.pictures {
             let r = b.rect.translate(at.to_vec2());
             let picture = shown.iter().find(|x| x.id == b.id);
@@ -1098,6 +1264,38 @@ fn paint_selection(painter: &egui::Painter, p: &Para, at: egui::Pos2, sel: Selec
     }
 }
 
+fn paint_spelling(painter: &egui::Painter, p: &Para, at: egui::Pos2, span: std::ops::Range<usize>, ink: egui::Color32, cursor: &mut (usize, usize)) {
+    let (mut row_index, mut start) = *cursor;
+    for row in p.galley.rows.iter().skip(row_index) {
+        let end = start + row.char_count_including_newline().0;
+        if end <= span.start {
+            row_index += 1;
+            start = end;
+            *cursor = (row_index, start);
+            continue;
+        }
+        let (lo, hi) = (span.start.max(start), span.end.min(end));
+        if lo < hi {
+            let x = at.x + row.pos.x;
+            let left = x + row.x_offset(CharIndex(lo - start));
+            let right = x + row.x_offset(CharIndex(hi - start));
+            let y = at.y + row.max_y() - 1.0;
+            if left < right {
+                let path = std::iter::successors(Some(left), |x| (*x + 2.0 < right).then_some(*x + 2.0))
+                    .chain(std::iter::once(right))
+                    .enumerate()
+                    .map(|(i, x)| pos2(x, y + (i % 2) as f32))
+                    .collect();
+                painter.add(egui::Shape::line(path, Stroke::new(1.0, ink)));
+            }
+        }
+        start = end;
+        if start >= span.end {
+            break;
+        }
+    }
+}
+
 /// What a key does: the command, and whether it moved the caret up or down (which keeps the
 /// column it goes up and down in).
 fn key_press(layout: &Layout, st: &mut State, sel: Selection, plain: bool, key: Key, m: Modifiers, page: f32) -> (Option<Ask>, bool) {
@@ -1204,3 +1402,22 @@ mod tests {
 #[cfg(test)]
 #[path = "wide_picture_tests.rs"]
 mod wide_picture_tests;
+
+#[cfg(test)]
+#[path = "spreadsheet_tests.rs"]
+mod spreadsheet_tests;
+
+/// The HTML is one picture and nothing else that reads (a browser's Copy Image, #1217). A table
+/// or a rule (whose words `Block::text` doesn't hold) or a second picture is more than the one
+/// picture the clipboard has beside it.
+fn pictures_only(html: &str) -> bool {
+    use mailcraft_html::BlockKind;
+    let blocks = mailcraft_html::parse_text(html);
+    let pictures = blocks.iter().filter(|b| matches!(b.kind, BlockKind::Image { .. })).count();
+    pictures == 1
+        && blocks.iter().all(|b| match b.kind {
+            BlockKind::Image { .. } => true,
+            BlockKind::Table(_) | BlockKind::Rule => false,
+            _ => b.text().trim().is_empty(),
+        })
+}

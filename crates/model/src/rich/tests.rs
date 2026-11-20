@@ -17,7 +17,7 @@ fn check(t: &RichText) {
     assert!(!t.paragraphs().is_empty());
     assert_eq!(t.len(), t.text().chars().count());
     for p in t.paragraphs() {
-        assert!(p.level <= MAX_LEVEL && (p.list != ListKind::None || p.level == 0), "{t:?}");
+        assert!(p.level <= MAX_LEVEL, "{t:?}");
         for r in &p.runs {
             assert!(!r.text.is_empty(), "{t:?}");
             assert!(r.text.chars().all(|c| c == '\t' || !c.is_control()), "{t:?}");
@@ -367,7 +367,7 @@ fn list_items_have_levels_numbered_level_by_level() {
         item("c", ListKind::Numbered, 99),
     ]);
     assert_eq!(numbers(doc.paragraphs()), [1, 1, 2, 0, 3, 2, 1, 0, 1, 0, 1]);
-    assert_eq!(doc.paragraphs()[9].level, 0, "an ordinary paragraph has no level");
+    assert_eq!(doc.paragraphs()[9].level, 5, "an ordinary paragraph keeps its indent (#1658)");
     assert_eq!(doc.paragraphs()[10].level, MAX_LEVEL);
     assert!(doc.to_plain().starts_with("1. a\n   1. a1\n   2. a2\n      - dot\n   3. a3\n2. b"));
     // Stored before levels: no level, 0; stored with a level out of bounds: the deepest.
@@ -376,6 +376,69 @@ fn list_items_have_levels_numbered_level_by_level() {
     let deep: RichText = serde_json::from_str(r#"{"paragraphs":[{"runs":[{"text":"x"}],"list":"bullet","level":200}]}"#).unwrap();
     assert_eq!(deep.paragraphs()[0].level, MAX_LEVEL);
     assert!(!serde_json::to_string(&old).unwrap().contains("level"));
+}
+
+/// Increase Indent moves an ordinary paragraph in from the left a level at a time, as in Outlook
+/// and Word, and Decrease Indent back (#1658); the line typed after it stays in with it.
+#[test]
+fn increase_indent_moves_an_ordinary_paragraph_in() {
+    let mut b = RichBody::from_plain("Hello\nthere");
+    b.select(0, 0).unwrap();
+    assert!(b.indent(1).unwrap(), "Increase Indent did nothing on an ordinary paragraph");
+    assert!(b.indent(1).unwrap());
+    let shape = |b: &RichBody| b.text().paragraphs().iter().map(|p| (p.list, p.level)).collect::<Vec<_>>();
+    assert_eq!(shape(&b), [(ListKind::None, 2), (ListKind::None, 0)]);
+    assert_eq!(b.text().to_plain(), "      Hello\nthere");
+    // Enter at its end: the new line is as far in.
+    b.select(5, 5).unwrap();
+    b.type_text("\n").unwrap();
+    assert_eq!(shape(&b)[1], (ListKind::None, 2));
+    // Decrease Indent takes it back out, and no further than the margin; each step is one undo.
+    b.select(0, 0).unwrap();
+    assert!(b.indent(-1).unwrap() && b.indent(-1).unwrap());
+    assert!(!b.indent(-1).unwrap(), "out past the margin");
+    assert_eq!(shape(&b)[0], (ListKind::None, 0));
+    b.undo();
+    assert_eq!(shape(&b)[0], (ListKind::None, 1));
+    // Made a list, it is an item at that level; out of the list again, at the margin.
+    b.select(0, 0).unwrap();
+    b.toggle_list(ListKind::Bullet).unwrap();
+    assert_eq!(shape(&b)[0], (ListKind::Bullet, 1));
+    b.toggle_list(ListKind::Bullet).unwrap();
+    assert_eq!(shape(&b)[0], (ListKind::None, 0));
+}
+
+/// An indented ordinary paragraph is formatting, and copied and pasted on an empty line it keeps
+/// its indent; pasted into a line with text, or at the margin, it leaves that line's indent alone
+/// (#1658).
+#[test]
+fn an_indented_paragraph_is_formatting_and_keeps_its_indent_when_pasted() {
+    let mut b = RichBody::from_plain("Hello");
+    assert!(!b.text().has_formatting());
+    b.select(0, 0).unwrap();
+    assert!(b.indent(1).unwrap() && b.indent(1).unwrap());
+    assert!(b.text().has_formatting(), "an indent is more than plain text");
+    let copied = b.text().slice(0, 5).unwrap();
+    assert_eq!(copied.paragraphs()[0].level, 2);
+
+    let mut empty = RichBody::from_plain("");
+    empty.paste(&copied).unwrap();
+    let shape = |b: &RichBody| b.text().paragraphs().iter().map(|p| (p.list, p.level)).collect::<Vec<_>>();
+    assert_eq!(shape(&empty), [(ListKind::None, 2)]);
+    assert_eq!(empty.text().text(), "Hello");
+
+    let mut text = RichBody::from_plain("Z");
+    text.select(0, 0).unwrap();
+    text.paste(&copied).unwrap();
+    assert_eq!(shape(&text), [(ListKind::None, 0)], "a line with text keeps its own indent");
+
+    let mut indented = RichBody::from_plain("");
+    indented.select(0, 0).unwrap();
+    assert!(indented.indent(1).unwrap());
+    indented.paste(&RichText::from_plain("at the margin")).unwrap();
+    assert_eq!(shape(&indented), [(ListKind::None, 1)], "text at the margin takes the line's indent");
+    check(empty.text());
+    check(text.text());
 }
 
 #[test]
@@ -405,9 +468,7 @@ fn tab_and_shift_tab_move_items_between_levels() {
         b.text().paragraphs().iter().map(|p| (p.list, p.level)).take(3).collect::<Vec<_>>(),
         [(ListKind::None, 0), (ListKind::Bullet, MAX_LEVEL - 1), (ListKind::None, 0)]
     );
-    // Ordinary paragraphs don't indent; the step is one undo.
-    let mut plain = RichBody::from_plain("x");
-    assert!(!plain.indent(1).unwrap() && !plain.can_undo());
+    // The step is one undo.
     b.undo();
     assert_eq!(b.text().paragraphs()[1].level, MAX_LEVEL);
 }
@@ -655,4 +716,53 @@ proptest! {
         let json = serde_json::to_string(&t).unwrap();
         prop_assert_eq!(serde_json::from_str::<RichText>(&json).unwrap(), t);
     }
+}
+
+/// The fixed-width font of the composer (#969).
+fn courier_new() -> Font {
+    Font::parse("courier new").unwrap_or_else(|| panic!("Courier New is not one of the composer's fonts"))
+}
+
+#[test]
+fn courier_new_is_the_one_fixed_width_font() {
+    let courier = courier_new();
+    assert_eq!(courier.label(), "Courier New");
+    assert!(courier.is_fixed_width());
+    assert_eq!(Font::ALL.iter().filter(|f| f.is_fixed_width()).collect::<Vec<_>>(), vec![&courier]);
+    // Written with a fixed-width fallback, so a recipient without Courier New keeps the columns too.
+    assert_eq!(courier.css(), "'Courier New', Courier, monospace");
+}
+
+#[test]
+fn a_fixed_width_family_comes_back_as_courier_new() {
+    let courier = courier_new();
+    for font in Font::ALL {
+        assert_eq!(Font::from_css(font.css()), Some(font), "{font:?}");
+    }
+    for first in [
+        "Courier New",
+        "\"Courier New\"",
+        "Courier",
+        "Liberation Mono",
+        "Cousine",
+        "Consolas",
+        "Menlo",
+        "DejaVu Sans Mono",
+        "monospace",
+        "ui-monospace",
+    ] {
+        assert_eq!(Font::from_css(&format!("{first}, serif")), Some(courier), "{first}");
+    }
+}
+
+#[test]
+fn a_font_this_version_doesnt_know_leaves_the_rest_of_the_look() {
+    // A font a later version adds is the message's own here, and the run keeps its bold and its
+    // colour, rather than the whole text losing its look (#969, a review point on #1327).
+    let style: Style = serde_json::from_str(r##"{"bold": true, "color": "#1f6feb", "font": "aFontFromLater"}"##).unwrap();
+    assert_eq!(style, Style { bold: true, color: Some("#1f6feb".into()), ..Style::default() });
+    for odd in [r#"{"font": 7}"#, r#"{"font": null}"#, r#"{"font": {"name": "Arial"}}"#] {
+        assert_eq!(serde_json::from_str::<Style>(odd).unwrap().font, None, "{odd}");
+    }
+    assert_eq!(serde_json::from_str::<Style>(r#"{"font": "courierNew"}"#).unwrap().font, Some(courier_new()));
 }

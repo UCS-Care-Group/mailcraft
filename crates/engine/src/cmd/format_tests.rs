@@ -172,11 +172,33 @@ fn a_formatted_message_goes_out_as_html_with_a_plain_text_part() {
         "{html}"
     );
     // On the wire: both forms, as alternatives, and they read back.
-    let bytes = mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default());
+    let bytes = mailcraft_mime_model::write(&m, &mailcraft_mime_model::WriteOptions::default());
     let text = String::from_utf8_lossy(&bytes);
     assert!(text.contains("multipart/alternative") && text.contains("text/plain") && text.contains("text/html"));
-    let back = mailcraft_mime::parse(&bytes);
-    assert_eq!(mailcraft_mime::rich::from_html(back.body.html.as_deref().unwrap()), mailcraft_mime::rich::from_html(&html));
+    let back = mailcraft_mime_model::parse(&bytes);
+    assert_eq!(mailcraft_mime_model::rich::from_html(back.body.html.as_deref().unwrap()), mailcraft_mime_model::rich::from_html(&html));
+}
+
+/// Increase Indent on an ordinary paragraph (#1658): it moves in, reopens moved in from a saved
+/// draft, and goes out with a left margin in the HTML and spaces in the plain text.
+#[test]
+fn an_ordinary_paragraph_indents_and_stays_indented() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "subject": "Note", "body": "Hello\nthere"}));
+    assert_eq!(run(&mut s, "format.indent", json!({"from": 0}))["level"], 1);
+    assert_eq!(run(&mut s, "format.indent", json!({"from": 0}))["level"], 2);
+    assert_eq!(run(&mut s, "format.outdent", json!({"from": 0}))["level"], 1);
+    let levels = |s: &crate::Session| compose(s).body.text().paragraphs().iter().map(|p| p.level).take(2).collect::<Vec<_>>();
+    assert_eq!(levels(&s), [1, 0]);
+    let d = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": d}));
+    assert_eq!(levels(&s), [1, 0], "the draft reopened without its indent");
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    let html = m.body.html.as_deref().unwrap();
+    assert!(html.contains("<div style=\"margin-left:40px\"><div>Hello</div></div>") && html.contains("<div>there</div>"), "{html}");
+    assert!(m.body.text.starts_with("   Hello\nthere"), "{:?}", m.body.text);
 }
 
 #[test]
@@ -210,7 +232,8 @@ fn pasted_html_is_reduced_to_the_set() {
         json!({"html": "<script>alert(1)</script><p style=\"color:red\"><b>Hi</b> <a href=\"javascript:x\">there</a></p><table><tr><td><i>cell</i></td></tr></table><img src=\"https://tracker.example/p.gif\">"}),
     );
     let t = compose(&s).body.text().clone();
-    assert!(t.text().starts_with("Hi there\n\ncell"), "{:?}", t.text());
+    assert!(t.to_plain().starts_with("Hi there\n\ncell"), "{:?}", t.to_plain());
+    assert!(t.paragraphs().iter().flat_map(|p| &p.runs).any(|r| r.table.is_some()));
     assert!(t.paragraphs().iter().flat_map(|p| &p.runs).all(|r| r.style.link.is_none()));
     assert!(t.all(0, 2, |st| st.bold).unwrap());
     // Plain text in a plain-text message, and nothing formatted can be asked for there.
@@ -446,4 +469,29 @@ fn a_typed_marker_and_space_start_a_list_and_undo_puts_the_marker_back() {
     run(&mut s, "format.bullets", json!({}));
     key(&mut s, "* ");
     assert_eq!(mine(&s), "* ");
+}
+
+#[test]
+fn replace_exact_checks_the_old_word_and_keeps_its_style_and_list() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "oggi sopratutto"}));
+    run(&mut s, "format.bullets", json!({}));
+    run(&mut s, "format.bold", json!({"from": 5, "to": 15}));
+    run(&mut s, "compose.select", json!({"from": 0}));
+    assert!(s.run("compose.replaceText", &json!({"from": 5, "to": 15, "expected": "altra cosa", "text": "soprattutto"})).is_err());
+    assert_eq!(mine(&s), "oggi sopratutto");
+    assert_eq!(compose(&s).body.selection(), Selection::caret(0));
+
+    run(&mut s, "compose.replaceText", json!({"from": 5, "to": 15, "expected": "sopratutto", "text": "soprattutto"}));
+    let body = &compose(&s).body;
+    assert_eq!(body.text().list_at(0), ListKind::Bullet);
+    assert!(body.text().all(5, 16, |style| style.bold).unwrap());
+    assert!(!body.text().style_at(5).bold);
+    assert_eq!(mine(&s), "oggi soprattutto");
+    assert_eq!(body.selection(), Selection::caret(16));
+
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(mine(&s), "oggi sopratutto");
+    assert_eq!(compose(&s).body.selection(), Selection::caret(0));
 }

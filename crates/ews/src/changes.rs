@@ -245,6 +245,17 @@ impl UpdateItem {
         Self { id: id.to_owned(), change_key: None, updates, overwrite: true }
     }
 
+    /// The same, naming the item with its change key: a server that changes an item only when it
+    /// is named with one (Exchange 2010, `ErrorChangeKeyRequiredForWriteOperations`, #1349) is
+    /// given it. It is still written over whatever the server has: the key only names the item.
+    #[must_use]
+    pub fn keyed(mut self, change_key: &str) -> Self {
+        if !change_key.is_empty() {
+            self.change_key = Some(change_key.to_owned());
+        }
+        self
+    }
+
     /// Sets `updates` on the draft `id` as it was at `change_key`: if it was changed since, the
     /// server says `ErrorIrresolvableConflict` and nothing is written.
     pub fn draft(id: &str, change_key: &str, updates: ItemUpdate) -> Self {
@@ -549,6 +560,8 @@ impl std::fmt::Debug for ItemNow {
 #[derive(Clone, PartialEq, Eq)]
 pub struct GetItemNow {
     id: String,
+    /// The change key alone (the categories and the attachments are not asked for).
+    key_only: bool,
 }
 
 impl std::fmt::Debug for GetItemNow {
@@ -563,15 +576,22 @@ const MAX_NOW_ATTACHMENTS: usize = 500;
 impl GetItemNow {
     /// Reads item `id`.
     pub fn new(id: &str) -> Self {
-        Self { id: id.to_owned() }
+        Self { id: id.to_owned(), key_only: false }
     }
 
-    /// The operation: an `IdOnly` shape with the categories and the attachments.
+    /// Reads the change key of item `id` alone (its [`ItemNow`] has no categories nor attachments).
+    pub fn key_only(id: &str) -> Self {
+        Self { id: id.to_owned(), key_only: true }
+    }
+
+    /// The operation: an `IdOnly` shape with the categories and the attachments (or nothing more,
+    /// for the key alone).
     pub fn element(&self) -> Element {
         let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
-        let shape = Element::new("m:ItemShape")
-            .child(Element::new("t:BaseShape").text("IdOnly"))
-            .child(Element::new("t:AdditionalProperties").child(uri("item:Categories")).child(uri("item:Attachments")));
+        let mut shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly"));
+        if !self.key_only {
+            shape = shape.child(Element::new("t:AdditionalProperties").child(uri("item:Categories")).child(uri("item:Attachments")));
+        }
         Element::new("m:GetItem").child(shape).child(Element::new("m:ItemIds").child(id_element("t:ItemId", &self.id, None)))
     }
 

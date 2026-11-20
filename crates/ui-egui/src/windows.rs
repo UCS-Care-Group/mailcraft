@@ -152,6 +152,9 @@ pub(crate) struct Open {
     waited: bool,
     /// Open, it was put at its place by its own scale.
     positioned: bool,
+    /// The backend was asked for its window at least once (it can be asked for it only while the
+    /// main window is on screen, #1224).
+    asked: bool,
     /// Its size and place, in the system's pixels, as the system last said.
     seen: Option<window_places::Place>,
 }
@@ -179,12 +182,24 @@ pub struct Windows {
     /// The windows taken out of `open` while they are laid out ([`show`]): their numbers, and the
     /// message being written each shows, so that what runs inside one still finds them.
     out: Vec<(u64, Option<u64>)>,
+    /// A window of the system drew the dialog this frame, over itself: the main window doesn't.
+    pub(crate) dialog_shown: bool,
     /// The monitors connected now, in the system's pixels, as the host listed them this frame for a window
     /// about to open ([`MailApp::set_monitors`]); `None` when it didn't.
     pub(crate) monitors: Option<Vec<window_places::Monitor>>,
     /// Whether places are in points, as the host lists the monitors ([`window_places::POINTS`]
     /// when `None`; a test sets it to try both).
     pub(crate) points: Option<bool>,
+    /// The window of the system that had the keyboard at the last frame (none: the main window,
+    /// or another program). A file dialog remembers it ([`crate::files`]).
+    pub(crate) focused: Option<u64>,
+    /// The window a file dialog was asked from, to come forward again now the dialog is answered:
+    /// the dialog is parented to the main window, which the system brings forward when it closes
+    /// (#1282).
+    pub(crate) refocus: Option<u64>,
+    /// When the main window, minimized, was last painted unseen for the windows' sake ([`wake`]),
+    /// in milliseconds.
+    woken: f64,
 }
 
 /// Where a message being written that a command opens goes (#286).
@@ -218,6 +233,17 @@ impl Windows {
         self.open.iter().find(|w| matches!(w.what, What::Message { message: m, .. } if m == message)).map(|w| w.id)
     }
 
+    /// The messages of the mailbox open in windows of their own.
+    pub(crate) fn messages(&self) -> Vec<Id> {
+        self.open
+            .iter()
+            .filter_map(|w| match w.what {
+                What::Message { message, .. } => Some(message),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// The window that shows `event`, by its number.
     pub fn of_event(&self, event: Id) -> Option<u64> {
         self.open.iter().find(|w| w.what.subject() == Some((false, event))).map(|w| w.id)
@@ -245,6 +271,7 @@ impl Windows {
             start: None,
             waited: false,
             positioned: false,
+            asked: false,
             seen: None,
         });
         self.last
@@ -337,6 +364,11 @@ fn open_message(app: &mut MailApp, id: Id) -> Result<Value, String> {
         return Err(tl!("Too many windows are open: close one first").to_string());
     }
     let window = app.windows.add(What::Message { message: id, seen: m });
+    // Opened in a window it is read, with the reading pane off too (#1734): the message the list
+    // has selected, whose selection a window doesn't change.
+    if app.session.sel.messages == [id] {
+        let _ = app.run("mail.select", json!({"id": id, "open": true}));
+    }
     Ok(json!({"window": window, "message": id}))
 }
 
@@ -876,11 +908,34 @@ pub(crate) fn viewports(app: &MailApp) -> Vec<egui::ViewportId> {
     app.windows.open.iter().map(|w| viewport_of(w.id)).collect()
 }
 
+/// Remember which window of the system has the keyboard, and give it back to the window a file
+/// dialog was asked from (#1282): the dialog's parent is the main window, so the system brings that
+/// one forward when the dialog closes, whichever window asked.
+fn note_focus(app: &mut MailApp, ctx: &egui::Context) {
+    if ctx.embed_viewports() {
+        app.windows.refocus = None;
+        return;
+    }
+    if let Some(id) = app.windows.refocus.take()
+        && let Some(cmd) = refocus_command(app, id)
+    {
+        ctx.send_viewport_cmd_to(cmd.0, cmd.1);
+    }
+    let focused = |v: egui::ViewportId| ctx.input(|i| i.raw.viewports.get(&v).and_then(|info| info.focused)).unwrap_or(false);
+    app.windows.focused = app.windows.open.iter().find(|w| focused(viewport_of(w.id))).map(|w| w.id);
+}
+
+/// The command that brings window `id` forward, when it is still open.
+pub(crate) fn refocus_command(app: &MailApp, id: u64) -> Option<(egui::ViewportId, egui::ViewportCommand)> {
+    app.windows.open.iter().any(|w| w.id == id).then(|| (viewport_of(id), egui::ViewportCommand::Focus))
+}
+
 /// Show the windows that are open, and close the ones whose subject is gone. Once a frame,
 /// before the main window's shortcuts: where the windows are inside the main one, the keys of
 /// the active one (Escape closes it) are not also the main window's.
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     crate::reading::tick(app, ctx);
+    note_focus(app, ctx);
     // The message being written in the window that has the keyboard is the current one (#286).
     compose_window::follow_focus(app, ctx);
     if app.windows.open.is_empty() {
@@ -1126,11 +1181,54 @@ fn placed(window: &Open) -> Option<egui::Rect> {
     window.seen.and_then(|p| p.rect()).or(window.start.and_then(|s| s.rect()))
 }
 
+/// The main window is minimized, or hidden (a pass of it may then run with no event loop to make
+/// a window in).
+fn main_is_hidden(ctx: &egui::Context) -> bool {
+    ctx.input(|i| i.viewport().visible()) == Some(false)
+}
+
+/// How often at most [`wake`] has the main window painted unseen, in milliseconds.
+const WAKE_EVERY: f64 = 500.0;
+
+/// From the main window's logic, which runs while it is minimized too (#1314). The windows of the
+/// system are drawn in a pass of the main window, which eframe runs only while it thinks one of
+/// them is on screen, and it learns whether a window is on screen only in such a pass: one
+/// minimized while the main window was, then given back by the system, stays minimized as far as
+/// eframe knows, and its close button and everything in it do nothing. Such a window has the main
+/// window painted unseen, which shows it as it is now: at once when its close button was pressed,
+/// otherwise at most every [`WAKE_EVERY`] milliseconds.
+pub(crate) fn wake(app: &mut MailApp, ctx: &egui::Context) {
+    if ctx.embed_viewports() || !main_is_hidden(ctx) {
+        return;
+    }
+    let (minimized, closing) = ctx.input(|i| {
+        let infos: Vec<_> = app.windows.open.iter().filter(|w| w.asked).filter_map(|w| i.raw.viewports.get(&viewport_of(w.id))).collect();
+        (infos.iter().any(|v| v.minimized == Some(true)), infos.iter().any(|v| v.events.contains(&egui::ViewportEvent::Close)))
+    });
+    if !minimized && !closing {
+        return;
+    }
+    let now = crate::now_ms();
+    if closing || !(0.0..WAKE_EVERY).contains(&(now - app.windows.woken)) {
+        app.windows.woken = now;
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::RequestPaintWhileHidden);
+        ctx.request_repaint();
+    }
+}
+
 /// A window of the system. `last`: where the last other window of its kind that is open is, for
 /// it to cascade from when it opens. `true` when it is to close.
 fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: Option<egui::Rect>) -> bool {
     let viewport = viewport_of(window.id);
     let kind = window.what.kind();
+    // A window of the system that doesn't exist yet is made by the backend from inside this
+    // frame, which it can't do for a main window that is minimized or hidden: it paints such a
+    // main window outside its event loop, finds no window to make, never runs the callback, and
+    // egui panics (#1224). The window waits, still open, until the main window is on screen.
+    if !window.asked && main_is_hidden(ctx) {
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        return false;
+    }
     if window.start.is_none() {
         // The host lists the monitors in the frame after a window was asked for: it waits for
         // them one frame, no more (a host that lists none has the system place it).
@@ -1162,13 +1260,21 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
         ctx.send_viewport_cmd_to(viewport, egui::ViewportCommand::Focus);
     }
     let mut close = false;
+    window.asked = true;
     ctx.show_viewport_immediate(viewport, builder, |ui, class| {
         let ctx = ui.ctx().clone();
+        // eframe gives `raw_input_hook` no say over a window shown like this: where the window
+        // layer's clipboard keys are off, they become cut, copy and paste here (#1217).
+        clipboard_keys(app, &ctx);
         // What was chosen in a text's menu here, before anything reads the input.
         let menus = crate::text_menu::deliver(&ctx);
         let t = Tokens::get(&ctx);
         // A backend that has no windows after all puts this inside the main one itself.
         let inside = class == egui::ViewportClass::EmbeddedWindow;
+        // The Edit menu's ⌘X, ⌘C and ⌘V (macOS) are for this window while it has the keyboard (#1500).
+        if !inside {
+            edit_keys(app, &ctx);
+        }
         let closing = !inside && ctx.input(|i| i.viewport().close_requested());
         // The window has the keyboard to itself: what is on top in it gets Escape and Enter. While
         // the main window asks something (an agent's question, or a question for this window's
@@ -1177,16 +1283,42 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
             let waits = !app.asking.is_empty() || window.what.form().is_some_and(Form::waiting);
             crate::keys::gate(&ctx, waits);
         }
-        let wish = keys_of(&ctx, window, ui.layer_id());
+        // A dialog about the message written here (Check Names' choice) comes up over this
+        // window, not over the main one behind it, and has its keys.
+        let dialog_here =
+            !inside && window.what.compose().is_some() && app.dialog.as_ref().and_then(crate::dialogs::Dialog::compose) == window.what.compose();
+        let wish = if dialog_here { Keys::default() } else { keys_of(&ctx, window, ui.layer_id()) };
         if !inside {
             place_native(app, &ctx, window, kind);
         }
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
             close |= frame(app, ui, window, wish, closing, !inside);
         });
+        if dialog_here {
+            crate::dialogs::show(app, &ctx);
+            app.windows.dialog_shown = true;
+        }
         crate::text_menu::finish(&ctx, menus);
     });
     close
+}
+
+/// The Edit menu's input ([`MailApp::edit_keys`]) when this window has the keyboard: the main
+/// window's input never reaches a window of its own (#1500).
+pub(crate) fn edit_keys(app: &mut MailApp, ctx: &egui::Context) {
+    if ctx.input(|i| i.viewport().focused == Some(true)) && !app.edit_keys.is_empty() {
+        let keys = std::mem::take(&mut app.edit_keys);
+        ctx.input_mut(|i| i.events.extend(keys));
+    }
+}
+
+/// Where the window layer's clipboard keys are off (`Services::clipboard_keys`), the key presses
+/// of this pass become cut, copy and paste.
+pub(crate) fn clipboard_keys(app: &MailApp, ctx: &egui::Context) {
+    if app.services.clipboard_keys {
+        let board = app.services.clipboard.as_deref();
+        ctx.input_mut(|i| crate::paste_keys::translate(&mut i.events, board));
+    }
 }
 
 /// A movable window inside the main one; `behind`: another of them is the active one (or a
@@ -1250,13 +1382,18 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
         What::Message { seen, .. } => {
             let m = seen.clone();
             let mut close = false;
-            egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
-                .resizable(false)
-                .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
-                .show(ui, |ui| close = actions(app, ui, &m, own_keys));
             // What the message draws (its attachments' chips and `▾`, #785) is recorded as in this
             // window, apart from the same message in the reading pane.
             let scope = app.hit.scope(id);
+            crate::attachment_preview::follow_message(app, id, Some(m.id));
+            if crate::ribbon::show_attachment_window(app, ui, id, m.id) {
+                close = actions(app, ui, &m, own_keys, false);
+            } else {
+                egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
+                    .resizable(false)
+                    .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
+                    .show(ui, |ui| close = actions(app, ui, &m, own_keys, true));
+            }
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
                 crate::reading::show_message(app, ui, &m, Place::Window(id));
             });
@@ -1311,9 +1448,9 @@ enum Action {
     Read,
 }
 
-/// The row of actions on a message in a window of its own. `true` when the window is to close:
-/// the message was deleted from it.
-fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool) -> bool {
+/// A message window's action keys and, when visible, its toolbar. Returns `true` if the action
+/// deleted the message and the window should close.
+fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool, toolbar: bool) -> bool {
     let flagged = m.flag == FlagStatus::Flagged;
     let mut row: Vec<(&str, &str, &'static str, Action, &'static str)> =
         crate::reading::ACTIONS.iter().map(|(icon, label, command)| (*icon, *label, *command, Action::Run(command), hit_kind(command))).collect();
@@ -1338,23 +1475,25 @@ fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool) -> 
             }
         }
     }
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
-        for (n, (icon, label, command, action, kind)) in row.iter().enumerate() {
-            if n == 3 || n == 4 {
-                ui.add_space(8.0);
+    if toolbar {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
+            for (n, (icon, label, command, action, kind)) in row.iter().enumerate() {
+                if n == 3 || n == 4 {
+                    ui.add_space(8.0);
+                }
+                let key = crate::widgets::shortcut_text(app, command);
+                let tip = if key.is_empty() { tl!(label).to_string() } else { format!("{} ({key})", tl!(label)) };
+                let button = crate::widgets::icon_text_button(ui, icon, tl!(label), true).on_hover_text(tip);
+                if !own_keys {
+                    app.hit.add(kind, m.id, button.rect);
+                }
+                if button.clicked() {
+                    asked = Some(*action);
+                }
             }
-            let key = crate::widgets::shortcut_text(app, command);
-            let tip = if key.is_empty() { tl!(label).to_string() } else { format!("{} ({key})", tl!(label)) };
-            let button = crate::widgets::icon_text_button(ui, icon, tl!(label), true).on_hover_text(tip);
-            if !own_keys {
-                app.hit.add(kind, m.id, button.rect);
-            }
-            if button.clicked() {
-                asked = Some(*action);
-            }
-        }
-    });
+        });
+    }
     let Some(action) = asked else { return false };
     let ctx = ui.ctx().clone();
     // What a window of the system starts in the main window is looked at there.
@@ -1412,6 +1551,9 @@ fn hit_kind(command: &str) -> &'static str {
 }
 
 #[cfg(test)]
+mod attachment_shortcuts_tests;
+
+#[cfg(test)]
 mod tests {
     use egui_kittest::kittest::Queryable as _;
     use mailcraft_engine::Session;
@@ -1428,7 +1570,7 @@ mod tests {
     fn app() -> MailApp {
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app
     }
 
@@ -2364,7 +2506,7 @@ mod tests {
         microsoft_account(&mut a);
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
         // The calendar keeps itself current: what is made here goes to the stand-in at once.
-        a.auto_sync = true;
+        a.session.driver.set_auto_sync(true);
         let mut harness = window(a);
         harness.run_steps(6);
         assert!(event_named(&harness, "Budget review").is_some(), "the server's calendar came down");
@@ -2604,7 +2746,7 @@ mod tests {
         let server = serve(&mut a);
         microsoft_account(&mut a);
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
-        a.auto_sync = true;
+        a.session.driver.set_auto_sync(true);
         // The stand-in for the server: Maya is busy from one to two and away from four on;
         // Tomás can't be looked up; of Priya it says nothing.
         let asks: Arc<Mutex<Vec<FreeBusyAsk>>> = Default::default();
@@ -2863,6 +3005,14 @@ mod tests {
         assert!(after.exceptions.contains(&mailcraft_time::Date::new(2026, 10, 20).unwrap()) && harness.state().windows.is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "window_minimized_tests.rs"]
+mod window_minimized_tests;
+
+#[cfg(test)]
+#[path = "window_restored_tests.rs"]
+mod window_restored_tests;
 
 #[cfg(test)]
 #[path = "window_identity_tests.rs"]

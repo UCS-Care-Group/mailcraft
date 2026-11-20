@@ -26,7 +26,7 @@ fn window() -> (Window, Id, Id, Id) {
     let moved = s.mailbox.messages_in(inbox).map(|m| m.id).next().unwrap();
     s.run("mail.move", &json!({"id": moved, "folder": theirs})).unwrap();
     let mut harness = testing::window_on(s.mailbox, "view.mail");
-    harness.state_mut().auto_sync = false;
+    harness.state_mut().session.driver.set_auto_sync(false);
     harness.state_mut().execute("folder.select", json!({"id": inbox})).unwrap();
     let _ = harness.state_mut().execute("ui.dismissReminder", json!({"all": true}));
     harness.run_steps(3);

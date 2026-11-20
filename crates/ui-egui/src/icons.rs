@@ -8,9 +8,6 @@
 use egui::epaint::{Mesh, TextShape};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
 
-mod mark;
-pub use mark::app_mark;
-
 /// Draws on the 20-unit grid of one icon, fitted to the screen's pixels.
 ///
 /// Everything is worked out in device pixels: the grid's origin is a whole pixel, a stroke is a
@@ -522,6 +519,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.head(16.5, 5.5, 0.0, 4.0, c);
             pen.envelope(11.5, 12.0, 18.0, 17.0, c);
         }
+        // React (#1544): a face.
+        "react" => {
+            pen.circle(10.0, 10.0, 7.0, c);
+            pen.fcircle(7.5, 8.0, 0.9, c);
+            pen.fcircle(12.5, 8.0, 0.9, c);
+            pen.line(&[(6.5, 11.5), (8.0, 13.5), (12.0, 13.5), (13.5, 11.5)]);
+        }
         "delete" | "deleted" | "discard" | "remove" => {
             pen.lid(false, c);
             pen.rounded(&[(5.0, 5.5), (5.0, 16.5), (15.0, 16.5), (15.0, 5.5)], false, 1.0, c);
@@ -819,6 +823,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rect(3.5, 3.5, 16.5, 16.5, c);
             pen.check(10.0, 10.5, 1.0, green);
         }
+        "journal" => {
+            // A bound book with lines on its page.
+            pen.rect(4.5, 3.5, 15.5, 16.5, c);
+            pen.line(&[(7.5, 3.5), (7.5, 16.5)]);
+            pen.line(&[(9.5, 7.5), (13.5, 7.5)]);
+            pen.line(&[(9.5, 10.5), (13.5, 10.5)]);
+        }
         "newTask" => {
             pen.cut_box(3.5, 3.5, 16.5, 16.5, c);
             pen.check(9.0, 9.5, 0.9, green);
@@ -898,6 +909,15 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
         "folderPane" => {
             pen.rect(2.5, 3.5, 17.5, 16.5, c);
             pen.line_c(&[(7.0, 3.5), (7.0, 16.5)], a);
+        }
+        // The switch between the modules at the foot of the pane (#1174): the pane, with a row
+        // of four dots along its lower edge where the modules sit.
+        "navigationBar" => {
+            pen.rect(2.5, 3.5, 17.5, 16.5, c);
+            pen.line_c(&[(2.5, 12.5), (17.5, 12.5)], a);
+            for i in 0..4 {
+                pen.fcircle(4.75 + i as f32 * 3.5, 14.5, 0.9, a);
+            }
         }
         // Messages one behind another.
         "conversations" => {
@@ -1097,6 +1117,11 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rounded(&[(14.0, 3.0), (14.0, 5.5), (10.0, 10.0), (14.0, 14.5), (14.0, 17.0)], false, 1.0, c);
             pen.line_c(&[(8.0, 15.5), (12.0, 15.5)], a);
         }
+        "spelling" => {
+            pen.line(&[(3.0, 5.0), (17.0, 5.0)]);
+            pen.line(&[(3.0, 8.0), (11.0, 8.0)]);
+            pen.line_c(&[(3.0, 14.0), (5.0, 12.0), (7.0, 14.0), (9.0, 12.0), (11.0, 14.0), (13.0, 12.0), (15.0, 14.0), (17.0, 12.0)], a);
+        }
         // Review › Word Count: lines of text and a tally of four strokes and one across them.
         "wordCount" => {
             pen.line(&[(2.5, 4.5), (17.5, 4.5)]);
@@ -1285,6 +1310,7 @@ pub const NAMES: &[&str] = &[
     "replyAll",
     "forward",
     "forwardAsAttachment",
+    "react",
     "delete",
     "deleted",
     "discard",
@@ -1368,6 +1394,7 @@ pub const NAMES: &[&str] = &[
     "meetingDeclined",
     "tasks",
     "task",
+    "journal",
     "newTask",
     "next",
     "forwardPeriod",
@@ -1396,6 +1423,7 @@ pub const NAMES: &[&str] = &[
     "filter",
     "readingPane",
     "folderPane",
+    "navigationBar",
     "conversations",
     "ribbon",
     "sort",
@@ -1436,6 +1464,7 @@ pub const NAMES: &[&str] = &[
     "clock",
     "time",
     "dateTime",
+    "spelling",
     "wordCount",
     "pending",
     "picture",
