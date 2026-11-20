@@ -227,7 +227,7 @@ async fn changes<E: HttpExchange>(
     // about it again.
     let mut not_mail: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut since = request.token.clone();
-    for _ in 0..MAX_ROUNDS {
+    for page_index in 0..MAX_ROUNDS {
         let answered = run.ask(Phase::Changes, delta::request(&run.base, &run.token, &since)).await?;
         let page = delta::answer(&answered, false).map_err(|e| Phase::Changes.failed(e))?;
         if page.more && page.token == since {
@@ -256,6 +256,9 @@ async fn changes<E: HttpExchange>(
             let before: std::collections::HashSet<String> = mail.iter().map(|id| id.to_string()).collect();
             relisted += 1;
             if relisted > MAX_RELISTS {
+                if page_index == 0 {
+                    return Err(Phase::Folders.failed(Error::Unreadable));
+                }
                 return Ok((since, listing, false));
             }
             let listed = run.ask(Phase::Folders, folders::request(&run.base, &run.token)).await?;

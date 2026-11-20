@@ -242,6 +242,24 @@ fn a_two_factor_account_and_odd_tokens_give_no_token() {
 }
 
 #[test]
+fn leading_and_trailing_controls_are_not_trimmed_into_valid_ids() {
+    for control in ['\n', '\r', '\t', '\0', '\u{b}', '\u{85}'] {
+        for id in ["257", "other:257"] {
+            for raw in [format!("{control}{id}"), format!("{id}{control}")] {
+                for value in [json!(raw), json!({"_content": raw}), json!([raw])] {
+                    assert!(crate::json::own_id(Some(&value)).is_none(), "{value:?}");
+                    assert!(!crate::json::foreign_id(Some(&value)), "{value:?}");
+                }
+                let changed = answer(200, &json!({"Body":{"SyncResponse":{"token":"5","m":[{"id":raw}]}}}));
+                assert_eq!(delta::answer(&changed, false), Err(Error::Unreadable), "{raw:?}");
+                let hit = answer(200, &json!({"Body":{"SearchResponse":{"m":[{"id":raw,"l":"2"}]}}}));
+                assert_eq!(items::answer(&hit), Err(Error::Unreadable), "{raw:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn ids_of_other_mailboxes_and_odd_ids_are_passed_over() {
     // A hit whose id is no id at all can't be told from a cached message the listing left out:
     // the whole answer is refused, like an item that names no folder.
