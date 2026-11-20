@@ -96,6 +96,64 @@ fn replace_all_is_one_step_and_says_how_many() {
     assert!(!s.enabled("compose.undo"));
 }
 
+/// `teh` as its own word, including next to punctuation and at either end, and the same letters
+/// inside a longer word, beside an apostrophe or `_`, or beside a non-ASCII letter.
+const TEH: &str = "teh Tehran tehee Teh teh, (teh) t\u{e9}h teh\u{e9} \u{e9}teh teh_x teh's teh\u{2019}s \u{2019}teh teh";
+
+#[test]
+fn replace_all_whole_word_leaves_substrings_and_undoes_in_one_step() {
+    let mut s = writing(TEH);
+    let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "all": true, "wholeWord": true}));
+    assert_eq!(r["replaced"], 5);
+    // `Teh` matches when letter case does not. `Tehran`, `tehee`, `tehé`, `éteh`, `teh_x`,
+    // `teh's`, `teh’s` and `’teh` stay; `téh` was never the text.
+    assert_eq!(mine(&s), "the Tehran tehee the the, (the) t\u{e9}h teh\u{e9} \u{e9}teh teh_x teh's teh\u{2019}s \u{2019}teh the");
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(mine(&s), TEH);
+    assert!(!s.enabled("compose.undo"));
+}
+
+#[test]
+fn replace_all_whole_word_with_match_case() {
+    let mut s = writing("teh Teh Tehran tehee Teh,");
+    let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "all": true, "matchCase": true, "wholeWord": true}));
+    assert_eq!(r["replaced"], 1);
+    assert_eq!(mine(&s), "the Teh Tehran tehee Teh,");
+    let mut s = writing("Teh Tehran tehee");
+    let r = run(&mut s, "edit.replace", json!({"text": "Teh", "with": "The", "all": true, "matchCase": true, "wholeWord": true}));
+    assert_eq!(r["replaced"], 1);
+    assert_eq!(mine(&s), "The Tehran tehee");
+}
+
+#[test]
+fn find_whole_word_counts_and_selects_only_whole_words() {
+    let mut s = writing("teh Tehran tehee teh");
+    let r = run(&mut s, "edit.find", json!({"text": "teh", "wholeWord": true}));
+    assert_eq!((r["found"].as_bool(), r["from"].as_u64(), r["to"].as_u64(), r["count"].as_u64()), (Some(true), Some(0), Some(3), Some(2)));
+    // The next whole word, skipping `Tehran` and `tehee`.
+    let r = run(&mut s, "edit.find", json!({"text": "teh", "wholeWord": true}));
+    assert_eq!((r["from"].as_u64(), r["to"].as_u64(), r["count"].as_u64()), (Some(17), Some(20), Some(2)));
+    // Backward from there returns to the first, still counting only whole words.
+    let r = run(&mut s, "edit.find", json!({"text": "teh", "wholeWord": true, "backward": true}));
+    assert_eq!((r["from"].as_u64(), r["count"].as_u64()), (Some(0), Some(2)));
+    let r = run(&mut s, "edit.find", json!({"text": "teh"}));
+    assert_eq!(r["count"], 4);
+    // `téh` is not `teh`; `tehé` holds `teh` but not as a whole word.
+    let mut s = writing("t\u{e9}h teh teh\u{e9}");
+    let r = run(&mut s, "edit.find", json!({"text": "teh", "wholeWord": true}));
+    assert_eq!((r["from"].as_u64(), r["to"].as_u64(), r["count"].as_u64()), (Some(4), Some(7), Some(1)));
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "teh"}))["count"], 2);
+    assert!(!compose(&s).dirty);
+}
+
+#[test]
+fn whole_word_off_still_replaces_inside_a_word() {
+    let mut s = writing(TEH);
+    let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "all": true}));
+    assert_eq!(r["replaced"], 13);
+    assert_eq!(mine(&s), "the theran theee the the, (the) t\u{e9}h the\u{e9} \u{e9}the the_x the's the\u{2019}s \u{2019}the the");
+}
+
 #[test]
 fn what_is_looked_for_is_one_line_and_short() {
     let mut s = writing("abc");

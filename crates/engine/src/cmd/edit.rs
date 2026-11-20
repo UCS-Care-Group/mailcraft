@@ -4,9 +4,9 @@
 //! change, which the next run sends; what can't be undone there is said ([`crate::undo`]).
 //!
 //! Find and Replace in the message being written (or the signature open in File › Signatures):
-//! plain text on one line, letter case counting only when asked. Replace All is one step of the
-//! message's own undo (`compose.undo`). Neither reaches past the owner's text
-//! ([`super::format::reach`]).
+//! plain text on one line, letter case counting only when asked, and only a whole word when asked.
+//! Replace All is one step of the message's own undo (`compose.undo`). Neither reaches past the
+//! owner's text ([`super::format::reach`]).
 
 use mailcraft_model::rich::{MAX_FIND, Place};
 use serde_json::{Value, json};
@@ -44,11 +44,11 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_html),
         CommandSpec::new("edit.find", "Find", "Format Text › Editing", find)
             .pure()
-            .params(r#"{"text": string (1–255 characters, one line), "matchCase"?: bool, "backward"?: bool} — selects the next place the text is after the selection (before it, backward), going round from the other end; answers {"found", "from", "to", "count"} (count: the places in all)"#)
+            .params(r#"{"text": string (1–255 characters, one line), "matchCase"?: bool, "wholeWord"?: bool, "backward"?: bool} — selects the next place the text is after the selection (before it, backward), going round from the other end; wholeWord: only where the text is a whole word; answers {"found", "from", "to", "count"} (count: the places in all)"#)
             .when_writing(needs_doc),
         CommandSpec::new("edit.replace", "Replace", "Format Text › Editing", replace)
             .pure()
-            .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "all"?: bool} — puts `with` in place of the selection when it is the text, then selects the next place; all: in place of every one, as one step of the message's undo. Answers {"replaced", "found", "from", "to"}"#)
+            .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "wholeWord"?: bool, "all"?: bool} — puts `with` in place of the selection when it is the text, then selects the next place; wholeWord: only where the text is a whole word; all: in place of every one, as one step of the message's undo. Answers {"replaced", "found", "from", "to"}"#)
             .when_writing(needs_doc),
     ]
 }
@@ -137,9 +137,41 @@ fn find_text(v: &Value, key: &str, empty: bool) -> Result<String, CmdError> {
     Ok(text.clone())
 }
 
-/// The places `text` is in the owner's text.
-fn places(s: &Session, text: &str, match_case: bool) -> Vec<Place> {
-    s.doc().map(|(b, _)| b.text().find(text, match_case, 0, reach(s))).unwrap_or_default()
+/// A letter, a digit, `_`, or an apostrophe (`'` or `’`): part of a word for whole-word Find and Replace.
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || matches!(c, '_' | '\'' | '’')
+}
+
+/// The places `text` is in the owner's text. `whole_word` keeps a place only when the character
+/// before it and the character after it are not word characters (the ends of the text count).
+fn places(s: &Session, text: &str, match_case: bool, whole_word: bool) -> Vec<Place> {
+    let Some((body, _)) = s.doc() else { return Vec::new() };
+    let found = body.text().find(text, match_case, 0, reach(s));
+    if whole_word { whole_word_only(&body.plain(), &found) } else { found }
+}
+
+/// Places whose neighbours in `text` (character offsets, as [`Place`]) are not word characters.
+fn whole_word_only(text: &str, places: &[Place]) -> Vec<Place> {
+    let mut kept = Vec::with_capacity(places.len());
+    let mut chars = text.chars();
+    let mut at = 0usize;
+    let mut prev = None;
+    for &(start, end) in places {
+        while at < start {
+            prev = chars.next();
+            at = at.saturating_add(1);
+        }
+        let before = !prev.is_some_and(is_word_char);
+        while at < end {
+            prev = chars.next();
+            at = at.saturating_add(1);
+        }
+        let after = !chars.as_str().chars().next().is_some_and(is_word_char);
+        if before && after {
+            kept.push((start, end));
+        }
+    }
+    kept
 }
 
 /// Select the place after the selection (before it, `backward`), going round; the answer.
@@ -184,7 +216,8 @@ fn format_painter(s: &mut Session, v: &Value) -> CmdResult {
 fn find(s: &mut Session, v: &Value) -> CmdResult {
     let text = find_text(v, "text", false)?;
     let match_case = p::bool(v, "matchCase").unwrap_or(false);
-    let places = places(s, &text, match_case);
+    let whole_word = p::bool(v, "wholeWord").unwrap_or(false);
+    let places = places(s, &text, match_case, whole_word);
     select_next(s, &places, p::bool(v, "backward").unwrap_or(false))
 }
 
@@ -192,7 +225,8 @@ fn replace(s: &mut Session, v: &Value) -> CmdResult {
     let text = find_text(v, "text", false)?;
     let with = find_text(v, "with", true)?;
     let match_case = p::bool(v, "matchCase").unwrap_or(false);
-    let found = places(s, &text, match_case);
+    let whole_word = p::bool(v, "wholeWord").unwrap_or(false);
+    let found = places(s, &text, match_case, whole_word);
     if p::bool(v, "all").unwrap_or(false) {
         if !found.is_empty() {
             edit(s, &json!({}), |b| b.replace_places(&found, &with))?;
@@ -205,7 +239,7 @@ fn replace(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(place) = here {
         edit(s, &json!({}), |b| b.replace_places(&[place], &with))?;
     }
-    let after = places(s, &text, match_case);
+    let after = places(s, &text, match_case, whole_word);
     let mut out = select_next(s, &after, false)?;
     if let Some(o) = out.as_object_mut() {
         o.insert("replaced".into(), json!(usize::from(here.is_some())));
