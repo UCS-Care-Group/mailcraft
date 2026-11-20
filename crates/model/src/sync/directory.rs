@@ -221,7 +221,9 @@ pub struct EwsResolveResult {
 #[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct EwsAddressList {
-    /// The name of the address list.
+    /// The name of the address list, for showing alone: lists of different organisations can
+    /// have the same one ("Global Address List"), so nothing is told apart by it (the list is held
+    /// for its account).
     pub name: String,
     /// Its generation: one more each time the server writes it anew.
     pub sequence: u32,
