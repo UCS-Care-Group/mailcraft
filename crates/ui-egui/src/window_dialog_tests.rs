@@ -47,15 +47,27 @@ fn backend() -> (egui::Context, Queue) {
 
 /// One frame of the main window, which shows the windows of their own.
 fn frame(ctx: &egui::Context, app: &mut MailApp) {
+    frame_then(ctx, app, |_| {});
+}
+
+/// One frame of the main window, which shows the windows of their own and then does `after`, as
+/// its own ribbon and keys do later in the frame.
+fn frame_then(ctx: &egui::Context, app: &mut MailApp, after: impl FnOnce(&mut MailApp)) {
     let mut input = egui::RawInput::default();
     let info = egui::ViewportInfo { native_pixels_per_point: Some(1.0), focused: Some(false), ..Default::default() };
     input.viewports.insert(egui::ViewportId::ROOT, info);
-    let mut out = ctx.run_ui(input, |ui| super::show(app, ui.ctx()));
+    let mut after = Some(after);
+    let mut out = ctx.run_ui(input, |ui| {
+        super::show(app, ui.ctx());
+        if let Some(after) = after.take() {
+            after(app);
+        }
+    });
     out.textures_delta.clear();
 }
 
 /// A new message popped out, with Insert Link opened from its ribbon.
-fn link_over_a_pop_out() -> (egui::Context, MailApp, u64) {
+fn link_over_a_pop_out() -> (egui::Context, MailApp, u64, Queue) {
     let (ctx, queue) = backend();
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
@@ -77,12 +89,12 @@ fn link_over_a_pop_out() -> (egui::Context, MailApp, u64) {
     for _ in 0..4 {
         frame(&ctx, &mut app);
     }
-    (ctx, app, compose)
+    (ctx, app, compose, queue)
 }
 
 #[test]
 fn insert_link_pressed_in_a_pop_out_comes_up_over_it() {
-    let (_ctx, app, compose) = link_over_a_pop_out();
+    let (_ctx, app, compose, _queue) = link_over_a_pop_out();
     assert_eq!(app.dialog.as_ref().map(crate::dialogs::Dialog::name), Some("link"));
     // The window drew it over itself: the main window, behind it, doesn't.
     assert!(app.windows.dialog_shown, "Insert Link wasn't drawn over the window it was pressed in");
@@ -91,7 +103,7 @@ fn insert_link_pressed_in_a_pop_out_comes_up_over_it() {
 
 #[test]
 fn a_main_window_dialog_replaces_the_pop_outs() {
-    let (ctx, mut app, _compose) = link_over_a_pop_out();
+    let (ctx, mut app, _compose, _queue) = link_over_a_pop_out();
     assert!(app.windows.dialog_shown);
     // All Categories from the main window takes Insert Link's place. The next frame draws it in
     // the main window: the pop-out, which drew the one it opened, does not draw this one.
@@ -101,4 +113,33 @@ fn a_main_window_dialog_replaces_the_pop_outs() {
     assert_eq!(app.dialog.as_ref().map(crate::dialogs::Dialog::name), Some("categories"));
     assert!(!app.windows.dialog_shown, "All Categories was drawn over the pop-out");
     assert_eq!(super::dialog_compose(&app), None);
+}
+
+#[test]
+fn a_dialog_the_main_window_opens_in_the_frame_the_pop_outs_closes_is_the_main_windows() {
+    let (ctx, mut app, _compose, queue) = link_over_a_pop_out();
+    assert_eq!(app.dialog.as_ref().map(crate::dialogs::Dialog::name), Some("link"));
+    // One frame: Escape in the pop-out answers Insert Link, then the main window, after the
+    // windows, opens Folder Properties.
+    let escape = [true, false].map(|pressed| egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: None,
+        pressed,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    queue.borrow_mut().push(escape.to_vec());
+    let mut closed = false;
+    frame_then(&ctx, &mut app, |app| {
+        closed = app.dialog.is_none();
+        app.run("folder.properties", json!({})).unwrap();
+    });
+    assert!(closed, "Escape didn't answer Insert Link in the pop-out");
+    assert_eq!(app.dialog.as_ref().map(crate::dialogs::Dialog::name), Some("folderProperties"));
+    assert_eq!((app.windows.dialog_for, super::dialog_compose(&app)), (None, None), "Folder Properties took Insert Link's owner");
+    // The next frame draws it in the main window, not over the pop-out.
+    app.windows.dialog_shown = false;
+    frame(&ctx, &mut app);
+    assert_eq!(app.dialog.as_ref().map(crate::dialogs::Dialog::name), Some("folderProperties"));
+    assert!(!app.windows.dialog_shown, "Folder Properties was drawn over the pop-out");
 }
