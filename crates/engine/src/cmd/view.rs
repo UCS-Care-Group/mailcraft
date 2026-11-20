@@ -100,7 +100,12 @@ fn tasks(s: &mut Session, _: &Value) -> CmdResult {
 }
 
 fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {
+    let was = s.view.reading_pane;
     s.view.reading_pane = parse_enum::<Pane>(p::req_str(v, "value")?).ok_or_else(|| bad("`value` is right, bottom or off"))?;
+    // Turned on, it shows the message selected: read, as a click on it would be (#1734).
+    if was == Pane::Off {
+        super::mail::mark_opened(s, false);
+    }
     Ok(json!({"value": s.view.reading_pane}))
 }
 
@@ -346,6 +351,8 @@ fn people_account(s: &mut Session, v: &Value) -> CmdResult {
         return Err(bad("that account's contacts aren't read from its server"));
     }
     s.view.people_account = value;
+    // The contacts, and no longer the organisation's address list.
+    s.view.people_book = None;
     // The selected contact stays selected only where it is listed.
     let shown = people::shown_account(s);
     s.sel.contact = s.sel.contact.filter(|id| s.mailbox.contact(*id).is_some_and(|c| shown.shows(&c.origin)));

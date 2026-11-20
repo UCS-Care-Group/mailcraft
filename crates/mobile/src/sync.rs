@@ -245,7 +245,7 @@ pub(crate) struct SyncHost {
     notify_new_mail_only: AtomicBool,
     notify_primary_only: AtomicBool,
     pub(crate) tick_queued: AtomicBool,
-    pub(crate) pacer: Pacer,
+    pub(crate) pacer: Arc<Pacer>,
     /// A fetch is under way or waiting (read by the driver thread, as `busy` is).
     pub(crate) fetch_busy: AtomicBool,
     /// How fetch jobs are run (the tests swap theirs in).
@@ -281,7 +281,7 @@ impl SyncHost {
             notify_new_mail_only: AtomicBool::new(false),
             notify_primary_only: AtomicBool::new(false),
             tick_queued: AtomicBool::new(false),
-            pacer: Pacer::default(),
+            pacer: Arc::default(),
             fetch_busy: AtomicBool::new(false),
             fetch_runner: std::sync::Mutex::new(crate::fetch::default_runner()),
             job_runners: Mutex::new(crate::jobs::default_runners()),
@@ -601,9 +601,11 @@ impl SyncHost {
         }
     }
 
-    /// The owner asked for a Send/Receive (or a background one does): start a round unless one is
-    /// under way, and say so. `waiter`, when given, is woken with the round's summary.
-    pub(crate) fn ask(&self, session: &mut Session, waiter: Option<Arc<Queue<Wake>>>) -> SyncAnswer {
+    /// The owner asked for a Send/Receive (or a background one does, or the app for a new
+    /// account's first one): start a round unless one is under way, and say so. `waiter`, when
+    /// given, is woken with the round's summary. `release`: the owner asked (a pull to refresh),
+    /// which lets go of every account held back first; any other round leaves them out.
+    pub(crate) fn ask(&self, session: &mut Session, waiter: Option<Arc<Queue<Wake>>>, release: bool) -> SyncAnswer {
         let mut inner = self.lock();
         let lang = session.interface_language;
         let refused = |message: &str| SyncAnswer { started: false, message: lang.t(message).to_string() };
@@ -617,9 +619,9 @@ impl SyncHost {
         if accounts.is_empty() {
             return refused("There is no account to send and receive.");
         }
-        // The owner asking (no waiter: a pull to refresh) lets go of the accounts held back; a
-        // background run leaves them out.
-        if waiter.is_none() {
+        // The owner asking (a pull to refresh) lets go of the accounts held back; a background
+        // run, and a round the app starts by itself, leave them out.
+        if release {
             inner.sr.release_all();
         }
         let mut supported = Vec::new();
@@ -784,6 +786,11 @@ impl SyncHost {
     pub(crate) fn hold(&self, account: u64, held: bool) {
         self.lock().sr.hold(account, held);
         self.pacer.poke();
+    }
+
+    /// Let go of every account held back: the mailbox they were in is gone ([`crate::Core::delete_local_data`]).
+    pub(crate) fn release_holds(&self) {
+        self.lock().sr.release_all();
     }
 
     /// Keep the mailbox within the phone's limits at the next wake (they were changed).

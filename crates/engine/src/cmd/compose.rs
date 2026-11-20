@@ -5,7 +5,7 @@
 use mailcraft_mime_model::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
-use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
+use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, DraftKind, DraftOf, DraftState, MAX_CHECK_NAMES, MAX_RESOLVE_PEOPLE, ServerDraft};
 use mailcraft_model::{
     AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, FollowUp, Id, Importance, MAX_FOLLOW_UP_AHEAD, Message, NOT_DOWNLOADED,
     NOT_DOWNLOADED_NOTE, RichBody, Signature, format_list,
@@ -27,7 +27,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .key("Mod+N")
             .params(
-                r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "account"?: number, "mailto"?: string (a mailto: link: its recipients, subject and body start the message, and nothing else in it is used)}"#,
+                r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "account"?: number, "from"?: string (one of the account's sender addresses, account.senderAddresses; default: its own), "mailto"?: string (a mailto: link: its recipients, subject and body start the message, and nothing else in it is used)}"#,
             ),
         CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).pure().key("Mod+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
@@ -47,7 +47,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(needs_message),
         CommandSpec::new("compose.set", "Edit Message", "Message", set)
             .pure()
-            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "importance"?: "low"|"normal"|"high", "account"?: number}"#)
+            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "importance"?: "low"|"normal"|"high", "account"?: number, "from"?: string (the address it is from: the account's own, or one of its sender addresses, account.senderAddresses; "" for its own. Another account without `from` sends from that one's own)}"#)
             .when_writing(needs_compose),
         CommandSpec::new("compose.attach", "Attach File", "Message › Include", attach)
             .pure()
@@ -67,7 +67,11 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"value": bool} (true: an HTML signature's simpler copy is shown and sent in place of the HTML; false: the HTML again, while that copy is unedited)"#)
             .when_writing(needs_compose),
-        CommandSpec::new("compose.checkNames", "Check Names", "Message › Names", check_names).pure().key("Mod+K").when_writing(needs_compose),
+        CommandSpec::new("compose.checkNames", "Check Names", "Message › Names", check_names)
+            .pure()
+            .key("Mod+K")
+            .params(r#"{"found"?: {name: [{"name": string, "email": string, "kind"?: "mailbox"|"list"|"contact"|"group"|"publicFolder"|"other", "company"?, "department"?, "title"?}]} (the people an Exchange server account's address list has for each name, looked up by the window), "more"?: [name] (names the address list has more people for than `found` lists: never put in by themselves, always a choice), "pick"?: {name: {"name": string, "email": string}} (the one chosen for a name of `choices`)} — replaces each name typed on the recipient lines with the one person it stands for, among the contacts and the people `found` gives for it; a name left is kept as it was typed. Answers `unresolved` (the names with nobody or several), `choices` (for a name with several: who they are, for the owner to choose one, given back as `pick`), `picked` (the names of `pick` that were still on the lines and were put in) and `directory` (the message's account has an address list to look names up in)"#)
+            .when_writing(needs_compose),
         CommandSpec::new("compose.suggest", "Suggest Recipients", "Message › Names", suggest_command)
             .pure()
             .params(r#"{"query": string, "limit"?: 1-20} — answers who the start of a name or address could be: contacts first, then people mail was exchanged with, the latest first"#),
@@ -197,12 +201,13 @@ fn compose_mut(s: &mut Session) -> Result<&mut Compose, CmdError> {
     s.compose.as_mut().ok_or_else(|| fail("no message is being written"))
 }
 
-/// The signature `name` names, else the account's for new messages, or for replies and forwards
-/// when `reply`; `None` when that is none, or one with nothing in it.
-fn chosen_signature(s: &Session, account: Id, name: Option<&str>, reply: bool) -> Option<Signature> {
-    let name = name
-        .map(str::to_string)
-        .or_else(|| s.mailbox.account(account).map(|a| if reply { a.reply_signature().to_string() } else { a.signature.clone() }))?;
+/// The signature `name` names, else that of the sender address `from` when it has one of its
+/// own (#797; a signature that is gone is passed over), else the account's for new messages, or
+/// for replies and forwards when `reply`; `None` when that is none, or one with nothing in it.
+fn chosen_signature(s: &Session, account: Id, from: &str, name: Option<&str>, reply: bool) -> Option<Signature> {
+    let a = s.mailbox.account(account);
+    let own = a.and_then(|a| a.sender_address(from)).map(|x| x.signature.clone()).filter(|n| s.mailbox.signature(n).is_some());
+    let name = name.map(str::to_string).or(own).or_else(|| a.map(|a| if reply { a.reply_signature().to_string() } else { a.signature.clone() }))?;
     s.mailbox.signature(&name).filter(|sig| !sig.plain().trim().is_empty() || !sig.pictures().is_empty() || sig.html().is_some()).cloned()
 }
 
@@ -231,6 +236,30 @@ fn start_with(c: &mut Compose, sig: &Signature, at: usize) -> Result<(), CmdErro
     Ok(())
 }
 
+/// Whether `email` is one of the owner's: an account's own address or one of its sender
+/// addresses (#797), whatever its letter case.
+fn is_owners(s: &Session, email: &str) -> bool {
+    s.mailbox.accounts.iter().any(|a| a.sends_as(email))
+}
+
+/// An address for an error message: short, and without control characters.
+fn shown_address(text: &str) -> String {
+    text.trim().chars().filter(|ch| !ch.is_control()).take(80).collect()
+}
+
+/// The sender address `from` names for a message from `account`, as the account keeps it: `""`
+/// for its own address (also when `from` is none, or the account's own).
+fn sender_of(s: &Session, account: Id, from: Option<&str>) -> Result<String, CmdError> {
+    let Some(from) = from.map(str::trim).filter(|f| !f.is_empty()) else { return Ok(String::new()) };
+    let a = s.mailbox.account(account).ok_or_else(|| fail("add an account first (File › Add Account)"))?;
+    if from.eq_ignore_ascii_case(a.email.trim()) {
+        return Ok(String::new());
+    }
+    a.sender_address(from)
+        .map(|x| x.email.clone())
+        .ok_or_else(|| failed!("{address} isn't one of this account's sender addresses (add it in Account Settings)", address = shown_address(from)))
+}
+
 fn is_response(mode: ComposeMode) -> bool {
     matches!(mode, ComposeMode::Reply | ComposeMode::ReplyAll | ComposeMode::Forward)
 }
@@ -246,10 +275,12 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     };
     let text = |key: &str, linked: String| p::str(v, key).map_or(linked, str::to_string);
     let body = text("body", link.body);
-    let sig = chosen_signature(s, account, None, false);
+    let from = sender_of(s, account, p::str(v, "from"))?;
+    let sig = chosen_signature(s, account, &from, None, false);
     let mut c = Compose {
         mode: ComposeMode::New,
         account,
+        from,
         to: text("to", link.to.join("; ")),
         cc: text("cc", link.cc.join("; ")),
         bcc: text("bcc", link.bcc.join("; ")),
@@ -288,7 +319,7 @@ fn reply_source(s: &Session, v: &Value) -> Result<Message, CmdError> {
 }
 
 /// `RE: subject`, unless it already starts that way.
-fn prefixed(prefix: &str, subject: &str) -> String {
+pub(super) fn prefixed(prefix: &str, subject: &str) -> String {
     let lower = subject.trim_start().to_ascii_lowercase();
     if lower.starts_with(&format!("{}:", prefix.to_ascii_lowercase())) { subject.trim().to_string() } else { format!("{prefix}: {}", subject.trim()) }
 }
@@ -321,6 +352,20 @@ fn quoted_list(list: &[Address]) -> String {
         line.push_str(&format!("; … (+{more})"));
     }
     line
+}
+
+/// The sender address a reply to, or forward of, `m` is from (#797). The delivery headers it reads
+/// are in the message's header block, which a big mailbox keeps outside memory: brought in here,
+/// and only for an account that has sender addresses.
+fn reply_from(s: &Session, m: &Message) -> String {
+    let Some(a) = s.mailbox.account(m.account) else { return String::new() };
+    if a.sender_addresses().next().is_none() {
+        return String::new();
+    }
+    match s.mailbox.messages.get(&m.id) {
+        Some(whole) if !m.header_block.is_loaded() => a.reply_from(&s.with_header_block(whole.clone())),
+        _ => a.reply_from(m),
+    }
 }
 
 /// The original message under a reply or forward, as plain text.
@@ -461,14 +506,28 @@ fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
     m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
 }
 
+/// The `References` of an answer to `m`: its own, then its Message-ID. A long thread's stay
+/// bounded: the root and the latest ones.
+pub(super) fn references_of(m: &Message) -> Vec<String> {
+    let mut references = m.references.clone();
+    if !m.message_id.is_empty() {
+        references.push(m.message_id.clone());
+    }
+    if references.len() > 20 {
+        let tail = references.split_off(references.len() - 19);
+        references.truncate(1);
+        references.extend(tail);
+    }
+    references
+}
+
 fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     // A forward carries every file; a reply only quotes the text and the pictures it shows.
     let m = match mode {
         ComposeMode::Forward => source_message(s, v)?,
         _ => reply_source(s, v)?,
     };
-    let mine: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.to_lowercase()).filter(|e| !e.is_empty()).collect();
-    let is_mine = |a: &Address| mine.contains(&a.email.to_lowercase());
+    let is_mine = |a: &Address| is_owners(s, &a.email);
     let (to, cc) = match mode {
         ComposeMode::Forward => (Vec::new(), Vec::new()),
         _ => {
@@ -505,16 +564,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
             (to, cc)
         }
     };
-    let mut references = m.references.clone();
-    if !m.message_id.is_empty() {
-        references.push(m.message_id.clone());
-    }
-    // A long thread's References stay bounded: the root and the latest ones.
-    if references.len() > 20 {
-        let tail = references.split_off(references.len() - 19);
-        references.truncate(1);
-        references.extend(tail);
-    }
+    let references = references_of(&m);
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
     // An original in HTML is carried below with its look; one in plain text is quoted in the body.
     let quote = match &m.body.html {
@@ -531,13 +581,16 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         _ => None,
     };
     let body = if quoting && quote.is_none() { quoted(s, &m) } else { String::new() };
-    let sig = chosen_signature(s, m.account, None, true);
+    // From the address the original was sent to (#797).
+    let from = reply_from(s, &m);
+    let sig = chosen_signature(s, m.account, &from, None, true);
     // A line to write on, a blank one, then the signature above the original.
     let body = if sig.is_some() { format!("\n{}", body.strip_prefix('\n').unwrap_or(&body)) } else { body };
     let mut c = Compose {
         mode,
         source: Some(m.id),
         account: m.account,
+        from,
         to: format_list(&to),
         cc: format_list(&cc),
         subject: prefixed(if mode == ComposeMode::Forward { "FW" } else { "RE" }, &m.subject),
@@ -671,13 +724,15 @@ fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
         [_] => prefixed("FW", &m.subject),
         _ => String::new(),
     };
-    let sig = chosen_signature(s, account, None, true);
+    let from = reply_from(s, m);
+    let sig = chosen_signature(s, account, &from, None, true);
     let mut c = Compose {
         mode: ComposeMode::Forward,
         source: Some(focus),
         also: ids.iter().copied().filter(|id| *id != focus).collect(),
         as_attachment: true,
         account,
+        from,
         subject,
         // A line to write on, a blank one, then the signature.
         body: RichBody::from_plain(if sig.is_some() { "\n" } else { "" }),
@@ -760,7 +815,7 @@ fn too_large_to_download(m: &Message) -> CmdError {
 }
 
 /// A message as a refusal names it: its subject on one line, at most 80 characters of it.
-fn subject_of(m: &Message) -> mailcraft_i18n::Arg {
+pub(crate) fn subject_of(m: &Message) -> mailcraft_i18n::Arg {
     let line = m.subject.split(char::is_control).flat_map(str::split_whitespace).collect::<Vec<_>>().join(" ");
     if line.is_empty() {
         return mailcraft_i18n::Arg::words("(no subject)");
@@ -816,12 +871,15 @@ mod attach_item;
 #[cfg(test)]
 #[path = "attach_item_tests.rs"]
 mod attach_item_tests;
+#[cfg(test)]
+#[path = "check_names_tests.rs"]
+mod check_names_tests;
 
 /// Whether `m` is what is kept of an IMAP message too large to download: its header and, in
 /// place of its text, a note that says so, with the mark `mailcraft-net` gives it. A sender can
 /// write that mark into a message of their own; only plain text that opens as the note does,
 /// with no file, is taken for it.
-fn not_downloaded(m: &Message) -> bool {
+pub(crate) fn not_downloaded(m: &Message) -> bool {
     m.body.html.is_none() && m.attachments.is_empty() && m.body.text.starts_with(NOT_DOWNLOADED_NOTE) && m.has_header(NOT_DOWNLOADED)
 }
 
@@ -908,8 +966,7 @@ fn resend(s: &mut Session, v: &Value) -> CmdResult {
     if m.draft {
         return Err(fail("that message is a draft: open it to send it"));
     }
-    let mine = s.mailbox.accounts.iter().any(|a| !a.email.is_empty() && a.email.eq_ignore_ascii_case(m.from.email.trim()));
-    if !mine {
+    if !is_owners(s, &m.from.email) {
         return Err(fail("only a message you sent can be sent again"));
     }
     if m.unfetched || m.incomplete || not_downloaded(&m) {
@@ -1020,6 +1077,8 @@ fn reopened(s: &Session, m: &Message) -> Compose {
     let attachments: Vec<Attachment> = attachments.into_iter().filter(|a| !taken.contains(&a.content_id)).collect();
     Compose {
         account: m.account,
+        // From the sender address it was from, while the account still has it (#797).
+        from: s.mailbox.account(m.account).and_then(|a| a.sender_address(&m.from.email)).map(|x| x.email.clone()).unwrap_or_default(),
         to: format_list(&m.to),
         cc: format_list(&m.cc),
         bcc: format_list(&m.bcc),
@@ -1057,11 +1116,22 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
         Some(i) => Some(Importance::parse(i).ok_or_else(|| bad("`importance` is low, normal or high"))?),
         None => None,
     };
-    // Sent from another account, the message takes that account's signature, unless the owner
+    // Another account is from its own address unless `from` names another of its (#797).
+    let (was_account, was_from) = s.compose.as_ref().map(|c| (c.account, c.from.clone())).unwrap_or_default();
+    let new_account = account.unwrap_or(was_account);
+    let from = match p::str(v, "from") {
+        Some(from) => Some(sender_of(s, new_account, Some(from))?),
+        None if new_account != was_account => Some(String::new()),
+        None => None,
+    };
+    let new_from = from.clone().unwrap_or_else(|| was_from.clone());
+    // Sent from another account or address, the message takes its signature, unless the owner
     // edited the one in it.
     // ponytail: a message that started with no signature gets none; add one when owners ask.
-    let swap = match (account, s.compose.as_ref()) {
-        (Some(a), Some(c)) if a != c.account && c.signature_unedited() => Some(chosen_signature(s, a, None, is_response(c.mode))),
+    let swap = match s.compose.as_ref() {
+        Some(c) if (new_account != c.account || !new_from.eq_ignore_ascii_case(&c.from)) && c.signature_unedited() => {
+            Some(chosen_signature(s, new_account, &new_from, None, is_response(c.mode)))
+        }
         _ => None,
     };
     let c = compose_mut(s)?;
@@ -1083,6 +1153,9 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     }
     if let Some(a) = account {
         c.account = a;
+    }
+    if let Some(from) = from {
+        c.from = from;
     }
     if *c != before {
         c.dirty = true;
@@ -1124,15 +1197,15 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn signature(s: &mut Session, v: &Value) -> CmdResult {
-    let account = s.compose.as_ref().map_or(0, |c| c.account);
+    let (account, from) = s.compose.as_ref().map_or((0, String::new()), |c| (c.account, c.from.clone()));
     if let Some(name) = p::str(v, "name")
         && s.mailbox.signature(name).is_none()
     {
         return Err(failed!("no signature named \"{name}\"", name));
     }
     let reply = s.compose.as_ref().is_some_and(|c| is_response(c.mode));
-    let sig =
-        chosen_signature(s, account, p::str(v, "name"), reply).ok_or_else(|| fail("this account has no signature; add one in File › Options"))?;
+    let sig = chosen_signature(s, account, &from, p::str(v, "name"), reply)
+        .ok_or_else(|| fail("this account has no signature; add one in File › Options"))?;
     let c = compose_mut(s)?;
     // In place of the one there, else where the caret is.
     let at = c.body.selection().head;
@@ -1156,38 +1229,140 @@ fn signature_as_text(s: &mut Session, v: &Value) -> CmdResult {
     done()
 }
 
-/// Replace names typed on the recipient lines with the contact they stand for, when exactly one
-/// contact matches. Answers the names nobody matched.
-fn check_names(s: &mut Session, _: &Value) -> CmdResult {
+/// Replace names typed on the recipient lines with the one person they stand for: among the
+/// owner's contacts, and among `found`, the people an Exchange server account's address list has
+/// for the name (#1262; a host looked them up, `ews_resolve_request`). A name with nobody is
+/// answered in `unresolved`; one with several people is answered there too, and in `choices` with
+/// who they are, for the owner to choose one (given back as `pick`); so is a name `more` says the
+/// address list has more people for, even with one found. A name left is written back as it was
+/// typed, so that the next Check Names reads it as one name again (`"Smith, John"`).
+/// `directory` says whether the message's account has an address list to ask.
+fn check_names(s: &mut Session, v: &Value) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
-    let mut unresolved = Vec::new();
+    let found = directory_found(v)?;
+    let more = names_with_more(v)?;
+    let picks = picked(v)?;
+    let mut put_in: Vec<String> = Vec::new();
+    let mut unresolved: Vec<String> = Vec::new();
+    let mut choices: Vec<Value> = Vec::new();
     let mut resolve = |line: &str| -> String {
-        let list: Vec<Address> = Address::parse_list(line)
+        let parts: Vec<String> = Address::parse_list(line)
             .into_iter()
             .map(|a| {
                 if a.is_valid() {
-                    return a;
+                    return a.full();
                 }
                 let typed = a.email.clone();
-                let hits: Vec<Address> = s.mailbox.contacts.values().filter(|k| k.matches(&typed)).filter_map(|k| k.address()).collect();
-                match hits.as_slice() {
-                    [one] => one.clone(),
+                let key = text_key(&typed);
+                if let Some((_, address, given)) = picks.iter().find(|(text, _, _)| *text == key) {
+                    put_in.push(given.clone());
+                    return address.full();
+                }
+                let mut hits: Vec<Value> = Vec::new();
+                let mut addresses: Vec<Address> = Vec::new();
+                for k in s.mailbox.contacts.values().filter(|k| k.matches(&typed)) {
+                    if let Some(address) = k.address().filter(|x| !addresses.iter().any(|y| y.same_mailbox(x))) {
+                        hits.push(choice(&address, "contacts", &k.company, &k.department, &k.title, None));
+                        addresses.push(address);
+                    }
+                }
+                for person in found.iter().filter(|(text, _)| *text == key).flat_map(|(_, people)| people) {
+                    let address = person.address();
+                    if !addresses.iter().any(|y| y.same_mailbox(&address)) {
+                        hits.push(choice(&address, "directory", &person.company, &person.department, &person.title, Some(person.kind)));
+                        addresses.push(address);
+                    }
+                }
+                let incomplete = more.contains(&key);
+                match addresses.as_slice() {
+                    [one] if !incomplete => one.full(),
                     _ => {
+                        if !hits.is_empty() && (hits.len() > 1 || incomplete) && choices.len() < MAX_CHECK_NAMES {
+                            choices.push(json!({"text": typed, "people": hits}));
+                        }
                         unresolved.push(typed);
-                        a
+                        as_typed(&a)
                     }
                 }
             })
             .collect();
-        format_list(&list)
+        parts.join("; ")
     };
     let (to, cc, bcc) = (resolve(&c.to), resolve(&c.cc), resolve(&c.bcc));
+    let directory = super::ews_mail::ews_resolve_request(s, &[]).is_ok();
     let now = compose_mut(s)?;
     if (&to, &cc, &bcc) != (&now.to, &now.cc, &now.bcc) {
         (now.to, now.cc, now.bcc) = (to, cc, bcc);
         now.dirty = true;
     }
-    Ok(json!({"unresolved": unresolved}))
+    Ok(json!({"unresolved": unresolved, "choices": choices, "picked": put_in, "directory": directory}))
+}
+
+/// A name nobody stands for yet, as it was typed: quoted when it holds what splits a recipient
+/// line, so that it is read as one name again.
+fn as_typed(a: &Address) -> String {
+    if a.name.is_empty() && a.email.contains([',', ';', '"']) { a.quoted() } else { a.full() }
+}
+
+/// A name as it is matched with what was looked up: one line, as it was sent, in any letter case.
+fn text_key(text: &str) -> String {
+    mailcraft_model::sync::one_line(text, mailcraft_model::sync::MAX_RESOLVE_TEXT).to_lowercase()
+}
+
+/// One person a name could stand for, as `choices` lists them.
+fn choice(address: &Address, from: &str, company: &str, department: &str, title: &str, kind: Option<DirectoryKind>) -> Value {
+    let mut out = json!({"name": address.name, "email": address.email, "from": from});
+    for (key, value) in [("company", company), ("department", department), ("title", title)] {
+        if !value.trim().is_empty() {
+            out[key] = json!(value.trim());
+        }
+    }
+    if let Some(kind) = kind {
+        out["kind"] = json!(kind);
+    }
+    out
+}
+
+/// `pick` of Check Names: `{name as typed: {"name", "email"}}`, the one the owner chose for a
+/// name of `choices`; with each, the name as it was given.
+fn picked(v: &Value) -> Result<Vec<(String, Address, String)>, CmdError> {
+    let Some(pick) = v.get("pick").filter(|f| !f.is_null()) else { return Ok(Vec::new()) };
+    let pick = pick.as_object().ok_or_else(|| bad("`pick` is an object of names, each with the person chosen"))?;
+    let mut out = Vec::new();
+    for (text, person) in pick.iter().take(MAX_CHECK_NAMES) {
+        let person: DirectoryPerson =
+            serde_json::from_value(person.clone()).map_err(|_| bad("each name of `pick` has a person: {\"name\", \"email\"}"))?;
+        let person = person.checked().ok_or_else(|| bad("a person of `pick` has no address mail can go to"))?;
+        out.push((text_key(text), person.address(), text.clone()));
+    }
+    Ok(out)
+}
+
+/// `more` of Check Names: the names the address list has more people for than it listed.
+fn names_with_more(v: &Value) -> Result<Vec<String>, CmdError> {
+    let Some(more) = v.get("more").filter(|f| !f.is_null()) else { return Ok(Vec::new()) };
+    let more = more.as_array().ok_or_else(|| bad("`more` is a list of names"))?;
+    more.iter().take(MAX_CHECK_NAMES).map(|name| name.as_str().map(text_key).ok_or_else(|| bad("`more` is a list of names"))).collect()
+}
+
+/// `found` of Check Names: `{name as looked up: [person…]}`, read as hostile data. A person whose
+/// address mail can't go to is passed over; at most [`MAX_CHECK_NAMES`] names, [`MAX_RESOLVE_PEOPLE`]
+/// people each.
+fn directory_found(v: &Value) -> Result<Vec<(String, Vec<DirectoryPerson>)>, CmdError> {
+    let Some(found) = v.get("found").filter(|f| !f.is_null()) else { return Ok(Vec::new()) };
+    let found = found.as_object().ok_or_else(|| bad("`found` is an object of names, each with a list of people"))?;
+    let mut out = Vec::new();
+    for (text, people) in found.iter().take(MAX_CHECK_NAMES) {
+        let people = people.as_array().ok_or_else(|| bad("each name of `found` has a list of people"))?;
+        let people: Vec<DirectoryPerson> = people
+            .iter()
+            .take(MAX_RESOLVE_PEOPLE)
+            .filter_map(|p| serde_json::from_value::<DirectoryPerson>(p.clone()).ok())
+            .filter_map(DirectoryPerson::checked)
+            .collect();
+        out.push((text_key(text), people));
+    }
+    Ok(out)
 }
 
 fn toggle_importance(s: &mut Session, level: Importance) -> CmdResult {
@@ -1229,8 +1404,15 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
     if strict && to.is_empty() && cc.is_empty() && bcc.is_empty() {
         return Err(fail("add at least one recipient"));
     }
+    // From the sender address chosen (#797), while the account still sends from it; a message
+    // sent is never from an address that isn't the account's.
+    let from = account.from_address(&c.from);
+    if strict && !c.from.trim().is_empty() && !from.email.eq_ignore_ascii_case(c.from.trim()) {
+        return Err(failed!("{address} is no longer one of this account's sender addresses: choose another From", address = shown_address(&c.from)));
+    }
     let now = s.now();
-    let domain = account.email.rsplit_once('@').map_or("", |(_, d)| d);
+    // (Its Message-ID names the domain it is from, not the account's other one.)
+    let domain = from.email.rsplit_once('@').map_or("", |(_, d)| d);
     let message_id = match message_id {
         Some(id) => id.to_string(),
         None => mailcraft_mime::new_message_id(
@@ -1243,7 +1425,7 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         account: account.id,
         in_reply_to: c.in_reply_to.clone(),
         references: c.references.clone(),
-        from: account.address(),
+        from,
         to,
         cc,
         bcc,

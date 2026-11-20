@@ -282,6 +282,11 @@ pub struct Message {
     /// own message; a request in mail that comes in is never read into it, and never answered.
     #[serde(skip_serializing_if = "is_false")]
     pub read_receipt: bool,
+    /// Written by React (#1544): its text is one emoji, sent as a reaction (RFC 9078) with
+    /// `Content-Disposition: reaction`. Only ever set by the owner's own reaction; the reader of
+    /// mail never sets it, so mail that comes in is not taken for one.
+    #[serde(skip_serializing_if = "is_false")]
+    pub reaction: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<String>,
     pub answered: bool,
@@ -773,7 +778,7 @@ impl Message {
     }
 
     pub fn has_category(&self, name: &str) -> bool {
-        self.categories.iter().any(|c| c.eq_ignore_ascii_case(name))
+        self.categories.iter().any(|c| crate::sync::same_category(c, name))
     }
 }
 

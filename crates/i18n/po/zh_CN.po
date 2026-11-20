@@ -22,7 +22,7 @@ msgid "\"{address}\" isn't an address mail can be sent to"
 msgstr "“{address}”不是可接收邮件的地址"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/account_setup.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "\"{address}\" isn't an e-mail address"
 msgstr "“{address}”不是电子邮件地址"
@@ -76,10 +76,22 @@ msgid "\"{name}\" is kept by the server of {who}. Changes made here are not sent
 msgstr "“{name}”由 {who} 的服务器管理。此处的更改尚未发送回服务器，因此无法在此处合并。"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "\"{name}\" is no longer on the recipient lines"
+msgstr "“{name}”已不在收件人行中"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"
 msgstr "“{name}”是重复日程的一部分。您指的是 {day} 的这一项，还是整个系列？"
+
+#. what a command says
+#: crates/engine/src/cmd/category.rs
+#, fuzzy
+msgid "\"{name}\" isn't a category kept on this computer only"
+msgstr "“{name}”不是仅保存在此计算机上的类别"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -194,6 +206,18 @@ msgstr "+ 操作"
 #, fuzzy
 msgid "+ condition"
 msgstr "+ 条件"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "+Bin"
+msgstr "+二进制"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "+Lines"
+msgstr "+行"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -568,6 +592,12 @@ msgid "A port is a number from 1 to 65535"
 msgstr "端口是 1 到 65535 之间的数字"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "A preview may omit some content from the original file."
+msgstr "预览可能无法显示原始文件中的全部内容。"
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "A report is written beside your mailbox."
@@ -626,6 +656,12 @@ msgstr "共享邮箱，使用打开它的账户的登录信息读取"
 #, fuzzy
 msgid "A shared mailbox, read with the sign-in of {account}"
 msgstr "共享邮箱，使用 {account} 的登录信息读取"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
+msgstr "一段附有该页面链接的简短说明,可粘贴到邮件或聊天中。MailCraft 本身不会发送任何内容。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -749,8 +785,8 @@ msgstr ""
 "账户\n"
 "设置"
 
-#. command label, interface
-#: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
+#. command label, interface, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Account Settings"
 msgstr "账户设置"
@@ -760,6 +796,12 @@ msgstr "账户设置"
 #, fuzzy
 msgid "Account name"
 msgstr "账户名称"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Account's signature"
+msgstr "账户签名"
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
@@ -934,6 +976,12 @@ msgid "Add account"
 msgstr "添加账户"
 
 #. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Add address"
+msgstr "添加地址"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Add an account"
@@ -987,6 +1035,12 @@ msgstr "从文件添加…"
 msgid "Add somebody to send this to."
 msgstr "请添加收件人。"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Add this category to Outlook's list, in the nearest of Outlook's colours"
+msgstr "将此类别添加到 Outlook 的列表中，使用 Outlook 中最接近的颜色"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -997,17 +1051,23 @@ msgstr ""
 "添加至\n"
 "收藏"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Add to Contacts"
 msgstr "添加至联系人"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Add to Favorites"
 msgstr "添加到收藏夹"
+
+#. command label, interface
+#: crates/engine/src/cmd/category.rs crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Add to Outlook"
+msgstr "添加到 Outlook"
 
 #. command label
 #: crates/engine/src/cmd/junk.rs
@@ -1033,11 +1093,43 @@ msgstr "添加到日历"
 msgid "Added by a newer version of MailCraft: send and receive with it there"
 msgstr "由较新版本的 MailCraft 添加：请使用该版本发送和接收邮件"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Added to Contacts"
+msgstr "已添加至联系人"
+
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "地址"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Address\n"
+"Book"
+msgstr "通讯簿"
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "Address Book"
+msgstr "通讯簿"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Address list"
+msgstr "地址列表"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Address list · {account}"
+msgstr "地址列表 · {account}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1050,6 +1142,12 @@ msgstr "地址："
 #, fuzzy
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
 msgstr "多个地址用分号（;）分隔；留空则将回复发送给您"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Addresses your mail server lets this account send from with the same sign-in, such as aliases. Replies are sent from the address a message came to."
+msgstr "邮件服务器允许此账户使用同一登录信息发送邮件的地址，例如别名。回复将从邮件送达的地址发出。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -1124,7 +1222,7 @@ msgid "All Mailboxes"
 msgstr "所有邮箱"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/widgets.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "All accounts"
 msgstr "所有账户"
@@ -1148,6 +1246,12 @@ msgid "All mail and every account kept on this phone are removed, with every sig
 msgstr "此手机上保存的所有邮件和账户都会被移除，所有登录信息也一并移除。邮件服务商服务器上的内容不会被删除。此操作无法撤销。"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "All names are checked"
+msgstr "所有姓名均已检查"
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "All of them"
@@ -1160,13 +1264,13 @@ msgid "All the conditions must hold"
 msgstr "所有条件必须成立"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/agent_gate.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Allow"
 msgstr "允许"
 
-#. command label, interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs
+#. command label
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Allow Changing Automatic Replies"
 msgstr "允许更改自动回复"
@@ -1184,46 +1288,16 @@ msgid "Allow Keeping Tasks in Step with Microsoft To Do"
 msgstr "允许任务与 Microsoft To Do 保持同步"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
-msgstr "在浏览器打开的页面上，允许 MailCraft 更改您的自动回复…"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Allow MailCraft to keep your rules on the server on the page that opened in your browser…"
-msgstr "在浏览器打开的页面上，允许 MailCraft 将您的规则保存在服务器上…"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Allow MailCraft to keep your tasks in step with Microsoft To Do on the page that opened in your browser…"
-msgstr "在浏览器打开的页面上，允许 MailCraft 将您的任务与 Microsoft To Do 同步…"
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr "在浏览器打开的页面上，允许 MailCraft 读取他人的日历…"
+msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page that opened in your browser…"
+msgstr "在浏览器打开的页面上，允许 MailCraft 将此邮箱与 Outlook 同步…"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Allow MailCraft to read shared mailboxes on the page that opened in your browser…"
 msgstr "在浏览器打开的页面上，允许 MailCraft 读取共享邮箱…"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr "在浏览器打开的页面上，允许 MailCraft 读取共享邮箱的日历…"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
-msgstr "在浏览器打开的页面上，允许 MailCraft 从共享邮箱发送邮件…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1350,6 +1424,12 @@ msgstr "此联系人的 X.509 证书（.cer、.pem）或 OpenPGP 公钥 (.asc)"
 #, fuzzy
 msgid "An account couldn't be sent and received."
 msgstr "有账户无法发送和接收。"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "An address this account may send from"
+msgstr "此账户可用于发送邮件的地址"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1623,6 +1703,12 @@ msgid "Apply Sent Calendar Changes"
 msgstr "应用已发送的日历更改"
 
 #. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Apply Sent Category Changes"
+msgstr "应用已发送的类别更改"
+
+#. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
 msgid "Apply Sent Rule Changes"
@@ -1688,8 +1774,14 @@ msgstr "4月"
 msgid "April"
 msgstr "4月"
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Aqua"
+msgstr "水绿色"
+
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Archive"
 msgstr "归档"
@@ -1759,12 +1851,6 @@ msgid "As recipients see it"
 msgstr "正如收件人所见"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "As the people you write to see it"
-msgstr "收件人看到的效果"
-
-#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Ask again"
@@ -1788,6 +1874,12 @@ msgstr "再次从该域的发件人下载图片之前先询问"
 msgid "Ask before downloading this sender's pictures again"
 msgstr "再次下载该发件人的图片之前先询问"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Ask before previewing this type of file"
+msgstr "预览此类文件前先询问"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -1795,28 +1887,46 @@ msgid "Ask first again"
 msgstr "再次先询问"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
-msgstr "请求更改服务器规则的权限：Microsoft 页面将在浏览器中打开。未获授权时，新规则仅保存在此计算机上，不会发送到服务器。"
+msgid "Ask for permission to keep your automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, your automatic replies aren't changed."
+msgstr "请求让自动回复与 Outlook 同步的权限：Microsoft 页面将在浏览器中打开。未获授权时，不会更改自动回复。"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
-msgstr "请求更改自动回复的权限：Microsoft 页面将在浏览器中打开。读取自动回复不需要此权限。"
+msgid "Ask for permission to keep your rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, rules stay on this computer and the categories can't be changed here."
+msgstr "请求让规则、自动回复和类别与 Outlook 同步的权限：Microsoft 页面将在浏览器中打开。未获授权时，规则保留在此计算机上，且无法在此更改类别。"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to keep your tasks and automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+msgstr "请求让任务和自动回复与 Outlook 同步的权限：Microsoft 页面将在浏览器中打开。未获授权时，任务保留在此计算机上。"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
+msgstr "请求让任务、规则、自动回复和类别与 Outlook 同步的权限：Microsoft 页面将在浏览器中打开。未获授权时，任务和规则保留在此计算机上，且无法在此更改类别。"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
 msgstr "请求读取和更改 To Do 列表及任务的权限：Microsoft 页面将在浏览器中打开。未获授权时，任务保留在此计算机上。"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to read and send from shared mailboxes and to read the calendars shared with you: Microsoft's page opens in your browser. Without it, nothing of them is read or sent."
+msgstr "请求读取共享邮箱并从中发送邮件、读取与您共享的日历的权限：Microsoft 的页面将在浏览器中打开。没有该权限，不会读取或发送其中任何内容。"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
-msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-msgstr "请求读取共享邮箱日历的权限：Microsoft 页面将在浏览器中打开。未获授权时，不会读取此邮箱的任何日历。"
+msgid "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+msgstr "在下次发送/接收时再次请求这些邮件。服务器上的邮件不受影响，即使再次失败也不会丢失任何内容。"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -2046,7 +2156,7 @@ msgid "AutoArchive"
 msgstr "自动归档"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "自动"
@@ -2104,6 +2214,12 @@ msgstr "自动回复已开启"
 #, fuzzy
 msgid "Automatic replies are set for the time range you chose"
 msgstr "自动回复已设置为在您选择的时间范围内发送"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Automatic replies: MailCraft may change them"
+msgstr "自动回复：MailCraft 可以更改"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -2274,10 +2390,28 @@ msgid "Before anything changes, a copy of your whole mailbox is saved next to it
 msgstr "进行任何更改前，会先在原邮箱文件旁保存一份完整副本，并在文件名中注明今天的日期。"
 
 #. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Binary assets added"
+msgstr "新增的二进制资源"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Binary assets removed"
+msgstr "删除的二进制资源"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Birthday"
 msgstr "生日"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Black"
+msgstr "黑色"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -2285,8 +2419,14 @@ msgstr "生日"
 msgid "Block Sender"
 msgstr "阻止发件人"
 
+#. interface
+#: crates/ui-egui/src/forms/junk.rs
+#, fuzzy
+msgid "Blocked Senders"
+msgstr "已阻止的发件人"
+
 #. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/theme/accent.rs
 #, fuzzy
 msgid "Blue"
 msgstr "蓝色"
@@ -2619,11 +2759,89 @@ msgstr "已取消"
 msgid "Categories"
 msgstr "类别"
 
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Asking for your permission to change them…"
+msgstr "来自 {address} 服务器的类别。正在请求更改权限…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Checking whether MailCraft may change them…"
+msgstr "来自 {address} 服务器的类别。正在检查 MailCraft 是否可以更改…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Microsoft no longer takes the sign-in, so they can't be changed"
+msgstr "来自 {address} 服务器的类别。Microsoft 不再接受此登录凭据，因此无法更改"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. No permission to change them"
+msgstr "来自 {address} 服务器的类别。没有更改权限"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. No permission to change them ({why})"
+msgstr "来自 {address} 服务器的类别。没有更改权限（{why}）"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Read-only here until MailCraft can check whether it may change them"
+msgstr "来自 {address} 服务器的类别。在 MailCraft 能够检查是否可以更改之前，此处为只读"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
 msgid "Categories:"
 msgstr "类别："
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: Microsoft no longer takes the sign-in"
+msgstr "类别：Microsoft 不再接受此登录凭据"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: asking for your permission…"
+msgstr "类别：正在请求您的许可…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: checking…"
+msgstr "类别：正在检查…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: kept in step with Outlook"
+msgstr "类别：与 Outlook 保持同步"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here (MailCraft may not change them)"
+msgstr "类别：此处为只读（MailCraft 无权更改）"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here ({why})"
+msgstr "类别：此处为只读（{why}）"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here until MailCraft can check whether it may change them"
+msgstr "类别：在 MailCraft 能够检查是否可以更改之前，此处为只读"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
@@ -2636,6 +2854,18 @@ msgstr "类别…"
 #, fuzzy
 msgid "Categorize"
 msgstr "分类"
+
+#. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Category Changes Allowed"
+msgstr "已允许类别更改"
+
+#. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Category Changes to Send"
+msgstr "要发送的类别更改"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
@@ -2660,6 +2890,12 @@ msgstr "抄送："
 #, fuzzy
 msgid "Cc: {names}"
 msgstr "抄送：{names}"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Celebrate"
+msgstr "庆祝"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
@@ -2844,7 +3080,7 @@ msgid "Check Calendar Connection"
 msgstr "检查日历连接"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Check Names"
 msgstr "检查姓名"
@@ -2890,6 +3126,12 @@ msgstr "检查更新"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "检查新版本"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "使用本地词典检查拼写"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3066,7 +3308,7 @@ msgid "Clear Downloaded Pictures"
 msgstr "清除下载的图片"
 
 #. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Clear Flag"
 msgstr "清除标记"
@@ -3110,8 +3352,8 @@ msgstr "清除搜索 (Esc)"
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "单击可预览 {name}；双击可打开"
+msgid "Click to select {name}; double-click to open it"
+msgstr "单击选择 {name}，双击打开。"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -3208,6 +3450,12 @@ msgstr "折叠功能区"
 #, fuzzy
 msgid "Colour"
 msgstr "颜色"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Commits"
+msgstr "提交"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
@@ -3324,7 +3572,7 @@ msgid "Connecting to the mail server"
 msgstr "连接到邮件服务器"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Contact"
 msgstr "联系人"
@@ -3352,13 +3600,19 @@ msgid "Contact Card"
 msgstr "联系人名片"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Contacts"
+msgstr "联系人"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Contacts don't go to Deleted Items."
 msgstr "联系人不会转到“已删除邮件”。"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "继续"
@@ -3691,6 +3945,12 @@ msgstr "无法读取 Gmail 的“{name}”类别"
 msgid "Couldn't read the list of folders"
 msgstr "无法读取文件夹列表"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't reconnect to carry on with \"{name}\""
+msgstr "无法重新连接以继续处理“{name}”"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
@@ -3810,6 +4070,12 @@ msgstr "DOMAIN\\user 或 you@example.org；留空则使用您的地址"
 #, fuzzy
 msgid "Dark"
 msgstr "深色"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Dark Red"
+msgstr "深红色"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3968,7 +4234,7 @@ msgid "Delayed until {when}"
 msgstr "延迟至{when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Delete"
 msgstr "删除"
@@ -4008,7 +4274,7 @@ msgid "Delete Conversation"
 msgstr "删除对话"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Delete Folder"
 msgstr "删除文件夹"
@@ -4320,6 +4586,12 @@ msgid "Display name"
 msgstr "显示名称"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Distribution list"
+msgstr "通讯组列表"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Do"
@@ -4426,12 +4698,6 @@ msgstr "完成：已是最新状态"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "完成：{n} 项新增"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "双击打开 {name}；右键单击可保存"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -4797,7 +5063,7 @@ msgid "Either button writes to {name}: your answer, and the time you propose."
 msgstr "无论选择哪个按钮，都会向 {name} 写入您的答复和建议的时间。"
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Email"
 msgstr "电子邮件"
@@ -4865,7 +5131,7 @@ msgstr ""
 "文件夹"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Empty Folder"
 msgstr "清空文件夹"
@@ -5239,6 +5505,12 @@ msgstr "收藏"
 msgid "Favorites"
 msgstr "收藏夹"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Favorites Are Set in Outlook"
+msgstr "收藏夹在 Outlook 中设置"
+
 #. command label
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -5276,7 +5548,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "这些联系人中剩余的不足两人，无需合并。"
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "文件"
@@ -5358,6 +5630,12 @@ msgid "Find a Time"
 msgstr "查找时间"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "查找下一个拼写错误"
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Find what"
@@ -5405,11 +5683,23 @@ msgstr "首先完成登录（您的浏览器正在等待）"
 msgid "Finish signing in on Microsoft's page in your browser. MailCraft is waiting."
 msgstr "请在浏览器中的 Microsoft 页面上完成登录。MailCraft 正在等待。"
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "First"
+msgstr "首个"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "First Message"
 msgstr "第一封邮件"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "First commit"
+msgstr "首次提交"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -5423,8 +5713,8 @@ msgstr "名字"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "在切换登录方法之前，首先保存 Google 的标准 IMAP 和 SMTP 设置以及匹配的电子邮件用户名。"
 
-#. android, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Flag"
 msgstr "标记"
@@ -5486,7 +5776,7 @@ msgstr ""
 "属性"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "文件夹窗格"
@@ -5548,7 +5838,7 @@ msgid ""
 msgstr "后续 ↵ 操作"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Follow Up"
 msgstr "跟进"
@@ -5602,10 +5892,46 @@ msgid "For a mail server your organisation runs itself. MailCraft looks for the 
 msgstr "适用于由组织自行运行的邮件服务器。MailCraft 会根据您的地址查找服务器，您也可以在服务器设置中输入地址。点击“连接”前不会发送任何内容。"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr "适用于无需密码即可接收邮件的中继服务器：绝不会向其发送您的密码。"
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
 msgstr "对于使用 Microsoft 登录的账户：按 Outlook 中的顺序显示“收藏夹”下的文件夹。它们从服务器读取，不会更改服务器上的内容。未开启时，显示在 MailCraft 中标记的收藏夹。"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, nothing of shared mailboxes is read or sent: {error}"
+msgstr "目前不会读取或发送共享邮箱的任何内容：{error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "目前，规则保留在此计算机上，不会更改自动回复，也无法在此更改类别：{error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "目前，任务和规则保留在此计算机上，不会更改自动回复，也无法在此更改类别：{error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks stay on this computer and your automatic replies aren't changed: {error}"
+msgstr "目前，任务保留在此计算机上，不会更改自动回复：{error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, your automatic replies aren't changed: {error}"
+msgstr "目前不会更改自动回复：{error}"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -5794,6 +6120,12 @@ msgid "From outside your organisation."
 msgstr "来自组织外部。"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
+msgstr "来自 {account} 所在组织的地址列表。仅在查看时显示，不会保存：“添加至联系人”会在此计算机上保存一份副本。"
+
+#. interface
 #: crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "From {name}"
@@ -5922,6 +6254,12 @@ msgstr "GitHub 页面已打开：请在该页面附加诊断文件，然后提�
 #, fuzzy
 msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
 msgstr "GitHub 页面已打开：请检查后再提交。MailCraft 没有发送任何内容。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Give it a title first"
+msgstr "请先为其设置标题"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -6055,6 +6393,12 @@ msgstr "转至 {host}"
 msgid "Going back to MailCraft {version} didn't happen: this version is still the one here."
 msgstr "未能退回 MailCraft {version}：当前仍使用此版本。"
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Gold"
+msgstr "金色"
+
 #. name
 #: crates/model/src/mailbox.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -6180,6 +6524,24 @@ msgstr "石墨"
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
 msgstr "程序会向 Gravatar 请求发件人的头像，并向其提供发件人地址的哈希值；否则会依次向 favicon.im 和 Google 请求其网站图标，并向这些服务提供发件人的域名。这会让这些服务知道您正在查看哪些人的图片。仅对您认识的人（联系人和您曾写信给的人）以及您允许下载图片的邮件执行此操作，垃圾邮件除外；只有邮件服务器确认邮件确实来自该发件人时，才请求其头像。"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Green"
+msgstr "绿色"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Grey"
+msgstr "灰色"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Group"
+msgstr "组"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -6374,7 +6736,7 @@ msgid "High Contrast"
 msgstr "高对比度"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "High Importance"
 msgstr "高重要性"
@@ -6404,7 +6766,7 @@ msgid "Hold Unsent Mail"
 msgstr "保留未发送的邮件"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "首页"
@@ -7154,6 +7516,12 @@ msgstr "斜体"
 msgid "Item"
 msgstr "项目"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
+msgid "Item from Message"
+msgstr "从邮件创建项目"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -7348,18 +7716,6 @@ msgid "Keep Rule on Server"
 msgstr "在服务器上保留规则"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Keep Rules on the Server"
-msgstr "在服务器上保留规则"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Keep Tasks in Step with Microsoft To Do"
-msgstr "让任务与 Microsoft To Do 保持同步"
-
-#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Keep Waiting"
@@ -7382,6 +7738,12 @@ msgstr "保留账户"
 #, fuzzy
 msgid "Keep data"
 msgstr "保留数据"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Keep in Step with Outlook"
+msgstr "与 Outlook 保持同步"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -7488,6 +7850,12 @@ msgstr "保存在 {path}，随操作自动保存。"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "Kept on this computer only"
+msgstr "仅保存在此计算机上"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "仅保存在此计算机上：邀请和重复日程尚未发送到服务器"
 
@@ -7527,6 +7895,12 @@ msgstr "较大的邮件会在打开时下载。选择保留更少邮件不会删
 msgid "Largest on top"
 msgstr "最大项在上"
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Last"
+msgstr "最后"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -7546,6 +7920,12 @@ msgid "Last Week"
 msgstr "上周"
 
 #. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Last commit"
+msgstr "最近提交"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Last name"
@@ -7562,6 +7942,18 @@ msgstr "稍后"
 #, fuzzy
 msgid "Later keeps this account on IMAP for now. You can switch whenever you like: search the commands for \"Switch to Microsoft Graph\"."
 msgstr "选择“稍后”会暂时让此账户继续使用 IMAP。您可以随时切换：在命令中搜索“Switch to Microsoft Graph”。"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Laugh"
+msgstr "大笑"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Lavender"
+msgstr "薰衣草色"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7599,6 +7991,18 @@ msgstr "保留未验证状态"
 msgid "Leave this account out of this Send/Receive"
 msgstr "此次发送/接收时跳过此账户"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "“{name}”中有 1 封邮件在 {tries} 次运行中都下载失败，已被跳过；“重试跳过的邮件”会再次尝试"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "“{name}”中有 {count} 封邮件在 {tries} 次运行中都下载失败，已被跳过；“重试跳过的邮件”会再次尝试"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -7624,6 +8028,18 @@ msgid "Light"
 msgstr "浅色"
 
 #. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Like"
+msgstr "赞"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Lime"
+msgstr "酸橙色"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Limited details: and the titles"
@@ -7634,6 +8050,24 @@ msgstr "有限详细信息：包括标题"
 #, fuzzy
 msgid "Line Spacing"
 msgstr "行距"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Line delta"
+msgstr "行数差"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Lines added"
+msgstr "新增行数"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Lines deleted"
+msgstr "删除行数"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signatures.rs
@@ -7774,6 +8208,18 @@ msgid "Looking for your Exchange server…"
 msgstr "正在查找您的 Exchange 服务器…"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Looking the names up in the organisation's address list…"
+msgstr "正在组织的地址列表中查找姓名…"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Looking the names up stopped unexpectedly"
+msgstr "查找姓名意外停止"
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "Looking… {folders}, {files}, {messages} so far"
@@ -7785,6 +8231,12 @@ msgstr "正在查找…目前有 {folders}、{files}、{messages}"
 msgid "Looks like a brand."
 msgstr "看起来像某个品牌。"
 
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Love"
+msgstr "喜爱"
+
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -7792,7 +8244,7 @@ msgid "Low"
 msgstr "低"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Low Importance"
 msgstr "低重要性"
@@ -7874,12 +8326,6 @@ msgstr "邮件文件夹：账户的 {folder}"
 #, fuzzy
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "不能将其他邮箱的邮件放入发件箱：下次发送/接收时会将其发送"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Mail from the shared mailbox waits: {error}"
-msgstr "共享邮箱中的邮件等待发送：{error}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8068,7 +8514,7 @@ msgid "MailCraft is up to date ({version})."
 msgstr "MailCraft 已是最新版本（{version}）。"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_permission.rs
 #, fuzzy
 msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr "MailCraft 尚未获得读取其他人日历的权限。"
@@ -8177,6 +8623,12 @@ msgid_plural "MailCraft was started with {n} things that aren't mail links or fi
 msgstr[0] "启动 MailCraft 时提供的 {n} 个项目既不是邮件链接，也不是支持打开的文件，已保持原样"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "MailCraft wasn't allowed to keep this mailbox in step with Outlook: {error}"
+msgstr "MailCraft 未获准将此邮箱与 Outlook 同步：{error}"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
@@ -8272,6 +8724,12 @@ msgstr "邮箱"
 msgid "Make a signature with New."
 msgstr "使用“新建”创建签名。"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Make an Item from a Message"
+msgstr "从邮件创建项目"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8352,8 +8810,8 @@ msgstr ""
 "将全部\n"
 "标记为已读"
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Mark All as Read"
 msgstr "全部标记为已读"
@@ -8382,20 +8840,20 @@ msgstr "标记密钥已验证"
 msgid "Mark a message as read when it is opened in the reading pane"
 msgstr "在阅读窗格中打开邮件时将其标记为已读"
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as Read"
 msgstr "标记为已读"
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as Unread"
 msgstr "标记为未读"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "标记为已读"
@@ -8477,8 +8935,14 @@ msgid "Merge {n} Contact…"
 msgid_plural "Merge {n} Contacts…"
 msgstr[0] "合并 {n} 个联系人…"
 
-#. android, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Merged PRs"
+msgstr "已合并的 PR"
+
+#. android, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "邮件"
@@ -8716,6 +9180,12 @@ msgid "Microsoft's page came back without the approval: it was declined there, o
 msgstr "Microsoft 页面未返回批准结果：可能是在该页面拒绝了请求，或在批准前离开了页面。"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Microsoft's page opens in your browser to ask for your permission, once."
+msgstr "系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。"
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Microsoft's page said so."
@@ -8740,10 +9210,16 @@ msgid "Minimize"
 msgstr "最小化"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Mobile"
 msgstr "手机"
+
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Module bar"
+msgstr "模块栏"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -8824,6 +9300,12 @@ msgid "More results on the server can't be asked for now"
 msgstr "目前无法在服务器上请求更多结果"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "More than one person matches \"{name}\". Choose one:"
+msgstr "有多个人与“{name}”匹配。请选择一个："
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "Most of the sender's name is characters that aren't shown, and the message came from {real}."
@@ -8869,11 +9351,23 @@ msgstr "下移"
 msgid "Move Event"
 msgstr "移动事件"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "上移或下移收藏夹"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "移动文件夹"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "上移或下移文件夹"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -9025,17 +9519,35 @@ msgstr "我的任务"
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "我的组织必须先批准 MailCraft：该怎么办"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "My outgoing server needs no sign-in"
+msgstr "我的发送服务器无需登录"
+
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Name"
 msgstr "名称"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Name (A–Z)"
+msgstr "名称(A–Z)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Name (optional)"
 msgstr "名称（可选）"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Name somebody to invite first"
+msgstr "请先指定要邀请的人"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -9068,7 +9580,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "姓名或地址，用 ; 分隔"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Navigation"
 msgstr "导航"
@@ -9088,6 +9600,12 @@ msgstr ""
 #, fuzzy
 msgid "Navigation Bar"
 msgstr "导航栏"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Navy"
+msgstr "藏青色"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9254,6 +9772,12 @@ msgstr "新建邮件"
 #, fuzzy
 msgid "New Folder"
 msgstr "新建文件夹"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "New Folder…"
+msgstr "新建文件夹…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9480,6 +10004,12 @@ msgid "No account is connected to a mail server (File › Add Account)"
 msgstr "没有账户连接到邮件服务器（文件 › 添加账户）"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "No account is connected to a mail server yet."
+msgstr "尚无账户连接到邮件服务器。"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "No account signs in with Microsoft"
@@ -9612,6 +10142,12 @@ msgid "No date"
 msgstr "无日期"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "No day fits this pattern"
+msgstr "没有符合此模式的日期"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "No downloaded pictures are kept on this computer."
@@ -9719,6 +10255,12 @@ msgstr "未找到联系人。"
 msgid "No preview helper is available for this attachment."
 msgstr "没有可用于预览此附件的辅助程序。"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "No preview is available for this attachment."
+msgstr "无法预览此附件。"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
 #, fuzzy
@@ -9804,6 +10346,24 @@ msgid "No signatures yet"
 msgstr "还没有签名"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "未发现拼写错误"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "已检查的部分未发现拼写错误"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "没有拼写建议"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -9858,6 +10418,12 @@ msgid "Nobody has proposed another time."
 msgstr "尚无人提出其他时间。"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Nobody in the address list matches"
+msgstr "地址列表中没有匹配的人"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Nobody is invited to this appointment."
@@ -9875,6 +10441,12 @@ msgstr "没有正在登录的账户"
 msgid "Nobody matches the search"
 msgstr "没有匹配搜索条件的联系人"
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Nobody matches: {names}"
+msgstr "无匹配：{names}"
+
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
@@ -9887,11 +10459,17 @@ msgstr "没有邀请任何有地址的人员"
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "没有匹配的联系人，或者有多个联系人匹配：{names}"
 
-#. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "无"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "None of those messages is in this mailbox any more."
+msgstr "这些邮件已不在此邮箱中。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9904,6 +10482,12 @@ msgstr "还没有。"
 #, fuzzy
 msgid "Normal"
 msgstr "正常"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Normal Importance"
+msgstr "普通重要性"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
@@ -10013,6 +10597,12 @@ msgstr "不在 Outlook 的列表中：Outlook 中没有对应颜色"
 msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr "尚未保存到任何位置：请使用“打开和导出 › 邮箱另存为”。"
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Not looked up in the address list: {names}"
+msgstr "未在地址列表中查找：{names}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
@@ -10020,7 +10610,7 @@ msgid "Not much room on this phone"
 msgstr "此手机空间不多"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Not now"
 msgstr "暂不"
@@ -10030,6 +10620,12 @@ msgstr "暂不"
 #, fuzzy
 msgid "Not now: it is installed when you quit MailCraft."
 msgstr "暂不：退出 MailCraft 时将安装它。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour"
+msgstr "不在 Outlook 的列表中：为邮件、日程和待办事项设置此类别后，其名称仍会发送到账户的服务器，但在服务器上没有颜色"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10260,7 +10856,7 @@ msgid "Numbering"
 msgstr "编号"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "确定"
@@ -10284,7 +10880,7 @@ msgid "October"
 msgstr "10月"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "关"
@@ -10548,6 +11144,12 @@ msgid "Only the beginning of this message is here. The rest downloads with the n
 msgstr "此处只有邮件的开头，其余内容将在下一次发送/接收时下载。"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Only the first {n} are shown: type more of the name to find somebody else."
+msgstr "仅显示前 {n} 个：请输入更多姓名内容以查找其他人。"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "Only the meeting's organizer can change its time."
@@ -10690,7 +11292,7 @@ msgid "Open Result from the Server"
 msgstr "从服务器打开结果"
 
 #. command label, interface
-#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Open Shared Calendar"
 msgstr "打开共享日历"
@@ -10876,6 +11478,12 @@ msgid "Opens GitHub's page in your browser, filled in: you check it and submit i
 msgstr "在浏览器中打开已填好内容的 GitHub 页面，供您检查并提交。"
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Opens Microsoft's approval page in your browser. Sign in there with an administrator account and accept; MailCraft carries on by itself."
+msgstr "在浏览器中打开 Microsoft 的审批页面。请在那里用管理员账户登录并接受;MailCraft 会自行继续。"
+
+#. interface
 #: crates/ui-egui/src/reading/sharing.rs
 #, fuzzy
 msgid "Opens it by their address, on this computer only: it won't appear in Outlook or on your other devices"
@@ -10898,6 +11506,12 @@ msgstr "选项"
 #, fuzzy
 msgid "Or is it one of these?"
 msgstr "或者是以下其中一项？"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Orange"
+msgstr "橙色"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -10953,23 +11567,29 @@ msgstr "其他日历"
 msgid "Other accounts and On this computer"
 msgstr "其他账户和“在此计算机上”"
 
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Other addresses you send from"
+msgstr "您发送邮件时使用的其他地址"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
 msgid "Other people's calendars can be opened under a Microsoft work or school account"
 msgstr "可以在 Microsoft 工作或学校账户下打开其他人的日历"
 
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Other people's calendars weren't allowed: {error}"
-msgstr "未获准访问其他人的日历：{error}"
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
 msgstr "否则，通知会显示发件人和主题，但绝不显示邮件正文或图片。锁屏上显示的内容遵循手机自身的隐私设置。"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "否则将按名称显示。在垃圾邮件中始终按名称显示。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11043,6 +11663,12 @@ msgstr "组织外部（关闭）"
 msgid "Outside My Organization (On)"
 msgstr "组织外部（开启）"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Outside the organisation"
+msgstr "组织外部"
+
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -11072,6 +11698,12 @@ msgstr "PLAIN 需要不带 NUL 字符的用户名和密码"
 #, fuzzy
 msgid "PM"
 msgstr "下午"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "PRs"
+msgstr "PR"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -11174,6 +11806,12 @@ msgstr "粘贴或编写签名的 HTML"
 #, fuzzy
 msgid "Pattern"
 msgstr "模式"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Peach"
+msgstr "桃色"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
@@ -11313,8 +11951,8 @@ msgstr "您打开的每封邮件都会下载其中的网络图片。发件人的
 msgid "Pictures: {n} KB of {max} KB"
 msgstr "图片：{n} KB / {max} KB"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pin"
 msgstr "固定"
@@ -11324,6 +11962,12 @@ msgstr "固定"
 #, fuzzy
 msgid "Pin to the top of the list"
 msgstr "固定到列表顶部"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Pink"
+msgstr "粉色"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -11424,6 +12068,12 @@ msgstr "预览附件"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
+msgid "Preview File"
+msgstr "预览文件"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview attachments with local PdfCraft"
 msgstr "使用本地 PdfCraft 预览附件"
 
@@ -11438,6 +12088,12 @@ msgstr "使用本地 PdfCraft 和 PhotoCraft 预览附件"
 #, fuzzy
 msgid "Preview attachments with local PhotoCraft"
 msgstr "使用本地 PhotoCraft 预览附件"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview files only when you trust the sender."
+msgstr "仅预览来自可信发件人的文件。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11584,6 +12240,12 @@ msgid "Public Keys"
 msgstr "公钥"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Public folder"
+msgstr "公用文件夹"
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Public keys kept ({n}):"
@@ -11594,6 +12256,12 @@ msgstr "已保存的公钥（{n}）："
 #, fuzzy
 msgid "Public keys of other people"
 msgstr "其他人的公钥"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Purple"
+msgstr "紫色"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -11655,6 +12323,12 @@ msgstr "触发到期提醒"
 msgid "Range"
 msgstr "范围"
 
+#. command label, interface
+#: crates/engine/src/cmd/react.rs crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "React"
+msgstr "回应"
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -11712,6 +12386,24 @@ msgstr ""
 #, fuzzy
 msgid "Reading Pane"
 msgstr "阅读窗格"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Reading pane at the bottom"
+msgstr "阅读窗格在底部"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Reading pane off"
+msgstr "关闭阅读窗格"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Reading pane on the right"
+msgstr "阅读窗格在右侧"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -11943,6 +12635,16 @@ msgstr "提醒窗口"
 msgid "Remove"
 msgstr "移除"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+"移除\n"
+"附件"
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -11960,6 +12662,16 @@ msgstr "移除附件"
 #, fuzzy
 msgid "Remove Everything"
 msgstr "移除所有内容"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Remove Imported\n"
+"Duplicates"
+msgstr ""
+"删除导入\n"
+"的重复项"
 
 #. command label, interface
 #: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
@@ -12086,7 +12798,7 @@ msgid "Remove from Calendar"
 msgstr "从日历中删除"
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Remove from Favorites"
 msgstr "从收藏夹中移除"
@@ -12132,6 +12844,12 @@ msgstr "删除此账户？"
 #, fuzzy
 msgid "Remove this action"
 msgstr "移除此操作"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "Remove this address"
+msgstr "移除此地址"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12191,6 +12909,12 @@ msgstr "重命名类别"
 msgid "Rename Folder"
 msgstr "重命名文件夹"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Rename Folder…"
+msgstr "重命名文件夹…"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -12220,6 +12944,12 @@ msgstr "替换"
 #, fuzzy
 msgid "Replace All"
 msgstr "全部替换"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "替换指定位置的文本"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12360,7 +13090,7 @@ msgid "Reset View"
 msgstr "重置视图"
 
 #. command label, ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Respond"
 msgstr "回应"
@@ -12407,11 +13137,23 @@ msgstr "重新启动以更新"
 msgid "Restart to update is the owner's click."
 msgstr "“重新启动以更新”必须由用户亲自点击。"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Restore attachment preview warnings"
+msgstr "恢复附件预览警告"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
 msgid "Retry"
 msgstr "重试"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Retry Skipped Messages"
+msgstr "重试跳过的邮件"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -12538,18 +13280,6 @@ msgstr "规则适用于"
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
-msgid "Rules stay on this computer for now: {error}"
-msgstr "规则暂时保留在此计算机上：{error}"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Rules weren't allowed on the server: {error}"
-msgstr "未获准在服务器上使用规则：{error}"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
 msgid "Rules: Microsoft no longer takes the sign-in"
 msgstr "规则：Microsoft 不再接受此登录凭据"
 
@@ -12612,7 +13342,7 @@ msgstr ""
 "规则"
 
 #. command label, interface
-#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Run Rules Now"
 msgstr "立即运行规则"
@@ -12646,6 +13376,18 @@ msgstr "在邮件到达时运行此规则"
 #, fuzzy
 msgid "SHA-256 fingerprint"
 msgstr "SHA-256 指纹"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Sad"
+msgstr "难过"
+
+#. interface
+#: crates/ui-egui/src/forms/junk.rs
+#, fuzzy
+msgid "Safe Senders"
+msgstr "安全发件人"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12697,6 +13439,16 @@ msgstr ""
 msgid "Save & Close"
 msgstr "保存并关闭"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+"保存所有\n"
+"附件"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -12709,8 +13461,8 @@ msgstr "保存所有附件"
 msgid "Save All Attachments…"
 msgstr "保存所有附件…"
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Save As"
 msgstr "另存为"
@@ -12817,6 +13569,12 @@ msgstr "请先保存或放弃对此账户的更改，再切换到 Google 登录�
 msgid "Save out"
 msgstr "保存到文件"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Save to Computer"
+msgstr "保存到电脑"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
 #, fuzzy
@@ -12840,6 +13598,11 @@ msgstr "仅保存在此计算机上：此项目不在您的 Outlook 日历中"
 #, fuzzy
 msgid "Saved the message to {name}"
 msgstr "已将邮件保存到 {name}"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
@@ -13086,16 +13849,34 @@ msgid "Search people"
 msgstr "搜索联系人"
 
 #. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Search the address list"
+msgstr "搜索地址列表"
+
+#. interface
 #: crates/ui-egui/src/zones.rs
 #, fuzzy
 msgid "Search time zones"
 msgstr "搜索时区"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Searching the address list stopped unexpectedly"
+msgstr "搜索地址列表意外停止"
+
+#. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "Searching the server…"
 msgstr "正在搜索服务器…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Searching…"
+msgstr "正在搜索…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13206,6 +13987,12 @@ msgid "Select some text first"
 msgstr "请先选择文本"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Select somebody to see the details"
+msgstr "选择一个人以查看详细信息"
+
+#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "Select the message before previewing its attachment."
@@ -13224,7 +14011,7 @@ msgid "Send & Receive"
 msgstr "发送和接收"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "发送/接收"
@@ -13328,12 +14115,6 @@ msgstr "自动发送和接收"
 #, fuzzy
 msgid "Send automatic replies"
 msgstr "发送自动回复"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Send from a Shared Mailbox"
-msgstr "从共享邮箱发送"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -13550,6 +14331,12 @@ msgstr "使用 JMAP 发送/接收"
 msgid "Send/Receive with Microsoft Graph"
 msgstr "使用 Microsoft Graph 发送/接收"
 
+#. command label
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "Sender Addresses"
+msgstr "发件人地址"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
 #, fuzzy
@@ -13713,6 +14500,12 @@ msgstr "服务器设置"
 msgid "Server: {address}"
 msgstr "服务器：{address}"
 
+#. command label
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "Set Sender Addresses"
+msgstr "设置发件人地址"
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -13762,6 +14555,12 @@ msgid "Shared Calendars"
 msgstr "共享日历"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Shared Mailboxes and Calendars"
+msgstr "共享邮箱和日历"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Shared mailbox · No access: Microsoft won't open it for you. Send/Receive tries again"
@@ -13786,22 +14585,44 @@ msgid "Shared mailboxes"
 msgstr "共享邮箱"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Shared mailboxes weren't allowed: {error}"
-msgstr "未获准访问共享邮箱：{error}"
+msgid "Shared mailboxes and calendars weren't allowed: {error}"
+msgstr "未允许共享邮箱和日历：{error}"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
+#: crates/ui-egui/src/shared_permission.rs
 #, fuzzy
-msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr "未获准访问共享邮箱的日历：{error}"
+msgid "Shared mailboxes and calendars: asking for your permission…"
+msgstr "共享邮箱和日历：正在请求您的许可…"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: not allowed ({why})"
+msgstr "共享邮箱和日历：未允许（{why}）"
+
+#. interface
+#: crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Shared mailboxes and calendars: waiting for your permission"
+msgstr "共享邮箱和日历：等待您的许可"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
 #, fuzzy
 msgid "Show"
 msgstr "显示"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Show\n"
+"Message"
+msgstr ""
+"显示\n"
+"邮件"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13857,6 +14678,12 @@ msgstr "在收件箱下显示 Gmail 的类别"
 msgid "Show MailCraft"
 msgstr "显示 MailCraft"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Message"
+msgstr "显示邮件"
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -13868,6 +14695,12 @@ msgstr "仅显示此日历"
 #, fuzzy
 msgid "Show Outlook's Favorites"
 msgstr "显示 Outlook 的收藏夹"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "将图片附件显示为图片"
 
 #. command label
 #: crates/engine/src/cmd/sync_progress.rs
@@ -13904,12 +14737,6 @@ msgstr "显示以下账户的任务"
 #, fuzzy
 msgid "Show Training"
 msgstr "显示培训内容"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Show a Shared Mailbox's Calendars"
-msgstr "显示共享邮箱的日历"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -13998,6 +14825,12 @@ msgstr "显示更多任务"
 #, fuzzy
 msgid "Show password"
 msgstr "显示密码"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "将图片附件显示为图片"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
@@ -14362,6 +15195,18 @@ msgid "Signing in brought nothing back"
 msgstr "登录未返回结果"
 
 #. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Signing in didn't work"
+msgstr "登录未成功"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Signing in happens on Microsoft's page in a web browser, and none could be started on this computer. Check that it has a default browser, then try again."
+msgstr "登录在浏览器中的 Microsoft 页面上进行,但此计算机上无法启动浏览器。请检查是否设置了默认浏览器,然后重试。"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Signing in stopped unexpectedly"
@@ -14438,6 +15283,12 @@ msgstr "跳过"
 #, fuzzy
 msgid "Skipped"
 msgstr "已跳过"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Sky"
+msgstr "天蓝色"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -14574,8 +15425,26 @@ msgstr "邮件占用空间上限"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "拼写和语法"
+msgid "Spelling"
+msgstr "拼写"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "此平台不支持拼写检查"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "拼写检查语言"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "拼写建议"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -14853,20 +15722,38 @@ msgstr "周日"
 msgid "Sunday"
 msgstr "周日"
 
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Surprised"
+msgstr "惊讶"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Swipe Action"
+msgstr "滑动操作"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Swipe actions"
 msgstr "滑动操作"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."
+msgstr "在邮件上水平滑动即可执行所选操作。在 Windows 上，水平鼠标滚轮也可触发。"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the left"
 msgstr "向左滑动"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Swipe to the right"
 msgstr "向右滑动"
@@ -14918,6 +15805,30 @@ msgstr "符号"
 #, fuzzy
 msgid "Sync anyway"
 msgstr "仍然同步"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: asking for your permission…"
+msgstr "与 Outlook 同步：正在请求您的许可…"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: off"
+msgstr "与 Outlook 同步：已关闭"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: on"
+msgstr "与 Outlook 同步：已开启"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: partly on"
+msgstr "与 Outlook 同步：部分开启"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -15010,16 +15921,10 @@ msgid "Tasks due"
 msgstr "到期任务"
 
 #. interface
-#: crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Tasks stay on this computer for now: {error}"
 msgstr "任务暂时保留在此计算机上：{error}"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Tasks weren't allowed to be kept in step: {error}"
-msgstr "未获准同步任务：{error}"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -15064,7 +15969,7 @@ msgid "Tasks: waiting for your permission"
 msgstr "任务：等待您的许可"
 
 #. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/theme/accent.rs
 #, fuzzy
 msgid "Teal"
 msgstr "青色"
@@ -15322,12 +16227,6 @@ msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at m
 msgstr "这不是有效的 GitHub 用户名：只能使用字母、数字和不连续的连字符，最多 39 个字符。如果没有用户名，请留空。"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "That isn't a shared mailbox"
-msgstr "这不是共享邮箱"
-
-#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "That isn't the password of this file."
@@ -15442,6 +16341,12 @@ msgid "The account {address} is opened through is gone."
 msgstr "用于打开 {address} 的账户已不存在。"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "The account's password is needed first: press Send/Receive and type it"
+msgstr "需要先提供该账户的密码：请按“发送/接收”并输入密码"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The account's server forwards it, and tells the meeting's organizer that you did."
@@ -15482,6 +16387,12 @@ msgstr "该账户的服务器尚未向该会议提供加入链接。"
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "发送会议时，账户服务器会创建会议，并返回加入链接。"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
+msgstr "地址列表中同名的人比显示的更多：请输入更多姓名内容以查找未列出的人。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -15670,16 +16581,28 @@ msgid "The calendar {name} and its events kept on this computer will be removed,
 msgstr "日历 {name} 及其保存在此计算机上的事件将被删除，为它保存的地址也一并删除。不会向任何地方发送任何内容；您可以用该地址重新订阅。"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs
+#: crates/ui-egui/src/category_sync.rs
 #, fuzzy
-msgid "The calendars of the shared mailbox wait: {error}"
-msgstr "共享邮箱的日历正在等待：{error}"
+msgid "The categories couldn't be kept in step: the job stopped unexpectedly"
+msgstr "类别无法保持同步：作业意外停止"
 
-#. what a command says
-#: crates/engine/src/sync_driver/calendar_plan.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "无法接收类别：{error}"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "The categories sent couldn't be noted: {error}"
+msgstr "无法记录已发送的类别：{error}"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "The category '{name}' couldn't be put back: the list of categories is full."
+msgstr "无法还原类别“{name}”：类别列表已满。"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -15723,11 +16646,11 @@ msgstr "{host} 服务器显示的证书不是您为此账户信任的证书，�
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
 msgstr "该证书不是由该计算机信任的证书颁发机构颁发的。"
 
-#. what a command says
-#: crates/engine/src/cmd/category.rs
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "The colour is set in Outlook"
-msgstr "颜色是在 Outlook 中设置的"
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr "连接测试只检查此服务器是否响应。如果它确实需要登录，您发送第一封邮件时会得到提示。"
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -16223,6 +17146,18 @@ msgid "The name of someone you know."
 msgstr "你认识的人的名字。"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The name people you write to will see"
+msgstr "收件人将看到的名称"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "The name recipients see; your own when empty"
+msgstr "收件人看到的名称；留空时使用您自己的名称"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The name the calendar gives itself"
@@ -16276,6 +17211,12 @@ msgstr "发件服务器不是有效的主机名（应使用字母、数字、点
 msgid "The owner hasn't allowed update checks."
 msgstr "用户未允许检查更新。"
 
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "The page was closed, or five minutes went by before the sign-in was finished."
+msgstr "页面已关闭,或在登录完成前已过去五分钟。"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
@@ -16305,6 +17246,18 @@ msgstr "此文件中的私钥未加密，因此 MailCraft 不会保存它。请�
 #, fuzzy
 msgid "The proposed end has to be after the proposed start."
 msgstr "建议的结束时间必须晚于建议的开始时间。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The range needs a day to end by"
+msgstr "范围需要一个结束日期"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The range needs a day to start on"
+msgstr "范围需要一个开始日期"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -16373,6 +17326,12 @@ msgid "The rules sent couldn't be noted: {error}"
 msgstr "无法记录已发送的规则：{error}"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
+msgstr "同一页面还会请求读取您有权访问的共享邮箱并从中发送邮件，以及读取与您共享的日历，这样 MailCraft 就不必再次询问。"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The search for your Exchange server asks to start again with an address in another domain, {host}."
@@ -16437,6 +17396,12 @@ msgstr "发件人名称显示为 {brand}，但此邮件来自 {real}，而 {doma
 #, fuzzy
 msgid "The sender's name shows {shown}, but the message came from {real}."
 msgstr "发件人名称显示为 {shown}，但邮件来自 {real}。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The series needs a day to end by"
+msgstr "系列需要一个结束日期"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -16769,6 +17734,24 @@ msgid "The space the folder's own messages take on this computer"
 msgstr "该文件夹中的邮件在此计算机上占用的空间"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "拼写词典不可用"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The start and the end need a date and a time"
+msgstr "开始和结束都需要日期和时间"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The start and the end need a time"
+msgstr "开始和结束都需要时间"
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "The switch of {account} to Microsoft Graph waits until MailCraft can reach the server."
@@ -17020,12 +18003,6 @@ msgstr "本周"
 msgid "This account does not use Google sign-in."
 msgstr "此账户不使用 Google 登录。"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "This account doesn't keep its rules on its server"
-msgstr "此账户的规则不保存在服务器上"
-
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
@@ -17045,7 +18022,7 @@ msgid "This account has no mail server to send the answer through."
 msgstr "此账户没有可用于发送回复的邮件服务器。"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "此账户未使用 Microsoft 登录"
@@ -17055,6 +18032,12 @@ msgstr "此账户未使用 Microsoft 登录"
 #, fuzzy
 msgid "This account is no longer in the mailbox."
 msgstr "此账户已不在邮箱中。"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "This account may not change its categories through Microsoft Graph"
+msgstr "此账户无权通过 Microsoft Graph 更改类别"
 
 #. what a command says
 #: crates/engine/src/sync_driver/rules.rs
@@ -17171,6 +18154,12 @@ msgid "This build can't connect to mail servers. Use the desktop app to add an E
 msgstr "此版本无法连接邮件服务器。请使用桌面应用添加 Exchange 服务器账户。"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
+msgstr "此版本无法连接到邮件服务器。请使用桌面应用,或通过“文件 › 导入”导入邮件。"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "This build can't download pictures"
@@ -17253,6 +18242,12 @@ msgstr "该日历是网络上某个日历的副本。取消订阅即可将其删
 #, fuzzy
 msgid "This calendar isn't connected to your account yet. What changes elsewhere doesn't show here, and what you change here stays on this computer."
 msgstr "此日历尚未连接到您的账户。其他位置的更改不会显示在此处，您在此处所做的更改也只保存在这台计算机上。"
+
+#. what a command says
+#: crates/engine/src/cmd/category.rs
+#, fuzzy
+msgid "This category is on more events of calendars kept on a server than can wait to be sent at once: nothing was changed."
+msgstr "服务器上保存的日历中带有此类别的日程过多，无法同时等待发送：未做任何更改。"
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -17457,6 +18452,12 @@ msgstr "这不是您输入的账户"
 #, fuzzy
 msgid "This item has changes that aren't saved. Save them?"
 msgstr "此项目有未保存的更改。是否保存？"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
+msgstr "此项目有附件，仅保存在服务器上，副本中不会包含这些附件，因此无法从此处复制此项目。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -17844,7 +18845,7 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "此系列尚在发送到该账户服务器的途中。请稍候，待它到达后再更改其中某一天。"
 
 #. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
 msgstr "此共享邮箱所属的账户已不存在"
@@ -17878,6 +18879,12 @@ msgstr "MailCraft 在此系统上找不到可存放带私钥的 S/MIME 证书的
 #, fuzzy
 msgid "This task could not be read."
 msgstr "无法读取此任务。"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "This version of MailCraft can't search an address list"
+msgstr "此版本的 MailCraft 无法搜索地址列表"
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -18032,43 +19039,43 @@ msgid "To add another Google address, go back and start a new account setup."
 msgstr "要添加另一个 Google 地址，请返回并开始设置新账户。"
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+"To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+"Until you allow it, your automatic replies aren't changed."
 msgstr ""
-"要从 {address} 回复或发送会议邀请，MailCraft 需要您授权从共享邮箱发送。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+"要让 {address} 的自动回复与 Outlook 同步，MailCraft 需要您授权更改邮箱设置。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
 "\n"
-"回复以 {address} 的身份发送，还是代表该地址发送，由您的组织决定。在您授权之前，回复会留在此计算机上等待，不会从您自己的地址发送。"
+"在您授权之前，不会更改自动回复。"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
+"Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
-"要更改 {address} 的自动回复，MailCraft 需要您授权更改邮箱设置。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+"要让 {address} 的规则、自动回复和类别与 Outlook 同步，MailCraft 需要您授权更改邮箱设置。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
 "\n"
-"有了此权限，MailCraft 只会更改您的自动回复和收件箱规则，不会更改类别或工作时间。读取自动回复不需要此权限。"
+"在您授权之前，规则只保存在此计算机上，不会向 Microsoft 发送任何规则内容，不会更改自动回复，也无法在此更改此邮箱的类别。"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
+"To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
+"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
 msgstr ""
-"要将 {address} 的规则保存在服务器上，MailCraft 需要您授权更改邮箱设置，因为 Microsoft 将规则保存在其中。这样即使 MailCraft 已关闭，规则也会运行，并显示在 Outlook 网页版和手机上。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+"要让 {address} 的任务和自动回复与 Outlook 同步，MailCraft 需要您授权更改 To Do 列表和邮箱设置。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
 "\n"
-"在您授权之前，规则只保存在此计算机上，不会向 Microsoft 发送任何规则内容。"
+"在您授权之前，任务只保存在此计算机上，不会向 Microsoft 发送任何任务内容，也不会更改自动回复。"
 
 #. interface
-#: crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
 "To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n"
@@ -18079,6 +19086,18 @@ msgstr ""
 "\n"
 "在您授权之前，任务只保存在此计算机上，不会向 Microsoft 发送任何任务内容。"
 
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid ""
+"To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
+msgstr ""
+"要让 {address} 的任务、规则、自动回复和类别与 Outlook 同步，MailCraft 需要您授权更改 To Do 列表和邮箱设置。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+"\n"
+"在您授权之前，任务和规则只保存在此计算机上，不会向 Microsoft 发送其任何内容，不会更改自动回复，也无法在此更改此邮箱的类别。"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
 #, fuzzy
@@ -18086,40 +19105,16 @@ msgid "To me"
 msgstr "发给我"
 
 #. interface
-#: crates/ui-egui/src/open_shared.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+"To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"
 "\n"
-"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+"Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr ""
-"要打开其他人的日历，MailCraft 需要您授权读取他人与您共享的日历。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+"要读取你通过 {address} 打开的共享邮箱并从中发送邮件，以及显示与你共享的日历，MailCraft 需要你的许可。Microsoft 的页面将在浏览器中打开，一次性询问 MailCraft 使用但你尚未允许的所有权限。\n"
 "\n"
-"打开的日历只保存在此计算机上，不会出现在 Outlook 或您的其他设备上。"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr ""
-"要从 {address} 发送邮件，MailCraft 需要您授权从共享邮箱发送。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
-"\n"
-"邮件以 {address} 的身份发送，还是代表该地址发送，由您的组织决定。在您授权之前，邮件会在共享邮箱的发件箱中等待，不会从您自己的地址发送。"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid ""
-"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-msgstr ""
-"要显示 {address} 的日历，MailCraft 需要您授权读取共享邮箱的日历。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
-"\n"
-"您可以查看哪些日历内容由其所有者和您的组织决定，此授权不会改变这些权限。在您授权之前，不会读取 {address} 的任何日历。"
+"在你允许之前，不会读取这些邮箱和日历的任何内容，来自共享邮箱的邮件和会议答复会在这台电脑上等待，也不会改用你自己的地址发送任何内容。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18260,7 +19255,7 @@ msgid "Try Signing In Again"
 msgstr "尝试重新登录"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "重试"
@@ -18324,6 +19319,12 @@ msgstr "这些账户中有两个或更多账户使用相同地址。仅当它们
 #, fuzzy
 msgid "Type"
 msgstr "类型"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Type a name in the search box to search the organisation's address list"
+msgstr "在搜索框中输入姓名以搜索组织的地址列表"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18390,6 +19391,12 @@ msgstr "撤销输入"
 #, fuzzy
 msgid "Undo {what}"
 msgstr "撤销 {what}"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unpin"
+msgstr "取消固定"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
@@ -19097,7 +20104,7 @@ msgid "Words, from:, to:, category:, on:…"
 msgstr "关键词、from:、to:、category:、on:…"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Work"
 msgstr "工作"
@@ -19176,11 +20183,23 @@ msgstr "工作时间"
 msgid "Working offline: mail you send waits in the Outbox"
 msgstr "离线工作：您发送的邮件会在发件箱中等待"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Workplace"
+msgstr "工作地点"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
 #, fuzzy
 msgid "Write"
 msgstr "写信"
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "Write a Note with the Response…"
+msgstr "随回复写一条备注…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -19189,7 +20208,7 @@ msgid "Write to the organizer without answering"
 msgstr "给组织者写信但不回复邀请"
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Write to {address}"
 msgstr "写信给 {address}"
@@ -19225,6 +20244,12 @@ msgid "Yahoo Mail"
 msgstr "Yahoo Mail"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Yellow"
+msgstr "黄色"
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Yes"
@@ -19253,6 +20278,12 @@ msgstr "您已接受此会议。"
 #, fuzzy
 msgid "You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first."
 msgstr "您已设置为始终下载此发件人的图片，但邮件服务器未确认此邮件确实来自该发件人，因此会先征求您的同意。"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "You came back from Microsoft's page without having signed in: you said no there, or the page sent you back."
+msgstr "您从 Microsoft 页面返回但未登录:您在那里选择了拒绝,或该页面将您送了回来。"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -19495,34 +20526,22 @@ msgid "Your organisation doesn't allow Exchange Web Services for this account. A
 msgstr "您的组织不允许此账户使用 Exchange Web 服务。请联系管理员。"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to keep rules on the server"
-msgstr "您的组织不允许 MailCraft 在服务器上保留规则"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to keep tasks in step with Microsoft To Do"
-msgstr "您的组织不允许 MailCraft 使任务与 Microsoft To Do 保持同步"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr "您的组织不允许 MailCraft 读取共享邮箱的日历"
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
-msgid "Your organisation doesn't let MailCraft change automatic replies"
-msgstr "您的组织不允许 MailCraft 更改自动回复"
-
-#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
 msgstr "您的组织不允许 MailCraft 更改您的自动回复。请联系管理员。"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
+msgstr "您的组织不允许 MailCraft 将此邮箱与 Outlook 同步"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
+msgstr "您的组织不允许 MailCraft 读取共享邮箱和与您共享的日历"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -19585,40 +20604,16 @@ msgid "Your organisation then lets only an administrator approve a new program. 
 msgstr "此时您的组织只允许管理员批准新程序。您的账户或密码没有问题。"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Your organisation's administrator has to approve MailCraft changing automatic replies once: File › Info"
-msgstr "组织管理员需要批准一次 MailCraft 更改自动回复的权限：文件 › 信息"
+msgid "Your organisation's administrator has to approve MailCraft keeping this mailbox in step with Outlook once: File › Info"
+msgstr "组织管理员需要批准一次 MailCraft 将此邮箱与 Outlook 同步的权限：文件 › 信息"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Your organisation's administrator has to approve keeping rules on the server once: File › Info"
-msgstr "组织管理员需要批准一次在服务器上保存规则的权限：文件 › 信息"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve keeping tasks in step with Microsoft To Do once: File › Info"
-msgstr "组织管理员需要批准一次将任务与 Microsoft To Do 同步的权限：文件 › 信息"
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr "组织管理员需要批准一次读取他人日历的权限：文件 › 信息"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-msgstr "组织管理员需要批准一次读取共享邮箱的权限：文件 › 信息"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr "组织管理员需要批准一次读取共享邮箱日历的权限：文件 › 信息"
+msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
+msgstr "您的组织管理员需要批准一次 MailCraft 读取共享邮箱和日历：文件 › 信息"
 
 #. interface
 #: crates/ui-egui/src
@@ -19776,6 +20771,12 @@ msgstr ".pst 文件只能导入到此计算机上的文件夹，不能导入服�
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
 msgstr "JMAP 账户的邮件下载到此处后，服务器和地址便无法更改：请移除原账户并添加新账户"
 
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "a Microsoft or Exchange account sends from other addresses only as its server allows, which MailCraft doesn't ask for yet"
+msgstr "Microsoft 或 Exchange 账户只能按其服务器允许的范围使用其他地址发送，MailCraft 暂不查询该信息"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
@@ -19819,6 +20820,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "草稿不能设置提醒：请先发送，或在邮件本身中使用“跟进”"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "收藏项不能放在它自己之前"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "文件夹不能放在它自己之前"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -19829,6 +20842,12 @@ msgstr "文件夹不能移入自身"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "文件夹不能移至其他账户"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "文件夹只能在同级文件夹之间排序：请指定一个具有相同上级的文件夹"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -19891,6 +20910,30 @@ msgid "a picture in a message is at most {mb} MB"
 msgstr "邮件中的图片最大为 {mb} MB"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction can't be sent to a draft or to mail you wrote"
+msgstr "无法对草稿或您自己写的邮件做出回应"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account"
+msgstr "只有 IMAP、JMAP 和本地帐户才能发送回应，Microsoft 或 Exchange 服务器帐户不行"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to automated mail (a no-reply address, a mailing list, bulk mail)"
+msgstr "不会对自动邮件（无回复地址、邮件列表、群发邮件）做出回应"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to mail in Junk E-mail"
+msgstr "不会对垃圾邮件文件夹中的邮件做出回应"
+
+#. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
 msgid "a reply may be {most} characters long at most"
@@ -19919,6 +20962,12 @@ msgstr "一个账户的规则不能放到另一个账户的服务器上"
 #, fuzzy
 msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
 msgstr "等待发送到服务器的规则将排在服务器现有规则之后；发送后可以移动"
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "a sender address has no e-mail address"
+msgstr "某个发件人地址没有电子邮件地址"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -19986,6 +21035,12 @@ msgstr "签名图片须为 PNG、JPEG 或 GIF（许多邮件程序无法显示�
 msgid "a task needs a title"
 msgstr "任务必须有标题"
 
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "add an Exchange server account first: its organisation's address list is searched"
+msgstr "请先添加 Exchange 服务器账户：将搜索其组织的地址列表"
+
 #. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -19993,7 +21048,7 @@ msgid "add an account first"
 msgstr "请先添加账户"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "add an account first (File › Add Account)"
 msgstr "请先添加账户（文件 › 添加账户）"
@@ -20045,6 +21100,12 @@ msgstr "要将账户改为 Exchange 服务器账户或改为其他类型，必�
 #, fuzzy
 msgid "an account can't be put before itself"
 msgstr "账户不能排在自身之前"
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "an account has {max} sender addresses at most"
+msgstr "一个账户最多有 {max} 个发件人地址"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -20180,6 +21241,12 @@ msgstr "输入用户名以登录"
 #, fuzzy
 msgid "everybody at @{domain}"
 msgstr "@{domain} 的所有人"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "要查找的文本和替换文本都必须各占一行"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -20622,7 +21689,7 @@ msgid "no account with id {account}"
 msgstr "没有 ID 为 {account} 的账户"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "没有 ID 为 {id} 的账户"
@@ -20712,13 +21779,13 @@ msgid "no message being written has the id {id}"
 msgstr "没有 ID 为 {id} 的正在撰写的邮件"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "没有正在撰写的邮件"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "没有 ID 为 {id} 的邮件"
@@ -20777,8 +21844,8 @@ msgstr "没有打开的签名"
 msgid "no signature named \"{from}\""
 msgstr "没有名为“{from}”的签名"
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/signature.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "no signature named \"{name}\""
 msgstr "没有名为“{name}”的签名"
@@ -20800,6 +21867,11 @@ msgstr "没有此附件"
 #, fuzzy
 msgid "no such paragraph"
 msgstr "没有此段落"
+
+#. what a command says
+#: crates/model/src/rich.rs
+msgid "no such signature"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -20939,6 +22011,12 @@ msgstr "上"
 msgid "only a message you sent can be sent again"
 msgstr "只能重新发送您自己发出的邮件"
 
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "only an IMAP account sends from other addresses"
+msgstr "只有 IMAP 账户可以使用其他地址发送"
+
 #. why a command can't run
 #: crates/engine/src/gmail.rs
 #, fuzzy
@@ -20956,6 +22034,11 @@ msgstr "只有显示类别且按 Gmail 排序的 Gmail 账户收件箱才具有 
 #, fuzzy
 msgid "only the headers of “{subject}” are here, so it can't be forwarded as an attachment"
 msgstr "此处只有“{subject}”的邮件头，因此无法将其作为附件转发"
+
+#. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -21048,7 +22131,7 @@ msgid "select a conversation in conversation view first"
 msgstr "首先在对话视图中选择一个对话"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "请先选择一封邮件"
@@ -21282,7 +22365,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "此账户没有可用于登录的用户名或电子邮件地址"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "此账户已不存在"
@@ -21413,6 +22496,12 @@ msgstr "下载失败"
 msgid "the download stopped before it was done"
 msgstr "下载尚未完成就已停止"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
+msgstr "加密连接在传输途中被破坏（通常是扫描邮件连接的杀毒或防火墙软件所致：请为 MailCraft 关闭其邮件或 SSL 扫描，或咨询邮件服务商）"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
@@ -21496,6 +22585,12 @@ msgstr "正在导入 .pst 文件的目标文件夹已移至“已删除邮件”
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "此邮件所在的文件夹已不在此计算机上"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the folder was numbered anew while it was being read"
+msgstr "文件夹在读取过程中被重新编号"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -21708,7 +22803,7 @@ msgid "the sender has no address to put on the list"
 msgstr "发件人没有可添加到列表中的地址"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "发件人没有可用的电子邮件地址"
@@ -22068,10 +23163,21 @@ msgid "the text has a character that can't be sent"
 msgstr "文本中包含无法发送的字符"
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "要替换的文本已更改"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
 msgstr "“{subject}”的文本在此计算机上无法读取，因此无法作为附件转发"
+
+#. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -22266,7 +23372,7 @@ msgid "this account has no signature; add one in File › Options"
 msgstr "该账户没有签名；在文件 › 选项中添加一项"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/react.rs
 #, fuzzy
 msgid "this account has no {folder} folder"
 msgstr "此账户没有 {folder} 文件夹"
@@ -22282,6 +23388,18 @@ msgstr "此账户没有保存它的权限"
 #, fuzzy
 msgid "this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"
 msgstr "此账户不发送邮件，因此邮件无法等待某个时间：请立即发送，或存为草稿"
+
+#. what a command says
+#: crates/engine/src/cmd/category.rs
+#, fuzzy
+msgid "this account's categories aren't kept in step with a server"
+msgstr "此账户的类别未与服务器同步"
+
+#. what a command says
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "this account's categories aren't kept in step with its server"
+msgstr "此账户的类别未与其服务器同步"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -22338,16 +23456,34 @@ msgid "this message already has as many attachments as it can carry"
 msgstr "此邮件的附件数量已达上限"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has a warning about its sender, so no reaction is sent to it"
+msgstr "此邮件带有关于发件人的警告，因此不会发送回应"
+
+#. what a command says
 #: crates/model/src/pictures.rs
 #, fuzzy
 msgid "this message has had as many pictures as it can"
 msgstr "此邮件的图片数量已达上限"
 
 #. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has no Message-ID, so a reaction can't say what it answers"
+msgstr "此邮件没有 Message-ID，因此回应无法说明它回应的是哪封邮件"
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "this message has no sender address to look for"
 msgstr "此邮件没有可查找的发件人地址"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this message has no sender to send a reaction to"
+msgstr "此邮件没有可以发送回应的发件人"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -22385,6 +23521,12 @@ msgstr "此重复日程中更改的日期过多"
 msgid "time"
 msgid_plural "times"
 msgstr[0] "次"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "to {recipient}"
+msgstr "发送给 {recipient}"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -22558,6 +23700,12 @@ msgstr "脱机工作"
 msgid "year"
 msgstr "年"
 
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "you already reacted to this message with {emoji}"
+msgstr "您已经用 {emoji} 回应过此邮件"
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -22656,6 +23804,12 @@ msgid "{address} is already set up"
 msgstr "{address} 已设置"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{address} is no longer one of this account's sender addresses: choose another From"
+msgstr "{address} 不再是此账户的发件人地址：请选择其他发件人"
+
+#. what a command says
 #: crates/engine/src/cmd/junk.rs
 #, fuzzy
 msgid "{address} is one of your own addresses: your own mail isn't blocked"
@@ -22672,6 +23826,12 @@ msgstr "{address} 已设置"
 #, fuzzy
 msgid "{address} isn't a shared mailbox open here."
 msgstr "{address} 不是此处打开的共享邮箱。"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{address} isn't one of this account's sender addresses (add it in Account Settings)"
+msgstr "{address} 不是此账户的发件人地址（请在账户设置中添加）"
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
@@ -23076,6 +24236,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} 不是共享邮箱：使用 account.remove 将其删除"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} 不在收藏夹中"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -23146,6 +24312,12 @@ msgstr "{name} 与您共享了日历。"
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} 与您共享了日历。该日历已出现在您的日历列表中。"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} 保持在账户文件夹的顶部"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -23276,6 +24448,13 @@ msgstr[0] "{n} 字节"
 msgid "{n} calendar item"
 msgid_plural "{n} calendar items"
 msgstr[0] "{n} 个日历项目"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} category couldn't be put back: the list of categories is full."
+msgid_plural "{n} categories couldn't be put back: the list of categories is full."
+msgstr[0] "有 {n} 个类别无法还原：类别列表已满。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -23409,6 +24588,13 @@ msgid "{n} event in view"
 msgid_plural "{n} events in view"
 msgstr[0] "视图中的 {n} 个日程"
 
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "{n} event keeps its categories as they were on its server: too many changes are waiting to be sent."
+msgid_plural "{n} events keep their categories as they were on their servers: too many changes are waiting to be sent."
+msgstr[0] "有 {n} 个日程在其服务器上的类别保持原样：等待发送的更改过多。"
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -23429,6 +24615,13 @@ msgstr[0] "已跳过 {n} 个文件或文件夹：它们不是邮箱文件、是�
 msgid "{n} folder"
 msgid_plural "{n} folders"
 msgstr[0] "{n} 个文件夹"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "{n} found in the address list"
+msgid_plural "{n} found in the address list"
+msgstr[0] "在地址列表中找到 {n} 个"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -23660,6 +24853,20 @@ msgstr[0] "有 {n} 封邮件在删除被拒绝后返回了空内容，正在重�
 msgid "{n} message was already here"
 msgid_plural "{n} messages were already here"
 msgstr[0] "已有 {n} 封邮件在此"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] "已拖动 {n} 封邮件：只打开了第一封。"
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "有 {n} 封邮件因下载失败而被跳过。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -24122,6 +25329,12 @@ msgid "{sent} message sent"
 msgid_plural "{sent} messages sent"
 msgstr[0] "已发送 {sent} 封邮件"
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr "{server}（此服务器需要登录：请在账户设置中取消勾选“我的发送服务器无需登录”。）"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -24213,6 +25426,12 @@ msgstr "{why}，因此无法保存登录信息：MailCraft 每次启动时都会
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}。此处对它所做的 {n} 项更改保留在此计算机上，等待发送。"
 
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "ΔLines"
+msgstr "Δ行"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -24226,16 +25445,249 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then fo
 msgstr "“{subject}”尚未下载：请联网后打开，再将其作为附件转发"
 
 #. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
 msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无法作为附件转发"
 
 #. what a command says
+#: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "−Bin"
+msgstr "−二进制"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "−Lines"
+msgstr "−行"
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "句首单词自动大写"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "输入完单词后会自动添加大写字母。撤销可恢复原来的输入。"
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "拼写和语法"
+
+#, fuzzy
+#~ msgid "As the people you write to see it"
+#~ msgstr "收件人看到的效果"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
+#~ msgstr "在浏览器打开的页面上，允许 MailCraft 读取他人的日历…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
+#~ msgstr "在浏览器打开的页面上，允许 MailCraft 读取共享邮箱的日历…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
+#~ msgstr "在浏览器打开的页面上，允许 MailCraft 从共享邮箱发送邮件…"
+
+#, fuzzy
+#~ msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
+#~ msgstr "请求读取共享邮箱日历的权限：Microsoft 页面将在浏览器中打开。未获授权时，不会读取此邮箱的任何日历。"
+
+#, fuzzy
+#~ msgid "Mail from the shared mailbox waits: {error}"
+#~ msgstr "共享邮箱中的邮件等待发送：{error}"
+
+#, fuzzy
+#~ msgid "Other people's calendars weren't allowed: {error}"
+#~ msgstr "未获准访问其他人的日历：{error}"
+
+#, fuzzy
+#~ msgid "Send from a Shared Mailbox"
+#~ msgstr "从共享邮箱发送"
+
+#, fuzzy
+#~ msgid "Shared mailboxes weren't allowed: {error}"
+#~ msgstr "未获准访问共享邮箱：{error}"
+
+#, fuzzy
+#~ msgid "Shared mailboxes' calendars weren't allowed: {error}"
+#~ msgstr "未获准访问共享邮箱的日历：{error}"
+
+#, fuzzy
+#~ msgid "Show a Shared Mailbox's Calendars"
+#~ msgstr "显示共享邮箱的日历"
+
+#, fuzzy
+#~ msgid "That isn't a shared mailbox"
+#~ msgstr "这不是共享邮箱"
+
+#, fuzzy
+#~ msgid "The calendars of the shared mailbox wait: {error}"
+#~ msgstr "共享邮箱的日历正在等待：{error}"
+
+#, fuzzy
+#~ msgid ""
+#~ "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "要从 {address} 回复或发送会议邀请，MailCraft 需要您授权从共享邮箱发送。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+#~ "\n"
+#~ "回复以 {address} 的身份发送，还是代表该地址发送，由您的组织决定。在您授权之前，回复会留在此计算机上等待，不会从您自己的地址发送。"
+
+#, fuzzy
+#~ msgid ""
+#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+#~ msgstr ""
+#~ "要打开其他人的日历，MailCraft 需要您授权读取他人与您共享的日历。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+#~ "\n"
+#~ "打开的日历只保存在此计算机上，不会出现在 Outlook 或您的其他设备上。"
+
+#, fuzzy
+#~ msgid ""
+#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
+#~ msgstr ""
+#~ "要从 {address} 发送邮件，MailCraft 需要您授权从共享邮箱发送。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+#~ "\n"
+#~ "邮件以 {address} 的身份发送，还是代表该地址发送，由您的组织决定。在您授权之前，邮件会在共享邮箱的发件箱中等待，不会从您自己的地址发送。"
+
+#, fuzzy
+#~ msgid ""
+#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
+#~ msgstr ""
+#~ "要显示 {address} 的日历，MailCraft 需要您授权读取共享邮箱的日历。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+#~ "\n"
+#~ "您可以查看哪些日历内容由其所有者和您的组织决定，此授权不会改变这些权限。在您授权之前，不会读取 {address} 的任何日历。"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+#~ msgstr "您的组织不允许 MailCraft 读取共享邮箱的日历"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
+#~ msgstr "组织管理员需要批准一次读取他人日历的权限：文件 › 信息"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
+#~ msgstr "组织管理员需要批准一次读取共享邮箱的权限：文件 › 信息"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
+#~ msgstr "组织管理员需要批准一次读取共享邮箱日历的权限：文件 › 信息"
+
+#~ msgid "The colour is set in Outlook"
+#~ msgstr "颜色是在 Outlook 中设置的"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
+#~ msgstr "在浏览器打开的页面上，允许 MailCraft 更改您的自动回复…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to keep your rules on the server on the page that opened in your browser…"
+#~ msgstr "在浏览器打开的页面上，允许 MailCraft 将您的规则保存在服务器上…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to keep your tasks in step with Microsoft To Do on the page that opened in your browser…"
+#~ msgstr "在浏览器打开的页面上，允许 MailCraft 将您的任务与 Microsoft To Do 同步…"
+
+#, fuzzy
+#~ msgid "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
+#~ msgstr "请求更改服务器规则的权限：Microsoft 页面将在浏览器中打开。未获授权时，新规则仅保存在此计算机上，不会发送到服务器。"
+
+#, fuzzy
+#~ msgid "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
+#~ msgstr "请求更改自动回复的权限：Microsoft 页面将在浏览器中打开。读取自动回复不需要此权限。"
+
+#, fuzzy
+#~ msgid "Keep Rules on the Server"
+#~ msgstr "在服务器上保留规则"
+
+#, fuzzy
+#~ msgid "Keep Tasks in Step with Microsoft To Do"
+#~ msgstr "让任务与 Microsoft To Do 保持同步"
+
+#, fuzzy
+#~ msgid "Rules stay on this computer for now: {error}"
+#~ msgstr "规则暂时保留在此计算机上：{error}"
+
+#, fuzzy
+#~ msgid "Rules weren't allowed on the server: {error}"
+#~ msgstr "未获准在服务器上使用规则：{error}"
+
+#, fuzzy
+#~ msgid "Tasks weren't allowed to be kept in step: {error}"
+#~ msgstr "未获准同步任务：{error}"
+
+#, fuzzy
+#~ msgid "This account doesn't keep its rules on its server"
+#~ msgstr "此账户的规则不保存在服务器上"
+
+#, fuzzy
+#~ msgid ""
+#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
+#~ msgstr ""
+#~ "要更改 {address} 的自动回复，MailCraft 需要您授权更改邮箱设置。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+#~ "\n"
+#~ "有了此权限，MailCraft 只会更改您的自动回复和收件箱规则，不会更改类别或工作时间。读取自动回复不需要此权限。"
+
+#, fuzzy
+#~ msgid ""
+#~ "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
+#~ msgstr ""
+#~ "要将 {address} 的规则保存在服务器上，MailCraft 需要您授权更改邮箱设置，因为 Microsoft 将规则保存在其中。这样即使 MailCraft 已关闭，规则也会运行，并显示在 Outlook 网页版和手机上。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
+#~ "\n"
+#~ "在您授权之前，规则只保存在此计算机上，不会向 Microsoft 发送任何规则内容。"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"
+#~ msgstr "您的组织不允许 MailCraft 在服务器上保留规则"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to keep tasks in step with Microsoft To Do"
+#~ msgstr "您的组织不允许 MailCraft 使任务与 Microsoft To Do 保持同步"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't let MailCraft change automatic replies"
+#~ msgstr "您的组织不允许 MailCraft 更改自动回复"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve MailCraft changing automatic replies once: File › Info"
+#~ msgstr "组织管理员需要批准一次 MailCraft 更改自动回复的权限：文件 › 信息"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve keeping rules on the server once: File › Info"
+#~ msgstr "组织管理员需要批准一次在服务器上保存规则的权限：文件 › 信息"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve keeping tasks in step with Microsoft To Do once: File › Info"
+#~ msgstr "组织管理员需要批准一次将任务与 Microsoft To Do 同步的权限：文件 › 信息"
 
 #, fuzzy
 #~ msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."

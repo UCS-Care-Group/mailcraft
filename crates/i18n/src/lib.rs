@@ -37,6 +37,8 @@ macro_rules! said {
 #[cfg(test)]
 mod chinese_tests;
 #[cfg(test)]
+mod czech_tests;
+#[cfg(test)]
 mod polish_tests;
 #[cfg(test)]
 mod said_tests;
@@ -70,7 +72,9 @@ pub enum Lang {
     Hebrew,
     Hungarian,
     Polish,
+    Czech,
     ChineseSimplified,
+    Georgian,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -78,7 +82,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 12] = [
+    pub const ALL: [Lang; 14] = [
         Lang::English,
         Lang::French,
         Lang::German,
@@ -89,7 +93,9 @@ impl Lang {
         Lang::Hebrew,
         Lang::Hungarian,
         Lang::Polish,
+        Lang::Czech,
         Lang::ChineseSimplified,
+        Lang::Georgian,
         Lang::Pseudo,
     ];
 
@@ -106,7 +112,9 @@ impl Lang {
             Lang::Hebrew => "he",
             Lang::Hungarian => "hu",
             Lang::Polish => "pl",
+            Lang::Czech => "cs",
             Lang::ChineseSimplified => "zh_CN",
+            Lang::Georgian => "ka",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -147,6 +155,8 @@ impl Lang {
             "he" | "iw" => Some(Lang::Hebrew),
             "hu" => Some(Lang::Hungarian),
             "pl" => Some(Lang::Polish),
+            "cs" => Some(Lang::Czech),
+            "ka" => Some(Lang::Georgian),
             _ => None,
         }
     }
@@ -164,7 +174,9 @@ impl Lang {
             Lang::Hebrew => "עברית",
             Lang::Hungarian => "Magyar",
             Lang::Polish => "Polski",
+            Lang::Czech => "Čeština",
             Lang::ChineseSimplified => "简体中文",
+            Lang::Georgian => "ქართული",
             Lang::Pseudo => "Pseudo",
         }
     }
@@ -182,7 +194,9 @@ impl Lang {
                 | Lang::Hebrew
                 | Lang::Hungarian
                 | Lang::Polish
+                | Lang::Czech
                 | Lang::ChineseSimplified
+                | Lang::Georgian
         )
     }
 
@@ -482,10 +496,12 @@ mod tests {
             "עברית (תצוגה מקדימה)",
             "Magyar (előzetes)",
             "Polski (wersja zapoznawcza)",
+            "Čeština (náhled)",
         ];
         if !cfg!(target_arch = "wasm32") {
             expected.push("简体中文（预览）");
         }
+        expected.push("ქართული (საცდელი)");
         assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
@@ -501,6 +517,8 @@ mod tests {
         assert_eq!(Lang::Hebrew.folder("Archive"), "ארכיון");
         assert_eq!(Lang::from_pref("auto", Some("hu_HU.UTF-8")), Lang::Hungarian);
         assert_eq!(Lang::from_pref("hu", None), Lang::Hungarian);
+        assert_eq!(Lang::from_pref("auto", Some("ka_GE.UTF-8")), Lang::Georgian);
+        assert_eq!(Lang::from_pref("ka", None), Lang::Georgian);
     }
 
     #[test]

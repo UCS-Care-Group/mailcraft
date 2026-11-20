@@ -108,9 +108,16 @@ internal suspend fun runBackgroundSync(target: SyncTarget?, budgetMs: Long, lock
 }
 
 /** [SyncTarget] over the app's one core and the hub that saves it. */
-internal class CoreSyncTarget(private val core: Core, private val hub: AccountsHub) : SyncTarget {
-    override suspend fun backgroundSync(budgetMs: Long): SyncSummary =
-        core.backgroundSync(budgetMs.coerceAtLeast(0L).toULong())
+internal class CoreSyncTarget(
+    private val core: Core,
+    private val hub: AccountsHub,
+    private val holds: FirstSyncHolds? = null,
+) : SyncTarget {
+    override suspend fun backgroundSync(budgetMs: Long): SyncSummary {
+        // The worker's process may have started without a window: the accounts held back are said
+        // to the core before its round, so that none of them is fetched (no round when one can't be).
+        return afterHolds(holds) { core.backgroundSync(budgetMs.coerceAtLeast(0L).toULong()) }
+    }
 
     override suspend fun save(): Boolean = hub.saveNow()
 }
@@ -138,5 +145,5 @@ internal suspend fun MailCraftApplication.syncTarget(): SyncTarget? {
     begin()
     val phase = started.first { it !is Phase.Loading }
     val opened = (phase as? Phase.Ready)?.value ?: return null
-    return CoreSyncTarget(opened.core, opened.hub)
+    return CoreSyncTarget(opened.core, opened.hub, opened.holds)
 }

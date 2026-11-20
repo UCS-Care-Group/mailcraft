@@ -361,3 +361,119 @@ fn ionos_results_signed_kundenserver_vouch_for_the_sender() {
     let other = Account { incoming: Some(Server { host: "imap.mail.example".into(), port: 993, security: Security::Tls }), ..ionos.clone() };
     assert!(!vouched(Some(&other), &pass));
 }
+
+/// #1568: mail from outside that came through a filtering gateway before Exchange Online, in the
+/// shape such mail is delivered (invented hosts, addresses and ids). Exchange checked the
+/// gateway's address and a body the gateway had changed, so SPF, DKIM and DMARC failed, and it
+/// says with `compauth=none reason=905` that it didn't enforce them for that reason. `results`
+/// is Exchange's verdict above its edge hop; below it, the gateway's own, which came with the
+/// message as far as anybody can tell.
+fn through_a_gateway(results: &str) -> Vec<(String, String)> {
+    let mut headers = inside();
+    headers.extend([
+        h("Authentication-Results", results),
+        h("Received-SPF", "Fail (protection.outlook.com: domain of example.org does not designate 198.51.100.30 as permitted sender)"),
+        h(
+            "Received",
+            "from mx1.gateway.example.net (198.51.100.30) by AM3PEPF0000A001.mail.protection.outlook.com (10.167.16.1) with Microsoft SMTP Server; \
+             Tue, 3 Nov 2026 10:00:01 +0000",
+        ),
+        h("ARC-Seal", "i=1; a=rsa-sha256; d=gateway.example.net; s=arc; cv=none; b=DDDD"),
+        h(
+            "ARC-Authentication-Results",
+            "i=1; mx1.gateway.example.net; spf=pass smtp.mailfrom=example.org; dkim=pass header.d=example.org; dmarc=pass header.from=example.org",
+        ),
+        h(
+            "Authentication-Results",
+            "mx1.gateway.example.net; spf=pass smtp.mailfrom=example.org; dkim=pass header.d=example.org; dmarc=pass header.from=example.org",
+        ),
+        h("Received", "from mail.example.org (192.0.2.10) by mx1.gateway.example.net; Tue, 3 Nov 2026 10:00:00 +0000"),
+    ]);
+    headers.extend(senders(Vec::new()));
+    headers.extend(stamps("Incoming", "Anonymous"));
+    headers
+}
+
+const ROUTED: &str = "mx.microsoft.com 1; spf=fail (sender IP is 198.51.100.30) smtp.mailfrom=example.org; dkim=fail (body hash did not verify) \
+                      header.d=example.org;dmarc=fail action=none header.from=example.org;compauth=none reason=905";
+
+#[test]
+fn a_failure_exchange_says_came_of_the_route_is_no_warning() {
+    for account in [microsoft(), microsoft_imap()] {
+        let m = message("alerts@example.org", through_a_gateway(ROUTED));
+        assert_eq!(failed_check(Some(&account), &m), None);
+        // Nor is it vouched for: the gateway's pass below the edge hop is anybody's to write.
+        assert!(!vouched(Some(&account), &m));
+        // Without an authserv-id, as Exchange writes it for consumer mailboxes, the same.
+        let no_id = ROUTED.trim_start_matches("mx.microsoft.com 1; ");
+        assert_eq!(failed_check(Some(&account), &message("alerts@example.org", through_a_gateway(no_id))), None);
+        // An SPF failure with no DMARC verdict, for the same reason.
+        let spf = "mx.microsoft.com 1; spf=fail (sender IP is 198.51.100.30) smtp.mailfrom=example.org; compauth=none reason=905";
+        assert_eq!(failed_check(Some(&account), &message("alerts@example.org", through_a_gateway(spf))), None);
+    }
+}
+
+#[test]
+fn only_the_complex_routing_reason_of_exchange_itself_takes_a_failure_away() {
+    let account = microsoft();
+    // Exchange let it by for another reason (an allow list, a rule) or didn't check: the failure stands.
+    for reason in ["451", "301", "000", "9050", ""] {
+        let verdict = ROUTED.replace("reason=905", &format!("reason={reason}"));
+        assert_eq!(failed_check(Some(&account), &message("alerts@example.org", through_a_gateway(&verdict))), Some(Failed::Dmarc), "{reason}");
+    }
+    // A failed composite verdict, or the code in a comment only, is no reason either.
+    for verdict in [ROUTED.replace("compauth=none", "compauth=fail"), ROUTED.replace("reason=905", "(reason=905)")] {
+        assert_eq!(failed_check(Some(&account), &message("alerts@example.org", through_a_gateway(&verdict))), Some(Failed::Dmarc), "{verdict}");
+    }
+    // The code below the edge hop, where the sender or the gateway may have written it, is not read.
+    let mut headers = external(OWN_FAIL, vec![h("Authentication-Results", ROUTED)]);
+    assert_eq!(failed_check(Some(&account), &message("alerts@example.org", headers.clone())), Some(Failed::Dmarc));
+    // Nor is a second clause of Exchange's own that gives it for another domain's sender.
+    headers = through_a_gateway(&ROUTED.replace("compauth=none reason=905", "compauth=none reason=905 header.from=other.example"));
+    assert_eq!(failed_check(Some(&account), &message("alerts@example.org", headers)), Some(Failed::Dmarc));
+}
+
+/// The same verdict for a sender at the account's own domain. Exchange gives `reason=905` from how
+/// the tenant's mail is routed, so it says it too of a message sent straight to Microsoft 365 past
+/// the gateway, where anybody can write a colleague's address on it.
+fn spoof_of(from: &str, domain: &str, results: &str) -> Message {
+    message(from, through_a_gateway(&results.replace("example.org", domain)))
+}
+
+#[test]
+fn a_spoof_of_the_owners_own_domain_keeps_its_warning_past_the_route() {
+    let spf = "mx.microsoft.com 1; spf=fail (sender IP is 203.0.113.9) smtp.mailfrom=example.org; compauth=none reason=905";
+    for account in [microsoft(), microsoft_imap()] {
+        assert_eq!(failed_check(Some(&account), &spoof_of("ceo@lumen.example", "lumen.example", ROUTED)), Some(Failed::Dmarc));
+        assert_eq!(failed_check(Some(&account), &spoof_of("ceo@lumen.example", "lumen.example", spf)), Some(Failed::Spf));
+        // Written in other capitals, with a dot at the end, or at a name under the account's own.
+        assert_eq!(failed_check(Some(&account), &spoof_of("CEO@Lumen.EXAMPLE.", "LUMEN.example", ROUTED)), Some(Failed::Dmarc));
+        assert_eq!(failed_check(Some(&account), &spoof_of("it@hr.lumen.example", "hr.lumen.example", ROUTED)), Some(Failed::Dmarc));
+        // A domain that only starts or ends like the account's is somebody else's: no warning.
+        for outside in ["lumen.example.org", "notlumen.example"] {
+            assert_eq!(failed_check(Some(&account), &spoof_of(&format!("ceo@{outside}"), outside, ROUTED)), None, "{outside}");
+        }
+    }
+    // The account's address at a name under the organisation's, the sender at the organisation's.
+    let uk = Account { email: "ada@uk.lumen.example".into(), ..microsoft() };
+    assert_eq!(failed_check(Some(&uk), &spoof_of("ceo@lumen.example", "lumen.example", ROUTED)), Some(Failed::Dmarc));
+    // A domain written in other letters is the same domain however either address writes it.
+    let idn = Account { email: "ada@xn--lmen-0ra.example".into(), ..microsoft() };
+    assert_eq!(failed_check(Some(&idn), &spoof_of("ceo@l\u{fc}men.example", "xn--lmen-0ra.example", ROUTED)), Some(Failed::Dmarc));
+    let idn = Account { email: "ada@l\u{fc}men.example".into(), ..microsoft() };
+    assert_eq!(failed_check(Some(&idn), &spoof_of("ceo@xn--lmen-0ra.example", "xn--lmen-0ra.example", ROUTED)), Some(Failed::Dmarc));
+}
+
+#[test]
+fn mail_exchange_calls_internal_is_not_vouched_for_past_a_failure_it_did_not_enforce() {
+    // A connector may make Exchange call mail of the owner's own domain internal; with the
+    // failure standing, it is not vouched for, as before #1568.
+    let mut m = spoof_of("bo@lumen.example", "lumen.example", ROUTED);
+    for (name, value) in &mut m.headers {
+        if name == AUTH_AS {
+            *value = "Internal".into();
+        }
+    }
+    assert_eq!(failed_check(Some(&microsoft()), &m), Some(Failed::Dmarc));
+    assert!(!vouched(Some(&microsoft()), &m));
+}

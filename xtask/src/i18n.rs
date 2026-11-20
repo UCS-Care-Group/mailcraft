@@ -4,7 +4,8 @@
 //! `crates/i18n/po/messages.pot`, and merged into each language's catalogue (`fr.po`, …).
 //!
 //! What is gathered: every literal in `tl!("…")` and `tln!(n, "…", "…")` in the window
-//! (`crates/ui-egui`); a literal passed where a function of the window puts that parameter through
+//! (`crates/ui-egui`), and in `tl_later!("…")`, which marks one that reaches `tl!` through a
+//! variable (a label in a table, a constant, the reason a check gives); a literal passed where a function of the window puts that parameter through
 //! `tl!` (`mi(ui, app, "New Message", …)`); the window's own commands (`UI_COMMANDS`); the engine's
 //! command labels, the parts of their ribbon locations and the reasons a command can't run; the
 //! names the window shows through `tl!(x.label())` (`fn label`/`name`/`title`… returning a
@@ -16,6 +17,12 @@
 //! `--check` (a `cargo xtask ci` step) changes nothing and fails when the template or a catalogue
 //! is out of date. Either way, it fails on a catalogue it can't read, or on a translation whose
 //! `{placeholders}` aren't the English's.
+//!
+//! In the merge queue and on main (`GITHUB_EVENT_NAME` `merge_group` or `push`, or `--lenient`) an
+//! out-of-date template or catalogue is only reported: two pull requests that each pass can meet in
+//! a catalogue git merges without a conflict but that neither left complete (a text one adds, a
+//! language the other adds). A text a catalogue lacks is shown in English until the catalogues are
+//! refreshed. What can't be read, and a translation that loses or adds a `{placeholder}`, still fail.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -32,7 +39,13 @@ const NAME_FNS: &[&str] = &["label", "title", "detail", "about", "default_name",
 /// Window constants that reach `tl!` through a variable (`tl!(error)`), not by name.
 const SHOWN_CONSTS: &[&str] = &["NEEDS_APPROVAL", "REFUSED_BY_ORGANISATION", "REFUSED_FOR_ACCOUNT", "FAVORITES_NOW_GRAPH", "OPEN_ELSEWHERE"];
 
-pub fn run(root: &Path, check: bool) -> Result<(), String> {
+/// Whether an out-of-date template or catalogue is only reported, not a failure: asked for, or run
+/// by CI in the merge queue or on a push to main.
+pub fn lenient(asked: bool, event: Option<&str>) -> bool {
+    asked || matches!(event, Some("merge_group" | "push"))
+}
+
+pub fn run(root: &Path, check: bool, lenient: bool) -> Result<(), String> {
     let found = gather(root)?;
     let pot = template(&found);
     let dir = root.join("crates/i18n/po");
@@ -80,6 +93,11 @@ pub fn run(root: &Path, check: bool) -> Result<(), String> {
     }
     if check && !stale.is_empty() {
         let names: Vec<String> = stale.iter().map(|p| rel(root, p)).collect();
+        if lenient {
+            // ponytail: reported, not fixed; the catalogues are refreshed by a later `cargo xtask i18n`.
+            println!("out of date, not a failure here: {} (run `cargo xtask i18n`)", names.join(", "));
+            return Ok(());
+        }
         return Err(format!("out of date: {} (run `cargo xtask i18n`)", names.join(", ")));
     }
     if !check {
@@ -550,8 +568,8 @@ fn ribbon(toks: &[Tok], file: &str, texts: &mut Texts) {
     }
 }
 
-/// `tl!("…")`, `tlc!("context", "…")`, `tln!(n, "…", "…")`, and a literal where a function
-/// translates that parameter.
+/// `tl!("…")`, `tlc!("context", "…")`, `tln!(n, "…", "…")`, `tl_later!("…")`, and a literal where
+/// a function translates that parameter.
 fn literals(toks: &[Tok], file: &str, through: &BTreeMap<String, BTreeSet<usize>>, consts: &BTreeMap<String, String>, texts: &mut Texts) {
     for i in 0..toks.len() {
         if is(toks, i, &["tl", "!", "("]) {
@@ -560,6 +578,10 @@ fn literals(toks: &[Tok], file: &str, through: &BTreeMap<String, BTreeSet<usize>
             } else if let (Some(Tok::Ident(name)), Some(Tok::Punct(')'))) = (toks.get(i + 3), toks.get(i + 4))
                 && let Some(s) = consts.get(name)
             {
+                add(texts, s, None, file, "interface");
+            }
+        } else if is(toks, i, &["tl_later", "!", "("]) {
+            if let Some(s) = args(toks, i + 2).first().and_then(|a| lit(a)) {
                 add(texts, s, None, file, "interface");
             }
         } else if is(toks, i, &["tlc", "!", "("]) {
@@ -991,6 +1013,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn stale_catalogues_fail_a_pull_request_but_not_the_queue_or_main() {
+        assert!(!lenient(false, None));
+        assert!(!lenient(false, Some("pull_request")));
+        assert!(lenient(false, Some("merge_group")));
+        assert!(lenient(false, Some("push")));
+        assert!(lenient(true, Some("pull_request")));
+    }
+
+    #[test]
     fn finds_what_the_window_says() {
         let src = r##"
             fn mi(ui: &mut Ui, label: &str, id: &str) { ui.button(tl!(label)); }
@@ -1189,3 +1220,7 @@ mod tests {
         assert!(mismatch(&one).is_none());
     }
 }
+
+#[cfg(test)]
+#[path = "i18n_tests.rs"]
+mod i18n_tests;

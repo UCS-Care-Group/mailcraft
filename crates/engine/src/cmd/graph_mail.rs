@@ -268,7 +268,9 @@ pub fn graph_fetch_request(s: &Session, account: Id, message: Option<Id>, most: 
                 .message(id)
                 .filter(|m| m.account == account)
                 .ok_or_else(|| failed!("no message with id {id} in {name}", id, name = a.name))?;
-            m.server.as_ref().filter(|_| graph_down::still_to_fetch(&s.mailbox, m)).map(|server| vec![server.id.clone()]).unwrap_or_default()
+            // (Whole already, when Save Message As asks for the server's copy, #1561.)
+            let asked = graph_down::still_to_fetch(&s.mailbox, m) || s.asked_for_save(id);
+            m.server.as_ref().filter(|_| asked).map(|server| vec![server.id.clone()]).unwrap_or_default()
         }
         None => graph_down::fetch_queue_passing_over(&s.mailbox, account, most.clamp(1, 100), s.now(), &s.graph_unfetchable),
     };
@@ -631,7 +633,10 @@ pub(super) fn change_done(
             let server = f.server.as_mut().filter(|server| server.id == there.id)?;
             match change {
                 FolderChange::Rename { .. } => server.name = there.name.clone(),
-                _ => server.parent = there.parent.clone(),
+                _ => {
+                    server.parent = there.parent.clone();
+                    f.place_before_move = None;
+                }
             }
             taken.pushed += 1;
             None
@@ -665,7 +670,9 @@ pub(super) fn change_done(
                     format!("Couldn't rename the folder \"{was}\" on the server: {why}")
                 }
                 _ => {
-                    f.parent = back;
+                    f.set_parent(back);
+                    // (Back in its old place too, #1514.)
+                    f.place = f.place_before_move.take().or(f.place);
                     format!("Couldn't move the folder \"{was}\" on the server: {why}")
                 }
             };
@@ -840,7 +847,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         f.name = name.to_string();
     }
     if !moved_here && can_go {
-        f.parent = parent_here;
+        f.set_parent(parent_here);
     }
     if f.kind == FolderKind::Custom && there.kind != FolderKind::Custom {
         f.kind = there.kind;
