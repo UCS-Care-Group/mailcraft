@@ -53,6 +53,10 @@ impl Headless {
             fields.remove("unsaved");
         }
         let params = &params;
+        // What the gate reads is the mailbox the command runs on: `Session::run` settles the zone
+        // the computer may have been carried to first, so the gate is asked after that too
+        // (#1674: an undo after a zone move puts every event back, and asks for `delete`).
+        self.session.settle_zone();
         match agent::check(&self.session, id, params, &self.allow) {
             Verdict::Run => {
                 self.session.agent = Some(self.allow.clone());
@@ -120,3 +124,5 @@ mod server_tests;
 mod shared_window_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod undo_zone_tests;

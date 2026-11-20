@@ -2160,7 +2160,7 @@ msgid "AutoArchive"
 msgstr "Arhivare automată"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automat"
@@ -3130,6 +3130,12 @@ msgstr "Căutare actualizări"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Verificare versiuni noi"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Verifică ortografia cu un dicționar local"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5655,6 +5661,12 @@ msgstr "Găsire mesaje asociate"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Găsire oră"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Găsește următoarea greșeală de ortografie"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -10385,6 +10397,24 @@ msgid "No signatures yet"
 msgstr "Încă nicio semnătură"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Nu s-au găsit greșeli de ortografie"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "Nu s-au găsit greșeli de ortografie în partea verificată"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Nicio sugestie de ortografie"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10913,7 +10943,7 @@ msgid "October"
 msgstr "octombrie"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Dezactivat"
@@ -12985,6 +13015,12 @@ msgstr "Înlocuire"
 #, fuzzy
 msgid "Replace All"
 msgstr "Înlocuire peste tot"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Înlocuiește textul la poziția indicată"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15472,8 +15508,26 @@ msgstr "Spațiu pentru e-mailuri, cel mult"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Ortografie și gramatică"
+msgid "Spelling"
+msgstr "Ortografie"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "Verificarea ortografică nu este disponibilă pe această platformă"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "Limba verificării ortografice"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Sugestii de ortografie"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17775,6 +17829,12 @@ msgstr "Spațiul pe care îl ocupă pe acest computer dosarul și dosarele de su
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "Spațiul pe care îl ocupă pe acest computer mesajele proprii ale dosarului"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Dicționarul ortografic nu este disponibil"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -21285,6 +21345,12 @@ msgstr "introduceți un nume de utilizator pentru conectare"
 msgid "everybody at @{domain}"
 msgstr "toți cei de la @{domain}"
 
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "textul căutat și cel înlocuitor trebuie să fie pe o singură linie"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -23197,6 +23263,12 @@ msgstr "textul nu poate fi căutat pe server"
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "textul conține un caracter care nu poate fi trimis"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "textul care trebuia înlocuit s-a modificat"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25733,6 +25805,18 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Linii"
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "Scrie cu majusculă primul cuvânt din propoziție"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "Majuscula este adăugată la terminarea cuvântului. Anularea restabilește textul tastat."
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Ortografie și gramatică"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

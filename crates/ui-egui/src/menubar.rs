@@ -412,8 +412,8 @@ pub fn enabled(app: &MailApp, action: &Action) -> bool {
 
 /// Choose an item: a command runs as its key does in the window (the same id: Search focuses the
 /// search box, Send/Receive is the host's), as the ribbon runs it (a failure shows in the status bar); an
-/// Edit item becomes the input a text field takes on its next frame. `clipboard_text` is asked
-/// for only by Paste.
+/// Edit item becomes the input a text field takes on its next frame, in the window that has the
+/// keyboard. `clipboard_text` is asked for only by Paste.
 pub fn run(app: &mut MailApp, action: &Action, clipboard_text: impl FnOnce() -> String) {
     match action {
         Action::Command { id, params } => {
@@ -442,9 +442,10 @@ pub fn run(app: &mut MailApp, action: &Action, clipboard_text: impl FnOnce() -> 
                 EditKey::Redo => press(Key::Z, Modifiers { shift: true, ..cmd }),
                 EditKey::SelectAll => press(Key::A, cmd),
             };
-            // (Bounded: the queue is drained a frame at a time.)
-            if app.synthetic.len() < 64 {
-                app.synthetic.extend(events);
+            // For the window with the keyboard, the main one or one of its own (#1500). (Bounded:
+            // the queue is drained a frame at a time.)
+            if app.edit_keys.len() < 64 {
+                app.edit_keys.extend(events);
             }
         }
     }

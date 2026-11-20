@@ -444,8 +444,9 @@ pub struct Paragraph {
     pub runs: Vec<Run>,
     #[serde(skip_serializing_if = "is_none_list")]
     pub list: ListKind,
-    /// How deep a list item is indented, 0 to [`MAX_LEVEL`]; always 0 for an ordinary paragraph.
-    /// (Stored before levels existed, it is missing, and 0.)
+    /// How deep the paragraph is indented, 0 to [`MAX_LEVEL`]: a list item's level in its list, or
+    /// the steps of Increase Indent on an ordinary paragraph (#1658). (Stored before levels
+    /// existed, it is missing, and 0.)
     #[serde(skip_serializing_if = "is_zero")]
     pub level: u8,
     /// Part of the signature put in a message (R4.5): what choosing another replaces, and what is
@@ -469,10 +470,9 @@ impl Paragraph {
         p
     }
 
-    /// The same paragraph at a level of its list (kept within 0 to [`MAX_LEVEL`]; an ordinary
-    /// paragraph has none).
+    /// The same paragraph at an indent level (kept within 0 to [`MAX_LEVEL`]).
     pub fn at_level(mut self, level: u8) -> Paragraph {
-        self.level = if self.list == ListKind::None { 0 } else { level.min(MAX_LEVEL) };
+        self.level = level.min(MAX_LEVEL);
         self
     }
 
@@ -673,7 +673,7 @@ impl RichText {
         let mut out: Vec<Paragraph> = Vec::new();
         let mut budget = MAX_CHARS;
         'all: for p in paragraphs {
-            let level = if p.list == ListKind::None { 0 } else { p.level.min(MAX_LEVEL) };
+            let level = p.level.min(MAX_LEVEL);
             let mut cur = Paragraph { runs: Vec::new(), list: p.list, level, signature: p.signature };
             for run in p.runs {
                 let style = run.style.clean();
@@ -741,9 +741,9 @@ impl RichText {
 
     /// Whether anything in it is more than plain text.
     pub fn has_formatting(&self) -> bool {
-        self.paragraphs
-            .iter()
-            .any(|p| p.list != ListKind::None || p.runs.iter().any(|r| !r.style.is_plain() || r.picture.is_some() || r.table.is_some()))
+        self.paragraphs.iter().any(|p| {
+            p.list != ListKind::None || p.level != 0 || p.runs.iter().any(|r| !r.style.is_plain() || r.picture.is_some() || r.table.is_some())
+        })
     }
 
     /// The pictures' ids, in the order they stand.
@@ -766,10 +766,8 @@ impl RichText {
             if i > 0 {
                 out.push('\n');
             }
-            if p.list != ListKind::None {
-                for _ in 0..p.level {
-                    out.push_str("   ");
-                }
+            for _ in 0..p.level {
+                out.push_str("   ");
             }
             match p.list {
                 ListKind::None => {}
@@ -1007,8 +1005,9 @@ impl RichText {
     }
 
     /// Put another document's paragraphs at `at` (pasting). Its first paragraph joins the one at
-    /// `at` (and gives it its kind when it goes in at that paragraph's start and is a list item);
-    /// its last is followed by the rest of that one. The position after it.
+    /// `at` (and gives it its kind when it goes in at that paragraph's start and is a list item,
+    /// or its indent when it is an indented ordinary paragraph and the one at `at` is an empty
+    /// ordinary paragraph); its last is followed by the rest of that one. The position after it.
     pub fn insert_rich(&mut self, at: usize, fragment: &RichText) -> Result<usize, ModelError> {
         let (pi, off) = self.locate(at)?;
         let added = fragment.len();
@@ -1023,6 +1022,9 @@ impl RichText {
         let Some(first) = parts.next() else { return Ok(at) };
         if off == 0 && first.list != ListKind::None {
             target.list = first.list;
+            target.level = first.level;
+        } else if off == 0 && tail.is_empty() && target.list == ListKind::None && first.level != 0 {
+            // An indented paragraph pasted on an empty line keeps its indent (#1658).
             target.level = first.level;
         }
         target.runs.extend(first.runs);
@@ -1123,12 +1125,13 @@ impl RichText {
         Ok(())
     }
 
-    /// Move the list items `[from, to)` touches `by` levels deeper (or shallower when negative),
-    /// within 0 to [`MAX_LEVEL`]. Ordinary paragraphs stay as they are. Whether anything moved.
+    /// Move the paragraphs `[from, to)` touches `by` levels deeper (or shallower when negative),
+    /// within 0 to [`MAX_LEVEL`]: a list item in its list, an ordinary paragraph in from the left
+    /// (#1658). Whether anything moved.
     pub fn indent(&mut self, from: usize, to: usize, by: i8) -> Result<bool, ModelError> {
         let mut moved = false;
         for (i, _, _) in self.pieces(from, to)? {
-            if let Some(p) = self.paragraphs.get_mut(i).filter(|p| p.list != ListKind::None) {
+            if let Some(p) = self.paragraphs.get_mut(i) {
                 let level = p.level.saturating_add_signed(by).min(MAX_LEVEL);
                 moved |= level != p.level;
                 p.level = level;

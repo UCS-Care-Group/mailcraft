@@ -2160,7 +2160,7 @@ msgid "AutoArchive"
 msgstr "Automatická archivace"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automaticky"
@@ -3130,6 +3130,12 @@ msgstr "Vyhledat aktualizace"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Kontrolovat nové verze"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Zkontrolovat pravopis podle místního slovníku"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5655,6 +5661,12 @@ msgstr "Najít související zprávy"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Najít čas"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Najít další pravopisnou chybu"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -10387,6 +10399,24 @@ msgid "No signatures yet"
 msgstr "Zatím žádné podpisy"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Nebyly nalezeny žádné pravopisné chyby"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "V kontrolované části nebyly nalezeny žádné pravopisné chyby"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Žádné návrhy opravy"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10915,7 +10945,7 @@ msgid "October"
 msgstr "října"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Vypnuto"
@@ -12987,6 +13017,12 @@ msgstr "Nahradit"
 #, fuzzy
 msgid "Replace All"
 msgstr "Nahradit vše"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Nahradit text na zadané pozici"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15474,8 +15510,26 @@ msgstr "Místo pro poštu, nejvýše"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Pravopis a gramatika"
+msgid "Spelling"
+msgstr "Pravopis"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "Kontrola pravopisu není na této platformě dostupná"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "Jazyk kontroly pravopisu"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Návrhy opravy"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17777,6 +17831,12 @@ msgstr "Místo, které složka a složky pod ní zabírají v tomto počítači"
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "Místo, které vlastní zprávy složky zabírají v tomto počítači"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Slovník pro kontrolu pravopisu není dostupný"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -21289,6 +21349,12 @@ msgstr "k přihlášení zadejte uživatelské jméno"
 msgid "everybody at @{domain}"
 msgstr "všichni na @{domain}"
 
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "hledaný i náhradní text musí být na jednom řádku"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -23202,6 +23268,12 @@ msgstr "text nelze vyhledat na serveru"
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "text obsahuje znak, který nelze odeslat"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "text určený k nahrazení se změnil"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25736,6 +25808,18 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "Začínat věty velkým písmenem"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "Velké písmeno se doplní po dopsání slova. Příkaz Zpět obnoví původní zápis."
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Pravopis a gramatika"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"
