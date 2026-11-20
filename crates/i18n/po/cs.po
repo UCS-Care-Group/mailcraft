@@ -12959,6 +12959,18 @@ msgstr "Přejmenovat složku…"
 msgid "Rename Signature"
 msgstr "Přejmenovat podpis"
 
+#. name
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Renaming a category on the server"
+msgstr "Přejmenování kategorie na serveru"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr "Přejmenování kategorie na serveru: {done} z {total} zpráv"
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -16647,6 +16659,24 @@ msgstr "Odeslané kategorie se nepodařilo zaznamenat: {error}"
 #, fuzzy
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "Kategorii „{name}“ se nepodařilo vrátit: seznam kategorií je plný."
+
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] "Kategorie přejmenována u událostí na serveru: {n}"
+msgstr[1] "Kategorie přejmenována u událostí na serveru: {n}"
+msgstr[2] "Kategorie přejmenována u událostí na serveru: {n}"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] "Kategorie přejmenována u zpráv na serveru: {n}"
+msgstr[1] "Kategorie přejmenována u zpráv na serveru: {n}"
+msgstr[2] "Kategorie přejmenována u zpráv na serveru: {n}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs

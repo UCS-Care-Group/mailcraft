@@ -12108,6 +12108,18 @@ msgstr "Ordner umbenennen…"
 msgid "Rename Signature"
 msgstr "Signatur umbenennen"
 
+#. name
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Renaming a category on the server"
+msgstr "Kategorie wird auf dem Server umbenannt"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr "Kategorie wird auf dem Server umbenannt: {done} von {total} Nachrichten"
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -15597,6 +15609,22 @@ msgstr "Die gesendeten Kategorien konnten nicht vermerkt werden: {error}"
 #, fuzzy
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "Die Kategorie „{name}“ konnte nicht wiederhergestellt werden: Die Liste der Kategorien ist voll."
+
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] "Auf dem Server umbenannte Kategorie bei Terminen: {n}"
+msgstr[1] "Auf dem Server umbenannte Kategorie bei Terminen: {n}"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] "Auf dem Server umbenannte Kategorie bei Nachrichten: {n}"
+msgstr[1] "Auf dem Server umbenannte Kategorie bei Nachrichten: {n}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
