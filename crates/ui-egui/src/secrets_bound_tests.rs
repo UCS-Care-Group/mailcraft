@@ -224,6 +224,47 @@ fn a_password_never_goes_to_another_host() {
 }
 
 #[test]
+fn zimbra_reads_current_entries_without_adopting_or_removing_legacy_entries() {
+    for current in [false, true] {
+        let (store, seen) = (Store::default(), Seen::default());
+        let mut a = app(&store, &seen);
+        let id = add(&mut a);
+        let pin = "ab".repeat(32);
+        let account = a.session.mailbox.account_mut(id).unwrap();
+        account.kind = mailcraft_model::AccountKind::Zimbra;
+        account.incoming = None;
+        account.outgoing = None;
+        account.zimbra = Some(mailcraft_model::ZimbraServer {
+            url: "https://mail.example.org".into(),
+            username: "ada".into(),
+            trusted: pin.clone(),
+            ..Default::default()
+        });
+        let account = account.clone();
+        assert!(!a.address_shared(&account.email));
+        let key = MailApp::secret_key("password", &account);
+        for old in [
+            MailApp::legacy_secret_key("password", &account.email),
+            MailApp::legacy_secret_key("refresh", &account.email),
+            format!("password:{}|zimbra=https://mail.example.org|user=ada|pin={pin}", account.email.to_ascii_lowercase()),
+        ] {
+            store.set(&old, "synthetic-legacy-value").unwrap();
+        }
+        if current {
+            store.set(&key, "synthetic-current-value").unwrap();
+        }
+        let before = store.0.lock().unwrap().clone();
+        a.ui.sign_ins_bound = false;
+        a.secrets_asked = None;
+        crate::secret_read_tests::settle(&mut a);
+        assert_eq!(a.remembered("password", id).as_deref(), current.then_some("synthetic-current-value"));
+        assert_eq!(*store.0.lock().unwrap(), before);
+        assert!(a.ui.sign_ins_bound);
+        assert!(seen.lock().unwrap().is_empty());
+    }
+}
+
+#[test]
 fn secrets_kept_the_old_way_move_once_to_the_servers_of_the_account() {
     let (store, seen) = (Store::default(), Seen::default());
     let mut a = app(&store, &seen);

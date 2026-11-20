@@ -88,6 +88,17 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
 }
 
 #[test]
+fn non_ascii_urls_use_the_settings_character_limit_in_results_too() {
+    let url = format!("https://mail.example.org/{}", "é".repeat(1_100));
+    assert!(url.len() > crate::ZimbraServer::MAX_URL);
+    assert!(url.chars().count() <= crate::ZimbraServer::MAX_URL);
+    assert_eq!(crate::ZimbraServer::check_url(&url), Ok(()));
+    let mut piece = result();
+    piece.url = url;
+    assert_eq!(piece.check(), Ok(()));
+}
+
+#[test]
 fn what_is_out_of_bounds_is_refused_whole() {
     let mut odd = result();
     odd.token = "12 34".into();

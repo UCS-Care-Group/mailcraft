@@ -248,6 +248,9 @@ can be avoided, no `TODO`); each file carries the SPDX lines (`cargo xtask spdx`
   the operating system's credential store when the owner wants it remembered (`Services::secrets`;
   Windows, macOS, and the Secret Service on Linux and FreeBSD; a store that can't be used is
   `StoreTrouble`, said once a session). The mailbox file, `ui.json` and logs never hold one.
+  Zimbra keys use the `zimbra-v2` namespace with escaped server and login components. Neither
+  unversioned experimental keys nor address-only legacy entries are adopted for Zimbra; they
+  are left untouched, and an old experimental saved sign-in needs fresh entry instead.
 - **Signing in on the provider's page.** Microsoft and Google desktop accounts use OAuth 2.0
   (authorization code with PKCE, a loopback redirect and the system's browser) and XOAUTH2.
   `OAuthProvider` selects provider-specific endpoints, scopes and refresh handling. Google's
