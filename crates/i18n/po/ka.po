@@ -11836,6 +11836,11 @@ msgstr "აირჩიეთ ბოლო დღე"
 msgid "Picture"
 msgstr "სურათი"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Format"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -11847,6 +11852,11 @@ msgstr "სურათის განლაგება"
 #, fuzzy
 msgid "Picture Size and Description"
 msgstr "სურათის ზომა და აღწერა"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Width"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15197,8 +15207,8 @@ msgstr "გამარტივებული ლენტი"
 msgid "Single Line"
 msgstr "ერთი სტრიქონი"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "ზომა"
@@ -20928,6 +20938,11 @@ msgid "a signature's pictures are PNG, JPEG or GIF (many mail programs can't sho
 msgstr "ხელმოწერის სურათები არის PNG, JPEG ან GIF (ბევრი საფოსტო პროგრამა სხვა ტიპებს ვერ აჩვენებს)"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature's pictures are sized in File › Signatures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "a task needs a title"
@@ -21710,6 +21725,11 @@ msgid "no outgoing server"
 msgstr "გამავალი სერვერი არ არის"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture at position {at}"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no picture {id} in this signature"
@@ -22036,6 +22056,11 @@ msgstr "ჯერ მონიშნეთ მიმოწერა მიმო
 #, fuzzy
 msgid "select a message first"
 msgstr "ჯერ მონიშნეთ წერილი"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "select a picture in the message first"
+msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs

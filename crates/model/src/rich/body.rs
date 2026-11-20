@@ -471,6 +471,18 @@ impl RichBody {
         Ok(())
     }
 
+    /// Show the picture at `at` `width` pixels wide (`None`: its own), as one step; the selection
+    /// stays. The picture's id; an error, and nothing changed, when no picture is there.
+    pub fn size_picture(&mut self, at: usize, width: Option<u16>) -> Result<u32, ModelError> {
+        let mut id = 0;
+        self.edit(false, |t, _| {
+            id = t.size_picture(at, width)?;
+            Ok(())
+        })?;
+        self.typing = None;
+        Ok(id)
+    }
+
     /// Turn something on or off for the selection: on unless all of it has it already. With
     /// nothing selected it is the next typed character's. Whether it is on now.
     fn toggle(&mut self, has: fn(&Style) -> bool, set: fn(bool) -> Format) -> Result<bool, ModelError> {

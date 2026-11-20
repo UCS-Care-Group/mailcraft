@@ -250,6 +250,12 @@ pub struct Run {
     /// A picture's id, kept by the text's holder: the run's text is then one [`OBJECT`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub picture: Option<u32>,
+    /// The width a picture is shown at here, in pixels, once the owner sized it in the text
+    /// (#1740): over the picture's own ([`crate::signature::Picture::width`]). Only a picture run
+    /// has one, within 1 to [`crate::pictures::MAX_SHOWN_WIDTH`]. It is the text's, so undo and
+    /// redo, a copy and a draft carry it with the picture.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<u16>,
     /// A table occupies one character in the editor, like an inline picture.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "read_pasted_table")]
     pub table: Option<std::sync::Arc<PastedTable>>,
@@ -414,14 +420,19 @@ fn append_plain_run(out: &mut String, text: &str, style: &Style) {
     }
 }
 
+/// A picture's width as kept: 1 to [`crate::pictures::MAX_SHOWN_WIDTH`] pixels.
+fn picture_width(width: u16) -> u16 {
+    width.clamp(1, crate::pictures::MAX_SHOWN_WIDTH)
+}
+
 impl Run {
     pub fn new(text: impl Into<String>, style: Style) -> Run {
-        Run { text: text.into(), style, picture: None, table: None }
+        Run { text: text.into(), style, picture: None, width: None, table: None }
     }
 
     /// The picture `id`, as it stands in the text.
     pub fn picture(id: u32, style: Style) -> Run {
-        Run { text: OBJECT.to_string(), style, picture: Some(id), table: None }
+        Run { text: OBJECT.to_string(), style, picture: Some(id), width: None, table: None }
     }
 
     pub fn table(table: std::sync::Arc<PastedTable>) -> Run {
@@ -689,7 +700,7 @@ impl RichText {
                         break 'all;
                     }
                     budget -= 1;
-                    cur.runs.push(Run::picture(id, style));
+                    cur.runs.push(Run { width: run.width.map(picture_width), ..Run::picture(id, style) });
                     continue;
                 }
                 for (i, line) in lines(&run.text).into_iter().enumerate() {
@@ -749,6 +760,35 @@ impl RichText {
     /// The pictures' ids, in the order they stand.
     pub fn pictures(&self) -> Vec<u32> {
         self.paragraphs.iter().flat_map(|p| &p.runs).filter_map(|r| r.picture).collect()
+    }
+
+    /// The picture at `pos` (the one character after it): its id and the width it has here.
+    pub fn picture_at(&self, pos: usize) -> Option<(u32, Option<u16>)> {
+        let (p, off) = self.locate(pos).ok()?;
+        let mut seen = 0;
+        self.paragraphs.get(p)?.runs.iter().find_map(|r| {
+            let start = seen;
+            seen += r.chars();
+            r.picture.filter(|_| start == off).map(|id| (id, r.width))
+        })
+    }
+
+    /// Show the picture at `pos` `width` pixels wide here (#1740), kept within 1 to
+    /// [`crate::pictures::MAX_SHOWN_WIDTH`]; `None`: at the picture's own width. Its id; an error
+    /// when no picture is there.
+    pub fn size_picture(&mut self, pos: usize, width: Option<u16>) -> Result<u32, ModelError> {
+        let (p, off) = self.locate(pos)?;
+        let mut seen = 0;
+        let run = self.paragraphs.get_mut(p).and_then(|p| {
+            p.runs.iter_mut().find(|r| {
+                let start = seen;
+                seen += r.chars();
+                start == off && r.picture.is_some()
+            })
+        });
+        let Some(run) = run else { return Err(ModelError::Invalid(format!("no picture at position {pos}"))) };
+        run.width = width.map(picture_width);
+        run.picture.ok_or_else(|| ModelError::Invalid(format!("no picture at position {pos}")))
     }
 
     /// The text as it goes in a plain-text part: bullets as `- `, numbers as `1. `, and a link's
@@ -1196,3 +1236,6 @@ mod tests;
 
 #[cfg(test)]
 mod find_tests;
+
+#[cfg(test)]
+mod picture_width_tests;

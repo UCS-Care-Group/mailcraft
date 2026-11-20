@@ -1025,6 +1025,42 @@ fn asked_receipt(m: &Message) -> bool {
     m.read_receipt || m.has_header("Disposition-Notification-To")
 }
 
+/// A draft's text read back with each picture at the width it was written with (#1740): a
+/// picture written at one width wherever it stands has it as its own, as when it went in; one
+/// written at several keeps each where it stands, and its own is its natural width.
+fn settled_widths(text: RichText, pictures: &mut [Picture]) -> RichText {
+    let mut widths: std::collections::HashMap<u32, (Option<u16>, bool)> = std::collections::HashMap::new();
+    for run in text.paragraphs().iter().flat_map(|p| &p.runs) {
+        if let Some(id) = run.picture {
+            let (first, same) = widths.entry(id).or_insert((run.width, true));
+            *same &= *first == run.width;
+        }
+    }
+    for p in pictures.iter_mut() {
+        match widths.get(&p.id) {
+            Some((width, true)) => p.width = *width,
+            Some((_, false)) => p.width = None,
+            None => {}
+        }
+    }
+    let paragraphs = text
+        .paragraphs()
+        .iter()
+        .map(|p| {
+            let runs = p
+                .runs
+                .iter()
+                .map(|r| match r.picture.and_then(|id| widths.get(&id)) {
+                    Some((_, true)) => mailcraft_model::rich::Run { width: None, ..r.clone() },
+                    _ => r.clone(),
+                })
+                .collect();
+            mailcraft_model::rich::Paragraph { runs, ..p.clone() }
+        })
+        .collect();
+    RichText::from_paragraphs(paragraphs)
+}
+
 /// The message being written made again from `m` (a draft opened, a sent message to send again):
 /// its recipients, subject, text, files and the original quoted under it as they were.
 fn reopened(s: &Session, m: &Message) -> Compose {
@@ -1064,6 +1100,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
             Some(id)
         })
     });
+    let rich = rich.map(|text| settled_widths(text, &mut pictures));
     let taken: Vec<String> = pictures
         .iter()
         .filter_map(|p| m.attachments.iter().find(|a| a.inline && a.content_id.starts_with(&format!("{PICTURE_CID}{}.", p.id))))

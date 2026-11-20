@@ -1451,6 +1451,8 @@ pub(crate) fn all_commands(app: &MailApp) -> Vec<(String, String, String, String
                     | "calendar.select"
                     | "people.select"
                     | "tasks.select"
+                    // Its width comes from a picture's corners (#1740).
+                    | "format.pictureWidth"
             ) && !c.id.ends_with(".get")
                 && !c.id.ends_with(".list")
                 // Not even greyed while it waits for Google's review (#911).

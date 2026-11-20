@@ -460,6 +460,31 @@ fn pictures_of_a_draft_come_back_in_their_places() {
     assert!(from_html(&html).pictures().is_empty());
 }
 
+/// A picture sized in the text (#1740) goes out at that width, over the picture's own, and each
+/// place a picture stands comes back from a draft with the width it was written with.
+#[test]
+fn a_picture_sized_in_the_text_goes_out_and_comes_back_at_that_width() {
+    let mut p = Picture { id: 1 << 20, mime: "image/png".into(), width: Some(400), ..Default::default() };
+    p.data = std::sync::Arc::new(png());
+    let mut text = RichText::from_paragraphs(vec![Paragraph::new(
+        vec![Run::picture(p.id, Style::default()), Run::plain(" and "), Run::picture(p.id, Style::default())],
+        Default::default(),
+    )]);
+    text.size_picture(0, Some(150)).unwrap();
+    let html = to_html_with(&text, &|id| (id == p.id).then(|| Img::of(&p, "pic-1048576.x@mailcraft.invalid")));
+    assert!(html.contains("width=\"150\"") && html.contains("width=\"400\""), "{html}");
+    let back = from_html_with_pictures(&html, &mut |img| img.cid.strip_prefix("pic-")?.split('.').next()?.parse().ok());
+    let widths: Vec<_> = back.paragraphs()[0].runs.iter().filter(|r| r.picture.is_some()).map(|r| r.width).collect();
+    assert_eq!(widths, vec![Some(150), Some(400)], "{html}");
+    // A picture written without one has none.
+    let html =
+        to_html_with(&RichText::from_paragraphs(vec![Paragraph::new(vec![Run::picture(p.id, Style::default())], Default::default())]), &|_| {
+            Some(Img { width: None, ..Img::of(&p, "pic-1048576.x@mailcraft.invalid") })
+        });
+    let back = from_html_with_pictures(&html, &mut |_| Some(p.id));
+    assert_eq!(back.paragraphs()[0].runs[0].width, None, "{html}");
+}
+
 #[test]
 fn only_pictures_claimed_and_never_a_stray_object_character() {
     let html = format!(

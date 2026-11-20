@@ -11868,6 +11868,11 @@ msgstr "Válassza ki az utolsó napot"
 msgid "Picture"
 msgstr "Kép"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Format"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -11879,6 +11884,11 @@ msgstr "Kép elrendezése"
 #, fuzzy
 msgid "Picture Size and Description"
 msgstr "Képméret és leírás"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Width"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15255,8 +15265,8 @@ msgstr "Egyszerűsített menüszalag"
 msgid "Single Line"
 msgstr "Egysoros"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Méret"
@@ -21004,6 +21014,11 @@ msgid "a signature's pictures are PNG, JPEG or GIF (many mail programs can't sho
 msgstr "az aláírás képei PNG, JPEG vagy GIF (sok levelezőprogram nem mutathat más típusú)"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature's pictures are sized in File › Signatures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "a task needs a title"
@@ -21786,6 +21801,11 @@ msgid "no outgoing server"
 msgstr "nincs kimenő kiszolgáló"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture at position {at}"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no picture {id} in this signature"
@@ -22112,6 +22132,11 @@ msgstr "először egy beszélgetést válasszon a beszélgetési nézetben"
 #, fuzzy
 msgid "select a message first"
 msgstr "először válasszon ki egy üzenetet"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "select a picture in the message first"
+msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs

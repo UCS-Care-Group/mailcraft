@@ -11463,6 +11463,11 @@ msgstr "De laatste dag kiezen"
 msgid "Picture"
 msgstr "Afbeelding"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Format"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Picture Layout"
@@ -11472,6 +11477,11 @@ msgstr "Indeling van de afbeelding"
 #: crates/engine/src/cmd/signature.rs
 msgid "Picture Size and Description"
 msgstr "Grootte en beschrijving van de afbeelding"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Width"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -14718,8 +14728,8 @@ msgstr "Vereenvoudigd lint"
 msgid "Single Line"
 msgstr "Eén regel"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Grootte"
@@ -20390,6 +20400,11 @@ msgid "a signature's pictures are PNG, JPEG or GIF (many mail programs can't sho
 msgstr "de afbeeldingen van een handtekening zijn PNG, JPEG of GIF (veel e-mailprogramma's kunnen andere soorten niet weergeven)"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature's pictures are sized in File › Signatures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "a task needs a title"
@@ -21170,6 +21185,11 @@ msgid "no outgoing server"
 msgstr "geen uitgaande server"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture at position {at}"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no picture {id} in this signature"
@@ -21498,6 +21518,11 @@ msgstr "selecteer eerst een gesprek in de gespreksweergave"
 #, fuzzy
 msgid "select a message first"
 msgstr "selecteer eerst een bericht"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "select a picture in the message first"
+msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs

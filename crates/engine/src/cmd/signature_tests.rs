@@ -541,3 +541,19 @@ fn a_signature_in_the_fixed_width_font_is_kept_in_it() {
     let first = back.signature("Standard").unwrap().body().paragraphs().first().unwrap().runs.first().unwrap().style.font;
     assert_eq!(first.map(|f| f.label()), Some("Courier New"));
 }
+
+/// #1740: a signature's text given with a width on its picture's place doesn't keep it: the
+/// signature's own size (Picture Size, at most 600) is the one it shows and sends.
+#[test]
+fn a_width_in_a_signature_s_text_is_not_kept() {
+    let mut s = session();
+    run(&mut s, "signature.set", json!({"name": "Work", "text": "Avery"}));
+    let id = run(&mut s, "signature.picture.add", json!({"name": "Work", "data": png(), "file": "logo.png", "at": 0}))["id"].as_u64().unwrap();
+    let body = json!({"paragraphs": [{"runs": [{"text": "\u{fffc}", "picture": id, "width": 1920}, {"text": "Avery"}]}]});
+    run(&mut s, "signature.set", json!({"name": "Work", "body": body}));
+    run(&mut s, "signature.picture.set", json!({"name": "Work", "id": id, "width": 120}));
+    let sig = s.mailbox.signature("Work").unwrap();
+    assert!(sig.body().paragraphs().iter().flat_map(|p| &p.runs).all(|r| r.width.is_none()), "{:?}", sig.body());
+    let html = mailcraft_mime_model::rich::signature_html(sig, &|p| format!("sig-{}", p.id));
+    assert!(html.contains("width=\"120\"") && !html.contains("width=\"1920\""), "{html}");
+}

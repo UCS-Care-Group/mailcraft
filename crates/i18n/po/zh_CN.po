@@ -11867,6 +11867,11 @@ msgstr "选择最后一天"
 msgid "Picture"
 msgstr "图片"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Format"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -11878,6 +11883,11 @@ msgstr "图片布局"
 #, fuzzy
 msgid "Picture Size and Description"
 msgstr "图片尺寸及描述"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Width"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15254,8 +15264,8 @@ msgstr "简化功能区"
 msgid "Single Line"
 msgstr "单行"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "大小"
@@ -21000,6 +21010,11 @@ msgid "a signature's pictures are PNG, JPEG or GIF (many mail programs can't sho
 msgstr "签名图片须为 PNG、JPEG 或 GIF（许多邮件程序无法显示其他格式）"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature's pictures are sized in File › Signatures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "a task needs a title"
@@ -21779,6 +21794,11 @@ msgid "no outgoing server"
 msgstr "没有发送服务器"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture at position {at}"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no picture {id} in this signature"
@@ -22105,6 +22125,11 @@ msgstr "首先在对话视图中选择一个对话"
 #, fuzzy
 msgid "select a message first"
 msgstr "请先选择一封邮件"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "select a picture in the message first"
+msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs

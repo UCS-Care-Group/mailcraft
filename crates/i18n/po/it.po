@@ -11868,6 +11868,11 @@ msgstr "Scegli l'ultimo giorno"
 msgid "Picture"
 msgstr "Immagine"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Format"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -11879,6 +11884,11 @@ msgstr "Layout immagine"
 #, fuzzy
 msgid "Picture Size and Description"
 msgstr "Dimensione e descrizione immagine"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Width"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15245,8 +15255,8 @@ msgstr "Barra multifunzione semplificata"
 msgid "Single Line"
 msgstr "Riga singola"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Dimensione"
@@ -20985,6 +20995,11 @@ msgid "a signature's pictures are PNG, JPEG or GIF (many mail programs can't sho
 msgstr "le immagini di una firma sono PNG, JPEG o GIF (molti programmi di posta non possono mostrare altri tipi)"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature's pictures are sized in File › Signatures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "a task needs a title"
@@ -21766,6 +21781,11 @@ msgid "no outgoing server"
 msgstr "nessun server in uscita"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture at position {at}"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no picture {id} in this signature"
@@ -22092,6 +22112,11 @@ msgstr "seleziona prima una conversazione nella visualizzazione per conversazion
 #, fuzzy
 msgid "select a message first"
 msgstr "selezionare prima un messaggio"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "select a picture in the message first"
+msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs

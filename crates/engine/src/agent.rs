@@ -248,6 +248,8 @@ const SAFE: &[&str] = &[
     "edit.replace",
     "edit.formatPainter",
     "format.highlight",
+    // Sizes a picture in the message being written (#1740).
+    "format.pictureWidth",
     "insert.symbol",
     "insert.dateTime",
     "review.wordCount",

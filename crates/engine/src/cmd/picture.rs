@@ -29,6 +29,12 @@ pub fn specs() -> Vec<CommandSpec> {
                 r#"{"path": string (a PNG, JPEG, GIF or WebP file on this computer; never a web address) | "data": base64 (the picture's bytes), "file"?: string (its name, for `data`), "alt"?: string (what it shows, in words), "width"?: number (pixels; shown at most this wide), "at"?: number (a position in the text; default: the caret, over the selection)} — puts the picture in the text; a message in HTML sends it as part of the message, a plain-text one says `[picture]`. A picture wider than 1920 pixels, or over 5 MB, is made smaller to fit (an animated one is not: it is refused when over the cap); at most 5 MB each, 20 MB and 30 pictures together. Answers {"id", "bytes" (all the message's pictures), "heavy"}"#,
             )
             .when_writing(needs_picture),
+        CommandSpec::new("format.pictureWidth", "Picture Width", "Picture Format › Size", width)
+            .pure()
+            .params(
+                r#"{"width": number (pixels, 1–1920; shown at most this wide, its height in proportion) | null (its own width), "at"?: number (the picture's position in the text; default: the picture that is the selection)} — sizes a picture the owner put in the message (#1740), as one step of the message's undo; the message goes out and is kept in its draft at that width. A signature's pictures are sized with signature.picture.set. Answers {"id", "width"}"#,
+            )
+            .when_writing(needs_picture),
     ]
 }
 
@@ -89,4 +95,39 @@ fn insert(s: &mut Session, v: &Value) -> CmdResult {
     let held: HashSet<u32> = c.body.text().pictures().into_iter().collect();
     let bytes: usize = c.pictures.iter().filter(|p| held.contains(&p.id)).map(|p| p.data.len()).sum();
     Ok(json!({"id": id, "bytes": bytes, "heavy": bytes > HEAVY_BYTES}))
+}
+
+/// Picture Width (#1740): the corner handles of a picture in the text, let go of. The width is the
+/// picture run's, so undo, redo, the draft and the message sent follow the text.
+fn width(s: &mut Session, v: &Value) -> CmdResult {
+    if let Some(reason) = needs_picture(s) {
+        return Err(fail(reason));
+    }
+    let width = match v.get("width") {
+        None => return Err(bad("`width` is a number of pixels, or null")),
+        Some(Value::Null) => None,
+        Some(_) => Some(
+            p::u64(v, "width").and_then(|n| u16::try_from(n).ok()).filter(|n| *n > 0).ok_or_else(|| bad("`width` is a number of pixels, or null"))?,
+        ),
+    };
+    let at = position(v, "at")?;
+    let c = s.compose.as_mut().ok_or_else(|| fail("no message is being written"))?;
+    let sel = c.body.selection();
+    let at = match at {
+        Some(at) => at,
+        None if sel.end() == sel.start() + 1 => sel.start(),
+        None => return Err(fail("select a picture in the message first")),
+    };
+    match c.body.text().picture_at(at) {
+        Some((id, _)) if id < model::FIRST_ID => return Err(fail("a signature's pictures are sized in File › Signatures")),
+        Some((id, _)) if c.pictures.iter().any(|p| p.id == id) => {}
+        _ => return Err(failed!("no picture at position {at}", at)),
+    }
+    let before = c.body.text().clone();
+    let id = c.body.size_picture(at, width).map_err(|e| fail(e.to_string()))?;
+    if *c.body.text() != before {
+        c.dirty = true;
+    }
+    let shown = c.body.text().picture_at(at).and_then(|(_, w)| w).or_else(|| c.pictures.iter().find(|p| p.id == id).and_then(|p| p.width));
+    Ok(json!({"id": id, "width": shown}))
 }

@@ -272,8 +272,9 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
         if let Some(id) = run.picture {
             index += 1;
             after_space = false;
+            // Sized in the text (#1740), at that width.
             if let Some(found) = pictures(id) {
-                img(out, &found);
+                img(out, &Img { width: run.width.or(found.width), ..found });
             }
             continue;
         }
@@ -355,7 +356,8 @@ pub struct ImgRef {
 
 /// [`from_html`] for a draft of this program's: each `<img src="cid:…">` that `claim` takes (it
 /// answers the id the picture has in the text) stands in the text where it was, as a picture
-/// run. Any other picture is left out, as in [`from_html`].
+/// run with the `width` it was written with (#1740). Any other picture is left out, as in
+/// [`from_html`].
 ///
 /// The HTML is the owner's own, so a link keeps any address [`safe_link`] accepts (a link to
 /// `ms-settings:` they wrote comes back); [`from_html`] holds to what a reader follows. Never for
@@ -364,8 +366,17 @@ pub fn from_html_with_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Opt
     read(&mark_pictures(html, claim), true, true)
 }
 
-/// `html` with each picture `claim` takes written as `OBJECT id OBJECT` in its place, and no
-/// other `OBJECT` (nothing but this puts one in the text).
+/// A picture's mark between two `OBJECT`s: its id, and its width when it has one.
+fn picture_mark(mark: &str) -> Option<(u32, Option<u16>)> {
+    match mark.split_once(':') {
+        Some((id, width)) => Some((id.parse().ok()?, Some(width.parse::<u16>().ok()?.clamp(1, mailcraft_model::pictures::MAX_SHOWN_WIDTH)))),
+        None => Some((mark.parse().ok()?, None)),
+    }
+}
+
+/// `html` with each picture `claim` takes written as `OBJECT id OBJECT` in its place
+/// (`OBJECT id:width OBJECT` when it has a width), and no other `OBJECT` (nothing but this puts
+/// one in the text).
 fn mark_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> String {
     // No more than the reading after this looks at.
     let html = cut(html, mailcraft_html::MAX_INPUT_WITH_PICTURES).replace(OBJECT, "");
@@ -391,8 +402,9 @@ fn mark_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> S
         };
         out.push_str(html.get(at..start).unwrap_or(""));
         let tag = html.get(after..end).unwrap_or("");
-        match img_ref(tag).and_then(|img| claim(&img)) {
-            Some(id) => out.push_str(&format!("{OBJECT}{id}{OBJECT}")),
+        match img_ref(tag).and_then(|img| Some((claim(&img)?, img.width))) {
+            Some((id, Some(width))) => out.push_str(&format!("{OBJECT}{id}:{width}{OBJECT}")),
+            Some((id, None)) => out.push_str(&format!("{OBJECT}{id}{OBJECT}")),
             None => out.push_str(html.get(start..end).unwrap_or("")),
         }
         at = end;
@@ -644,9 +656,9 @@ impl Reader {
                 if self.pictures && line.contains(OBJECT) {
                     // (Text, a picture's id, text, an id, text…: the marks come in pairs.)
                     for (n, part) in line.split(OBJECT).enumerate() {
-                        match (n % 2, part.parse::<u32>()) {
-                            (1, Ok(id)) => cur.push(Run::picture(id, self.charged(&style))),
-                            (1, Err(_)) => {}
+                        match (n % 2, picture_mark(part)) {
+                            (1, Some((id, width))) => cur.push(Run { width, ..Run::picture(id, self.charged(&style)) }),
+                            (1, None) => {}
                             _ if part.is_empty() => {}
                             _ => cur.push(Run::new(part, self.charged(&style))),
                         }

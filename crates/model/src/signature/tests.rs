@@ -178,3 +178,30 @@ fn a_signature_in_a_font_this_version_doesnt_know_keeps_the_rest_of_its_look() {
     assert_eq!((style.color.as_deref(), style.bold, style.font), (Some("#1f6feb"), true, None));
     assert_eq!(back.plain(), "Avery Quinn\nLumen Studio");
 }
+
+/// A signature's pictures are sized by the signature (`Picture::width`, at most [`MAX_WIDTH`]):
+/// its text never holds a width of its own (#1740), whichever way the text comes in.
+#[test]
+fn a_signature_s_text_holds_no_width_of_its_own() {
+    let widths = |sig: &Signature| sig.body().paragraphs().iter().flat_map(|p| &p.runs).filter_map(|r| r.width).collect::<Vec<_>>();
+    let sized: RichText = serde_json::from_str(r#"{"paragraphs":[{"runs":[{"text":"￼","picture":1,"width":1920},{"text":"Avery"}]}]}"#).unwrap();
+    assert_eq!(sized.paragraphs()[0].runs[0].width, Some(1920), "(a message's text may hold one)");
+    let pic = Picture { id: 1, name: "logo.png".into(), mime: "image/png".into(), data: Arc::new(png(10)), width: Some(120), alt: String::new() };
+    // Assembled from a message's copy of it.
+    let sig = Signature::assemble("Work", sized.clone(), std::slice::from_ref(&pic), Layout::Inline);
+    assert!(widths(&sig).is_empty(), "{:?}", sig.body());
+    // Given a new text.
+    let mut sig = Signature::plain_text("Work", "Avery");
+    let id = sig.add_picture("logo.png", png(10), None, Some(0)).unwrap();
+    assert_eq!(id, 1);
+    sig.set_body(sized.clone()).unwrap();
+    assert!(widths(&sig).is_empty(), "{:?}", sig.body());
+    // Read from a file.
+    let mut json = serde_json::to_value(&sig).unwrap();
+    json["body"] = serde_json::to_value(&sized).unwrap();
+    let back: Signature = serde_json::from_value(json).unwrap();
+    assert!(back.picture(1).is_some() && widths(&back).is_empty(), "{:?}", back.body());
+    // So its own width is the one it shows, within its cap.
+    sig.set_picture(1, Some(Some(5000)), None).unwrap();
+    assert_eq!(sig.picture(1).unwrap().width, Some(MAX_WIDTH));
+}

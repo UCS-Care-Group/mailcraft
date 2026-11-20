@@ -418,3 +418,152 @@ fn a_microsoft_account_sends_the_picture_up_as_an_inline_attachment() {
     let wire = String::from_utf8_lossy(&mailcraft_mime_model::write(&m, &mailcraft_mime_model::WriteOptions::default())).to_string();
     assert!(wire.contains("multipart/related") && wire.contains("Content-ID: <pic-"), "{wire}");
 }
+
+/// The width the picture at `at` is shown at in the text, over its own.
+fn shown_width(s: &Session, at: usize) -> Option<u16> {
+    let c = compose(s);
+    let (id, here) = c.body.text().picture_at(at).expect("a picture there");
+    here.or_else(|| c.pictures.iter().find(|p| p.id == id).and_then(|p| p.width))
+}
+
+/// `Hello world` with a picture before ` world` (at 5), its own width 400.
+fn with_picture() -> Session {
+    let mut s = message();
+    run(&mut s, "compose.select", json!({"from": 5}));
+    run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(30)), "width": 400}));
+    s
+}
+
+#[test]
+fn a_picture_is_sized_in_one_step_that_undo_takes_back() {
+    let mut s = with_picture();
+    run(&mut s, "compose.select", json!({"from": 5, "to": 6}));
+    let out = run(&mut s, "format.pictureWidth", json!({"width": 150}));
+    assert_eq!((out["id"].as_u64(), out["width"].as_u64()), (Some(u64::from(FIRST_ID)), Some(150)));
+    assert_eq!(shown_width(&s, 5), Some(150));
+    assert!(compose(&s).dirty);
+    let sel = compose(&s).body.selection();
+    assert_eq!((sel.start(), sel.end()), (5, 6), "the picture stays selected");
+    // By its place, without selecting it.
+    run(&mut s, "compose.select", json!({"from": 0}));
+    run(&mut s, "format.pictureWidth", json!({"width": 90, "at": 5}));
+    assert_eq!(shown_width(&s, 5), Some(90));
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(shown_width(&s, 5), Some(150));
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(shown_width(&s, 5), Some(400), "back to the width it went in at");
+    run(&mut s, "compose.redo", json!({}));
+    assert_eq!(shown_width(&s, 5), Some(150));
+    // `null`: its own width again.
+    run(&mut s, "format.pictureWidth", json!({"width": null, "at": 5}));
+    assert_eq!(shown_width(&s, 5), Some(400));
+    // Nothing else of the message changed: one picture, the same bytes, no new ids.
+    assert_eq!(compose(&s).pictures.len(), 1);
+    assert_eq!(compose(&s).picture_seq, 1);
+}
+
+#[test]
+fn sizing_is_refused_where_there_is_no_picture_of_the_message() {
+    let mut s = with_picture();
+    for params in [json!({"width": 100, "at": 0}), json!({"width": 100, "at": 999}), json!({"width": 100})] {
+        assert!(s.run("format.pictureWidth", &params).is_err(), "{params}");
+    }
+    for params in [
+        json!({"at": 5}),
+        json!({"width": 0, "at": 5}),
+        json!({"width": "wide", "at": 5}),
+        json!({"width": -3, "at": 5}),
+        json!({"width": 1e9, "at": 5}),
+    ] {
+        assert!(s.run("format.pictureWidth", &params).is_err(), "{params}");
+    }
+    assert_eq!(shown_width(&s, 5), Some(400));
+    // A plain-text message has no pictures to size.
+    run(&mut s, "compose.formatPlain", json!({}));
+    assert!(s.run("format.pictureWidth", &json!({"width": 100, "at": 5})).is_err());
+}
+
+#[test]
+fn a_wide_width_is_kept_to_the_widest_a_picture_is_shown() {
+    let mut s = with_picture();
+    run(&mut s, "format.pictureWidth", json!({"width": 60000, "at": 5}));
+    assert_eq!(shown_width(&s, 5), Some(mailcraft_model::pictures::MAX_SHOWN_WIDTH));
+}
+
+#[test]
+fn a_sized_picture_goes_out_and_comes_back_from_a_draft_at_that_width() {
+    let mut s = with_picture();
+    run(&mut s, "format.pictureWidth", json!({"width": 150, "at": 5}));
+    run(&mut s, "compose.saveDraft", json!({}));
+    let draft = compose(&s).draft.expect("saved");
+    let html = s.mailbox.message(draft).unwrap().body.html.clone().unwrap();
+    assert!(html.contains("width=\"150\"") && !html.contains("width=\"400\""), "{html}");
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": draft}));
+    assert_eq!(shown_width(&s, 5), Some(150));
+    // The width it came back at is the picture's, as the width it went in at was.
+    assert_eq!(compose(&s).pictures[0].width, Some(150));
+    assert_eq!(compose(&s).body.text().picture_at(5), Some((compose(&s).pictures[0].id, None)));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.body.html.as_deref().unwrap().contains("width=\"150\""));
+    assert_eq!(m.attachments.iter().filter(|a| a.content_id.starts_with("pic-")).count(), 1);
+}
+
+#[test]
+fn a_picture_standing_twice_at_two_widths_keeps_both_in_a_draft() {
+    let mut s = with_picture();
+    // The same picture again at the end (a draft can hold one twice), one of them sized.
+    let id = compose(&s).pictures[0].id;
+    let end = compose(&s).body.text().len();
+    let twice = mailcraft_model::rich::RichText::from_paragraphs(vec![mailcraft_model::rich::Paragraph::new(
+        vec![mailcraft_model::rich::Run::picture(id, Default::default())],
+        Default::default(),
+    )]);
+    let body = &mut s.compose.as_mut().unwrap().body;
+    body.select(end, end).unwrap();
+    body.paste(&twice).unwrap();
+    run(&mut s, "format.pictureWidth", json!({"width": 150, "at": 5}));
+    run(&mut s, "compose.saveDraft", json!({}));
+    let draft = compose(&s).draft.unwrap();
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": draft}));
+    let last = compose(&s).body.text().len() - 1;
+    assert_eq!((shown_width(&s, 5), shown_width(&s, last)), (Some(150), Some(400)));
+    // Either way round: the one at its natural width (written without one) stays so. (The
+    // picture's own width is its natural one now: it stood at two.)
+    assert_eq!(compose(&s).pictures[0].width, None);
+    run(&mut s, "format.pictureWidth", json!({"width": null, "at": 5}));
+    run(&mut s, "format.pictureWidth", json!({"width": 70, "at": last}));
+    run(&mut s, "compose.saveDraft", json!({}));
+    let draft = compose(&s).draft.unwrap();
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": draft}));
+    assert_eq!((shown_width(&s, 5), shown_width(&s, last)), (None, Some(70)));
+}
+
+#[test]
+fn sizing_again_and_again_takes_no_room_from_the_caps() {
+    let mut s = with_picture();
+    for width in 0..200u16 {
+        run(&mut s, "format.pictureWidth", json!({"width": 100 + width, "at": 5}));
+    }
+    assert_eq!(compose(&s).pictures.len(), 1);
+    // Room for the rest of the 30 pictures still.
+    for _ in 1..mailcraft_model::pictures::MAX_PICTURES {
+        run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(8))}));
+    }
+}
+
+#[test]
+fn a_signatures_picture_in_the_message_is_not_sized_here() {
+    let mut s = message();
+    let sig = mailcraft_model::rich::RichText::from_paragraphs(vec![mailcraft_model::rich::Paragraph::new(
+        vec![mailcraft_model::rich::Run::picture(3, Default::default())],
+        Default::default(),
+    )]);
+    let body = &mut s.compose.as_mut().unwrap().body;
+    body.select(0, 0).unwrap();
+    body.paste(&sig).unwrap();
+    assert!(s.run("format.pictureWidth", &json!({"width": 50, "at": 0})).is_err());
+}

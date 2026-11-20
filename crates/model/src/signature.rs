@@ -509,16 +509,20 @@ impl Signature {
     }
 
     /// The text and the pictures agree: no run names a picture that isn't here, and no picture is
-    /// kept that the text doesn't hold.
+    /// kept that the text doesn't hold. A picture's size is the signature's ([`Picture::width`],
+    /// at most [`MAX_WIDTH`]): the text holds no width of its own for one (#1740), whatever it
+    /// came with.
     fn tidy(&mut self) {
         let held: std::collections::HashSet<u32> = self.pictures.iter().map(|p| p.id).collect();
-        if self.body.pictures().iter().any(|id| !held.contains(id)) {
+        let runs = || self.body.paragraphs().iter().flat_map(|p| &p.runs);
+        if runs().any(|r| r.picture.is_some_and(|id| !held.contains(&id)) || r.width.is_some()) {
             let paragraphs = self
                 .body
                 .paragraphs()
                 .iter()
                 .map(|p| {
-                    let runs = p.runs.iter().filter(|r| r.picture.is_none_or(|id| held.contains(&id))).cloned().collect();
+                    let runs =
+                        p.runs.iter().filter(|r| r.picture.is_none_or(|id| held.contains(&id))).map(|r| Run { width: None, ..r.clone() }).collect();
                     Paragraph::new(runs, p.list).at_level(p.level)
                 })
                 .collect();

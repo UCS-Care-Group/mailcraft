@@ -301,6 +301,15 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
         let new = |key| i.events.iter().any(|e| alone(e, key) && matches!(e, Event::Key { repeat: false, .. }));
         (new(Key::Escape), new(Key::Enter))
     });
+    // While a picture's corner is held in a text being written, Escape is the drag's alone: it
+    // puts the picture back as it was (#1740).
+    let escape = escape && {
+        let before = ctx.input(|i| {
+            let at = i.events.iter().position(|e| alone(e, Key::Escape) && matches!(e, Event::Key { repeat: false, .. }));
+            at.and_then(|n| i.events.get(..n)).map(<[Event]>::to_vec).unwrap_or_default()
+        });
+        !crate::compose::editor::escape_resize(ctx, &before)
+    };
     let list = open_list(ctx, focus).filter(|l| ctx.memory(|m| m.is_above_modal_layer(*l)));
     if chain.held.is_some_and(|(key, _)| !ctx.input(|i| i.key_down(key))) {
         chain.held = None;

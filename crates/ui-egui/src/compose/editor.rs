@@ -316,7 +316,7 @@ impl Layout {
         let (mut local, mut last) = (0, None::<char>);
         for (r, run) in p.runs.iter().enumerate() {
             if let Some((id, size)) =
-                run.picture.filter(|_| !plain).and_then(|id| Some((id, size_of(ctx, pictures.iter().find(|x| x.id == id)?, room))))
+                run.picture.filter(|_| !plain).and_then(|id| Some((id, size_of(ctx, pictures.iter().find(|x| x.id == id)?, run.width, room))))
             {
                 let glued = last.is_some_and(|c| !c.is_whitespace() || c == '\u{A0}');
                 sized.push((r, local, Some(id), size, glued));
@@ -475,6 +475,11 @@ impl Layout {
         p.tables.iter().find(|b| b.rect.contains(local)).map(|b| p.start + b.local)
     }
 
+    /// How far in the paragraph a position is in stands (its room is the body's width less this).
+    fn indent_at(&self, pos: usize) -> f32 {
+        self.para_at(pos).map_or(0.0, Para::indent)
+    }
+
     /// The picture that is the selection, alone: its id and where it is in the body.
     fn selected_picture(&self, sel: Selection) -> Option<(u32, Rect)> {
         if sel.end() != sel.start() + 1 {
@@ -596,14 +601,15 @@ fn class(c: char) -> u8 {
     }
 }
 
-/// The size a picture is shown at, in points (a CSS pixel each), within `room`: the width the
-/// owner gave it or its own, its height in proportion.
-fn size_of(ctx: &egui::Context, p: &Picture, room: f32) -> Vec2 {
+/// The size a picture is shown at, in points (a CSS pixel each), within `room`: the width it was
+/// sized to where it stands (`here`, #1740), else the width the owner gave it, else its own; its
+/// height in proportion.
+fn size_of(ctx: &egui::Context, p: &Picture, here: Option<u16>, room: f32) -> Vec2 {
     let frame = crate::reading::images::frame(ctx);
     let own = crate::reading::images::Pictures::of(ctx).lock().ok().and_then(|mut c| c.size(&p.data, frame));
     let [w, h] = own.map_or([120.0, 40.0], |[w, h]| [w.max(1) as f32, h.max(1) as f32]);
-    let width = p.width.map_or(w, f32::from).min(room).max(8.0);
-    vec2(width, (width * h / w).clamp(4.0, 2000.0))
+    let width = here.or(p.width).map_or(w, f32::from).min(room).max(8.0);
+    vec2(width, (width * h / w).clamp(MIN_SHOWN_HEIGHT, MAX_SHOWN_HEIGHT))
 }
 
 /// A short fingerprint of the pictures' ids and widths, so that the layout follows them.
@@ -647,6 +653,15 @@ pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
     store(ctx, id(app)).lock().map_or(0, |l| l.laid)
 }
 
+/// Where the selected picture of the current message's body is drawn, in the window, for tests.
+#[cfg(test)]
+pub(crate) fn selected_picture_rect(ctx: &egui::Context, app: &MailApp, which: Which) -> Option<Rect> {
+    let (sel, _) = now(app, which)?;
+    let origin = app.hit.rect(if which == Which::Message { "composeBody" } else { "signatureBody" }, 0)?.min;
+    let (_, r) = store(ctx, which.id(app)).lock().ok()?.selected_picture(sel)?;
+    Some(r.translate(origin.to_vec2()))
+}
+
 /// What the body remembers between frames besides its layout.
 #[derive(Clone, Default)]
 struct State {
@@ -658,13 +673,190 @@ struct State {
     anchor: Option<Anchor<usize>>,
     /// What an input method is composing, not yet typed.
     preedit: String,
-    /// A picture's corner being dragged: its id and the width it has so far.
-    resizing: Option<(u32, f32)>,
+    /// A picture's corner being dragged ([`Resize`]).
+    resizing: Option<Resize>,
     /// The selection as the body last saw it, and whether the owner made it here ([`own`]).
     seen: Option<Selection>,
     mine: bool,
     /// What was last put in the primary selection, `[from, to)`; `None` once nothing is selected.
     told: Option<(usize, usize)>,
+}
+
+/// A selected picture made wider or narrower by one of its corners (#1740): it keeps its
+/// proportions, and the width is set when the button is let go, as one command (one step of
+/// undo). Escape, while the button is down, puts it back as it was.
+#[derive(Clone, Copy, Debug)]
+struct Resize {
+    /// The picture's place in the text and its id, as the drag began.
+    at: usize,
+    id: u32,
+    /// The corner held ([`corners`]), and the picture as it stood then, in the window.
+    corner: usize,
+    start: Rect,
+    /// Where on the handle it was taken, from the corner itself: a pointer that hasn't moved
+    /// leaves the width as it was.
+    grab: Vec2,
+    /// A fingerprint of the text as the drag began.
+    text: u64,
+    /// How many times as wide as it is high the picture is, by its own pixels (as it is shown,
+    /// when they aren't known yet): the body may show a very thin one out of proportion.
+    aspect: f32,
+    /// The pass that last drew the text with the corner held: a drag the text wasn't drawn for
+    /// in the pass before (another module, the message closed) is forgotten.
+    pass: u64,
+    /// The width so far, in points (a CSS pixel each).
+    width: f32,
+    /// Given up: Escape was pressed, or something was typed, pasted or moved the caret while
+    /// the button was down ([`changes_the_text`]). Nothing is set when the button is let go.
+    cancelled: bool,
+}
+
+/// Whether an event, while a corner is held, changes the text or what is selected, so that the
+/// drag is given up: a key, typing, a paste or a cut, and what an input method commits (as the
+/// body types it). What it is composing (a preedit, empty on Wayland nearly every frame) changes
+/// nothing.
+fn changes_the_text(e: &Event) -> bool {
+    match e {
+        Event::Key { pressed: true, .. } | Event::Paste(_) | Event::PasteImage(_) | Event::MiddleClickPaste { .. } | Event::Cut => true,
+        Event::Text(text) => !text.is_empty(),
+        Event::Ime(egui::ImeEvent::Commit(text)) => !text.is_empty() && text != "\n" && text != "\r",
+        _ => false,
+    }
+}
+
+/// The corners of a selected picture where a window shows them (#1740), and whether one is held:
+/// what the keys ask ([`escape_resize`]) to give Escape to the drag.
+#[derive(Clone, Copy, Debug)]
+struct Held {
+    viewport: egui::ViewportId,
+    /// The text, and the layer it is drawn on (a window's).
+    body: egui::Id,
+    layer: egui::LayerId,
+    /// The window's pass that last drew them: one that is gone (the message closed under the
+    /// pointer) holds nothing.
+    pass: u64,
+    /// Where a press takes a corner ([`handle_rect`]), within what the text shows of itself.
+    handles: [Rect; 4],
+    held: bool,
+    /// The drag Escape was pressed for in this frame: how many of the frame's primary button
+    /// presses and releases came before it ([`escape_resize`]).
+    escape: Option<usize>,
+}
+
+fn held_id() -> egui::Id {
+    egui::Id::unique("mailcraft-picture-corner-held")
+}
+
+/// A new press of Escape in the window `ctx` draws now, while a picture's corner is held there:
+/// it is the drag's, to put the picture back, and nothing else's. `crate::keys::gate` asks before
+/// it gives the press out, with the frame's events that came `before` it: a corner is held from a
+/// press on it (or a drag that went on into the frame) until the button comes up, so an Escape
+/// after the release is the window's as ever. Whether it was the drag's. The text is told where
+/// in the frame it came (after how many of its button events), so that it puts back that drag and
+/// no other.
+pub(crate) fn escape_resize(ctx: &egui::Context, before: &[Event]) -> bool {
+    let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());
+    let mut all = ctx.data(|d| d.get_temp::<Vec<Held>>(held_id())).unwrap_or_default();
+    let found = all.iter_mut().find(|h| {
+        if h.viewport != viewport || h.escape.is_some() || h.pass.saturating_add(1) < pass {
+            return false;
+        }
+        before.iter().fold(h.held, |held, e| match e {
+            Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, .. } => {
+                held || (ctx.layer_id_at(*pos) == Some(h.layer) && h.handles.iter().any(|r| r.contains(*pos)))
+            }
+            Event::PointerButton { button: egui::PointerButton::Primary, pressed: false, .. } => false,
+            _ => held,
+        })
+    });
+    let Some(h) = found else { return false };
+    h.escape = Some(before.iter().filter(|e| primary_button(e)).count());
+    ctx.data_mut(|d| d.insert_temp(held_id(), all));
+    true
+}
+
+/// A press or release of the primary button: what Escape is placed by in a frame.
+fn primary_button(e: &Event) -> bool {
+    matches!(e, Event::PointerButton { button: egui::PointerButton::Primary, .. })
+}
+
+/// What the text `body` publishes of its corners for [`escape_resize`], put in place of what it
+/// published before (`None`: nothing). Each text being written has its own, so that two open
+/// at once don't take each other's.
+fn publish(ctx: &egui::Context, body: egui::Id, held: Option<Held>) {
+    ctx.data_mut(|d| {
+        let all = d.get_temp_mut_or_default::<Vec<Held>>(held_id());
+        all.retain(|h| h.body != body);
+        all.extend(held);
+    });
+}
+
+/// Where a press takes the corner at `corner`: a little more than the handle drawn.
+fn handle_rect(corner: egui::Pos2) -> Rect {
+    Rect::from_center_size(corner, vec2(HANDLE + 4.0, HANDLE + 4.0))
+}
+
+/// The least and the most height the body shows a picture at, in points.
+const MIN_SHOWN_HEIGHT: f32 = 4.0;
+const MAX_SHOWN_HEIGHT: f32 = 2000.0;
+
+/// The narrowest a picture is made by its corners, in points; one already narrower can stay so.
+const MIN_PICTURE_WIDTH: f32 = 16.0;
+
+/// The side of a corner handle, as drawn; the pointer finds it a little outside that.
+const HANDLE: f32 = 8.0;
+
+/// A rectangle's corners: top left, top right, bottom left, bottom right (the opposite of
+/// corner `i` is `3 - i`).
+fn corners(r: Rect) -> [egui::Pos2; 4] {
+    [r.left_top(), r.right_top(), r.left_bottom(), r.right_bottom()]
+}
+
+/// The width a picture that stood at `start` has with its corner `corner` at `pointer`: the
+/// pointer's reach along the diagonal from the opposite corner, which stays where it is.
+fn dragged_width(start: Rect, corner: usize, pointer: egui::Pos2) -> f32 {
+    let all = corners(start);
+    let (Some(held), Some(anchor)) = (all.get(corner), all.get(3usize.saturating_sub(corner))) else { return start.width() };
+    let diagonal = *held - *anchor;
+    let reach = (pointer - *anchor).dot(diagonal) / diagonal.length_sq().max(1.0);
+    start.width() * reach
+}
+
+/// A width a corner was dragged to, for a picture `w` wide whose width is `aspect` times its
+/// height: never wider than `widest` (the room, and the widest the command sets, so that what is
+/// shown while dragging is what is set), at least [`MIN_PICTURE_WIDTH`], and so that its height in
+/// proportion stays within what the body shows ([`MIN_SHOWN_HEIGHT`] to [`MAX_SHOWN_HEIGHT`]),
+/// unless the picture is already past those. Where they disagree, `widest` wins: it is what the
+/// command keeps to. (A drag that hasn't moved sets nothing.)
+fn kept_width(dragged: f32, w: f32, aspect: f32, widest: f32) -> f32 {
+    let widest = widest.max(1.0);
+    let lo = MIN_PICTURE_WIDTH.max(MIN_SHOWN_HEIGHT * aspect).min(w).min(widest);
+    let hi = (MAX_SHOWN_HEIGHT * aspect).max(w).min(widest).max(lo);
+    dragged.clamp(lo, hi)
+}
+
+/// [`kept_width`] in whole pixels, as it is set: rounded, but never past the height the body
+/// shows in proportion when that can be kept.
+fn whole_width(width: f32, aspect: f32) -> u16 {
+    let near = width.round();
+    let whole = if near / aspect.max(f32::MIN_POSITIVE) > MAX_SHOWN_HEIGHT {
+        width.floor()
+    } else if near / aspect.max(f32::MIN_POSITIVE) < MIN_SHOWN_HEIGHT {
+        width.ceil()
+    } else {
+        near
+    };
+    whole.clamp(1.0, f32::from(u16::MAX)) as u16
+}
+
+/// Where a picture being sized is shown: `width` wide, `aspect` times as wide as it is high,
+/// from the corner opposite the one held.
+fn resized(start: Rect, corner: usize, width: f32, aspect: f32) -> Rect {
+    let all = corners(start);
+    let (Some(held), Some(anchor)) = (all.get(corner), all.get(3usize.saturating_sub(corner))) else { return start };
+    let size = vec2(width, (width / aspect.max(f32::MIN_POSITIVE)).clamp(MIN_SHOWN_HEIGHT, MAX_SHOWN_HEIGHT));
+    let toward = *held - *anchor;
+    Rect::from_two_pos(*anchor, *anchor + vec2(size.x.copysign(toward.x), size.y.copysign(toward.y)))
 }
 
 /// What the keyboard and the pointer do to the text, as the command that does it.
@@ -758,7 +950,12 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             // An HTML signature drawn as it goes out is not in the text laid out here.
             let html = which == Which::Message && html_signature(app).is_some();
             let end = if html { all.iter().position(|p| p.signature).unwrap_or(all.len()) } else { all.len() };
-            layout.sync(&ctx, all.get(..end).unwrap_or(all), &shown, key, &t, width);
+            // (The pictures as they are now: a signature's picture sized by its corners changes
+            // them, not the text, #1740.)
+            let now = pictures(app, which);
+            let mut key = key;
+            key.pictures = pictures_key(&now);
+            layout.sync(&ctx, all.get(..end).unwrap_or(all), &now, key, &t, width);
         }
     };
     resync(&mut layout, app);
@@ -779,26 +976,160 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
     let spelling_time = ctx.input(|input| input.time);
 
-    // A selected picture of a signature is made wider or narrower by its corner.
-    if which == Which::Signature
-        && let Some((sel, _)) = now(app, which)
-        && let Some((pid, r)) = layout.selected_picture(sel)
-    {
-        let r = r.translate(origin.to_vec2());
-        let corner = Rect::from_center_size(r.right_bottom(), vec2(10.0, 10.0));
-        let handle = ui.interact(corner, id.with("corner"), Sense::drag());
-        if handle.hovered() || handle.dragged() {
-            ctx.set_cursor_icon(egui::CursorIcon::ResizeNwSe);
+    // A selected picture is made wider or narrower by its corners (#1740): a picture the owner
+    // put in an HTML message (not the signature's in it), and a signature's in File › Signatures.
+    // The drag is followed from the pointer's own events against the corners as they are now
+    // (egui finds widgets where they were a pass before, and by where the pointer ends a frame):
+    // the press on a corner takes it, the release sets the width.
+    let mut resize_cursor = None;
+    // Escape while a corner is held puts the picture back as it was, and does nothing else
+    // ([`escape_resize`]).
+    let pass = ctx.cumulative_pass_nr();
+    if st.resizing.is_some_and(|z| z.pass.saturating_add(1) < pass) {
+        st.resizing = None;
+    }
+    // (After how many of the frame's button events it came: the drag held then is put back.)
+    let escape = ctx.data(|d| d.get_temp::<Vec<Held>>(held_id())).and_then(|all| all.iter().find(|h| h.body == id).and_then(|h| h.escape));
+    let mut buttons = 0usize;
+    let sizes = |pid: u32| which == Which::Signature || pid >= mailcraft_model::pictures::FIRST_ID;
+    // Where the selected picture's corners take a press, as the text is laid out now. (Only what
+    // is in view of a corner does, as for any widget.)
+    let clip = ui.clip_rect();
+    let handles_now = |layout: &Layout, app: &MailApp| {
+        let (sel, _) = now(app, which)?;
+        let (_, r) = layout.selected_picture(sel).filter(|(pid, _)| sizes(*pid))?;
+        Some(corners(r.translate(origin.to_vec2())).map(|c| handle_rect(c).intersect(clip)))
+    };
+    // The selected picture, if it is one the corners size, where it is now.
+    let selected = |layout: &Layout, app: &MailApp| {
+        let (sel, _) = now(app, which)?;
+        let (pid, r) = layout.selected_picture(sel).filter(|(pid, _)| sizes(*pid))?;
+        Some((sel, pid, r.translate(origin.to_vec2())))
+    };
+    // The text as a drag began: one changed under it is not sized (the place may hold another
+    // picture now).
+    let fingerprint = |app: &MailApp| {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        body(app, which).map(|(b, _)| b.text()).hash(&mut h);
+        h.finish()
+    };
+    // No wider than the body has room for at `at` (as [`Layout::lay`] shows it), nor than a
+    // picture is sent.
+    let widest = |layout: &Layout, at: usize| {
+        match which {
+            Which::Message => f32::from(mailcraft_model::pictures::MAX_SHOWN_WIDTH),
+            Which::Signature => f32::from(mailcraft_model::signature::MAX_WIDTH),
         }
-        if handle.dragged() {
-            let w = st.resizing.filter(|(i, _)| *i == pid).map_or(r.width(), |(_, w)| w) + handle.drag_delta().x;
-            st.resizing = Some((pid, w.clamp(8.0, f32::from(mailcraft_model::signature::MAX_WIDTH))));
+        .min((width - layout.indent_at(at)).max(24.0))
+    };
+    if editable && let Some((_, _, r)) = selected(&layout, app) {
+        for (i, rect) in corners(r).map(|c| handle_rect(c).intersect(clip)).iter().enumerate() {
+            // (Taking the press from the text under it, and the cursor.)
+            let handle = ui.interact(*rect, id.with(("corner", i)), Sense::drag());
+            if handle.hovered() || st.resizing.is_some_and(|z| z.corner == i) {
+                resize_cursor = Some(if i == 0 || i == 3 { egui::CursorIcon::ResizeNwSe } else { egui::CursorIcon::ResizeNeSw });
+            }
         }
-        if handle.drag_stopped()
-            && let Some((i, w)) = st.resizing.take()
+    }
+    // The frame's pointer events in their order: a press on a corner (the topmost under it, in
+    // this window) takes it, a move sizes, the release sets the width. The press and the release
+    // are then the corner's, not the text's.
+    let mut let_go = false;
+    for e in if editable { ui.input(|i| i.events.clone()) } else { Vec::new() } {
+        // What is typed while the button is down (in this frame or an earlier one) gives the drag
+        // up: the text, or what is selected, is the keys' now.
+        if changes_the_text(&e)
+            && let Some(z) = st.resizing.as_mut()
         {
-            let _ = app.run("signature.picture.set", json!({"id": i, "width": w.round() as u16}));
+            z.cancelled = true;
         }
+        // Escape, where it came among the button events, puts back the drag held then.
+        if primary_button(&e) {
+            if escape == Some(buttons)
+                && let Some(z) = st.resizing.as_mut()
+            {
+                z.cancelled = true;
+            }
+            buttons = buttons.saturating_add(1);
+        }
+        match e {
+            Event::PointerMoved(at) => {
+                if let Some(z) = st.resizing.as_mut().filter(|z| !z.cancelled) {
+                    z.width = kept_width(dragged_width(z.start, z.corner, at - z.grab), z.start.width(), z.aspect, widest(&layout, z.at));
+                }
+            }
+            Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, .. } => {
+                if st.resizing.is_none()
+                    && ctx.layer_id_at(pos) == Some(ui.layer_id())
+                    && let Some((sel, pid, r)) = selected(&layout, app)
+                    && let Some(i) = corners(r).map(|c| handle_rect(c).intersect(clip)).iter().rposition(|h| h.contains(pos))
+                    && let Some(corner) = corners(r).get(i)
+                {
+                    let text = fingerprint(app);
+                    let own = pictures(app, which).into_iter().find(|p| p.id == pid).and_then(|p| {
+                        let frame = crate::reading::images::frame(&ctx);
+                        crate::reading::images::Pictures::of(&ctx).lock().ok().and_then(|mut c| c.size(&p.data, frame))
+                    });
+                    let aspect = own.map_or(r.width() / r.height().max(1.0), |[w, h]| w.max(1) as f32 / h.max(1) as f32);
+                    st.resizing = Some(Resize {
+                        at: sel.start(),
+                        id: pid,
+                        corner: i,
+                        start: r,
+                        grab: pos - *corner,
+                        width: r.width(),
+                        text,
+                        aspect,
+                        pass,
+                        cancelled: false,
+                    });
+                    (st.anchor, reveal) = (None, false);
+                    resp.request_focus();
+                }
+            }
+            Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, .. } => {
+                let Some(mut z) = st.resizing.take() else { continue };
+                let_go = true;
+                let dragged = dragged_width(z.start, z.corner, pos - z.grab);
+                // (Let go of where it was taken: nothing moved, even for a picture shown wider
+                // than a drag would leave it.)
+                let moved = (dragged - z.start.width()).abs() >= 0.5;
+                z.width = kept_width(dragged, z.start.width(), z.aspect, widest(&layout, z.at));
+                // Set, one command, unless it was given up, nothing moved, or the text changed or
+                // the picture is no longer what is selected (an agent's change) meanwhile.
+                if !z.cancelled
+                    && moved
+                    && z.width.round() != z.start.width().round()
+                    && fingerprint(app) == z.text
+                    && body(app, which).is_some_and(|(b, _)| {
+                        let sel = b.selection();
+                        (sel.start(), sel.end()) == (z.at, z.at + 1) && b.text().picture_at(z.at).is_some_and(|(id, _)| id == z.id)
+                    })
+                {
+                    let width = whole_width(z.width, z.aspect);
+                    let _ = match which {
+                        Which::Message => app.run("format.pictureWidth", json!({"at": z.at, "width": width})),
+                        Which::Signature => app.run("signature.picture.set", json!({"id": z.id, "width": width})),
+                    };
+                    resync(&mut layout, app);
+                    own(app, which, &mut st, None);
+                }
+            }
+            _ => {}
+        }
+    }
+    if escape == Some(buttons)
+        && let Some(z) = st.resizing.as_mut()
+    {
+        z.cancelled = true;
+    }
+    // A drag whose picture went away (an agent's change) ends with the button.
+    if st.resizing.is_some() && !ui.input(|i| i.pointer.primary_down()) {
+        st.resizing = None;
+    }
+    if let Some(z) = st.resizing.as_mut() {
+        z.pass = pass;
     }
 
     // The pointer: a click puts the caret, or selects a picture; a drag selects, a double click a
@@ -808,6 +1139,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let unit = crate::clicks::pressed(&ctx).unwrap_or(Unit::Char);
     if editable
         && st.resizing.is_none()
+        && !let_go
         && let Some(pointer) = resp.interact_pointer_pos()
         && let Some((sel, _)) = now(app, which)
     {
@@ -1153,15 +1485,20 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         let hint = if which == Which::Message { tl!("Write your message") } else { tl!("Write your signature") };
         painter.text(origin, Align2::LEFT_TOP, hint, regular(BASE_SIZE), t.text_disabled);
     }
-    // The selected picture: a frame, and the corner that sizes it.
+    // The selected picture: a frame, and the corners that size it, at the size it is being
+    // given while one is held.
     if let Some((pid, r)) = layout.selected_picture(sel) {
         let mut r = r.translate(origin.to_vec2());
-        if let Some((_, w)) = st.resizing.filter(|(i, _)| *i == pid) {
-            r = Rect::from_min_size(r.min, vec2(w, w * r.height() / r.width().max(1.0)));
+        if let Some(z) = st.resizing.filter(|z| z.id == pid && z.at == sel.start() && !z.cancelled) {
+            r = resized(z.start, z.corner, z.width, z.aspect);
         }
         painter.rect_stroke(r, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Outside);
-        if which == Which::Signature {
-            painter.rect_filled(Rect::from_center_size(r.right_bottom(), vec2(8.0, 8.0)), 1.0, t.accent);
+        if editable && (which == Which::Signature || pid >= mailcraft_model::pictures::FIRST_ID) {
+            for corner in corners(r) {
+                let handle = Rect::from_center_size(corner, vec2(HANDLE, HANDLE));
+                painter.rect_filled(handle, 1.0, t.surface);
+                painter.rect_stroke(handle, 1.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+            }
         }
     }
     let caret = layout.caret(sel.head).translate(origin.to_vec2());
@@ -1189,7 +1526,23 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     if reveal {
         ui.scroll_to_rect(caret.expand2(vec2(2.0, 6.0)), None);
     }
+    // The corners for Escape ([`escape_resize`]), where they are as the frame ends: after a width
+    // set, a key typed or an undo.
+    let handles = if editable { handles_now(&layout, app) } else { None };
+    let held = (handles.is_some() || st.resizing.is_some()).then(|| Held {
+        viewport: ctx.viewport_id(),
+        body: id,
+        layer: ui.layer_id(),
+        pass: ctx.cumulative_pass_nr(),
+        handles: handles.unwrap_or([Rect::NOTHING; 4]),
+        held: st.resizing.is_some_and(|z| !z.cancelled),
+        escape: None,
+    });
+    publish(&ctx, id, held);
     drop(layout);
+    if let Some(cursor) = resize_cursor {
+        ctx.set_cursor_icon(cursor);
+    }
     if editable {
         own(app, which, &mut st, None);
         settle(app, ui, which, &mut st);
@@ -1402,6 +1755,10 @@ mod tests {
 #[cfg(test)]
 #[path = "wide_picture_tests.rs"]
 mod wide_picture_tests;
+
+#[cfg(test)]
+#[path = "picture_resize_tests.rs"]
+mod picture_resize_tests;
 
 #[cfg(test)]
 #[path = "spreadsheet_tests.rs"]
