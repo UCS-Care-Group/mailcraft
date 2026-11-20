@@ -9,7 +9,7 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{By, NodeT as _, Queryable as _};
 use mailcraft_time::{Date, Weekday};
 
-use super::{Calendar, Picked, moved};
+use super::{Calendar, Picked, moved, moved_in_layout, visual_column};
 
 fn day(s: &str) -> Date {
     Date::parse_iso(s).unwrap()
@@ -121,6 +121,20 @@ fn the_arrows_move_a_day_or_a_week_and_page_keys_a_month() {
     // Nothing is picked by moving.
     assert_eq!(h.state().text, "2026-10-31");
     assert!(h.state().picks.is_empty());
+}
+
+#[test]
+fn hebrew_calendar_mirrors_week_columns_and_keyboard_days() {
+    assert_eq!(visual_column(0, false), 0.0);
+    assert_eq!(visual_column(6, false), 6.0);
+    assert_eq!(visual_column(0, true), 6.0);
+    assert_eq!(visual_column(6, true), 0.0);
+    let day = day("2026-10-14");
+    assert_eq!(moved_in_layout(day, Key::ArrowLeft, true), Some(day.add_days(1)));
+    assert_eq!(moved_in_layout(day, Key::ArrowRight, true), Some(day.add_days(-1)));
+    assert_eq!(moved_in_layout(day, Key::ArrowDown, true), Some(day.add_days(7)));
+    assert_eq!(moved_in_layout(day, Key::PageDown, true), Some(day.add_months(1)));
+    assert_eq!(moved_in_layout(day, Key::ArrowRight, false), moved(day, Key::ArrowRight));
 }
 
 #[test]
