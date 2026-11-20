@@ -579,19 +579,21 @@ fn events_stay(out: &mut Mailbox, touched: &Touched, now: &Mailbox) {
 
 /// Whether an undo (or redo) to `then` of a change that did `touched` has the event `id` as `then`
 /// has it, or leaves it out when `then` has none, rather than as it is in `now` (#1674): what
-/// [`events_stay`] and [`subscribed_stay`] do with it. An event a download brought, changed or
-/// took away since the change is as now; one the change touched, or one in a calendar that `then`
-/// has not (or had subscribed, when `now` has not), or any when the clock moved since, as `then`
-/// has it. For the question asked of an agent's undo (#494): what it would take away.
+/// [`events_stay`] and [`subscribed_stay`] do with it. An event of a calendar subscribed in `now`
+/// is never taken away nor put back as another, whatever else (its calendar subscribed since the
+/// change, the clock moved since): [`subscribed_stay`] runs after [`events_stay`] and puts every
+/// one back from `now`. This says nothing of its times: after a move of the clock, the settle that
+/// follows the undo moves them again (#1709). Of the others, an event a download brought, changed
+/// or took away since the change is as now; one the change touched, or one in a calendar that
+/// `then` has not (or had subscribed), or any when the clock moved since, as `then` has it. For
+/// the question asked of an agent's undo (#494): what it would take away.
 pub(crate) fn event_as_then(then: &Mailbox, touched: &Touched, now: &Mailbox, id: Id) -> bool {
     let Some(e) = now.event(id) else { return true };
     let subscribed = |m: &Mailbox| m.calendar(e.calendar).map(Calendar::is_subscribed);
-    then.zone != now.zone
-        || touched.changed_events.contains(&id)
-        || match (subscribed(then), subscribed(now)) {
-            (None, _) => true,
-            (Some(was), is) => was && is != Some(true),
-        }
+    if subscribed(now) == Some(true) {
+        return false;
+    }
+    then.zone != now.zone || touched.changed_events.contains(&id) || subscribed(then).is_none_or(|was| was)
 }
 
 /// `list` by the event each is about, in its order.
