@@ -259,7 +259,8 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
                 ui.spacing_mut().item_spacing.x = 6.0;
                 ui.label(egui::RichText::new(tl!("Held:")).font(crate::theme::regular(12.0)).strong().color(t.text));
                 ui.label(egui::RichText::new(m.held.as_str()).font(crate::theme::regular(12.0)).color(t.text_dim));
-                if ui.button(tl!("Send Again")).clicked() {
+                // A draft is sent with Send, from its own bar (#1747).
+                if !m.draft && ui.button(tl!("Send Again")).clicked() {
                     let _ = app.run("mail.sendAgain", serde_json::json!({"id": id}));
                 }
             });

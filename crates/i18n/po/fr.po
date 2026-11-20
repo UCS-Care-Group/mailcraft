@@ -22166,6 +22166,11 @@ msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "cette boîte aux lettres est ouverte dans une autre fenêtre MailCraft ; fermez-la d'abord là-bas"
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "that message is a draft: open it and send it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "that message is a draft: open it to send it"
