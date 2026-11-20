@@ -19,7 +19,7 @@ msgid "\"{address}\" isn't an address mail can be sent to"
 msgstr ""
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/account_setup.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/senders.rs
 msgid "\"{address}\" isn't an e-mail address"
 msgstr ""
 
@@ -652,14 +652,19 @@ msgid ""
 "Settings"
 msgstr ""
 
-#. command label, interface
-#: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
+#. command label, interface, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 msgid "Account Settings"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Account name"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Account's signature"
 msgstr ""
 
 #. android, interface, ribbon
@@ -805,6 +810,11 @@ msgid "Add account"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Add address"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Add an account"
 msgstr ""
@@ -902,7 +912,7 @@ msgid "Added to Contacts"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 msgid "Address"
 msgstr ""
 
@@ -936,6 +946,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Addresses your mail server lets this account send from with the same sign-in, such as aliases. Replies are sent from the address a message came to."
 msgstr ""
 
 #. android
@@ -1166,6 +1181,11 @@ msgstr ""
 #. what a command says
 #: crates/mobile/src/sync.rs
 msgid "An account couldn't be sent and received."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "An address this account may send from"
 msgstr ""
 
 #. interface
@@ -1772,7 +1792,7 @@ msgid "AutoArchive"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 msgid "Automatic"
 msgstr ""
 
@@ -2575,6 +2595,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check for new versions"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Check spelling with a local dictionary"
 msgstr ""
 
 #. interface
@@ -4586,7 +4611,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr ""
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "File"
 msgstr ""
 
@@ -4650,6 +4675,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Find a Time"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Find next spelling error"
 msgstr ""
 
 #. interface
@@ -4767,7 +4797,7 @@ msgid ""
 msgstr ""
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 msgid "Folder Pane"
 msgstr ""
 
@@ -7733,9 +7763,19 @@ msgstr ""
 msgid "Move Event"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+msgid "Move Favorite Up or Down"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 msgid "Move Folder"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+msgid "Move Folder Up or Down"
 msgstr ""
 
 #. interface
@@ -7879,7 +7919,7 @@ msgid "Name (A–Z)"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs
 msgid "Name (optional)"
 msgstr ""
 
@@ -8542,6 +8582,21 @@ msgid "No signatures yet"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "No spelling errors found"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "No spelling errors in the part checked"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "No spelling suggestions"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 msgid "No such account"
 msgstr ""
@@ -8972,7 +9027,7 @@ msgid "October"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 msgid "Off"
 msgstr ""
 
@@ -9541,6 +9596,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Other accounts and On this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Other addresses you send from"
 msgstr ""
 
 #. what a command says
@@ -10595,6 +10655,11 @@ msgid "Remove this action"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "Remove this address"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Remove this condition"
 msgstr ""
@@ -10669,6 +10734,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/find_replace.rs
 msgid "Replace All"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Replace Text at Position"
 msgstr ""
 
 #. interface
@@ -11808,6 +11878,11 @@ msgstr ""
 msgid "Send/Receive with Microsoft Graph"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/senders.rs
+msgid "Sender Addresses"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
 msgid "Sender and subject shown"
@@ -11943,6 +12018,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Server: {address}"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/senders.rs
+msgid "Set Sender Addresses"
 msgstr ""
 
 #. name
@@ -12707,7 +12787,22 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-msgid "Spelling & Grammar"
+msgid "Spelling"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Spelling is unavailable on this platform"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Spelling language"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Spelling suggestions"
 msgstr ""
 
 #. interface
@@ -14129,6 +14224,11 @@ msgid "The name people you write to will see"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+msgid "The name recipients see; your own when empty"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "The name the calendar gives itself"
 msgstr ""
@@ -14606,6 +14706,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "The space the folder's own messages take on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "The spelling dictionary is unavailable"
 msgstr ""
 
 #. interface
@@ -17125,6 +17230,11 @@ msgstr ""
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+msgid "a Microsoft or Exchange account sends from other addresses only as its server allows, which MailCraft doesn't ask for yet"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
@@ -17161,6 +17271,16 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "a favourite can't be put before itself"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a folder can't be put before itself"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't move into itself"
 msgstr ""
@@ -17168,6 +17288,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't move to another account"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a folder is put among the folders beside it: name one with the same parent"
 msgstr ""
 
 #. what a command says
@@ -17263,6 +17388,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
+msgstr ""
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+msgid "a sender address has no e-mail address"
 msgstr ""
 
 #. what a command says
@@ -17373,6 +17503,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "an account can't be put before itself"
+msgstr ""
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+msgid "an account has {max} sender addresses at most"
 msgstr ""
 
 #. what a command says
@@ -17489,6 +17624,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "everybody at @{domain}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+msgid "expected and replacement must be on one line"
 msgstr ""
 
 #. folder name
@@ -17860,7 +18000,7 @@ msgid "no account with id {account}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 msgid "no account with id {id}"
 msgstr ""
 
@@ -17989,8 +18129,8 @@ msgstr ""
 msgid "no signature named \"{from}\""
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/signature.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup/senders.rs
 msgid "no signature named \"{name}\""
 msgstr ""
 
@@ -18127,6 +18267,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "only a message you sent can be sent again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+msgid "only an IMAP account sends from other addresses"
 msgstr ""
 
 #. why a command can't run
@@ -19085,6 +19230,11 @@ msgid "the text has a character that can't be sent"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+msgid "the text has changed at the place to replace"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
 msgstr ""
@@ -19619,6 +19769,11 @@ msgid "{address} is already set up"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "{address} is no longer one of this account's sender addresses: choose another From"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/junk.rs
 msgid "{address} is one of your own addresses: your own mail isn't blocked"
 msgstr ""
@@ -19631,6 +19786,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "{address} isn't a shared mailbox open here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "{address} isn't one of this account's sender addresses (add it in Account Settings)"
 msgstr ""
 
 #. interface
@@ -19969,6 +20129,11 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "{name} isn't among the Favorites"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 msgid "{name} isn't an Exchange server account"
 msgstr ""
@@ -20026,6 +20191,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
 msgid "{name} shared a calendar with you. It is in your calendar list."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "{name} stays at the top of its account's folders"
 msgstr ""
 
 #. interface

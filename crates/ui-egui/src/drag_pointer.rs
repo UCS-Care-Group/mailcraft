@@ -41,6 +41,7 @@ pub(crate) fn apply(ctx: &egui::Context) {
     let over = ctx.data_mut(|d| d.remove_temp::<OverFolder>(EguiId::NULL).and_then(|o| o.0));
     if egui::DragAndDrop::has_payload_of_type::<crate::mail_view::MessageDrag>(ctx)
         || egui::DragAndDrop::has_payload_of_type::<crate::nav::AccountDrag>(ctx)
+        || egui::DragAndDrop::has_payload_of_type::<crate::nav::FolderDrag>(ctx)
     {
         ctx.set_cursor_icon(drag_pointer(over));
     }

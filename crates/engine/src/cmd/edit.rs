@@ -53,18 +53,28 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-/// An agent without Delete doesn't undo or redo a step that takes a message away (#473), or that
-/// has a category deleted in Outlook (#661): refused before anything moves, so the stacks stay as
-/// they are.
-fn refuse_taking_mail(s: &Session, id: &str, redo: bool) -> Result<(), CmdError> {
-    match &s.agent {
-        Some(allow) if !allow.contains(&crate::agent::Class::Delete) && s.undo_takes_mail(redo) => {
-            Err(CmdError::Failed(crate::agent::needs_owner(id, crate::agent::Class::Delete, false, "take away messages; nothing was changed")))
-        }
-        Some(allow) if !allow.contains(&crate::agent::Class::Delete) && !s.undo_deletes_categories(redo).is_empty() => Err(CmdError::Failed(
-            crate::agent::needs_owner(id, crate::agent::Class::Delete, false, "delete categories in Outlook; nothing was changed"),
-        )),
-        _ => Ok(()),
+/// An agent without Delete doesn't undo or redo a step that takes a message away (#473), that
+/// has a category deleted in Outlook (#661), or that takes away contacts, events, tasks, calendars
+/// or categories made since (notes and journal entries count too): refused before
+/// anything moves, so the stacks stay as they are. The gate asked that
+/// before the command; it is asked again here, of the mailbox the step runs on (#1674:
+/// `Session::run` has settled the zone, and a move between the gate and the run can make an
+/// undo take events away that it kept before).
+fn refuse_taking(s: &Session, id: &str, redo: bool) -> Result<(), CmdError> {
+    use crate::agent::{Class, needs_owner};
+    if s.agent.as_ref().is_none_or(|allow| allow.contains(&Class::Delete)) {
+        return Ok(());
+    }
+    let refuse = |what: &str| Err(CmdError::Failed(needs_owner(id, Class::Delete, false, what)));
+    let (taken, items) = s.undo_takes(redo);
+    if !taken.is_empty() {
+        refuse("take away messages; nothing was changed")
+    } else if !s.undo_deletes_categories(redo).is_empty() {
+        refuse("delete categories in Outlook; nothing was changed")
+    } else if !items.is_empty() {
+        refuse("take away contacts, events, tasks, calendars or categories made since, for good; nothing was changed")
+    } else {
+        Ok(())
     }
 }
 
@@ -84,7 +94,7 @@ fn refuse_under_composer(s: &Session, redo: bool) -> Result<(), CmdError> {
 
 fn undo(s: &mut Session, _: &Value) -> CmdResult {
     refuse_under_composer(s, false)?;
-    refuse_taking_mail(s, "edit.undo", false)?;
+    refuse_taking(s, "edit.undo", false)?;
     let label = s.undo_label();
     s.undo();
     let said = said(s);
@@ -93,7 +103,7 @@ fn undo(s: &mut Session, _: &Value) -> CmdResult {
 
 fn redo(s: &mut Session, _: &Value) -> CmdResult {
     refuse_under_composer(s, true)?;
-    refuse_taking_mail(s, "edit.redo", true)?;
+    refuse_taking(s, "edit.redo", true)?;
     let label = s.redo_label();
     s.redo();
     let said = said(s);

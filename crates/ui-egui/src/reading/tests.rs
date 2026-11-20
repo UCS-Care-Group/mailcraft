@@ -2341,6 +2341,8 @@ fn what_is_kept_of_pictures_is_said_and_cleared_in_the_options() {
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
     assert!(says(&harness, "12 downloaded pictures are kept on this computer (3.2 MB)."));
+    harness.get_by_label("Clear").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Clear").click();
     harness.run_steps(4);
     assert_eq!(*kept.cleared.lock().unwrap(), 1);

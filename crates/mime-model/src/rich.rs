@@ -57,9 +57,16 @@ pub fn to_html_with(text: &RichText, pictures: &dyn Fn(u32) -> Option<Img>) -> S
     for (i, p) in paragraphs.iter().enumerate() {
         if p.list == ListKind::None {
             close_to(&mut out, &mut open, 0);
+            // Increased indent (#1658): a left margin a level, each in a block of its own, as a
+            // reader takes no more than 64 pixels from one. A blank line is a blank line however
+            // far in it is, and reads back as one at the margin.
+            let levels = if p.is_empty() { 0 } else { usize::from(p.level.min(MAX_LEVEL)) };
+            out.push_str(&INDENT_OPEN.repeat(levels));
             out.push_str("<div>");
             paragraph(&mut out, p, pictures);
-            out.push_str("</div>\r\n");
+            out.push_str("</div>");
+            out.push_str(&"</div>".repeat(levels));
+            out.push_str("\r\n");
             continue;
         }
         let depth = usize::from(p.level.min(MAX_LEVEL)) + 1;
@@ -101,6 +108,25 @@ pub fn to_html_with(text: &RichText, pictures: &dyn Fn(u32) -> Option<Img>) -> S
     }
     close_to(&mut out, &mut open, 0);
     out
+}
+
+/// How far each level of Increase Indent moves an ordinary paragraph in, in CSS pixels: what Outlook
+/// on the web and Gmail write, and a browser's own step for a quote or a list.
+const INDENT_PX: u32 = 40;
+
+/// What opens one level of Increase Indent ([`INDENT_PX`]).
+const INDENT_OPEN: &str = "<div style=\"margin-left:40px\">";
+
+/// The indent level of an ordinary paragraph that stands `inset` CSS pixels in from the left: whole
+/// steps of [`INDENT_PX`], a step counted from 32 pixels on, so a little padding round the text
+/// isn't an indent and Outlook's half inch (48 pixels) a step is one. The reading stops at 255
+/// pixels, which is anything from there on: the deepest level, which is written further in.
+fn level_of_inset(inset: u8) -> u8 {
+    if inset == u8::MAX {
+        return MAX_LEVEL;
+    }
+    let steps = (u32::from(inset) + INDENT_PX / 5) / INDENT_PX;
+    u8::try_from(steps).unwrap_or(MAX_LEVEL).min(MAX_LEVEL)
 }
 
 /// Close lists (and their open items) until `depth` are left open.
@@ -535,7 +561,9 @@ impl Reader {
                     let (list, level) = match kind {
                         BlockKind::ListItem { marker: Marker::Bullet, depth } => (ListKind::Bullet, *depth),
                         BlockKind::ListItem { marker: Marker::Number(_) | Marker::Label(_), depth } => (ListKind::Numbered, *depth),
-                        _ => (ListKind::None, 0),
+                        BlockKind::ListItem { .. } => (ListKind::None, 0),
+                        // A paragraph moved in from the left keeps its indent (#1658).
+                        _ => (ListKind::None, level_of_inset(b.inset[0])),
                     };
                     self.gap(b.space);
                     self.paragraph(&b.spans, list, level.min(MAX_LEVEL));
