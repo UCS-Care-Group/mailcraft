@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Offline spelling in the editable part of a message. A desktop host provides its installed
-//! dictionaries. Ranges returned by the host use bytes; the composer edits by character offset.
+//! Offline spelling in the editable part of a message. A host provides dictionaries: the operating
+//! system's, where it has them, and the US English list built into MailCraft. Ranges returned by
+//! the host use bytes; the composer edits by character offset.
 
 use std::ops::Range;
 
@@ -14,7 +15,7 @@ use crate::MailApp;
 use crate::compose::editor;
 
 const REVIEW_PARAGRAPHS_PER_FRAME: usize = 8;
-pub use mailcraft_spell::{HostChecker, MAX_ISSUES};
+pub use mailcraft_spell::{BuiltIn as BundledChecker, EN_US_TAG, HostChecker, MAX_ISSUES};
 const MAX_SUGGESTIONS: usize = 6;
 const OFF: &str = "off";
 
@@ -68,6 +69,9 @@ pub(crate) fn locale(app: &MailApp, ctx: &Context) -> Option<String> {
 }
 
 fn locale_name(tag: &str) -> String {
+    if tag == EN_US_TAG {
+        return tl!("English (United States, built-in)").to_string();
+    }
     mailcraft_i18n::Lang::from_code(tag).map_or_else(|| tag.to_string(), |lang| format!("{} ({tag})", lang.native_name()))
 }
 

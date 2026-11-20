@@ -298,6 +298,7 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
         system_locale: web_sys::window().and_then(|w| w.navigator().language()),
         // The same language's region (`en-GB`) is the one English dates are written for (#978).
         system_time_locale: web_sys::window().and_then(|w| w.navigator().language()),
+        spelling: Some(Box::new(mailcraft_ui_egui::spelling::BundledChecker)),
         on_language: Some(Box::new(move |code: &str| {
             let root = web_sys::window().and_then(|w| w.document()).and_then(|d| d.document_element());
             if let Some(root) = root {

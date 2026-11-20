@@ -136,6 +136,58 @@ fn spelling_correction_preserves_the_formatting_of_unchanged_text() {
     assert!(body.text().all(7, 10, |style| style.bold).unwrap());
 }
 
+struct Listed {
+    tags: Vec<String>,
+}
+
+impl HostChecker for Listed {
+    fn locales(&self) -> Vec<String> {
+        self.tags.clone()
+    }
+
+    fn check(&self, _locale: &str, _text: &str) -> Option<Vec<Range<usize>>> {
+        Some(Vec::new())
+    }
+
+    fn suggest(&self, _locale: &str, _word: &str) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+fn app_with(tags: &[&str], system: Option<&str>) -> MailApp {
+    MailApp::new(
+        mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0),
+        crate::Services {
+            spelling: Some(Box::new(Listed { tags: tags.iter().map(|tag| (*tag).to_string()).collect() })),
+            system_locale: system.map(str::to_string),
+            ..Default::default()
+        },
+    )
+}
+
+#[test]
+fn the_built_in_dictionary_is_named_as_built_in() {
+    assert_eq!(locale_name(mailcraft_spell::EN_US_TAG), "English (United States, built-in)");
+    assert_eq!(locale_name("en-US"), "English (en-US)");
+}
+
+#[test]
+fn automatic_prefers_an_os_en_us_and_falls_back_to_the_built_in_tag() {
+    let ctx = Context::default();
+    // The system tag is compared whole, after normalising. The built-in tag is not `en-US`,
+    // so it does not win the system match even when it is listed first.
+    let both = app_with(&[mailcraft_spell::EN_US_TAG, "en-US"], Some("en_US.UTF-8"));
+    assert_eq!(locale(&both, &ctx).as_deref(), Some("en-US"));
+    // With no system region, Automatic takes the first tag of the interface language.
+    // The desktop host sorts, and `en-US` sorts before `en-US-x-builtin`.
+    let sorted = app_with(&["en-US", mailcraft_spell::EN_US_TAG], None);
+    assert_eq!(locale(&sorted, &ctx).as_deref(), Some("en-US"));
+    // No operating-system English: the system tag does not equal the built-in tag, and the
+    // language match then takes that tag.
+    let only = app_with(&[mailcraft_spell::EN_US_TAG, "fr-FR"], Some("en-US"));
+    assert_eq!(locale(&only, &ctx).as_deref(), Some(mailcraft_spell::EN_US_TAG));
+}
+
 #[test]
 fn beginning_ime_composition_cancels_a_pending_spelling_review() {
     use egui::{Event, ImeEvent};

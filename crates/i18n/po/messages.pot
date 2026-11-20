@@ -4490,6 +4490,11 @@ msgid "Ends on a day"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "English (United States, built-in)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/send_later.rs
 msgid "Enter a date and a time."
 msgstr ""
