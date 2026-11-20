@@ -2195,7 +2195,7 @@ msgid "AutoArchive"
 msgstr "Automatikus archívum"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automatikus"
@@ -3163,6 +3163,12 @@ msgstr "Frissítések ellenőrzése"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Új verziók ellenőrzése"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Helyesírás ellenőrzése helyi szótárral"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5689,6 +5695,12 @@ msgid "Find a Time"
 msgstr "Időpont keresése"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Következő helyesírási hiba keresése"
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Find what"
@@ -5827,7 +5839,7 @@ msgid ""
 msgstr "Mappa tulajdonságai"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Mappaablak"
@@ -9448,11 +9460,23 @@ msgstr "Lefelé"
 msgid "Move Event"
 msgstr "Esemény áthelyezése"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Kedvenc mozgatása fel vagy le"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Mappa áthelyezése"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Mappa mozgatása fel vagy le"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -10461,6 +10485,24 @@ msgid "No signatures yet"
 msgstr "Még nincs aláírás."
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Nincs helyesírási hiba"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "Nincs helyesírási hiba az ellenőrzött részben"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Nincs helyesírási javaslat"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10977,7 +11019,7 @@ msgid "October"
 msgstr "október"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Ki"
@@ -13061,6 +13103,12 @@ msgstr "Csere"
 #, fuzzy
 msgid "Replace All"
 msgstr "Az összes helyettesítése"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Szöveg cseréje a megadott helyen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15582,8 +15630,26 @@ msgstr "A levelek legfeljebb ennyi helyet foglalhatnak"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Helyesírás és nyelvhelyesség"
+msgid "Spelling"
+msgstr "Helyesírás"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "A helyesírás-ellenőrzés ezen a platformon nem érhető el"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "A helyesírás-ellenőrzés nyelve"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Helyesírási javaslatok"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17884,6 +17950,12 @@ msgstr "A könyvtár és az alatta lévő mappák helye, hogy ezt a számítóg�
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "A könyvtár saját üzeneteinek helye, amit a számítógépen használ"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "A helyesírási szótár nem érhető el"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20968,6 +21040,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "Piszkozathoz nem adható emlékeztető: előbb küldd el, vagy használd a Nyomon követés funkciót magában az üzenetben"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "egy kedvenc nem tehető saját maga elé"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "egy mappa nem tehető saját maga elé"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20978,6 +21062,12 @@ msgstr "egy mappa nem tud magától mozogni"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "a mappa nem helyezhető át másik fiókba"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "egy mappa a mellette lévő mappák közé kerül: adjon meg egyet ugyanazzal a szülőmappával"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21380,6 +21470,12 @@ msgstr "beírandó felhasználónév"
 #, fuzzy
 msgid "everybody at @{domain}"
 msgstr "Mindenki a @{domain}-n"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "a keresett és a helyettesítő szövegnek egy sorban kell lennie"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -23402,6 +23498,12 @@ msgid "the text has a character that can't be sent"
 msgstr "A szövegnek van egy karaktere, amit nem lehet elküldeni"
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "a cserélendő szöveg megváltozott"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
@@ -24471,6 +24573,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "A(z) {name} nem megosztott postafiók. Az account.remove paranccsal távolíthatja el."
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} nincs a kedvencek között"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24541,6 +24649,12 @@ msgstr "{name} megosztotta veled a naptárat."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} megosztotta veled a naptárat, benne van a naptárlistádban."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} a fiók mappáinak tetején marad"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -25830,6 +25944,19 @@ msgstr "−Sorok"
 #~ msgstr[0] "{n} üzenet felel meg a keresésnek"
 #~ msgstr[1] "{n} üzenet felel meg a keresésnek"
 
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "A mondatok első szava kezdődjön nagybetűvel"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "A nagybetű a szó begépelése után jelenik meg. A visszavonás visszaállítja az eredeti szöveget."
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Helyesírás és nyelvhelyesség"
+
+#, fuzzy
 #~ msgid "As the people you write to see it"
 #~ msgstr "Mint az emberek, akiket írsz, hogy lássák."
 
