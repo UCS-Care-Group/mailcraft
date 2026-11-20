@@ -23404,6 +23404,14 @@ msgid_plural "{n} messages that came back empty after a refused delete are being
 msgstr[0] "{n} Nachricht, die nach einer verweigerten Löschung leer zurückkam, wird erneut heruntergeladen."
 msgstr[1] "{n} Nachrichten, die nach einer verweigerten Löschung leer zurückkamen, werden erneut heruntergeladen."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
+msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
+msgstr[0] "{n} Nachricht, die nur auf diesem Computer war, lag in einem Ordner, den der Server nicht mehr auflistet. Sie ist jetzt im Ordner „{name}“."
+msgstr[1] "{n} Nachrichten, die nur auf diesem Computer waren, lagen in einem Ordner, den der Server nicht mehr auflistet. Sie sind jetzt im Ordner „{name}“."
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "{n} message was already here"

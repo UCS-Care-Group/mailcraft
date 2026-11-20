@@ -25033,6 +25033,15 @@ msgstr[0] "{n} zpráva, která se po odmítnutém odstranění vrátila prázdn�
 msgstr[1] "{n} zprávy, které se po odmítnutém odstranění vrátily prázdné, se znovu stahují."
 msgstr[2] "{n} zpráv, které se po odmítnutém odstranění vrátily prázdné, se znovu stahuje."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
+msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
+msgstr[0] "{n} zpráva, která byla jen na tomto počítači, byla ve složce, kterou server už neuvádí. Teď je ve složce „{name}“."
+msgstr[1] "{n} zprávy, které byly jen na tomto počítači, byly ve složce, kterou server už neuvádí. Teď jsou ve složce „{name}“."
+msgstr[2] "{n} zpráv, které byly jen na tomto počítači, bylo ve složce, kterou server už neuvádí. Teď jsou ve složce „{name}“."
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy

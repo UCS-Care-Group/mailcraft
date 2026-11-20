@@ -218,6 +218,11 @@ pub struct EwsFolderDeltas {
     /// The ids of the folders deleted.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub deleted: Vec<String>,
+    /// Of `deleted`, the folders the server still has that the list leaves out: its Outbox while
+    /// it is empty (#747). What only this computer has in such a folder here goes to a folder on
+    /// this computer, so that the folder isn't kept for it and made on the server again.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub left_out: Vec<String>,
     /// The state the run began from was lost (the server no longer knew it, or there was none): this
     /// is every folder the server has, and a folder of the account that isn't in `changed` is
     /// removed when the run ends. Otherwise it is a delta and nothing is removed for not being in it.
@@ -461,6 +466,7 @@ impl EwsMailResult {
                 || folders.deleted.len() > MAX_LISTED_FOLDERS
                 || folders.well_known.len() > MAX_LISTED_FOLDERS
                 || folders.unreadable_in.len() > MAX_LISTED_FOLDERS
+                || folders.left_out.len() > MAX_LISTED_FOLDERS
             {
                 return Err(TOO_MANY);
             }
@@ -469,6 +475,7 @@ impl EwsMailResult {
             if folders.changed.iter().any(odd)
                 || !folders.deleted.iter().all(|id| id_ok(id))
                 || !folders.well_known.iter().all(|id| id_ok(id))
+                || !folders.left_out.iter().all(|id| id_ok(id))
                 || !folders.unreadable_in.iter().all(parent_ok)
             {
                 return Err(ODD_ID);
@@ -512,6 +519,7 @@ impl EwsMailResult {
             let folders = self.folders.get_or_insert_with(EwsFolderDeltas::default);
             folders.changed.extend(more.changed);
             folders.deleted.extend(more.deleted);
+            folders.left_out.extend(more.left_out);
             folders.afresh |= more.afresh;
             folders.unreadable_in.extend(more.unreadable_in);
             folders.unreadable_anywhere |= more.unreadable_anywhere;

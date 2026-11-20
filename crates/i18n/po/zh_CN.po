@@ -24847,6 +24847,13 @@ msgid "{n} message that came back empty after a refused delete is being download
 msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
 msgstr[0] "有 {n} 封邮件在删除被拒绝后返回了空内容，正在重新下载。"
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
+msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
+msgstr[0] "有 {n} 封仅在此计算机上的邮件位于服务器不再列出的文件夹中，现已移至文件夹“{name}”。"
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy

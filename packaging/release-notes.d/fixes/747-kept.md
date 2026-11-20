@@ -1,0 +1,1 @@
+- An Exchange server account: mail that was only on this computer in the second Outbox an earlier version showed goes to a folder on this computer, "Kept from" the account, instead of an error at every Send/Receive, and the Send/Receive says how many messages moved and where they are now ([#747](https://github.com/GITHUB_REPOSITORY/issues/747)).

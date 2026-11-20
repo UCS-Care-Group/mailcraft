@@ -25061,6 +25061,15 @@ msgstr[0] "{n} mesaj care a revenit gol după o ștergere refuzată se descarcă
 msgstr[1] "{n} mesaje care au revenit goale după o ștergere refuzată se descarcă din nou."
 msgstr[2] "{n} de mesaje care au revenit goale după o ștergere refuzată se descarcă din nou."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
+msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
+msgstr[0] "{n} mesaj care era doar pe acest computer se afla într-un dosar pe care serverul nu îl mai afișează. Acum este în dosarul „{name}”."
+msgstr[1] "{n} mesaje care erau doar pe acest computer se aflau într-un dosar pe care serverul nu îl mai afișează. Acum sunt în dosarul „{name}”."
+msgstr[2] "{n} de mesaje care erau doar pe acest computer se aflau într-un dosar pe care serverul nu îl mai afișează. Acum sunt în dosarul „{name}”."
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy

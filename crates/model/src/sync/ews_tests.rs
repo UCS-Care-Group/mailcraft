@@ -54,6 +54,7 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
             unreadable_in: vec![String::new()],
             unreadable_anywhere: false,
             well_known: vec!["F1".into()],
+            ..Default::default()
         }),
         hierarchy: "H1".into(),
         pages: vec![EwsMessagePage { folder: "F1".into(), state: "S1".into(), ..Default::default() }],
