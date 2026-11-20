@@ -16584,6 +16584,11 @@ msgid "The sign-in was declined."
 msgstr "Die Anmeldung wurde abgelehnt."
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 msgid "The signature is then sent as the simpler text shown here, not as it was designed"
 msgstr "Die Signatur wird dann als der hier angezeigte vereinfachte Text gesendet und nicht in ihrer ursprünglichen Gestaltung"

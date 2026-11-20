@@ -268,6 +268,8 @@ mod shared_permission;
 #[cfg(test)]
 mod shared_permission_tests;
 #[cfg(test)]
+mod signature_close_tests;
+#[cfg(test)]
 mod signature_link_tests;
 #[cfg(test)]
 mod signature_rename_tests;
@@ -1876,6 +1878,9 @@ pub struct MailApp {
     /// What closing waited for couldn't be written (the status bar said why): the window stayed
     /// open, and the next close request goes through without waiting again, until a save works.
     close_anyway: bool,
+    /// The signature open in File › Signatures couldn't be kept when the window was closed: the
+    /// window stayed open on that page saying why, and the next close leaves it as it is (#1746).
+    signature_held: bool,
     /// File › New or File › Open, asked for while the saver had the open mailbox to write: it
     /// runs once the saver is done with the file ([`MailApp::through_saver`]).
     pub(crate) after_save: Option<(String, Value)>,
@@ -2101,6 +2106,7 @@ impl MailApp {
             closing_after_save: None,
             close_ready: false,
             close_anyway: false,
+            signature_held: false,
             after_save: None,
             after_save_outcome: None,
             running_after_save: false,
@@ -5232,14 +5238,21 @@ impl MailApp {
     /// Keep what was changed in the signature open in File › Signatures, and close it.
     fn leave_signature(&mut self) {
         self.signature_note = None;
-        // A name still being typed is kept, as a change in the signature is (#1651).
-        signatures::finish_rename(self, true);
-        if self.session.signature_edit.as_ref().is_some_and(|e| e.dirty)
-            && let Err(e) = self.execute("signature.save", json!({}))
-        {
+        if let Err(e) = self.keep_signature() {
             self.status(e);
         }
         let _ = self.execute("signature.close", json!({"discard": true}));
+    }
+
+    /// Put what was changed in the signature open in File › Signatures back in the mailbox,
+    /// leaving it open. `Err` says why it couldn't be.
+    fn keep_signature(&mut self) -> Result<(), String> {
+        // A name still being typed is kept, as a change in the signature is (#1651).
+        signatures::finish_rename(self, true);
+        if self.session.signature_edit.as_ref().is_some_and(|e| e.dirty) {
+            self.execute("signature.save", json!({})).map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
 
     /// Tell the host whether there are unsaved changes ([`Services::on_dirty`]).
@@ -5707,6 +5720,19 @@ impl MailApp {
         // An appointment window with unsaved changes asks about them first.
         if windows::hold_quit(self) {
             return false;
+        }
+        // The signature open in File › Signatures is kept, as leaving the page keeps it (#1746).
+        // One that can't be is shown, saying why, and the next close leaves it as it is.
+        match self.keep_signature() {
+            Ok(()) => self.signature_held = false,
+            Err(why) if !std::mem::replace(&mut self.signature_held, true) => {
+                self.ui.backstage = true;
+                self.ui.backstage_page = "signatures".into();
+                let text = crate::i18n::fmt(tl!("The signature couldn't be saved: {why}. Close again to leave it unsaved."), &[("why", &why)]);
+                signatures::refuse(self, text);
+                return false;
+            }
+            Err(_) => {}
         }
         // What closing waited for is written, or couldn't be (the owner was told): it closes.
         if ready || anyway {
