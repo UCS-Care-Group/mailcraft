@@ -2660,6 +2660,18 @@ msgstr "Deze vergadering annuleren?"
 msgid "Cancelled"
 msgstr "Geannuleerd"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalize the first word of sentences"
+msgstr "Het eerste woord van een zin met een hoofdletter beginnen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+msgstr "De hoofdletter verschijnt zodra je het woord afmaakt. Met Ongedaan maken herstel je de getypte tekst."
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -24939,14 +24951,6 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
-
-#, fuzzy
-#~ msgid "Capitalize the first word of sentences"
-#~ msgstr "Het eerste woord van een zin met een hoofdletter beginnen"
-
-#, fuzzy
-#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-#~ msgstr "De hoofdletter verschijnt zodra je het woord afmaakt. Met Ongedaan maken herstel je de getypte tekst."
 
 #~ msgid "Spelling & Grammar"
 #~ msgstr "Spelling & grammatica"

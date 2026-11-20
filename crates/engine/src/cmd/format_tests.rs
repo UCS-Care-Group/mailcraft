@@ -472,6 +472,57 @@ fn a_typed_marker_and_space_start_a_list_and_undo_puts_the_marker_back() {
 }
 
 #[test]
+fn typed_sentence_initials_capitalize_on_space_or_enter_and_undo_restores_the_letter() {
+    let key_type = |s: &mut Session, text: &str| {
+        for c in text.chars() {
+            run(s, "compose.type", json!({"text": c.to_string(), "autoCapitalize": true}));
+        }
+    };
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    key_type(&mut s, "è pronto. «quanto costa?»\necco ");
+    assert_eq!(mine(&s), "È pronto. «Quanto costa?»\nEcco ");
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(mine(&s), "È pronto. «Quanto costa?»\necco ");
+    run(&mut s, "compose.redo", json!({}));
+    assert_eq!(mine(&s), "È pronto. «Quanto costa?»\nEcco ");
+
+    let mut s = session();
+    s.interface_language = mailcraft_i18n::Lang::Dutch;
+    run(&mut s, "mail.new", json!({}));
+    key_type(&mut s, "ijs\n");
+    assert_eq!(mine(&s), "IJs\n");
+
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    key_type(&mut s, "istanbul");
+    run(&mut s, "compose.type", json!({"text": " ", "autoCapitalize": true, "capitalLanguage": "tr-TR"}));
+    assert_eq!(mine(&s), "İstanbul ");
+}
+
+#[test]
+fn automatic_capitalization_leaves_abbreviations_addresses_and_pasted_text_alone() {
+    let key_type = |s: &mut Session, text: &str| {
+        for c in text.chars() {
+            run(s, "compose.type", json!({"text": c.to_string(), "autoCapitalize": true}));
+        }
+    };
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    key_type(&mut s, "gentile dott. rossi. https://example.org/ciao\ninfo@example.org\n");
+    assert_eq!(mine(&s), "Gentile dott. rossi. https://example.org/ciao\ninfo@example.org\n");
+    run(&mut s, "edit.paste", json!({"text": "testo"}));
+    key_type(&mut s, " ");
+    assert!(mine(&s).ends_with("\ntesto "));
+
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "file.options", json!({"autoCapitalize": false}));
+    key_type(&mut s, "resta minuscolo ");
+    assert_eq!(mine(&s), "resta minuscolo ");
+}
+
+#[test]
 fn replace_exact_checks_the_old_word_and_keeps_its_style_and_list() {
     let mut s = session();
     run(&mut s, "mail.new", json!({}));

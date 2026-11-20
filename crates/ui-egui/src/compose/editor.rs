@@ -778,6 +778,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let mut reveal = ctx.data_mut(|d| d.remove_temp::<bool>(id.with("reveal-spelling")).unwrap_or_default());
     let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
     let spelling_time = ctx.input(|input| input.time);
+    let capital_language = spelling::writing_locale(app, &ctx).or_else(|| spelling_locale.clone()).filter(|locale| !locale.is_empty());
 
     // A selected picture of a signature is made wider or narrower by its corner.
     if which == Which::Signature
@@ -943,7 +944,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             let Some((sel, plain)) = now(app, which) else { break };
             let asked = match event {
                 // (A space may start a list, #973: the engine looks at the paragraph.)
-                Event::Text(text) if text == " " => ask("compose.type", json!({"text": text, "autoList": true})),
+                Event::Text(text) if text == " " => ask("compose.type", json!({"text": text, "autoList": true, "autoCapitalize": true})),
                 Event::Text(text) if !text.is_empty() => ask("compose.type", json!({"text": text})),
                 Event::Ime(egui::ImeEvent::Commit(text)) => {
                     st.preedit.clear();
@@ -1025,7 +1026,12 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 }
                 _ => None,
             };
-            if let Some(Ask { command, params }) = asked {
+            if let Some(Ask { command, mut params }) = asked {
+                if params.get("autoCapitalize") == Some(&Value::Bool(true))
+                    && let Some(language) = &capital_language
+                {
+                    params["capitalLanguage"] = json!(language);
+                }
                 reveal = true;
                 // `run`: the link's dialog opens from Ctrl+K, and what goes wrong is said. A
                 // picture pasted into a signature goes as Paste Picture's does: made smaller when
@@ -1365,7 +1371,7 @@ fn key_press(layout: &Layout, st: &mut State, sel: Selection, plain: bool, key: 
         Key::PageDown => return (to(vertical(st, page)), true),
         Key::Home => to(if m.ctrl || m.command { 0 } else { layout.line_ends(head).0 }),
         Key::End => to(if m.ctrl || m.command { len } else { layout.line_ends(head).1 }),
-        Key::Enter if !m.command && !m.alt => ask("compose.type", json!({"text": "\n"})),
+        Key::Enter if !m.command && !m.alt => ask("compose.type", json!({"text": "\n", "autoCapitalize": true})),
         Key::Backspace if sel.is_empty() && word && head > 0 => ask("compose.delete", json!({"from": layout.word_left(head), "to": head})),
         Key::Backspace => ask("compose.delete", json!({})),
         // (At the end, nothing: not the paragraph break before a signature that isn't shown.)

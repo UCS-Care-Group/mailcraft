@@ -2750,6 +2750,18 @@ msgstr "Zrušit tuto schůzku?"
 msgid "Cancelled"
 msgstr "Zrušeno"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalize the first word of sentences"
+msgstr "Začínat věty velkým písmenem"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+msgstr "Velké písmeno se doplní po dopsání slova. Příkaz Zpět obnoví původní zápis."
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -25723,14 +25735,6 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
-
-#, fuzzy
-#~ msgid "Capitalize the first word of sentences"
-#~ msgstr "Začínat věty velkým písmenem"
-
-#, fuzzy
-#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-#~ msgstr "Velké písmeno se doplní po dopsání slova. Příkaz Zpět obnoví původní zápis."
 
 #, fuzzy
 #~ msgid "Spelling & Grammar"

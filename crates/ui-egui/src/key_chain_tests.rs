@@ -692,7 +692,7 @@ fn escape_and_enter_are_read_through_the_gate_only() {
         // The search box has the keyboard: a held Enter is one press in it.
         ("chrome.rs", "ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Enter, egui::Key::Tab]));"),
         // The body of a message being written has the keyboard: Enter is a new line.
-        ("compose/editor.rs", r#"Key::Enter if !m.command && !m.alt => ask("compose.type", json!({"text": "\n"})),"#),
+        ("compose/editor.rs", r#"Key::Enter if !m.command && !m.alt => ask("compose.type", json!({"text": "\n", "autoCapitalize": true})),"#),
         // The search box of the Move menu, a list that is open: Escape clears it, Enter moves.
         ("ribbon.rs", "i.consume_key(egui::Modifiers::NONE, egui::Key::Enter),"),
         ("ribbon.rs", "searching && i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),"),
