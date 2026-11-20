@@ -237,6 +237,36 @@ fn a_pasted_picture_is_made_smaller_by_its_corner_and_undo_puts_it_back() {
     assert_eq!((width(&h), plain(&h)), (None, OBJECT.to_string()));
 }
 
+#[test]
+fn a_corner_drag_dropped_when_the_selection_leaves_lets_a_click_place_the_caret() {
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    type_in(&mut h, "ab");
+    key(&mut h, Key::ArrowLeft);
+    *board.0.borrow_mut() = (Some(png(40)), None);
+    paste(&mut h);
+    key_with(&mut h, Modifiers::SHIFT, Key::ArrowLeft);
+    h.run_steps(2);
+    let corner = h.state().hit.rect("pictureCorner", u64::from(mailcraft_model::pictures::FIRST_ID)).expect("a selected picture has a corner");
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let held = corner.center() + egui::vec2(-40.0, 0.0);
+    h.event(Event::PointerMoved(corner.center()));
+    h.step();
+    h.event(button(corner.center(), true));
+    h.step();
+    h.event(Event::PointerMoved(held));
+    h.step();
+    assert_eq!(width(&h), None, "the width waits until the button is let go");
+    // A command moves the selection off the picture while the corner is still held.
+    h.state_mut().execute("compose.select", json!({"from": 3})).unwrap();
+    h.event(button(held, false));
+    h.run_steps(2);
+    assert_eq!((width(&h), sel(&h).head), (None, 3), "letting go sets nothing once the picture is not selected");
+    let body = h.state().hit.rect("composeBody", 0).expect("the body");
+    click(&mut h, body.min + egui::vec2(2.0, 8.0));
+    assert_eq!(sel(&h).head, 0, "a click places the caret");
+}
+
 fn size_box(h: &Window, name: &str) -> Option<egui::Rect> {
     h.state().hit.rect(name, u64::from(mailcraft_model::pictures::FIRST_ID))
 }

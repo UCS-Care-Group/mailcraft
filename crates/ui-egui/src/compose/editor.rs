@@ -820,6 +820,15 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             let _ = app.run(command, json!({"id": i, "width": w.round() as u16}));
         }
     }
+    // The drag is kept while its picture stays selected, so letting go still sets the width
+    // on a frame that did not move the corner. A command that moves the selection while the
+    // corner is held drops it, and a click in the text places the caret again.
+    if let Some((pid, _)) = st.resizing {
+        let still = now(app, which).and_then(|(sel, _)| layout.selected_picture(sel)).is_some_and(|(id, _)| id == pid);
+        if !still {
+            st.resizing = None;
+        }
+    }
 
     // The pointer: a click puts the caret, or selects a picture; a drag selects, a double click a
     // word and a triple click the paragraph as the button goes down, and a drag from them goes on
