@@ -59,6 +59,9 @@ use crate::soap::Element;
 /// How many changes one page of a folder asks for: enough that a large folder is a few hundred
 /// requests, few enough that a page is quick to take in.
 pub const PAGE: u32 = 200;
+
+/// The smallest a folder's page shrinks to: the least `MaxChangesReturned` the schema takes.
+const MIN_PAGE: u32 = 1;
 /// How many times one request is made again for a busy server.
 const BUSY_TRIES: u32 = 3;
 /// The most folders one run reads, and the most pages of one folder.
@@ -85,6 +88,9 @@ pub(crate) enum Asked {
     Lost,
     /// A page of a folder holds a change that can't be taken in: the folder stays where it was.
     Unreadable,
+    /// An answer heavier than any this program reads. Where a folder's pages are asked, they are
+    /// asked again with fewer changes at a time ([`MIN_PAGE`]) rather than failing the run.
+    TooLarge,
 }
 
 /// What ends a run.
@@ -157,6 +163,12 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     pub(crate) needs_change_key: bool,
     /// The recipients of some messages couldn't be had with `GetItem`: said once a run.
     pub(crate) recipients_unsaid: bool,
+    /// How many changes one page of a folder asks for: [`PAGE`] until a server answers a page
+    /// heavier than this program reads, and half as many every time it does — measured to be
+    /// honoured by servers that pick their own page size, Kerio Connect among them (#964).
+    pub(crate) page: u32,
+    /// The pages were shrunk this run: said once, with no folder named.
+    pub(crate) page_said: bool,
 }
 
 impl<'a, E: HttpExchange> Run<'a, E> {
@@ -173,6 +185,8 @@ impl<'a, E: HttpExchange> Run<'a, E> {
             reread_folders: false,
             needs_change_key: false,
             recipients_unsaid: false,
+            page: PAGE,
+            page_said: false,
         }
     }
 }
@@ -223,11 +237,15 @@ impl<E: HttpExchange> Run<'_, E> {
                 Error::Transport(TransportError::Tls) => return Err(Asked::Stop(Stop::Tls)),
                 Error::Transport(TransportError::Unreachable) => return Err(Asked::Stop(Stop::Unreachable)),
                 Error::Transport(_) if once => return Err(Asked::Lost),
+                // (A transport that read no further because the answer outweighed the limit says
+                // what the answer itself would have said (#1783): the page is asked smaller.)
+                Error::Transport(TransportError::BodyTooLarge) => return Err(Asked::TooLarge),
                 Error::Transport(_) => return Err(Asked::Stop(Stop::Unreachable)),
                 Error::Server(code) => return Err(Asked::Code(code)),
                 // (An answer that is none the service gives, to a request that may have been done.)
                 Error::Status(_) | Error::Malformed | Error::TooLarge | Error::Unexpected if once => return Err(Asked::Lost),
                 Error::Unreadable => return Err(Asked::Unreadable),
+                Error::TooLarge => return Err(Asked::TooLarge),
                 _ => return Err(Asked::Bad),
             }
         }
@@ -479,7 +497,7 @@ pub async fn sync_mail<E: HttpExchange>(
     if let Err(stop) = run.all(request, &mut out, emit).await {
         match stop {
             Asked::Stop(why) => out.stop(why),
-            Asked::Code(_) | Asked::Bad | Asked::Lost | Asked::Unreadable => {
+            Asked::Code(_) | Asked::Bad | Asked::TooLarge | Asked::Lost | Asked::Unreadable => {
                 out.incomplete = true;
                 out.line("The server's answer couldn't be used");
             }
@@ -653,7 +671,7 @@ impl<E: HttpExchange> Run<'_, E> {
             log::info!("ews mail: the server is older than Exchange 2013; the recipients are asked message by message");
         }
         for _ in 0..MAX_PAGES {
-            let op = SyncFolderItems::new(folder, &state, PAGE, self.shape);
+            let op = SyncFolderItems::new(folder, &state, self.page, self.shape);
             let page = match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(page) => {
                     if page.read_unsaid > 0 && !self.read_unsaid {
@@ -682,6 +700,18 @@ impl<E: HttpExchange> Run<'_, E> {
                 {
                     self.shape = Shape::Bare;
                     log::info!("ews mail: the server won't list the recipients with the changes; they are asked message by message");
+                    continue;
+                }
+                // (A server that answers the page with more than any answer this program reads —
+                // Kerio Connect's servlet among them, which sends whole messages when only the
+                // list was asked for (#964)) — is asked for fewer changes at a time, and stays
+                // asked that way for the rest of the run.)
+                Err(Asked::TooLarge) if self.page > MIN_PAGE => {
+                    self.page = (self.page / 2).max(MIN_PAGE);
+                    if !self.page_said {
+                        self.page_said = true;
+                        log::info!("ews mail: the server's answers are too big to read; asking for fewer changes at a time");
+                    }
                     continue;
                 }
                 Err(other) => return Err(other),
@@ -784,7 +814,7 @@ pub async fn fetch_messages<E: HttpExchange>(
         match run.ask(&op.element(), &|reply| op.answer(reply)).await {
             Ok(mime) => out.fetched.push(GraphFetched { id: id.clone(), mime }),
             Err(Asked::Code(ResponseCode::ItemNotFound)) => out.missing.push(id.clone()),
-            Err(Asked::Code(_) | Asked::Bad | Asked::Lost | Asked::Unreadable) => out.failed.push(id.clone()),
+            Err(Asked::Code(_) | Asked::Bad | Asked::TooLarge | Asked::Lost | Asked::Unreadable) => out.failed.push(id.clone()),
             Err(Asked::Stop(stop)) => {
                 if let Stop::Busy(seconds) = stop {
                     out.busy_for = Some(seconds.max(1));

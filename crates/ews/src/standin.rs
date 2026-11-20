@@ -185,6 +185,9 @@ pub struct State {
     pub busy_get_item: bool,
     /// A server that ignores `MaxChangesReturned` and gives every change it has in one answer.
     pub ignores_max: bool,
+    /// A transport that carries no answer heavier than the request allows (#1783): over the
+    /// `HttpRequest::max_response_bytes` of its own ask the body simply never arrives.
+    pub transport_caps_bodies: bool,
     /// With [`Hostile::BadItems`]: only the items of this folder (its id) are bad; empty for all.
     pub bad_items_in: String,
     /// How many ids have been given out.
@@ -289,6 +292,7 @@ impl Default for State {
             lacks_conversation: false,
             busy_get_item: false,
             ignores_max: false,
+            transport_caps_bodies: false,
             bad_items_in: String::new(),
             issued: 0,
             lacks_flag: false,
@@ -327,7 +331,12 @@ impl StandIn {
 
 impl HttpExchange for StandIn {
     fn exchange(&self, request: &HttpRequest) -> impl Future<Output = Result<HttpResponse, TransportError>> {
-        ready(Ok(self.state().respond(request)))
+        let mut state = self.state();
+        let response = state.respond(request);
+        // (As the real transport does over a socket: an answer heavier than the ask allows
+        // never arrives, whatever the server made of it.)
+        let over = state.transport_caps_bodies && response.body().len() > request.max_response_bytes();
+        ready(if over { Err(TransportError::BodyTooLarge) } else { Ok(response) })
     }
 }
 
