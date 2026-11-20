@@ -1422,7 +1422,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.unsubscribeMany",
         "Unsubscribe from Their Lists",
         "Message",
-        r#"{"ids"?: [number] (default: the selected messages)} — each sender of the messages once, after the owner's yes, as `mail.unsubscribeMany` says: the requests by mail go to the Outbox at once, one click goes to each list's server in turn (desktop; each message's bar then says what came of it), a list that unsubscribes on its own page is left to its message's bar; answers {"oneClick", "mail", "pages", "leftOut"}: the counts"#,
+        r#"{"ids"?: [number] (default: the selected messages; `id` and any other key refused; an agent names them), "mail"?: [number] (the requests by mail to write: 20 at most, each one of these messages' requests by mail, else refused; absent, null or [], none)} — each sender of the messages once, after the owner's yes to a question that lists each request by mail with its address and subject, as `mail.unsubscribeMany` says: one click goes to each list's server in turn (desktop; each message's bar then says what came of it), each request by mail named in `mail` goes to the Outbox on its own, a list that unsubscribes on its own page is left to its message's bar; answers {"oneClick", "mail", "pages", "leftOut"}: the counts"#,
     ),
     (
         "ui.unsubscribe",

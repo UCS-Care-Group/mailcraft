@@ -2097,7 +2097,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             // The way of going ahead that was picked: what it adds to the parameters.
             let mut picked: Option<Value> = None;
             let open = window(ctx, &ask.title, if ask.more.is_empty() { 420.0 } else { 480.0 }, |ui| {
-                ui.label(ask.text.as_str());
+                // A long question (the requests by mail of a selection, #1207) scrolls: its
+                // buttons stay on screen.
+                egui::ScrollArea::vertical().id_salt("question_text").max_height(360.0).auto_shrink([false, true]).show(ui, |ui| {
+                    ui.label(ask.text.as_str());
+                });
                 if let Some((_, note, hint)) = &mut ask.note {
                     let field = ui
                         .add(egui::TextEdit::multiline(note).hint_text(hint.as_str()).desired_rows(2).desired_width(f32::INFINITY).char_limit(2_000));

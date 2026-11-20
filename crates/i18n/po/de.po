@@ -1917,6 +1917,12 @@ msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Es können höchstens {n} Kalender abonniert werden: Kündigen Sie zuerst eines."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "Höchstens {n} Anfragen per E-Mail gehen auf einmal."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "At start time"

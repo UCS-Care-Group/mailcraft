@@ -265,13 +265,32 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
 }
 
 /// The messages a `ui.unsubscribeMany` is about: `ids`, else (absent or `null`) the selected
-/// ones. Named wrongly, refused: never read as the selection, which the question didn't pin.
+/// ones. Read as an agent's question reads them (`p::ids_strict`, #620): `id`, any other key,
+/// and `ids` named wrongly are refused, never read as the selection, which the question didn't
+/// pin.
 fn chosen(app: &MailApp, p: &Value) -> Result<Vec<u64>, String> {
-    let wrong = || "`ids` lists messages' ids".to_string();
+    mailcraft_engine::p::only(p, &["ids", "mail"]).map_err(|e| e.to_string())?;
     match p.get("ids") {
         None | Some(Value::Null) => Ok(app.session.sel.messages.clone()),
-        Some(Value::Array(ids)) => ids.iter().map(|id| id.as_u64().ok_or_else(wrong)).collect(),
-        Some(_) => Err(wrong()),
+        Some(ids) => Ok(mailcraft_engine::p::ids_strict(&json!({"ids": ids})).map_err(|e| e.to_string())?.unwrap_or_default()),
+    }
+}
+
+/// The requests by mail a `ui.unsubscribeMany` may write (`mail`), read as an agent's question
+/// reads them, so that what it shows is what is written: absent, `null` or `[]`, none; else
+/// 1 to [`MAX_MAIL_ASKED`] ids, each a whole number above 0, or the call is refused.
+fn mail_named(p: &Value) -> Result<Vec<u64>, String> {
+    match p.get("mail") {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::Array(ids)) if ids.is_empty() => Ok(Vec::new()),
+        Some(ids) => {
+            let ids =
+                mailcraft_engine::p::ids_strict(&json!({"ids": ids})).map_err(|_| "`mail` lists messages' ids".to_string())?.unwrap_or_default();
+            if ids.len() > MAX_MAIL_ASKED {
+                return Err(crate::i18n::fmt(tl!("At most {n} requests by mail go at once."), &[("n", &MAX_MAIL_ASKED.to_string())]));
+            }
+            Ok(ids)
+        }
     }
 }
 
@@ -392,16 +411,14 @@ fn many(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     if ids.is_empty() {
         return Err(tl!("Select a message first").to_string());
     }
-    // The requests by mail the question listed: an array of ids, and nothing else. Absent or
-    // `null`, none: never the selection.
-    let asked: Vec<u64> = match p.get("mail") {
-        None | Some(Value::Null) => Vec::new(),
-        Some(Value::Array(ids)) => {
-            ids.iter().map(|id| id.as_u64().ok_or_else(|| "`mail` lists messages' ids".to_string())).collect::<Result<_, _>>()?
-        }
-        Some(_) => return Err("`mail` lists messages' ids".to_string()),
-    };
+    // The requests by mail the question listed: never the selection.
+    let asked = mail_named(p)?;
     let plan = plan(app, &ids)?;
+    // Each one named is one of these messages' requests by mail, as the engine says them, or
+    // nothing goes: a question shows what is named, and only that is written.
+    if let Some(stray) = asked.iter().find(|id| !plan.mail.iter().any(|(m, ..)| m == *id)) {
+        return Err(format!("message {stray} in `mail` isn't one of these messages' requests by mail"));
+    }
     let (mut click, mut mail, pages, mut left_out) = (0usize, 0usize, plan.pages, plan.left_out);
     for (id, url) in plan.click {
         if app.unsubscribing.waiting.len() < MAX_KEPT {
