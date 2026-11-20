@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
 use super::find::{Place, moved};
-use super::{Format, ListKind, MAX_CHARS, RichText, Style};
+use super::{Format, ListKind, MAX_CHARS, MAX_FIND, RichText, Style, clean_line};
 use crate::ModelError;
 
 /// Most undo steps one message keeps.
@@ -434,6 +434,43 @@ impl RichBody {
         Ok(())
     }
 
+    /// Replace the expected text at an exact position, as one undo step. The text
+    /// keeps the formatting of its unchanged edges, and the caret goes just after it.
+    pub fn replace_exact(&mut self, place: Place, expected: &str, with: &str) -> Result<(), ModelError> {
+        let (from, to) = place;
+        let valid_line = |text: &str| text.len() <= 4 * MAX_FIND && text.chars().count() <= MAX_FIND && clean_line(text) == text;
+        if from >= to || to - from > MAX_FIND || !valid_line(expected) || !valid_line(with) {
+            return Err(ModelError::Invalid("expected and replacement must be on one line".into()));
+        }
+        if to - from != expected.chars().count() || self.text.slice(from, to)?.text() != expected {
+            return Err(ModelError::Invalid("the text has changed at the place to replace".into()));
+        }
+        let prefix = expected.chars().zip(with.chars()).take_while(|(a, b)| a == b).count();
+        let suffix = expected
+            .chars()
+            .rev()
+            .zip(with.chars().rev())
+            .take((to - from - prefix).min(with.chars().count() - prefix))
+            .take_while(|(a, b)| a == b)
+            .count();
+        let with_chars = with.chars().count();
+        let changed: String = with.chars().skip(prefix).take(with_chars - prefix - suffix).collect();
+        let (start, end) = (from + prefix, to - suffix);
+        self.edit(false, |text, selection| {
+            if start < end {
+                text.replace_places(&[(start, end)], &changed)?;
+            } else if !changed.is_empty() {
+                let style = text.style_at(start + usize::from(prefix == 0));
+                text.insert(start, &changed, &style)?;
+            }
+            *selection = Selection::caret(from + with_chars);
+            Ok(())
+        })?;
+        self.pending = None;
+        self.typing = None;
+        Ok(())
+    }
+
     /// Turn something on or off for the selection: on unless all of it has it already. With
     /// nothing selected it is the next typed character's. Whether it is on now.
     fn toggle(&mut self, has: fn(&Style) -> bool, set: fn(bool) -> Format) -> Result<bool, ModelError> {
@@ -538,8 +575,9 @@ impl RichBody {
         Ok(now)
     }
 
-    /// Move the list items the selection touches a level deeper (`by` 1) or shallower (-1); an
-    /// item at the outermost level that goes shallower leaves its list. Whether anything changed.
+    /// Move the paragraphs the selection touches a level deeper (`by` 1) or shallower (-1): a list
+    /// item in its list (one at the outermost level that goes shallower leaves its list), an
+    /// ordinary paragraph in from the left or back (#1658). Whether anything changed.
     pub fn indent(&mut self, by: i8) -> Result<bool, ModelError> {
         let sel = self.selection;
         let before = self.text.clone();

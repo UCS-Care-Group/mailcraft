@@ -1802,7 +1802,7 @@ msgid "AutoArchive"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 msgid "Automatic"
 msgstr ""
 
@@ -2605,6 +2605,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check for new versions"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Check spelling with a local dictionary"
 msgstr ""
 
 #. interface
@@ -4685,6 +4690,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Find a Time"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Find next spelling error"
 msgstr ""
 
 #. interface
@@ -8577,6 +8587,21 @@ msgid "No signatures yet"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "No spelling errors found"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "No spelling errors in the part checked"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "No spelling suggestions"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 msgid "No such account"
 msgstr ""
@@ -9007,7 +9032,7 @@ msgid "October"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 msgid "Off"
 msgstr ""
 
@@ -10714,6 +10739,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/find_replace.rs
 msgid "Replace All"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Replace Text at Position"
 msgstr ""
 
 #. interface
@@ -12767,7 +12797,22 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-msgid "Spelling & Grammar"
+msgid "Spelling"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Spelling is unavailable on this platform"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Spelling language"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Spelling suggestions"
 msgstr ""
 
 #. interface
@@ -14671,6 +14716,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "The space the folder's own messages take on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "The spelling dictionary is unavailable"
 msgstr ""
 
 #. interface
@@ -17606,6 +17656,11 @@ msgstr ""
 msgid "everybody at @{domain}"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/rich/body.rs
+msgid "expected and replacement must be on one line"
+msgstr ""
+
 #. folder name
 #: crates/model/src/mailbox.rs
 msgctxt "folder"
@@ -19207,6 +19262,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the text has a character that can't be sent"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+msgid "the text has changed at the place to replace"
 msgstr ""
 
 #. what a command says
