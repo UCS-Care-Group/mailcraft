@@ -2153,7 +2153,7 @@ msgid "AutoArchive"
 msgstr "AutoArchivage"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automatique"
@@ -3115,6 +3115,12 @@ msgstr "Rechercher des mises à jour"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Rechercher de nouvelles versions"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Vérifier l’orthographe avec un dictionnaire local"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5605,6 +5611,12 @@ msgstr "Rechercher les messages associés"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Trouver un horaire"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Rechercher l’erreur d’orthographe suivante"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -10284,6 +10296,24 @@ msgid "No signatures yet"
 msgstr "Aucune signature pour l'instant"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Aucune erreur d’orthographe détectée"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "Aucune erreur d’orthographe dans la partie vérifiée"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Aucune suggestion orthographique"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10799,7 +10829,7 @@ msgid "October"
 msgstr "octobre"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Désactivé"
@@ -12848,6 +12878,12 @@ msgstr "Remplacer"
 #, fuzzy
 msgid "Replace All"
 msgstr "Tout remplacer"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Remplacer le texte à l’emplacement indiqué"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15310,8 +15346,27 @@ msgstr "Espace pour le courrier, au maximum"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-msgid "Spelling & Grammar"
-msgstr "Orthographe et grammaire"
+#, fuzzy
+msgid "Spelling"
+msgstr "Orthographe"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "La vérification orthographique n’est pas disponible sur cette plateforme"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "Langue de vérification"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Suggestions orthographiques"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17590,6 +17645,12 @@ msgstr "L'espace qu'occupent sur cet ordinateur le dossier et ses sous-dossiers"
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "L'espace qu'occupent sur cet ordinateur les messages du dossier lui-même"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Le dictionnaire orthographique n’est pas disponible"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -21067,6 +21128,12 @@ msgstr "saisissez un nom d'utilisateur pour vous connecter"
 msgid "everybody at @{domain}"
 msgstr "tout le monde chez @{domain}"
 
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "le texte recherché et son remplacement doivent tenir sur une seule ligne"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -23051,6 +23118,12 @@ msgstr "le texte ne peut pas être cherché sur le serveur"
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "le texte contient un caractère qui ne peut pas être envoyé"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "le texte à remplacer a changé"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25463,6 +25536,17 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Lignes"
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "Mettre une majuscule au début des phrases"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "La majuscule est ajoutée à la fin de la saisie d’un mot. Annuler rétablit le texte saisi."
+
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Orthographe et grammaire"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

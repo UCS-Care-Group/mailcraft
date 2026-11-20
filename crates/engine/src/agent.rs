@@ -223,6 +223,7 @@ const SAFE: &[&str] = &[
     "compose.popOut",
     "compose.select",
     "compose.type",
+    "compose.replaceText",
     "compose.delete",
     "compose.undo",
     "compose.redo",
