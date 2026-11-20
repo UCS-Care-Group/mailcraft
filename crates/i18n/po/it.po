@@ -2157,7 +2157,7 @@ msgid "AutoArchive"
 msgstr "AutoArchiviazione"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automatico"
@@ -3123,6 +3123,12 @@ msgstr "Verifica aggiornamenti"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Verifica nuove versioni"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Controlla l’ortografia con un dizionario locale"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5627,6 +5633,12 @@ msgid "Find a Time"
 msgstr "Trova un orario"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Trova il prossimo errore di ortografia"
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Find what"
@@ -5767,7 +5779,7 @@ msgstr ""
 "cartella"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Riquadro delle cartelle"
@@ -9341,11 +9353,23 @@ msgstr "Sposta giù"
 msgid "Move Event"
 msgstr "Sposta evento"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Sposta preferito su o giù"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Sposta cartella"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Sposta cartella su o giù"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -10323,6 +10347,24 @@ msgid "No signatures yet"
 msgstr "Ancora nessuna firma"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Nessun errore di ortografia trovato"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "Nessun errore di ortografia nella parte controllata"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Nessun suggerimento ortografico"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10839,7 +10881,7 @@ msgid "October"
 msgstr "ottobre"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Disattivato"
@@ -12907,6 +12949,12 @@ msgstr "Sostituisci"
 #, fuzzy
 msgid "Replace All"
 msgstr "Sostituisci tutto"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Sostituisci il testo nella posizione indicata"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15380,8 +15428,26 @@ msgstr "Spazio massimo per la posta"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Controllo ortografia e grammatica"
+msgid "Spelling"
+msgstr "Ortografia"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "Il controllo ortografico non è disponibile su questa piattaforma"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "Lingua del controllo ortografico"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Suggerimenti ortografici"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17681,6 +17747,12 @@ msgstr "Lo spazio occupato su questo computer dalla cartella e dalle sue sottoca
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "Lo spazio occupato su questo computer dai messaggi della cartella stessa"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Il dizionario ortografico non è disponibile"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20761,6 +20833,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "Una bozza non può avere un promemoria: inviala prima, oppure usa Completamento nel messaggio stesso"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "un preferito non può essere messo prima di sé stesso"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "una cartella non può essere messa prima di sé stessa"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20771,6 +20855,12 @@ msgstr "una cartella non può essere spostata in se stessa"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "una cartella non può essere spostata in un altro account"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "una cartella si mette tra le cartelle accanto: indicarne una con la stessa cartella padre"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21167,6 +21257,12 @@ msgstr "inserire un nome utente per accedere"
 #, fuzzy
 msgid "everybody at @{domain}"
 msgstr "tutti in @{domain}"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "il testo da cercare e quello sostitutivo devono essere su una sola riga"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -23082,6 +23178,12 @@ msgid "the text has a character that can't be sent"
 msgstr "il testo contiene un carattere che non può essere inviato"
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "il testo da sostituire è cambiato"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
@@ -24150,6 +24252,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} non è una cassetta postale condivisa: rimuoverlo con account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} non è tra i preferiti"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24220,6 +24328,12 @@ msgstr "{name} ha condiviso un calendario con te."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} ha condiviso un calendario con te. Si trova nell'elenco dei calendari."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} resta in cima alle cartelle dell'account"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -25493,6 +25607,18 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Righe"
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "Metti la maiuscola alla prima parola delle frasi"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "La maiuscola viene inserita quando finisci di digitare una parola. Annulla ripristina il testo digitato."
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Controllo ortografia e grammatica"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"
