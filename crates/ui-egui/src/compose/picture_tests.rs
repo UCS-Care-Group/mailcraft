@@ -7,7 +7,7 @@ use egui::{Event, Key, Modifiers};
 use mailcraft_model::rich::OBJECT;
 use serde_json::json;
 
-use super::tests::{Window, app, key, key_with, plain, sel, type_in, window};
+use super::tests::{Window, app, click, key, key_with, plain, sel, type_in, window};
 use crate::RichClipboard;
 
 /// A clipboard holding a picture (and perhaps HTML).
@@ -189,6 +189,147 @@ fn the_caret_and_the_keys_go_over_a_picture_as_over_one_letter() {
     key(&mut h, Key::ArrowLeft);
     key(&mut h, Key::Delete);
     assert!(!plain(&h).contains(OBJECT), "{:?}", plain(&h));
+}
+
+fn width(h: &Window) -> Option<u16> {
+    h.state().session.compose.as_ref().unwrap().pictures.first().and_then(|p| p.width)
+}
+
+/// The button pressed at `from`, moved by `by` in a few steps, and let go.
+fn drag(h: &mut Window, from: egui::Pos2, by: egui::Vec2) {
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    for n in 1..=5 {
+        h.event(Event::PointerMoved(from + by * (n as f32 / 5.0)));
+        h.step();
+    }
+    h.event(button(from + by, false));
+    h.run_steps(3);
+}
+
+#[test]
+fn a_pasted_picture_is_made_smaller_by_its_corner_and_undo_puts_it_back() {
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    *board.0.borrow_mut() = (Some(png(40)), None);
+    paste(&mut h);
+    // Not selected, it has no corner.
+    assert!(h.state().hit.rect("pictureCorner", u64::from(mailcraft_model::pictures::FIRST_ID)).is_none());
+    key_with(&mut h, Modifiers::SHIFT, Key::ArrowLeft);
+    h.run_steps(2);
+    let corner = h.state().hit.rect("pictureCorner", u64::from(mailcraft_model::pictures::FIRST_ID)).expect("a selected picture has a corner");
+    // Pressed and let go without moving: nothing changes.
+    drag(&mut h, corner.center(), egui::Vec2::ZERO);
+    assert_eq!(width(&h), None);
+    // (Without pixels to read, the test picture is shown 120 wide.)
+    drag(&mut h, corner.center(), egui::vec2(-50.0, -10.0));
+    assert_eq!(width(&h), Some(70));
+    assert_eq!(plain(&h), OBJECT.to_string(), "dragging the corner selects no text and moves nothing");
+    // The picture is laid out at its new width: the corner is where the drag left it.
+    let moved = h.state().hit.rect("pictureCorner", u64::from(mailcraft_model::pictures::FIRST_ID)).expect("still selected");
+    assert!((moved.center().x - (corner.center().x - 50.0)).abs() < 1.0, "{moved:?} {corner:?}");
+    // Ctrl+Z in the body puts its width back.
+    assert!(super::editor::has_focus(&h.ctx), "the keys are still the body's");
+    key_with(&mut h, Modifiers::COMMAND, Key::Z);
+    assert_eq!((width(&h), plain(&h)), (None, OBJECT.to_string()));
+}
+
+fn size_box(h: &Window, name: &str) -> Option<egui::Rect> {
+    h.state().hit.rect(name, u64::from(mailcraft_model::pictures::FIRST_ID))
+}
+
+/// A pasted picture, selected.
+fn selected_picture(board: &PictureBoard) -> Window {
+    let mut h = writing_with(board);
+    *board.0.borrow_mut() = (Some(png(40)), None);
+    paste(&mut h);
+    assert!(size_box(&h, "pictureWidth").is_none(), "no size box without a selected picture");
+    key_with(&mut h, Modifiers::SHIFT, Key::ArrowLeft);
+    h.run_steps(2);
+    h
+}
+
+/// `text` typed into the size box `name`, and entered.
+fn enter_size(h: &mut Window, name: &str, text: &str) {
+    let r = size_box(h, name).expect("a selected picture has a size box");
+    click(h, r.center());
+    key_with(h, Modifiers::COMMAND, Key::A);
+    type_in(h, text);
+    key(h, Key::Enter);
+    h.run_steps(2);
+}
+
+#[test]
+fn a_width_typed_into_the_size_box_is_set_and_a_height_sets_the_width_in_proportion() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    enter_size(&mut h, "pictureWidth", "60");
+    assert_eq!(width(&h), Some(60));
+    // (The test picture is 120 by 40 without pixels to read: 50 high is 150 wide.)
+    enter_size(&mut h, "pictureHeight", "50");
+    assert_eq!(width(&h), Some(150));
+    assert_eq!(plain(&h), OBJECT.to_string(), "typing in the box goes nowhere near the text");
+    // Each is one step of the message's undo.
+    let undo = |h: &mut Window| {
+        h.state_mut().execute("compose.undo", json!({})).unwrap();
+        h.run_steps(2);
+    };
+    undo(&mut h);
+    assert_eq!(width(&h), Some(60));
+    undo(&mut h);
+    assert_eq!(width(&h), None);
+}
+
+#[test]
+fn dragging_the_width_sets_it_once_when_let_go_and_reset_size_gives_the_picture_its_own() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    let r = size_box(&h, "pictureWidth").unwrap();
+    drag(&mut h, r.center(), egui::vec2(30.0, 0.0));
+    let wide = width(&h).expect("let go, the width is set");
+    assert!(wide > 120, "{wide}");
+    h.state_mut().execute("compose.undo", json!({})).unwrap();
+    assert_eq!(width(&h), None, "the whole drag was one step");
+    h.state_mut().execute("compose.redo", json!({})).unwrap();
+    h.run_steps(2);
+    let reset = size_box(&h, "pictureReset").unwrap();
+    click(&mut h, reset.center());
+    assert_eq!(width(&h), None);
+    // Nothing to reset now: the button does nothing.
+    click(&mut h, reset.center());
+    h.state_mut().execute("compose.undo", json!({})).unwrap();
+    assert_eq!(width(&h), Some(wide), "a reset is one step, and the greyed button added none");
+}
+
+#[test]
+fn a_plain_text_message_has_no_size_box() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    assert!(size_box(&h, "pictureWidth").is_some());
+    h.state_mut().execute("compose.formatPlain", json!({})).unwrap();
+    h.run_steps(3);
+    assert!(size_box(&h, "pictureWidth").is_none());
+}
+
+#[test]
+fn a_picture_of_the_signature_in_a_message_has_no_corner() {
+    let mut a = app();
+    let png = png(40);
+    a.execute("signature.set", json!({"name": "Logo", "text": "Ada"})).unwrap();
+    a.execute("signature.picture.add", json!({"name": "Logo", "data": crate::files::base64_lite::encode(&png)})).unwrap();
+    a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
+    a.execute("compose.signature", json!({"name": "Logo"})).unwrap();
+    let c = a.session.compose.as_ref().unwrap();
+    let id = c.signature.as_ref().and_then(|s| s.pictures.first()).expect("the signature brought its picture").id;
+    let at = c.body.plain().chars().position(|ch| ch == OBJECT).expect("the signature's picture is in the text");
+    a.execute("compose.select", json!({"from": at, "to": at + 1})).unwrap();
+    let mut h = window(a);
+    h.run_steps(3);
+    assert!(h.state().hit.rect("composeBody", 0).is_some());
+    assert!(h.state().hit.rect("pictureCorner", u64::from(id)).is_none(), "it is sized in File › Signatures");
 }
 
 #[test]
