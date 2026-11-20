@@ -269,6 +269,19 @@ fn viewport() -> egui::ViewportId {
     egui::ViewportId::from_hash_of("mailcraft_reminders")
 }
 
+/// The Reminders window as a window of the system, while it is one: the deferred viewport the last
+/// main-window pass asked the backend for and the next would ask for again. The flag that says it
+/// was on screen is not enough by itself — a Close, or the last reminder put off or dismissed, is
+/// carried out in the main window's logic before the pass that takes the window away, and a window
+/// that is already going has no say — so whether it is wanted now is asked again here, as [`show`]
+/// asks it; a window being let go (minimized for a main window with no passes) is no window of the
+/// system either. Reads the window's own state only: nothing is asked of egui and nothing changes.
+/// Asked only where the host gives these windows their own viewports (`ctx.embed_viewports()` is
+/// false); inside the main window it is drawn in that one, and no window of the system is it.
+pub(crate) fn live_viewport(app: &MailApp) -> Option<egui::ViewportId> {
+    (app.reminders.on_screen && !app.reminders.minimized && (anything(app) || app.reminders.asked_for)).then(viewport)
+}
+
 /// The window's layer where egui draws it inside the main one (in a browser).
 pub(crate) fn embedded_layer() -> egui::LayerId {
     egui::LayerId::new(egui::Order::Middle, egui::Id::unique(viewport()))
