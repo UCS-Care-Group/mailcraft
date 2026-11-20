@@ -41,6 +41,21 @@ const KEPT: usize = 4;
 /// How many layouts are kept for windows: one each, and a few that outlive theirs for a moment.
 const KEPT_IN_WINDOWS: usize = 16;
 
+/// How many layouts are kept for the messages of a conversation stacked in the reading pane
+/// ([`Place::Thread`], #1778): more than it shows whole at once
+/// ([`super::conversation::MAX_OPEN`]), so that none of them is laid out again every frame.
+pub(crate) const KEPT_IN_STACK: usize = 64;
+
+/// Which layouts make room for each other: the pane's, a stacked conversation's, and those of
+/// windows, quotes and previews.
+fn kind_of(place: Place) -> u8 {
+    match place {
+        Place::Pane => 0,
+        Place::Thread(_) => 1,
+        Place::Window(_) | Place::Quote | Place::Preview => 2,
+    }
+}
+
 /// How many other looks of a message's blocks are kept besides the one in use.
 const KEPT_CLASSES: usize = 3;
 
@@ -321,15 +336,22 @@ impl Store {
                     self.entries.iter().find(|e| shows(e) && (!e.doc.responsive || e.look == Look::of(&e.doc.lists, env))).map(|e| e.doc.clone());
                 // What was kept here of this message before it changed is of no use any more.
                 self.entries.retain(|e| e.place != place || e.message.id != message.id || message.id == 0);
-                let (kept, room) = match place {
-                    Place::Pane => (self.entries.iter().filter(|e| e.place == Place::Pane).count(), KEPT),
-                    Place::Window(_) | Place::Thread(_) | Place::Quote | Place::Preview => {
+                let room = match place {
+                    Place::Pane => KEPT,
+                    Place::Thread(_) => {
+                        // A message of the column that was closed, or of another conversation, is
+                        // shown nowhere now.
+                        self.entries.retain(|e| kind_of(e.place) != 1 || e.used.saturating_add(2) >= frame);
+                        KEPT_IN_STACK
+                    }
+                    Place::Window(_) | Place::Quote | Place::Preview => {
                         // A window shows one message, and a window that is gone shows none.
-                        self.entries.retain(|e| e.place == Place::Pane || (e.place != place && e.used.saturating_add(2) >= frame));
-                        (self.entries.iter().filter(|e| e.place != Place::Pane).count(), KEPT_IN_WINDOWS)
+                        self.entries.retain(|e| kind_of(e.place) != 2 || (e.place != place && e.used.saturating_add(2) >= frame));
+                        KEPT_IN_WINDOWS
                     }
                 };
-                let of_a_kind = |e: &Entry| (e.place == Place::Pane) == (place == Place::Pane);
+                let of_a_kind = |e: &Entry| kind_of(e.place) == kind_of(place);
+                let kept = self.entries.iter().filter(|e| of_a_kind(e)).count();
                 if kept >= room
                     && let Some(oldest) = self.entries.iter().enumerate().filter(|(_, e)| of_a_kind(e)).min_by_key(|(_, e)| e.used).map(|(i, _)| i)
                 {

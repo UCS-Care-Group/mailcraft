@@ -15,9 +15,11 @@
 //!
 //! Never from the first block (a message that is all history is shown whole), and never where
 //! the owner's reader would lose what the sender wrote between quotes: quoted text followed by
-//! more of the sender's own is an answer written in between, and is kept. The text looked at is
-//! bounded: at most [`MAX_BLOCKS`] blocks, and of each its first [`MAX_LINE_CHARS`] characters of
-//! a line.
+//! more of the sender's own is an answer written in between, and is kept, also under an
+//! `On … wrote:` line. A picture or a table that isn't quoted is the sender's own as text is. The
+//! text looked at is bounded: a message of more than [`MAX_BLOCKS`] blocks is shown whole (what
+//! wasn't looked at could hold an answer), and of each block the first [`MAX_LINE_CHARS`]
+//! characters of a line.
 
 use crate::{Block, BlockKind};
 
@@ -31,18 +33,35 @@ const HEADER_LINES: usize = 8;
 /// The index of the block from which `blocks` is the quoted history of the conversation, if
 /// they have some after text of their own.
 pub fn start(blocks: &[Block]) -> Option<usize> {
-    let blocks = blocks.get(..blocks.len().min(MAX_BLOCKS)).unwrap_or(blocks);
+    if blocks.len() > MAX_BLOCKS {
+        return None;
+    }
     // Each block's lines, trimmed, capped.
     let lines: Vec<Vec<String>> = blocks.iter().map(lines_of).collect();
     let cut = (1..blocks.len()).find(|&i| begins_history(blocks, &lines, i))?;
     // What comes before is the sender's own: there must be something to read in it.
-    let own = blocks
-        .get(..cut)
-        .unwrap_or_default()
-        .iter()
-        .zip(&lines)
-        .any(|(b, l)| matches!(b.kind, BlockKind::Image { .. }) || l.iter().any(|l| !l.is_empty()));
+    let own = blocks.get(..cut).unwrap_or_default().iter().zip(&lines).any(|(b, l)| has_content(b, l));
     own.then_some(cut)
+}
+
+/// Whether a block shows something of its own: text, or a picture or a table, whose words are
+/// not in its spans (a rule or an empty paragraph shows nothing).
+fn has_content(b: &Block, lines: &[String]) -> bool {
+    matches!(b.kind, BlockKind::Image { .. } | BlockKind::Table(_)) || lines.iter().any(|l| !l.is_empty())
+}
+
+/// Whether, from block `from` on, the sender wrote something between or after quoted text: a
+/// block of their own that comes after a quoted one, an answer written in the quote.
+fn answers_in_quote(blocks: &[Block], lines: &[Vec<String>], from: usize) -> bool {
+    let mut quoted = false;
+    for (b, l) in blocks.iter().zip(lines).skip(from) {
+        if b.quote > 0 {
+            quoted = true;
+        } else if quoted && has_content(b, l) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Whether the history begins at block `i`.
@@ -56,13 +75,17 @@ fn begins_history(blocks: &[Block], lines: &[Vec<String>], i: usize) -> bool {
     }
     // (A rule just above a header, Outlook's line over it, was found first: the blocks are
     // looked at in order.)
-    if is_original_message(first) || header_at(lines, i) || is_wrote(lines, i) {
+    if is_original_message(first) || header_at(lines, i) {
         return true;
+    }
+    // A line that introduces a quote, unless answers are written in the quote under it.
+    if is_wrote(lines, i) {
+        return !answers_in_quote(blocks, lines, i + 1);
     }
     // From here on, quoted text alone.
     blocks.get(i).is_some_and(|b| b.quote > 0)
         && blocks.get(i - 1).is_some_and(|b| b.quote == 0)
-        && blocks.iter().zip(lines).skip(i).all(|(b, l)| b.quote > 0 || l.iter().all(String::is_empty))
+        && blocks.iter().zip(lines).skip(i).all(|(b, l)| b.quote > 0 || !has_content(b, l))
 }
 
 /// The block's text, line by line, each trimmed and at most [`MAX_LINE_CHARS`] characters.

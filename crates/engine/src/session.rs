@@ -1236,6 +1236,9 @@ pub struct Session {
     pub(crate) opened: Vec<Id>,
     /// The messages the last selection marked read as it opened them ([`Session::read_on_open`]).
     pub(crate) read_on_open: Vec<Id>,
+    /// How many times a selection marked messages read as it opened them: each time is told
+    /// apart, even of the same message with the same messages read again.
+    read_on_open_count: u64,
     /// The known correspondents, and the sender warnings worked out against them
     /// ([`Session::sender_warnings`]). Never saved.
     pub(crate) sender_checks: crate::sender_warnings::SenderChecks,
@@ -1402,6 +1405,7 @@ impl Session {
             list_builds: 0,
             opened: Vec::new(),
             read_on_open: Vec::new(),
+            read_on_open_count: 0,
             sender_checks: Default::default(),
             signatures: Default::default(),
             content_source: None,
@@ -1980,6 +1984,13 @@ impl Session {
         &self.read_on_open
     }
 
+    /// How many times a selection has marked messages read as it opened them
+    /// ([`Session::read_on_open`]): a reader that keeps what it did with them knows a new time by
+    /// this, even when the same message was selected again.
+    pub fn read_on_open_count(&self) -> u64 {
+        self.read_on_open_count
+    }
+
     fn mark_opened_read(&mut self, ids: &[Id], light: bool, counts_before: Option<Arc<crate::counts::FolderCounts>>) {
         let old: Vec<Arc<Message>> = ids.iter().filter_map(|id| self.mailbox.messages.get(id).cloned()).filter(|m| !m.read && !m.draft).collect();
         if old.is_empty() {
@@ -2000,6 +2011,7 @@ impl Session {
             return;
         }
         self.read_on_open.clone_from(&marked);
+        self.read_on_open_count = self.read_on_open_count.wrapping_add(1);
         self.dirty = true;
         if !light {
             // A new revision whatever the command's own comparison does after (an Undo or Redo

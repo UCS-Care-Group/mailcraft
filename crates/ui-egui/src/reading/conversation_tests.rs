@@ -240,3 +240,55 @@ fn a_message_selecting_read_is_shown_whole_as_one_not_read_yet_is() {
     assert!(drawn(&w, "conversationCard", older), "the message read on opening is closed");
     assert!(drawn(&w, "conversationRow", reply));
 }
+
+#[test]
+fn selecting_the_same_message_again_opens_what_it_reads_and_keeps_what_the_owner_closed() {
+    let (mut w, newer, older, reply) = release_checklist();
+    assert!(drawn(&w, "conversationRow", older));
+    // Marked unread, then the same message selected again: it reads the older one, which opens.
+    w.state_mut().execute("mail.markUnread", json!({"ids": [older]})).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
+    w.run_steps(3);
+    assert!(w.state().session.mailbox.message(older).unwrap().read);
+    assert!(drawn(&w, "conversationCard", older), "the message read again is closed");
+    // Closed by the owner, it stays closed in the frames after.
+    click(&mut w, "conversationHeader", older);
+    w.run_steps(3);
+    assert!(drawn(&w, "conversationRow", older) && drawn(&w, "conversationRow", reply));
+}
+
+#[test]
+fn the_selected_message_is_listed_however_long_its_conversation() {
+    use super::conversation::{MAX_STACKED, listed};
+    let thread: Vec<Id> = (1..=250).collect();
+    // The newest, when the selected one is among them.
+    let newest = listed(&thread, 240);
+    assert_eq!((newest.len(), newest.first(), newest.last()), (MAX_STACKED, Some(&51), Some(&250)));
+    // The oldest selected: it, then the newest but one, oldest first.
+    let oldest = listed(&thread, 1);
+    assert_eq!((oldest.len(), oldest.first(), oldest.get(1), oldest.last()), (MAX_STACKED, Some(&1), Some(&52), Some(&250)));
+    assert_eq!(listed(&thread[..5], 3), thread[..5].to_vec());
+}
+
+#[test]
+fn the_layouts_of_many_stacked_messages_are_kept_from_frame_to_frame() {
+    use std::sync::Arc;
+    let ctx = egui::Context::default();
+    let message = |id: Id| {
+        Arc::new(mailcraft_model::Message { id, body: mailcraft_model::Body { text: format!("Message {id}"), html: None }, ..Default::default() })
+    };
+    let messages: Vec<_> = (1..=super::conversation::MAX_OPEN as Id + 1).map(message).collect();
+    // Every message the column shows whole, frame after frame: each one's blocks are made once.
+    for _ in 0..3 {
+        for m in &messages {
+            let _ = view::doc(&ctx, m, Place::Thread(m.id));
+        }
+    }
+    assert_eq!(view::docs_made(&ctx), messages.len());
+    // And what is kept for the column is bounded.
+    let more: Vec<_> = (1_000..1_000 + 2 * super::view::KEPT_IN_STACK as Id).map(message).collect();
+    for m in &more {
+        let _ = view::doc(&ctx, m, Place::Thread(m.id));
+    }
+    assert!(view::kept_count(&ctx) <= super::view::KEPT_IN_STACK);
+}

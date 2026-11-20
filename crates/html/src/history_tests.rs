@@ -82,3 +82,31 @@ fn hostile_sizes_are_bounded() {
     let _ = start(&parse(&html));
     let _ = start(&text_blocks(&"On ".repeat(50_000)));
 }
+
+#[test]
+fn answers_written_in_the_quote_under_a_wrote_line_are_kept() {
+    let html = "<p>See below.</p><p>On Mon, Ada Quinn wrote:</p><blockquote><p>Question one?</p></blockquote><p>Answer one.</p>";
+    assert_eq!(start(&parse(html)), None);
+    // A top-posted reply with nothing written in the quote is still cut at the line.
+    let html = "<p>Yes.</p><p>On Mon, Ada Quinn wrote:</p><blockquote><p>Will you come?</p></blockquote>";
+    assert_eq!(kept(&parse(html)), "Yes.");
+}
+
+#[test]
+fn a_picture_or_a_table_after_the_quote_is_the_senders_own() {
+    let html = r#"<p>Here it is.</p><blockquote><p>Can you send the chart?</p></blockquote><p><img src="cid:chart" width="200" height="100"></p>"#;
+    assert_eq!(start(&parse(html)), None);
+    let html = "<p>Numbers:</p><blockquote><p>How many?</p></blockquote><table><tr><td>12</td><td>14</td></tr></table>";
+    assert_eq!(start(&parse(html)), None);
+}
+
+#[test]
+fn a_message_longer_than_what_is_looked_at_is_shown_whole() {
+    // Its own text, a long quote, and an answer past the blocks looked at.
+    let mut html = String::from("<p>Mine.</p>");
+    for _ in 0..crate::history::MAX_BLOCKS {
+        html.push_str("<blockquote><p>q</p></blockquote>");
+    }
+    html.push_str("<p>Answer at the end.</p>");
+    assert_eq!(start(&parse(&html)), None);
+}
