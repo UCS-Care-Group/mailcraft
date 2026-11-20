@@ -270,10 +270,14 @@ impl StandIn {
         let mut changed: Vec<(u32, u64)> =
             s.touched.iter().filter(|(id, at)| **at > since && s.items.contains_key(id)).map(|(id, at)| (*id, *at)).collect();
         changed.sort_by_key(|(_, at)| *at);
-        let more = changed.len() > limit;
-        changed.truncate(limit);
-        let reached = changed.last().map_or(s.change, |(_, at)| if more { *at } else { s.change });
-        let deleted: Vec<String> = s.deleted.iter().filter(|(_, at)| *at > since && *at <= reached).map(|(id, _)| id.to_string()).collect();
+        let delete_limit = body.get("deleteLimit").and_then(Value::as_u64).unwrap_or(1000) as usize;
+        let mut deleted: Vec<_> = s.deleted.iter().filter(|(_, at)| *at > since).copied().collect();
+        deleted.sort_by_key(|(_, at)| *at);
+        let boundary = changed.get(limit).map(|(_, at)| *at).into_iter().chain(deleted.get(delete_limit).map(|(_, at)| *at)).min();
+        let reached = boundary.map_or(s.change, |at| at.saturating_sub(1));
+        let more = boundary.is_some();
+        changed.retain(|(_, at)| *at <= reached);
+        let deleted: Vec<String> = deleted.iter().filter(|(_, at)| *at <= reached).map(|(id, _)| id.to_string()).collect();
         let m: Vec<Value> = changed
             .iter()
             .filter_map(|(id, _)| s.items.get(id).map(|i| json!({"id": id.to_string(), "l": i.folder.to_string(), "f": i.flags})))

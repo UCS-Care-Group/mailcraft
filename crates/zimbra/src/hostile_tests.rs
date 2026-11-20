@@ -107,10 +107,12 @@ fn only_a_full_mime_fetch_asks_for_a_larger_response() {
 #[test]
 fn oversized_message_text_does_not_wedge_a_sync_page() {
     for text in ["x".repeat(20 * 1024), "界".repeat(8 * 1024)] {
-        for field in ["mid", "address"] {
+        for field in ["mid", "address", "tn"] {
             let mut message = json!({"id": "257", "l": "2", "mid": "<kept@example.org>", "e": [{"t": "f", "a": "ada@example.org"}]});
             if field == "mid" {
                 message["mid"] = json!(format!("<{text}>"));
+            } else if field == "tn" {
+                message["tn"] = json!(format!("{text},Kept"));
             } else {
                 message["e"][0]["a"] = json!(text);
             }
@@ -127,6 +129,34 @@ fn oversized_message_text_does_not_wedge_a_sync_page() {
                 ..Default::default()
             };
             assert!(result.check().is_ok(), "{field} must not make a successfully read page unusable");
+        }
+    }
+}
+
+#[test]
+fn a_probe_accepts_only_the_one_message_it_requested() {
+    let message = json!({"id":"257","l":"2"});
+    for (messages, requested, accepted) in [
+        (json!([message.clone()]), "257", true),
+        (json!([message.clone()]), "258", false),
+        (json!([message.clone(), message]), "257", false),
+        (json!([]), "257", false),
+    ] {
+        let response = answer(200, &json!({"Body":{"GetMsgResponse":{"m":messages}}}));
+        let result = items::probe_answer(&response, requested);
+        if accepted {
+            assert_eq!(result.unwrap().unwrap().server.id, requested);
+        } else {
+            assert_eq!(result, Err(Error::Unreadable));
+        }
+    }
+    for code in ["mail.NO_SUCH_MSG", "mail.NO_SUCH_FOLDER"] {
+        let response = answer(500, &json!({"Body":{"Fault":{"Detail":{"Error":{"Code":code}}}}}));
+        let result = items::probe_answer(&response, "257");
+        if code == "mail.NO_SUCH_MSG" {
+            assert_eq!(result, Ok(None));
+        } else {
+            assert!(result.is_err());
         }
     }
 }

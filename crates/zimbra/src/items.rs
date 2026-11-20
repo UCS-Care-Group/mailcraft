@@ -73,7 +73,7 @@ pub fn probe(base: &str, token: &Secret, id: &str) -> Result<HttpRequest, Error>
 /// (every other fault a deletion can't have written keeps the run from moving past the id — one
 /// more `mail.NO_SUCH_*` can be a folder's word, not the message's), and an error for anything
 /// else.
-pub fn probe_answer(response: &HttpResponse) -> Result<Option<GraphMessage>, Error> {
+pub fn probe_answer(response: &HttpResponse, id: &str) -> Result<Option<GraphMessage>, Error> {
     let answer = match soap::answer("GetMsgRequest", response) {
         Ok(answer) => answer,
         Err(Error::NoSuchItem) if soap::fault_code(response).as_deref() == Some("mail.NO_SUCH_MSG") => return Ok(None),
@@ -84,7 +84,11 @@ pub fn probe_answer(response: &HttpResponse) -> Result<Option<GraphMessage>, Err
     }
     // A GetMsg success names the item — an empty or unreadable `m` is no word that it's gone
     // (`mail.NO_SUCH_MSG` is), it's the server's answer refusing to be read.
-    json::list(answer.get("m")).first().and_then(message).map(Some).ok_or(Error::Unreadable)
+    let listed = json::list(answer.get("m"));
+    if listed.len() != 1 {
+        return Err(Error::Unreadable);
+    }
+    listed.first().and_then(message).filter(|message| message.server.id == id).map(Some).ok_or(Error::Unreadable)
 }
 
 /// The messages of a `SearchResponse`, whether there are more after them, and the last item's
@@ -165,7 +169,7 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
         .map(str::trim)
         .filter(|t| !t.is_empty())
         .take(MAX_CATEGORIES)
-        .map(String::from)
+        .map(|name| name.get(..name.floor_char_boundary(json::MAX_TEXT)).unwrap_or_default().to_string())
         .collect();
     let arrived = json::number(m.get("d")).map_or(0, |ms| i64::try_from(ms / 1000).unwrap_or(0));
     let sent = json::number(m.get("sd")).map_or(arrived, |ms| i64::try_from(ms / 1000).unwrap_or(arrived));

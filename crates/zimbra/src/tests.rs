@@ -269,7 +269,7 @@ fn folders_made_faster_than_relists_keep_the_last_whole_pages_token() {
     let in_three = server.deliver(three, "Into 3", "");
     let first = whole(&run(&server, &request(&token), PASSWORD));
     assert_eq!(first.errors, Vec::<String>::new());
-    assert!(first.whole && !first.token.is_empty() && first.token != token);
+    assert!(!first.whole && !first.token.is_empty() && first.token != token);
     let ids: Vec<String> = first.pages.iter().flat_map(|p| p.messages.iter().map(|m| m.server.id.clone())).collect();
     assert!(ids.contains(&in_one.to_string()) && ids.contains(&in_two.to_string()));
     assert!(!ids.contains(&in_three.to_string()));
@@ -325,7 +325,7 @@ fn a_delta_longer_than_a_run_goes_on_from_the_last_whole_page() {
     }
     let first = whole(&run(&server, &request(&token), PASSWORD));
     assert_eq!(first.errors, Vec::<String>::new());
-    assert!(first.whole && !first.token.is_empty() && first.token != token);
+    assert!(!first.whole && !first.token.is_empty() && first.token != token);
     let seen = first.pages.iter().map(|p| p.messages.len()).sum::<usize>();
     assert_eq!(seen, 1_500);
     let second = whole(&run(&server, &request(&first.token), PASSWORD));
@@ -508,8 +508,11 @@ fn a_page_of_no_list_shape_completes_no_fresh_sweep() {
     let server = StandIn::new();
     server.deliver(2, "Still on server", "");
     let broken = Altered { server, operation: "SearchResponse", replacement: serde_json::json!("unreadable") };
-    let all = whole(&collect(&broken, ""));
-    assert!(!all.whole && all.token.is_empty(), "{all:?}");
+    let pieces = collect(&broken, "");
+    assert!(pieces.iter().all(|piece| piece.pages.iter().all(|page| page.folder != "2")));
+    let all = whole(&pieces);
+    assert!(!all.whole);
+    assert!(all.token.is_empty(), "{all:?}");
 }
 
 #[test]
@@ -531,10 +534,7 @@ fn folder_children_of_no_list_shape_make_no_complete_listing() {
     server.deliver(2, "Still on server", "");
     let broken = Altered { server, operation: "GetFolderResponse", replacement: serde_json::json!("unreadable") };
     let pieces = collect(&broken, "");
-    assert!(
-        !pieces.iter().any(|p| p.listing.as_ref().is_some_and(|l| l.complete && l.folders.is_empty())),
-        "an unreadable tree passed for a complete listing"
-    );
+    assert!(!pieces.iter().any(|p| p.listing.as_ref().is_some_and(|l| l.complete)), "an unreadable tree passed for a complete listing");
 }
 
 #[test]
@@ -587,4 +587,165 @@ fn a_resume_survives_the_cursor_items_deletion() {
     assert_eq!(second.resume, Some(Vec::new()));
     let read: usize = second.pages.iter().filter(|p| p.folder == "2").map(|p| p.messages.len()).sum();
     assert_eq!(read, 100);
+}
+
+#[test]
+fn search_hits_cannot_escape_the_requested_folder_or_id_chunk() {
+    for token in ["", "0"] {
+        let server = StandIn::new();
+        server.deliver(2, "Requested", "");
+        let broken = Altered { server, operation: "SearchResponse", replacement: serde_json::json!([{"id":"9999","l":"5","sf":"1700000000000"}]) };
+        let pieces = collect(&broken, token);
+        let all = whole(&pieces);
+        assert!(!all.errors.is_empty(), "{token}: {all:?}");
+        assert!(all.token.is_empty());
+        assert!(all.pages.is_empty());
+    }
+}
+
+#[test]
+fn oversized_category_display_text_does_not_wedge_a_sync_page() {
+    for name in ["x".repeat(16 * 1024 + 1), "界".repeat(8 * 1024)] {
+        let server = StandIn::new();
+        let id = server.deliver(2, "Categorized", "");
+        server.change(id, |item| item.tags = vec![name.clone(), "Kept".into()]);
+        let pieces = collect(&server, "");
+        assert!(pieces.iter().all(|piece| piece.check().is_ok()));
+        assert!(pieces.iter().flat_map(|piece| &piece.pages).flat_map(|page| &page.messages).all(|message| {
+            let categories = &message.server.categories;
+            categories.len() == 2
+                && categories.first().is_some_and(|category| name.starts_with(category) && category.len() <= 16 * 1024)
+                && categories.get(1).is_some_and(|category| category == "Kept")
+        }));
+        let all = whole(&pieces);
+        assert_eq!(all.pages.iter().map(|page| page.messages.len()).sum::<usize>(), 1);
+        assert!(all.whole && all.errors.is_empty() && !all.token.is_empty());
+    }
+}
+
+#[test]
+fn a_capped_delta_keeps_progress_without_claiming_completion() {
+    let server = StandIn::new();
+    for n in 0..1600 {
+        server.deliver(2, &format!("Message {n}"), "");
+    }
+    let first = whole(&run(&server, &request("0"), PASSWORD));
+    assert!(first.errors.is_empty());
+    assert!(!first.whole);
+    assert!(!first.token.is_empty());
+    assert_eq!(first.pages.iter().map(|p| p.messages.len()).sum::<usize>(), 1500);
+    let second = whole(&run(&server, &request(&first.token), PASSWORD));
+    assert!(second.whole && second.errors.is_empty());
+    assert_eq!(second.pages.iter().map(|p| p.messages.len()).sum::<usize>(), 100);
+}
+
+#[test]
+fn typed_non_mail_deletions_are_validated_but_not_removed_as_mail() {
+    for kind in ["task", "w", "doc"] {
+        for ids in ["301", "invalid"] {
+            let response = crate::http::HttpResponse::new(
+                200,
+                serde_json::json!({"Body":{"SyncResponse":{
+                    "token":"42", "deleted":[{kind:[{"ids":ids}]}]
+                }}})
+                .to_string()
+                .into_bytes(),
+            );
+            let result = crate::delta::answer(&response, false);
+            if ids == "301" {
+                assert!(result.unwrap().deleted.is_empty());
+            } else {
+                assert!(result.is_err());
+            }
+        }
+    }
+}
+
+#[test]
+fn deletion_only_pages_obey_their_limit_and_preserve_tombstones() {
+    let server = StandIn::new();
+    let ids: Vec<_> = (0..1100).map(|_| server.deliver(2, "Gone", "")).collect();
+    let token = server.state.borrow().change.to_string();
+    for id in &ids {
+        server.delete(*id);
+    }
+    let all = whole(&run(&server, &request(&token), PASSWORD));
+    assert!(all.errors.is_empty() && all.whole, "{all:?}");
+    assert_eq!(all.pages.len(), 2);
+    let removed: std::collections::HashSet<_> = all.pages.iter().flat_map(|p| p.removed.iter().cloned()).collect();
+    assert_eq!(removed, ids.iter().map(u32::to_string).collect());
+}
+
+#[test]
+fn resumed_folders_are_checked_against_the_latest_complete_listing() {
+    let server = StandIn::new();
+    let old = server.add_folder(2, "Old");
+    let moved = server.deliver(2, "Moved", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    let new = server.add_folder_later(2, "New");
+    server.during.borrow_mut().clear();
+    server.during.borrow_mut().push(Box::new(move |state| {
+        state.folders.remove(&old);
+        state.folders.insert(new, (2, "New".into(), "message".into()));
+    }));
+    server.change(moved, |item| item.folder = new);
+    let mut request = request(&token);
+    let old_id = old.to_string();
+    request.resume.push(mailcraft_model::sync::ZimbraResume { folder: old_id.clone(), cursor: String::new(), sort: 0 });
+    let all = whole(&run(&server, &request, PASSWORD));
+    assert!(all.errors.is_empty() && all.whole);
+    assert!(all.pages.iter().all(|page| page.folder != old_id));
+    assert!(all.resume.unwrap().is_empty());
+}
+
+struct DeltaPatch {
+    server: StandIn,
+    more: bool,
+}
+
+impl crate::http::HttpExchange for DeltaPatch {
+    async fn exchange(&self, request: &crate::http::HttpRequest) -> Result<crate::http::HttpResponse, crate::http::TransportError> {
+        let response = self.server.exchange(request).await?;
+        let mut body: serde_json::Value = serde_json::from_slice(response.body()).unwrap();
+        if let Some(answer) = body.pointer_mut("/Body/SyncResponse") {
+            answer["token"] = serde_json::json!("42");
+            answer["more"] = serde_json::json!(self.more);
+        }
+        Ok(crate::http::HttpResponse::new(response.status(), body.to_string().into_bytes()))
+    }
+}
+
+#[test]
+fn a_delta_must_advance_only_when_it_claims_more() {
+    for more in [false, true] {
+        let server = DeltaPatch { server: StandIn::new(), more };
+        let all = whole(&collect(&server, "42"));
+        if more {
+            assert!(!all.errors.is_empty() && all.token.is_empty() && all.pages.is_empty());
+        } else {
+            assert!(all.errors.is_empty() && all.whole);
+            assert_eq!(all.token, "42");
+        }
+        assert_eq!(server.server.state.borrow().log.iter().filter(|op| *op == "SyncRequest").count(), 1);
+    }
+}
+
+#[test]
+fn mime_batches_check_the_prospective_total_and_keep_unread_ids_retryable() {
+    for size in [24 * 1024 * 1024, 32 * 1024 * 1024] {
+        let server = StandIn::new();
+        let ids: Vec<_> = (0..3)
+            .map(|_| {
+                let id = server.deliver(2, "Large", "");
+                server.change(id, |item| item.mime = "x".repeat(size));
+                id.to_string()
+            })
+            .collect();
+        let request = ZimbraFetchRequest { account: 3, email: USER.into(), url: URL.into(), ids: ids.clone(), ..Default::default() };
+        let result = block_on(fetch_messages(&server, &request, &Secret::new(PASSWORD), &AtomicBool::new(false))).unwrap();
+        assert!(result.errors.is_empty() && result.failed.is_empty() && result.too_large.is_empty());
+        assert_eq!(result.fetched.len(), 2);
+        assert_eq!(result.fetched.iter().map(|message| message.mime.len()).sum::<usize>(), 2 * size);
+        assert!(result.fetched.iter().all(|message| message.id != ids[2]));
+    }
 }
