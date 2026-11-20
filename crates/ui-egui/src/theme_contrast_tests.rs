@@ -171,6 +171,30 @@ fn custom_colours_that_already_pass_are_kept_as_they_are() {
     assert!(luminance(fitted_dark) > 0.0);
 }
 
+/// The tick on the custom accent's swatch, which shows the colour as chosen: black or white,
+/// whichever stands out more, and so never under 4.5:1 (#1737).
+#[test]
+fn the_tick_on_a_chosen_colour_is_the_better_of_black_and_white() {
+    let mut colors = vec![Color32::BLACK, Color32::WHITE, Color32::from_rgb(0xFF, 0xFF, 0x00), Color32::from_rgb(0x12, 0x34, 0x56)];
+    let mut x: u32 = 0x8765_4321;
+    for _ in 0..256 {
+        let mut next = || {
+            x = x.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (x >> 24) as u8
+        };
+        colors.push(Color32::from_rgb(next(), next(), next()));
+    }
+    for c in colors {
+        let tick = super::black_or_white_on(c);
+        let best = ratio(Color32::BLACK, c).max(ratio(Color32::WHITE, c));
+        assert!((ratio(tick, c) - best).abs() < 1e-4, "{}", super::hex_string(c));
+        assert!(ratio(tick, c) >= TEXT, "{}", super::hex_string(c));
+    }
+    // Pale yellow gets a black tick (the light theme's white ink would vanish on it), navy a white one.
+    assert_eq!(super::black_or_white_on(Color32::from_rgb(0xFF, 0xF5, 0x9D)), Color32::BLACK);
+    assert_eq!(super::black_or_white_on(Color32::from_rgb(0x12, 0x34, 0x56)), Color32::WHITE);
+}
+
 /// A custom accent: whatever colour the owner picks — the extremes of the cube and a
 /// deterministic sweep of it — is fitted so the same pairs pass as for the presets, in the light
 /// theme and in both greys of the dark one, with high contrast off and on.

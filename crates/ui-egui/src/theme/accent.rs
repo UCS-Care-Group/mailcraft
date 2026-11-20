@@ -182,6 +182,15 @@ fn luminance(c: Color32) -> f32 {
     0.2126 * channel_lin(c.r()) + 0.7152 * channel_lin(c.g()) + 0.0722 * channel_lin(c.b())
 }
 
+/// Black or white, whichever stands out more on `bg`: the ink on a colour shown as the owner chose
+/// it, which no theme has fitted an ink to (the tick on the custom accent's swatch). The better of
+/// the two is always at least 4.5:1.
+pub fn black_or_white_on(bg: Color32) -> Color32 {
+    let l = luminance(bg);
+    // Against black the ratio is (l + 0.05) / 0.05, against white 1.05 / (l + 0.05).
+    if (l + 0.05) / 0.05 >= 1.05 / (l + 0.05) { Color32::BLACK } else { Color32::WHITE }
+}
+
 fn to_lin(c: Color32) -> [f32; 3] {
     [channel_lin(c.r()), channel_lin(c.g()), channel_lin(c.b())]
 }

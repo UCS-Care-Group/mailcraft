@@ -9,7 +9,9 @@ use mailcraft_model::rich::Font;
 
 mod accent;
 mod blue;
-pub use accent::{Accent, AccentInk, DEFAULT_CUSTOM_COLOR, color_option, hex_string, lenient_bool, parse_color_value, parse_hex_color};
+pub use accent::{
+    Accent, AccentInk, DEFAULT_CUSTOM_COLOR, black_or_white_on, color_option, hex_string, lenient_bool, parse_color_value, parse_hex_color,
+};
 pub use blue::DarkStyle;
 
 /// MailCraft's own colour, the teal of its icon (and its darker ink for text on light

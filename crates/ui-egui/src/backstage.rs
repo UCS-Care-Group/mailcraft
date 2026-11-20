@@ -634,6 +634,9 @@ fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let ink = a.ink(t.dark, app.ui.high_contrast, custom);
         // The swatch of a custom colour shows the colour itself, not the shade the theme fits it to.
         let disc_color = if a == crate::theme::Accent::Custom { app.ui.custom_accent_color() } else { ink.accent };
+        // The tick reads on the disc: the ink of a preset is made for its accent, while a custom
+        // colour as chosen gets black or white, whichever stands out more on it.
+        let tick_color = if a == crate::theme::Accent::Custom { crate::theme::black_or_white_on(disc_color) } else { ink.on_accent };
         let w = ui.fonts_mut(|f| f.layout_no_wrap(name.to_string(), regular(12.5), t.text).size().x) + 40.0;
         let (r, resp) = ui.allocate_exact_size(vec2(w, 24.0), Sense::click());
         app.hit.add("optionAccent", i as u64, r);
@@ -647,7 +650,7 @@ fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if on {
             ui.painter().circle_stroke(disc, 9.5, Stroke::new(1.5, t.text));
             let tick = [disc + vec2(-3.5, 0.0), disc + vec2(-1.0, 3.0), disc + vec2(3.5, -3.0)];
-            ui.painter().add(egui::Shape::line(tick.to_vec(), Stroke::new(1.8, ink.on_accent)));
+            ui.painter().add(egui::Shape::line(tick.to_vec(), Stroke::new(1.8, tick_color)));
         }
         ui.painter().text(pos2(r.min.x + 28.0, r.center().y), Align2::LEFT_CENTER, name, regular(12.5), t.text);
         if resp.has_focus() {
