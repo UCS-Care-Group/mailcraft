@@ -77,6 +77,8 @@ pub(super) struct Outcome {
     pub busy_for: Option<u32>,
     /// The server stopped taking the sign-in.
     pub token_refused: bool,
+    /// The owner stopped the run before the rename was through: the rest waits for a later run.
+    pub stopped: bool,
 }
 
 /// One item that carried the old name when the lists were read: its id. (Its categories are read
@@ -194,6 +196,7 @@ pub(super) fn rename(
     let stopped = || cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed));
     // Which items carry the name: every list to its end, before anything is changed.
     let mut found: Vec<Item> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     // Items left as they are because their list can't be written back whole, each counted once.
     let mut passed: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     let mut whole = true;
@@ -209,6 +212,7 @@ pub(super) fn rename(
         for _ in 0..MAX_LIST_PAGES {
             let Some(url) = next.take() else { break };
             if stopped() {
+                out.stopped = true;
                 return out;
             }
             let reply = match graph.call(Kind::Read, &url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE) {
@@ -289,7 +293,7 @@ pub(super) fn rename(
                 let id = text(entry, "id");
                 let listed = entry.get("categories").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
                 // (Only what does carry the name, whatever the server's filter took it for.)
-                if !valid_id(id) || !carries(listed, &rename.from) || found.iter().any(|have| have.id == id) {
+                if !valid_id(id) || !carries(listed, &rename.from) || seen.contains(id) {
                     continue;
                 }
                 // (One whose list can't be written back whole takes no place in the run.)
@@ -303,6 +307,7 @@ pub(super) fn rename(
                     whole = false;
                     break 'lists;
                 }
+                seen.insert(id.to_string());
                 found.push(Item { id: id.to_string() });
             }
             next = match &page.next {
@@ -341,7 +346,7 @@ pub(super) fn rename(
     }
     'chunks: for chunk in found.chunks(BATCH_SIZE) {
         if stopped() {
-            later = true;
+            (later, out.stopped) = (true, true);
             break;
         }
         let answers = if single { one_by_one(graph, items, chunk, &rename) } else { batch(graph, items, chunk, &rename) };

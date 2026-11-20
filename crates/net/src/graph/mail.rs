@@ -236,6 +236,8 @@ pub(super) fn renamed_into(
     let came = super::recategorize::rename(graph, &items, rename, Some(cancel), &mut progress);
     last.renamed = Some(came.renamed);
     last.busy_for = came.busy_for;
+    // (Stopped by the owner part-way: said as for the rest of the run.)
+    last.stopped |= came.stopped;
     // (Said, as for any other part of the run that the sign-in stops.)
     if came.token_refused {
         last.errors.push("Couldn't rename the category on Microsoft's server: the sign-in was refused.".into());

@@ -46,6 +46,8 @@ impl Mailbox {
         let sweeps = self.category_sweeps.entry(owner).or_default();
         for s in sweeps.iter_mut().filter(|s| same_category(&s.to, from)) {
             s.to = to.to_string();
+            // (What was given the name between is counted by the rename from that name.)
+            (s.mail_changed, s.events_changed) = (0, 0);
         }
         sweeps.retain(|s| !same_category(&s.from, &s.to) && !(same_category(&s.from, from) && same_category(&s.to, to)));
         sweeps.push(CategorySweep { from: from.to_string(), to: to.to_string(), mail_done, ..Default::default() });
@@ -148,6 +150,14 @@ impl Mailbox {
     /// One that is done, or that asking again wouldn't change, no longer waits. When items keep
     /// the old name for good, a line for the owner, and the old name is not deleted from the
     /// server's list: once both parts ended it is back on the list here, as the server has it.
+    /// How many of `owner`'s messages (`mail`) or events on its server the runs before this
+    /// answer gave the new name of the rename `renamed` answers for, while it still waits.
+    pub fn renamed_before(&self, owner: Id, mail: bool, renamed: &CategoryRenamed) -> u32 {
+        let waits = |s: &&CategorySweep| s.from == renamed.from && s.to == renamed.to && !(if mail { s.mail_done } else { s.events_done });
+        let sweeps = self.category_sweeps.get(&owner).map(Vec::as_slice).unwrap_or_default();
+        sweeps.iter().find(waits).map_or(0, |s| if mail { s.mail_changed } else { s.events_changed })
+    }
+
     pub fn take_renamed(&mut self, owner: Id, mail: bool, renamed: &CategoryRenamed) -> Option<String> {
         // (Calendars past those a rename names were not asked: their events keep the old name.)
         let unasked = if mail { 0 } else { self.own_calendars(owner).len().saturating_sub(MAX_RENAMED_CALENDARS) };
@@ -162,6 +172,8 @@ impl Mailbox {
         let s = sweeps.iter_mut().find(|s| asked(&&**s))?;
         // A run that changed nothing because the server answered "not now" for what it listed:
         // after a few of those in a row, those items are left as they are, and said.
+        let so_far = if mail { &mut s.mail_changed } else { &mut s.events_changed };
+        *so_far = so_far.saturating_add(renamed.changed);
         let tries = if mail { &mut s.mail_tries } else { &mut s.events_tries };
         let nowhere = !renamed.done && renamed.changed == 0 && (renamed.stuck > 0 || renamed.failed);
         // (A run that says nothing, the server busy or the connection lost while the lists were

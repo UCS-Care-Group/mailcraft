@@ -253,6 +253,8 @@ struct Script {
     writes_status: u16,
     /// A `$batch` of changes also answers 200 for this place in the chunk, which it wasn't asked.
     answers_unasked: Option<&'static str>,
+    /// Every page of the main list names the same hundred items.
+    same_ids: bool,
     /// The ids that were changed.
     changed: Vec<String>,
     /// Each change that was asked for: the id and the body.
@@ -278,7 +280,8 @@ fn scripted(script: &Arc<std::sync::Mutex<Script>>) -> crate::fake::FakeHttp {
         match (method, target.split('?').next().unwrap_or("")) {
             ("GET", "/v1.0/me/calendar/events") if script.pages > 0 => {
                 let n = target.split("page=").nth(1).and_then(|n| n.parse::<usize>().ok()).unwrap_or(1);
-                let mut page = json!({"value": (0..100).map(|i| item(&format!("p{n}i{i}"))).collect::<Vec<_>>()});
+                let named = if script.same_ids { 1 } else { n };
+                let mut page = json!({"value": (0..100).map(|i| item(&format!("p{named}i{i}"))).collect::<Vec<_>>()});
                 if n < script.pages {
                     page["@odata.nextLink"] = json!(format!("http://{host}/v1.0/me/calendar/events?page={}", n + 1));
                 }
@@ -637,4 +640,48 @@ fn one_at_a_time_the_read_before_a_change_decides_too() {
     assert_eq!(categories_of(&server, &grown), long);
     assert_eq!(categories_of(&server, &plain), names(&["Holiday 2026", "Red"]));
     assert_eq!((came.done, came.changed, came.skipped, came.stuck, came.passed), (true, 1, 0, 0, 1), "{came:?}");
+}
+
+#[test]
+fn a_run_stopped_while_the_names_are_written_says_it_was_stopped_and_keeps_what_was_done() {
+    let server = StandIn::start().unwrap();
+    let ids: Vec<String> = (0..45).map(|n| message(&server, "inbox", &format!("Note {n}"), &["Holiday"])).collect();
+    let graph = super::Graph::for_mail(&server.url(), TOKEN, Arc::new(Gate::new()), super::pace::Priority::Owner, QUICK).unwrap();
+    let request =
+        GraphMailRequest { account: 3, email: "owner@example.org".into(), rename: Some(rename("Holiday", "Holiday 2026")), ..Default::default() };
+    // The owner stops the run once the first twenty were answered.
+    let cancel = AtomicBool::new(false);
+    let mut last = mailcraft_model::sync::GraphMailResult::default();
+    super::mail::renamed_into(&graph, &request, &cancel, &mut last, &mut |piece| {
+        if piece.renaming.is_some_and(|r| r.done >= 20) {
+            cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    });
+    let came = last.renamed.clone().unwrap();
+    assert!(last.stopped, "a rename cut short by the owner wasn't said to be stopped");
+    assert_eq!((came.done, came.changed, came.stuck), (false, 20, 0), "{came:?}");
+    assert_eq!(ids.iter().filter(|id| categories_of(&server, id) == names(&["Holiday 2026"])).count(), 20);
+    // A run that got to its end is not one that was stopped, whatever is asked right after it.
+    let mut last = mailcraft_model::sync::GraphMailResult::default();
+    super::mail::renamed_into(&graph, &request, &AtomicBool::new(false), &mut last, &mut |_| {});
+    assert!(!last.stopped && last.renamed.as_ref().is_some_and(|r| r.done && r.changed == 25), "{:?}", last.renamed);
+    // Stopped while the lists are read: said too, and nothing is changed.
+    let late = message(&server, "inbox", "Late", &["Holiday"]);
+    let came = super::recategorize::rename(
+        &graph,
+        &super::recategorize::Items { lists: vec![graph.mail_path("/messages")], item: graph.batch_path("/messages/") },
+        &rename("Holiday", "Holiday 2026"),
+        Some(&AtomicBool::new(true)),
+        &mut |_, _| {},
+    );
+    assert!(came.stopped && !came.renamed.done && came.renamed.changed == 0);
+    assert_eq!(categories_of(&server, &late), names(&["Holiday"]));
+}
+
+#[test]
+fn an_item_the_server_lists_many_times_is_changed_once() {
+    // (Each page of the scripted list names the same hundred ids when asked so.)
+    let (came, changed) = scripted_run(Script { pages: 3, same_ids: true, ..Default::default() }, false);
+    assert_eq!((came.done, came.changed), (true, 100), "{came:?}");
+    assert_eq!(changed.len(), 100);
 }

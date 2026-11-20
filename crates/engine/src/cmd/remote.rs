@@ -1648,7 +1648,8 @@ pub fn apply_event_outcomes(s: &mut Session, uploaded: &EventsUploaded) -> Resul
         let mut came = came.clone();
         came.tidy();
         // (Said once it is done: a part that goes on with a later run says nothing yet.)
-        applied.renamed = if came.done { came.changed } else { 0 };
+        // (With what the runs before reached.)
+        applied.renamed = if came.done { s.mailbox.renamed_before(account, false, &came).saturating_add(came.changed) } else { 0 };
         if let Some(line) = s.mailbox.take_renamed(account, false, &came) {
             applied.say(line);
         }

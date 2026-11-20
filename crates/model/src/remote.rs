@@ -1287,6 +1287,12 @@ pub struct CategorySweep {
     /// The owner was told that its events wait for the calendar's permission.
     #[serde(skip_serializing_if = "is_false")]
     pub events_told: bool,
+    /// How many of its messages (of its events) on the server the runs before gave the new name:
+    /// a rename of more than a run changes is said with all of them once it is done.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub mail_changed: u32,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub events_changed: u32,
 }
 
 /// How many runs in a row may change nothing of a renamed category's items, the server answering

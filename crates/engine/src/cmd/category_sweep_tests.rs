@@ -266,19 +266,29 @@ fn a_rename_on_its_way_shows_how_far_it_has_got_and_what_it_came_to() {
     // A run that isn't the end of it says nothing of it yet.
     mail_came(&mut s, a, CategoryRenamed { changed: 700, ..renamed("Holiday", "Holiday 2026") });
     assert!(!s.sync_status.contains("renamed"), "{}", s.sync_status);
-    // The run's end says what it came to, and the calendar's job says it of the events.
-    mail_came(&mut s, a, CategoryRenamed { changed: 1_200, ..done("Holiday", "Holiday 2026") });
+    // The run's end says what it came to, with what the runs before it reached, and the
+    // calendar's job says it of the events.
+    mail_came(&mut s, a, CategoryRenamed { changed: 500, ..done("Holiday", "Holiday 2026") });
     assert!(s.sync_status.starts_with("The category was renamed on 1200 messages on the server"), "{}", s.sync_status);
-    let uploaded = EventsUploaded {
+    let mut uploaded = EventsUploaded {
         account: a,
         email: "a@example.org".into(),
-        renamed: Some(CategoryRenamed { changed: 1, ..done("Holiday", "Holiday 2026") }),
+        renamed: Some(CategoryRenamed { changed: 2_000, ..renamed("Holiday", "Holiday 2026") }),
         ..Default::default()
     };
     let mut taken = crate::sync_driver::CalendarTaken::default();
     s.take_in_calendar(a, Some(&uploaded), None, &mut taken);
+    assert!(!format!("{:?}", taken.status).contains("renamed"), "{:?}", taken.status);
+    uploaded.renamed = Some(CategoryRenamed { changed: 1, ..done("Holiday", "Holiday 2026") });
+    let mut taken = crate::sync_driver::CalendarTaken::default();
+    s.take_in_calendar(a, Some(&uploaded), None, &mut taken);
     assert_eq!(taken.status.len(), 1, "{:?}", taken.status);
-    assert!(format!("{:?}", taken.status).contains("The category was renamed on 1 event on the server"), "{:?}", taken.status);
+    assert!(format!("{:?}", taken.status).contains("The category was renamed on 2001 events on the server"), "{:?}", taken.status);
+    // A later rename starts its count anew.
+    rename(&mut s, a, "Holiday 2026", "Trips");
+    job(&mut s, a);
+    mail_came(&mut s, a, CategoryRenamed { changed: 3, ..done("Holiday 2026", "Trips") });
+    assert!(s.sync_status.starts_with("The category was renamed on 3 messages on the server"), "{}", s.sync_status);
 }
 
 #[test]

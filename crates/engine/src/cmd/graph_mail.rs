@@ -457,9 +457,14 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     // A renamed category, given to the mail that isn't kept here (#851): what is done no longer
     // holds the old name's deletion, and what the server wouldn't change is said.
     let mut renamed = false;
+    // How many messages it reached in all, the runs before with this one, once it is done.
+    let mut renamed_in_all = 0u32;
     if let Some(came) = &result.renamed {
         let mut came = came.clone();
         came.tidy();
+        if came.done {
+            renamed_in_all = s.mailbox.renamed_before(account, true, &came).saturating_add(came.changed);
+        }
         let before = s.mailbox.category_sweeps.get(&account).cloned();
         if let Some(line) = s.mailbox.take_renamed(account, true, &came) {
             errors.push(line);
@@ -554,7 +559,7 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
             } else if result.stopped && errors.is_empty() {
                 lang.t("Stopped; carries on from here next time").to_string()
             } else if errors.is_empty()
-                && let Some(n) = result.renamed.as_ref().filter(|r| r.done).map(|r| r.changed).filter(|n| *n > 0)
+                && let Some(n) = Some(renamed_in_all).filter(|n| *n > 0)
             {
                 let template = lang.tn(
                     u64::from(n),
