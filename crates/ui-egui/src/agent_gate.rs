@@ -88,6 +88,10 @@ fn err(e: impl std::fmt::Display) -> Outcome {
 /// A request from an agent: `Some` when the gate settles it (refused, asked about, or run
 /// here), `None` when it goes on as anybody's (looking, a screenshot into the answer).
 pub fn screen(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Option<Outcome> {
+    // The gate reads the mailbox, and the windows, as the command will find them: requests are
+    // handled before the frame follows the zone, and the computer may have been carried to
+    // another since the last one (#1674; `Session::run` settles it before anything else).
+    app.follow_zone();
     let p = &req.params;
     let given = |k: &str| p.get(k).is_some_and(|v| !v.is_null());
     match req.method.as_str() {
@@ -379,6 +383,8 @@ pub fn answer(app: &mut MailApp, yes: bool) {
 /// The owner's answer to the question on screen.
 pub fn answer_with(app: &mut MailApp, said: Answer) {
     let Some(a) = app.asking.pop_front() else { return };
+    // (Asked again of the mailbox the command will run on, as `screen` asks.)
+    app.follow_zone();
     let out = if a.opening != app.session.openings() {
         err(format!("another mailbox was opened before the owner answered about `{}`: nothing was done", a.id))
     } else if said != Answer::No {

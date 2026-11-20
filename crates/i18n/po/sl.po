@@ -2164,7 +2164,7 @@ msgid "AutoArchive"
 msgstr "Samoarhiviranje"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Samodejno"
@@ -3134,6 +3134,12 @@ msgstr "Preveri posodobitve"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Preverjaj nove različice"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Preveri črkovanje z lokalnim slovarjem"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5656,6 +5662,12 @@ msgstr "Najdi povezana sporočila"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Najdi termin"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Poišči naslednjo napako črkovanja"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -10382,6 +10394,24 @@ msgid "No signatures yet"
 msgstr "Še ni podpisov"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Ni najdenih napak črkovanja"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "V preverjenem delu ni napak črkovanja"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Ni predlogov črkovanja"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10898,7 +10928,7 @@ msgid "October"
 msgstr "oktober"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Izklopljeno"
@@ -12964,6 +12994,12 @@ msgstr "Zamenjaj"
 #, fuzzy
 msgid "Replace All"
 msgstr "Zamenjaj vse"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Zamenjaj besedilo na mestu"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15456,8 +15492,26 @@ msgstr "Prostor za pošto, največ"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Črkovanje & slovnica"
+msgid "Spelling"
+msgstr "Črkovanje"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "Preverjanje črkovanja na tej platformi ni na voljo"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "Jezik preverjanja črkovanja"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Predlogi črkovanja"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17748,6 +17802,12 @@ msgstr "Prostor, ki ga na tem računalniku zavzameta mapa in mape pod njo"
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "Prostor, ki ga na tem računalniku zavzamejo lastna sporočila mape"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Črkovalni slovar ni na voljo"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -21273,6 +21333,12 @@ msgstr "vnesite uporabniško ime za prijavo"
 msgid "everybody at @{domain}"
 msgstr "vsi na @{domain}"
 
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "iskano in nadomestno besedilo morata biti v eni vrstici"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -23188,6 +23254,12 @@ msgstr "besedila ni mogoče iskati na strežniku"
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "besedilo vsebuje znak, ki ga ni mogoče poslati"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "besedilo na mestu zamenjave se je spremenilo"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25846,6 +25918,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Vrstice"
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Črkovanje & slovnica"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

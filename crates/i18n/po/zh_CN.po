@@ -2156,7 +2156,7 @@ msgid "AutoArchive"
 msgstr "自动归档"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "自动"
@@ -3126,6 +3126,12 @@ msgstr "检查更新"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "检查新版本"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "使用本地词典检查拼写"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5622,6 +5628,12 @@ msgstr "查找相关邮件"
 #, fuzzy
 msgid "Find a Time"
 msgstr "查找时间"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "查找下一个拼写错误"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -10322,6 +10334,24 @@ msgid "No signatures yet"
 msgstr "还没有签名"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "未发现拼写错误"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "已检查的部分未发现拼写错误"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "没有拼写建议"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10838,7 +10868,7 @@ msgid "October"
 msgstr "10月"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "关"
@@ -12902,6 +12932,12 @@ msgstr "替换"
 #, fuzzy
 msgid "Replace All"
 msgstr "全部替换"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "替换指定位置的文本"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15377,8 +15413,26 @@ msgstr "邮件占用空间上限"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "拼写和语法"
+msgid "Spelling"
+msgstr "拼写"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "此平台不支持拼写检查"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "拼写检查语言"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "拼写建议"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17666,6 +17720,12 @@ msgstr "该文件夹及其下的文件夹在此计算机上占用的空间"
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "该文件夹中的邮件在此计算机上占用的空间"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "拼写词典不可用"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -21152,6 +21212,12 @@ msgstr "输入用户名以登录"
 msgid "everybody at @{domain}"
 msgstr "@{domain} 的所有人"
 
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "要查找的文本和替换文本都必须各占一行"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -23065,6 +23131,12 @@ msgstr "无法在服务器上查找该文本"
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "文本中包含无法发送的字符"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "要替换的文本已更改"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25363,6 +25435,18 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "句首单词自动大写"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "输入完单词后会自动添加大写字母。撤销可恢复原来的输入。"
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "拼写和语法"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

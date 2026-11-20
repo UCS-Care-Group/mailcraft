@@ -32,6 +32,7 @@ fn assert_in_set(html: &str) {
                 | "</span>"
                 | "</a>"
         ) || tag == "<ul style=\"margin-top:0;margin-bottom:0\">"
+            || tag == "<div style=\"margin-left:40px\">"
             || tag == "<ol style=\"margin-top:0;margin-bottom:0\">"
             || tag
                 .strip_prefix("<span style=\"font-size:")
@@ -204,6 +205,23 @@ fn nested_lists_are_lists_in_items_and_come_back_at_their_levels() {
     assert_eq!(levels, [(ListKind::Bullet, 0), (ListKind::Bullet, 1), (ListKind::Numbered, 2), (ListKind::Bullet, MAX_LEVEL)]);
 }
 
+/// An indented ordinary paragraph is written with a left margin of 40 pixels a level, as Outlook
+/// on the web and Gmail write Increase Indent, and comes back at its level (#1658). A little
+/// padding round pasted text isn't an indent; Outlook's half inch a level is.
+#[test]
+fn an_indented_paragraph_is_a_left_margin_and_comes_back_at_its_level() {
+    let para = |text: &str, level| Paragraph::new(vec![Run::plain(text)], ListKind::None).at_level(level);
+    let t = RichText::from_paragraphs(vec![para("in", 1), para("further", 2), para("deepest", MAX_LEVEL), para("back", 0)]);
+    let html = to_html(&t);
+    let step = "<div style=\"margin-left:40px\">";
+    assert!(html.starts_with(&format!("{step}<div>in</div></div>\r\n{step}{step}<div>further</div></div></div>\r\n")), "{html}");
+    assert!(html.ends_with("<div>back</div>\r\n"), "{html}");
+    assert_in_set(&html);
+    assert_eq!(from_html(&to_html_document(&t, None)), t);
+    let levels = |html: &str| from_html(html).paragraphs().iter().map(|p| p.level).collect::<Vec<_>>();
+    assert_eq!(levels("<div style=\"padding-left:12px\">a</div><div style=\"margin-left:.5in\">b</div>"), [0, 1]);
+}
+
 fn arb_style() -> impl Strategy<Value = Style> {
     (
         any::<bool>(),
@@ -258,7 +276,9 @@ fn arb_exact() -> impl Strategy<Value = RichText> {
         .prop_flat_map(|s| (Just(s), proptest::option::of(Just("#1f6feb".to_string()))).prop_map(|(s, color)| Style { color, ..s }));
     let paragraph = (proptest::collection::vec(("[a-zA-Z0-9&<>\"'é]{1,6}", style), 0..4), 0u8..3, 0..=MAX_LEVEL).prop_map(|(runs, list, level)| {
         let runs: Vec<Run> = runs.into_iter().enumerate().map(|(i, (t, s))| Run::new(if i == 0 { t } else { format!(" {t}") }, s)).collect();
-        let list = if runs.is_empty() { ListKind::None } else { [ListKind::None, ListKind::Bullet, ListKind::Numbered][list as usize] };
+        // A blank line is a blank line in HTML: no list, and no indent (#1658).
+        let (list, level) =
+            if runs.is_empty() { (ListKind::None, 0) } else { ([ListKind::None, ListKind::Bullet, ListKind::Numbered][list as usize], level) };
         Paragraph::new(runs, list).at_level(level)
     });
     proptest::collection::vec(paragraph, 1..8).prop_map(|ps| RichText::from_paragraphs(at_most_three_blank_lines(ps)))
