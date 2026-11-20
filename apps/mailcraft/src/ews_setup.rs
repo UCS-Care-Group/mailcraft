@@ -76,6 +76,7 @@ fn transport_failure(error: NetError) -> TransportError {
     match error {
         NetError::Certificate(_) | NetError::Tls { .. } => TransportError::Tls,
         NetError::Connect { .. } => TransportError::Unreachable,
+        error if mailcraft_net::http::is_too_long(&error) => TransportError::BodyTooLarge,
         _ => TransportError::Other,
     }
 }
