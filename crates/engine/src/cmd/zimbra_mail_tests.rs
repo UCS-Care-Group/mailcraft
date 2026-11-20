@@ -59,6 +59,27 @@ fn apply(s: &mut Session, r: ZimbraMailResult) -> Value {
 }
 
 #[test]
+fn an_incomplete_success_keeps_its_checkpoint_without_sweeping() {
+    for resume in [Vec::new(), vec![ZimbraResume { folder: "2".into(), cursor: "257".into(), sort: 1 }]] {
+        let (mut s, account) = session();
+        first_read(&mut s, account);
+        let mut removal = result(account, "4711");
+        removal.partial = true;
+        removal.pages.push(ZimbraMessagePage { removed: vec!["257".into()], ..Default::default() });
+        apply(&mut s, removal);
+        let mut checkpoint = result(account, "4711");
+        checkpoint.token = "4712".into();
+        checkpoint.resume = Some(resume.clone());
+        let answer = apply(&mut s, checkpoint);
+        assert_eq!(answer["summary"], "Stopped; carries on from here next time");
+        let server = s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap();
+        assert_eq!(server.token, "4712");
+        assert_eq!(server.resume, resume);
+        assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
+    }
+}
+
+#[test]
 fn a_completed_zimbra_round_sorts_later_inbox_arrivals() {
     for delta in [false, true] {
         let (mut s, account) = session();

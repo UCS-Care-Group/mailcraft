@@ -254,8 +254,8 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     // in one step, when it went well. With a folder left half-read (`resume`), nothing marked gone
     // is gone yet — the tail of that folder's read is still to come — so nothing is removed until
     // a run leaves no folder half-read.
-    if result.whole && !result.partial && !run_cut {
-        if result.resume.as_ref().is_none_or(Vec::is_empty) {
+    if !result.partial && !run_cut {
+        if result.whole && result.resume.as_ref().is_none_or(Vec::is_empty) {
             graph_down::sweep(&mut s.mailbox, account, None, &mut down);
         }
         if !result.token.is_empty()
@@ -280,16 +280,15 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     if result.auth_refused {
         errors.insert(0, mailcraft_i18n::fmt(lang.t("The server turned down the sign-in for {name}: sign in again"), &[("name", &name)]));
     }
+    let summary = match errors.first() {
+        Some(first) => first.clone(),
+        None if result.stopped || !result.whole => lang.t("Stopped; carries on from here next time").to_string(),
+        None => lang.t("Up to date").to_string(),
+    };
     if !result.partial {
-        let said = match errors.first() {
-            Some(first) => first.clone(),
-            None if result.stopped => lang.t("Stopped; carries on from here next time").to_string(),
-            None => lang.t("Up to date").to_string(),
-        };
         let t = s.local_now();
-        s.sync_status = format!("{said} — {}", s.time_said(t));
+        s.sync_status = format!("{summary} — {}", s.time_said(t));
     }
-    let summary = errors.first().cloned().unwrap_or_else(|| "Up to date".to_string());
     Ok(json!({
         "added": taken.added,
         "updated": taken.updated,

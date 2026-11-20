@@ -674,7 +674,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let before = a.clone();
     let named_by_address = before.named_by_address();
     // The settings of a Zimbra account are not changed while the switch is off.
-    if !s.zimbra && asks_for_zimbra(v) {
+    if !s.zimbra && (asks_for_zimbra(v) || (before.kind == AccountKind::Zimbra && v.get("email").is_some())) {
         return Err(fail(super::zimbra_mail::SWITCHED_OFF));
     }
     apply_fields(&mut a, v)?;
@@ -694,12 +694,21 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         let name = x.zimbra.as_ref().map(|server| server.username.trim()).filter(|name| !name.is_empty()).unwrap_or(x.email.trim());
         name.to_lowercase()
     };
-    if listed_ews(s, id) && a.kind == AccountKind::Zimbra {
-        let moved = zimbra_url(&before).is_some_and(|was| Some(was) != zimbra_url(&a));
-        if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) || zimbra_login(&before) != zimbra_login(&a) {
+    if a.kind == AccountKind::Zimbra {
+        let moved = zimbra_url(&before) != zimbra_url(&a);
+        let identity_changed = zimbra_login(&before) != zimbra_login(&a);
+        if listed_ews(s, id)
+            && ((moved && zimbra_url(&before).is_some()) || identity_changed || !before.email.trim().eq_ignore_ascii_case(a.email.trim()))
+        {
             return Err(fail(
                 "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one",
             ));
+        }
+        if (moved || identity_changed)
+            && let Some(server) = a.zimbra.as_mut()
+        {
+            server.token.clear();
+            server.resume.clear();
         }
     }
     // A JMAP account's folders and mail are known to its server by the ids it hands out, and any
@@ -1349,6 +1358,7 @@ fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) 
 
 fn request(s: &mut Session, v: &Value) -> CmdResult {
     let account = p::id(v, "account")
+        .or_else(|| s.mailbox.accounts.iter().find(|a| a.kind.has_server() && a.kind != AccountKind::Zimbra).map(|a| a.id))
         .or_else(|| s.mailbox.accounts.iter().find(|a| a.kind.has_server()).map(|a| a.id))
         .ok_or_else(|| fail("no account is connected to a mail server"))?;
     // One kept in step through Microsoft Graph has a request of its own (`sync.graphRequest`).

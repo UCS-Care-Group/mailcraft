@@ -75,10 +75,10 @@ fn its_settings_are_checked_and_its_kind_is_kept() {
     let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
     // An edit that names no kind keeps it, and the server's token with it.
     s.mailbox.account_mut(id).unwrap().zimbra.as_mut().unwrap().token = "4711".into();
-    s.run("account.edit", &json!({"id": id, "displayName": "Ada", "zimbra": {"username": "ada2"}})).unwrap();
+    s.run("account.edit", &json!({"id": id, "displayName": "Ada", "zimbra": {"username": "ada"}})).unwrap();
     let a = s.mailbox.account(id).unwrap();
     let server = a.zimbra.as_ref().unwrap();
-    assert_eq!((a.kind, server.username.as_str(), server.token.as_str()), (AccountKind::Zimbra, "ada2", "4711"));
+    assert_eq!((a.kind, server.username.as_str(), server.token.as_str()), (AccountKind::Zimbra, "ada", "4711"));
     // It doesn't turn into another kind, nor another kind into it.
     assert!(s.run("account.edit", &json!({"id": id, "kind": "imap", "incoming": {"host": "imap.example.org"}})).is_err());
     let imap = s.run("account.add", &json!({"email": "bob@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
@@ -113,4 +113,90 @@ fn a_mailbox_with_a_zimbra_account_opens_with_the_switch_off() {
     let a = opened.mailbox.account(id).unwrap();
     assert_eq!((a.kind, a.zimbra.as_ref().map(|z| z.url.as_str())), (AccountKind::Zimbra, Some(URL)));
     assert_eq!(opened.mailbox.count(inbox), 1);
+}
+
+#[test]
+fn identity_edits_with_the_switch_off_leave_zimbra_unchanged() {
+    let mut s = switched_on();
+    let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+    s.zimbra = false;
+    assert!(said(s.run("account.edit", &json!({"id":id,"email":"other@example.org"}))).contains(SWITCHED_OFF));
+    assert_eq!(s.mailbox.account(id).unwrap().email, "ada@example.org");
+    s.run("account.edit", &json!({"id":id,"displayName":"Ada"})).unwrap();
+}
+
+#[test]
+fn permitted_mailbox_changes_clear_both_zimbra_checkpoints() {
+    for patch in [
+        json!({"zimbra":{"url":"https://other.example.org"}}),
+        json!({"zimbra":{"username":"other"}}),
+        json!({"email":"other@example.org","zimbra":{"username":""}}),
+    ] {
+        let mut s = switched_on();
+        let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+        let server = s.mailbox.account_mut(id).unwrap().zimbra.as_mut().unwrap();
+        server.token = "42".into();
+        server.resume.push(mailcraft_model::sync::ZimbraResume { folder: "2".into(), cursor: "301".into(), sort: 1 });
+        let mut edit = patch;
+        edit["id"] = json!(id);
+        s.run("account.edit", &edit).unwrap();
+        let server = s.mailbox.account(id).unwrap().zimbra.as_ref().unwrap();
+        assert!(server.token.is_empty() && server.resume.is_empty(), "{edit}");
+    }
+}
+
+#[test]
+fn display_trust_and_equivalent_identity_edits_keep_zimbra_checkpoints() {
+    for patch in [
+        json!({"displayName":"Ada"}),
+        json!({"zimbra":{"trusted":"a".repeat(64)}}),
+        json!({"zimbra":{"username":"ADA"}}),
+        json!({"zimbra":{"url":format!("{URL}/")}}),
+        json!({"email":"ADA@example.org"}),
+    ] {
+        let mut s = switched_on();
+        let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+        let resume = mailcraft_model::sync::ZimbraResume { folder: "2".into(), cursor: "301".into(), sort: 1 };
+        let server = s.mailbox.account_mut(id).unwrap().zimbra.as_mut().unwrap();
+        server.token = "42".into();
+        server.resume.push(resume.clone());
+        let mut edit = patch;
+        edit["id"] = json!(id);
+        s.run("account.edit", &edit).unwrap();
+        let server = s.mailbox.account(id).unwrap().zimbra.as_ref().unwrap();
+        assert_eq!(server.token, "42", "{edit}");
+        assert_eq!(server.resume, [resume], "{edit}");
+    }
+}
+
+#[test]
+fn implicit_sync_prefers_a_supported_account_over_zimbra() {
+    let mut s = switched_on();
+    let z = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+    let imap = s.run("account.add", &json!({"email":"bob@example.org","incoming":{"host":"imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    let result = s.run("sync.request", &json!({})).unwrap();
+    assert_eq!(result["account"]["id"], imap);
+    assert!(said(s.run("sync.request", &json!({"account":z}))).contains(NOT_BUILT));
+}
+
+#[test]
+fn an_unfetched_zimbra_message_cannot_be_copied_without_its_server_identity() {
+    let mut s = switched_on();
+    let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
+    let sent = s.mailbox.folder_of_kind(id, FolderKind::Sent).unwrap();
+    let message = s
+        .mailbox
+        .add_message(Message {
+            account: id,
+            folder: inbox,
+            unfetched: true,
+            server: Some(mailcraft_model::sync::ServerMessage { id: "301".into(), folder: "2".into(), ..Default::default() }),
+            ..Default::default()
+        })
+        .unwrap();
+    assert!(s.mailbox.copy_message(message, sent).is_err());
+    assert_eq!(s.mailbox.count(sent), 0);
+    s.mailbox.message_mut(message).unwrap().unfetched = false;
+    assert!(s.mailbox.copy_message(message, sent).is_ok());
 }
