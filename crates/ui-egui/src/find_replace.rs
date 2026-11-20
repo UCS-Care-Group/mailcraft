@@ -16,6 +16,15 @@ use crate::widgets::primary_button;
 
 pub const WIDTH: f32 = 420.0;
 
+/// Align dialog captions at the language's reading edge without changing text inputs or commands.
+fn caption_layout() -> egui::Layout {
+    if crate::i18n::current() == crate::i18n::Lang::Hebrew {
+        egui::Layout::right_to_left(egui::Align::Min)
+    } else {
+        egui::Layout::left_to_right(egui::Align::Min)
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FindReplace {
     pub text: String,
@@ -43,7 +52,9 @@ impl FindReplace {
     pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
         let mut done = false;
-        ui.label(tl!("Find what"));
+        ui.with_layout(caption_layout(), |ui| {
+            ui.label(tl!("Find what"));
+        });
         let resp = ui.add(egui::TextEdit::singleline(&mut self.text).char_limit(MAX_FIND).desired_width(f32::INFINITY));
         let resp = crate::text_menu::field(resp);
         app.hit.add("findText", 0, resp.rect);
@@ -51,14 +62,22 @@ impl FindReplace {
             resp.request_focus();
         }
         if self.replace {
-            ui.label(tl!("Replace with"));
+            ui.with_layout(caption_layout(), |ui| {
+                ui.label(tl!("Replace with"));
+            });
             let resp = ui.add(egui::TextEdit::singleline(&mut self.with).char_limit(MAX_FIND).desired_width(f32::INFINITY));
             app.hit.add("replaceText", 0, crate::text_menu::field(resp).rect);
         }
-        let case = ui.checkbox(&mut self.match_case, tl!("Match case"));
+        let case = ui
+            .with_layout(caption_layout(), |ui| {
+                ui.checkbox(&mut self.match_case, tl!("Match case"))
+            })
+            .inner;
         app.hit.add("findMatchCase", 0, case.rect);
         if !self.note.is_empty() {
-            ui.label(RichText::new(self.note.as_str()).color(t.text_dim));
+            ui.with_layout(caption_layout(), |ui| {
+                ui.label(RichText::new(self.note.as_str()).color(t.text_dim));
+            });
         }
         let can = !self.text.is_empty() && !self.text.contains(['\n', '\r']);
         let (mut next, mut one, mut all) = (enter && can, false, false);
