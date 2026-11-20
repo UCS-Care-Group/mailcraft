@@ -718,6 +718,11 @@ msgstr "Accent"
 msgid "Accent Colour"
 msgstr "Couleur d'accent"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4037,6 +4042,11 @@ msgstr "Boîte aux lettres actuelle"
 #, fuzzy
 msgid "Current View"
 msgstr "Affichage actuel"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr ""
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs

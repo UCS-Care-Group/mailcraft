@@ -617,31 +617,40 @@ fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
     });
 }
 
-/// The accent choices: four named swatches, the one in use marked with a ring and a tick, each
-/// reachable and pressable from the keyboard.
+/// The accent choices: five swatches — four named and one of the owner's own colour, which opens a
+/// picker under it — the one in use marked with a ring and a tick, each reachable and pressable
+/// from the keyboard.
 fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let cur = app.ui.accent;
-    for a in crate::theme::Accent::ALL {
+    let custom = app.ui.custom_accent;
+    for (i, a) in crate::theme::Accent::ALL.into_iter().enumerate() {
         let name = match a {
             crate::theme::Accent::Blue => tl!("Blue"),
             crate::theme::Accent::Teal => tl!("Teal"),
             crate::theme::Accent::Violet => tl!("Violet"),
             crate::theme::Accent::Graphite => tl!("Graphite"),
+            crate::theme::Accent::Custom => tl!("Custom color"),
         };
-        let ink = a.ink(t.dark, app.ui.high_contrast);
+        let ink = a.ink(t.dark, app.ui.high_contrast, custom);
+        // The swatch of a custom colour shows the colour itself, not the shade the theme fits it to.
+        let disc_color = if a == crate::theme::Accent::Custom { app.ui.custom_accent_color() } else { ink.accent };
+        // The tick reads on the disc: the ink of a preset is made for its accent, while a custom
+        // colour as chosen gets black or white, whichever stands out more on it.
+        let tick_color = if a == crate::theme::Accent::Custom { crate::theme::black_or_white_on(disc_color) } else { ink.on_accent };
         let w = ui.fonts_mut(|f| f.layout_no_wrap(name.to_string(), regular(12.5), t.text).size().x) + 40.0;
         let (r, resp) = ui.allocate_exact_size(vec2(w, 24.0), Sense::click());
+        app.hit.add("optionAccent", i as u64, r);
         resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, true, a == cur, name));
         let on = a == cur;
         if on || resp.hovered() {
             ui.painter().rect_filled(r, 4.0, if on { t.checked } else { t.hover });
         }
         let disc = pos2(r.min.x + 14.0, r.center().y);
-        ui.painter().circle_filled(disc, 7.0, ink.accent);
+        ui.painter().circle_filled(disc, 7.0, disc_color);
         if on {
             ui.painter().circle_stroke(disc, 9.5, Stroke::new(1.5, t.text));
             let tick = [disc + vec2(-3.5, 0.0), disc + vec2(-1.0, 3.0), disc + vec2(3.5, -3.0)];
-            ui.painter().add(egui::Shape::line(tick.to_vec(), Stroke::new(1.8, ink.on_accent)));
+            ui.painter().add(egui::Shape::line(tick.to_vec(), Stroke::new(1.8, tick_color)));
         }
         ui.painter().text(pos2(r.min.x + 28.0, r.center().y), Align2::LEFT_CENTER, name, regular(12.5), t.text);
         if resp.has_focus() {
@@ -649,6 +658,64 @@ fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         }
         if resp.clicked() {
             let _ = app.run("ui.accent", json!({"accent": a.code()}));
+        }
+        // The owner's own colour opens a picker under the swatch, to change it while it is in use.
+        if a == crate::theme::Accent::Custom {
+            let popup_id = egui::Popup::default_response_id(&resp);
+            // A command can set another accent while the picker is open (the control channel, MCP),
+            // which no click closes it with: close it when Custom is no longer the accent.
+            if app.ui.accent != crate::theme::Accent::Custom && egui::Popup::is_id_open(ui.ctx(), popup_id) {
+                egui::Popup::close_id(ui.ctx(), popup_id);
+            }
+            let pid = ui.scope_id().with("accent-custom-picker");
+            let hex_id = pid.with("hex");
+            let sync_id = pid.with("sync");
+            let current = app.ui.custom_accent_color();
+            let shown = egui::Popup::from_toggle_button_response(&resp)
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                .accessible_name(tl!("Custom color"))
+                .show(|ui| {
+                    ui.set_min_width(240.0);
+                    // The working copy starts from the saved colour, and follows it when it changes
+                    // from outside while the picker is open (`sync` is the saved colour it reflects).
+                    let stale = ui.ctx().data_mut(|d| d.get_temp::<egui::Color32>(sync_id)).is_none_or(|s| s != current);
+                    let mut color = if stale { current } else { ui.ctx().data_mut(|d| d.get_temp::<egui::Color32>(pid)).unwrap_or(current) };
+                    let mut changed = egui::widgets::color_picker::color_picker_color32(ui, &mut color, egui::widgets::color_picker::Alpha::Opaque);
+                    // A hex field of our own, for a colour pasted in: applied once it parses. An
+                    // incomplete edit is kept while the saved colour has not changed.
+                    let mut text = if stale {
+                        crate::theme::hex_string(current)
+                    } else {
+                        ui.ctx().data_mut(|d| d.get_temp::<String>(hex_id)).unwrap_or_else(|| crate::theme::hex_string(color))
+                    };
+                    if changed {
+                        text = crate::theme::hex_string(color);
+                    }
+                    let hex = ui.add(egui::TextEdit::singleline(&mut text).desired_width(90.0).hint_text("#RRGGBB"));
+                    hex.widget_info(|| egui::WidgetInfo::labeled(egui::Role::TextInput, true, tl!("Accent colour as hex")));
+                    if hex.changed()
+                        && let Some(c) = crate::theme::parse_hex_color(&text)
+                    {
+                        color = c;
+                        changed = true;
+                    }
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(pid, color);
+                        d.insert_temp(hex_id, text);
+                        d.insert_temp(sync_id, if changed { color } else { current });
+                    });
+                    if changed {
+                        let _ = app.run("ui.accent", json!({"accent": "custom", "color": crate::theme::hex_string(color)}));
+                    }
+                });
+            if shown.is_none() {
+                // Closed: drop the working copy, so the next open starts from the saved colour.
+                ui.ctx().data_mut(|d| {
+                    d.remove::<egui::Color32>(pid);
+                    d.remove::<String>(hex_id);
+                    d.remove::<egui::Color32>(sync_id);
+                });
+            }
         }
     }
 }
