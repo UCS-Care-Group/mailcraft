@@ -6603,6 +6603,11 @@ msgid "Have replies sent to other addresses"
 msgstr "Indirizza le risposte ad altri indirizzi"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Height"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -11902,6 +11907,11 @@ msgid "Picture Layout"
 msgstr "Layout immagine"
 
 #. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Size"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Size and Description"
@@ -11918,6 +11928,11 @@ msgstr "Immagine sopra il testo"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Immagine accanto al testo"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Picture size"
+msgstr ""
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -13102,6 +13117,11 @@ msgid ""
 msgstr ""
 "Reimposta\n"
 "visualizzazione"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Reset Size"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14900,6 +14920,11 @@ msgstr "Mostra il riquadro delle cartelle"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "Mostra i messaggi di questa conversazione"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Show the picture at its own size"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -20080,7 +20105,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Chi ha firmato questo messaggio e il certificato"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Larghezza"
@@ -21056,6 +21081,11 @@ msgstr "le regole di una cassetta postale condivisa sono sue: questa versione no
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "una firma è aperta: aggiungi le sue immagini con signature.picture.add"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21848,6 +21878,11 @@ msgstr "nessun server in uscita"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "nessuna immagine {id} in questa firma"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture {id} was put in this message"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs

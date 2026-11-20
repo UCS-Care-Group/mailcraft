@@ -6341,6 +6341,11 @@ msgid "Have replies sent to other addresses"
 msgstr "Antwoorden laten verzenden naar andere adressen"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Height"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -11496,6 +11501,11 @@ msgid "Picture Layout"
 msgstr "Indeling van de afbeelding"
 
 #. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Size"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Picture Size and Description"
 msgstr "Grootte en beschrijving van de afbeelding"
@@ -11511,6 +11521,11 @@ msgstr "Afbeelding boven de tekst"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Afbeelding naast de tekst"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Picture size"
+msgstr ""
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -12647,6 +12662,11 @@ msgid ""
 msgstr ""
 "Weergave\n"
 "herstellen"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Reset Size"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14375,6 +14395,11 @@ msgstr "Het mappenvenster weergeven"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "De berichten van dit gesprek weergeven"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Show the picture at its own size"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -19503,7 +19528,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Wie dit bericht ondertekende, en het certificaat"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Breedte"
@@ -20461,6 +20486,11 @@ msgstr "de regels van een gedeeld postvak zijn van dat postvak: deze versie maak
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "een handtekening is geopend: voeg de afbeeldingen toe met signature.picture.add"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21252,6 +21282,11 @@ msgstr "geen uitgaande server"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "geen afbeelding {id} in deze handtekening"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture {id} was put in this message"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs

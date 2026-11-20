@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Pictures in the text of a message being written (#547): Insert › Pictures, and the Ctrl+V of a
-//! picture on the clipboard (the window passes it here as `data`).
+//! picture on the clipboard (the window passes it here as `data`); and the width each is shown
+//! and sent at (`compose.picture.set`, which the window's corner handle runs).
 //!
 //! A picture is one character of the text (a picture run), so typing over it, Backspace and
 //! Delete, cut and undo treat it as they do a letter. Its bytes stay in `Compose::pictures`; a
@@ -10,8 +11,9 @@
 use std::collections::HashSet;
 
 use mailcraft_model::pictures as model;
-use mailcraft_model::pictures::{HEAVY_BYTES, MAX_PICTURE_BYTES};
-use mailcraft_model::rich::{Paragraph, RichText, Run, Style};
+use mailcraft_model::pictures::{HEAVY_BYTES, MAX_PICTURE_BYTES, MAX_SHOWN_WIDTH};
+use mailcraft_model::rich::{Mark, Paragraph, RichText, Run, Style};
+use mailcraft_model::signature::Picture;
 use serde_json::{Value, json};
 
 use super::format::position;
@@ -29,7 +31,21 @@ pub fn specs() -> Vec<CommandSpec> {
                 r#"{"path": string (a PNG, JPEG, GIF or WebP file on this computer; never a web address) | "data": base64 (the picture's bytes), "file"?: string (its name, for `data`), "alt"?: string (what it shows, in words), "width"?: number (pixels; shown at most this wide), "at"?: number (a position in the text; default: the caret, over the selection)} — puts the picture in the text; a message in HTML sends it as part of the message, a plain-text one says `[picture]`. A picture wider than 1920 pixels, or over 5 MB, is made smaller to fit (an animated one is not: it is refused when over the cap); at most 5 MB each, 20 MB and 30 pictures together. Answers {"id", "bytes" (all the message's pictures), "heavy"}"#,
             )
             .when_writing(needs_picture),
+        CommandSpec::new("compose.picture.set", "Picture Size", "Insert › Illustrations", set)
+            .pure()
+            .params(
+                r#"{"id": number (a picture in the message's text, as insert.picture answered), "width": number (pixels; more than 1920 is 1920) | null (its own width)} — the width the picture is shown and sent at, its height in proportion; one step of the message's undo (compose.undo). Answers {"id", "width"}"#,
+            )
+            .when_writing(needs_resize),
     ]
+}
+
+/// Enabled as [`needs_picture`] is: a signature's pictures are sized with signature.picture.set.
+fn needs_resize(s: &Session) -> Option<&'static str> {
+    match needs_picture(s) {
+        Some(_) if s.compose.is_some() && s.signature_edit.is_some() => Some("a signature is open: size its pictures with signature.picture.set"),
+        reason => reason,
+    }
 }
 
 /// Enabled while a message in HTML is being written (a signature has its own pictures).
@@ -89,4 +105,41 @@ fn insert(s: &mut Session, v: &Value) -> CmdResult {
     let held: HashSet<u32> = c.body.text().pictures().into_iter().collect();
     let bytes: usize = c.pictures.iter().filter(|p| held.contains(&p.id)).map(|p| p.data.len()).sum();
     Ok(json!({"id": id, "bytes": bytes, "heavy": bytes > HEAVY_BYTES}))
+}
+
+fn set(s: &mut Session, v: &Value) -> CmdResult {
+    if let Some(reason) = needs_resize(s) {
+        return Err(fail(reason));
+    }
+    let id = p::u64(v, "id").and_then(|n| u32::try_from(n).ok()).ok_or_else(|| bad("`id` is a picture's id (a number)"))?;
+    let width = match v.get("width") {
+        Some(Value::Null) => None,
+        Some(_) => Some(
+            p::u64(v, "width")
+                .filter(|n| *n > 0)
+                .map(|n| u16::try_from(n).unwrap_or(MAX_SHOWN_WIDTH).min(MAX_SHOWN_WIDTH))
+                .ok_or_else(|| bad("`width` is a number of pixels, or null"))?,
+        ),
+        None => return Err(bad("`width` is a number of pixels, or null (its own width)")),
+    };
+    let c = s.compose.as_mut().ok_or_else(|| fail("no message is being written"))?;
+    let shown = c.body.text().pictures().contains(&id);
+    let Some(picture) = c.pictures.iter_mut().find(|p| p.id == id).filter(|_| shown) else {
+        return Err(failed!("no picture {id} was put in this message", id));
+    };
+    let was = std::mem::replace(&mut picture.width, width);
+    if was != width {
+        c.body.push_mark(Mark { picture: id, width: was });
+        c.dirty = true;
+    }
+    Ok(json!({"id": id, "width": width}))
+}
+
+/// Put back the width `mark` names on the message's picture, when it still has it: the mark that
+/// puts back the width it had (undo and redo, `format.rs`).
+pub(super) fn swap_width(pictures: &mut [Picture], mark: Mark) -> Mark {
+    match pictures.iter_mut().find(|p| p.id == mark.picture) {
+        Some(p) => Mark { picture: mark.picture, width: std::mem::replace(&mut p.width, mark.width.map(|w| w.clamp(1, MAX_SHOWN_WIDTH))) },
+        None => mark,
+    }
 }

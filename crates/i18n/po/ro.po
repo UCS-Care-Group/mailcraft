@@ -6631,6 +6631,11 @@ msgid "Have replies sent to other addresses"
 msgstr "Răspunsurile să fie trimise la alte adrese"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Height"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -11940,6 +11945,11 @@ msgid "Picture Layout"
 msgstr "Aspect imagine"
 
 #. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Size"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Size and Description"
@@ -11956,6 +11966,11 @@ msgstr "Imagine deasupra textului"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Imagine lângă text"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Picture size"
+msgstr ""
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -13150,6 +13165,11 @@ msgid ""
 msgstr ""
 "Resetare\n"
 "vizualizare"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Reset Size"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14957,6 +14977,11 @@ msgstr "Afișați panoul de dosare"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "Afișați mesajele acestei conversații"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Show the picture at its own size"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -20169,7 +20194,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Cine a semnat acest mesaj și certificatul"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Lățime"
@@ -21146,6 +21171,11 @@ msgstr "regulile unei cutii poștale partajate sunt ale ei: această versiune nu
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "o semnătură este deschisă: adăugați-i imaginile cu signature.picture.add"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21941,6 +21971,11 @@ msgstr "fără server de ieșire"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "nu există imaginea {id} în această semnătură"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture {id} was put in this message"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs

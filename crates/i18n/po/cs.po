@@ -6622,6 +6622,11 @@ msgid "Have replies sent to other addresses"
 msgstr "Odpovědi posílat na jiné adresy"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Height"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -11923,6 +11928,11 @@ msgid "Picture Layout"
 msgstr "Rozložení obrázku"
 
 #. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Size"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Size and Description"
@@ -11939,6 +11949,11 @@ msgstr "Obrázek nad textem"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Obrázek vedle textu"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Picture size"
+msgstr ""
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -13132,6 +13147,11 @@ msgid ""
 msgstr ""
 "Obnovit\n"
 "zobrazení"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Reset Size"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14935,6 +14955,11 @@ msgstr "Zobrazit podokno složek"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "Zobrazit zprávy této konverzace"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Show the picture at its own size"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -20145,7 +20170,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Kdo tuto zprávu podepsal a certifikát"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Šířka"
@@ -21121,6 +21146,11 @@ msgstr "sdílená poštovní schránka má vlastní pravidla: tato verze je nevy
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "je otevřený podpis: jeho obrázky přidejte pomocí signature.picture.add"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21916,6 +21946,11 @@ msgstr "žádný server odchozí pošty"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "v tomto podpisu není obrázek {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture {id} was put in this message"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs

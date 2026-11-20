@@ -6602,6 +6602,11 @@ msgid "Have replies sent to other addresses"
 msgstr "将回复发送到其他地址"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Height"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -11901,6 +11906,11 @@ msgid "Picture Layout"
 msgstr "图片布局"
 
 #. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Size"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Size and Description"
@@ -11917,6 +11927,11 @@ msgstr "图片在文字上方"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "图片在文字旁"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Picture size"
+msgstr ""
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -13109,6 +13124,11 @@ msgid ""
 msgstr ""
 "重置\n"
 "视图"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Reset Size"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14906,6 +14926,11 @@ msgstr "显示文件夹窗格"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "显示此会话中的邮件"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Show the picture at its own size"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -20092,7 +20117,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "邮件的签名者及其证书"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "宽度"
@@ -21069,6 +21094,11 @@ msgstr "共享邮箱有自己的规则：此版本无法创建这些规则"
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "已有签名打开：请使用 signature.picture.add 添加图片"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21859,6 +21889,11 @@ msgstr "没有发送服务器"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "此签名中没有图片 {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture {id} was put in this message"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs

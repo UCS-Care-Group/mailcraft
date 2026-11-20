@@ -5488,6 +5488,11 @@ msgid "Have replies sent to other addresses"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Height"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Held:"
 msgstr ""
@@ -9879,6 +9884,11 @@ msgid "Picture Layout"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Size"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Picture Size and Description"
 msgstr ""
@@ -9891,6 +9901,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Picture beside text"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Picture size"
 msgstr ""
 
 #. android, command label, ribbon
@@ -10870,6 +10885,11 @@ msgstr ""
 msgid ""
 "Reset\n"
 "View"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Reset Size"
 msgstr ""
 
 #. command label
@@ -12356,6 +12376,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Show the messages of this conversation"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Show the picture at its own size"
 msgstr ""
 
 #. android
@@ -16674,7 +16699,7 @@ msgid "Who signed this message, and the certificate"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 msgid "Width"
 msgstr ""
 
@@ -17484,6 +17509,11 @@ msgstr ""
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/signature.rs
 msgid "a signature's pictures are PNG, JPEG or GIF (many mail programs can't show other kinds)"
@@ -18146,6 +18176,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
 msgid "no picture {id} in this signature"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture {id} was put in this message"
 msgstr ""
 
 #. what a command says
