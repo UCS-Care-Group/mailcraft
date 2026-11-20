@@ -156,12 +156,14 @@ fn a_page_for_a_missing_folder_blocks_the_run_token_and_sweep() {
                 missing.token = "4712".into();
                 missing.resume = Some(Vec::new());
             }
-            apply(&mut s, missing);
+            let mut answer = apply(&mut s, missing);
             if split {
                 let mut end = result(account, "4711");
                 (end.token, end.whole, end.resume) = ("4712".into(), true, Some(Vec::new()));
-                apply(&mut s, end);
+                answer = apply(&mut s, end);
             }
+            assert_eq!(answer["summary"], "Stopped; carries on from here next time");
+            assert!(s.sync_status.starts_with("Stopped; carries on from here next time"));
             assert_eq!(s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap().token, "4711");
             assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
         }

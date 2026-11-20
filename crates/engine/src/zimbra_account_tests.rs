@@ -116,6 +116,23 @@ fn a_mailbox_with_a_zimbra_account_opens_with_the_switch_off() {
 }
 
 #[test]
+fn a_bad_saved_fingerprint_does_not_release_a_listed_mailbox_from_its_server() {
+    let mut s = switched_on();
+    let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "2".into(), ..Default::default() });
+    let server = s.mailbox.account_mut(id).unwrap().zimbra.as_mut().unwrap();
+    server.trusted = "invalid".into();
+    server.token = "42".into();
+    assert!(s.run("account.edit", &json!({"id":id,"zimbra":{"url":"https://other.example.org","trusted":""}})).is_err());
+    let server = s.mailbox.account(id).unwrap().zimbra.as_ref().unwrap();
+    assert_eq!(server.url, URL);
+    assert_eq!(server.token, "42");
+    s.run("account.edit", &json!({"id":id,"zimbra":{"trusted":""}})).unwrap();
+    assert_eq!(s.mailbox.account(id).unwrap().zimbra.as_ref().unwrap().token, "42");
+}
+
+#[test]
 fn identity_edits_with_the_switch_off_leave_zimbra_unchanged() {
     let mut s = switched_on();
     let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();

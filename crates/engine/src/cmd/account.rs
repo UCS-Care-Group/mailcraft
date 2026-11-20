@@ -689,7 +689,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     // And once its mail is here, those ids are one mailbox's at one server: another server, address
     // or user name may be another mailbox under the same ids.
-    let zimbra_url = |x: &Account| x.zimbra.as_ref().filter(|server| server.problem().is_none()).map(|server| server.base().to_string());
+    let zimbra_url = |x: &Account| x.zimbra.as_ref().map(|server| server.base().to_string()).filter(|url| !url.is_empty());
     let zimbra_login = |x: &Account| {
         let name = x.zimbra.as_ref().map(|server| server.username.trim()).filter(|name| !name.is_empty()).unwrap_or(x.email.trim());
         name.to_lowercase()

@@ -282,7 +282,7 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     }
     let summary = match errors.first() {
         Some(first) => first.clone(),
-        None if result.stopped || !result.whole => lang.t("Stopped; carries on from here next time").to_string(),
+        None if run_cut || result.stopped || !result.whole => lang.t("Stopped; carries on from here next time").to_string(),
         None => lang.t("Up to date").to_string(),
     };
     if !result.partial {
