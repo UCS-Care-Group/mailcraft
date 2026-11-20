@@ -28,7 +28,7 @@ pub mod lzxd;
 
 pub use compressed::decompress;
 pub use crc::crc32;
-pub use details::{Details, PropDef, Record, Value, read_details, read_details_keeping};
+pub use details::{Details, PropDef, Record, VALUE_SLOT, Value, read_details, read_details_keeping};
 pub use error::{Cap, Error, Limits};
 
 /// Reads a compressed version 4 Full Details file, as the server publishes it.

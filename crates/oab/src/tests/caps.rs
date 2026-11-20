@@ -5,7 +5,7 @@
 use super::encoder::Options;
 use super::packed::compressed;
 use crate::test_writer::{details, spec_sample};
-use crate::{Cap, Error, Limits, PropDef, Record, Value, crc32, read_details, read_details_keeping, tag};
+use crate::{Cap, Error, Limits, PropDef, Record, VALUE_SLOT, Value, crc32, read_details, read_details_keeping, tag};
 
 #[test]
 fn caps_are_checked_before_reading() {
@@ -57,12 +57,13 @@ fn a_packed_block_is_held_to_the_callers_block_size() {
 }
 
 /// A multi-valued property with no values still counts one against `max_values`, so that a schema
-/// repeating it can't keep thousands of them for nothing.
+/// of thousands of them can't keep them for nothing (a schema can't repeat one: each is its own).
 #[test]
 fn an_empty_multi_valued_property_counts_one() {
-    let many = PropDef { tag: (u32::from(tag::PROXY_ADDRESSES) << 16) | 0x101F, primary_key: false, anr: false };
-    let entry = Record { values: vec![(many.tag, Value::Texts(Vec::new()))] };
-    let file = details(&[], &[many; 3], &Record::default(), &[entry]);
+    let schema: Vec<PropDef> =
+        (0..3u32).map(|i| PropDef { tag: ((u32::from(tag::PROXY_ADDRESSES) + i) << 16) | 0x101F, primary_key: false, anr: false }).collect();
+    let entry = Record { values: schema.iter().map(|p| (p.tag, Value::Texts(Vec::new()))).collect() };
+    let file = details(&[], &schema, &Record::default(), &[entry]);
     assert!(read_details(&file, &Limits { max_values: 3, ..Limits::default() }).is_ok());
     assert_eq!(read_details(&file, &Limits { max_values: 2, ..Limits::default() }), Err(Error::Cap(Cap::Values)));
 }
@@ -79,6 +80,39 @@ fn a_small_file_of_large_values_is_held_to_the_bytes_kept() {
     assert_eq!(crate::read(&file, &Limits::default()).unwrap().records.len(), 16);
     let limits = Limits { max_kept_bytes: 15 * 64 * 1024, ..Limits::default() };
     assert_eq!(crate::read(&file, &limits), Err(Error::Cap(Cap::KeptBytes)));
+}
+
+/// Many tiny values (each `"a"`, as the review's 500,000 proxy addresses of a record) are held
+/// to `max_kept_bytes` by what they cost in memory, [`VALUE_SLOT`] each beside their byte: their
+/// bytes alone would pass a cap set far below what they take.
+#[test]
+fn a_small_file_of_tiny_values_is_held_to_the_memory_they_take() {
+    let many = PropDef { tag: (u32::from(tag::PROXY_ADDRESSES) << 16) | 0x101F, primary_key: false, anr: false };
+    let entry = Record { values: vec![(many.tag, Value::Texts(vec!["a".to_owned(); 20_000]))] };
+    let unpacked = details(&[], &[many], &Record::default(), &vec![entry; 8]);
+    let file = compressed(&unpacked, 0x40000, 0, &Options::default());
+    assert!(file.len() * 16 < unpacked.len(), "{} packed of {}", file.len(), unpacked.len());
+    let values = 8 * 20_000;
+    // Their bytes alone (160,000) are under a cap of a megabyte; with a slot each they are not.
+    let limits = Limits { max_kept_bytes: 1 << 20, ..Limits::default() };
+    assert!(values < limits.max_kept_bytes && values * (1 + VALUE_SLOT) > limits.max_kept_bytes);
+    assert_eq!(crate::read(&file, &limits), Err(Error::Cap(Cap::KeptBytes)));
+    let enough = Limits { max_kept_bytes: values * (1 + VALUE_SLOT), ..Limits::default() };
+    assert_eq!(crate::read(&file, &enough).unwrap().records.len(), 8);
+}
+
+/// A property table that lists a property twice is refused: each record could otherwise hold the
+/// same name as often as the table repeats it.
+#[test]
+fn a_property_listed_twice_is_refused() {
+    let name = PropDef { tag: (u32::from(tag::DISPLAY_NAME) << 16) | 0x001F, primary_key: false, anr: true };
+    let entry = Record { values: vec![(name.tag, Value::Text("Ada".into()))] };
+    let once = details(&[], &[name], &Record::default(), std::slice::from_ref(&entry));
+    assert_eq!(read_details(&once, &Limits::default()).unwrap().records.len(), 1);
+    let twice = details(&[], &[name, name], &Record::default(), &[]);
+    assert_eq!(read_details(&twice, &Limits::default()), Err(Error::Corrupt("a property listed twice")));
+    let in_the_header = details(&[name, name], &[name], &Record::default(), &[]);
+    assert_eq!(read_details(&in_the_header, &Limits::default()), Err(Error::Corrupt("a property listed twice")));
 }
 
 /// The output grows as blocks come, and never past what the file unpacks to: no doubling of a

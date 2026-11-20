@@ -75,7 +75,8 @@ pub struct Limits {
     /// multi-valued property's values counts, and one with none counts one.
     pub max_values: usize,
     /// The most bytes of text and binary data kept of a whole file, the header's and the
-    /// entries' together: a file of few values can still hold large ones.
+    /// entries' together, with [`VALUE_SLOT`](crate::VALUE_SLOT) more for each value: a file of
+    /// few values can still hold large ones, and one of many tiny values still costs memory.
     pub max_kept_bytes: usize,
 }
 

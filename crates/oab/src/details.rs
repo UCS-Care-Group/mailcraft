@@ -220,10 +220,21 @@ fn prop_table(meta: &[u8], at: usize, limits: &Limits) -> Result<(Vec<PropDef>, 
             | ptype::MULTIPLE_BINARY => {}
             _ => return Err(Error::Corrupt("a property type an OAB file hasn't")),
         }
+        // A property is listed once: a table that repeats one (a name a thousand times over)
+        // would have each record hold it as often.
+        if props.iter().any(|p: &PropDef| p.tag == tag) {
+            return Err(Error::Corrupt("a property listed twice"));
+        }
         props.push(PropDef { tag, primary_key: flags & 2 != 0, anr: flags & 1 != 0 });
     }
     Ok((props, from.saturating_add(bytes.len())))
 }
+
+/// What one value kept costs beside its own bytes, counted against [`Limits::max_kept_bytes`]:
+/// its place in a list and the allocation of its own, about as much as a `String` or a `Vec`
+/// costs on the heap and in the list holding it. So a file of many tiny values (empty strings,
+/// one byte each) is held to the cap by what they take in memory, not by their few bytes.
+pub const VALUE_SLOT: usize = 48;
 
 /// What has been kept of a file so far, against [`Limits::max_values`] and
 /// [`Limits::max_kept_bytes`].
@@ -254,13 +265,13 @@ fn record(rest: &[u8], at: &mut usize, schema: &[PropDef], limits: &Limits, keep
         if keep(prop.tag) {
             // Each of a multi-valued property's values counts, so that many can't pile up under
             // one count, and a property with none counts one, as every property kept does. Its
-            // bytes count too, before it is kept: what is read of one record and not kept is let go
-            // of with it (at most `max_record`).
+            // bytes count too, with [`VALUE_SLOT`] for each value, before it is kept: what is read
+            // of one record and not kept is let go of with it (at most `max_record`).
             kept.values = kept.values.saturating_add(value.count().max(1));
             if kept.values > limits.max_values {
                 return Err(Error::Cap(Cap::Values));
             }
-            kept.bytes = kept.bytes.saturating_add(value.bytes());
+            kept.bytes = kept.bytes.saturating_add(value.bytes()).saturating_add(VALUE_SLOT.saturating_mul(value.count().max(1)));
             if kept.bytes > limits.max_kept_bytes {
                 return Err(Error::Cap(Cap::KeptBytes));
             }
