@@ -178,7 +178,7 @@ msgid "(no title)"
 msgstr "(უსათაურო)"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "(none)"
 msgstr "(არცერთი)"
@@ -664,6 +664,12 @@ msgstr ""
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "ვებმისამართი, ელფოსტის მისამართი, ტელეფონის ნომერი (tel:) ან სხვა მისამართი, მაგალითად ms-settings:network-vpn. თუ არაფერია მონიშნული, მისამართი ისე ჩაისმება, როგორც არის."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "ACCOUNTS ON THIS COMPUTER"
+msgstr "ანგარიშები ამ კომპიუტერზე"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -1320,6 +1326,12 @@ msgstr "საერთო საფოსტო ყუთებიდან გ
 #, fuzzy
 msgid "Allowed"
 msgstr "ნებადართულია"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Already added"
+msgstr "უკვე დამატებულია"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -2466,6 +2478,12 @@ msgid "Bring in"
 msgstr "შემოტანა"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Bring mail from your GNOME accounts into MailCraft."
+msgstr "შეიტანეთ ფოსტა თქვენი GNOME ანგარიშებიდან MailCraft-ში."
+
+#. interface
 #: crates/ui-egui/src/recent_attachments.rs
 #, fuzzy
 msgid "Browse…"
@@ -2676,7 +2694,7 @@ msgid "Can't sign"
 msgstr "ხელმოწერა შეუძლებელია"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/gnome_accounts.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "გაუქმება"
@@ -3227,6 +3245,12 @@ msgid "Choose a folder"
 msgstr "აირჩიეთ საქაღალდე"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Choose an account first."
+msgstr "ჯერ აირჩიეთ ანგარიში."
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Choose default signatures"
@@ -3255,6 +3279,12 @@ msgstr "აირჩიეთ, გაიგზავნოს თუ არა �
 #, fuzzy
 msgid "Choose who this is sent from"
 msgstr "აირჩიეთ, ვისგან გაიგზავნოს"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Choose your account"
+msgstr "აირჩიეთ თქვენი ანგარიში"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3761,10 +3791,28 @@ msgid "Copy to Folder"
 msgstr "საქაღალდეში კოპირება"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Could not link this account."
+msgstr "ამ ანგარიშის მიბმა ვერ მოხერხდა."
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Could not open Google sign-in"
 msgstr "Google-ით შესვლის გახსნა ვერ მოხერხდა"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Could not read GNOME accounts."
+msgstr "GNOME ანგარიშების წაკითხვა ვერ მოხერხდა."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Could not read GNOME accounts. Check access to GNOME Online Accounts and try again."
+msgstr "GNOME ანგარიშების წაკითხვა ვერ მოხერხდა. შეამოწმეთ წვდომა GNOME ონლაინ ანგარიშებზე და სცადეთ ხელახლა."
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -6144,6 +6192,60 @@ msgstr "სრული დეტალები: ადგილიც და �
 msgid "Full messages: {done} of {total}"
 msgstr "სრული წერილები: {done} / {total}"
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try Send/Receive again."
+msgstr "GNOME ონლაინ ანგარიშები მიუწვდომელია. გახსენით GNOME ონლაინ ანგარიშები და სცადეთ ხელახლა გაგზავნა/მიღება."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try again."
+msgstr "GNOME ონლაინ ანგარიშები მიუწვდომელია. გახსენით GNOME ონლაინ ანგარიშები და სცადეთ ხელახლა."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME Online Accounts is unavailable. You can still use Add Account."
+msgstr "GNOME ონლაინ ანგარიშები მიუწვდომელია. თქვენ კვლავ შეგიძლიათ გამოიყენოთ ანგარიშის დამატება."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME account request cancelled."
+msgstr "GNOME ანგარიშის მოთხოვნა გაუქმდა."
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "GNOME requires SMTP authentication, but this server does not offer a supported sign-in."
+msgstr "GNOME მოითხოვს SMTP ავთენტიფიკაციას, მაგრამ ეს სერვერი არ გთავაზობთ მხარდაჭერილ შესვლას."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME returned an invalid mail credential."
+msgstr "GNOME-მა დააბრუნა ფოსტის არასწორი სერთიფიკატი."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME returned an invalid outgoing credential."
+msgstr "GNOME-მა არასწორი გამავალი ფოსტის ავტორიზაციის მონაცემები დააბრუნა."
+
+#. interface, why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME returned too many accounts. Use Add Account instead."
+msgstr "GNOME-მა დააბრუნა ძალიან ბევრი ანგარიში. ამის ნაცვლად გამოიყენეთ ანგარიშის დამატება."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME sign-in is unavailable."
+msgstr "GNOME-ში შესვლა მიუწვდომელია."
+
 #. interface, name, ribbon location
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -6794,6 +6896,12 @@ msgstr "როგორ მეორდება, ამას მისი ო�
 msgid "How many messages each folder holds and the space they take"
 msgstr "რამდენ წერილს შეიცავს თითოეული საქაღალდე და რამდენ ადგილს იკავებს"
 
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "How would you like to add it?"
+msgstr "როგორ გსურთ მისი დამატება?"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -6967,6 +7075,12 @@ msgstr "საჯარო გასაღების იმპორტი…"
 #, fuzzy
 msgid "Import a certificate (.p12)…"
 msgstr "სერტიფიკატის იმპორტი (.p12)…"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Import accounts from GNOME…"
+msgstr "ანგარიშების იმპორტი GNOME-დან…"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -7800,6 +7914,12 @@ msgid "Keep your To Do tasks in step?"
 msgstr "გსურთ თქვენი To Do დავალებების სინქრონიზაცია?"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Keep your existing sign-in. GNOME manages the account connection."
+msgstr "შეინახეთ არსებული შესვლა. GNOME მართავს ანგარიშის კავშირს."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Keep {address}"
@@ -8057,6 +8177,18 @@ msgstr ""
 #, fuzzy
 msgid "Link"
 msgstr "ბმული"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Link an existing GNOME mail account or set it up separately"
+msgstr "დააკავშირეთ არსებული GNOME ფოსტის ანგარიში ან დააყენეთ იგი ცალკე"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Link with GNOME"
+msgstr "დაუკავშირდით GNOME-ს"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8320,6 +8452,12 @@ msgstr "„არასასურველ ფოსტაში“ მოხ�
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "ამ საერთო საფოსტო ყუთის „გასაგზავნებში“ არსებული ფოსტა ელოდება: საერთო საფოსტო ყუთებიდან გაგზავნას თქვენი ნებართვა სჭირდება. გამოიყენეთ გაგზავნა/მიღება."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Mail is disabled in GNOME Online Accounts."
+msgstr "ფოსტა გამორთულია GNOME ონლაინ ანგარიშებში."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -8753,6 +8891,30 @@ msgstr "წესების მართვა…"
 #, fuzzy
 msgid "Manage Task"
 msgstr "დავალების მართვა"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Managed by GNOME"
+msgstr "მართავს GNOME"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
+msgstr "მართავს GNOME ონლაინ ანგარიშები · IMAP და SMTP"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
+msgstr "მართავს GNOME ონლაინ ანგარიშები · Microsoft Graph ფოსტა"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Managed by MailCraft"
+msgstr "მართავს MailCraft"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -9829,7 +9991,7 @@ msgid "New message"
 msgstr "ახალი წერილი"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "New messages"
 msgstr "ახალი წერილები"
@@ -10183,6 +10345,12 @@ msgstr "ინფორმაცია არ არის"
 #, fuzzy
 msgid "No key imported here has that fingerprint"
 msgstr "აქ იმპორტირებულ არცერთ გასაღებს არ აქვს ეს ანაბეჭდი"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "No mail accounts enabled in GNOME were found."
+msgstr "GNOME-ში ჩართული ფოსტის ანგარიშები ვერ მოიძებნა."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -10614,6 +10782,12 @@ msgid "Not saved"
 msgstr "არ არის შენახული"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Not supported yet"
+msgstr "ჯერ არ არის მხარდაჭერილი"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Not unsubscribed."
@@ -11026,6 +11200,12 @@ msgstr "ტელეფონზე ჯერჯერობით მხოლ�
 #, fuzzy
 msgid "Only a meeting you organize has Find a Time"
 msgstr "„დროის ძებნა“ მხოლოდ თქვენ მიერ ორგანიზებულ შეხვედრას აქვს"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Only accounts you choose are added."
+msgstr "ემატება მხოლოდ თქვენს მიერ არჩეული ანგარიშები."
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
@@ -12354,6 +12534,12 @@ msgid "Reading Pane"
 msgstr "კითხვის პანელი"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Reading accounts from GNOME…"
+msgstr "ანგარიშების კითხვა GNOME-დან…"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Reading pane at the bottom"
 msgstr ""
@@ -12397,6 +12583,12 @@ msgstr "გაზიარებულის წაკითხვა"
 #, fuzzy
 msgid "Reading your automatic replies from the server…"
 msgstr "თქვენი ავტომატური პასუხების წაკითხვა სერვერიდან…"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Ready to link"
+msgstr "მზადაა ბმული"
 
 #. name
 #: crates/ui-egui/src/credits.rs
@@ -12883,6 +13075,24 @@ msgstr "ხელმოწერის სახელის შეცვლა"
 msgid "Renewing the sign-in…"
 msgstr "შესვლის განახლება…"
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Repair this account's outgoing sign-in in GNOME Online Accounts."
+msgstr "შეაკეთეთ ამ ანგარიშის გამავალი ფოსტის ავტორიზაციის მონაცემები GNOME Online Accounts-ში."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Repair this account's sign-in in GNOME Online Accounts."
+msgstr "შეაკეთეთ ამ ანგარიშის შესვლა GNOME ონლაინ ანგარიშებში."
+
+#. interface, why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
+msgstr "შეაკეთეთ ამ ანგარიშის შესვლის ან ფოსტის ნებართვები GNOME Online Accounts-ში, შემდეგ ხელახლა სცადეთ გაგზავნა/მიღება."
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -12920,7 +13130,7 @@ msgid "Replace with"
 msgstr "ჩანაცვლება ამით"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Replies and forwards"
 msgstr "პასუხები და გადაგზავნები"
@@ -13044,6 +13254,12 @@ msgstr ""
 #, fuzzy
 msgid "Reset View"
 msgstr "ხედის ჩამოყრა"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Resolve this account through GNOME Online Accounts before connecting."
+msgstr "დაკავშირებამდე მიიღეთ ამ ანგარიშის მონაცემები GNOME Online Accounts-ის მეშვეობით."
 
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -14422,6 +14638,12 @@ msgstr "გაიგზავნა:"
 msgid "Sep"
 msgstr "სექ"
 
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Separate setup"
+msgstr "ცალკე დაყენება"
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -14469,6 +14691,12 @@ msgstr "მნიშვნელობის დაყენება"
 #, fuzzy
 msgid "Set up manually"
 msgstr "ხელით დაყენება"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Set up separately"
+msgstr "ცალკე დაყენება"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14966,6 +15194,12 @@ msgid "Sign in again first"
 msgstr "ჯერ ხელახლა შედით"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Sign in again to create a separate account in MailCraft."
+msgstr "ხელახლა შედით MailCraft-ში ცალკე ანგარიშის შესაქმნელად."
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Sign in again, asking for mail alone"
@@ -15098,7 +15332,7 @@ msgid "Signature file:"
 msgstr "ხელმოწერის ფაილი:"
 
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Signatures"
 msgstr "ხელმოწერები"
@@ -16225,6 +16459,24 @@ msgstr "ციფრულ ხელმოწერას ვადა გაუ
 msgid "The Entire Series"
 msgstr "მთელი სერია"
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The GNOME account changed. Try again."
+msgstr "GNOME ანგარიში შეიცვალა. სცადეთ ხელახლა."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The GNOME account connection changed. Remove it from MailCraft and link it again to keep mail from different servers separate."
+msgstr "GNOME ანგარიშის კავშირი შეიცვალა. წაშალეთ ის MailCraft-დან და ისევ დააკავშირეთ, რომ სხვადასხვა სერვერებიდან წერილები ცალკე შეინახოთ."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The GNOME account is unavailable."
+msgstr "GNOME ანგარიში მიუწვდომელია."
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -16266,6 +16518,12 @@ msgstr "ანგარიშში ხელახლა უნდა შეხ
 #, fuzzy
 msgid "The account is gone"
 msgstr "ანგარიში აღარ არსებობს"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The account needs attention. Repair its sign-in in GNOME Online Accounts and try again."
+msgstr "ანგარიშს ყურადღება სჭირდება. შეაკეთეთ მისი შესვლა GNOME ონლაინ ანგარიშებში და სცადეთ ხელახლა."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -16874,6 +17132,12 @@ msgstr "გასაღები ამ კომპიუტერიდან 
 #, fuzzy
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "ბმული გაცვლის ბუფერშია: გაუგზავნეთ თქვენი ორგანიზაციის ადმინისტრატორს"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The linked GNOME account is no longer available."
+msgstr "დაკავშირებული GNOME ანგარიში აღარ არის ხელმისაწვდომი."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -17924,11 +18188,41 @@ msgstr "ისინი შეინახება თქვენ მიერ
 msgid "They share {what}."
 msgstr "საერთო აქვთ: {what}."
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME account does not expose Microsoft Graph mail access."
+msgstr "ეს GNOME ანგარიში არ უზრუნველყოფს Microsoft Graph ფოსტაზე წვდომას."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
+msgstr "GNOME-ის ეს ანგარიში აკლია, გამორთულია ან აღარ ავლენს მხარდაჭერილ ფოსტაზე წვდომას. შეამოწმეთ GNOME ონლაინ ანგარიშები."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
+msgstr "ეს GNOME ანგარიში იყენებს Microsoft Graph-ს და არა IMAP-ს ან SMTP-ს."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME connection supports only the selected account's mail."
+msgstr "ეს GNOME კავშირი მხარს უჭერს მხოლოდ შერჩეული ანგარიშის წერილს."
+
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "This Week"
 msgstr "ეს კვირა"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "This account cannot be linked through GNOME."
+msgstr "ამ ანგარიშის დაკავშირება შეუძლებელია GNOME-ის მეშვეობით."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17963,8 +18257,26 @@ msgstr "ამ ანგარიშს Microsoft-ით შესვლა ა�
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
+msgid "This account is managed by GNOME Online Accounts. Change its connection or repair its sign-in there. Removing it from MailCraft leaves it in GNOME."
+msgstr "ამ ანგარიშს მართავს GNOME ონლაინ ანგარიშები. შეცვალეთ მისი კავშირი ან შეაკეთეთ მისი შესვლა. MailCraft-დან მისი ამოღება ტოვებს მას GNOME-ში."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "This account is managed by GNOME Online Accounts. Use a GOA-capable MailCraft desktop on Linux."
+msgstr "ამ ანგარიშს მართავს GNOME ონლაინ ანგარიშები. გამოიყენეთ GOA-ის მქონე MailCraft დესკტოპი Linux-ზე."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "This account is no longer in the mailbox."
 msgstr "ეს ანგარიში საფოსტო ყუთში აღარ არის."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This account is not linked to GNOME."
+msgstr "ეს ანგარიში არ არის დაკავშირებული GNOME-თან."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -17989,6 +18301,12 @@ msgstr "ამ ანგარიშს თავისი To Do-ს დავ�
 #, fuzzy
 msgid "This account may only read the shared mailbox's calendar \"{name}\": the mailbox's owner hasn't given it edit rights (or they haven't been read yet)."
 msgstr "ამ ანგარიშს საერთო საფოსტო ყუთის კალენდრის „{name}“ მხოლოდ წაკითხვა შეუძლია: ყუთის მფლობელს მისთვის რედაქტირების უფლება არ მიუცია (ან ისინი ჯერ არ წაკითხულა)."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "This account needs separate setup in this version of MailCraft."
+msgstr "ეს ანგარიში საჭიროებს ცალკე დაყენებას MailCraft-ის ამ ვერსიაში."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -21500,6 +21818,12 @@ msgid "larger than {mb} MB: bring it in with File › Import"
 msgstr "{mb} მბ-ზე დიდია: შემოიტანეთ მენიუდან ფაილი › იმპორტი"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "link a GNOME account through Import accounts from GNOME"
+msgstr "დააკავშირეთ GNOME ანგარიში GNOME-დან ანგარიშების იმპორტის მეშვეობით"
+
+#. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
 msgid "message {id} keeps no original"
@@ -22096,6 +22420,12 @@ msgstr "საერთო საფოსტო ყუთები იხსნ
 #, fuzzy
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
 msgstr "საერთო საფოსტო ყუთები იხსნება ანგარიშით, რომელიც Microsoft Graph-ით სინქრონიზდება"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "shared mailboxes require a separate Microsoft sign-in in MailCraft"
+msgstr "საზიარო საფოსტო ყუთები მოითხოვს ცალკე Microsoft-ის შესვლას MailCraft-ში"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -23307,6 +23637,12 @@ msgid "this account has no {folder} folder"
 msgstr "ამ ანგარიშს საქაღალდე {folder} არ აქვს"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "this account is managed by GNOME Online Accounts; remove it and link it again to change its connection"
+msgstr "ამ ანგარიშს მართავს GNOME ონლაინ ანგარიშები; წაშალეთ და ხელახლა დააკავშირეთ კავშირის შესაცვლელად"
+
+#. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
 msgid "this account may not save it"
@@ -23329,6 +23665,12 @@ msgstr "ამ ანგარიშის კატეგორიები ს
 #, fuzzy
 msgid "this account's categories aren't kept in step with its server"
 msgstr "ამ ანგარიშის კატეგორიები თავის სერვერთან არ სინქრონიზდება"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "this account's sign-in is managed by GNOME Online Accounts"
+msgstr "ამ ანგარიშის შესვლას მართავს GNOME ონლაინ ანგარიშები"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs

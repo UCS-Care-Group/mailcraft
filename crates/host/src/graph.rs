@@ -14,7 +14,7 @@ mod run;
 #[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
 pub use run::{Renew, RenewSend, graph_in, graph_in_with, graph_sending_with, graph_with};
 #[cfg(not(target_arch = "wasm32"))]
-pub use run::{graph, local_zone, open_by_address};
+pub use run::{graph, local_zone, managed_mail, open_by_address};
 
 use mailcraft_model::Id;
 

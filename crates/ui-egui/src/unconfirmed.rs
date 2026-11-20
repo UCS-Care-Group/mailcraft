@@ -86,7 +86,7 @@ pub fn fingerprint(mailbox: &Mailbox) -> String {
                 a.kind,
                 server(&a.incoming),
                 server(&a.outgoing),
-                jmap(a) + &ews(a)
+                jmap(a) + &ews(a) + &a.goa.as_ref().map(|g| format!("\u{1}goa:{}:{}", g.id, g.provider)).unwrap_or_default()
             )
         })
         .collect();

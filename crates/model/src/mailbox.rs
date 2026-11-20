@@ -458,6 +458,13 @@ impl AccountKind {
     }
 }
 
+/// A user-selected GNOME Online Accounts reference. No credentials or client registration.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoaAccount {
+    pub id: String,
+    pub provider: String,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Account {
@@ -492,6 +499,9 @@ pub struct Account {
     /// password. No token is ever stored here.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oauth: Option<OAuth>,
+    /// Configuration and authentication remain with GOA. Used only by a GOA-capable host.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub goa: Option<GoaAccount>,
     /// A mailbox written while the owner of an account could choose how its Favorites in
     /// Outlook were read (`favoritesSource`, 0.2.0 to 0.2.1) and had chosen anything but
     /// Microsoft Graph: Exchange Web Services, which is gone, or not now. That choice is no
@@ -1778,6 +1788,9 @@ impl Mailbox {
         let o = self.account(owner).ok_or(not_found("account", owner))?;
         if o.is_shared() {
             return Err(invalid("a shared mailbox can't open another one: name the account it is opened through"));
+        }
+        if o.goa.is_some() {
+            return Err(invalid("shared mailboxes require a separate Microsoft sign-in in MailCraft"));
         }
         if o.kind != AccountKind::Microsoft {
             return Err(invalid("shared mailboxes open under an account that is kept in step through Microsoft Graph"));
@@ -3251,7 +3264,7 @@ impl Mailbox {
     /// Whether `account` keeps its rules on its server (#566): a Microsoft account kept in step
     /// through Graph, not a shared mailbox (whose mail the rules leave alone).
     pub fn keeps_rules(&self, account: Id) -> bool {
-        self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
+        self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && a.goa.is_none() && !a.is_shared())
     }
 
     /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one

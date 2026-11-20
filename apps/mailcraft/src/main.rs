@@ -64,6 +64,9 @@ mod file_dialogs;
 mod file_launcher;
 #[cfg(windows)]
 mod recent_attachments;
+
+#[cfg(target_os = "linux")]
+mod gnome_accounts;
 // OpenPGP keys kept in GnuPG, through gpg-agent (#30): signing and decrypting (parts 5 and 6) use it.
 #[cfg_attr(not(test), expect(dead_code, reason = "#30 part 5 signs through it"))]
 mod gpg_agent;
@@ -1121,6 +1124,8 @@ fn services(
     let autodiscover_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
+    #[cfg(target_os = "linux")]
+    let goa_ctx = ctx.clone();
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
@@ -1141,6 +1146,11 @@ fn services(
     };
     Services {
         platform_calls,
+
+        #[cfg(target_os = "linux")]
+        gnome_service_available: Some(gnome_accounts::watch_availability(goa_ctx.clone())),
+        #[cfg(target_os = "linux")]
+        gnome_accounts: Some(Box::new(move || background(&goa_ctx, "gnome account discovery", gnome_accounts::discover))),
         file_dialog: Some(file_dialog),
         #[cfg(any(target_os = "windows", target_os = "macos"))]
         spelling: Some(Box::new(spelling::NativeChecker::default())),
@@ -1154,13 +1164,19 @@ fn services(
             let (wake, cancel) = (sync_ctx.clone(), cancel.clone());
             cancel.store(false, Ordering::Relaxed);
             let spawned = std::thread::Builder::new().name("send/receive".into()).spawn(move || {
-                mailcraft_net::sync_with(&request, &cancel, &mut |piece| {
+                let mut emit = |piece| {
                     // Nobody is listening any more (the window closed): stop.
                     if tx.send(piece).is_err() {
                         cancel.store(true, Ordering::Relaxed);
                     }
                     wake.request_repaint();
-                });
+                };
+                #[cfg(target_os = "linux")]
+                if request.account.goa.is_some() {
+                    gnome_accounts::sync(&request, &cancel, &mut emit);
+                    return;
+                }
+                mailcraft_net::sync_with(&request, &cancel, &mut emit);
             });
             // A dropped sender reads as "stopped unexpectedly" in the app.
             if let Err(e) = spawned {
@@ -1201,13 +1217,27 @@ fn services(
         })),
         graph: Some(Box::new({
             let host = host.clone();
-            move |request: GraphRequest| host_job(host.as_ref(), &graph_ctx, "microsoft graph", move || mailcraft_host::graph::graph(request))
+            move |request: GraphRequest| {
+                host_job(host.as_ref(), &graph_ctx, "microsoft graph", move || {
+                    #[cfg(target_os = "linux")]
+                    if request.account.goa.is_some() {
+                        return gnome_accounts::graph(request);
+                    }
+                    mailcraft_host::graph::graph(request)
+                })
+            }
         })),
         // Messages of a Microsoft account fetched whole, a few at a time (R3.2).
         graph_fetch: Some(Box::new({
             let host = host.clone();
             move |job: mailcraft_ui_egui::graph_fetch::GraphFetchJob| {
-                host_job(host.as_ref(), &fetch_ctx, "message download", move || mailcraft_host::fetch::run(job))
+                host_job(host.as_ref(), &fetch_ctx, "message download", move || {
+                    #[cfg(target_os = "linux")]
+                    if job.goa.is_some() {
+                        return gnome_accounts::fetch(job);
+                    }
+                    mailcraft_host::fetch::run(job)
+                })
             }
         })),
         // An Exchange server account (#252): read through Exchange Web Services, and its messages fetched whole.
@@ -1218,7 +1248,13 @@ fn services(
         ews_resolve: Some(Box::new(move |job| ews_runner::run_resolve(job, &ews_resolve_ctx))),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
         graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
-            background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))
+            background(&search_ctx, "server search", move || {
+                #[cfg(target_os = "linux")]
+                if job.goa.is_some() {
+                    return gnome_accounts::search(job);
+                }
+                mailcraft_net::graph::search_messages(&job.access, &job.request)
+            })
         })),
         // The tasks of a Microsoft account, kept in step with Microsoft To Do (#248).
         graph_tasks: Some(Box::new({

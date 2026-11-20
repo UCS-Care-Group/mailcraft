@@ -135,6 +135,7 @@ mod gmail_move_tests;
 mod gmail_tabs;
 #[cfg(test)]
 mod gmail_tabs_tests;
+pub mod gnome_accounts;
 #[cfg(test)]
 #[path = "google_credential_security_tests.rs"]
 mod google_credential_security_tests;
@@ -334,6 +335,12 @@ pub struct Services {
     pub spelling: Option<spelling::Host>,
     /// The Windows host reads the local Recent Items folder on a worker, only when asked by the owner.
     pub recent_attachments: Option<recent_attachments::Loader>,
+
+    /// Linux: discover public GOA account metadata on the explicit import action, off the UI
+    /// thread. Linked accounts resolve their credentials separately during Send/Receive.
+    pub gnome_accounts: Option<gnome_accounts::Discover>,
+    /// Set by the Linux host after its passive session bus check finishes.
+    pub gnome_service_available: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     /// Desktop: the icon and application id of the main window, which every other window of the
     /// system (reminders, messages) takes too.
     pub window_identity: Option<windows::WindowIdentity>,
@@ -659,6 +666,12 @@ pub struct Services {
 }
 
 impl Services {
+    fn gnome_discovery(&self) -> Option<&gnome_accounts::Discover> {
+        self.gnome_accounts
+            .as_ref()
+            .filter(|_| self.gnome_service_available.as_ref().is_none_or(|probe| probe.load(std::sync::atomic::Ordering::Relaxed)))
+    }
+
     /// Whether this build reaches mail servers at all: with mail connections, over JMAP, or through Exchange Web Services.
     pub fn can_sync(&self) -> bool {
         self.sync.is_some() || self.jmap.is_some() || self.ews.is_some()
@@ -1117,7 +1130,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"gnomeAccounts"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
@@ -3678,7 +3691,9 @@ impl MailApp {
         // A run that only tells the server what changed here, when that is all it was started for.
         request.push_only = self.session.driver.round.push_only_next.remove(&account) && quiet && request.outbox.is_empty();
         let address = request.account.email.clone();
-        if let Some(oauth) = request.account.oauth.clone() {
+        if request.account.goa.is_some() {
+            // The host resolves credentials from GOA on its worker; no local login or fallback.
+        } else if let Some(oauth) = request.account.oauth.clone() {
             // Signed in on the provider's page: a token that is still good goes along; without
             // one the host renews it or the owner signs in, and this runs again after.
             let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
@@ -3812,9 +3827,10 @@ impl MailApp {
         // The mail comes a piece at a time; a busy window holds the run back rather than letting
         // pieces pile up.
         let (pieces, taken) = std::sync::mpsc::sync_channel(8);
+        let managed = owner.goa.is_some();
         let ask = GraphRequest {
             account: owner,
-            oauth: self.effective_oauth(oauth),
+            oauth: if managed { oauth } else { self.effective_oauth(oauth) },
             refresh,
             // (Renewed for the job: a token kept from another job may not cover the mail.)
             access: String::new(),
@@ -3960,6 +3976,9 @@ impl MailApp {
         }
         let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
         let Some(a) = self.session.mailbox.account(account) else { return false };
+        if a.goa.is_some() {
+            return self.services.gnome_discovery().is_some();
+        }
         // (A JMAP account's secret is in memory only, never with the operating system; and one its
         // server turned down waits for the owner.)
         if a.kind == mailcraft_model::AccountKind::Jmap {
@@ -4230,6 +4249,7 @@ impl MailApp {
             self.graph_tokens.remove(&account);
         }
         if let Some(tokens) = result.tokens
+            && !self.session.mailbox.account(account).is_some_and(|a| a.goa.is_some())
             && !self.signed_in_as_other(account, &tokens)
         {
             self.note_directory(account, &tokens.tenant);
@@ -4295,7 +4315,7 @@ impl MailApp {
             // No token for the mail: Microsoft wants the owner's say-so for it, or the sign-in has
             // run out. There is no IMAP leg to ask instead, so the owner is asked here (#124).
             if result.mail.is_none() && (result.consent_needed || result.sign_in_refused) {
-                self.graph_mail_needs_sign_in(account, quiet, after_sign_in, result.consent_needed);
+                self.graph_mail_needs_sign_in(account, quiet, after_sign_in, result.consent_needed, errors);
                 return;
             }
             let status = self.session.sync_status.clone();
@@ -4349,8 +4369,17 @@ impl MailApp {
     /// A Graph run of an account kept in step through Graph got no token for the mail: the owner
     /// signs in with Microsoft for it when they asked for the run (the run goes on once they
     /// have), and is told how when they didn't.
-    fn graph_mail_needs_sign_in(&mut self, account: Id, quiet: bool, after_sign_in: bool, consent: bool) {
+    fn graph_mail_needs_sign_in(&mut self, account: Id, quiet: bool, after_sign_in: bool, consent: bool, mut errors: Vec<String>) {
         self.session.sync_status.clear();
+        if self.session.mailbox.account(account).is_some_and(|a| a.goa.is_some()) {
+            let repair = tl!("Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again.");
+            if errors.is_empty() {
+                errors.push(repair.to_owned());
+            }
+            self.note_sync_problems(account, &errors, true);
+            self.status(repair);
+            return;
+        }
         let Some(owner) = self.session.mailbox.account(account).cloned() else { return };
         let why = if consent { "the sign-in needs permission for the mail" } else { "the sign-in was refused" };
         // Just signed in, and still refused: another trip to Microsoft's page wouldn't change it.

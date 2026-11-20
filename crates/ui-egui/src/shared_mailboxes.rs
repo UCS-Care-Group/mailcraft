@@ -40,7 +40,7 @@ use crate::{GraphRequest, GraphResult, MailApp, Tokens};
 /// step through Graph, of a work or school (not a personal Microsoft account, which has none),
 /// and no shared mailbox itself.
 pub(crate) fn can_open_shared(a: &Account) -> bool {
-    a.kind == AccountKind::Microsoft && !a.is_shared() && a.oauth.as_ref().is_none_or(|oauth| !oauth.is_personal(&a.email))
+    a.kind == AccountKind::Microsoft && a.goa.is_none() && !a.is_shared() && a.oauth.as_ref().is_none_or(|oauth| !oauth.is_personal(&a.email))
 }
 
 /// What the owner is told when Microsoft won't open the shared mailbox at `address` (S1).

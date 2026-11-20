@@ -213,6 +213,12 @@ fn gather(root: &Path) -> Result<Texts, String> {
             hosts_say(toks, file, &consts, &mut texts);
         }
     }
+    // The optional desktop GOA host reports repair instructions in the interface language.
+    for (file, toks) in sources(root, "apps/mailcraft/src")? {
+        if file.ends_with("/gnome_accounts.rs") {
+            hosts_say(&toks, &file, &BTreeMap::new(), &mut texts);
+        }
+    }
     // What the phone binding says to its owner (`s.interface_language.t("…")`).
     for (file, toks) in sources(root, "crates/mobile/src")? {
         engine_says(&toks, &file, &BTreeMap::new(), &BTreeMap::new(), &mut texts);

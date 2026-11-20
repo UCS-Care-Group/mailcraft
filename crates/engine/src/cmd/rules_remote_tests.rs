@@ -1219,3 +1219,41 @@ fn the_owner_says_whether_a_new_rule_is_kept_on_the_server_and_is_told_why_it_ca
     assert_eq!(super::rules::server_cannot_draft(&s, &json!({"account": 9_999})), None);
     assert_eq!(super::rules::server_cannot_draft(&s, &json!("junk")), None);
 }
+
+#[test]
+fn gnome_graph_uses_local_rules_and_direct_graph_retains_server_features() {
+    let (mut s, direct, _, _) = session();
+    let mut params = json!({"email": "linked@example.org", "kind": "microsoft", "goa": {"id": "linked", "provider": "ms_graph"}, "auth": "oauth2"});
+    assert!(s.run("account.add", &params).is_err());
+    params.as_object_mut().unwrap().remove("auth");
+    let linked = run(&mut s, "account.add", params)["id"].as_u64().unwrap();
+    for (account, keep) in [(linked, Keep::Here), (direct, Keep::Server)] {
+        let id = add(&mut s, account, "Reading", json!([{"type": "subjectContains", "value": "news"}]), json!([{"type": "markRead"}]));
+        assert_eq!(rule(&s, id).keep, keep);
+        let shared = s.run("account.addSharedMailbox", &json!({"account": account, "address": "shared@example.org"}));
+        assert_eq!(shared.is_ok(), account == direct);
+    }
+}
+
+#[test]
+fn account_edit_treats_null_goa_as_no_change() {
+    let (mut s, direct, _, _) = session();
+    let linked = run(
+        &mut s,
+        "account.add",
+        json!({
+            "email": "linked@example.org", "kind": "microsoft", "goa": {"id": "linked", "provider": "ms_graph"}
+        }),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    for id in [direct, linked] {
+        let before = s.mailbox.account(id).unwrap().clone();
+        run(&mut s, "account.edit", json!({"id": id, "goa": null, "displayName": "Mail owner"}));
+        let after = s.mailbox.account(id).unwrap();
+        assert_eq!(after.display_name, "Mail owner");
+        assert_eq!(after.oauth, before.oauth);
+        assert_eq!(after.goa, before.goa);
+        assert!(s.run("account.edit", &json!({"id": id, "goa": {"id": "other", "provider": "ms_graph"}})).is_err());
+    }
+}
