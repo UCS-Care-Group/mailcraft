@@ -317,6 +317,7 @@ const SAFE: &[&str] = &[
     "view.timeZone",
     "view.changeView",
     "view.density",
+    "view.shadeRows",
     "view.zoom",
     "view.zoomIn",
     "view.zoomOut",

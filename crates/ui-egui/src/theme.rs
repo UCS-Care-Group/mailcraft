@@ -232,7 +232,8 @@ pub struct Tokens {
     pub surface_sunken: Color32,
     /// The ring round a control that has the keyboard's focus in a box that has no stroke of its own.
     pub focus_ring: Color32,
-    /// The line under a row of the message list.
+    /// The line under a row of the message list: plainly seen on a bright screen (#1657), and in
+    /// High Contrast 3:1 on the list.
     pub rule: Color32,
     /// The groove a progress bar runs in.
     pub track: Color32,
@@ -346,7 +347,7 @@ impl Tokens {
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: c(0xE6, 0xE9, 0xEF),
+            rule: c(0xC6, 0xCD, 0xD8),
             border_faint: c(0xEC, 0xEF, 0xF4),
             track: c(0xD6, 0xDC, 0xE6),
             lane: window,
@@ -446,7 +447,7 @@ impl Tokens {
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: c(0x2E, 0x2E, 0x32),
+            rule: c(0x46, 0x46, 0x4D),
             border_faint: c(0x2A, 0x2A, 0x2D),
             track: c(0x3E, 0x3E, 0x43),
             lane: panel,
@@ -487,6 +488,12 @@ impl Tokens {
     /// The edge of a chip.
     pub fn data_edge(&self, rgb: Color32) -> Color32 {
         rgb.linear_multiply(0.8)
+    }
+
+    /// The faint band every other row of the message list wears with View › Shade Alternate Rows
+    /// (#1657): the list's own colour a little towards its text, a little more in High Contrast.
+    pub fn row_shade(&self) -> Color32 {
+        self.surface.lerp_to_gamma(self.text, if self.high_contrast { 0.07 } else { 0.04 })
     }
 
     /// The strength with which a mailbox colour tints an event block over `surface`.

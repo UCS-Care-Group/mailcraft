@@ -193,6 +193,15 @@ fn row_height(preview_lines: u8) -> f32 {
     }
 }
 
+/// How far down a row's two lines go when there is nothing to preview: half the room the preview
+/// lines would have had, so that the sender and the subject sit in the middle of the row.
+fn empty_preview_drop(preview_lines: u8) -> f32 {
+    match preview_lines.min(3) {
+        0 => 0.0,
+        n => (PREVIEW_FIRST + f32::from(n - 1) * PREVIEW_PITCH) / 2.0,
+    }
+}
+
 /// A row of the single-line list: the sender, the subject, the marks and the time on one line.
 const ONE_LINE_H: f32 = 32.0;
 
@@ -591,14 +600,21 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         }
         return;
     }
-    // Where each row starts: rows are the same height, group headings add theirs.
+    // Where each row starts: rows are the same height, group headings add theirs. With View ›
+    // Shade Alternate Rows, which of them wear the band: every other one, the first under each
+    // heading plain (#1657).
     let mut tops = Vec::with_capacity(rows.len());
+    let mut shaded = Vec::with_capacity(rows.len());
     let mut y = 0.0f32;
+    let mut nth = 0usize;
     for row in rows.iter() {
         if row.group.is_some() {
             y += GROUP_H;
+            nth = 0;
         }
         tops.push(y);
+        shaded.push(app.session.prefs.shade_rows && nth % 2 == 1);
+        nth = nth.wrapping_add(1);
         y += row_h;
     }
     let rows_end = y;
@@ -680,7 +696,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            message_row(app, ui, row, rect, &drawn, focus, swipe_scope);
+            let shade = shaded.get(i).copied().unwrap_or(false);
+            message_row(app, ui, row, rect, Look { drawn: &drawn, focus, shade }, swipe_scope);
         }
         if below > 0.0 {
             server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
@@ -884,7 +901,16 @@ fn drawn_selection(app: &mut MailApp, rows: &Arc<Vec<Row>>) -> Arc<Drawn> {
     drawn
 }
 
-fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>, scope: crate::swipe::Scope) {
+/// How a row of the list is drawn, besides what its message says: what is drawn selected, the
+/// row the focus is on, and whether it wears the band of a shaded row (#1657).
+#[derive(Clone, Copy)]
+struct Look<'a> {
+    drawn: &'a Drawn,
+    focus: Option<(Id, u16)>,
+    shade: bool,
+}
+
+fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, look: Look<'_>, scope: crate::swipe::Scope) {
     let over = ui.rect_contains_pointer(rect) && egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()).is_none();
     let swipe = crate::swipe::input(ui, scope, (row.id, row.copy), &row.members, over, rect.width(), (app.ui.swipe_left, app.ui.swipe_right));
     if let Some((action, members)) = swipe.completed
@@ -894,7 +920,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         return;
     }
     if swipe.offset.abs() < 0.1 {
-        return message_row_content(app, ui, row, rect, drawn, focus);
+        return message_row_content(app, ui, row, rect, look);
     }
     let t = Tokens::get(ui.ctx());
     let (background, ink) = if swipe.action == crate::swipe::Action::Delete {
@@ -923,11 +949,12 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     p.rect_filled(moved, 0.0, t.surface);
     ui.scope(|ui| {
         ui.set_clip_rect(rect.intersect(ui.clip_rect()));
-        message_row_content(app, ui, row, moved, drawn, focus);
+        message_row_content(app, ui, row, moved, look);
     });
 }
 
-fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>) {
+fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, look: Look<'_>) {
+    let Look { drawn, focus, shade } = look;
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };
@@ -948,7 +975,13 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, dr
     let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
     let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
     // With tighter spacing a row's lines move up by half of what it gave up (`view.density`).
-    let lift = tightening(app.session.prefs.tight_spacing, one) / 2.0;
+    let lines = if one { 0 } else { app.session.prefs.preview_lines.min(3) };
+    let said = (lines > 0).then(|| preview(ui, &m, usize::from(lines) * 200));
+    // A message with nothing to preview (one not downloaded yet) has its two lines in the middle
+    // of its row, not at the top with the preview's room left blank under them: that blank looked
+    // like the gap between messages and put the next sender with this subject (#1657).
+    let lift = tightening(app.session.prefs.tight_spacing, one) / 2.0
+        - if said.as_ref().is_some_and(|s| s.trim().is_empty()) { empty_preview_drop(lines) } else { 0.0 };
     let (line1, line2) = if one { (line1, line2) } else { (line1 - lift, line2 - lift) };
     // A conversation's row has an arrow between the read switch and the text (#503): a click opens
     // or closes it, as Right and Left do.
@@ -996,6 +1029,11 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, dr
     // accent edge (quieter while the list has no focus); a flag's tint is laid first, so it shows
     // through the selection rather than being replaced by it.
     let card = body.shrink2(vec2(4.0, 1.0));
+    // A shaded row's band is laid under everything else, from the list's edge to the row's end.
+    if shade {
+        p.rect_filled(Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - 1.0)), 0.0, t.row_shade());
+        app.hit.add("messageShade", row.id, body);
+    }
     let flag_tint = matches!(follow_up, FollowUp::Flagged | FollowUp::Overdue);
     if flag_tint {
         if selected {
@@ -1028,7 +1066,7 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, dr
         p.circle_stroke(dot, 3.5, Stroke::new(1.2, t.selection_edge_unfocused));
     }
     if !selected {
-        p.line_segment([pos2(body.min.x + 12.0, rect.max.y - 0.5), pos2(rect.max.x - 10.0, rect.max.y - 0.5)], Stroke::new(1.0, t.border_faint));
+        p.line_segment([pos2(body.min.x + 12.0, rect.max.y - 0.5), pos2(rect.max.x - 10.0, rect.max.y - 0.5)], Stroke::new(1.0, t.rule));
     }
     // Where mail of several accounts is listed together, a stripe of its account's colour down
     // the row's left edge (#893), left of the selection's card so that it shows on a selected row too.
@@ -1180,7 +1218,14 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, dr
         let w = paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), tl!("[Draft]"), regular(SENDER_TEXT), t.red);
         who_x += w + 5.0;
     }
-    let w = paint_clipped(p, pos2(who_x, line1), (who_end - who_x).max(0.0), &who, who_font, if overdue { t.overdue } else { t.text });
+    // An unread sender is in the accent's text colour as well as heavier, so that unread mail
+    // stands out from read mail down the list (#1657).
+    let who_color = match (overdue, unread) {
+        (true, _) => t.overdue,
+        (false, true) => t.accent_text,
+        (false, false) => t.text,
+    };
+    let w = paint_clipped(p, pos2(who_x, line1), (who_end - who_x).max(0.0), &who, who_font, who_color);
     app.hit.add("messageSender", row.id, Rect::from_min_max(pos2(left, line1 - 7.0), pos2(who_x + w, line1 + 7.0)));
 
     // The subject's line, with the time at its end.
@@ -1190,7 +1235,6 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, dr
     // The size; in a search of every mailbox the folder it is in; then category marks and the
     // size of a conversation: at the right of the preview's first line, under the time, before
     // the time when no preview is shown, or before the marks in a single line.
-    let lines = if one { 0 } else { app.session.prefs.preview_lines.min(3) };
     let preview_y = rect.min.y + PREVIEW_TOP + PREVIEW_PITCH / 2.0 + 0.5;
     let (mut sx, tail_y) = if one {
         (x, line1)
@@ -1255,8 +1299,9 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, dr
 
     // Then the preview: whole words, as many lines as asked for, and no mark where it stops.
     let preview_end = text_end.min(sx - 6.0);
-    if lines > 0 && preview_end - left > 4.0 {
-        let said = preview(ui, &m, usize::from(lines) * 200);
+    if let Some(said) = said.filter(|s| !s.trim().is_empty())
+        && preview_end - left > 4.0
+    {
         let format =
             egui::text::TextFormat { font_id: regular(LIST_TEXT), color: t.text_dim, line_height: Some(PREVIEW_PITCH), ..Default::default() };
         let mut job = egui::text::LayoutJob::default();
@@ -1423,6 +1468,8 @@ mod list_height_tests;
 mod open_conversation_tests;
 #[cfg(test)]
 mod overlay_scroll_tests;
+#[cfg(test)]
+mod readability_tests;
 #[cfg(test)]
 mod wheel_scroll_tests;
 
