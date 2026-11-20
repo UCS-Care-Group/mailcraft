@@ -62,6 +62,10 @@ pub struct Doc {
     /// Per block: `Some` when it goes on in the paragraph of the block before, which was cut for
     /// its length, with what was dropped at the cut. Empty when nothing was cut.
     pub cuts: Arc<[Option<Glue>]>,
+    /// The block from which the rest is the earlier messages it quotes under its own text
+    /// ([`mailcraft_html::history::start`], #1778): a message stacked with its conversation leaves
+    /// them out until the owner asks for them.
+    pub history: Option<usize>,
     /// The message's media lists (`@media` and `<style media>`): what its look can change with.
     pub lists: Arc<[String]>,
     /// It has some, so another pane width or the other theme can make another look of it; else
@@ -136,6 +140,7 @@ impl Doc {
             }
         }
         let (blocks, cuts) = in_pieces(blocks);
+        doc.history = mailcraft_html::history::start(&blocks);
         doc.blocks = blocks;
         doc.cuts = cuts.into();
         doc
@@ -243,6 +248,9 @@ struct Key {
     /// The message fonts egui had ([`super::fonts::generation`]): a font the message asked for
     /// came, or turned out not to be had.
     fonts: u64,
+    /// How many of its blocks are laid out: fewer than all when its quoted history is left out
+    /// ([`Doc::history`]).
+    upto: usize,
 }
 
 struct Entry {
@@ -455,14 +463,15 @@ pub fn doc_shown(ctx: &egui::Context, message: &Arc<Message>, place: Place, can_
 /// it runs. Pictures from the web are shown when `access` says the owner asked for them, as far
 /// as they have come.
 pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access) {
-    show_in(app, ui, message, place, access, false);
+    show_in(app, ui, message, place, access, false, false);
 }
 
 /// [`show`] for a body stacked with others of its conversation in one scrolling column
 /// (`stacked`): the pointer is sensed over the part of it that is in view, not over all the room
 /// in view as for a body that has the pane to itself, so that each body of the column, and the
-/// rows between them, have the pointer to themselves.
-pub fn show_in(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access, stacked: bool) {
+/// rows between them, have the pointer to themselves. `trim`: the earlier messages it quotes
+/// under its own text ([`Doc::history`]) are left out (#1778).
+pub fn show_in(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access, stacked: bool, trim: bool) {
     let ctx = ui.ctx().clone();
     let light = on_light_page(app, place);
     let t = if light { Tokens::light() } else { Tokens::get(&ctx) };
@@ -518,6 +527,10 @@ pub fn show_in(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Pl
             super::fonts::tick(&ctx);
             super::fonts::generation(&ctx)
         },
+        upto: match entry.doc.history {
+            Some(start) if trim => start.min(entry.doc.blocks.len()),
+            _ => entry.doc.blocks.len(),
+        },
     };
     if entry.key == Some(key) {
         entry.next = None;
@@ -554,7 +567,8 @@ pub fn show_in(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Pl
         None => &mut entry.laid,
     };
     if !making.done {
-        making.advance(&ctx, &entry.doc.blocks, Some(&entry.message), &mut pictures, FRAME_BUDGET);
+        let blocks = entry.doc.blocks.get(..key.upto).unwrap_or(&entry.doc.blocks);
+        making.advance(&ctx, blocks, Some(&entry.message), &mut pictures, FRAME_BUDGET);
         if !making.done {
             // The rest follows in the next frames.
             ctx.request_repaint();
@@ -661,6 +675,14 @@ pub fn current_look(ctx: &egui::Context, place: Place, message: mailcraft_model:
     let store = Store::of(ctx);
     let store = store.lock().unwrap();
     store.entries.iter().find(|e| e.place == place && e.message.id == message).map(|e| e.look.clone())
+}
+
+/// Whether the message shown at `place` quotes earlier messages under its own text
+/// ([`Doc::history`]), as its blocks were last made.
+pub fn has_history(ctx: &egui::Context, place: Place, message: mailcraft_model::Id) -> bool {
+    let store = Store::of(ctx);
+    let store = store.lock().unwrap_or_else(|e| e.into_inner());
+    store.entries.iter().any(|e| e.place == place && e.message.id == message && e.doc.history.is_some())
 }
 
 /// The blocks in use for a message shown at `place`, for tests.

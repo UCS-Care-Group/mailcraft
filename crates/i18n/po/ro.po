@@ -6745,6 +6745,11 @@ msgid "Hide password"
 msgstr "Ascundere parolă"
 
 #. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "Hide quoted text"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Hide the Copy"
@@ -25784,6 +25789,11 @@ msgstr "{why}, deci conectările nu sunt memorate: MailCraft întreabă din nou 
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modificări făcute în el aici așteaptă pe acest computer."
+
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "··· Show quoted text"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs

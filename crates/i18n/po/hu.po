@@ -6715,6 +6715,11 @@ msgid "Hide password"
 msgstr "A jelszó elrejtése"
 
 #. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "Hide quoted text"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Hide the Copy"
@@ -25592,6 +25597,11 @@ msgstr "{why}, tehát a beiratkozás nem jut eszembe: MailCraft minden egyes alk
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}, a {n} változtatásai itt várnak a gépen."
+
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "··· Show quoted text"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs

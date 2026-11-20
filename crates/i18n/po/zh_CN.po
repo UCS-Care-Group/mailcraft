@@ -6716,6 +6716,11 @@ msgid "Hide password"
 msgstr "隐藏密码"
 
 #. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "Hide quoted text"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Hide the Copy"
@@ -25464,6 +25469,11 @@ msgstr "{why}，因此无法保存登录信息：MailCraft 每次启动时都会
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}。此处对它所做的 {n} 项更改保留在此计算机上，等待发送。"
+
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "··· Show quoted text"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs

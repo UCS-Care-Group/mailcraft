@@ -6720,6 +6720,11 @@ msgid "Hide password"
 msgstr "Ocultar contraseña"
 
 #. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "Hide quoted text"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Hide the Copy"
@@ -25593,6 +25598,11 @@ msgstr "{why}, así que no se recuerdan los inicios de sesión: MailCraft vuelve
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} cambios hechos aquí en él esperan en este equipo."
+
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "··· Show quoted text"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs

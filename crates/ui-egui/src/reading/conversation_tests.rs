@@ -158,3 +158,52 @@ fn a_selection_command_naming_a_stacked_message_wrongly_is_refused() {
     // Nothing selected in it: nothing to copy, and no harm.
     let _ = w.state_mut().execute("ui.copySelection", json!({"thread": older}));
 }
+
+/// How many things the body of `id` at `place` is laid out as.
+fn laid_items(w: &testing::Window, place: Place, id: Id) -> usize {
+    view::kept_at(&w.ctx, place, id, |laid, _| laid.items.len()).unwrap_or(0)
+}
+
+#[test]
+fn a_click_on_the_line_of_who_sent_it_closes_a_message_and_its_row_opens_it_again() {
+    let (mut w, newer, older, _) = release_checklist();
+    click(&mut w, "conversationRow", older);
+    assert!(drawn(&w, "conversationCard", older));
+    click(&mut w, "conversationHeader", older);
+    assert!(drawn(&w, "conversationRow", older) && !drawn(&w, "conversationCard", older));
+    click(&mut w, "conversationRow", older);
+    assert!(drawn(&w, "conversationCard", older));
+    // The selected one closes too, and stays selected.
+    click(&mut w, "conversationHeader", newer);
+    assert!(drawn(&w, "conversationRow", newer));
+    assert_eq!(w.state().session.sel.messages, [newer]);
+    click(&mut w, "conversationRow", newer);
+    assert!(laid_out(&w, Place::Pane, newer) && !drawn(&w, "conversationRow", newer));
+}
+
+#[test]
+fn the_earlier_messages_a_reply_quotes_are_left_out_until_asked_for() {
+    let (mut w, _, _, reply) = release_checklist();
+    // The reply in Sent Items carries the message it answers under "-----Original Message-----".
+    click(&mut w, "conversationRow", reply);
+    w.run_steps(3);
+    assert!(drawn(&w, "conversationQuoted", reply), "no quoted-text line");
+    let trimmed = laid_items(&w, Place::Thread(reply), reply);
+    click(&mut w, "conversationQuoted", reply);
+    w.run_steps(5);
+    let whole = laid_items(&w, Place::Thread(reply), reply);
+    assert!(whole > trimmed && trimmed > 0, "{trimmed} then {whole}");
+    click(&mut w, "conversationQuoted", reply);
+    w.run_steps(5);
+    assert_eq!(laid_items(&w, Place::Thread(reply), reply), trimmed);
+}
+
+#[test]
+fn read_alone_a_reply_shows_what_it_quotes() {
+    let (mut w, _, _, reply) = release_checklist_as_outlook();
+    w.state_mut().execute("mail.select", json!({"id": reply})).unwrap();
+    w.run_steps(5);
+    assert!(!drawn(&w, "conversationQuoted", reply));
+    let doc = view::current_doc(&w.ctx, Place::Pane, reply).unwrap();
+    assert!(doc.history.is_some());
+}

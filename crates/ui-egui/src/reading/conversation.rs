@@ -10,9 +10,14 @@
 //! The selected message is shown whole, at [`Place::Pane`], as it is when it is read alone; so is
 //! each one not read yet, and each one the owner opened, each at a [`Place::Thread`] of its own,
 //! with a selection and a layout of its own. Every other is one row (who sent it, when, the
-//! beginning of its text) that opens it when clicked. Expand All and Collapse All open and close
-//! them all, but the selected one. Nothing here changes the mailbox: opening a message of the
-//! column doesn't select it or mark it as read.
+//! beginning of its text) that opens it when clicked; a click on the line of who sent an open one
+//! and when closes it again. Expand All and Collapse All open and close them all, but the
+//! selected one. Nothing here changes the mailbox: opening a message of the column doesn't
+//! select it or mark it as read.
+//!
+//! The earlier messages a message quotes under its own text (the conversation, which is all here
+//! already) are left out of it, with a line under its text that shows them, and hides them again
+//! ([`mailcraft_html::history`]).
 //!
 //! [`Session::conversation`]: mailcraft_engine::Session::conversation
 
@@ -41,8 +46,10 @@ struct Open {
     focus: Id,
     /// Opened by the owner (a row clicked, Expand All).
     opened: BTreeSet<Id>,
-    /// Closed by the owner (Collapse All), though not read yet.
+    /// Closed by the owner (its header clicked, Collapse All), though not read yet or selected.
     closed: BTreeSet<Id>,
+    /// Messages whose quoted earlier messages the owner asked to see.
+    quoted: BTreeSet<Id>,
     /// The column was scrolled to the selected message once.
     scrolled: bool,
     /// The beginnings of the closed messages' text, by the message they were made of.
@@ -66,7 +73,7 @@ pub(crate) fn stacked(app: &mut MailApp, focus: Id) -> Option<Arc<Vec<Id>>> {
 
 /// Whether `m` is shown whole in the column of `focus`.
 fn is_open(open: &Open, m: &Message, focus: Id) -> bool {
-    m.id == focus || (!open.closed.contains(&m.id) && (open.opened.contains(&m.id) || !m.read))
+    !open.closed.contains(&m.id) && (m.id == focus || open.opened.contains(&m.id) || !m.read)
 }
 
 /// The column: the conversation's subject and actions, then its messages, oldest first.
@@ -99,7 +106,10 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, thread:
                     if is_open(&open, &m, focus.id) {
                         let place = if m.id == focus.id { Place::Pane } else { Place::Thread(m.id) };
                         let top = ui.cursor().min.y;
-                        card(app, ui, &m, place);
+                        if card(app, ui, &m, place, &mut open) {
+                            open.opened.remove(&m.id);
+                            open.closed.insert(m.id);
+                        }
                         let shown = Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=ui.cursor().min.y.max(top + 1.0));
                         if place != Place::Pane {
                             app.hit.add("conversationCard", m.id, shown.intersect(ui.clip_rect()));
@@ -167,18 +177,35 @@ fn title(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, thread: &[Id], t:
 }
 
 /// A message shown whole in the column: its header (without the subject, said above), the bars
-/// under it, and its body, which scrolls sideways when a table in it is wider than the pane.
-fn card(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
-    let access = super::above_body(app, ui, m, place, true);
+/// under it, and its body, which scrolls sideways when a table in it is wider than the pane,
+/// without the earlier messages it quotes unless the owner asked for them. Whether the owner
+/// clicked its header to close it.
+fn card(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, open: &mut Open) -> bool {
+    let (access, close) = super::above_body(app, ui, m, place, true);
+    let whole = open.quoted.contains(&m.id);
     view::page(app, place, ui).show(ui, |ui| {
         ui.set_width(ui.available_width());
         egui::ScrollArea::horizontal().auto_shrink([false, true]).id_salt(("body", place, m.id)).show(ui, |ui| {
-            egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 20 }).show(ui, |ui| {
-                view::show_in(app, ui, m, place, access, true);
+            egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 12 }).show(ui, |ui| {
+                // Each body of the column in a scope of its own: what it senses is its own.
+                ui.push_id(("stackedBody", m.id), |ui| view::show_in(app, ui, m, place, access, true, !whole));
             });
         });
     });
+    // The earlier messages it quotes, to show or hide.
+    if view::has_history(ui.ctx(), place, m.id) {
+        let t = Tokens::get(ui.ctx());
+        egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 0, bottom: 12 }).show(ui, |ui| {
+            let said = if whole { tl!("Hide quoted text") } else { tl!("··· Show quoted text") };
+            let link = ui.link(egui::RichText::new(said).font(regular(11.5)).color(t.text_dim));
+            app.hit.add("conversationQuoted", m.id, link.rect);
+            if link.clicked() && !open.quoted.remove(&m.id) {
+                open.quoted.insert(m.id);
+            }
+        });
+    }
     select::settle(app, ui, place);
+    close
 }
 
 /// A closed message: who sent it, when, and the beginning of its text, on a row that opens it.
