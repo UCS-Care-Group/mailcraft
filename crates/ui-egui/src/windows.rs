@@ -1326,6 +1326,11 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
             close |= frame(app, ui, window, wish, closing, !inside);
         });
+        // (Inside the main window, what is let go over it is the main window's.)
+        #[cfg(not(target_arch = "wasm32"))]
+        if !inside {
+            let_go_here(app, &ctx, window.what.compose());
+        }
         // (Again: what was done in it this frame may have opened one.)
         if dialog_here(app, window) {
             crate::dialogs::show(app, &ctx);
@@ -1350,6 +1355,23 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
 pub(crate) fn dialog_compose(app: &MailApp) -> Option<u64> {
     let owned = app.windows.dialog_for.filter(|_| app.windows.dialog_owner_gen == app.windows.dialog_gen);
     app.dialog.as_ref().and_then(|d| d.compose().or(owned))
+}
+
+/// Files let go over a window of the system, which the main window never sees: to the message
+/// written in it (`writing`), if it shows one; else opened or brought in by their kind.
+#[cfg(not(target_arch = "wasm32"))]
+fn let_go_here(app: &mut MailApp, ctx: &egui::Context, writing: Option<u64>) {
+    let files = ctx.input(|i| i.raw.dropped_files.clone());
+    if files.is_empty() {
+        return;
+    }
+    let was = std::mem::replace(&mut app.by_hand, true);
+    for f in files {
+        app.let_go(&f.path().to_string_lossy(), writing);
+    }
+    app.by_hand = was;
+    // This pass was laid out before they came in.
+    ctx.request_repaint();
 }
 
 /// The Edit menu's input ([`MailApp::edit_keys`]) when this window has the keyboard: the main

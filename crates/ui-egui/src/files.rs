@@ -449,18 +449,29 @@ fn attached_said(app: &mut MailApp, batch: Batch) -> Result<Value, String> {
 }
 
 /// What a file is for when nobody said: a mailbox opens, a message/calendar/contact file is
-/// brought in, anything else is attached while a message is being written.
-/// (The message is the one the window with the keyboard writes, [`crate::windows::compose_window::target`]:
-/// from the main window, the reading pane's alone, never one in a window behind it.)
-fn purpose_of(app: &MailApp, name: &str) -> &'static str {
+/// brought in, anything else is attached to the message being written `writing`, if there is
+/// one. A picture let go over a message in HTML (`let_go`) goes into its text, at the caret, as
+/// Insert › Pictures puts it: the system says nothing of where it was let go.
+fn purpose_of(app: &MailApp, name: &str, writing: Option<u64>, let_go: bool) -> &'static str {
     use mailcraft_engine::io::Format;
-    let writing = crate::windows::compose_window::target(app).is_some();
-    match Format::from_extension(name) {
-        Some(Format::Mailbox) => "mailbox",
-        Some(_) if !writing => "import",
-        _ if writing => "attach",
-        _ => "import",
+    match (Format::from_extension(name), writing) {
+        (Some(Format::Mailbox), _) => "mailbox",
+        (_, None) => "import",
+        (None, Some(c)) if let_go && is_picture_name(name) && takes_pictures(app, c) => "bodyPicture",
+        (_, Some(_)) => "attach",
     }
+}
+
+/// Whether `name` is that of a picture Insert › Pictures takes, by its extension.
+fn is_picture_name(name: &str) -> bool {
+    let ext = std::path::Path::new(name).extension().map(|e| e.to_string_lossy().to_ascii_lowercase());
+    matches!(ext.as_deref(), Some("png" | "jpg" | "jpeg" | "jpe" | "jfif" | "gif" | "webp"))
+}
+
+/// Whether the message being written `compose` takes pictures in its text: it is in HTML, and no
+/// signature is open (the editing commands are the signature's then).
+fn takes_pictures(app: &MailApp, compose: u64) -> bool {
+    app.session.signature_edit.is_none() && app.session.composing_by_id(compose).is_some_and(|c| c.format == mailcraft_engine::BodyFormat::Html)
 }
 
 /// `params` for a command on the message being written `asking` (none: the current one).
@@ -529,9 +540,22 @@ pub(crate) fn remember_recent(app: &mut MailApp, path: &str) {
     app.ui.recent.truncate(10);
 }
 
-/// A file dropped on the window, or something the program was started with: a file, a file
-/// named the way desktops name one (`file://`), or a `mailto:` link, which starts a new message.
+/// Something the program was started with or handed: a file, a file named the way desktops name
+/// one (`file://`), or a `mailto:` link, which starts a new message. A file is attached to the
+/// message the window with the keyboard writes ([`crate::windows::compose_window::target`]):
+/// from the main window, the reading pane's alone, never one in a window behind it.
 pub(crate) fn dropped_path(app: &mut MailApp, path: &str) {
+    landed(app, path, crate::windows::compose_window::target(app), false);
+}
+
+/// A file let go over a window: the one showing the message being written `writing`, or one
+/// with none. That message takes it whether or not its window has the keyboard (a file dragged
+/// from the desktop leaves the keyboard where it was).
+pub(crate) fn let_go(app: &mut MailApp, path: &str, writing: Option<u64>) {
+    landed(app, path, writing, true);
+}
+
+fn landed(app: &mut MailApp, path: &str, writing: Option<u64>, let_go: bool) {
     if is_mailto_link(path) {
         // A link from outside doesn't destroy a message being written: it is saved to Drafts
         // first, and if it can't be, the link waits for the owner.
@@ -551,14 +575,14 @@ pub(crate) fn dropped_path(app: &mut MailApp, path: &str) {
         return;
     }
     let path = local_path(path);
-    let purpose = purpose_of(app, &path);
+    let purpose = purpose_of(app, &path, writing, let_go);
     // Mail from a file dropped on the window or handed over by the system (an exported folder
     // double-clicked, #1401) is asked about first: how many messages, and where they go.
     if purpose == "import" && is_mail_file(&path) {
         wait_to_ask(app, path);
         return;
     }
-    let _ = opened_path(app, purpose, &path, crate::windows::compose_window::target(app));
+    let _ = opened_path(app, purpose, &path, writing);
 }
 
 /// Whether `path` names a file of mail (.eml or .mbox), by its extension.
@@ -783,7 +807,10 @@ pub(crate) fn drain_inbox(app: &mut MailApp) {
 
 /// One file that arrived: opened, brought in, attached or put in the body, as it was picked for.
 fn delivered_one(app: &mut MailApp, d: crate::Delivered) {
-    let (purpose, asking) = d.asked.unwrap_or_else(|| (purpose_of(app, &d.name).to_string(), crate::windows::compose_window::target(app)));
+    let (purpose, asking) = d.asked.unwrap_or_else(|| {
+        let writing = crate::windows::compose_window::target(app);
+        (purpose_of(app, &d.name, writing, true).to_string(), writing)
+    });
     if crate::security::is_purpose(&purpose) {
         let bytes = d.bytes.map_err(|_| crate::i18n::fmt(tl!("{name} couldn't be read"), &[("name", &d.name)]));
         crate::security::picked(app, &purpose, &d.name, bytes);
