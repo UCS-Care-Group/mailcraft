@@ -241,6 +241,7 @@ const SAFE: &[&str] = &[
     "format.clear",
     "format.indent",
     "format.outdent",
+    "format.align",
     "edit.copy",
     "edit.cut",
     "edit.paste",
