@@ -12,8 +12,9 @@
 //! with a selection and a layout of its own. Every other is one row (who sent it, when, the
 //! beginning of its text) that opens it when clicked; a click on the line of who sent an open one
 //! and when closes it again. Expand All and Collapse All open and close them all, but the
-//! selected one. Nothing here changes the mailbox: opening a message of the column doesn't
-//! select it or mark it as read.
+//! selected one. Selecting a message reads its whole conversation with it, when File › Options
+//! marks what is opened as read (`mail.select`); opening or closing a
+//! message of the column changes nothing of the mailbox, nor what is selected.
 //!
 //! The earlier messages a message quotes under its own text (the conversation, which is all here
 //! already) are left out of it, with a line under its text that shows them, and hides them again
@@ -44,6 +45,9 @@ const PREVIEW_CHARS: usize = 200;
 #[derive(Clone, Default)]
 struct Open {
     focus: Id,
+    /// The frame it was last shown in: a selection that comes back to the same message after
+    /// another starts again.
+    frame: u64,
     /// Opened by the owner (a row clicked, Expand All).
     opened: BTreeSet<Id>,
     /// Closed by the owner (its header clicked, Collapse All), though not read yet or selected.
@@ -81,9 +85,14 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, thread:
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     let mut open = ui.data(|d| d.get_temp::<Open>(key())).unwrap_or_default();
-    if open.focus != focus.id {
-        open = Open { focus: focus.id, ..Open::default() };
+    let frame = ui.ctx().cumulative_frame_nr();
+    if open.focus != focus.id || open.frame.saturating_add(1) < frame {
+        // Those selecting it just read with it weren't read until then: they are open, as the
+        // ones not read yet are.
+        let opened = app.session.read_on_open().iter().copied().filter(|id| thread.contains(id)).collect();
+        open = Open { focus: focus.id, opened, ..Open::default() };
     }
+    open.frame = frame;
     title(app, ui, focus, thread, &t, &mut open);
     let older = thread.len().saturating_sub(MAX_STACKED);
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());

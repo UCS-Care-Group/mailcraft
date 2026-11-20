@@ -109,7 +109,7 @@ fn a_message_not_read_yet_is_open_unless_the_owner_closed_it() {
     w.run_steps(3);
     assert!(drawn(&w, "conversationCard", older));
     assert!(drawn(&w, "conversationRow", reply));
-    // Showing it doesn't read it.
+    // Marked unread while it is on screen, it stays so until it is selected again.
     assert!(!w.state().session.mailbox.message(older).unwrap().read);
     click(&mut w, "conversationCollapseAll", 0);
     assert!(drawn(&w, "conversationRow", older));
@@ -206,4 +206,37 @@ fn read_alone_a_reply_shows_what_it_quotes() {
     assert!(!drawn(&w, "conversationQuoted", reply));
     let doc = view::current_doc(&w.ctx, Place::Pane, reply).unwrap();
     assert!(doc.history.is_some());
+}
+
+#[test]
+fn selecting_a_message_reads_its_whole_conversation_when_the_pane_shows_it() {
+    let (mut w, newer, older, reply) = release_checklist_as_outlook();
+    let read = |w: &testing::Window, id: Id| w.state().session.mailbox.message(id).unwrap().read;
+    // Read alone (the default), only the selected one is read.
+    w.state_mut().execute("mail.markUnread", json!({"ids": [newer, older, reply]})).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
+    assert!(read(&w, newer) && !read(&w, older) && !read(&w, reply));
+    // Stacked, the whole conversation is read with it.
+    w.state_mut().execute("mail.markUnread", json!({"ids": [newer]})).unwrap();
+    w.state_mut().execute("view.conversationSettings", json!({"wholeConversation": true})).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
+    assert!(read(&w, newer) && read(&w, older) && read(&w, reply));
+    // Unless File › Options says opening a message doesn't read it.
+    w.state_mut().execute("mail.markUnread", json!({"ids": [newer, older, reply]})).unwrap();
+    w.state_mut().execute("file.options", json!({"markReadOnOpen": false})).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
+    assert!(!read(&w, newer) && !read(&w, older) && !read(&w, reply));
+}
+
+#[test]
+fn a_message_selecting_read_is_shown_whole_as_one_not_read_yet_is() {
+    let (mut w, newer, older, reply) = release_checklist();
+    // Another message, then back to this conversation with its older message not read yet.
+    let other = w.state_mut().session.rows().iter().find(|r| r.id != newer && r.size() == 1).map(|r| r.id).unwrap();
+    click(&mut w, "message", other);
+    w.state_mut().execute("mail.markUnread", json!({"ids": [older]})).unwrap();
+    click(&mut w, "message", newer);
+    assert!(w.state().session.mailbox.message(older).unwrap().read);
+    assert!(drawn(&w, "conversationCard", older), "the message read on opening is closed");
+    assert!(drawn(&w, "conversationRow", reply));
 }

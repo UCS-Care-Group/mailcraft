@@ -257,13 +257,25 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 /// Marked once the command is done ([`Session::opened`]): selecting changes nothing else of the
 /// mailbox, and is a reading command, which takes no copy of it.
 /// Only when the reading pane shows it, or `open` says it is opened some other way (in a window
-/// of its own, #1734): with the pane off, selecting reads nothing.
+/// of its own, #1734): with the pane off, selecting reads nothing. When the reading pane shows
+/// the selected message's whole conversation (`view.conversationSettings`, #1778), every message
+/// of that conversation is read with it, as Gmail reads a conversation; a message window shows
+/// the one message alone.
 pub(crate) fn mark_opened(s: &mut Session, open: bool) {
+    s.opened.clear();
+    s.read_on_open.clear();
     if !s.prefs.mark_read_on_open || s.sel.messages.len() != 1 || (!open && s.view.reading_pane == crate::session::Pane::Off) {
-        s.opened = None;
         return;
     }
-    s.opened = s.sel.focus().filter(|id| s.mailbox.message(*id).is_some_and(|m| !m.read && !m.draft));
+    let Some(focus) = s.sel.focus() else { return };
+    let mut shown = vec![focus];
+    if !open && s.view.conversations && s.view.whole_conversation {
+        let thread = s.conversation(focus);
+        if thread.len() > 1 && thread.contains(&focus) {
+            shown = thread.to_vec();
+        }
+    }
+    s.opened = shown.into_iter().filter(|id| s.mailbox.message(*id).is_some_and(|m| !m.read && !m.draft)).collect();
 }
 
 fn select_all(s: &mut Session, _: &Value) -> CmdResult {
