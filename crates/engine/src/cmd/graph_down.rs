@@ -102,7 +102,12 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
         mb.messages.values().filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone())).collect();
     if page.afresh {
         for m in mb.messages.values_mut() {
+            // A message sent here is no deletion for a listing that does not have it yet: Exchange
+            // files the copy of a draft sent as its draft under the id of its own, a while after
+            // the send, and a listing afresh may be of a time before it. Only while Sent Items has
+            // yet to list it: once it has, a listing without it is the server's word (#1175).
             if m.account == account
+                && !m.sent_pending
                 && m.server.as_ref().is_some_and(|s| s.folder == page.folder && !s.gone)
                 && let Some(s) = std::sync::Arc::make_mut(m).server.as_mut()
             {
@@ -132,8 +137,15 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
         };
         if let Ok(m) = mb.message_mut(m) {
             // A draft sent here, gone from Drafts there: Exchange has filed it, and a listing of it
-            // as a draft outside Sent Items is no longer one from before that (#1160).
+            // as a draft outside Sent Items is no longer one from before that (#1160). One the
+            // server has nowhere else yet (its Sent Items folder had no server id when it was
+            // sent) is kept as the message sent: the draft's removal is no deletion of it, and a
+            // Sent Items listing that has it files it (#1175).
             if m.sent_here && !in_sent {
+                let unfiled = m.server.as_ref().is_some_and(|s| s.folder == page.folder);
+                if unfiled {
+                    continue;
+                }
                 m.sent_here = false;
             }
             if let Some(s) = m.server.as_mut().filter(|s| s.folder == page.folder && !s.gone) {
@@ -175,6 +187,21 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 }
             }
             None => {
+                // A message sent here whose draft the server has taken: it files the copy in Sent
+                // Items under an id of its own (#1160), which this mailbox has never seen, and the
+                // message sent is that copy, not a second one beside it.
+                if sent_items && let Some(sent) = awaiting_copy(mb, account, folder, there) {
+                    let changed = update(mb, account, sent, folder, &page.folder, there);
+                    if let Ok(m) = mb.message_mut(sent) {
+                        m.sent_here = false;
+                        m.message_id = there.message_id.trim().trim_start_matches('<').trim_end_matches('>').to_string();
+                    }
+                    index.note(mb, account, &there.server.id, sent);
+                    if changed {
+                        down.changed += 1;
+                    }
+                    continue;
+                }
                 let mut message = new_message(folder, &page.folder, there);
                 // New to this mailbox and in Sent Items, it was sent: Exchange files the copy of a
                 // message sent as MIME (`sendMail`, how a message never saved as a draft goes;
@@ -266,6 +293,29 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
     }
 }
 
+/// The message sent here that a Sent Items listing is the copy of: one the server files under an
+/// id of its own (#1160), still waiting for Sent Items to list it, and the same message as the
+/// listing says — its subject and the people it goes to. The first such, so that two sent alike
+/// are paired with their copies in the order they were sent.
+fn awaiting_copy(mb: &Mailbox, account: Id, sent: Id, there: &GraphMessage) -> Option<Id> {
+    // The names a server gives the people are its own; the addresses are the message's.
+    let same_people = |ours: &[mailcraft_model::Address], theirs: &[mailcraft_model::Address]| {
+        ours.len() == theirs.len() && ours.iter().zip(theirs).all(|(ours, theirs)| ours.email.eq_ignore_ascii_case(&theirs.email))
+    };
+    mb.messages
+        .values()
+        .filter(|m| {
+            m.account == account
+                && m.folder == sent
+                && (m.sent_pending || m.sent_here)
+                && m.server.as_ref().is_some_and(|s| !s.gone && s.id != there.server.id)
+                && m.subject.trim() == there.subject.trim()
+                && same_people(&m.to, &there.to)
+        })
+        .map(|m| m.id)
+        .min()
+}
+
 /// Bring a message this mailbox has in step with what the server says of it now. Whether
 /// anything changed.
 fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str, there: &GraphMessage) -> bool {
@@ -290,15 +340,20 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // Where the server last had it, as this mailbox has that folder: a message still there here
     // follows the server; one moved here since stays where it was put (that move goes up, R3.3).
     let was_here = mb.folder_by_server(account, &last.folder);
-    // A draft sent here, listed as a draft outside Sent Items: Exchange hasn't filed it yet, or
-    // this listing was made before it did (#1160). It is the message sent, in Sent Items here: it
-    // doesn't follow, and once the server has listed it in Sent Items such a listing says nothing.
     let in_sent = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent);
-    let unfiled = m.sent_here && !in_sent && there.draft == Some(true);
-    if unfiled && !last.gone && was_here.and_then(|was| mb.folder(was)).is_some_and(|was| was.kind == FolderKind::Sent) {
+    // A message sent here, listed as a draft outside Sent Items: Exchange hasn't filed it yet, or
+    // this listing was made before it did (#1160). Nothing of it is taken — not its fields, and
+    // not its folder, which is where the send left it — until Sent Items lists it; the removal of
+    // the draft from Drafts is no deletion of it either (#1175). While `sent_pending`, the copy
+    // Sent Items has yet to list, a draft listing is no more word of the message sent: `sent_here`
+    // may have been cleared by the draft's removal, and the removal that follows must not lose it.
+    let unfiled = (m.sent_here || m.sent_pending) && !in_sent && there.draft == Some(true);
+    if unfiled {
+        // Still a draft there: a listing that has not got it yet is no deletion of it, and an
+        // explicit removal from Sent Items is kept, not cleared here (#1175).
         return false;
     }
-    let follows = !unfiled && (last.gone || was_here.is_none_or(|was| m.folder == was));
+    let follows = last.gone || was_here.is_none_or(|was| m.folder == was);
     let in_drafts = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Drafts);
     // Only of a JMAP account: a Microsoft server keeps a follow-up's dates and "complete" itself.
     let flag_bit_alone = mb.account(account).is_some_and(|a| a.kind == AccountKind::Jmap);
@@ -340,7 +395,9 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if m.importance == last.importance {
         m.importance = now.importance;
     }
-    if follows {
+    // A listing in Drafts of a message sent here, before Sent Items has listed it, is no word of
+    // where the message is: the send left it in Sent Items, and it stays there (#1175).
+    if follows && !(m.sent_pending && in_drafts) {
         m.folder = folder;
     }
     if m.unfetched {
@@ -383,6 +440,14 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     let (thread, thread_asked, thread_tries) =
         if now.thread.is_empty() { (last.thread.clone(), last.thread_asked, last.thread_tries) } else { (now.thread.clone(), false, 0) };
     m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, thread, thread_asked, thread_tries, ..now.clone() });
+    // The server has listed it where it went: Sent Items, or a folder the owner moved it to. From
+    // here on a listing without it is its deletion, and a removal from another folder needs no
+    // keeping of it (#1175). A listing in Drafts, even one that leaves `isDraft` out, is no such
+    // word: the copy Sent Items has yet to list may still be on its way, and a removal from Drafts
+    // after it must not lose the message.
+    if in_sent || !in_drafts {
+        m.sent_pending = false;
+    }
     *m != before
 }
 
