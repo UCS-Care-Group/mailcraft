@@ -2189,7 +2189,7 @@ msgid "AutoArchive"
 msgstr "Automatická archivace"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automaticky"
@@ -3159,6 +3159,12 @@ msgstr "Vyhledat aktualizace"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Kontrolovat nové verze"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Zkontrolovat pravopis podle místního slovníku"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5702,6 +5708,12 @@ msgid "Find a Time"
 msgstr "Najít čas"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Najít další pravopisnou chybu"
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Find what"
@@ -5842,7 +5854,7 @@ msgstr ""
 "složky"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Podokno složek"
@@ -9478,11 +9490,23 @@ msgstr "Posunout dolů"
 msgid "Move Event"
 msgstr "Přesunout událost"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Přesunout oblíbenou položku nahoru nebo dolů"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Přesunout složku"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Přesunout složku nahoru nebo dolů"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -10493,6 +10517,24 @@ msgid "No signatures yet"
 msgstr "Zatím žádné podpisy"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Nebyly nalezeny žádné pravopisné chyby"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "V kontrolované části nebyly nalezeny žádné pravopisné chyby"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Žádné návrhy opravy"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -11006,7 +11048,7 @@ msgid "October"
 msgstr "října"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Vypnuto"
@@ -13093,6 +13135,12 @@ msgstr "Nahradit"
 #, fuzzy
 msgid "Replace All"
 msgstr "Nahradit vše"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Nahradit text na zadané pozici"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15618,8 +15666,26 @@ msgstr "Místo pro poštu, nejvýše"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Pravopis a gramatika"
+msgid "Spelling"
+msgstr "Pravopis"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "Kontrola pravopisu není na této platformě dostupná"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "Jazyk kontroly pravopisu"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Návrhy opravy"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17919,6 +17985,12 @@ msgstr "Místo, které složka a složky pod ní zabírají v tomto počítači"
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "Místo, které vlastní zprávy složky zabírají v tomto počítači"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Slovník pro kontrolu pravopisu není dostupný"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -21018,6 +21090,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "koncept nemůže mít připomenutí: nejprve ho odešlete, nebo použijte K vyřízení přímo ve zprávě"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "oblíbenou položku nelze umístit před sebe samu"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "složku nelze umístit před sebe samu"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -21028,6 +21112,12 @@ msgstr "složku nelze přesunout do sebe samé"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "složku nelze přesunout do jiného účtu"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "složka se řadí mezi složky vedle ní: uveďte jednu se stejnou nadřazenou složkou"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21432,6 +21522,12 @@ msgstr "k přihlášení zadejte uživatelské jméno"
 #, fuzzy
 msgid "everybody at @{domain}"
 msgstr "všichni na @{domain}"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "hledaný i náhradní text musí být na jednom řádku"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -23454,6 +23550,12 @@ msgid "the text has a character that can't be sent"
 msgstr "text obsahuje znak, který nelze odeslat"
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "text určený k nahrazení se změnil"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
@@ -24525,6 +24627,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} není sdílená poštovní schránka: odeberte ji pomocí account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} není mezi oblíbenými"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24595,6 +24703,12 @@ msgstr "{name} s vámi sdílí kalendář."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} s vámi sdílí kalendář. Je ve vašem seznamu kalendářů."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} zůstává nahoře ve složkách účtu"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -25999,6 +26113,19 @@ msgstr "−Řádky"
 #~ msgstr[1] "{n} zprávy odpovídají"
 #~ msgstr[2] "{n} zpráv odpovídá"
 
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "Začínat věty velkým písmenem"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "Velké písmeno se doplní po dopsání slova. Příkaz Zpět obnoví původní zápis."
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Pravopis a gramatika"
+
+#, fuzzy
 #~ msgid "As the people you write to see it"
 #~ msgstr "Jak to vidí lidé, kterým píšete"
 

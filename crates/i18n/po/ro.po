@@ -2196,7 +2196,7 @@ msgid "AutoArchive"
 msgstr "Arhivare automată"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automat"
@@ -3166,6 +3166,12 @@ msgstr "Căutare actualizări"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Verificare versiuni noi"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Verifică ortografia cu un dicționar local"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5711,6 +5717,12 @@ msgid "Find a Time"
 msgstr "Găsire oră"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Găsește următoarea greșeală de ortografie"
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Find what"
@@ -5851,7 +5863,7 @@ msgstr ""
 "dosar"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Panou dosare"
@@ -9490,11 +9502,23 @@ msgstr "Mutare în jos"
 msgid "Move Event"
 msgstr "Mutare eveniment"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Mută favoritul în sus sau în jos"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Mutare dosar"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Mută dosarul în sus sau în jos"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -10505,6 +10529,24 @@ msgid "No signatures yet"
 msgstr "Încă nicio semnătură"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Nu s-au găsit greșeli de ortografie"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "Nu s-au găsit greșeli de ortografie în partea verificată"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Nicio sugestie de ortografie"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -11021,7 +11063,7 @@ msgid "October"
 msgstr "octombrie"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Dezactivat"
@@ -13111,6 +13153,12 @@ msgstr "Înlocuire"
 #, fuzzy
 msgid "Replace All"
 msgstr "Înlocuire peste tot"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Înlocuiește textul la poziția indicată"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15640,8 +15688,26 @@ msgstr "Spațiu pentru e-mailuri, cel mult"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Ortografie și gramatică"
+msgid "Spelling"
+msgstr "Ortografie"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "Verificarea ortografică nu este disponibilă pe această platformă"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "Limba verificării ortografice"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Sugestii de ortografie"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17943,6 +18009,12 @@ msgstr "Spațiul pe care îl ocupă pe acest computer dosarul și dosarele de su
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "Spațiul pe care îl ocupă pe acest computer mesajele proprii ale dosarului"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Dicționarul ortografic nu este disponibil"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -21043,6 +21115,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "O ciornă nu poate avea memento: trimite-o mai întâi sau folosește Urmărire în mesajul însuși"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "un favorit nu poate fi pus înaintea lui însuși"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "un dosar nu poate fi pus înaintea lui însuși"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -21053,6 +21137,12 @@ msgstr "un dosar nu se poate muta în el însuși"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "un dosar nu se poate muta în alt cont"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "un dosar se pune printre dosarele de lângă el: numiți unul cu același dosar părinte"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21458,6 +21548,12 @@ msgstr "introduceți un nume de utilizator pentru conectare"
 #, fuzzy
 msgid "everybody at @{domain}"
 msgstr "toți cei de la @{domain}"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "textul căutat și cel înlocuitor trebuie să fie pe o singură linie"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -23479,6 +23575,12 @@ msgid "the text has a character that can't be sent"
 msgstr "textul conține un caracter care nu poate fi trimis"
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "textul care trebuia înlocuit s-a modificat"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
@@ -24550,6 +24652,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} nu este o cutie poștală partajată: eliminați-o cu account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} nu se află printre favorite"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24620,6 +24728,12 @@ msgstr "{name} v-a partajat un calendar."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} v-a partajat un calendar. Este în lista dvs. de calendare."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} rămâne în partea de sus a folderelor contului"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -26027,6 +26141,19 @@ msgstr "−Linii"
 #~ msgstr[1] "{n} mesaje găsite"
 #~ msgstr[2] "{n} de mesaje găsite"
 
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "Scrie cu majusculă primul cuvânt din propoziție"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "Majuscula este adăugată la terminarea cuvântului. Anularea restabilește textul tastat."
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Ortografie și gramatică"
+
+#, fuzzy
 #~ msgid "As the people you write to see it"
 #~ msgstr "Așa cum îl văd persoanele cărora le scrieți"
 

@@ -223,6 +223,7 @@ const SAFE: &[&str] = &[
     "compose.popOut",
     "compose.select",
     "compose.type",
+    "compose.replaceText",
     "compose.delete",
     "compose.undo",
     "compose.redo",
@@ -262,6 +263,10 @@ const SAFE: &[&str] = &[
     // computer, nothing is removed, no setting of the account changes (the default account
     // stays the one it was), and Undo puts it back.
     "account.move",
+    // A folder's or a favourite's place in the folder pane (#1514): the same, kept on this
+    // computer alone.
+    "folder.reorder",
+    "folder.reorderFavorite",
     // Takes up again messages left out for failing to download (#1581): the next Send/Receive asks for them.
     "sync.retryFailed",
     // View.

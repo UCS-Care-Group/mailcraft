@@ -226,6 +226,9 @@ pub struct State {
     /// `GetItem` answers these items with `ErrorItemNotFound`, as when they went between the
     /// listing and the question.
     pub gone_from_get_item: Vec<String>,
+    /// The server's `SyncFolderItems` takes the recipients in the shape it is asked for and answers
+    /// without them, as Exchange 2013 to 2019 do (#1151); `GetItem` gives them.
+    pub omits_recipients: bool,
     /// The versions every request asked for, in order.
     pub versions: Vec<String>,
     /// The organisation's address list, for `ResolveNames` (#1262).
@@ -304,6 +307,7 @@ impl Default for State {
             lists_no_recipients: false,
             refuses_get_item: false,
             gone_from_get_item: Vec::new(),
+            omits_recipients: false,
             versions: Vec::new(),
             directory: Vec::new(),
         }

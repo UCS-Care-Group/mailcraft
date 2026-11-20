@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The recipients an Exchange 2010 server is asked for with `GetItem` (#1349), when they don't
+//! The recipients an Exchange server is asked for with `GetItem` (#1349, #1151), when they don't
 //! come: a message whose recipients weren't answered is listed as cut, so that a rule that reads
 //! who it was sent to waits for it to be here whole instead of taking it for mail sent to nobody
 //! (#566).
@@ -88,4 +88,32 @@ fn a_message_answered_with_more_recipients_than_are_kept_is_listed_cut() {
     let messages = listed(&standin);
     let cut: Vec<(&str, bool)> = messages.iter().map(|m| (m.subject.as_str(), m.cut)).collect();
     assert_eq!(cut, [("All staff", true), ("Budget", false)]);
+}
+
+/// Exchange 2013 to 2019 leave the recipients out of the listing (#1151), so they are asked with
+/// `GetItem` too: refused, the messages are listed as cut, as on Exchange 2010. A message that came
+/// with its recipients is not cut, even beside one that came without (#566).
+#[test]
+fn recipients_left_out_of_the_listing_and_refused_leave_the_message_cut_and_those_listed_are_not() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.omits_recipients = true;
+        s.refuses_get_item = true;
+        s.deliver("inbox", "Kickoff", false);
+    }
+    let messages = listed(&standin);
+    assert_eq!(messages.len(), 1);
+    assert!(messages[0].to.is_empty() && messages[0].cut, "{:?}", messages[0]);
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.refuses_get_item = true;
+        s.deliver("inbox", "Kickoff", false);
+        let notes = s.deliver("inbox", "Notes", false);
+        s.items.iter_mut().find(|i| i.id == notes).unwrap().to.clear();
+    }
+    let messages = listed(&standin);
+    let cut: Vec<(&str, usize, bool)> = messages.iter().map(|m| (m.subject.as_str(), m.to.len(), m.cut)).collect();
+    assert_eq!(cut, [("Kickoff", 1, false), ("Notes", 0, true)]);
 }
