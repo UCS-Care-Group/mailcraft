@@ -40,6 +40,10 @@ pub const MAX_RECIPIENTS: usize = 2000;
 /// Most categories (`Keywords`) kept from one message.
 pub const MAX_CATEGORIES: usize = 500;
 
+/// Most bytes [`Message::read_header`] keeps: past them, the message says those lines were cut
+/// ([`Message::read_header_cut`]).
+pub const MAX_READ_HEADER: usize = 64 * 1024;
+
 /// Most message ids read from `References`.
 const MAX_IDS: usize = 1000;
 
@@ -105,6 +109,8 @@ pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
 }
 
 fn read_headers(headers: &Headers, m: &mut Message) {
+    // Fields left out as the header was split, past its caps: what they said can't be told (#566).
+    m.headers_cut |= headers.1;
     let mut kept_bytes = 0usize;
     let mut kept_auth_as = 0usize;
     let mut kept_direction = 0usize;
@@ -112,14 +118,43 @@ fn read_headers(headers: &Headers, m: &mut Message) {
     for field in &headers.0 {
         let name = field.name.to_ascii_lowercase();
         let value = field.value.as_str();
+        // What is read into the message, or kept only decoded, is kept as it came too
+        // ([`Message::read_header`]): with the fields kept, the header as it came.
+        let into_message = !name.starts_with("x-mailcraft-")
+            && (matches!(
+                name.as_str(),
+                "to" | "cc"
+                    | "bcc"
+                    | "reply-to"
+                    | "references"
+                    | "from"
+                    | "subject"
+                    | "message-id"
+                    | "in-reply-to"
+                    | "date"
+                    | "importance"
+                    | "x-priority"
+                    | "mime-version"
+                    | "keywords"
+                    | "status"
+                    | "x-status"
+            ) || name.starts_with("content-")
+                || has_words(&name));
+        if into_message {
+            read_as_it_came(m, &field.name, value);
+        }
         match name.as_str() {
             "to" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
-                m.to.extend(address::parse_list(value).into_iter().take(room));
+                let list = address::parse_list(value);
+                m.headers_cut |= list.len() > room;
+                m.to.extend(list.into_iter().take(room));
             }
             "cc" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
-                m.cc.extend(address::parse_list(value).into_iter().take(room));
+                let list = address::parse_list(value);
+                m.headers_cut |= list.len() > room;
+                m.cc.extend(list.into_iter().take(room));
             }
             "bcc" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
@@ -135,9 +170,13 @@ fn read_headers(headers: &Headers, m: &mut Message) {
             }
             "keywords" => {
                 let room = MAX_CATEGORIES.saturating_sub(m.categories.len());
-                m.categories.extend(value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty()).take(room));
+                let mut words = value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty());
+                m.categories.extend(words.by_ref().take(room));
+                m.headers_cut |= words.next().is_some();
             }
-            "status" => m.read |= value.contains('R'),
+            "status" => {
+                m.read |= value.contains('R');
+            }
             "x-status" => {
                 if value.contains('F') {
                     m.flag = FlagStatus::Flagged;
@@ -150,7 +189,7 @@ fn read_headers(headers: &Headers, m: &mut Message) {
             // Nor of where in a .pst file a message was (#815).
             "x-mailcraft-pst-item" => {}
             // Read once, below.
-            "date" | "from" | "subject" | "message-id" | "in-reply-to" | "importance" | "x-priority" | "mime-version" => {}
+            "from" | "subject" | "message-id" | "in-reply-to" | "date" | "importance" | "x-priority" | "mime-version" => {}
             structural if structural.starts_with("content-") => {}
             // Kept apart from the cap below, so that a sender's padding can't push Exchange's own out.
             auth_as if auth_as.eq_ignore_ascii_case(AUTH_AS) => {
@@ -159,6 +198,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                     // Cut short by `header::split` already.
                     m.headers.push((field.name.clone(), value.to_string()));
                     m.fresh_stamps = true;
+                } else {
+                    m.headers_cut = true;
                 }
             }
             // So is Exchange's word on which way the message went.
@@ -166,6 +207,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                 if kept_direction < MAX_AUTH_AS {
                     kept_direction += 1;
                     m.headers.push((field.name.clone(), value.to_string()));
+                } else {
+                    m.headers_cut = true;
                 }
             }
             _ => {
@@ -174,6 +217,9 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                     kept_bytes += size;
                     let value = if has_words(&name) { decode_words(value) } else { value.to_string() };
                     m.headers.push((field.name.clone(), value));
+                } else {
+                    // Left out: what it says can't be told from the message (#566).
+                    m.headers_cut = true;
                 }
             }
         }
@@ -192,6 +238,21 @@ fn read_headers(headers: &Headers, m: &mut Message) {
     m.message_id = first_id("message-id");
     m.in_reply_to = first_id("in-reply-to");
     m.importance = headers.get("importance").and_then(Importance::parse).or_else(|| headers.get("x-priority").and_then(priority)).unwrap_or_default();
+}
+
+/// A line of the header read into the message itself (or kept only decoded), kept as it came in
+/// [`Message::read_header`]; past [`MAX_READ_HEADER`] the message says those lines were cut, which
+/// only a rule with words in the header reads (#566): what the other rules read of the fields read
+/// into the message has caps of its own, which say when they are run past
+/// ([`Message::headers_cut`]).
+fn read_as_it_came(m: &mut Message, name: &str, value: &str) {
+    let line = format!("{name}: {}", value.replace(['\r', '\n'], " "));
+    if m.read_header.len().saturating_add(line.len()).saturating_add(1) <= MAX_READ_HEADER {
+        m.read_header.push_str(&line);
+        m.read_header.push('\n');
+    } else {
+        m.read_header_cut = true;
+    }
 }
 
 /// `X-Priority`: 1 and 2 are high, 4 and 5 low (`1 (Highest)` is common).

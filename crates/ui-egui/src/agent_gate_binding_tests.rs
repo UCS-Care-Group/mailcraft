@@ -119,6 +119,9 @@ enum Setup {
     /// The account signs in with Microsoft, and the selected to-do is in its To Do list shared
     /// with other people, with a category.
     Shared,
+    /// The calendar shown in London's zone, and a rule here that reads the days mail came by it
+    /// and moves that mail onto another account's server.
+    Days,
     /// The account is a Microsoft account whose list of categories is kept in step with
     /// Outlook's, and MailCraft may change it there; the first contact is the account's (#661).
     Synced,
@@ -270,6 +273,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("tasks.new", r#"{"title": "x", "account": $account}"#, Setup::Shared),
     ("tasks.fromMessage", "{}", Setup::Shared),
     ("category.rename", r#"{"from": "Shared", "to": "y"}"#, Setup::Shared),
+    ("view.timeZone", r#"{"zone": "Asia/Tokyo"}"#, Setup::Days),
     // A category made in Outlook (#661).
     ("category.set", r##"{"name": "Travel", "color": "#2E8B57", "account": $account}"##, Setup::Synced),
     ("mail.categorize", r#"{"ids": [$message], "category": "Travel"}"#, Setup::Synced),
@@ -352,6 +356,16 @@ fn set_up(a: &mut MailApp, setup: Setup, i: &Ids) {
             t.origin.id = "t1".to_string();
             t.list = "L1".to_string();
             t.categories = vec!["Shared".to_string()];
+        }
+        Setup::Days => {
+            a.session.clock.offset = None;
+            a.session.clock.zone = mailcraft_time::Zone::named("Europe/London");
+            a.execute("view.timeZone", json!({"zone": "Europe/London"})).unwrap();
+            let other = a.execute("account.add", json!({"email": "elsewhere@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+            let there = a.session.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+            let rule = json!({"name": "Old news", "account": i.account, "server": false,
+                "conditions": [{"type": "receivedBetween", "value": {"to": "2026-01-01"}}], "actions": [{"type": "moveTo", "value": there}]});
+            a.execute("rules.add", rule).unwrap();
         }
         Setup::Synced => {
             let mb = &mut a.session.mailbox;
