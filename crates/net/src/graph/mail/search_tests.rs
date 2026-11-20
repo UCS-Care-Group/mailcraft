@@ -267,31 +267,6 @@ fn a_hostile_answer_is_read_for_what_can_be_read_and_nothing_more() {
     }
 }
 
-#[test]
-fn own_search_continuations_never_reach_other_mailboxes_or_non_mail_endpoints() {
-    let server = StandIn::start().unwrap();
-    for path in [
-        "/v1.0/users/other@example.org/messages",
-        "/v1.0/me/events",
-        "/v1.0/me/contacts",
-        "/v1.0/me/messages/a-message",
-        "/v1.0/me/mailFolders/a-folder/child/messages",
-    ] {
-        let next = format!("{}{path}?$skip=50", server.url());
-        let result = ask(&server.url(), &GraphSearchRequest { next, ..request("owner@example.org", false, "", "budget") });
-        assert!(!result.errors.is_empty() && result.messages.is_empty(), "{path}");
-        assert!(server.state().requests.is_empty(), "a refused continuation must send no token or request");
-        assert!(result.errors.iter().all(|e| !e.contains("other@example.org")));
-    }
-    let folder = server.state().well_known("inbox");
-    for path in ["/v1.0/me/messages".to_string(), format!("/v1.0/me/mailFolders/{folder}/messages")] {
-        let next = format!("{}{path}?$search=%22budget%22&$skip=0", server.url());
-        let result = ask(&server.url(), &GraphSearchRequest { next, ..request("owner@example.org", false, "", "budget") });
-        assert!(result.errors.is_empty(), "{:?}", result.errors);
-    }
-    assert_eq!(server.state().requests.len(), 2);
-}
-
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 

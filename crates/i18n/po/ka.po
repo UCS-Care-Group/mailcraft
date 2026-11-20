@@ -2164,7 +2164,7 @@ msgid "AutoArchive"
 msgstr "ავტოდაარქივება"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "ავტომატური"
@@ -3135,6 +3135,12 @@ msgstr "განახლებების შემოწმება"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "ახალი ვერსიების შემოწმება"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "მართლწერის შემოწმება ადგილობრივი ლექსიკონით"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5666,6 +5672,12 @@ msgid "Find a Time"
 msgstr "დროის ძებნა"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "მართლწერის შემდეგი შეცდომის პოვნა"
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Find what"
@@ -5804,7 +5816,7 @@ msgstr ""
 "თვისებები"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "საქაღალდეების პანელი"
@@ -8893,12 +8905,6 @@ msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
 msgstr "მართავს GNOME ონლაინ ანგარიშები · IMAP და SMTP"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
-msgstr "მართავს GNOME ონლაინ ანგარიშები · Microsoft Graph ფოსტა"
-
-#. interface
 #: crates/ui-egui/src/gnome_accounts.rs
 #, fuzzy
 msgid "Managed by MailCraft"
@@ -9482,11 +9488,23 @@ msgstr "ჩამოწევა"
 msgid "Move Event"
 msgstr "ღონისძიების გადატანა"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "რჩეულის ზემოთ ან ქვემოთ გადატანა"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "საქაღალდის გადატანა"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "საქაღალდის ზემოთ ან ქვემოთ გადატანა"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -10466,6 +10484,24 @@ msgid "No signatures yet"
 msgstr "ხელმოწერები ჯერ არ არის"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "მართლწერის შეცდომები ვერ მოიძებნა"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "შემოწმებულ ნაწილში მართლწერის შეცდომები არ არის"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "მართლწერის ვარიანტები არ არის"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10986,7 +11022,7 @@ msgid "October"
 msgstr "ოქტომბერი"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "გამორთულია"
@@ -13045,12 +13081,6 @@ msgstr "შეაკეთეთ ამ ანგარიშის გამა
 msgid "Repair this account's sign-in in GNOME Online Accounts."
 msgstr "შეაკეთეთ ამ ანგარიშის შესვლა GNOME ონლაინ ანგარიშებში."
 
-#. interface, why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
-msgstr "შეაკეთეთ ამ ანგარიშის შესვლის ან ფოსტის ნებართვები GNOME Online Accounts-ში, შემდეგ ხელახლა სცადეთ გაგზავნა/მიღება."
-
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -13068,6 +13098,12 @@ msgstr "ჩანაცვლება"
 #, fuzzy
 msgid "Replace All"
 msgstr "ყველას ჩანაცვლება"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "ტექსტის ჩანაცვლება მითითებულ პოზიციაზე"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15553,8 +15589,26 @@ msgstr "ფოსტისთვის მაქსიმალური ად�
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "მართლწერა და გრამატიკა"
+msgid "Spelling"
+msgstr "მართლწერა"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "ამ პლატფორმაზე მართლწერის შემოწმება მიუწვდომელია"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "მართლწერის ენა"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "მართლწერის ვარიანტები"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17867,6 +17921,12 @@ msgid "The space the folder's own messages take on this computer"
 msgstr "ადგილი, რომელსაც საქაღალდის საკუთარი წერილები ამ კომპიუტერზე იკავებს"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "მართლწერის ლექსიკონი მიუწვდომელია"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "The start and the end need a date and a time"
 msgstr ""
@@ -18119,26 +18179,8 @@ msgstr "საერთო აქვთ: {what}."
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
 #, fuzzy
-msgid "This GNOME account does not expose Microsoft Graph mail access."
-msgstr "ეს GNOME ანგარიში არ უზრუნველყოფს Microsoft Graph ფოსტაზე წვდომას."
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-#, fuzzy
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
 msgstr "GNOME-ის ეს ანგარიში აკლია, გამორთულია ან აღარ ავლენს მხარდაჭერილ ფოსტაზე წვდომას. შეამოწმეთ GNOME ონლაინ ანგარიშები."
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-#, fuzzy
-msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
-msgstr "ეს GNOME ანგარიში იყენებს Microsoft Graph-ს და არა IMAP-ს ან SMTP-ს."
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-#, fuzzy
-msgid "This GNOME connection supports only the selected account's mail."
-msgstr "ეს GNOME კავშირი მხარს უჭერს მხოლოდ შერჩეული ანგარიშის წერილს."
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -20998,6 +21040,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "მონახაზს შეხსენება ვერ ექნება: ჯერ გაგზავნეთ ან გამოიყენეთ „შემდგომი რეაგირება“ თავად წერილში"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "რჩეულს საკუთარი თავის წინ ვერ დადებთ"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "საქაღალდეს საკუთარი თავის წინ ვერ დადებთ"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -21008,6 +21062,12 @@ msgstr "საქაღალდე საკუთარ თავში ვე
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "საქაღალდე სხვა ანგარიშში ვერ გადავა"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "საქაღალდე მის გვერდით მყოფ საქაღალდეებს შორის თავსდება: მიუთითეთ იგივე მშობლის მქონე"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21400,6 +21460,12 @@ msgstr "შესასვლელად შეიყვანეთ მომ�
 #, fuzzy
 msgid "everybody at @{domain}"
 msgstr "ყველა დომენიდან @{domain}"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "მოსალოდნელი და ჩამნაცვლებელი ტექსტი ერთ ხაზზე უნდა იყოს"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -23326,6 +23392,12 @@ msgid "the text has a character that can't be sent"
 msgstr "ტექსტში ისეთი სიმბოლოა, რომლის გაგზავნაც შეუძლებელია"
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "ჩასანაცვლებელ ადგილას ტექსტი შეიცვალა"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
@@ -24402,6 +24474,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} საერთო საფოსტო ყუთი არ არის: წაშალეთ account.remove-ით"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} რჩეულებში არ არის"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24472,6 +24550,12 @@ msgstr "{name} გიზიარებთ კალენდარს."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} გიზიარებთ კალენდარს. ის თქვენი კალენდრების სიაშია."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} ანგარიშის საქაღალდეების თავში რჩება"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -25743,6 +25827,38 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
+#~ msgstr "მართავს GNOME ონლაინ ანგარიშები · Microsoft Graph ფოსტა"
+
+#, fuzzy
+#~ msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
+#~ msgstr "შეაკეთეთ ამ ანგარიშის შესვლის ან ფოსტის ნებართვები GNOME Online Accounts-ში, შემდეგ ხელახლა სცადეთ გაგზავნა/მიღება."
+
+#, fuzzy
+#~ msgid "This GNOME account does not expose Microsoft Graph mail access."
+#~ msgstr "ეს GNOME ანგარიში არ უზრუნველყოფს Microsoft Graph ფოსტაზე წვდომას."
+
+#, fuzzy
+#~ msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
+#~ msgstr "ეს GNOME ანგარიში იყენებს Microsoft Graph-ს და არა IMAP-ს ან SMTP-ს."
+
+#, fuzzy
+#~ msgid "This GNOME connection supports only the selected account's mail."
+#~ msgstr "ეს GNOME კავშირი მხარს უჭერს მხოლოდ შერჩეული ანგარიშის წერილს."
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "წინადადების პირველი სიტყვის დიდი ასოთი დაწყება"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "სიტყვის აკრეფის შემდეგ მის პირველ ასოს ადიდებს. გაუქმება აღადგენს აკრეფილ ტექსტს."
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "მართლწერა და გრამატიკა"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

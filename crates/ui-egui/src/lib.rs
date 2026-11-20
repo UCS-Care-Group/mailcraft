@@ -275,6 +275,7 @@ mod signatures;
 mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
+pub mod spelling;
 mod subscribed;
 #[cfg(test)]
 mod subscribed_tests;
@@ -330,6 +331,8 @@ pub use unconfirmed::ConfirmedMailbox;
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
 #[derive(Default)]
 pub struct Services {
+    /// Local system dictionaries for the message composer, when the host provides them.
+    pub spelling: Option<spelling::Host>,
     /// The Windows host reads the local Recent Items folder on a worker, only when asked by the owner.
     pub recent_attachments: Option<recent_attachments::Loader>,
 
@@ -1777,6 +1780,12 @@ pub struct MailApp {
     shot_images: std::sync::Arc<std::sync::Mutex<Vec<(u64, std::sync::Arc<egui::ColorImage>)>>>,
     pending_shots: Vec<(u64, Option<String>, bool, std::sync::mpsc::Sender<Value>, f64)>,
     pub(crate) synthetic: Vec<egui::Event>,
+    /// What the Edit menu of the macOS menu bar was chosen for (its ⌘X, ⌘C, ⌘V…), as the input a
+    /// text field takes, for the window that has the keyboard: the main one, or a message or an
+    /// appointment in a window of its own (#1500). Not the control channel's ([`Self::synthetic`]).
+    pub(crate) edit_keys: Vec<egui::Event>,
+    /// [`Self::edit_keys`] waited a whole frame for a window with the keyboard: the next one drops them.
+    edit_keys_waited: bool,
     /// What agents want that waits for the owner's yes ([`agent_gate`]).
     pub(crate) asking: agent_gate::Questions,
     styled: bool,
@@ -2048,6 +2057,8 @@ impl MailApp {
             shot_images: Default::default(),
             pending_shots: Vec::new(),
             synthetic: Vec::new(),
+            edit_keys: Vec::new(),
+            edit_keys_waited: false,
             asking: Default::default(),
             styled: false,
             applied_theme: None,
@@ -3816,10 +3827,9 @@ impl MailApp {
         // The mail comes a piece at a time; a busy window holds the run back rather than letting
         // pieces pile up.
         let (pieces, taken) = std::sync::mpsc::sync_channel(8);
-        let managed = owner.goa.is_some();
         let ask = GraphRequest {
             account: owner,
-            oauth: if managed { oauth } else { self.effective_oauth(oauth) },
+            oauth: self.effective_oauth(oauth),
             refresh,
             // (Renewed for the job: a token kept from another job may not cover the mail.)
             access: String::new(),
@@ -4238,7 +4248,6 @@ impl MailApp {
             self.graph_tokens.remove(&account);
         }
         if let Some(tokens) = result.tokens
-            && !self.session.mailbox.account(account).is_some_and(|a| a.goa.is_some())
             && !self.signed_in_as_other(account, &tokens)
         {
             self.note_directory(account, &tokens.tenant);
@@ -4304,7 +4313,7 @@ impl MailApp {
             // No token for the mail: Microsoft wants the owner's say-so for it, or the sign-in has
             // run out. There is no IMAP leg to ask instead, so the owner is asked here (#124).
             if result.mail.is_none() && (result.consent_needed || result.sign_in_refused) {
-                self.graph_mail_needs_sign_in(account, quiet, after_sign_in, result.consent_needed, errors);
+                self.graph_mail_needs_sign_in(account, quiet, after_sign_in, result.consent_needed);
                 return;
             }
             let status = self.session.sync_status.clone();
@@ -4358,17 +4367,8 @@ impl MailApp {
     /// A Graph run of an account kept in step through Graph got no token for the mail: the owner
     /// signs in with Microsoft for it when they asked for the run (the run goes on once they
     /// have), and is told how when they didn't.
-    fn graph_mail_needs_sign_in(&mut self, account: Id, quiet: bool, after_sign_in: bool, consent: bool, mut errors: Vec<String>) {
+    fn graph_mail_needs_sign_in(&mut self, account: Id, quiet: bool, after_sign_in: bool, consent: bool) {
         self.session.sync_status.clear();
-        if self.session.mailbox.account(account).is_some_and(|a| a.goa.is_some()) {
-            let repair = tl!("Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again.");
-            if errors.is_empty() {
-                errors.push(repair.to_owned());
-            }
-            self.note_sync_problems(account, &errors, true);
-            self.status(repair);
-            return;
-        }
         let Some(owner) = self.session.mailbox.account(account).cloned() else { return };
         let why = if consent { "the sign-in needs permission for the mail" } else { "the sign-in was refused" };
         // Just signed in, and still refused: another trip to Microsoft's page wouldn't change it.
@@ -5073,6 +5073,8 @@ impl MailApp {
         self.drain_control(ctx);
         // What is kept to show things again quickly goes once the window has been out of sight a while.
         out_of_sight::tick(self, ctx);
+        // A window given back by the system while the main window is minimized.
+        windows::wake(self, ctx);
         control::trail(self, ctx);
         self.poll_sign_in();
         // A sign-in for an account that is being set up has nobody waiting for it once that dialog
@@ -5497,6 +5499,21 @@ impl MailApp {
         })
     }
 
+    /// The Edit menu's input the main window takes this frame (#1500): all of it while the main
+    /// window has the keyboard. While it hasn't, a window of its own that has takes it
+    /// ([`windows`]); what no window took in a whole frame is dropped, so it doesn't land in a
+    /// text field later, also when the main window gets the keyboard back in the meantime.
+    fn edit_keys_for_main(&mut self, has_keyboard: bool) -> Vec<egui::Event> {
+        if std::mem::take(&mut self.edit_keys_waited) {
+            self.edit_keys.clear();
+        }
+        if has_keyboard {
+            return std::mem::take(&mut self.edit_keys);
+        }
+        self.edit_keys_waited = !self.edit_keys.is_empty();
+        Vec::new()
+    }
+
     /// What a password's eye has to know of the window (#438): whether it is being captured
     /// (a screenshot is waited for, or every frame is one), and whether this frame's input came
     /// from the control channel.
@@ -5505,8 +5522,11 @@ impl MailApp {
         secret_field::Watch { captured, driven: self.driven }
     }
 
-    /// Inject synthetic input events from the control channel (one pointer event per frame).
+    /// Inject synthetic input events from the control channel (one pointer event per frame), and
+    /// the Edit menu's input while the main window has the keyboard.
     pub fn raw_input_hook(&mut self, raw: &mut egui::RawInput) {
+        let main_has_keyboard = raw.viewport().focused != Some(false);
+        raw.events.extend(self.edit_keys_for_main(main_has_keyboard));
         self.driven = !self.synthetic.is_empty();
         if self.synthetic.is_empty() {
             return;

@@ -66,7 +66,7 @@ fn linked_account_settings_save_local_preferences_together() {
 fn linked_account_signature_pickers_work_offline_and_only_apply_on_save() {
     let mut app = app(false);
     let added =
-        app.execute("account.add", json!({"email":"owner@example.org", "kind":"microsoft","goa":{"id":"one","provider":"ms_graph"}})).unwrap();
+        app.execute("account.add", json!({"email":"owner@example.org", "kind":"imap","incoming":{"host":"imap.example.org","security":"tls"},"outgoing":{"host":"smtp.example.org","security":"tls"},"goa":{"id":"one","provider":"imap_smtp"}})).unwrap();
     let id = added["id"].as_u64().unwrap();
     app.session.mailbox.signatures.push(mailcraft_model::Signature::plain_text("Work", "Example"));
     let mut h = open(app, json!({"id": id}));

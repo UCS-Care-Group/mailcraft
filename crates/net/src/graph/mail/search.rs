@@ -147,18 +147,11 @@ fn stop(out: &mut GraphSearchResult, e: &NetError) {
 /// token belongs, and for a shared mailbox at `/users/…`, never at the owner's own `/me`.
 fn next_page(graph: &Graph<'_>, link: &str) -> Option<Url> {
     let url = Url::parse_within(link, http::MAX_LONG_URL).ok().filter(|url| graph.base.same_server(url))?;
-    let path = url.path.split('?').next()?.to_ascii_lowercase();
+    let path = url.path.to_ascii_lowercase();
     let own = path.starts_with("/v1.0/me/") || path.starts_with("/v1.0/me?");
     match graph.shared() {
         true if own || !path.starts_with("/v1.0/users/") => None,
-        false => {
-            let folder_messages = path
-                .strip_prefix("/v1.0/me/mailfolders/")
-                .and_then(|rest| rest.strip_suffix("/messages"))
-                .is_some_and(|folder| !folder.is_empty() && !folder.contains('/'));
-            (path == "/v1.0/me/messages" || folder_messages).then_some(url)
-        }
-        true => Some(url),
+        _ => Some(url),
     }
 }
 

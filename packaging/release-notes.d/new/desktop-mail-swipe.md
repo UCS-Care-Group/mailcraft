@@ -1,1 +1,0 @@
-- Choose an action for swiping left or right over a message: delete, archive, mark as read, flag, or none. The row follows the gesture and reveals its action; a short swipe returns it. Both directions start off. On Windows, horizontal mouse-wheel scrolling can also trigger the chosen action.

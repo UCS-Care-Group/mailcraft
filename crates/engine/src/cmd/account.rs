@@ -358,13 +358,8 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
             // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
             a.kind = AccountKind::Microsoft;
             (a.incoming, a.outgoing, a.jmap, a.ews, a.dav) = (None, None, None, None, None);
-            let managed = a.goa.is_some() || goa.is_some();
-            if managed {
-                a.oauth = None;
-            } else {
-                let o = a.oauth.get_or_insert_with(OAuth::default);
-                o.provider = OAuthProvider::Microsoft;
-            }
+            let o = a.oauth.get_or_insert_with(OAuth::default);
+            o.provider = OAuthProvider::Microsoft;
         }
         AccountKind::Jmap => {
             // JMAP and nothing else: no mail servers and no sign-in with a provider, but where the
@@ -399,7 +394,8 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         let valid = |s: &str| !s.is_empty() && s.len() <= 128 && s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_');
         if !valid(&linked.id)
             || !valid(&linked.provider)
-            || !(a.kind == AccountKind::Imap && linked.provider != "ms_graph" || a.kind == AccountKind::Microsoft && linked.provider == "ms_graph")
+            || a.kind != AccountKind::Imap
+            || linked.provider == "ms_graph"
             || a.oauth.is_some()
             || a.outgoing_without_sign_in
         {

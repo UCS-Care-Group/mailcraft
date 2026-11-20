@@ -1802,7 +1802,7 @@ msgid "AutoArchive"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 msgid "Automatic"
 msgstr ""
 
@@ -2610,6 +2610,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check for new versions"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Check spelling with a local dictionary"
 msgstr ""
 
 #. interface
@@ -4713,6 +4718,11 @@ msgid "Find a Time"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Find next spelling error"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 msgid "Find what"
 msgstr ""
@@ -4827,7 +4837,7 @@ msgid ""
 msgstr ""
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 msgid "Folder Pane"
 msgstr ""
 
@@ -7402,11 +7412,6 @@ msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/gnome_accounts.rs
 msgid "Managed by MailCraft"
 msgstr ""
@@ -7888,9 +7893,19 @@ msgstr ""
 msgid "Move Event"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+msgid "Move Favorite Up or Down"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 msgid "Move Folder"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+msgid "Move Folder Up or Down"
 msgstr ""
 
 #. interface
@@ -8702,6 +8717,21 @@ msgid "No signatures yet"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "No spelling errors found"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "No spelling errors in the part checked"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "No spelling suggestions"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 msgid "No such account"
 msgstr ""
@@ -9137,7 +9167,7 @@ msgid "October"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 msgid "Off"
 msgstr ""
 
@@ -10856,11 +10886,6 @@ msgstr ""
 msgid "Repair this account's sign-in in GNOME Online Accounts."
 msgstr ""
 
-#. interface, why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
-msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
-msgstr ""
-
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Repeats"
@@ -10874,6 +10899,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/find_replace.rs
 msgid "Replace All"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Replace Text at Position"
 msgstr ""
 
 #. interface
@@ -12942,7 +12972,22 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-msgid "Spelling & Grammar"
+msgid "Spelling"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Spelling is unavailable on this platform"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Spelling language"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "Spelling suggestions"
 msgstr ""
 
 #. interface
@@ -14874,6 +14919,11 @@ msgid "The space the folder's own messages take on this computer"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+msgid "The spelling dictionary is unavailable"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "The start and the end need a date and a time"
 msgstr ""
@@ -15085,22 +15135,7 @@ msgstr ""
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
-msgid "This GNOME account does not expose Microsoft Graph mail access."
-msgstr ""
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
-msgstr ""
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
-msgstr ""
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-msgid "This GNOME connection supports only the selected account's mail."
 msgstr ""
 
 #. name, ribbon
@@ -17476,6 +17511,16 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "a favourite can't be put before itself"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a folder can't be put before itself"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't move into itself"
 msgstr ""
@@ -17483,6 +17528,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't move to another account"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a folder is put among the folders beside it: name one with the same parent"
 msgstr ""
 
 #. what a command says
@@ -17814,6 +17864,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "everybody at @{domain}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+msgid "expected and replacement must be on one line"
 msgstr ""
 
 #. folder name
@@ -19425,6 +19480,11 @@ msgid "the text has a character that can't be sent"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+msgid "the text has changed at the place to replace"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
 msgstr ""
@@ -20329,6 +20389,11 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "{name} isn't among the Favorites"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 msgid "{name} isn't an Exchange server account"
 msgstr ""
@@ -20386,6 +20451,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
 msgid "{name} shared a calendar with you. It is in your calendar list."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "{name} stays at the top of its account's folders"
 msgstr ""
 
 #. interface

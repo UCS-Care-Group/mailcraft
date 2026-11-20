@@ -2093,7 +2093,7 @@ msgid "AutoArchive"
 msgstr "AutoArchive"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automatisch"
@@ -3038,6 +3038,12 @@ msgstr "Controleren op updates"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Controleren op nieuwe versies"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Spelling controleren met een lokaal woordenboek"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5457,6 +5463,12 @@ msgid "Find a Time"
 msgstr "Een tijd zoeken"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Volgende spelfout zoeken"
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Find what"
@@ -5588,7 +5600,7 @@ msgid ""
 msgstr "Mapeigenschappen"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 msgid "Folder Pane"
 msgstr "Mappenvenster"
 
@@ -8595,12 +8607,6 @@ msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
 msgstr "Beheerd door GNOME Online-accounts · IMAP en SMTP"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
-msgstr "Beheerd door GNOME Online Accounts · Microsoft Graph mail"
-
-#. interface
 #: crates/ui-egui/src/gnome_accounts.rs
 #, fuzzy
 msgid "Managed by MailCraft"
@@ -9161,10 +9167,22 @@ msgstr "Omlaag"
 msgid "Move Event"
 msgstr "Gebeurtenis verplaatsen"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Favoriet omhoog of omlaag verplaatsen"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 msgid "Move Folder"
 msgstr "Map verplaatsen"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Map omhoog of omlaag verplaatsen"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -10114,6 +10132,24 @@ msgid "No signatures yet"
 msgstr "Nog geen handtekeningen"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Geen spelfouten gevonden"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "Geen spelfouten in het gecontroleerde deel"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Geen spellingsuggesties"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10630,7 +10666,7 @@ msgid "October"
 msgstr "oktober"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Uit"
@@ -12639,12 +12675,6 @@ msgstr "Herstel de aanmeldgegevens voor uitgaande e-mail van dit account in GNOM
 msgid "Repair this account's sign-in in GNOME Online Accounts."
 msgstr "Herstel de aanmelding van dit account in GNOME Online Accounts."
 
-#. interface, why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
-msgstr "Herstel de aanmeldings- of e-mailrechten van dit account in GNOME Online Accounts en probeer vervolgens opnieuw Verzenden/ontvangen."
-
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -12661,6 +12691,12 @@ msgstr "Vervangen"
 #, fuzzy
 msgid "Replace All"
 msgstr "Alles vervangen"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Tekst op de aangegeven positie vervangen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15070,8 +15106,27 @@ msgstr "Ruimte voor e-mail, maximaal"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-msgid "Spelling & Grammar"
-msgstr "Spelling & grammatica"
+#, fuzzy
+msgid "Spelling"
+msgstr "Spelling"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "Spellingcontrole is niet beschikbaar op dit platform"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "Taal voor spellingcontrole"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Spellingsuggesties"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17368,6 +17423,12 @@ msgid "The space the folder's own messages take on this computer"
 msgstr "De ruimte die de eigen berichten van de map op deze computer innemen"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Het woordenboek voor spellingcontrole is niet beschikbaar"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "The start and the end need a date and a time"
@@ -17620,26 +17681,8 @@ msgstr "Ze delen {what}."
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
 #, fuzzy
-msgid "This GNOME account does not expose Microsoft Graph mail access."
-msgstr "Dit GNOME-account biedt geen toegang tot e-mail via Microsoft Graph."
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-#, fuzzy
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
 msgstr "Dit GNOME-account ontbreekt, is uitgeschakeld of biedt niet langer ondersteunde e-mailtoegang. Controleer GNOME Online-accounts."
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-#, fuzzy
-msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
-msgstr "Dit GNOME-account gebruikt Microsoft Graph, niet IMAP of SMTP."
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-#, fuzzy
-msgid "This GNOME connection supports only the selected account's mail."
-msgstr "Deze GNOME-verbinding ondersteunt alleen de e-mail van het geselecteerde account."
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -20455,6 +20498,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "Een concept kan geen herinnering hebben: verstuur het eerst, of gebruik Opvolgen in het bericht zelf"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "een favoriet kan niet voor zichzelf worden gezet"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "een map kan niet voor zichzelf worden gezet"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20465,6 +20520,12 @@ msgstr "een map kan niet in zichzelf worden verplaatst"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "een map kan niet naar een ander account worden verplaatst"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "een map wordt tussen de mappen ernaast gezet: noem er een met dezelfde bovenliggende map"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -20861,6 +20922,12 @@ msgstr "voer een gebruikersnaam in om u aan te melden"
 #, fuzzy
 msgid "everybody at @{domain}"
 msgstr "iedereen bij @{domain}"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "de te zoeken en de vervangende tekst moeten op één regel staan"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -21488,8 +21555,9 @@ msgstr "geen dergelijke alinea"
 
 #. what a command says
 #: crates/model/src/rich.rs
+#, fuzzy
 msgid "no such signature"
-msgstr ""
+msgstr "geen dergelijke handtekening"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -22781,6 +22849,12 @@ msgid "the text has a character that can't be sent"
 msgstr "de tekst bevat een teken dat niet kan worden verzonden"
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "de te vervangen tekst is gewijzigd"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
@@ -23860,6 +23934,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} is geen gedeeld postvak: verwijder het met account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} staat niet bij de favorieten"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -23930,6 +24010,12 @@ msgstr "{name} heeft een agenda met u gedeeld."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} heeft een agenda met u gedeeld. Die staat in uw agendalijst."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} blijft bovenaan de mappen van het account"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -25207,6 +25293,37 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
+
+#, fuzzy
+#~ msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
+#~ msgstr "Beheerd door GNOME Online Accounts · Microsoft Graph mail"
+
+#, fuzzy
+#~ msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
+#~ msgstr "Herstel de aanmeldings- of e-mailrechten van dit account in GNOME Online Accounts en probeer vervolgens opnieuw Verzenden/ontvangen."
+
+#, fuzzy
+#~ msgid "This GNOME account does not expose Microsoft Graph mail access."
+#~ msgstr "Dit GNOME-account biedt geen toegang tot e-mail via Microsoft Graph."
+
+#, fuzzy
+#~ msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
+#~ msgstr "Dit GNOME-account gebruikt Microsoft Graph, niet IMAP of SMTP."
+
+#, fuzzy
+#~ msgid "This GNOME connection supports only the selected account's mail."
+#~ msgstr "Deze GNOME-verbinding ondersteunt alleen de e-mail van het geselecteerde account."
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "Het eerste woord van een zin met een hoofdletter beginnen"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "De hoofdletter verschijnt zodra je het woord afmaakt. Met Ongedaan maken herstel je de getypte tekst."
+
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Spelling & grammatica"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

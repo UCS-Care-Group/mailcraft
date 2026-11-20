@@ -192,19 +192,16 @@ impl MailApp {
         if mailbox.is_shared() && quiet && self.shared_refused.contains_key(&account) {
             return None;
         }
-        let managed = owner.goa.as_ref().is_some_and(|g| g.provider == "ms_graph");
-        let (oauth, refresh) = if managed {
-            self.services.gnome_discovery()?;
-            (mailcraft_model::OAuth::default(), String::new())
-        } else {
-            let kept = self.tokens.get(&owner.id).or(self.graph_tokens.get(&owner.id)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-            let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).filter(|r| !r.is_empty())?;
-            (self.effective_oauth(owner.oauth.clone()?), refresh)
-        };
+        let oauth = owner.oauth.clone()?;
+        let kept = self.tokens.get(&owner.id).or(self.graph_tokens.get(&owner.id)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
+        let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).unwrap_or_default();
+        if refresh.is_empty() {
+            return None;
+        }
         let mail = mailcraft_engine::cmd::graph_mail::graph_inbox_request(&self.session, account)?;
         // A check every minute goes with the token it had a minute ago while that is still good,
         // as the calendar's job does: one request, not two.
-        let access = if check && !managed {
+        let access = if check {
             self.graph_tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now() + 60)).map(|t| t.access.clone()).unwrap_or_default()
         } else {
             String::new()
@@ -213,7 +210,7 @@ impl MailApp {
         let (pieces, taken) = std::sync::mpsc::sync_channel(8);
         let ask = GraphRequest {
             account: mailbox,
-            oauth,
+            oauth: self.effective_oauth(oauth),
             refresh,
             // (A round's is renewed for the job, as the run's own is.)
             access,
@@ -276,9 +273,6 @@ impl MailApp {
     /// What an Inbox pass's answer says of its sign-in, kept as for any job: renewed tokens (the
     /// refresh token for the owner, in the system's store when remembered), or a token refused.
     fn keep_inbox_tokens(&mut self, account: Id, result: &GraphResult) {
-        if self.session.mailbox.account(account).is_some_and(|a| a.goa.is_some()) {
-            return;
-        }
         let owner = self.session.mailbox.owner_of(account).map(|o| o.id);
         if result.token_refused {
             self.graph_tokens.remove(&account);

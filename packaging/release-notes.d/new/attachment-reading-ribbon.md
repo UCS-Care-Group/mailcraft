@@ -1,1 +1,0 @@
-- Selecting an attachment opens a ribbon for opening, saving or removing the file. Available previews ask for confirmation below the message header, while other attachments leave the message visible. Show Message is available when there is a preview to return from.

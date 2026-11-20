@@ -89,7 +89,12 @@ impl ListView {
 fn change_view(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(code) = v.get("value").filter(|x| !x.is_null()) {
         let view = code.as_str().and_then(ListView::parse).ok_or_else(|| bad("`value` is compact, single or preview"))?;
+        let was = s.view.reading_pane;
         view.apply(s);
+        // Out of Preview the reading pane is on, and shows the message selected: read (#1734).
+        if was == Pane::Off {
+            crate::cmd::mail::mark_opened(s, false);
+        }
     }
     Ok(json!({
         "value": ListView::of(s).map_or("custom", ListView::code),

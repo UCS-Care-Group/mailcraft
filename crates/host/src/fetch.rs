@@ -22,8 +22,6 @@ use mailcraft_model::sync::Tokens;
 
 /// What the host is asked to fetch.
 pub struct GraphFetchJob {
-    /// A selected GOA account, resolved by the platform for this mail operation only.
-    pub goa: Option<mailcraft_model::Account>,
     pub request: GraphFetchRequest,
     /// A Graph token of this session that covers the mail.
     pub access: String,
@@ -33,14 +31,6 @@ pub struct GraphFetchJob {
 /// Fetch the messages the job names.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn run(job: GraphFetchJob) -> GraphFetchResult {
-    if job.goa.is_some() {
-        return GraphFetchResult {
-            account: job.request.account,
-            email: job.request.email,
-            errors: vec!["Resolve this account through GNOME Online Accounts before downloading mail.".into()],
-            ..Default::default()
-        };
-    }
     mailcraft_net::graph::fetch_messages(&job.access, &job.request, &job.cancel)
 }
 

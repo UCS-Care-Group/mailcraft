@@ -1221,28 +1221,16 @@ fn the_owner_says_whether_a_new_rule_is_kept_on_the_server_and_is_told_why_it_ca
 }
 
 #[test]
-fn gnome_graph_uses_local_rules_and_direct_graph_retains_server_features() {
-    let (mut s, direct, _, _) = session();
-    let mut params = json!({"email": "linked@example.org", "kind": "microsoft", "goa": {"id": "linked", "provider": "ms_graph"}, "auth": "oauth2"});
-    assert!(s.run("account.add", &params).is_err());
-    params.as_object_mut().unwrap().remove("auth");
-    let linked = run(&mut s, "account.add", params)["id"].as_u64().unwrap();
-    for (account, keep) in [(linked, Keep::Here), (direct, Keep::Server)] {
-        let id = add(&mut s, account, "Reading", json!([{"type": "subjectContains", "value": "news"}]), json!([{"type": "markRead"}]));
-        assert_eq!(rule(&s, id).keep, keep);
-        let shared = s.run("account.addSharedMailbox", &json!({"account": account, "address": "shared@example.org"}));
-        assert_eq!(shared.is_ok(), account == direct);
-    }
-}
-
-#[test]
 fn account_edit_treats_null_goa_as_no_change() {
     let (mut s, direct, _, _) = session();
     let linked = run(
         &mut s,
         "account.add",
         json!({
-            "email": "linked@example.org", "kind": "microsoft", "goa": {"id": "linked", "provider": "ms_graph"}
+            "email": "linked@example.org", "kind": "imap",
+        "incoming": {"host": "imap.example.org", "security": "tls"},
+        "outgoing": {"host": "smtp.example.org", "security": "tls"},
+        "goa": {"id": "linked", "provider": "imap_smtp"}
         }),
     )["id"]
         .as_u64()

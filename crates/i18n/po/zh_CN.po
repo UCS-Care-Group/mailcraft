@@ -2168,7 +2168,7 @@ msgid "AutoArchive"
 msgstr "自动归档"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "自动"
@@ -3144,6 +3144,12 @@ msgstr "检查更新"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "检查新版本"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "使用本地词典检查拼写"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5672,6 +5678,12 @@ msgid "Find a Time"
 msgstr "查找时间"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "查找下一个拼写错误"
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Find what"
@@ -5812,7 +5824,7 @@ msgstr ""
 "属性"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "文件夹窗格"
@@ -8911,12 +8923,6 @@ msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
 msgstr "由 GNOME 在线帐户管理 · IMAP 和 SMTP"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
-msgstr "由 GNOME 在线帐户·Microsoft Graph 邮件管理"
-
-#. interface
 #: crates/ui-egui/src/gnome_accounts.rs
 #, fuzzy
 msgid "Managed by MailCraft"
@@ -9501,11 +9507,23 @@ msgstr "下移"
 msgid "Move Event"
 msgstr "移动事件"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "上移或下移收藏夹"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "移动文件夹"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "上移或下移文件夹"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -10490,6 +10508,24 @@ msgid "No signatures yet"
 msgstr "还没有签名"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "未发现拼写错误"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "已检查的部分未发现拼写错误"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "没有拼写建议"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -11012,7 +11048,7 @@ msgid "October"
 msgstr "10月"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "关"
@@ -13089,12 +13125,6 @@ msgstr "在 GNOME Online Accounts 中修复此帐户的发件登录凭据。"
 msgid "Repair this account's sign-in in GNOME Online Accounts."
 msgstr "修复此帐户在 GNOME 在线帐户中的登录。"
 
-#. interface, why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
-msgstr "修复此帐户在 GNOME 在线帐户中的登录或邮件权限，然后再次尝试发送/接收。"
-
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -13112,6 +13142,12 @@ msgstr "替换"
 #, fuzzy
 msgid "Replace All"
 msgstr "全部替换"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "替换指定位置的文本"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15611,8 +15647,26 @@ msgstr "邮件占用空间上限"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "拼写和语法"
+msgid "Spelling"
+msgstr "拼写"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "此平台不支持拼写检查"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "拼写检查语言"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "拼写建议"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17932,6 +17986,12 @@ msgid "The space the folder's own messages take on this computer"
 msgstr "该文件夹中的邮件在此计算机上占用的空间"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "拼写词典不可用"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "The start and the end need a date and a time"
@@ -18186,26 +18246,8 @@ msgstr "它们共享 {what}。"
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
 #, fuzzy
-msgid "This GNOME account does not expose Microsoft Graph mail access."
-msgstr "此 GNOME 帐户不提供通过 Microsoft Graph 访问邮件的权限。"
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-#, fuzzy
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
 msgstr "此 GNOME 帐户丢失、被禁用或不再公开受支持的邮件访问。检查 GNOME 在线帐户。"
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-#, fuzzy
-msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
-msgstr "此 GNOME 帐户使用 Microsoft Graph，而不是 IMAP 或 SMTP。"
-
-#. why a mail server couldn't be used
-#: apps/mailcraft/src/gnome_accounts.rs
-#, fuzzy
-msgid "This GNOME connection supports only the selected account's mail."
-msgstr "此 GNOME 连接仅支持所选帐户的邮件。"
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -21066,6 +21108,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "草稿不能设置提醒：请先发送，或在邮件本身中使用“跟进”"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "收藏项不能放在它自己之前"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "文件夹不能放在它自己之前"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -21076,6 +21130,12 @@ msgstr "文件夹不能移入自身"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "文件夹不能移至其他账户"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "文件夹只能在同级文件夹之间排序：请指定一个具有相同上级的文件夹"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21469,6 +21529,12 @@ msgstr "输入用户名以登录"
 #, fuzzy
 msgid "everybody at @{domain}"
 msgstr "@{domain} 的所有人"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "要查找的文本和替换文本都必须各占一行"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -23397,6 +23463,12 @@ msgid "the text has a character that can't be sent"
 msgstr "文本中包含无法发送的字符"
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "要替换的文本已更改"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
@@ -24476,6 +24548,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} 不是共享邮箱：使用 account.remove 将其删除"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} 不在收藏夹中"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24546,6 +24624,12 @@ msgstr "{name} 与您共享了日历。"
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} 与您共享了日历。该日历已出现在您的日历列表中。"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} 保持在账户文件夹的顶部"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -25705,6 +25789,38 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
+#~ msgstr "由 GNOME 在线帐户·Microsoft Graph 邮件管理"
+
+#, fuzzy
+#~ msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
+#~ msgstr "修复此帐户在 GNOME 在线帐户中的登录或邮件权限，然后再次尝试发送/接收。"
+
+#, fuzzy
+#~ msgid "This GNOME account does not expose Microsoft Graph mail access."
+#~ msgstr "此 GNOME 帐户不提供通过 Microsoft Graph 访问邮件的权限。"
+
+#, fuzzy
+#~ msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
+#~ msgstr "此 GNOME 帐户使用 Microsoft Graph，而不是 IMAP 或 SMTP。"
+
+#, fuzzy
+#~ msgid "This GNOME connection supports only the selected account's mail."
+#~ msgstr "此 GNOME 连接仅支持所选帐户的邮件。"
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "句首单词自动大写"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "输入完单词后会自动添加大写字母。撤销可恢复原来的输入。"
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "拼写和语法"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

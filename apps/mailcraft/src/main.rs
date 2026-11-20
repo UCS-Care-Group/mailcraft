@@ -108,6 +108,8 @@ mod shared_calendar_flow;
 #[cfg(test)]
 mod shared_send_flow;
 mod single_instance;
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+mod spelling;
 mod system_locale;
 mod system_motion;
 #[cfg(test)]
@@ -1150,6 +1152,8 @@ fn services(
         #[cfg(target_os = "linux")]
         gnome_accounts: Some(Box::new(move || background(&goa_ctx, "gnome account discovery", gnome_accounts::discover))),
         file_dialog: Some(file_dialog),
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
+        spelling: Some(Box::new(spelling::NativeChecker::default())),
         #[cfg(windows)]
         recent_attachments: Some(Box::new(|ctx| background(ctx, "recent attachments", recent_attachments::list))),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
@@ -1213,27 +1217,13 @@ fn services(
         })),
         graph: Some(Box::new({
             let host = host.clone();
-            move |request: GraphRequest| {
-                host_job(host.as_ref(), &graph_ctx, "microsoft graph", move || {
-                    #[cfg(target_os = "linux")]
-                    if request.account.goa.is_some() {
-                        return gnome_accounts::graph(request);
-                    }
-                    mailcraft_host::graph::graph(request)
-                })
-            }
+            move |request: GraphRequest| host_job(host.as_ref(), &graph_ctx, "microsoft graph", move || mailcraft_host::graph::graph(request))
         })),
         // Messages of a Microsoft account fetched whole, a few at a time (R3.2).
         graph_fetch: Some(Box::new({
             let host = host.clone();
             move |job: mailcraft_ui_egui::graph_fetch::GraphFetchJob| {
-                host_job(host.as_ref(), &fetch_ctx, "message download", move || {
-                    #[cfg(target_os = "linux")]
-                    if job.goa.is_some() {
-                        return gnome_accounts::fetch(job);
-                    }
-                    mailcraft_host::fetch::run(job)
-                })
+                host_job(host.as_ref(), &fetch_ctx, "message download", move || mailcraft_host::fetch::run(job))
             }
         })),
         // An Exchange server account (#252): read through Exchange Web Services, and its messages fetched whole.
@@ -1244,13 +1234,7 @@ fn services(
         ews_resolve: Some(Box::new(move |job| ews_runner::run_resolve(job, &ews_resolve_ctx))),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
         graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
-            background(&search_ctx, "server search", move || {
-                #[cfg(target_os = "linux")]
-                if job.goa.is_some() {
-                    return gnome_accounts::search(job);
-                }
-                mailcraft_net::graph::search_messages(&job.access, &job.request)
-            })
+            background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))
         })),
         // The tasks of a Microsoft account, kept in step with Microsoft To Do (#248).
         graph_tasks: Some(Box::new({

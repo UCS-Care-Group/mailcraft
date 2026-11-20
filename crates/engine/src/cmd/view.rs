@@ -100,7 +100,12 @@ fn tasks(s: &mut Session, _: &Value) -> CmdResult {
 }
 
 fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {
+    let was = s.view.reading_pane;
     s.view.reading_pane = parse_enum::<Pane>(p::req_str(v, "value")?).ok_or_else(|| bad("`value` is right, bottom or off"))?;
+    // Turned on, it shows the message selected: read, as a click on it would be (#1734).
+    if was == Pane::Off {
+        super::mail::mark_opened(s, false);
+    }
     Ok(json!({"value": s.view.reading_pane}))
 }
 

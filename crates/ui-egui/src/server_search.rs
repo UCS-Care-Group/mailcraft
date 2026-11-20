@@ -19,7 +19,6 @@ use crate::MailApp;
 
 /// What the host is asked to search ([`crate::Services::graph_search`]).
 pub struct GraphSearchJob {
-    pub goa: Option<mailcraft_model::Account>,
     pub request: GraphSearchRequest,
     /// A Graph token of this session that covers the mailbox's mail.
     pub access: String,
@@ -56,9 +55,6 @@ pub enum Link {
 impl MailApp {
     /// A Graph token of this session for `account` that is still good.
     fn search_token(&self, account: Id) -> Option<String> {
-        if self.session.mailbox.account(account).is_some_and(|a| a.goa.is_some()) {
-            return self.services.gnome_discovery().is_some().then(String::new);
-        }
         self.graph_tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone())
     }
 
@@ -107,8 +103,7 @@ impl MailApp {
                 let _ = search_server::apply(&mut self.session, unreached);
                 continue;
             };
-            let rx =
-                search(GraphSearchJob { goa: self.session.mailbox.account(request.account).filter(|a| a.goa.is_some()).cloned(), request, access });
+            let rx = search(GraphSearchJob { request, access });
             self.server_searching.pending.push((unreached, rx));
         }
     }

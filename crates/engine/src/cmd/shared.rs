@@ -65,7 +65,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 fn has_owner(s: &Session) -> Option<&'static str> {
-    if s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.goa.is_none() && !a.is_shared()) {
+    if s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && !a.is_shared()) {
         None
     } else {
         Some("shared mailboxes open under an account kept in step through Microsoft Graph")
@@ -85,7 +85,7 @@ fn owner(s: &Session, v: &Value) -> Result<Id, CmdError> {
             .mailbox
             .accounts
             .iter()
-            .find(|a| a.kind == AccountKind::Microsoft && a.goa.is_none() && !a.is_shared())
+            .find(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
             .map(|a| a.id)
             .ok_or_else(|| fail("shared mailboxes open under an account kept in step through Microsoft Graph")),
     }

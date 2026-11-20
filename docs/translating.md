@@ -1,6 +1,6 @@
 # Translating MailCraft
 
-> **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-12 · **Change:** minor
+> **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-16 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
 Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese and Georgian. Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
@@ -71,6 +71,10 @@ Agreement](../CLA.md).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-16 | minor | added the Czech preview catalogue (`cs.po`), with its three plural forms. |
+| 2026-11-15 | minor | #1357: added the Polish preview catalogue (`pl.po`), with its three plural forms. |
+| 2026-11-14 | minor | Added the Hungarian preview catalogue (`hu.po`). |
+| 2026-11-13 | minor | #1010: Georgian as a preview language (`ka.po`) |
 | 2026-11-12 | minor | #1135: Romanian as a preview language (`ro.po`), with its three plural forms |
 | 2026-11-12 | minor | #1031: Simplified Chinese preview catalogue (`zh_CN.po`), initial catalogue reviewed by its contributor |
 | 2026-11-10 | patch | #978: English writes dates the day first outside the US, Canada and the Philippines, with the region's clock and first day of the week |
