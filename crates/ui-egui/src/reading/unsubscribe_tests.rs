@@ -427,3 +427,56 @@ fn the_menus_answer_is_kept_until_the_mailbox_or_the_selection_changes() {
     assert!(super::any_offered(&mut app, &[id]));
     assert!(!super::any_offered(&mut app, &[]));
 }
+
+/// `command` sent by an agent allowed nothing in advance, so that the owner is asked: what the
+/// question says it would do, and where its answer comes once the owner has said yes.
+fn agent_asks(app: &mut MailApp, command: &str, params: serde_json::Value) -> (String, mpsc::Receiver<serde_json::Value>) {
+    let (req, rx) = crate::control::ControlRequest::new("engine.execute", json!({"command": command, "params": params}));
+    let out = crate::control::handle(app, &egui::Context::default(), &req.from_agent(Vec::new()));
+    assert!(!matches!(out, crate::control::Outcome::Done(_)), "the owner is asked first");
+    let what = app.asking.front().map(|a| a.what.clone()).unwrap_or_default();
+    crate::agent_gate::answer(app, true);
+    (what, rx)
+}
+
+#[test]
+fn what_an_agent_is_allowed_is_what_is_written_and_nothing_more() {
+    let (mut app, one) = list_app(&ONE_CLICK);
+    let _ = host(&mut app, Ok(()));
+    let shop = add_at(&mut app, "deals@shop.example", 60, &[("List-Unsubscribe", "<mailto:leave@shop.example?subject=Leave%20me>")]);
+    let club = add_at(&mut app, "news@club.example", 120, &[("List-Unsubscribe", "<mailto:quit@club.example>")]);
+    app.session.sel.messages = vec![one, shop, club];
+    // One message named by `id`: the question is about it alone, so the selection never runs.
+    let (_, rx) = agent_asks(&mut app, "ui.unsubscribeMany", json!({"id": shop}));
+    assert_eq!(rx.try_recv().unwrap()["ok"], false);
+    assert!(app.unsubscribing.waiting.is_empty() && app.unsubscribing.flying.is_none() && outbox(&app).is_empty());
+    // A request named wrongly among those to write (0): the question shows none, and none goes.
+    let (what, rx) = agent_asks(&mut app, "ui.unsubscribeMany", json!({"ids": [shop], "mail": [shop, 0]}));
+    assert!(!what.contains("writing"), "{what}");
+    assert_eq!(rx.try_recv().unwrap()["ok"], false);
+    assert!(outbox(&app).is_empty());
+    // A request named that isn't one of these messages': refused, not left out quietly.
+    let (_, rx) = agent_asks(&mut app, "ui.unsubscribeMany", json!({"ids": [shop], "mail": [club]}));
+    assert_eq!(rx.try_recv().unwrap()["ok"], false);
+    assert!(outbox(&app).is_empty());
+    // Named rightly: each address and subject is in the question, and exactly those are written.
+    let (what, rx) = agent_asks(&mut app, "ui.unsubscribeMany", json!({"ids": [shop, club], "mail": [shop, club]}));
+    for shown in
+        ["to leave@shop.example with the subject \u{201c}Leave me\u{201d}", "to quit@club.example with the subject \u{201c}Unsubscribe\u{201d}"]
+    {
+        assert!(what.contains(shown), "{what}");
+    }
+    assert_eq!(rx.try_recv().unwrap()["ok"], true);
+    let mut sent = outbox(&app);
+    sent.sort();
+    assert_eq!(sent, ["leave@shop.example", "quit@club.example"]);
+}
+
+#[test]
+fn more_requests_by_mail_than_a_question_lists_are_refused() {
+    let (mut app, _) = list_app(&[]);
+    let mail: Vec<u64> = (1..=21).collect();
+    let refused = app.execute("ui.unsubscribeMany", json!({"ids": [1], "mail": mail})).unwrap_err();
+    assert!(refused.contains("20"), "{refused}");
+    assert!(outbox(&app).is_empty());
+}
