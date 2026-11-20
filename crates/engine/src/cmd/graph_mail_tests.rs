@@ -89,9 +89,9 @@ fn the_listing_makes_the_tree_from_parent_ids_and_keeps_names_whole() {
     let ab = by_server(&s, account, "ab");
     assert_eq!((ab.name.as_str(), ab.parent), ("A\\B", Some(sales.id)));
     assert_eq!(s.mailbox.folder_path(ab.id), "Inbox/Sales/Marketing/A\\B");
-    // Outlook's order: the special folders first, then the rest by name.
+    // The four that lead first, then the rest by name (the pane's order, #1514).
     let top: Vec<&str> = s.mailbox.children(account, None).iter().map(|f| f.name.as_str()).collect();
-    assert_eq!(top, ["Inbox", "Drafts", "Sent Items", "Deleted Items", "Archive", "Junk Email", "Outbox", "Conversation History", "Projects"]);
+    assert_eq!(top, ["Inbox", "Drafts", "Sent Items", "Deleted Items", "Archive", "Conversation History", "Junk Email", "Outbox", "Projects"]);
     // Taken in twice, it is the same.
     let before = s.mailbox.folders.clone();
     let again = take(&mut s, account, listed(server(), true));
@@ -356,4 +356,24 @@ fn answered_and_forwarded_set_here_survive_a_delta() {
     take(&mut s, account, page(true));
     let m = s.mailbox.message(id).unwrap();
     assert_eq!((m.answered, m.forwarded, m.read), (true, true, true));
+}
+
+/// A folder moved under another parent there goes last there, not where it was among the old
+/// siblings (#1514).
+#[test]
+fn a_folder_moved_there_goes_last_under_its_new_parent() {
+    let (mut s, account) = session();
+    take(&mut s, account, listed(server(), true));
+    let projects = s.mailbox.folder_by_server(account, "pr").unwrap();
+    let history = s.mailbox.folder_by_server(account, "co").unwrap();
+    assert_eq!(s.mailbox.reorder_folder(projects, None), Ok(false), "last already");
+    assert_eq!(s.mailbox.reorder_folder(projects, Some(history)), Ok(true));
+    assert!(s.mailbox.folder(projects).unwrap().place.is_some());
+    let mut there = server();
+    if let Some(f) = there.iter_mut().find(|f| f.id == "pr") {
+        f.parent = "in".into();
+    }
+    take(&mut s, account, listed(there, true));
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox);
+    assert_eq!((s.mailbox.folder(projects).unwrap().parent, s.mailbox.folder(projects).unwrap().place), (inbox, None));
 }
