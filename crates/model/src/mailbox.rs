@@ -158,20 +158,26 @@ pub struct Folder {
     /// siblings. `None` until the owner first moves a favourite, and once it stops being one.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub favorite_place: Option<u32>,
+    /// Its [`Folder::place`] before a move to another parent cleared it, until the server has
+    /// taken the move or refused it (#1514): a refused move puts it back where it was. A
+    /// file from before has none.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub place_before_move: Option<u32>,
 }
+
+const LEAD: [FolderKind; 4] = [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted];
 
 /// The rank of the folders that lead an account's top level in the folder pane, in the order
 /// they lead it: Inbox, Drafts, Sent Items and Deleted Items, which stay there (#1514); every
 /// other folder ranks after them.
 pub fn lead_rank(kind: FolderKind) -> usize {
-    const LEAD: [FolderKind; 4] = [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted];
     LEAD.iter().position(|k| *k == kind).unwrap_or(LEAD.len())
 }
 
 /// Whether a folder keeps its place at the head of its account's list whatever the owner does
 /// (#1514): one of [`lead_rank`]'s at the top level.
 pub fn leads(f: &Folder) -> bool {
-    f.parent.is_none() && lead_rank(f.kind) < 4
+    f.parent.is_none() && lead_rank(f.kind) < LEAD.len()
 }
 
 /// Put folders that share a parent (`top`: none, they are an account's top level) in the order
@@ -322,6 +328,9 @@ impl Folder {
     /// the old siblings means nothing among the new ones (#1514).
     pub fn set_parent(&mut self, parent: Option<Id>) {
         if self.parent != parent {
+            if self.place.is_some() {
+                self.place_before_move = self.place;
+            }
             self.place = None;
         }
         self.parent = parent;
@@ -1907,9 +1916,10 @@ impl Mailbox {
         self.default_account().and_then(|a| self.folder_of_kind(a.id, FolderKind::Inbox)).or_else(|| self.folders.first().map(|f| f.id))
     }
 
-    /// Top-level folders of an account (`parent` `None`) or a folder's subfolders, standard
-    /// folders first in their usual order, then the others by name; as the folder pane lists
-    /// them (#1514), the owner's places first.
+    /// Top-level folders of an account (`parent` `None`) or a folder's subfolders, as the
+    /// folder pane lists them ([`sort_as_listed`], #1514): at the top level only Inbox, Drafts,
+    /// Sent Items and Deleted Items lead, in that order; every other folder follows in the
+    /// owner's places, those without one by name.
     pub fn children(&self, account: Id, parent: Option<Id>) -> Vec<&Folder> {
         let mut v: Vec<&Folder> = self.folders.iter().filter(|f| f.account == account && f.parent == parent).collect();
         sort_as_listed(&mut v, parent.is_none());
@@ -1960,6 +1970,7 @@ impl Mailbox {
         for f in self.folders.iter_mut() {
             if let Some(n) = place.get(&f.id) {
                 f.place = Some(*n);
+                f.place_before_move = None;
             }
         }
         Ok(true)

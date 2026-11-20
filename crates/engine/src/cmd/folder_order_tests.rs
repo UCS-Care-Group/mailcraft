@@ -152,3 +152,21 @@ fn a_microsoft_accounts_folder_moves_here_alone() {
     s.run("edit.undo", &json!({})).unwrap();
     assert_eq!(top_custom(&mut s, ms), [x, y]);
 }
+
+/// A `before` past the 1000 the pane lists still lands right before it, not before the last one
+/// listed.
+#[test]
+fn a_favorite_is_moved_before_one_past_the_cap() {
+    let (mut s, account, _) = session();
+    let ids: Vec<Id> = (0..1_002)
+        .map(|n| s.run("folder.new", &json!({"name": format!("F{n:04}"), "account": account, "parent": null})).unwrap()["id"].as_u64().unwrap())
+        .collect();
+    for f in s.mailbox.folders.iter_mut().filter(|f| ids.contains(&f.id)) {
+        f.favorite = true;
+    }
+    let (first, last) = (ids[0], ids[1_001]);
+    run(&mut s, "folder.reorderFavorite", json!({"id": first, "before": last})).unwrap();
+    let place = |s: &Session, id: Id| s.mailbox.folder(id).unwrap().favorite_place.unwrap();
+    assert_eq!(place(&s, first) + 1, place(&s, last));
+    assert!(place(&s, ids[1_000]) < place(&s, first));
+}

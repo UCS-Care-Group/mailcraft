@@ -698,12 +698,15 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         }
     }
     // A folder dragged over another beside it: a line where it would go, and the move on letting go.
+    // (Not on the lower half of one whose subfolders show: the drop would land after them all, a
+    // line at this row's edge would lie, so it is no place to drop.)
+    let subtree_shows = !favorite_row && has_children && !app.ui.collapsed_folders.contains(&f.id);
     if let Some(drag) = resp.dnd_hover_payload::<FolderDrag>()
         && drag.favorite == favorite_row
         && let Some(pos) = ui.ctx().pointer_interact_pos()
     {
         let upper = pos.y < r.center().y;
-        if drop_before(&reorder_peers(app, f.id, favorite_row), drag.id, f.id, upper).is_some() {
+        if (upper || !subtree_shows) && drop_before(&reorder_peers(app, f.id, favorite_row), drag.id, f.id, upper).is_some() {
             crate::drag_pointer::note_folder(ui.ctx(), true);
             let y = if upper { r.min.y + 0.5 } else { r.max.y - 0.5 };
             let (left, right) = (r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT + HIGHLIGHT_LEFT, r.max.x - HIGHLIGHT_RIGHT);
@@ -716,6 +719,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         && let Some(drag) = resp.dnd_release_payload::<FolderDrag>()
         && drag.favorite == favorite_row
         && let Some(pos) = ui.ctx().pointer_interact_pos()
+        && (pos.y < r.center().y || !subtree_shows)
         && let Some(before) = drop_before(&reorder_peers(app, f.id, favorite_row), drag.id, f.id, pos.y < r.center().y)
     {
         let cmd = if favorite_row { "folder.reorderFavorite" } else { "folder.reorder" };

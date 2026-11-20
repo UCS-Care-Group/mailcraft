@@ -64,6 +64,14 @@ pub fn favorites_from_server(s: &Session, account: Id) -> bool {
 /// here of every other account, as they always were. The marks of an account whose list comes
 /// from its server are kept, and count again once it no longer does.
 pub fn favorites(s: &Session) -> Vec<Id> {
+    let mut out = all_favorites(s);
+    out.truncate(MAX_FAVORITES);
+    out
+}
+
+/// [`favorites`] without the cap: what reordering works on, so a `before` past the cap still lands
+/// where it was asked (#1514).
+fn all_favorites(s: &Session) -> Vec<Id> {
     let mut out: Vec<Id> = Vec::new();
     let mut served: Vec<Id> = Vec::new();
     if !s.prefs.own_favorites {
@@ -78,14 +86,13 @@ pub fn favorites(s: &Session) -> Vec<Id> {
     // In the order the owner put them in (#1514); those without a place after them, as they were.
     own.sort_by_key(|f| f.favorite_place.unwrap_or(u32::MAX));
     out.extend(own.into_iter().map(|f| f.id));
-    out.truncate(MAX_FAVORITES);
     out
 }
 
 /// The favourites kept in MailCraft, as the pane lists them (#1514): what
 /// `folder.reorderFavorite` moves among, Outlook's own left out.
 pub fn own_favorites(s: &Session) -> Vec<Id> {
-    favorites(s).into_iter().filter(|id| s.mailbox.folder(*id).is_some_and(|f| f.favorite && !favorites_from_server(s, f.account))).collect()
+    all_favorites(s).into_iter().filter(|id| s.mailbox.folder(*id).is_some_and(|f| f.favorite && !favorites_from_server(s, f.account))).collect()
 }
 
 /// The id of `key` in `v`, `None` when it is missing or null; anything else that isn't an id is

@@ -633,7 +633,10 @@ pub(super) fn change_done(
             let server = f.server.as_mut().filter(|server| server.id == there.id)?;
             match change {
                 FolderChange::Rename { .. } => server.name = there.name.clone(),
-                _ => server.parent = there.parent.clone(),
+                _ => {
+                    server.parent = there.parent.clone();
+                    f.place_before_move = None;
+                }
             }
             taken.pushed += 1;
             None
@@ -668,6 +671,8 @@ pub(super) fn change_done(
                 }
                 _ => {
                     f.set_parent(back);
+                    // (Back in its old place too, #1514.)
+                    f.place = f.place_before_move.take().or(f.place);
                     format!("Couldn't move the folder \"{was}\" on the server: {why}")
                 }
             };
