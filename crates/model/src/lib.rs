@@ -67,7 +67,7 @@ pub mod zoned;
 
 use serde::{Deserialize, Serialize};
 
-pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, mailbox_address};
+pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, is_valid_email, mailbox_address};
 pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
@@ -86,7 +86,7 @@ pub use mailbox::{
     FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, FollowUp, FollowUpsSettled, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, ImapStatus,
     MAX_CATEGORIES, MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_FOLLOW_UP_AHEAD, MAX_RULES, MAX_SHARED, MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS,
     MOVED_INTO_OUTBOX, MailIdentity, Mailbox, OAuth, OAuthProvider, ONLY_SERVER_FOLDERS, PALETTE, Pending, PendingFollowUp, Queued, Security, Server,
-    ServerFavorites, ServerFolder, Settled, Snooze, categories_read_only_text, category_key,
+    ServerFavorites, ServerFolder, Settled, Snooze, categories_read_only_text, category_key, lead_rank, leads, sort_as_listed,
 };
 pub use mailcraft_time as time;
 pub use message::{
@@ -190,6 +190,8 @@ mod auto_replies_tests;
 mod calendar_rights_tests;
 #[cfg(test)]
 mod contact_key_tests;
+#[cfg(test)]
+mod folder_order_tests;
 #[cfg(test)]
 mod gmail_labels_tests;
 #[cfg(test)]

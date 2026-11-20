@@ -9,7 +9,9 @@ use mailcraft_model::rich::Font;
 
 mod accent;
 mod blue;
-pub use accent::{Accent, AccentInk, lenient_bool};
+pub use accent::{
+    Accent, AccentInk, DEFAULT_CUSTOM_COLOR, black_or_white_on, color_option, hex_string, lenient_bool, parse_color_value, parse_hex_color,
+};
 pub use blue::DarkStyle;
 
 /// MailCraft's own colour, the teal of its icon (and its darker ink for text on light
@@ -519,9 +521,13 @@ impl Palette {
         Palette { light: Tokens::light(), dark: Tokens::dark() }
     }
 
-    /// The built-in look in `accent`, with high contrast on or off, its dark half in `style`.
-    pub fn for_choice(accent: Accent, high_contrast: bool, style: DarkStyle) -> Palette {
-        Palette { light: Tokens::build(false, accent, high_contrast), dark: Tokens::build_dark(style, accent, high_contrast) }
+    /// The built-in look in `accent` — with `custom` as the colour when it is a custom one — with
+    /// high contrast on or off, its dark half in `style`.
+    pub fn for_choice(accent: Accent, custom: Option<Color32>, high_contrast: bool, style: DarkStyle) -> Palette {
+        Palette {
+            light: Tokens::build_choice(false, accent, custom, high_contrast),
+            dark: Tokens::build_dark_choice(style, accent, custom, high_contrast),
+        }
     }
 
     fn slot() -> egui::Id {
@@ -538,6 +544,8 @@ impl Palette {
 pub struct ThemeChoice {
     pub appearance: Appearance,
     pub accent: Accent,
+    /// The colour of a custom accent; None until the owner picks one (the default is used then).
+    pub custom: Option<Color32>,
     pub high_contrast: bool,
     /// The greys of the dark theme (#1384).
     pub dark_style: DarkStyle,
@@ -546,7 +554,7 @@ pub struct ThemeChoice {
 impl ThemeChoice {
     /// The palette this choice shows.
     pub fn palette(&self) -> Palette {
-        Palette::for_choice(self.accent, self.high_contrast, self.dark_style)
+        Palette::for_choice(self.accent, self.custom, self.high_contrast, self.dark_style)
     }
 }
 

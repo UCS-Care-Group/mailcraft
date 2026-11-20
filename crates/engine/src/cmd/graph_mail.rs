@@ -633,7 +633,10 @@ pub(super) fn change_done(
             let server = f.server.as_mut().filter(|server| server.id == there.id)?;
             match change {
                 FolderChange::Rename { .. } => server.name = there.name.clone(),
-                _ => server.parent = there.parent.clone(),
+                _ => {
+                    server.parent = there.parent.clone();
+                    f.place_before_move = None;
+                }
             }
             taken.pushed += 1;
             None
@@ -667,7 +670,9 @@ pub(super) fn change_done(
                     format!("Couldn't rename the folder \"{was}\" on the server: {why}")
                 }
                 _ => {
-                    f.parent = back;
+                    f.set_parent(back);
+                    // (Back in its old place too, #1514.)
+                    f.place = f.place_before_move.take().or(f.place);
                     format!("Couldn't move the folder \"{was}\" on the server: {why}")
                 }
             };
@@ -842,7 +847,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         f.name = name.to_string();
     }
     if !moved_here && can_go {
-        f.parent = parent_here;
+        f.set_parent(parent_here);
     }
     if f.kind == FolderKind::Custom && there.kind != FolderKind::Custom {
         f.kind = there.kind;
