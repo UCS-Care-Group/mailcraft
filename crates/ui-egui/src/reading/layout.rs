@@ -974,10 +974,12 @@ fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, y: f32, side: Hang, 
 
 // ---- pictures ----
 
-/// How many pictures stand in one line from `index`: those that follow the first directly.
+/// How many pictures stand in one line from `index`: those that follow the first directly, in
+/// its line (one the message starts on a line of its own starts one here too, #1653).
 fn run_length(blocks: &[Block], index: usize) -> usize {
     let Some(first) = blocks.get(index) else { return 1 };
-    let follows = |b: &&Block| matches!(b.kind, BlockKind::Image { .. }) && b.space == 0 && b.quote == first.quote && b.align == first.align;
+    let follows =
+        |b: &&Block| matches!(b.kind, BlockKind::Image { .. }) && b.beside && b.space == 0 && b.quote == first.quote && b.align == first.align;
     1 + blocks.iter().skip(index + 1).take(MAX_RUN - 1).take_while(follows).count()
 }
 
@@ -1733,15 +1735,20 @@ fn columns(cx: &mut Cx<'_>, table: &Table, grid: &Grid<'_>, depth: usize) -> Col
             *hi = hi.max(max);
         }
     }
-    // The columns a cell spans hold it together: what they lack is shared out among them.
+    // The columns a cell spans hold it together: what they lack is shared out among them, among
+    // those whose width the message didn't set when there are any (#1653).
     for (col, cols, min, max) in spanning {
         let between = gap * (cols - 1) as f32;
+        let free = out.fixed.iter().skip(col).take(cols).filter(|fixed| !**fixed).count();
+        let takes = |fixed: &bool| free == 0 || !*fixed;
         for (values, need) in [(&mut out.min, min - between), (&mut out.max, max - between)] {
             let have: f32 = values.iter().skip(col).take(cols).sum();
             if need > have {
-                let each = (need - have) / cols as f32;
-                for v in values.iter_mut().skip(col).take(cols) {
-                    *v += each;
+                let each = (need - have) / if free == 0 { cols } else { free } as f32;
+                for (v, fixed) in values.iter_mut().zip(&out.fixed).skip(col).take(cols) {
+                    if takes(fixed) {
+                        *v += each;
+                    }
                 }
             }
         }
