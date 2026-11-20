@@ -1342,9 +1342,9 @@ pub struct CategoryRenamed {
     /// answer for when asked to change them: they wait for a later run.
     #[serde(skip_serializing_if = "is_zero")]
     pub stuck: u32,
-    /// How many were left as they are without asking the server: the change writes an item's
-    /// whole list of categories, and theirs is longer than is taken in, or holds what isn't a
-    /// plain name. They keep the old name.
+    /// How many were left as they are, no change asked for: the change writes an item's whole
+    /// list of categories, and theirs is longer than is taken in, or holds what isn't a plain
+    /// name. They keep the old name.
     #[serde(skip_serializing_if = "is_zero")]
     pub passed: u32,
     /// The server failed at the question itself (its own trouble, a refusal part-way through

@@ -11,15 +11,19 @@
 //!   `/me/calendar/events` and each of the account's other calendars the request names, which
 //!   give single events and the series themselves ("List events"). Never a shared mailbox, and
 //!   never a calendar the request doesn't name.
-//! - **Changed.** `PATCH` of each item's `categories` alone: the list the server gave, with the
-//!   new name where the old one stood (once, when the item had both), twenty to a
-//!   `POST /v1.0/$batch`, right after the lists were read (a change of a message's categories
-//!   reads them just before it writes them too); one at a time from a server that takes no
-//!   batch. At most [`MAX_RENAMED_ITEMS`] a run.
+//! - **Changed.** Twenty at a time: first `GET {item}?$select=categories` of each, in one
+//!   `POST /v1.0/$batch`, then `PATCH` of each one's `categories` alone, in another: the list the
+//!   server has just given, with the new name where the old one stood (once, when the item had
+//!   both). The list is read again right before it is written because the change writes the
+//!   whole of it, and a run can take minutes: a category the item was given on the server since
+//!   the lists were read stays (a change of a message's categories reads them just before it
+//!   writes them too, `mail/up.rs`). No `If-Match` is sent: "Update message" and "Update event"
+//!   name no such header. An item that no longer carries the old name is not written. One
+//!   request at a time from a server that takes no batch. At most [`MAX_RENAMED_ITEMS`] a run.
 //! - **What comes back** ([`CategoryRenamed`]): `done` once the lists were read to their ends and
 //!   every item was answered for good (or a run's fill was listed and none of it could be
-//!   changed: `more`). An item the server puts off (409, 412, 5xx: counted as
-//!   `stuck`, as is one whose change got no answer), a busy server, a lost connection: not done,
+//!   changed: `more`). An item the server puts off (408, 409, 412, 5xx: counted as
+//!   `stuck`, as is one whose read or change got no answer, or whose read gave no list), a busy server, a lost connection: not done,
 //!   and a later run asks again and finds what is left. An item the server won't change (another 4xx) is counted and not held against
 //!   the rest; one that is gone (404) is nothing to change. A list the server won't say it for
 //!   (403, another 4xx, an answer that is no list) is passed over and counted
@@ -75,10 +79,10 @@ pub(super) struct Outcome {
     pub token_refused: bool,
 }
 
-/// One item that carries the old name.
+/// One item that carried the old name when the lists were read: its id. (Its categories are read
+/// again right before they are written.)
 struct Item {
     id: String,
-    categories: Vec<String>,
 }
 
 /// What became of one item's change.
@@ -88,6 +92,11 @@ enum Said {
     Gone,
     /// For good: counted, and not asked again.
     Skipped,
+    /// It no longer carries the old name (renamed or taken off on the server since the lists
+    /// were read): nothing to change, and a later run doesn't list it.
+    Clear,
+    /// Its list can't be written back whole now: left as it is, and counted (`passed`).
+    Passed,
     /// The server's own "not now" for this item (changed there since it was listed, its own
     /// trouble), or no answer for it at all: a later run, and counted.
     Stuck,
@@ -108,6 +117,43 @@ fn said_of(status: u16, retry_after: Option<u32>) -> Said {
         408 | 409 | 412 | 500..=599 => Said::Stuck,
         _ => Said::Skipped,
     }
+}
+
+/// An item's list of categories as it is written back: `None` for one that is longer than is
+/// taken in, or holds what isn't a plain name. The change writes the whole list, so such an item
+/// is left as it is and said, never given a cut copy.
+fn whole_list(listed: &[Value]) -> Option<Vec<String>> {
+    let plain = |c: &Value| c.as_str().is_some_and(|c| c.chars().count() <= MAX_CATEGORY && !c.chars().any(char::is_control));
+    (listed.len() <= MAX_CATEGORIES && listed.iter().all(plain)).then(|| listed.iter().filter_map(Value::as_str).map(str::to_string).collect())
+}
+
+/// Whether a list of categories as the server gave it carries `name`.
+fn carries(listed: &[Value], name: &str) -> bool {
+    listed.iter().take(MAX_LISTED).filter_map(Value::as_str).any(|c| same_category(c, name))
+}
+
+/// What an item's own answer, read right before its change, says to do: the list to write, or
+/// what became of the item without a write.
+fn fresh_of(status: u16, body: &Value, retry_after: Option<u32>, rename: &CategoryRename) -> Result<Vec<String>, Said> {
+    match said_of(status, retry_after) {
+        Said::Changed => {}
+        said => return Err(said),
+    }
+    // (An answer that gives no list says nothing of the item: counted, and a later run.)
+    let Some(listed) = body.get("categories").and_then(Value::as_array) else { return Err(Said::Stuck) };
+    // (A list too long to be written back is too long to say it doesn't carry the name.)
+    let Some(categories) = whole_list(listed) else {
+        return Err(if listed.len() > MAX_CATEGORIES || carries(listed, &rename.from) { Said::Passed } else { Said::Clear });
+    };
+    if !carries(listed, &rename.from) {
+        return Err(Said::Clear);
+    }
+    Ok(renamed_list(&categories, &rename.from, &rename.to))
+}
+
+/// The query of an item's read.
+fn read_query() -> String {
+    http::form(&[("$select", "categories")])
 }
 
 /// The filter that finds what carries `name`.
@@ -243,26 +289,21 @@ pub(super) fn rename(
                 let id = text(entry, "id");
                 let listed = entry.get("categories").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
                 // (Only what does carry the name, whatever the server's filter took it for.)
-                let carries = listed.iter().take(MAX_LISTED).filter_map(Value::as_str).any(|c| same_category(c, &rename.from));
-                if !valid_id(id) || !carries || found.iter().any(|have| have.id == id) {
+                if !valid_id(id) || !carries(listed, &rename.from) || found.iter().any(|have| have.id == id) {
                     continue;
                 }
-                // The change writes the item's whole list, so the list is written as it was read:
-                // an item whose list is longer than is taken in, or holds what isn't a plain
-                // name, is left as it is and said, never given a cut copy.
-                let plain = |c: &Value| c.as_str().is_some_and(|c| c.chars().count() <= MAX_CATEGORY && !c.chars().any(char::is_control));
-                if listed.len() > MAX_CATEGORIES || !listed.iter().all(plain) {
+                // (One whose list can't be written back whole takes no place in the run.)
+                if whole_list(listed).is_none() {
                     if passed.insert(id.to_string()) {
                         out.renamed.passed = out.renamed.passed.saturating_add(1);
                     }
                     continue;
                 }
-                let categories: Vec<String> = listed.iter().filter_map(Value::as_str).map(str::to_string).collect();
                 if found.len() >= MAX_RENAMED_ITEMS {
                     whole = false;
                     break 'lists;
                 }
-                found.push(Item { id: id.to_string(), categories });
+                found.push(Item { id: id.to_string() });
             }
             next = match &page.next {
                 Some(link) => match graph.next_page(link, &url) {
@@ -314,10 +355,16 @@ pub(super) fn rename(
             Err(None) => vec![Said::Stuck; chunk.len()],
             Err(Some(said)) => vec![said; chunk.len()],
         };
-        for said in answers {
+        for (item, said) in chunk.iter().zip(answers) {
             match said {
                 Said::Changed => out.renamed.changed = out.renamed.changed.saturating_add(1),
-                Said::Gone => gone = gone.saturating_add(1),
+                // (One that no longer carries the name is, like one that is gone, not listed again.)
+                Said::Gone | Said::Clear => gone = gone.saturating_add(1),
+                Said::Passed => {
+                    if passed.insert(item.id.clone()) {
+                        out.renamed.passed = out.renamed.passed.saturating_add(1);
+                    }
+                }
                 Said::Skipped => out.renamed.skipped = out.renamed.skipped.saturating_add(1),
                 Said::Stuck => {
                     out.renamed.stuck = out.renamed.stuck.saturating_add(1);
@@ -344,8 +391,9 @@ pub(super) fn rename(
     // Done when everything was listed and answered for good. A run that listed its fill and could
     // change none of it (nor found any of it gone) would list the same again: that is all there
     // is to do, too, and it is said that there may be more (`more`).
-    // (A fill of which none was changed and some were gone is listed anew by a later run; a
-    // server that goes on listing what it says is gone is failing at the question, and counted.)
+    // (A fill of which none was changed and some were gone, or no longer carry the name, is
+    // listed anew by a later run; a server that goes on listing such is failing at the question,
+    // and counted.)
     out.renamed.failed = trouble || (!later && !whole && out.renamed.changed == 0 && gone > 0);
     let dead_end = !whole && out.renamed.changed == 0 && gone == 0;
     out.renamed.done = !later && !trouble && (whole || dead_end);
@@ -360,36 +408,29 @@ pub(super) fn rename(
     out
 }
 
-/// The body of one item's change.
-fn change_of(item: &Item, rename: &CategoryRename) -> Value {
-    json!({"categories": renamed_list(&item.categories, &rename.from, &rename.to)})
+/// The headers of one request of a batch.
+fn sub_headers(graph: &Graph<'_>, write: bool) -> Value {
+    let mut headers = if write { json!({"Content-Type": "application/json"}) } else { json!({}) };
+    if graph.immutable {
+        headers["Prefer"] = json!(IMMUTABLE_IDS);
+    }
+    headers
 }
 
-/// One `$batch` of changes. `Err(None)`: the server takes no batch; `Err(Some(said))`: what
-/// became of all of them at once.
-fn batch(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRename) -> Result<Vec<Said>, Option<Said>> {
-    let requests: Vec<Value> = chunk
-        .iter()
-        .enumerate()
-        .map(|(n, item)| {
-            let mut headers = json!({"Content-Type": "application/json"});
-            if graph.immutable {
-                headers["Prefer"] = json!(IMMUTABLE_IDS);
-            }
-            let url = format!("{}{}", items.item, http::encode(&item.id));
-            json!({"id": n.to_string(), "method": "PATCH", "url": url, "headers": headers, "body": change_of(item, rename)})
-        })
-        .collect();
+/// One `POST /v1.0/$batch` of `requests`, each with its place in the chunk as its id: the status
+/// and the body of each one that was answered. `Err(None)`: the server takes no batch;
+/// `Err(Some(said))`: what became of all of them at once.
+fn batch_of(graph: &Graph<'_>, kind: Kind, requests: Vec<Value>, slots: usize) -> Result<Vec<Option<(u16, Value)>>, Option<Said>> {
     let body = json!({"requests": requests}).to_string();
-    let reply =
-        match graph.call(Kind::Same, &graph.url(BATCH), "POST", &[("Content-Type", "application/json")], Some(&body), WRITE_TIMEOUT, MAX_BATCH) {
-            Ok(reply) => reply,
-            Err(e) if e.is_refused_sign_in() => return Err(Some(Said::SignIn)),
-            Err(NetError::Busy { retry_after, .. }) => return Err(Some(Said::Busy(retry_after))),
-            // (The lists were just read: a change that then doesn't get through is counted, so
-            // that a server which never takes one isn't asked for ever.)
-            Err(_) => return Err(Some(Said::Stuck)),
-        };
+    let patience = if matches!(kind, Kind::Read) { ASK_TIMEOUT } else { WRITE_TIMEOUT };
+    let reply = match graph.call(kind, &graph.url(BATCH), "POST", &[("Content-Type", "application/json")], Some(&body), patience, MAX_BATCH) {
+        Ok(reply) => reply,
+        Err(e) if e.is_refused_sign_in() => return Err(Some(Said::SignIn)),
+        Err(NetError::Busy { retry_after, .. }) => return Err(Some(Said::Busy(retry_after))),
+        // (The lists were just read: a request that then doesn't get through is counted, so
+        // that a server which never takes one isn't asked for ever.)
+        Err(_) => return Err(Some(Said::Stuck)),
+    };
     match reply.status {
         200 => {}
         401 => return Err(Some(Said::SignIn)),
@@ -398,39 +439,117 @@ fn batch(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRena
         408 | 500..=599 => return Err(Some(Said::Stuck)),
         _ => return Err(None),
     }
-    let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-    // (One that isn't answered wasn't done, as far as is known: a later run finds it, and it is
-    // counted, so that a server which never answers for it isn't asked for ever.)
-    let mut said = vec![Said::Stuck; chunk.len()];
+    let mut json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+    let mut came: Vec<Option<(u16, Value)>> = vec![None; slots];
     let mut answered = false;
-    for one in json.get("responses").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default().iter().take(BATCH_SIZE * 2) {
-        let n = one.get("id").and_then(Value::as_str).and_then(|n| n.parse::<usize>().ok());
-        let status = one.get("status").and_then(Value::as_u64).and_then(|s| u16::try_from(s).ok());
-        if let (Some(slot), Some(status)) = (n.and_then(|n| said.get_mut(n)), status) {
-            *slot = said_of(status, None);
-            answered = true;
+    if let Some(responses) = json.get_mut("responses").and_then(Value::as_array_mut) {
+        for one in responses.iter_mut().take(BATCH_SIZE * 2) {
+            let n = one.get("id").and_then(Value::as_str).and_then(|n| n.parse::<usize>().ok());
+            let status = one.get("status").and_then(Value::as_u64).and_then(|s| u16::try_from(s).ok());
+            if let (Some(slot), Some(status)) = (n.and_then(|n| came.get_mut(n)), status) {
+                *slot = Some((status, one.get_mut("body").map(Value::take).unwrap_or(Value::Null)));
+                answered = true;
+            }
         }
     }
     // An answer that says nothing of any of them is the server's own trouble: counted, so that
     // a server that always answers so isn't asked for ever.
-    if !answered && !chunk.is_empty() {
+    if !answered && slots > 0 {
         return Err(Some(Said::Stuck));
+    }
+    Ok(came)
+}
+
+/// The changes of one chunk, in two `$batch`es: each item's categories as the server has them
+/// now, then the change of each that still carries the old name. `Err(None)`: the server takes
+/// no batch; `Err(Some(said))`: what became of all of them at once.
+fn batch(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRename) -> Result<Vec<Said>, Option<Said>> {
+    let query = read_query();
+    let reads: Vec<Value> = chunk
+        .iter()
+        .enumerate()
+        .map(|(n, item)| {
+            let url = format!("{}{}?{query}", items.item, http::encode(&item.id));
+            json!({"id": n.to_string(), "method": "GET", "url": url, "headers": sub_headers(graph, false)})
+        })
+        .collect();
+    // (One that isn't answered wasn't done, as far as is known: a later run finds it, and it is
+    // counted, so that a server which never answers for it isn't asked for ever.)
+    let mut said = vec![Said::Stuck; chunk.len()];
+    let mut writes: Vec<Value> = Vec::new();
+    let mut written: Vec<usize> = Vec::new();
+    for (n, (item, came)) in chunk.iter().zip(batch_of(graph, Kind::Read, reads, chunk.len())?).enumerate() {
+        let Some((status, body)) = came else { continue };
+        match fresh_of(status, &body, None, rename) {
+            Ok(categories) => {
+                let url = format!("{}{}", items.item, http::encode(&item.id));
+                writes.push(json!({
+                    "id": n.to_string(), "method": "PATCH", "url": url, "headers": sub_headers(graph, true), "body": {"categories": categories}
+                }));
+                written.push(n);
+            }
+            Err(what) => {
+                if let Some(slot) = said.get_mut(n) {
+                    *slot = what;
+                }
+            }
+        }
+    }
+    if writes.is_empty() {
+        return Ok(said);
+    }
+    match batch_of(graph, Kind::Same, writes, chunk.len()) {
+        Ok(came) => {
+            // (Only for what was asked: an answer for one that wasn't written says nothing of it.)
+            for n in written {
+                if let (Some(slot), Some(Some((status, _)))) = (said.get_mut(n), came.get(n)) {
+                    *slot = said_of(*status, None);
+                }
+            }
+        }
+        // What the reads said of the others stands; the ones to write get the batch's answer.
+        // (A server that took the batch of reads takes batches: another answer to this one is
+        // its own trouble, counted.)
+        Err(all) => {
+            let all = all.unwrap_or(Said::Stuck);
+            for n in written {
+                if let Some(slot) = said.get_mut(n) {
+                    *slot = all;
+                }
+            }
+        }
     }
     Ok(said)
 }
 
-/// The same changes, one request each.
+/// The same, one request each: the read, then the change.
 fn one_by_one(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRename) -> Result<Vec<Said>, Option<Said>> {
+    let query = read_query();
+    let now = mailcraft_time::now;
     let mut said = Vec::with_capacity(chunk.len());
     for item in chunk {
-        let url = graph.url(&format!("/v1.0{}{}", items.item, http::encode(&item.id)));
-        let body = change_of(item, rename).to_string();
-        let headers = [("Content-Type", "application/json")];
-        let one = match graph.call(Kind::Same, &url, "PATCH", &headers, Some(&body), WRITE_TIMEOUT, MAX_WRITTEN) {
-            Ok(reply) => said_of(reply.status, wait_of(reply.retry_after.as_deref(), mailcraft_time::now())),
-            Err(e) if e.is_refused_sign_in() => Said::SignIn,
-            Err(NetError::Busy { retry_after, .. }) => Said::Busy(retry_after),
-            Err(_) => Said::Stuck,
+        let path = format!("/v1.0{}{}", items.item, http::encode(&item.id));
+        let read = match graph.call(Kind::Read, &graph.url(&format!("{path}?{query}")), "GET", &[], None, ASK_TIMEOUT, MAX_WRITTEN) {
+            Ok(reply) => {
+                let body = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+                fresh_of(reply.status, &body, wait_of(reply.retry_after.as_deref(), now()), rename)
+            }
+            Err(e) if e.is_refused_sign_in() => Err(Said::SignIn),
+            Err(NetError::Busy { retry_after, .. }) => Err(Said::Busy(retry_after)),
+            Err(_) => Err(Said::Stuck),
+        };
+        let one = match read {
+            Ok(categories) => {
+                let body = json!({"categories": categories}).to_string();
+                let headers = [("Content-Type", "application/json")];
+                match graph.call(Kind::Same, &graph.url(&path), "PATCH", &headers, Some(&body), WRITE_TIMEOUT, MAX_WRITTEN) {
+                    Ok(reply) => said_of(reply.status, wait_of(reply.retry_after.as_deref(), now())),
+                    Err(e) if e.is_refused_sign_in() => Said::SignIn,
+                    Err(NetError::Busy { retry_after, .. }) => Said::Busy(retry_after),
+                    Err(_) => Said::Stuck,
+                }
+            }
+            Err(what) => what,
         };
         said.push(one);
         // Nothing more is asked of a server that is busy or no longer takes the sign-in.

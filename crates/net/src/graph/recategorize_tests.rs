@@ -243,8 +243,20 @@ struct Script {
     pages: usize,
     /// The status every PATCH is answered with (0: by `item_status`).
     every_item: u16,
+    /// The status the read of an item right before its change is answered with, by its id (none: 200).
+    read_status: Vec<(&'static str, u16)>,
+    /// What that read answers with for an item, by its id (none: the list it was listed with).
+    read_body: Vec<(&'static str, serde_json::Value)>,
+    /// The batch of reads answers for its first item alone.
+    reads_first_only: bool,
+    /// The status a `$batch` of changes is answered with, the reads being answered (0: an answer for each).
+    writes_status: u16,
+    /// A `$batch` of changes also answers 200 for this place in the chunk, which it wasn't asked.
+    answers_unasked: Option<&'static str>,
     /// The ids that were changed.
     changed: Vec<String>,
+    /// Each change that was asked for: the id and the body.
+    written: Vec<(String, serde_json::Value)>,
 }
 
 fn status_line(status: u16) -> Vec<u8> {
@@ -285,13 +297,30 @@ fn scripted(script: &Arc<std::sync::Mutex<Script>>) -> crate::fake::FakeHttp {
             ("GET", "/v1.0/me/calendars/other/events") => answer(script.other_status, json!({"value": [item("o1")]})),
             ("POST", "/v1.0/$batch") if script.batch_status != 0 => status_line(script.batch_status),
             ("POST", "/v1.0/$batch") if script.batch_empty => crate::fake::json_answer("200 OK", "{}"),
+            ("POST", "/v1.0/$batch") if script.writes_status != 0 && body.contains("\"PATCH\"") => status_line(script.writes_status),
             ("POST", "/v1.0/$batch") => {
                 let asked = serde_json::from_str::<Value>(body).unwrap_or(Value::Null);
                 let mut responses = Vec::new();
                 for one in asked["requests"].as_array().cloned().unwrap_or_default() {
-                    let id = one["url"].as_str().unwrap_or("").rsplit('/').next().unwrap_or("").to_string();
+                    let url = one["url"].as_str().unwrap_or("");
+                    let id = url.split('?').next().unwrap_or("").rsplit('/').next().unwrap_or("").to_string();
+                    // The read of an item right before its change.
+                    if one["method"] == "GET" {
+                        assert!(url.ends_with("?%24select=categories") || url.ends_with("?$select=categories"), "{url}");
+                        assert!(one.get("body").is_none());
+                        if script.reads_first_only && !responses.is_empty() {
+                            continue;
+                        }
+                        let status = script.read_status.iter().find(|(have, _)| *have == id).map_or(200, |(_, status)| *status);
+                        let body = script.read_body.iter().find(|(have, _)| *have == id).map_or_else(|| item(&id), |(_, body)| body.clone());
+                        responses.push(json!({"id": one["id"], "status": status, "body": if status == 200 { body } else { json!({}) }}));
+                        continue;
+                    }
                     assert_eq!(one["method"], "PATCH");
-                    assert_eq!(one["body"], json!({"categories": ["Holiday 2026"]}));
+                    if script.read_body.is_empty() {
+                        assert_eq!(one["body"], json!({"categories": ["Holiday 2026"]}));
+                    }
+                    script.written.push((id.clone(), one["body"].clone()));
                     let status = script.item_status.iter().find(|(have, _)| *have == id).map_or(200, |(_, status)| *status);
                     let status = if script.every_item != 0 { script.every_item } else { status };
                     if script.batch_first_only && !responses.is_empty() {
@@ -301,6 +330,9 @@ fn scripted(script: &Arc<std::sync::Mutex<Script>>) -> crate::fake::FakeHttp {
                         script.changed.push(id);
                     }
                     responses.push(json!({"id": one["id"], "status": status, "body": {}}));
+                }
+                if let Some(place) = script.answers_unasked.filter(|_| body.contains("\"PATCH\"")) {
+                    responses.push(json!({"id": place, "status": 200, "body": {}}));
                 }
                 crate::fake::json_answer("200 OK", &json!({"responses": responses}).to_string())
             }
@@ -455,4 +487,154 @@ fn an_item_with_many_categories_keeps_them_all_and_one_too_long_to_write_back_is
     assert_eq!((came.done, came.changed, came.skipped, came.passed), (true, 0, 0, 2), "{came:?}");
     assert_eq!(categories_of(&server, &odd), names(&["Holiday", "Bell\u{7}"]));
     assert_eq!(categories_of(&server, &wide).len(), 2);
+}
+
+// ---- a category changed on the server while the rename is under way ----
+
+#[test]
+fn a_category_given_on_the_server_after_the_lists_were_read_stays() {
+    // Mail, in a batch: "Urgent" is given to a message right after the server listed it.
+    let server = StandIn::start().unwrap();
+    let late = message(&server, "inbox", "Flights", &["Red", "Holiday"]);
+    let off = message(&server, "inbox", "Hotel", &["Holiday", "Blue"]);
+    let plain = message(&server, "inbox", "Car", &["Holiday"]);
+    server.state().meanwhile = vec![(late.clone(), names(&["Red", "Holiday", "Urgent"])), (off.clone(), names(&["Blue", "Later"]))];
+    let came = mail_run(&server, Some(rename("Holiday", "Holiday 2026"))).unwrap();
+    assert_eq!(categories_of(&server, &late), names(&["Red", "Holiday 2026", "Urgent"]), "the category given meanwhile was lost");
+    // One the old name was taken off meanwhile is not written at all, and not counted as renamed.
+    assert_eq!(categories_of(&server, &off), names(&["Blue", "Later"]));
+    assert_eq!(categories_of(&server, &plain), names(&["Holiday 2026"]));
+    assert_eq!((came.done, came.changed, came.skipped, came.stuck, came.passed), (true, 2, 0, 0, 0), "{came:?}");
+
+    // Mail, one request at a time.
+    let server = StandIn::start().unwrap();
+    let late = message(&server, "inbox", "Flights", &["Holiday"]);
+    server.state().refuse_batches = true;
+    server.state().meanwhile = vec![(late.clone(), names(&["Urgent", "Holiday"]))];
+    let graph = super::Graph::for_mail(&server.url(), TOKEN, Arc::new(Gate::new()), super::pace::Priority::Owner, QUICK).unwrap();
+    let items = super::recategorize::Items { lists: vec![graph.mail_path("/messages")], item: graph.batch_path("/messages/") };
+    let came = super::recategorize::rename(&graph, &items, &rename("Holiday", "Holiday 2026"), None, &mut |_, _| {}).renamed;
+    assert_eq!(categories_of(&server, &late), names(&["Urgent", "Holiday 2026"]));
+    assert!(came.done && came.changed == 1, "{came:?}");
+
+    // Events.
+    let server = StandIn::start().unwrap();
+    let main = server.state().main_calendar();
+    let flight = event(&server, &main, "Flight out", &["Holiday"]);
+    server.state().meanwhile = vec![(flight.clone(), names(&["Holiday", "Urgent"]))];
+    let came = events_run(&server, rename("Holiday", "Holiday 2026"), "").unwrap();
+    assert_eq!(event_categories(&server, &flight), names(&["Holiday 2026", "Urgent"]));
+    assert!(came.done && came.changed == 1, "{came:?}");
+}
+
+#[test]
+fn a_list_grown_too_long_meanwhile_is_left_whole_and_said() {
+    let server = StandIn::start().unwrap();
+    let id = message(&server, "inbox", "Many", &["Holiday"]);
+    let mut long: Vec<String> = (0..100).map(|n| format!("L{n}")).collect();
+    long.push("Holiday".into());
+    server.state().meanwhile = vec![(id.clone(), long.clone())];
+    let came = mail_run(&server, Some(rename("Holiday", "Holiday 2026"))).unwrap();
+    assert_eq!(categories_of(&server, &id), long, "a cut copy was written");
+    assert_eq!((came.done, came.changed, came.passed), (true, 0, 1), "{came:?}");
+}
+
+/// A scripted run of both lists: what came of it, and each change that was asked for.
+fn scripted_writes(script: Script) -> (CategoryRenamed, Vec<(String, serde_json::Value)>) {
+    let script = Arc::new(std::sync::Mutex::new(script));
+    let server = scripted(&script);
+    let graph = super::Graph::at(&server.url(""), TOKEN).unwrap();
+    let lists = vec!["/v1.0/me/calendar/events".to_string(), "/v1.0/me/calendars/other/events".to_string()];
+    let items = super::recategorize::Items { lists, item: "/me/events/".into() };
+    let came = super::recategorize::rename(&graph, &items, &rename("Holiday", "Holiday 2026"), None, &mut |_, _| {}).renamed;
+    let written = script.lock().unwrap().written.clone();
+    (came, written)
+}
+
+#[test]
+fn what_the_read_before_a_change_says_decides_the_change() {
+    use serde_json::json;
+    // The list as it is now is what is written, not the one the item was listed with.
+    let (came, written) = scripted_writes(Script { read_body: vec![("m1", json!({"categories": ["Urgent", "Holiday"]}))], ..Default::default() });
+    assert_eq!(
+        written,
+        [("m1".to_string(), json!({"categories": ["Urgent", "Holiday 2026"]})), ("o1".to_string(), json!({"categories": ["Holiday 2026"]}))]
+    );
+    assert!(came.done && came.changed == 2, "{came:?}");
+    // No longer there, or without the old name: no change is sent for it, and it isn't counted.
+    let script = Script { read_status: vec![("m1", 404)], read_body: vec![("o1", json!({"categories": ["Holiday 2026"]}))], ..Default::default() };
+    let (came, written) = scripted_writes(script);
+    assert!(written.is_empty(), "{written:?}");
+    assert_eq!((came.done, came.changed, came.skipped, came.stuck), (true, 0, 0, 0), "{came:?}");
+    // A list that can't be written back whole: left, and counted.
+    let (came, written) = scripted_writes(Script { read_body: vec![("m1", json!({"categories": ["Holiday", 7]}))], ..Default::default() });
+    assert_eq!(written.len(), 1);
+    assert_eq!((came.done, came.changed, came.passed), (true, 1, 1), "{came:?}");
+    // The read put off, answered with no list, or not answered: not written, counted, and a later run.
+    for script in [
+        Script { read_status: vec![("m1", 500)], ..Default::default() },
+        Script { read_status: vec![("m1", 412)], ..Default::default() },
+        Script { read_body: vec![("m1", json!({"id": "m1"}))], ..Default::default() },
+        Script { reads_first_only: true, read_body: vec![("o1", json!({"categories": ["Holiday"]}))], ..Default::default() },
+    ] {
+        let first_only = script.reads_first_only;
+        let (came, written) = scripted_writes(script);
+        assert_eq!(written.len(), 1, "{written:?}");
+        assert_eq!(written[0].0, if first_only { "m1" } else { "o1" });
+        assert_eq!((came.done, came.changed, came.stuck), (false, 1, 1), "{came:?}");
+    }
+    // The read refused for good: not written, counted as one the server won't change.
+    let (came, written) = scripted_writes(Script { read_status: vec![("m1", 403)], ..Default::default() });
+    assert_eq!(written.len(), 1);
+    assert_eq!((came.done, came.changed, came.skipped), (true, 1, 1), "{came:?}");
+    // A busy server at the read: nothing written of it, not counted, a later run.
+    let (came, written) = scripted_writes(Script { read_status: vec![("m1", 429)], ..Default::default() });
+    assert_eq!((came.done, came.stuck, came.failed), (false, 0, false), "{came:?} {written:?}");
+    assert!(written.iter().all(|(id, _)| id != "m1"), "{written:?}");
+    // The batch of changes failing as a whole, the reads answered: counted for what was to be
+    // written, whatever the status (a server that read in a batch takes batches).
+    for status in [500, 400] {
+        let (came, _) = scripted_writes(Script { writes_status: status, ..Default::default() });
+        assert_eq!((came.done, came.changed, came.stuck), (false, 0, 2), "{status}: {came:?}");
+    }
+    let (came, _) = scripted_writes(Script { writes_status: 503, ..Default::default() });
+    assert_eq!((came.done, came.changed, came.stuck, came.failed), (false, 0, 0, false), "{came:?}");
+    // An answer for an item that wasn't written (its list can't be written back) changes nothing
+    // of what is said of it: it is left, and counted.
+    let script = Script { read_body: vec![("o1", json!({"categories": ["Holiday", 7]}))], answers_unasked: Some("1"), ..Default::default() };
+    let (came, written) = scripted_writes(script);
+    assert_eq!(written.len(), 1);
+    assert_eq!((came.done, came.changed, came.passed), (true, 1, 1), "{came:?}");
+    // A list far too long, the old name past where it is looked for: left and counted, not taken for one without it.
+    let mut long: Vec<serde_json::Value> = (0..1_200).map(|n| json!(format!("L{n}"))).collect();
+    long.push(json!("Holiday"));
+    let (came, written) = scripted_writes(Script { read_body: vec![("m1", json!({"categories": long}))], ..Default::default() });
+    assert_eq!((written.len(), came.changed, came.passed), (1, 1, 1), "{came:?}");
+}
+
+#[test]
+fn one_at_a_time_the_read_before_a_change_decides_too() {
+    let server = StandIn::start().unwrap();
+    let off = message(&server, "inbox", "Hotel", &["Holiday"]);
+    let grown = message(&server, "inbox", "Car", &["Holiday"]);
+    let gone = message(&server, "inbox", "Train", &["Holiday"]);
+    let plain = message(&server, "inbox", "Boat", &["Holiday", "Red"]);
+    let mut long: Vec<String> = (0..100).map(|n| format!("L{n}")).collect();
+    long.push("Holiday".into());
+    server.state().refuse_batches = true;
+    server.state().meanwhile = vec![(off.clone(), names(&["Blue"])), (grown.clone(), long.clone())];
+    // (Deleted right after it was listed: its read says it is gone.)
+    let graph = super::Graph::for_mail(&server.url(), TOKEN, Arc::new(Gate::new()), super::pace::Priority::Owner, QUICK).unwrap();
+    let items = super::recategorize::Items { lists: vec![graph.mail_path("/messages")], item: graph.batch_path("/messages/") };
+    let mut removed = false;
+    let came = super::recategorize::rename(&graph, &items, &rename("Holiday", "Holiday 2026"), None, &mut |_, _| {
+        if !std::mem::replace(&mut removed, true) {
+            server.state().mailbox.messages.remove(&gone);
+        }
+    })
+    .renamed;
+    assert_eq!(categories_of(&server, &off), names(&["Blue"]));
+    assert_eq!(categories_of(&server, &grown), long);
+    assert_eq!(categories_of(&server, &plain), names(&["Holiday 2026", "Red"]));
+    assert_eq!((came.done, came.changed, came.skipped, came.stuck, came.passed), (true, 1, 0, 0, 1), "{came:?}");
 }

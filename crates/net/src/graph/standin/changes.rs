@@ -516,7 +516,9 @@ impl State {
         found.sort_by(|a, b| b.received.cmp(&a.received).then_with(|| a.id.cmp(&b.id)));
         let ids: Vec<String> = found.into_iter().map(|m| m.id.clone()).collect();
         let list = ids.iter().map(|id| self.message_json(id, &look)).collect();
-        self.page(asked, list)
+        let page = self.page(asked, list);
+        self.changed_meanwhile();
+        page
     }
 }
 
