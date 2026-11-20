@@ -250,7 +250,8 @@ pub fn quotable_with_rebound_cids(html: &str, rebound: &mut ReboundCid<'_>) -> S
 /// ([`crate::authored_fragment_with_rebound_cids`], whose quoter is fed every token and no style
 /// sheet) leaves it out because a `<template>` holds it. It is the writer's own reading, so a
 /// template inside an element left out whole (an `svg`, a `noscript`, a hidden block) ends where
-/// that element does, and a `<body>` ends what came before it. Only where each element ends is
+/// that element does, and a `<body>` outside every template ends what came before it (one inside a
+/// template, whatever holds the template, is inert). Only where each element ends is
 /// followed: nothing of what the writer would make of the document is written, so what this holds
 /// is the open elements and the answer, whatever the document's length.
 pub(crate) fn pictures_in_templates(html: &str) -> Vec<bool> {
@@ -262,7 +263,7 @@ pub(crate) fn pictures_in_templates(html: &str) -> Vec<bool> {
         {
             held.push(q.skip.as_ref().is_some_and(|skip| skip.name == "template"));
         }
-        q.token(token);
+        q.authored_token(token);
     }
     held
 }
@@ -323,6 +324,9 @@ pub(crate) struct Quoter<'a, 'w, 'b, 'm> {
     raw: bool,
     /// Nothing is written: only where each element starts and ends is followed.
     listing: bool,
+    /// `<template>` start tags met on the authored route and not yet ended, whatever element
+    /// holds them (one left out whole included): a `<body>` while any is open is inert.
+    templates: usize,
 }
 
 struct Skip {
@@ -332,6 +336,26 @@ struct Skip {
 }
 
 impl Quoter<'_, '_, '_, '_> {
+    /// A body tag inside any template is inert on the authored path, whatever holds the template:
+    /// it neither ends what came before it nor gives the wrapper its attributes.
+    pub(crate) fn template_body(&self, token: &Token<'_>) -> bool {
+        matches!(token, Token::Open(tag) if tag.name == "body") && self.templates > 0
+    }
+
+    /// The authored route: [`Quoter::token`], with the templates counted apart from the element
+    /// being left out, so that one inside an element left out whole still holds its `<body>`.
+    pub(crate) fn authored_token(&mut self, token: Token<'_>) {
+        if self.template_body(&token) {
+            return;
+        }
+        match &token {
+            Token::Open(tag) if tag.name == "template" => self.templates = self.templates.saturating_add(1),
+            Token::Close(name) if name == "template" => self.templates = self.templates.saturating_sub(1),
+            _ => {}
+        }
+        self.token(token);
+    }
+
     pub(crate) fn token(&mut self, token: Token<'_>) {
         if let Token::Open(tag) = &token
             && tag.name == "body"
@@ -340,7 +364,7 @@ impl Quoter<'_, '_, '_, '_> {
             if !self.body {
                 // (Where the pictures go, and what they took, stay.)
                 let (written, rebind, budget) = (self.written.take(), self.rebind.take(), std::mem::take(&mut self.budget));
-                *self = Quoter { body: true, written, rebind, budget, listing: self.listing, ..Quoter::default() };
+                *self = Quoter { body: true, written, rebind, budget, listing: self.listing, templates: self.templates, ..Quoter::default() };
             }
             return;
         }

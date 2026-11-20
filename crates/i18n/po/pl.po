@@ -14817,8 +14817,8 @@ msgstr "Elementy wysłane"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "Wysyłany tak, jak został napisany, bez niczego, co się uruchamia lub śledzi. Obraz z adresem internetowym jest wysyłany jako ten adres, a programy odbiorców decydują, czy go wczytać; obrazy wczytane za pomocą Importuj HTML… należą do tego podpisu i są wysyłane z każdą wiadomością. Pisana wiadomość pokazuje uproszczoną kopię tego podpisu; jeśli ją tam edytujesz, zostanie wysłana ta kopia."
+msgid "Sent as written, with scripts and other active content removed. A picture with a web address is sent as that address; recipients' programs decide whether to load it, and loading it can tell its host it was requested. Pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr "Wysyłany tak, jak został napisany, po usunięciu skryptów i innej aktywnej zawartości. Obraz z adresem internetowym jest wysyłany jako ten adres; programy odbiorców decydują, czy go wczytać, a wczytanie może poinformować serwer obrazu, że o niego poproszono. Obrazy wczytane za pomocą Importuj HTML… należą do tego podpisu i są wysyłane z każdą wiadomością. Pisana wiadomość pokazuje uproszczoną kopię tego podpisu; jeśli ją tam edytujesz, zostanie wysłana ta kopia."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -26349,6 +26349,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Wiersze"
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "Wysyłany tak, jak został napisany, bez niczego, co się uruchamia lub śledzi. Obraz z adresem internetowym jest wysyłany jako ten adres, a programy odbiorców decydują, czy go wczytać; obrazy wczytane za pomocą Importuj HTML… należą do tego podpisu i są wysyłane z każdą wiadomością. Pisana wiadomość pokazuje uproszczoną kopię tego podpisu; jeśli ją tam edytujesz, zostanie wysłana ta kopia."
 
 #, fuzzy
 #~ msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."

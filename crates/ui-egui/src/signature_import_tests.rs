@@ -486,17 +486,16 @@ fn a_cancelled_job_keeps_its_reader_until_it_is_done() {
 }
 
 /// An exclusively created folder of this test's own, under the run's temporary folder.
-fn own_dir(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("sigpick-{name}-{}", std::process::id()));
-    std::fs::create_dir(&dir).expect("an exclusively created folder");
-    dir
+fn own_dir(name: &str) -> tempfile::TempDir {
+    tempfile::Builder::new().prefix(&format!("sigpick-{name}-")).tempdir().expect("an exclusively created folder")
 }
 
 /// The document's reader takes exactly the most a signature's HTML may have and refuses one byte
 /// more; a picture's reader is held to a picture's cap. A folder is no file.
 #[test]
 fn the_desktop_reader_holds_each_file_to_its_cap() {
-    let dir = own_dir("caps");
+    let held = own_dir("caps");
+    let dir = held.path();
     let at = dir.join("at.html");
     let over = dir.join("over.html");
     std::fs::write(&at, vec![b'a'; MAX_HTML]).expect("a fixture");
@@ -508,15 +507,15 @@ fn the_desktop_reader_holds_each_file_to_its_cap() {
     assert_eq!(crate::files::SignatureRead::document(&path(&over)).read(), Err(crate::Unread::TooLarge));
     assert_eq!(crate::files::SignatureRead::picture(&path(&picture)).read(), Err(crate::Unread::TooLarge));
     assert_eq!(crate::files::SignatureRead::picture(&path(&at)).read().map(|b| b.len()), Ok(MAX_HTML));
-    assert!(matches!(crate::files::SignatureRead::document(&path(&dir)).read(), Err(crate::Unread::Failed(_))), "a folder was read");
-    let _ = std::fs::remove_dir_all(&dir);
+    assert!(matches!(crate::files::SignatureRead::document(&path(dir)).read(), Err(crate::Unread::Failed(_))), "a folder was read");
 }
 
 /// A FIFO named as the document is refused at once, not waited on.
 #[cfg(unix)]
 #[test]
 fn the_desktop_reader_refuses_a_fifo_without_waiting() {
-    let dir = own_dir("fifo");
+    let held = own_dir("fifo");
+    let dir = held.path();
     let fifo = dir.join("doc.html");
     // (Made with the system's own `mkfifo`: a precondition, never skipped quietly.)
     let made = std::process::Command::new("mkfifo").arg(&fifo).status();
@@ -527,7 +526,6 @@ fn the_desktop_reader_refuses_a_fifo_without_waiting() {
         let _ = tx.send(read.read());
     });
     let answer = rx.recv_timeout(std::time::Duration::from_secs(10));
-    let _ = std::fs::remove_dir_all(&dir);
     assert!(matches!(answer, Ok(Err(crate::Unread::Failed(_)))), "a FIFO was not refused at once: {answer:?}");
 }
 
@@ -586,10 +584,13 @@ fn stored_exactly(
     let produced = mailcraft_mime_model::signature_import::import("doc", html, &assets).expect("the constructor makes a signature of the fixture");
     let stored =
         h.state().session.mailbox.signature("doc").cloned().unwrap_or_else(|| panic!("Import stored no signature named `doc`: {:?}", signatures(h)));
+    assert_eq!(stored.body(), produced.body(), "the stored editable body is not the one made of the files chosen last");
+    assert_eq!(stored.layout, produced.layout, "the stored layout is not the one made of the files chosen last");
     assert_eq!(stored.html(), produced.html(), "the stored document is not the one made of the files chosen last");
     assert_eq!(stored.pictures(), produced.pictures(), "the stored pictures are not the files chosen last");
+    assert_eq!(stored, produced, "the stored signature (its name and details too) is not the one made of the files chosen last");
     let mut expected = before.0.clone();
-    expected.signatures.push(stored);
+    expected.signatures.push(produced);
     assert!(h.state().session.mailbox == expected, "Import changed the mailbox beyond appending the one new signature");
     assert!(h.state().session.signature_edit == before.1, "Import changed the signature open in the editor");
 }
@@ -894,4 +895,84 @@ fn a_document_for_the_signature_set_meanwhile_is_ignored() {
     deliver(&mut h, &picked, Delivered::picked("doc.html".into(), TWO.as_bytes().to_vec(), HTML, ticket, 1));
     assert!(rows(&h).is_none(), "a document asked for before the signature was set was staged");
     assert!(kept(&h) == before, "the mailbox or the editor changed");
+}
+
+#[test]
+fn two_own_folders_of_one_name_never_collide() {
+    let name = "same-name";
+    let d = own_dir(name);
+    let again = std::panic::catch_unwind(|| own_dir(name));
+    drop(d);
+    assert!(again.is_ok(), "own_dir collides if a prior test left its directory");
+}
+#[test]
+fn stored_exactly_catches_a_changed_editable_body() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let (mut h, dialogs, reads) = native_reader_window();
+    let html = "<p>FIRST</p><p>SECOND</p>";
+    let before = kept(&h);
+    native_staged(&mut h, &dialogs, &reads, html);
+    press(&mut h, "signatureHtmlImportCommit", 0);
+    let sig = h.state_mut().session.mailbox.signatures.iter_mut().find(|x| x.name == "doc").unwrap();
+    let original = sig.html().map(str::to_string);
+    let lost = mailcraft_model::Signature::plain_text("doc", "FIRST");
+    sig.set_body(lost.body().clone()).unwrap();
+    sig.set_html(original).unwrap();
+    assert_eq!(sig.plain(), "FIRST");
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| stored_exactly(&h, &before, html, &[])));
+    assert!(caught.is_err(), "stored_exactly passed after SECOND paragraph was deleted from editable body");
+}
+
+#[test]
+fn stored_exactly_catches_a_changed_layout() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let (mut h, dialogs, reads) = native_reader_window();
+    let html = "<p>FIRST</p><p>SECOND</p>";
+    let before = kept(&h);
+    native_staged(&mut h, &dialogs, &reads, html);
+    press(&mut h, "signatureHtmlImportCommit", 0);
+    let sig = h.state_mut().session.mailbox.signatures.iter_mut().find(|s| s.name == "doc").unwrap();
+    assert_eq!(sig.layout, mailcraft_model::signature::Layout::Inline);
+    sig.layout = mailcraft_model::signature::Layout::PictureAbove;
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| stored_exactly(&h, &before, html, &[])));
+    assert!(caught.is_err(), "stored_exactly accepted a layout-only corruption");
+}
+
+#[test]
+fn an_import_test_folder_is_removed_on_unwind() {
+    fn path(p: &std::path::Path) -> std::path::PathBuf {
+        p.to_path_buf()
+    }
+    let mut made = None;
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let dir = own_dir("unwind");
+        let dir_path = path(dir.as_ref());
+        std::fs::write(dir_path.join("fixture"), b"invented").unwrap();
+        made = Some(dir_path);
+        panic!("exercise RAII cleanup");
+    }));
+    assert!(caught.is_err());
+    let made = made.unwrap();
+    let gone = !made.exists();
+    if made.exists() {
+        std::fs::remove_dir_all(&made).unwrap();
+    }
+    assert!(gone, "test folder leaked after unwind");
+}
+
+/// The stored signature is compared whole with the one the files make: a change to its details
+/// alone, with its body, layout, document and pictures as they were, is caught too.
+#[test]
+fn stored_exactly_catches_changed_details() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let (mut h, dialogs, reads) = native_reader_window();
+    let html = "<p>FIRST</p><p>SECOND</p>";
+    let before = kept(&h);
+    native_staged(&mut h, &dialogs, &reads, html);
+    press(&mut h, "signatureHtmlImportCommit", 0);
+    let sig = h.state_mut().session.mailbox.signatures.iter_mut().find(|s| s.name == "doc").unwrap();
+    let changed = mailcraft_model::signature::Details { title: "Invented title".into(), ..sig.details.clone().unwrap_or_default() };
+    sig.details = Some(changed);
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| stored_exactly(&h, &before, html, &[])));
+    assert!(caught.is_err(), "stored_exactly accepted a details-only change");
 }

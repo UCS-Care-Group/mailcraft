@@ -544,8 +544,7 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
             let sig = mailcraft_model::Signature::assemble(inserted.name.clone(), inserted.text.clone(), &inserted.pictures, inserted.layout);
             // With its style sheets scoped to it in the head, as the message sends it
             // (`authored_signature_html`); one whose sheets can't be, as a draft keeps it.
-            let authored = mailcraft_html::AuthoredScope::new("mc-preview")
-                .ok()
+            let authored = crate::signatures::preview_scope(&html)
                 .and_then(|scope| mailcraft_engine::mime::rich::authored_signature_html(&sig, &html, &scope, &cid).ok());
             let bound = match authored {
                 Some(f) => mailcraft_engine::mime::rich::document_with_head(&f.head, &f.body, None),

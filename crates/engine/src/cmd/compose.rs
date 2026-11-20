@@ -1147,7 +1147,7 @@ fn saved_signature<'m>(m: &'m Message, own_html: &str) -> Option<(usize, &'m Dra
     if rendered.is_empty() || whole.match_indices(rendered).nth(1).is_some() {
         return None;
     }
-    let at = own_html.find(rendered)?;
+    let at = active_signature_at(own_html, rendered)?;
     let pictures = snapshot.signature().pictures();
     let parts = pictures.len() == snapshot.content_ids().len()
         && pictures.iter().zip(snapshot.content_ids()).all(|(p, id)| {
@@ -1157,6 +1157,216 @@ fn saved_signature<'m>(m: &'m Message, own_html: &str) -> Option<(usize, &'m Dra
             under.next().is_some_and(|a| a.mime == p.mime && a.data.as_slice() == p.data.as_slice()) && under.next().is_none()
         });
     parts.then_some((at, snapshot))
+}
+
+/// The most elements the locator follows open before and in the fragment: past it, the draft
+/// reopens as ordinary text and keeps every inline part. MailCraft's own writers emit balanced
+/// markup, so only a draft written elsewhere comes near it.
+const MAX_OPEN_ELEMENTS: usize = 256;
+
+/// Locate a complete, balanced fragment at active tag boundaries, not inside an attribute,
+/// comment, raw text or an inert element. This is deliberately conservative: uncertain markup
+/// reopens as ordinary draft text and keeps every inline part. Older unwrapped fragments may
+/// contain several balanced elements, so no particular wrapper class or tag is required; one must
+/// begin with an element (one that begins with text reopens as ordinary text).
+fn active_signature_at(html: &str, rendered: &str) -> Option<usize> {
+    if html.len() > mailcraft_html::MAX_INPUT {
+        return None;
+    }
+    let at = html.find(rendered)?;
+    let end = at.checked_add(rendered.len())?;
+    let leading = rendered.find('<')?;
+    if !rendered.get(..leading)?.bytes().all(|c| c.is_ascii_whitespace()) {
+        return None;
+    }
+    let start = at.checked_add(leading)?;
+    let lower = html.to_ascii_lowercase();
+    let mut pos = 0usize;
+    let mut stack: Vec<&str> = Vec::new();
+    let mut depth = None;
+    const VOID: &[&str] = &[
+        "area", "base", "basefont", "bgsound", "br", "col", "embed", "frame", "hr", "image", "img", "input", "isindex", "keygen", "link", "meta",
+        "param", "source", "track", "wbr",
+    ];
+    const RAW: &[&str] = &["script", "style", "title", "iframe", "noembed", "noframes", "textarea", "xmp"];
+    const INERT: &[&str] = &[
+        "head",
+        "template",
+        "svg",
+        "math",
+        "noscript",
+        "object",
+        "applet",
+        "button",
+        "select",
+        "frameset",
+        "datalist",
+        "option",
+        "optgroup",
+        "plaintext",
+    ];
+    while pos < end {
+        let lt = pos.checked_add(lower.get(pos..)?.find('<')?)?;
+        if depth.is_none() && lt > start {
+            return None;
+        }
+        let tail = lower.get(lt..)?;
+        if tail.starts_with("<!--") {
+            let after = lt.checked_add(4)?;
+            let body = lower.get(after..)?;
+            let skip = if body.starts_with('>') {
+                1
+            } else if body.starts_with("->") {
+                2
+            } else {
+                // A single pass, so repeated comments don't repeatedly search the remaining HTML.
+                let bytes = body.as_bytes();
+                let (stop, size) = bytes.windows(3).enumerate().find_map(|(p, part)| {
+                    if part == b"-->" {
+                        Some((p, 3usize))
+                    } else if part == b"--!" && bytes.get(p.saturating_add(3)) == Some(&b'>') {
+                        Some((p, 4usize))
+                    } else {
+                        None
+                    }
+                })?;
+                stop.checked_add(size)?
+            };
+            pos = after.checked_add(skip)?;
+            continue;
+        }
+        let (name, close, next) = signature_tag(&lower, lt)?;
+        if name.is_empty() {
+            pos = next;
+            continue;
+        }
+        if lt == start {
+            if close || INERT.contains(&name) || RAW.contains(&name) || stack.iter().any(|name| INERT.contains(name) || RAW.contains(name)) {
+                return None;
+            }
+            depth = Some(stack.len());
+        }
+        if next > end && depth.is_some() {
+            return None;
+        }
+        if close {
+            if depth.is_some() {
+                // The fragment itself must be balanced, even when surrounding draft markup isn't.
+                if stack.pop()? != name {
+                    return None;
+                }
+            } else if let Some(at) = stack.iter().rposition(|open| *open == name)
+                && !stack.iter().skip(at.saturating_add(1)).any(|open| INERT.contains(open) || RAW.contains(open))
+            {
+                // A harmless unknown tag before the signature needn't have an explicit end.
+                // Never let a mismatched close reach out of an inert/raw-text boundary.
+                stack.truncate(at);
+            }
+        } else if !VOID.contains(&name) {
+            if stack.len() >= MAX_OPEN_ELEMENTS {
+                return None;
+            }
+            stack.push(name);
+        }
+        pos = next;
+        if !close && RAW.contains(&name) {
+            // HTML raw text ends at this tag's end tag, not at any apparent markup in it.
+            let needle = format!("</{name}");
+            loop {
+                let found = pos.checked_add(lower.get(pos..)?.find(&needle)?)?;
+                let boundary = found.checked_add(needle.len())?;
+                if lower.as_bytes().get(boundary).is_some_and(|b| b.is_ascii_whitespace() || matches!(b, b'/' | b'>')) {
+                    pos = found;
+                    break;
+                }
+                pos = boundary;
+            }
+        }
+        if let Some(base) = depth
+            && base == stack.len()
+            && html.get(pos..end).is_some_and(|tail| tail.bytes().all(|c| c.is_ascii_whitespace()))
+        {
+            // The simpler-copy writer terminates its complete elements with CRLF.
+            return Some(at);
+        }
+    }
+    None
+}
+
+/// What the `<` at `at` starts, read as mailcraft-html's tokenizer reads it: the element's name
+/// (empty for a declaration, for `</>` and for a `<` that starts no markup), whether it is an end
+/// tag, and where reading goes on. A quote opens a value only where an attribute's value starts,
+/// after its `=` and any white space; in a name, an unquoted value, an end tag or a declaration it
+/// is an ordinary character, so it can't hide what follows. A `<` not followed by a letter, `!`,
+/// `?`, or `/` and a letter or `>`, is text. `None` for a tag that doesn't end, or for a name with
+/// characters this locator doesn't read.
+fn signature_tag(lower: &str, at: usize) -> Option<(&str, bool, usize)> {
+    let b = lower.as_bytes();
+    let past = |from: usize| from.checked_add(b.get(from..)?.iter().position(|&c| c == b'>')?)?.checked_add(1);
+    let mut i = at.checked_add(1)?;
+    let close = match b.get(i) {
+        Some(b'!' | b'?') => return Some(("", false, past(i)?)),
+        Some(b'/') => match b.get(i.checked_add(1)?) {
+            Some(c) if c.is_ascii_alphabetic() => true,
+            Some(b'>') => return Some(("", true, i.checked_add(2)?)),
+            _ => return Some(("", false, i)),
+        },
+        Some(c) if c.is_ascii_alphabetic() => false,
+        _ => return Some(("", false, i)),
+    };
+    if close {
+        i = i.checked_add(1)?;
+    }
+    let start = i;
+    while b.get(i).is_some_and(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b':')) {
+        i = i.checked_add(1)?;
+    }
+    let name = lower.get(start..i)?;
+    if !b.get(i).is_some_and(|c| c.is_ascii_whitespace() || matches!(c, b'/' | b'>')) {
+        return None;
+    }
+    if close {
+        // An end tag ends at its first `>`: nothing in it is an attribute's value.
+        return Some((name, true, past(i)?));
+    }
+    loop {
+        while b.get(i).is_some_and(|c| c.is_ascii_whitespace() || *c == b'/') {
+            i = i.checked_add(1)?;
+        }
+        if *b.get(i)? == b'>' {
+            return Some((name, false, i.checked_add(1)?));
+        }
+        // An attribute's name: its first character, whatever it is, then up to white space, `/`,
+        // `>` or `=`.
+        i = i.checked_add(1)?;
+        while b.get(i).is_some_and(|c| !(c.is_ascii_whitespace() || matches!(c, b'/' | b'>' | b'='))) {
+            i = i.checked_add(1)?;
+        }
+        let mut j = i;
+        while b.get(j).is_some_and(u8::is_ascii_whitespace) {
+            j = j.checked_add(1)?;
+        }
+        if b.get(j) != Some(&b'=') {
+            i = j;
+            continue;
+        }
+        j = j.checked_add(1)?;
+        while b.get(j).is_some_and(u8::is_ascii_whitespace) {
+            j = j.checked_add(1)?;
+        }
+        i = match b.get(j) {
+            Some(&q) if matches!(q, b'"' | b'\'') => {
+                let open = j.checked_add(1)?;
+                open.checked_add(b.get(open..)?.iter().position(|&c| c == q)?)?.checked_add(1)?
+            }
+            _ => {
+                while b.get(j).is_some_and(|c| !(c.is_ascii_whitespace() || *c == b'>')) {
+                    j = j.checked_add(1)?;
+                }
+                j
+            }
+        };
+    }
 }
 
 /// A draft's HTML read with its signature back in place: what is before the fragment at `at` and

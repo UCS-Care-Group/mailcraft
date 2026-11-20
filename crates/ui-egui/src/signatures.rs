@@ -352,7 +352,7 @@ fn html_source(app: &mut MailApp, ui: &mut Ui, t: &Tokens, mut source: String) {
     }
     ui.label(
         egui::RichText::new(tl!(
-            "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+            "Sent as written, with scripts and other active content removed. A picture with a web address is sent as that address; recipients' programs decide whether to load it, and loading it can tell its host it was requested. Pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
         ))
         .font(regular(11.5))
         .color(t.text_dim),
@@ -591,7 +591,7 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             // An HTML signature as a message sends it: its style sheets scoped to it in the
             // head (`authored_signature_html`); one whose sheets can't be, as a draft keeps it.
             let authored = sig.html().and_then(|own| {
-                let scope = mailcraft_html::AuthoredScope::new("mc-preview").ok()?;
+                let scope = preview_scope(own)?;
                 mailcraft_engine::mime::rich::authored_signature_html(&sig, own, &scope, &cid).ok()
             });
             let html = match authored {
@@ -616,6 +616,29 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             ui.label(egui::RichText::new(sig.plain()).font(crate::theme::mono(12.0)).color(t.text));
         });
     });
+}
+
+/// One preview scope absent from the complete, bounded signature. Collect fixed-width suffixes
+/// once; one of 0..=count must be absent, so even a signature naming every old trial still works.
+/// The authored writer's independent collision guard remains the final check.
+pub(crate) fn preview_scope(html: &str) -> Option<mailcraft_html::AuthoredScope> {
+    if html.len() > MAX_HTML {
+        return None;
+    }
+    let lower = html.to_ascii_lowercase();
+    if !lower.contains("mc-preview") {
+        return mailcraft_html::AuthoredScope::new("mc-preview").ok();
+    }
+    const PREFIX: &str = "mc-preview-";
+    let used: std::collections::HashSet<u32> = lower
+        .match_indices(PREFIX)
+        .filter_map(|(at, _)| lower.get(at.checked_add(PREFIX.len())?..at.checked_add(PREFIX.len())?.checked_add(8)?))
+        .filter_map(|digits| u32::from_str_radix(digits, 16).ok())
+        .collect();
+    (0..=used.len())
+        .filter_map(|n| u32::try_from(n).ok())
+        .find(|n| !used.contains(n))
+        .and_then(|n| mailcraft_html::AuthoredScope::new(&format!("{PREFIX}{n:08x}")).ok())
 }
 
 fn command_label(command: &str) -> &'static str {

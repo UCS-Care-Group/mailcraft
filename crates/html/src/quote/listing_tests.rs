@@ -11,10 +11,10 @@
 use super::*;
 
 /// What the quoter holds that decides where each element ends.
-type State = (Vec<&'static str>, Option<(String, usize)>, bool, bool);
+type State = (Vec<&'static str>, Option<(String, usize)>, bool, bool, usize);
 
 fn state(q: &Quoter<'_, '_, '_, '_>) -> State {
-    (q.open.clone(), q.skip.as_ref().map(|s| (s.name.clone(), s.nested)), q.body, q.raw)
+    (q.open.clone(), q.skip.as_ref().map(|s| (s.name.clone(), s.nested)), q.body, q.raw, q.templates)
 }
 
 /// Whether a `<template>` holds each picture, by a quoter that writes: the reading the lister
@@ -28,7 +28,7 @@ fn held_by_writing(html: &str) -> Vec<bool> {
         {
             held.push(q.skip.as_ref().is_some_and(|skip| skip.name == "template"));
         }
-        q.token(token);
+        q.authored_token(token);
     }
     held
 }
@@ -38,8 +38,8 @@ fn parting(html: &str) -> Option<String> {
     let mut listing = Quoter { listing: true, ..Quoter::default() };
     let mut writing = Quoter::default();
     for (at, (a, b)) in Tokenizer::new(html).zip(Tokenizer::new(html)).enumerate() {
-        listing.token(a);
-        writing.token(b);
+        listing.authored_token(a);
+        writing.authored_token(b);
         if state(&listing) != state(&writing) {
             return Some(format!("token {at}: listing {:?}, writing {:?}", state(&listing), state(&writing)));
         }

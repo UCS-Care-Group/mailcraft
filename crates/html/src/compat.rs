@@ -797,7 +797,7 @@ struct Decl {
 enum Place {
     /// In the `style` attribute of the `element`th start tag of the text, which is a `<table>`'s
     /// or not.
-    Inline { element: usize, table: bool },
+    Inline { element: usize, table: bool, quoted: bool },
     /// In the `n`th rule of the style sheets ([`Styles::rules`]).
     Sheet { rule: usize },
 }
@@ -832,7 +832,9 @@ impl Styles {
     /// which spans `within`.
     fn inline(&mut self, html: &str, tag: &Tag<'_>, within: &Range<usize>, element: usize) -> Result<(), CheckError> {
         let Some(raw) = tag.raw_attr("style").filter(|s| !s.trim().is_empty()) else { return Ok(()) };
-        let place = Place::Inline { element, table: tag.name == "table" };
+        let raw_range = range_in(html, raw, within)?;
+        let quoted = raw_range.start.checked_sub(1).and_then(|at| html.as_bytes().get(at)).is_some_and(|c| matches!(c, b'"' | b'\''));
+        let place = Place::Inline { element, table: tag.name == "table", quoted };
         if raw.contains('&') {
             let whole = range_in(html, raw, within)?;
             let decoded = unescape(raw);
@@ -1016,8 +1018,16 @@ fn variables(styles: &Styles, found: &mut Vec<Finding>) -> Result<(), CheckError
         }
         for call in calls(&d.value, &["var"]) {
             let (range, exact) = part_range(d, &call.range);
-            let fix =
-                exact.then(|| variable_value(styles, &defined, d, &call)).flatten().map(|value| Fix { range: range.clone(), replacement: value });
+            // A comment can hide a parenthesis from this small matcher. Keep the finding but
+            // don't offer a source edit whose end isn't known. Unquoted HTML has its own delimiters.
+            let fix = (exact && !d.value.contains("/*"))
+                .then(|| variable_value(styles, &defined, d, &call))
+                .flatten()
+                .filter(|value| {
+                    !matches!(d.place, Place::Inline { quoted: false, .. })
+                        || !value.bytes().any(|c| c.is_ascii_whitespace() || matches!(c, b'"' | b'\'' | b'`' | b'=' | b'<' | b'>'))
+                })
+                .map(|value| Fix { range: range.clone(), replacement: value });
             note(found, finding(Rule::CssVariable, range, fix))?;
         }
     }

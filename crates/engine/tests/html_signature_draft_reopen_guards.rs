@@ -185,3 +185,178 @@ fn a_draft_too_long_to_hold_its_signature_too_opens_without_it() {
     assert!(c.body.text().text().contains("Thanks,"), "the owner's words are back");
     assert_eq!(c.signature.as_ref().map(|i| i.text.text()), None, "a signature cut short came back as the signature");
 }
+
+#[test]
+fn an_unchanged_active_wrapper_restores_its_signature() {
+    let (mut s, id) = saved_and_closed();
+    assert!(reopen(&mut s, id).is_some());
+}
+#[test]
+fn a_wrapper_only_inside_a_comment_is_not_restored() {
+    let (mut s, id) = saved_and_closed();
+    let m = s.mailbox.message_mut(id).unwrap();
+    let rendered = m.draft_signature.as_ref().unwrap().rendered().to_string();
+    let h = m.body.html.clone().unwrap();
+    m.body.html = Some(h.replace(&rendered, &format!("<!--{rendered}-->")));
+    let parts = m.attachments.len();
+    run(&mut s, "mail.editDraft", json!({"id":id}));
+    let c = s.compose.as_ref().unwrap();
+    println!(
+        "COMMENT reopen signature={} text={:?} attachments={} original_parts={}",
+        c.signature.is_some(),
+        c.body.text().text(),
+        c.attachments.len(),
+        parts
+    );
+    assert!(c.signature.is_none(), "comment resurrected signature");
+    assert_eq!(c.attachments.len(), parts);
+}
+#[test]
+fn a_wrapper_only_inside_raw_text_is_not_restored() {
+    let (mut s, id) = saved_and_closed();
+    let m = s.mailbox.message_mut(id).unwrap();
+    let rendered = m.draft_signature.as_ref().unwrap().rendered().to_string();
+    let h = m.body.html.clone().unwrap();
+    m.body.html = Some(h.replace(&rendered, &format!("<script>{rendered}</script>")));
+    run(&mut s, "mail.editDraft", json!({"id":id}));
+    let c = s.compose.as_ref().unwrap();
+    println!("RAWTEXT reopen signature={} text={:?}", c.signature.is_some(), c.body.text().text());
+    assert!(c.signature.is_none(), "raw text resurrected signature");
+}
+
+#[test]
+fn a_wrapper_inside_an_inert_element_or_an_attribute_value_is_not_restored() {
+    let mut refused = 0;
+    for (before, after) in [
+        ("<textarea>", "</textarea>"),
+        ("<xmp>", "</xmp>"),
+        ("<title>", "</title>"),
+        ("<template>", "</template>"),
+        ("<svg>", "</svg>"),
+        ("<div title='", "'>other</div>"),
+    ] {
+        let (mut s, id) = saved_and_closed();
+        let m = s.mailbox.message_mut(id).unwrap();
+        let rendered = m.draft_signature.as_ref().unwrap().rendered().to_string();
+        m.body.html = m.body.html.as_ref().map(|h| h.replace(&rendered, &format!("{before}{rendered}{after}")));
+        let parts = m.attachments.clone();
+        run(&mut s, "mail.editDraft", json!({"id": id}));
+        let c = s.compose.as_ref().unwrap();
+        if c.signature.is_none() {
+            refused += 1;
+        }
+        assert!(c.signature.is_none(), "restored inert fragment under {before}");
+        assert_eq!(c.attachments, parts, "fallback reclaimed a part under {before}");
+    }
+    assert_eq!(refused, 6);
+}
+
+#[test]
+fn a_legacy_unwrapped_snapshot_that_begins_with_an_element_still_restores() {
+    let (mut s, id) = saved_and_closed();
+    let m = s.mailbox.message_mut(id).unwrap();
+    let old = m.draft_signature.as_ref().unwrap();
+    let rendered = old.rendered();
+    assert!(rendered.starts_with("<div class=\"mc-sig-"));
+    let start = rendered.find('>').unwrap() + 1;
+    let legacy = rendered.get(start..rendered.len() - 6).unwrap().to_string();
+    let snapshot =
+        mailcraft_model::draft_signature::DraftSignature::new(old.signature().clone(), legacy.clone(), old.content_ids().to_vec()).unwrap();
+    m.body.html = m.body.html.as_ref().map(|h| h.replace(rendered, &legacy));
+    m.draft_signature = Some(snapshot);
+    assert!(reopen(&mut s, id).is_some(), "legacy unwrapped snapshot was lost");
+    assert!(s.compose.as_ref().unwrap().attachments.is_empty());
+}
+
+#[test]
+fn an_incomplete_snapshot_fragment_is_not_restored() {
+    let (mut s, id) = saved_and_closed();
+    let m = s.mailbox.message_mut(id).unwrap();
+    let old = m.draft_signature.as_ref().unwrap().clone();
+    let incomplete = old.rendered().strip_suffix("</div>").unwrap().to_string();
+    m.body.html = m.body.html.as_ref().map(|h| h.replace(old.rendered(), &incomplete));
+    m.draft_signature = mailcraft_model::draft_signature::DraftSignature::new(old.signature().clone(), incomplete, old.content_ids().to_vec());
+    let parts = m.attachments.clone();
+    run(&mut s, "mail.editDraft", json!({"id": id}));
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.signature.is_none(), "an incomplete element became the signature");
+    assert_eq!(c.attachments, parts, "uncertain placement reclaimed inline parts");
+}
+
+#[test]
+fn the_simpler_copy_with_its_writers_line_ends_restores() {
+    let (mut s, account, _) = imported();
+    run(
+        &mut s,
+        "signature.import",
+        json!({"name": "Fallback", "html": "<style>@font-face{font-family:Example}</style><div>Northwind Studio card</div><div>Priya Raman - Northwind Atelier</div>", "assets": []}),
+    );
+    run(&mut s, "signature.defaults", json!({"account": account, "new": "Fallback"}));
+    run(&mut s, "mail.new", json!({"account": account, "body": "Thanks,"}));
+    let id = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    println!("FALLBACK HTML {:?} RENDERED {:?}", m.body.html, m.draft_signature.as_ref().unwrap().rendered());
+    run(&mut s, "compose.close", json!({}));
+    assert!(reopen(&mut s, id).is_some(), "the writer's fallback lost its signature snapshot");
+}
+
+#[test]
+fn white_space_round_the_fragment_is_not_an_inert_placement() {
+    let (mut s, id) = saved_and_closed();
+    let m = s.mailbox.message_mut(id).unwrap();
+    let old = m.draft_signature.as_ref().unwrap().clone();
+    let with_space = format!("\r\n{}\r\n", old.rendered());
+    m.body.html = m.body.html.as_ref().map(|h| h.replace(old.rendered(), &with_space));
+    m.draft_signature = mailcraft_model::draft_signature::DraftSignature::new(old.signature().clone(), with_space, old.content_ids().to_vec());
+    assert!(reopen(&mut s, id).is_some(), "boundary whitespace lost a complete active fragment");
+}
+
+/// The draft with the snapshot's fragment written between `before` and `after`, opened again:
+/// whether it got its signature back, its inline parts as they were, and its parts now.
+fn reopened_between(before: &str, after: &str) -> (bool, Vec<mailcraft_model::Attachment>, Vec<mailcraft_model::Attachment>) {
+    let (mut s, id) = saved_and_closed();
+    let m = s.mailbox.message_mut(id).expect("the saved draft");
+    let rendered = m.draft_signature.as_ref().expect("the snapshot").rendered().to_string();
+    let html = m.body.html.clone().expect("an HTML draft");
+    assert_eq!(html.matches(&rendered).count(), 1, "fixture guard: the fragment is in the draft once");
+    m.body.html = Some(html.replacen(&rendered, &format!("{before}{rendered}{after}"), 1));
+    let parts = m.attachments.clone();
+    run(&mut s, "mail.editDraft", json!({"id": id}));
+    let c = s.compose.as_ref().expect("the draft is being written again");
+    (c.signature.is_some(), parts, c.attachments.clone())
+}
+
+/// A quote opens an attribute's value only after its `=`, as the HTML reader has it: in a name, an
+/// unquoted value or an end tag, and after a `<` that starts no tag, it is an ordinary character.
+/// So it can't hide from the locator the comment, raw text or template that holds the fragment:
+/// each draft opens with no signature and with every inline part kept.
+#[test]
+fn a_stray_quote_outside_an_attribute_value_hides_no_inert_placement() {
+    let mut refused = 0;
+    for (before, after) in [
+        ("<p x'> <!-- '>", " -->"),
+        ("<p title=a'b> <!-- '>", " -->"),
+        ("<p></p '> <!-- '>", " -->"),
+        ("<p x'> <textarea '>", "</textarea>"),
+        ("<p x'> <template '>", "</template>"),
+        ("5 <3 '<!-- '>", "-->"),
+    ] {
+        let (restored, parts, now) = reopened_between(before, after);
+        assert!(!restored, "restored a fragment hidden by {before:?}");
+        assert_eq!(now, parts, "the fallback under {before:?} reclaimed a part");
+        refused += 1;
+    }
+    assert_eq!(refused, 6);
+}
+
+/// Where a quote does open a value (after `=` and any white space), the value is read to its
+/// closing quote, `>` and all; a quote in a name, an unquoted value or an end tag before the
+/// fragment opens nothing. The active fragment after each restores, its picture taken back.
+#[test]
+fn a_quote_opens_a_value_only_after_an_equals_sign() {
+    for before in ["<p title=\"a>b\" x'>", "<p data-x = 'a>b'>", "<p x\">", "<p title=a'b>", "<span></span '>"] {
+        let (restored, parts, now) = reopened_between(before, "");
+        assert!(restored, "a harmless quote in {before:?} lost the signature");
+        assert!(now.len() < parts.len(), "the signature's picture was not taken back after {before:?}");
+    }
+}

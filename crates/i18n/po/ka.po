@@ -14715,8 +14715,8 @@ msgstr "გაგზავნილები"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "იგზავნება ისე, როგორც დაწერილია, ყველაფრის გარეშე, რაც გაეშვება ან თვალს ადევნებს. ვებმისამართიანი სურათი ამ მისამართად იგზავნება და ადრესატების პროგრამები წყვეტენ, ჩატვირთონ თუ არა; „HTML-ის იმპორტი…“-ით შემოტანილი სურათები ამ ხელმოწერისაა და ყოველ წერილთან ერთად იგზავნება. თქვენს მიერ დაწერილ წერილში ამ ხელმოწერის გამარტივებული ასლი ჩანს; თუ მას იქ შეცვლით, სანაცვლოდ ეს ასლი გაიგზავნება."
+msgid "Sent as written, with scripts and other active content removed. A picture with a web address is sent as that address; recipients' programs decide whether to load it, and loading it can tell its host it was requested. Pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr "იგზავნება ისე, როგორც დაწერილია, სკრიპტებისა და სხვა აქტიური შიგთავსის ამოშლის შემდეგ. ვებმისამართიანი სურათი ამ მისამართად იგზავნება; ადრესატების პროგრამები წყვეტენ, ჩატვირთონ თუ არა, ხოლო ჩატვირთვამ მის სერვერს შეიძლება აცნობოს, რომ სურათი მოითხოვეს. „HTML-ის იმპორტი…“-ით შემოტანილი სურათები ამ ხელმოწერისაა და ყოველ წერილთან ერთად იგზავნება. თქვენს მიერ დაწერილ წერილში ამ ხელმოწერის გამარტივებული ასლი ჩანს; თუ მას იქ შეცვლით, სანაცვლოდ ეს ასლი გაიგზავნება."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -26061,6 +26061,10 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "იგზავნება ისე, როგორც დაწერილია, ყველაფრის გარეშე, რაც გაეშვება ან თვალს ადევნებს. ვებმისამართიანი სურათი ამ მისამართად იგზავნება და ადრესატების პროგრამები წყვეტენ, ჩატვირთონ თუ არა; „HTML-ის იმპორტი…“-ით შემოტანილი სურათები ამ ხელმოწერისაა და ყოველ წერილთან ერთად იგზავნება. თქვენს მიერ დაწერილ წერილში ამ ხელმოწერის გამარტივებული ასლი ჩანს; თუ მას იქ შეცვლით, სანაცვლოდ ეს ასლი გაიგზავნება."
 
 #, fuzzy
 #~ msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."

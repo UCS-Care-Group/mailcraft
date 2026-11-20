@@ -150,10 +150,14 @@ pub fn authored_fragment_with_rebound_cids(
             Token::Open(_) if !tokens.tag_closed() => return Err(Truncated),
             Token::Open(tag) if tag.name == "template" => template = template.saturating_add(1),
             Token::Close(name) if name == "template" => template = template.saturating_sub(1),
-            Token::Open(tag) if tag.name == "body" && wrapper.is_none() => wrapper = Some(wrapper_tag(&scope.0, Some(tag))),
+            // A `<body>` inside any template, whatever holds it, is inert: it gives the wrapper
+            // nothing, as it ends nothing in the quoter.
+            Token::Open(tag) if tag.name == "body" && wrapper.is_none() && template == 0 && !quoter.template_body(&token) => {
+                wrapper = Some(wrapper_tag(&scope.0, Some(tag)));
+            }
             _ => {}
         }
-        quoter.token(token);
+        quoter.authored_token(token);
     }
     writer.styles(html, &mut tokens, template)?;
     let inner = quoter.finish();
@@ -297,6 +301,10 @@ impl Writer<'_> {
                     }
                     if self.lists > media::MAX_LISTS {
                         return Err(TooLarge);
+                    }
+                    // The complete, CSS-trimmed query must fit the reader, not just its prefix.
+                    if list.trim_matches(|c| matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0c')).len() > media::MAX_QUERY_BYTES {
+                        return Err(Unsupported);
                     }
                     guard(prelude)?;
                     guard(list)?;

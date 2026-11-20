@@ -32,7 +32,7 @@ fn a_picture_in_a_template_is_listed_as_held_by_it() {
 
 /// Documents where a `<template>` is opened inside something the writer leaves out whole, or
 /// where the writer's reading ends it otherwise; `{img}` is the picture after it.
-const ENDED: [&str; 12] = [
+const ENDED: [&str; 11] = [
     "<svg><template></svg>{img}",
     "<math><template></math>{img}",
     "<noscript><template></noscript>{img}",
@@ -44,7 +44,6 @@ const ENDED: [&str; 12] = [
     "<p hidden><template></p>{img}",
     "<div style=\"display:none\"><template></div>{img}",
     "<svg><template><template></svg>{img}",
-    "<template><body>{img}",
 ];
 
 #[test]
@@ -89,4 +88,15 @@ fn a_picture_is_held_by_a_template_exactly_when_the_writer_leaves_it_out_for_tha
             assert_eq!(*in_template, !written.contains(src.as_str()), "{html}: {src} (written: {written})");
         }
     }
+}
+
+#[test]
+fn an_authored_body_inside_a_template_does_not_end_that_template() {
+    let src = "https://pictures.example.net/inert.png";
+    let html = format!("<p>BEFORE</p><template><body><img src=\"{src}\"></template><p>AFTER</p>");
+    assert_eq!(sources(&html), Ok(vec![held(src, true)]));
+    let scope = mailcraft_html::AuthoredScope::new("mc-authored-test").unwrap();
+    let authored = mailcraft_html::authored_fragment_with_rebound_cids(&html, &scope, &mut |cid| Some(cid.to_string())).unwrap();
+    assert!(authored.body.contains("BEFORE") && authored.body.contains("AFTER"));
+    assert!(!authored.body.contains(src), "the authored lister and writer disagreed");
 }

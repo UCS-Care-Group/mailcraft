@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Which `media` the tokenizer hands a `<style>` element's sheet over with, and whether that
 //! `media` is known: of an attribute written twice HTML takes the first, whatever the case of its
-//! name; one past the attributes kept is unknown only when no `media` was kept; and a value made
+//! name; a first media past the generic cap is still read, though strict export refuses it; and a value made
 //! only of spaces that aren't CSS white space is kept, not trimmed to nothing: a CSS reader reads
 //! it as a media type it doesn't know.
 //!
@@ -26,8 +26,8 @@ fn known(media: &str) -> Vec<(String, bool)> {
     vec![(media.to_string(), false)]
 }
 
-fn unknown() -> Vec<(String, bool)> {
-    vec![(String::new(), true)]
+fn overflowed(media: &str) -> Vec<(String, bool)> {
+    vec![(media.to_string(), true)]
 }
 
 #[test]
@@ -36,14 +36,18 @@ fn of_a_media_written_twice_the_first_counts_and_one_past_the_cap_is_a_second() 
     let first_kept = format!("<style media=\"(min-width: 600px)\"{many} media=\"print\">p{{}}</style>");
     assert_eq!(styles(&first_kept), known("(min-width: 600px)"), "the second, past the cap, is dropped as HTML drops it");
     let both_past = format!("<style{many} media=\"(min-width: 600px)\" media=\"print\">p{{}}</style>");
-    assert_eq!(styles(&both_past), unknown(), "neither was kept: the condition is unknown");
+    assert_eq!(styles(&both_past), overflowed("(min-width: 600px)"), "strict export refuses, but the reader keeps the first condition");
     assert_eq!(styles("<style media=\"screen\" media=\"print\">p{}</style>"), known("screen"), "both kept: the first");
 }
 
 #[test]
 fn a_media_in_capitals_counts_as_one_in_small_letters() {
     let many = many();
-    assert_eq!(styles(&format!("<style{many} MEDIA=\"print\">p{{}}</style>")), unknown(), "past the cap");
+    assert_eq!(
+        styles(&format!("<style{many} MEDIA=\"print\">p{{}}</style>")),
+        overflowed("print"),
+        "past the generic cap, the reader still gets print"
+    );
     assert_eq!(styles(&format!("<style MEDIA=\"print\"{many}>p{{}}</style>")), known("print"), "kept");
     assert_eq!(styles(&format!("<style MeDiA=\"print\"{many} media=\"screen\">p{{}}</style>")), known("print"), "kept, and first");
 }
@@ -54,7 +58,7 @@ fn a_kept_empty_media_is_known_though_attributes_were_dropped() {
     assert_eq!(styles(&format!("<style media=\"\"{many} media=\"print\">p{{}}</style>")), known(""), "the empty one is the one that counts");
     assert_eq!(styles(&format!("<style media=\" &#12;&#9;\"{many}>p{{}}</style>")), known(""), "CSS white space alone is no condition");
     // Control: no `media` among those kept.
-    assert_eq!(styles(&format!("<style{many}>p{{}}</style>")), unknown());
+    assert_eq!(styles(&format!("<style{many}>p{{}}</style>")), overflowed(""));
 }
 
 #[test]

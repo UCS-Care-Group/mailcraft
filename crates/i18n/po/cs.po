@@ -14791,8 +14791,8 @@ msgstr "Odeslaná pošta"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "Odesílá se tak, jak je napsaný, bez ničeho, co se spouští nebo sleduje. Obrázek s webovou adresou se odešle jako tato adresa a programy příjemců rozhodnou, zda ho načtou; obrázky načtené přes Importovat HTML… patří tomuto podpisu a odcházejí s každou zprávou. Zpráva, kterou píšete, zobrazuje zjednodušenou kopii tohoto podpisu; když ji tam upravíte, odešle se místo toho tato kopie."
+msgid "Sent as written, with scripts and other active content removed. A picture with a web address is sent as that address; recipients' programs decide whether to load it, and loading it can tell its host it was requested. Pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr "Odesílá se tak, jak je napsaný, po odstranění skriptů a dalšího aktivního obsahu. Obrázek s webovou adresou se odešle jako tato adresa; programy příjemců rozhodnou, zda ho načtou, a načtení může jeho hostiteli sdělit, že byl vyžádán. Obrázky načtené přes Importovat HTML… patří tomuto podpisu a odcházejí s každou zprávou. Zpráva, kterou píšete, zobrazuje zjednodušenou kopii tohoto podpisu; když ji tam upravíte, odešle se místo toho tato kopie."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -26314,6 +26314,10 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "Odesílá se tak, jak je napsaný, bez ničeho, co se spouští nebo sleduje. Obrázek s webovou adresou se odešle jako tato adresa a programy příjemců rozhodnou, zda ho načtou; obrázky načtené přes Importovat HTML… patří tomuto podpisu a odcházejí s každou zprávou. Zpráva, kterou píšete, zobrazuje zjednodušenou kopii tohoto podpisu; když ji tam upravíte, odešle se místo toho tato kopie."
 
 #, fuzzy
 #~ msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."

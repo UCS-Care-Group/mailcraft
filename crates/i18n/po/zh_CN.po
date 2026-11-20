@@ -14762,8 +14762,8 @@ msgstr "已发送邮件"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "按原样发送，不含任何会运行或跟踪的内容。带网址的图片以该网址发送，由收件人的程序决定是否加载；通过“导入 HTML…”导入的图片属于此签名，会随每封邮件一起发送。撰写邮件时会显示此签名的简化副本；如果在那里编辑，发送的将是该副本。"
+msgid "Sent as written, with scripts and other active content removed. A picture with a web address is sent as that address; recipients' programs decide whether to load it, and loading it can tell its host it was requested. Pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr "按原样发送，但会移除脚本和其他活动内容。带网址的图片以该网址发送；由收件人的程序决定是否加载，而加载可能会让托管该图片的服务器知道图片被请求了。通过“导入 HTML…”导入的图片属于此签名，会随每封邮件一起发送。撰写邮件时会显示此签名的简化副本；如果在那里编辑，发送的将是该副本。"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -26020,6 +26020,10 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "按原样发送，不含任何会运行或跟踪的内容。带网址的图片以该网址发送，由收件人的程序决定是否加载；通过“导入 HTML…”导入的图片属于此签名，会随每封邮件一起发送。撰写邮件时会显示此签名的简化副本；如果在那里编辑，发送的将是该副本。"
 
 #, fuzzy
 #~ msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."

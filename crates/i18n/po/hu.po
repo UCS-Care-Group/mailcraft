@@ -14762,8 +14762,8 @@ msgstr "Elküldött elemek"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "Úgy küldjük el, ahogy meg van írva, minden futó vagy nyomkövető elem nélkül. A webcímmel rendelkező képet ezen a címen küldjük el, és a címzettek programjai döntik el, betöltik-e; a HTML importálása… paranccsal behozott képek ennek az aláírásnak a saját képei, és minden üzenettel együtt mennek. Az írt üzenet ennek az aláírásnak egy egyszerűsített másolatát mutatja; ha ott szerkeszti, helyette ez a másolat lesz elküldve."
+msgid "Sent as written, with scripts and other active content removed. A picture with a web address is sent as that address; recipients' programs decide whether to load it, and loading it can tell its host it was requested. Pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr "Úgy küldjük el, ahogy meg van írva, a szkriptek és más aktív tartalmak eltávolítása után. A webcímmel rendelkező képet ezen a címen küldjük el; a címzettek programjai döntik el, betöltik-e, és a betöltés jelezheti a képet tároló kiszolgálónak, hogy lekérték. A HTML importálása… paranccsal behozott képek ennek az aláírásnak a saját képei, és minden üzenettel együtt mennek. Az írt üzenet ennek az aláírásnak egy egyszerűsített másolatát mutatja; ha ott szerkeszti, helyette ez a másolat lesz elküldve."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -26149,6 +26149,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Sorok"
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "Úgy küldjük el, ahogy meg van írva, minden futó vagy nyomkövető elem nélkül. A webcímmel rendelkező képet ezen a címen küldjük el, és a címzettek programjai döntik el, betöltik-e; a HTML importálása… paranccsal behozott képek ennek az aláírásnak a saját képei, és minden üzenettel együtt mennek. Az írt üzenet ennek az aláírásnak egy egyszerűsített másolatát mutatja; ha ott szerkeszti, helyette ez a másolat lesz elküldve."
 
 #, fuzzy
 #~ msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."

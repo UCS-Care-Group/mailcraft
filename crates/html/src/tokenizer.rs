@@ -38,13 +38,14 @@ pub(crate) fn span_of(whole: &str, part: &str) -> Option<std::ops::Range<usize>>
 pub(crate) struct Style<'a> {
     /// Its `media` attribute as an attribute reads, character references decoded and trimmed as a
     /// media list is tested ([`crate::media::trim`]: one made only of spaces that aren't CSS white
-    /// space stays, a media type no window has), cut to one byte more than a media list may be.
+    /// space stays, a media type no window has). An overlong complete list is represented by a
+    /// bounded nonmatching sentinel one byte longer than the reader permits.
     pub media: String,
     /// The sheet's own text.
     pub css: &'a str,
-    /// Whether its start tag had attributes past those kept ([`MAX_ATTRS`]) and none of those kept
-    /// is `media`: a `media` among those dropped is then unknown. (One kept is the one that counts:
-    /// of an attribute written twice, HTML takes the first.)
+    /// Whether the generic attribute cap was exceeded without retaining a `media`. Strict authored
+    /// export still refuses that shape conservatively. The reader nevertheless gets the complete
+    /// first condition above, independently of type, rather than widening a dropped condition.
     pub overflowed: bool,
 }
 
@@ -57,6 +58,10 @@ pub(crate) struct Tag<'a> {
     attrs: Vec<(&'a str, &'a str)>,
     /// Whether attributes past [`MAX_ATTRS`] were read and dropped.
     overflowed: bool,
+    /// The first `type` on a style tag, even when the generic attribute list is full.
+    style_type: Option<&'a str>,
+    /// The first media condition, independently of type and the generic retention cap.
+    style_media: Option<&'a str>,
     /// What the message's style sheets say about the element, set by the one who reads them
     /// (`sheet.rs`).
     pub sheet: Option<std::rc::Rc<crate::sheet::Applied>>,
@@ -218,6 +223,8 @@ impl<'a> Tokenizer<'a> {
         let name = tag_name(self.slice(start, i));
         let mut attrs = Vec::new();
         let mut overflowed = false;
+        let mut style_type = None;
+        let mut style_media = None;
         self.tag_closed = false;
         loop {
             while matches!(b.get(i), Some(c) if c.is_ascii_whitespace() || *c == b'/') {
@@ -273,6 +280,14 @@ impl<'a> Tokenizer<'a> {
             } else {
                 i = j;
             }
+            if name == "style" {
+                if attr.eq_ignore_ascii_case("type") && style_type.is_none() {
+                    style_type = Some(value);
+                }
+                if attr.eq_ignore_ascii_case("media") && style_media.is_none() {
+                    style_media = Some(value);
+                }
+            }
             if attrs.len() < MAX_ATTRS {
                 attrs.push((attr, value));
             } else {
@@ -280,7 +295,7 @@ impl<'a> Tokenizer<'a> {
             }
         }
         self.pos = i.min(b.len());
-        Tag { name, attrs, overflowed, sheet: None }
+        Tag { name, attrs, overflowed, style_type, style_media, sheet: None }
     }
 }
 
@@ -320,8 +335,16 @@ impl<'a> Iterator for Tokenizer<'a> {
                         // Skip the content and the end tag.
                         let end = find_end_tag(b, self.pos, &tag.name).unwrap_or(b.len());
                         if tag.name == "style" && self.styles.len() < MAX_STYLES && for_screen(&tag) {
-                            let media = tag.attr("media").unwrap_or_default();
-                            let media = crate::truncate(crate::media::trim(&media), crate::media::MAX_QUERY_BYTES + 1).to_string();
+                            let media = tag.style_media.map(unescape).unwrap_or_default();
+                            let media = crate::media::trim(&media);
+                            // Never trim an already truncated prefix into a shorter, wider query.
+                            // A bounded nonmatching sentinel preserves the complete query's overflow
+                            // for both the strict writer and the reader's own length check.
+                            let media = if media.len() > crate::media::MAX_QUERY_BYTES {
+                                "?".repeat(crate::media::MAX_QUERY_BYTES + 1)
+                            } else {
+                                media.to_string()
+                            };
                             self.styles.push(Style {
                                 media,
                                 css: self.slice(self.pos, end),
@@ -342,7 +365,7 @@ impl<'a> Iterator for Tokenizer<'a> {
 /// Whether a `<style>` is a style sheet: text/css. (Whether it is for this pane is for its
 /// `media` to say, when it is read.)
 fn for_screen(tag: &Tag<'_>) -> bool {
-    let kind = tag.raw_attr("type").unwrap_or("").trim();
+    let kind = tag.style_type.unwrap_or("").trim();
     kind.is_empty() || kind.eq_ignore_ascii_case("text/css")
 }
 

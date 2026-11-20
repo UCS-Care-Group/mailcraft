@@ -14250,8 +14250,8 @@ msgstr "Verzonden items"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "Wordt verzonden zoals geschreven, zonder iets wat wordt uitgevoerd of volgt. Een afbeelding met een webadres wordt als dat adres verzonden, en de programma's van ontvangers bepalen of ze haar laden; de afbeeldingen die met HTML importeren… zijn binnengehaald, horen bij deze handtekening en gaan met elk bericht mee. Een bericht dat u schrijft, toont een vereenvoudigde kopie van deze handtekening; als u die daar bewerkt, wordt in plaats daarvan die kopie verzonden."
+msgid "Sent as written, with scripts and other active content removed. A picture with a web address is sent as that address; recipients' programs decide whether to load it, and loading it can tell its host it was requested. Pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr "Wordt verzonden zoals geschreven, nadat scripts en andere actieve inhoud zijn verwijderd. Een afbeelding met een webadres wordt als dat adres verzonden; de programma's van ontvangers bepalen of ze haar laden. Het laden kan de server laten weten dat de afbeelding is opgevraagd. De afbeeldingen die met HTML importeren… zijn binnengehaald, horen bij deze handtekening en gaan met elk bericht mee. Een bericht dat u schrijft, toont een vereenvoudigde kopie van deze handtekening; als u die daar bewerkt, wordt in plaats daarvan die kopie verzonden."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -25527,6 +25527,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "Wordt verzonden zoals geschreven, zonder iets wat wordt uitgevoerd of volgt. Een afbeelding met een webadres wordt als dat adres verzonden, en de programma's van ontvangers bepalen of ze haar laden; de afbeeldingen die met HTML importeren… zijn binnengehaald, horen bij deze handtekening en gaan met elk bericht mee. Een bericht dat u schrijft, toont een vereenvoudigde kopie van deze handtekening; als u die daar bewerkt, wordt in plaats daarvan die kopie verzonden."
 
 #, fuzzy
 #~ msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
