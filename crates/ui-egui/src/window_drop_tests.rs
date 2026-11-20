@@ -163,6 +163,61 @@ fn a_picture_let_go_over_the_main_window_goes_into_the_reading_panes_message() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// A file named as a picture that is none (a PDF renamed): its bytes.
+const NOT_A_PICTURE: &[u8] = b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n1 0 obj\n<< /Type /Catalog >>\nendobj\n";
+
+#[test]
+fn a_picture_the_text_cant_take_is_attached_instead() {
+    let (ctx, drops) = backend();
+    let mut app = app(&ctx);
+    let (dir, picture, _) = files("refused");
+    let scan = dir.join("scan.png");
+    std::fs::write(&scan, NOT_A_PICTURE).unwrap();
+    let compose = new_window(&ctx, &mut app);
+    drops.borrow_mut().push(scan);
+    frame(&ctx, &mut app, vec![]);
+    assert_eq!(taken(&app, compose), (0, 1), "{:?}", app.status_msg);
+    assert!(app.refused.is_none(), "it went somewhere: no box says it was refused");
+    // Thirty pictures fill a message's text; the rest of the same drop are attached.
+    let photos: Vec<PathBuf> = (0..32)
+        .map(|i| {
+            let photo = dir.join(format!("photo {i}.png"));
+            std::fs::copy(&picture, &photo).unwrap();
+            photo
+        })
+        .collect();
+    drops.borrow_mut().extend(photos);
+    frame(&ctx, &mut app, vec![]);
+    assert_eq!(taken(&app, compose), (30, 3), "{:?}", app.status_msg);
+    assert!(app.refused.is_none(), "{:?}", app.refused);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_picture_the_text_cant_take_dropped_on_the_page_is_attached_instead() {
+    let (ctx, _) = backend();
+    let mut app = app(&ctx);
+    let inbox = crate::Inbox::default();
+    app.services.inbox = Some(inbox.clone());
+    let compose = app.run("mail.new", json!({})).unwrap()["compose"].as_u64().unwrap();
+    inbox.lock().unwrap().push(crate::Delivered::dropped("scan.png".into(), NOT_A_PICTURE.to_vec()));
+    crate::files::drain_inbox(&mut app);
+    assert_eq!(taken(&app, compose), (0, 1), "{:?}", app.status_msg);
+}
+
+/// Insert › Pictures asked for a picture in the text: one it can't take is refused, not attached.
+#[test]
+fn a_picture_picked_for_the_text_is_never_attached_instead() {
+    let (ctx, _) = backend();
+    let mut app = app(&ctx);
+    let inbox = crate::Inbox::default();
+    app.services.inbox = Some(inbox.clone());
+    let compose = app.run("mail.new", json!({})).unwrap()["compose"].as_u64().unwrap();
+    inbox.lock().unwrap().push(crate::Delivered::picked("scan.png".into(), NOT_A_PICTURE.to_vec(), "bodyPicture", Some(compose), 1));
+    crate::files::drain_inbox(&mut app);
+    assert_eq!(taken(&app, compose), (0, 0), "{:?}", app.status_msg);
+}
+
 #[test]
 fn a_picture_dropped_on_the_page_goes_into_the_text() {
     let (ctx, _) = backend();
