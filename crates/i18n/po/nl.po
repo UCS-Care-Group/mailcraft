@@ -5782,7 +5782,7 @@ msgid ""
 msgstr "Mapeigenschappen"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 msgid "Folder Pane"
 msgstr "Mappenvenster"
 
@@ -9295,10 +9295,22 @@ msgstr "Omlaag"
 msgid "Move Event"
 msgstr "Gebeurtenis verplaatsen"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Favoriet omhoog of omlaag verplaatsen"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 msgid "Move Folder"
 msgstr "Map verplaatsen"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Map omhoog of omlaag verplaatsen"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -20698,6 +20710,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "Een concept kan geen herinnering hebben: verstuur het eerst, of gebruik Opvolgen in het bericht zelf"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "een favoriet kan niet voor zichzelf worden gezet"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "een map kan niet voor zichzelf worden gezet"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20708,6 +20732,12 @@ msgstr "een map kan niet in zichzelf worden verplaatst"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "een map kan niet naar een ander account worden verplaatst"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "een map wordt tussen de mappen ernaast gezet: noem er een met dezelfde bovenliggende map"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -24164,6 +24194,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} is geen gedeeld postvak: verwijder het met account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} staat niet bij de favorieten"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24234,6 +24270,12 @@ msgstr "{name} heeft een agenda met u gedeeld."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} heeft een agenda met u gedeeld. Die staat in uw agendalijst."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} blijft bovenaan de mappen van het account"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

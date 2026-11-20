@@ -6003,7 +6003,7 @@ msgid ""
 msgstr "Mappa tulajdonságai"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Mappaablak"
@@ -9636,11 +9636,23 @@ msgstr "Lefelé"
 msgid "Move Event"
 msgstr "Esemény áthelyezése"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Kedvenc mozgatása fel vagy le"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Mappa áthelyezése"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Mappa mozgatása fel vagy le"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -21312,6 +21324,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "Piszkozathoz nem adható emlékeztető: előbb küldd el, vagy használd a Nyomon követés funkciót magában az üzenetben"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "egy kedvenc nem tehető saját maga elé"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "egy mappa nem tehető saját maga elé"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -21322,6 +21346,12 @@ msgstr "egy mappa nem tud magától mozogni"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "a mappa nem helyezhető át másik fiókba"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "egy mappa a mellette lévő mappák közé kerül: adjon meg egyet ugyanazzal a szülőmappával"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -24787,6 +24817,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "A(z) {name} nem megosztott postafiók. Az account.remove paranccsal távolíthatja el."
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} nincs a kedvencek között"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24857,6 +24893,12 @@ msgstr "{name} megosztotta veled a naptárat."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} megosztotta veled a naptárat, benne van a naptárlistádban."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} a fiók mappáinak tetején marad"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
