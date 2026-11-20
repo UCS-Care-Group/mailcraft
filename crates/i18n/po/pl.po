@@ -9100,6 +9100,11 @@ msgstr "Wiadomości na jasnym tle"
 msgid "Messages to download per folder"
 msgstr "Liczba wiadomości do pobrania na folder"
 
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Messages with a similar subject are filed here."
+msgstr ""
+
 #. name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -15311,6 +15316,11 @@ msgstr "Logowanie przez {provider}"
 msgid "Signs in with: {how}"
 msgstr "Sposób logowania: {how}"
 
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Similar messages from this sender are filed here."
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -15762,10 +15772,25 @@ msgid "Suggest Account Settings"
 msgstr "Zasugeruj ustawienia konta"
 
 #. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Suggest Filing Folders"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "Suggest Recipients"
 msgstr "Zasugeruj odbiorców"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Suggest folders in the Move menu"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Suggested folders"
+msgstr ""
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -17407,6 +17432,11 @@ msgstr "Wyszukiwanie serwera Exchange zostało przekierowane do {host}, który n
 #, fuzzy
 msgid "The selected message, as .eml"
 msgstr "Zaznaczona wiadomość jako .eml"
+
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "The sender and subject match messages filed here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs

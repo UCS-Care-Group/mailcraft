@@ -133,6 +133,8 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
     // A send warning is the owner's to answer, every time (#509).
     let (params, warnings) = crate::send_warnings::for_agent(app, id, params);
     match agent::check(&app.session, id, &params, allow) {
+        #[cfg(not(target_arch = "wasm32"))]
+        Verdict::Run if id == "mail.suggestFolders" => crate::control::filing_suggestions(app, req, &params),
         Verdict::Run if warnings.is_empty() => run(app, id, params, allow, None),
         Verdict::Run => {
             let what = agent::describe(&app.session, id, &params);

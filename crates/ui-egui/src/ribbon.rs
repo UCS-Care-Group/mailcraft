@@ -1353,7 +1353,13 @@ struct FolderList {
 /// Typing narrows the list to the folders whose place (or mailbox) matches, each shown with its
 /// place in the tree; the arrow keys and Enter choose, and Escape clears the search before it
 /// closes the menu (#74).
-fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pick: impl FnMut(&mut MailApp, Id)) {
+fn folder_menu_scope(
+    ui: &mut Ui,
+    app: &mut MailApp,
+    scope: FolderScope,
+    suggestions: &[mailcraft_engine::filing_suggestions::Suggestion],
+    mut pick: impl FnMut(&mut MailApp, Id),
+) {
     let key = ui.scope_id().with("folder-search");
     let list_key = ui.scope_id().with("folder-list");
     let frame = ui.ctx().cumulative_frame_nr();
@@ -1382,6 +1388,7 @@ fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pic
     let many = list.many;
     let list = &list.rows;
 
+    let suggested = crate::filing_suggestions::show(app, ui, suggestions);
     let edit = ui.add(egui::TextEdit::singleline(&mut st.text).hint_text(tl!("Search folders")).desired_width(200.0).char_limit(FOLDER_SEARCH_MAX));
     let edit = crate::text_menu::field(edit);
     if fresh {
@@ -1415,7 +1422,7 @@ fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pic
         }
     }
     let marked = if searching { choosable.get(st.at).copied() } else { None };
-    let mut chosen = if enter { marked.and_then(|i| list.get(i)).map(|row| row.id) } else { None };
+    let mut chosen = suggested.or_else(|| if enter { marked.and_then(|i| list.get(i)).map(|row| row.id) } else { None });
 
     ui.add_space(2.0);
     egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
@@ -1455,13 +1462,20 @@ fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pic
 
 /// A search box and then every folder of the account in view, as menu items.
 pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
-    folder_menu_scope(ui, app, FolderScope::ThisAccount, pick);
+    folder_menu_scope(ui, app, FolderScope::ThisAccount, &[], pick);
 }
 
 /// The same for Move to Folder and Copy to Folder, whose folders are every account's: a message
 /// moved from one mailbox into another is what the target accepts (#451).
 pub fn folder_menu_all(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
-    folder_menu_scope(ui, app, FolderScope::EveryAccount, pick);
+    folder_menu_scope(ui, app, FolderScope::EveryAccount, &[], pick);
+}
+
+pub(crate) fn move_message_menu(ui: &mut Ui, app: &mut MailApp) {
+    let suggestions = crate::filing_suggestions::for_menu(app, ui.ctx());
+    folder_menu_scope(ui, app, FolderScope::EveryAccount, &suggestions, |app, folder| {
+        let _ = app.run("mail.move", json!({"folder": folder}));
+    });
 }
 
 /// The accounts of the selected messages, each once.
@@ -1609,9 +1623,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 Some(why) => {
                     ui.label(tl!(why));
                 }
-                None => folder_menu_all(ui, app, |app, folder| {
-                    let _ = app.run("mail.move", json!({"folder": folder}));
-                }),
+                None => move_message_menu(ui, app),
             }
             ui.separator();
             ui.menu_button(tl!("Copy to Folder"), |ui| {
