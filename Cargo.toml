@@ -20,6 +20,7 @@ mailcraft-charset = { path = "crates/charset" }
 mailcraft-ber = { path = "crates/ber" }
 mailcraft-link = { path = "crates/link" }
 mailcraft-names = { path = "crates/names" }
+mailcraft-spell = { path = "crates/spell" }
 mailcraft-i18n = { path = "crates/i18n" }
 mailcraft-model = { path = "crates/model" }
 mailcraft-html = { path = "crates/html" }

@@ -25,6 +25,8 @@ log = { workspace = true }
 mailcraft-link = { workspace = true }
 # A subject shown in a title: one line, nothing that hides or turns text (View Source).
 mailcraft-names = { workspace = true }
+# The spelling trait the composer asks a host for, and the issue cap.
+mailcraft-spell = { workspace = true }
 # Window screenshots for the control channel are saved as PNG.
 image = { workspace = true }
 # A font is opened as egui will open it before egui is given it (`theme::is_face`): a system's

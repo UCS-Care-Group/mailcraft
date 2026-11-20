@@ -14,16 +14,9 @@ use crate::compose::editor;
 
 const MAX_PARAGRAPH_BYTES: usize = 8192;
 const REVIEW_PARAGRAPHS_PER_FRAME: usize = 8;
-/// Hosts may return one extra result to mark the paragraph's report as partial.
-pub const MAX_ISSUES: usize = 256;
+pub use mailcraft_spell::{HostChecker, MAX_ISSUES};
 const MAX_SUGGESTIONS: usize = 6;
 const OFF: &str = "off";
-
-pub trait HostChecker {
-    fn locales(&self) -> Vec<String>;
-    fn check(&self, locale: &str, text: &str) -> Option<Vec<Range<usize>>>;
-    fn suggest(&self, locale: &str, word: &str) -> Vec<String>;
-}
 
 pub type Host = Box<dyn HostChecker>;
 

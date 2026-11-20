@@ -1376,6 +1376,7 @@ dependencies = [
  "mailcraft-proto",
  "mailcraft-pst",
  "mailcraft-smime",
+ "mailcraft-spell",
  "mailcraft-tnef",
  "mailcraft-vcard",
 ]
@@ -1523,6 +1524,10 @@ dependencies = [
  "x509-cert",
  "zeroize",
 ]
+
+[[package]]
+name = "mailcraft-spell"
+version = "0.14.0"
 
 [[package]]
 name = "mailcraft-time"
