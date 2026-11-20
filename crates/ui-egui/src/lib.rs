@@ -135,6 +135,7 @@ mod gmail_move_tests;
 mod gmail_tabs;
 #[cfg(test)]
 mod gmail_tabs_tests;
+pub mod gnome_accounts;
 #[cfg(test)]
 #[path = "google_credential_security_tests.rs"]
 mod google_credential_security_tests;
@@ -334,6 +335,12 @@ pub struct Services {
     pub spelling: Option<spelling::Host>,
     /// The Windows host reads the local Recent Items folder on a worker, only when asked by the owner.
     pub recent_attachments: Option<recent_attachments::Loader>,
+
+    /// Linux: discover public GOA account metadata on the explicit import action, off the UI
+    /// thread. Linked accounts resolve their credentials separately during Send/Receive.
+    pub gnome_accounts: Option<gnome_accounts::Discover>,
+    /// Set by the Linux host after its passive session bus check finishes.
+    pub gnome_service_available: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     /// Desktop: the icon and application id of the main window, which every other window of the
     /// system (reminders, messages) takes too.
     pub window_identity: Option<windows::WindowIdentity>,
@@ -659,6 +666,12 @@ pub struct Services {
 }
 
 impl Services {
+    fn gnome_discovery(&self) -> Option<&gnome_accounts::Discover> {
+        self.gnome_accounts
+            .as_ref()
+            .filter(|_| self.gnome_service_available.as_ref().is_none_or(|probe| probe.load(std::sync::atomic::Ordering::Relaxed)))
+    }
+
     /// Whether this build reaches mail servers at all: with mail connections, over JMAP, or through Exchange Web Services.
     pub fn can_sync(&self) -> bool {
         self.sync.is_some() || self.jmap.is_some() || self.ews.is_some()
@@ -1117,7 +1130,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"gnomeAccounts"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
@@ -3678,7 +3691,9 @@ impl MailApp {
         // A run that only tells the server what changed here, when that is all it was started for.
         request.push_only = self.session.driver.round.push_only_next.remove(&account) && quiet && request.outbox.is_empty();
         let address = request.account.email.clone();
-        if let Some(oauth) = request.account.oauth.clone() {
+        if request.account.goa.is_some() {
+            // The host resolves credentials from GOA on its worker; no local login or fallback.
+        } else if let Some(oauth) = request.account.oauth.clone() {
             // Signed in on the provider's page: a token that is still good goes along; without
             // one the host renews it or the owner signs in, and this runs again after.
             let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
@@ -3960,6 +3975,9 @@ impl MailApp {
         }
         let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
         let Some(a) = self.session.mailbox.account(account) else { return false };
+        if a.goa.is_some() {
+            return self.services.gnome_discovery().is_some();
+        }
         // (A JMAP account's secret is in memory only, never with the operating system; and one its
         // server turned down waits for the owner.)
         if a.kind == mailcraft_model::AccountKind::Jmap {

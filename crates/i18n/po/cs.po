@@ -177,7 +177,7 @@ msgid "(no title)"
 msgstr "(bez názvu)"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "(none)"
 msgstr "(žádné)"
@@ -667,6 +667,12 @@ msgstr "Krátká poznámka s odkazem na tu stránku, kterou vložíte do pošty 
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "Webová adresa, e-mailová adresa, telefonní číslo (tel:) nebo jiná adresa, například ms-settings:network-vpn. Když není nic vybráno, adresa se vloží tak, jak je."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "ACCOUNTS ON THIS COMPUTER"
+msgstr "ÚČTY NA TOMTO POČÍTAČI"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -1315,6 +1321,12 @@ msgstr "Povolit odesílání ze sdílených poštovních schránek"
 #, fuzzy
 msgid "Allowed"
 msgstr "Povoleno"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Already added"
+msgstr "Již přidáno"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -2471,6 +2483,12 @@ msgid "Bring in"
 msgstr "Načíst"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Bring mail from your GNOME accounts into MailCraft."
+msgstr "Přeneste poštu ze svých účtů GNOME do MailCraftu."
+
+#. interface
 #: crates/ui-egui/src/recent_attachments.rs
 #, fuzzy
 msgid "Browse…"
@@ -2681,7 +2699,7 @@ msgid "Can't sign"
 msgstr "Nelze podepsat"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/gnome_accounts.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Zrušit"
@@ -3233,6 +3251,12 @@ msgid "Choose a folder"
 msgstr "Zvolte složku"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Choose an account first."
+msgstr "Nejprve vyberte účet."
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Choose default signatures"
@@ -3261,6 +3285,12 @@ msgstr "Zvolte, zda se tyto úkoly odešlou do To Do účtu Microsoft. Nic se ne
 #, fuzzy
 msgid "Choose who this is sent from"
 msgstr "Zvolte, od koho se to odešle"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Choose your account"
+msgstr "Vyberte svůj účet"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3768,10 +3798,28 @@ msgid "Copy to Folder"
 msgstr "Kopírovat do složky"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Could not link this account."
+msgstr "Tento účet se nepodařilo propojit."
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Could not open Google sign-in"
 msgstr "Přihlášení přes Google nešlo otevřít"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Could not read GNOME accounts."
+msgstr "Nelze číst účty GNOME."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Could not read GNOME accounts. Check access to GNOME Online Accounts and try again."
+msgstr "Nelze číst účty GNOME. Zkontrolujte přístup k online účtům GNOME a zkuste to znovu."
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -6166,6 +6214,60 @@ msgstr "Úplné podrobnosti: i místo a poznámky"
 msgid "Full messages: {done} of {total}"
 msgstr "Celé zprávy: {done} z {total}"
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try Send/Receive again."
+msgstr "Online účty GNOME jsou nedostupné. Otevřete GNOME Online účty a zkuste znovu odeslat/přijmout."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try again."
+msgstr "Online účty GNOME jsou nedostupné. Otevřete GNOME Online účty a zkuste to znovu."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME Online Accounts is unavailable. You can still use Add Account."
+msgstr "Online účty GNOME jsou nedostupné. Stále můžete použít Přidat účet."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME account request cancelled."
+msgstr "Žádost o účet GNOME byla zrušena."
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "GNOME requires SMTP authentication, but this server does not offer a supported sign-in."
+msgstr "GNOME vyžaduje ověření SMTP, ale tento server nenabízí podporované přihlášení."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME returned an invalid mail credential."
+msgstr "GNOME vrátilo neplatné poštovní pověření."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME returned an invalid outgoing credential."
+msgstr "GNOME vrátilo neplatné údaje pro odesílání pošty."
+
+#. interface, why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME returned too many accounts. Use Add Account instead."
+msgstr "GNOME vrátilo příliš mnoho účtů. Místo toho použijte Přidat účet."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME sign-in is unavailable."
+msgstr "Přihlášení do GNOME není dostupné."
+
 #. interface, name, ribbon location
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -6821,6 +6923,12 @@ msgstr "Jak se opakuje, určuje organizátor."
 msgid "How many messages each folder holds and the space they take"
 msgstr "Kolik zpráv obsahuje každá složka a kolik místa zabírají"
 
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "How would you like to add it?"
+msgstr "Jak to chcete přidat?"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -6994,6 +7102,12 @@ msgstr "Importovat veřejný klíč…"
 #, fuzzy
 msgid "Import a certificate (.p12)…"
 msgstr "Importovat certifikát (.p12)…"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Import accounts from GNOME…"
+msgstr "Importovat účty z GNOME…"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -7830,6 +7944,12 @@ msgid "Keep your To Do tasks in step?"
 msgstr "Synchronizovat úkoly To Do?"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Keep your existing sign-in. GNOME manages the account connection."
+msgstr "Ponechte své stávající přihlášení. GNOME spravuje připojení k účtu."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Keep {address}"
@@ -8099,6 +8219,18 @@ msgstr "Odebrané řádky"
 msgid "Link"
 msgstr "Odkaz"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Link an existing GNOME mail account or set it up separately"
+msgstr "Propojte stávající poštovní účet GNOME nebo jej nastavte samostatně"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Link with GNOME"
+msgstr "Propojení s GNOME"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8360,6 +8492,12 @@ msgstr "U pošty v Nevyžádané poště se stále nejdřív ptá. Soubor › Mo
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "Pošta ve složce Pošta k odeslání této sdílené poštovní schránky čeká: odesílání ze sdílených poštovních schránek vyžaduje vaše oprávnění. Použijte Odeslat/přijmout."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Mail is disabled in GNOME Online Accounts."
+msgstr "Pošta je v Online účtech GNOME zakázána."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -8795,6 +8933,24 @@ msgstr "Spravovat pravidla…"
 #, fuzzy
 msgid "Manage Task"
 msgstr "Správa úkolu"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Managed by GNOME"
+msgstr "Spravováno GNOME"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
+msgstr "Spravováno online účty GNOME · IMAP a SMTP"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Managed by MailCraft"
+msgstr "Spravuje MailCraft"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -9877,7 +10033,7 @@ msgid "New message"
 msgstr "Nová zpráva"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "New messages"
 msgstr "Nové zprávy"
@@ -10233,6 +10389,12 @@ msgstr "Žádné informace"
 #, fuzzy
 msgid "No key imported here has that fingerprint"
 msgstr "Žádný sem importovaný klíč nemá tento otisk"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "No mail accounts enabled in GNOME were found."
+msgstr "Nebyly nalezeny žádné poštovní účty povolené v GNOME."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -10664,6 +10826,12 @@ msgid "Not saved"
 msgstr "Neuloženo"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Not supported yet"
+msgstr "Zatím není podporováno"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Not unsubscribed."
@@ -11076,6 +11244,12 @@ msgstr "V telefonu se zatím přihlašuje jen účet Microsoft."
 #, fuzzy
 msgid "Only a meeting you organize has Find a Time"
 msgstr "Najít čas má jen schůzka, kterou organizujete"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Only accounts you choose are added."
+msgstr "Jsou přidány pouze vybrané účty."
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
@@ -12411,6 +12585,12 @@ msgid "Reading Pane"
 msgstr "Podokno čtení"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Reading accounts from GNOME…"
+msgstr "Čtení účtů z GNOME…"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Reading pane at the bottom"
@@ -12457,6 +12637,12 @@ msgstr "Načítám, co bylo sdíleno"
 #, fuzzy
 msgid "Reading your automatic replies from the server…"
 msgstr "Načítám vaše automatické odpovědi ze serveru…"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Ready to link"
+msgstr "Připraveno k propojení"
 
 #. name
 #: crates/ui-egui/src/credits.rs
@@ -12950,6 +13136,18 @@ msgstr "Přejmenovat podpis"
 msgid "Renewing the sign-in…"
 msgstr "Obnovuji přihlášení…"
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Repair this account's outgoing sign-in in GNOME Online Accounts."
+msgstr "Opravte přihlašovací údaje pro odesílání pošty tohoto účtu v GNOME Online Accounts."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Repair this account's sign-in in GNOME Online Accounts."
+msgstr "Opravte přihlášení k tomuto účtu v online účtech GNOME."
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -12987,7 +13185,7 @@ msgid "Replace with"
 msgstr "Nahradit čím"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Replies and forwards"
 msgstr "Odpovědi a přeposlání"
@@ -13111,6 +13309,12 @@ msgstr ""
 #, fuzzy
 msgid "Reset View"
 msgstr "Obnovit zobrazení"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Resolve this account through GNOME Online Accounts before connecting."
+msgstr "Před připojením načtěte údaje k tomuto účtu prostřednictvím GNOME Online Accounts."
 
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -14497,6 +14701,12 @@ msgstr "Odesláno:"
 msgid "Sep"
 msgstr "zář"
 
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Separate setup"
+msgstr "Samostatné nastavení"
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -14544,6 +14754,12 @@ msgstr "Nastavit důležitost"
 #, fuzzy
 msgid "Set up manually"
 msgstr "Nastavit ručně"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Set up separately"
+msgstr "Nastavit samostatně"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -15052,6 +15268,12 @@ msgid "Sign in again first"
 msgstr "Nejprve se znovu přihlaste"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Sign in again to create a separate account in MailCraft."
+msgstr "Znovu se přihlaste a vytvořte si samostatný účet v MailCraftu."
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Sign in again, asking for mail alone"
@@ -15184,7 +15406,7 @@ msgid "Signature file:"
 msgstr "Soubor podpisu:"
 
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Signatures"
 msgstr "Podpisy"
@@ -16317,6 +16539,24 @@ msgstr "Platnost digitálního podpisu vypršela."
 msgid "The Entire Series"
 msgstr "Celou řadu"
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The GNOME account changed. Try again."
+msgstr "Účet GNOME se změnil. Zkuste to znovu."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The GNOME account connection changed. Remove it from MailCraft and link it again to keep mail from different servers separate."
+msgstr "Připojení účtu GNOME se změnilo. Odeberte jej z MailCraftu a znovu jej propojte, aby pošta z různých serverů zůstala oddělená."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The GNOME account is unavailable."
+msgstr "Účet GNOME je nedostupný."
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -16358,6 +16598,12 @@ msgstr "Účet se musí znovu přihlásit."
 #, fuzzy
 msgid "The account is gone"
 msgstr "Účet už neexistuje"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The account needs attention. Repair its sign-in in GNOME Online Accounts and try again."
+msgstr "Účet vyžaduje pozornost. Opravte jeho přihlášení v online účtech GNOME a zkuste to znovu."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -16965,6 +17211,12 @@ msgstr "Klíč byl z tohoto počítače odebrán."
 #, fuzzy
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "Odkaz je ve schránce: pošlete ho správci vaší organizace"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The linked GNOME account is no longer available."
+msgstr "Propojený účet GNOME již není dostupný."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -18022,11 +18274,23 @@ msgstr "Uloží se do souboru, který zvolíte a který připojíte k problému 
 msgid "They share {what}."
 msgstr "Sdílejí: {what}."
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
+msgstr "Tento účet GNOME chybí, je zakázaný nebo již neposkytuje podporovaný přístup k poště. Zkontrolujte online účty GNOME."
+
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "This Week"
 msgstr "Tento týden"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "This account cannot be linked through GNOME."
+msgstr "Tento účet nelze propojit prostřednictvím GNOME."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18061,8 +18325,26 @@ msgstr "Tento účet nemá přihlášení přes Microsoft"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
+msgid "This account is managed by GNOME Online Accounts. Change its connection or repair its sign-in there. Removing it from MailCraft leaves it in GNOME."
+msgstr "Tento účet je spravován online účty GNOME. Zde změňte jeho připojení nebo opravte jeho přihlášení. Odstraněním z MailCraftu zůstane v GNOME."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "This account is managed by GNOME Online Accounts. Use a GOA-capable MailCraft desktop on Linux."
+msgstr "Tento účet je spravován online účty GNOME. Použijte desktop MailCraft podporující GOA na Linuxu."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "This account is no longer in the mailbox."
 msgstr "Tento účet už v poštovní schránce není."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This account is not linked to GNOME."
+msgstr "Tento účet není propojen s GNOME."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -18087,6 +18369,12 @@ msgstr "Tento účet nesmí používat své úkoly přes Microsoft Graph"
 #, fuzzy
 msgid "This account may only read the shared mailbox's calendar \"{name}\": the mailbox's owner hasn't given it edit rights (or they haven't been read yet)."
 msgstr "Tento účet smí kalendář sdílené poštovní schránky „{name}“ jen číst: vlastník poštovní schránky mu nedal práva k úpravám (nebo se ještě nenačetla)."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "This account needs separate setup in this version of MailCraft."
+msgstr "Tento účet vyžaduje samostatné nastavení v této verzi MailCraftu."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -21622,6 +21910,12 @@ msgid "larger than {mb} MB: bring it in with File › Import"
 msgstr "větší než {mb} MB: přeneste ho pomocí Soubor › Import"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "link a GNOME account through Import accounts from GNOME"
+msgstr "propojit účet GNOME pomocí importu účtů z GNOME"
+
+#. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
 msgid "message {id} keeps no original"
@@ -22218,6 +22512,12 @@ msgstr "sdílené poštovní schránky se otevírají pod účtem synchronizovan
 #, fuzzy
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
 msgstr "sdílené poštovní schránky se otevírají pod účtem, který se synchronizuje přes Microsoft Graph"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "shared mailboxes require a separate Microsoft sign-in in MailCraft"
+msgstr "sdílené poštovní schránky vyžadují samostatné přihlášení od Microsoftu v MailCraftu"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -23431,6 +23731,12 @@ msgid "this account has no {folder} folder"
 msgstr "tento účet nemá složku {folder}"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "this account is managed by GNOME Online Accounts; remove it and link it again to change its connection"
+msgstr "tento účet je spravován online účty GNOME; odeberte jej a znovu propojte, abyste změnili jeho připojení"
+
+#. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
 msgid "this account may not save it"
@@ -23453,6 +23759,12 @@ msgstr "tento účet nemá kategorie synchronizované se serverem"
 #, fuzzy
 msgid "this account's categories aren't kept in step with its server"
 msgstr "kategorie tohoto účtu nejsou synchronizované s jeho serverem"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "this account's sign-in is managed by GNOME Online Accounts"
+msgstr "přihlášení k tomuto účtu je spravováno online účty GNOME"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -25765,6 +26077,26 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
+#~ msgstr "Spravováno online účty GNOME · Pošta Microsoft Graph"
+
+#, fuzzy
+#~ msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
+#~ msgstr "Opravte přihlašovací nebo poštovní oprávnění tohoto účtu v online účtech GNOME a zkuste znovu odeslat/přijmout."
+
+#, fuzzy
+#~ msgid "This GNOME account does not expose Microsoft Graph mail access."
+#~ msgstr "Tento účet GNOME neposkytuje přístup k poště přes Microsoft Graph."
+
+#, fuzzy
+#~ msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
+#~ msgstr "Tento účet GNOME používá Microsoft Graph, nikoli IMAP nebo SMTP."
+
+#, fuzzy
+#~ msgid "This GNOME connection supports only the selected account's mail."
+#~ msgstr "Toto připojení GNOME podporuje pouze poštu vybraného účtu."
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

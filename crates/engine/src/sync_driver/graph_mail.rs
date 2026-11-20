@@ -60,6 +60,9 @@ impl std::fmt::Debug for MailPlan {
 /// (empty: none). `quiet` is a run nobody asked for.
 pub fn plan_graph_mail(s: &Session, account: Id, quiet: bool, refresh: String) -> Result<MailStart, Refusal> {
     let owner = s.mailbox.account(account).cloned().ok_or(Refusal::AccountGone)?;
+    if owner.goa.is_some() {
+        return Err(Refusal::NoSignIn);
+    }
     let oauth = owner.oauth.clone().ok_or(Refusal::NoSignIn)?;
     if refresh.is_empty() {
         let address = owner.email.clone();

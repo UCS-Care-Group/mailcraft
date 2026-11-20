@@ -52,6 +52,13 @@ fn log_outcome(outcome: &mailcraft_model::remote::EventOutcome) {
 /// the Outbox, and bring the calendar and the contacts down. Nothing here stops the mail: every
 /// trouble is a line in the answer.
 pub fn graph(request: GraphRequest) -> GraphResult {
+    if request.account.goa.is_some() {
+        return GraphResult {
+            account: request.account.id,
+            errors: vec!["This GNOME link cannot use Microsoft Graph in this build.".into()],
+            ..Default::default()
+        };
+    }
     graph_in(request, &local_zone())
 }
 
