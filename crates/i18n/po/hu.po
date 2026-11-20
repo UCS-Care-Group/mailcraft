@@ -8925,6 +8925,12 @@ msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
 msgstr "GNOME Online fiókok által kezelt · IMAP és SMTP"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
+msgstr "A GNOME Online fiókok által kezelt · Microsoft Graph mail"
+
+#. interface
 #: crates/ui-egui/src/gnome_accounts.rs
 #, fuzzy
 msgid "Managed by MailCraft"
@@ -13121,6 +13127,12 @@ msgstr "Javítsa ki a fiók kimenő levelezési hitelesítő adatait a GNOME Onl
 #, fuzzy
 msgid "Repair this account's sign-in in GNOME Online Accounts."
 msgstr "Javítsa meg ennek a fióknak a bejelentkezését a GNOME Online fiókokban."
+
+#. interface, why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
+msgstr "Javítsa ki ennek a fióknak a bejelentkezési vagy levelezési engedélyeit a GNOME Online fiókokban, majd próbálkozzon újra a Küldés/Fogadás lehetőséggel."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -18248,8 +18260,26 @@ msgstr "Ezt osztják meg: {what}."
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
 #, fuzzy
+msgid "This GNOME account does not expose Microsoft Graph mail access."
+msgstr "Ez a GNOME-fiók nem biztosít hozzáférést a Microsoft Graph levelezéshez."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
 msgstr "Ez a GNOME-fiók hiányzik, le van tiltva, vagy már nem teszi lehetővé a támogatott levelezési hozzáférést. Ellenőrizze a GNOME online fiókokat."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
+msgstr "Ez a GNOME-fiók Microsoft Graphot használ, nem IMAP-ot vagy SMTP-t."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME connection supports only the selected account's mail."
+msgstr "Ez a GNOME-kapcsolat csak a kiválasztott fiók leveleit támogatja."
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -25915,26 +25945,6 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Sorok"
-
-#, fuzzy
-#~ msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
-#~ msgstr "A GNOME Online fiókok által kezelt · Microsoft Graph mail"
-
-#, fuzzy
-#~ msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
-#~ msgstr "Javítsa ki ennek a fióknak a bejelentkezési vagy levelezési engedélyeit a GNOME Online fiókokban, majd próbálkozzon újra a Küldés/Fogadás lehetőséggel."
-
-#, fuzzy
-#~ msgid "This GNOME account does not expose Microsoft Graph mail access."
-#~ msgstr "Ez a GNOME-fiók nem biztosít hozzáférést a Microsoft Graph levelezéshez."
-
-#, fuzzy
-#~ msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
-#~ msgstr "Ez a GNOME-fiók Microsoft Graphot használ, nem IMAP-ot vagy SMTP-t."
-
-#, fuzzy
-#~ msgid "This GNOME connection supports only the selected account's mail."
-#~ msgstr "Ez a GNOME-kapcsolat csak a kiválasztott fiók leveleit támogatja."
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

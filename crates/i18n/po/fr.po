@@ -8890,6 +8890,12 @@ msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
 msgstr "Géré par les comptes en ligne GNOME · IMAP et SMTP"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
+msgstr "Géré par les comptes en ligne GNOME · Messagerie Microsoft Graph"
+
+#. interface
 #: crates/ui-egui/src/gnome_accounts.rs
 #, fuzzy
 msgid "Managed by MailCraft"
@@ -13071,6 +13077,12 @@ msgstr "Réparez les identifiants d’envoi de ce compte dans GNOME Online Accou
 #, fuzzy
 msgid "Repair this account's sign-in in GNOME Online Accounts."
 msgstr "Réparez la connexion de ce compte dans les comptes en ligne GNOME."
+
+#. interface, why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
+msgstr "Réparez les autorisations de connexion ou de messagerie de ce compte dans les comptes GNOME en ligne, puis réessayez Envoyer/Recevoir."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -18170,8 +18182,26 @@ msgstr "Ils partagent {what}."
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
 #, fuzzy
+msgid "This GNOME account does not expose Microsoft Graph mail access."
+msgstr "Ce compte GNOME ne fournit pas d’accès à la messagerie via Microsoft Graph."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
 msgstr "Ce compte GNOME est manquant, désactivé ou n'expose plus l'accès à la messagerie pris en charge. Vérifiez les comptes en ligne GNOME."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
+msgstr "Ce compte GNOME utilise Microsoft Graph, et non IMAP ou SMTP."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME connection supports only the selected account's mail."
+msgstr "Cette connexion GNOME prend en charge uniquement la messagerie du compte sélectionné."
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -25818,26 +25848,6 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Lignes"
-
-#, fuzzy
-#~ msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
-#~ msgstr "Géré par les comptes en ligne GNOME · Messagerie Microsoft Graph"
-
-#, fuzzy
-#~ msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
-#~ msgstr "Réparez les autorisations de connexion ou de messagerie de ce compte dans les comptes GNOME en ligne, puis réessayez Envoyer/Recevoir."
-
-#, fuzzy
-#~ msgid "This GNOME account does not expose Microsoft Graph mail access."
-#~ msgstr "Ce compte GNOME ne fournit pas d’accès à la messagerie via Microsoft Graph."
-
-#, fuzzy
-#~ msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
-#~ msgstr "Ce compte GNOME utilise Microsoft Graph, et non IMAP ou SMTP."
-
-#, fuzzy
-#~ msgid "This GNOME connection supports only the selected account's mail."
-#~ msgstr "Cette connexion GNOME prend en charge uniquement la messagerie du compte sélectionné."
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

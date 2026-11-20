@@ -8923,6 +8923,12 @@ msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
 msgstr "由 GNOME 在线帐户管理 · IMAP 和 SMTP"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
+msgstr "由 GNOME 在线帐户·Microsoft Graph 邮件管理"
+
+#. interface
 #: crates/ui-egui/src/gnome_accounts.rs
 #, fuzzy
 msgid "Managed by MailCraft"
@@ -13124,6 +13130,12 @@ msgstr "在 GNOME Online Accounts 中修复此帐户的发件登录凭据。"
 #, fuzzy
 msgid "Repair this account's sign-in in GNOME Online Accounts."
 msgstr "修复此帐户在 GNOME 在线帐户中的登录。"
+
+#. interface, why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
+msgstr "修复此帐户在 GNOME 在线帐户中的登录或邮件权限，然后再次尝试发送/接收。"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -18246,8 +18258,26 @@ msgstr "它们共享 {what}。"
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
 #, fuzzy
+msgid "This GNOME account does not expose Microsoft Graph mail access."
+msgstr "此 GNOME 帐户不提供通过 Microsoft Graph 访问邮件的权限。"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
 msgstr "此 GNOME 帐户丢失、被禁用或不再公开受支持的邮件访问。检查 GNOME 在线帐户。"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
+msgstr "此 GNOME 帐户使用 Microsoft Graph，而不是 IMAP 或 SMTP。"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME connection supports only the selected account's mail."
+msgstr "此 GNOME 连接仅支持所选帐户的邮件。"
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -25789,26 +25819,6 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
-
-#, fuzzy
-#~ msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
-#~ msgstr "由 GNOME 在线帐户·Microsoft Graph 邮件管理"
-
-#, fuzzy
-#~ msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
-#~ msgstr "修复此帐户在 GNOME 在线帐户中的登录或邮件权限，然后再次尝试发送/接收。"
-
-#, fuzzy
-#~ msgid "This GNOME account does not expose Microsoft Graph mail access."
-#~ msgstr "此 GNOME 帐户不提供通过 Microsoft Graph 访问邮件的权限。"
-
-#, fuzzy
-#~ msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
-#~ msgstr "此 GNOME 帐户使用 Microsoft Graph，而不是 IMAP 或 SMTP。"
-
-#, fuzzy
-#~ msgid "This GNOME connection supports only the selected account's mail."
-#~ msgstr "此 GNOME 连接仅支持所选帐户的邮件。"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

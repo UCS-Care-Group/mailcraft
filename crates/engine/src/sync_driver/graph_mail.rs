@@ -60,14 +60,12 @@ impl std::fmt::Debug for MailPlan {
 /// (empty: none). `quiet` is a run nobody asked for.
 pub fn plan_graph_mail(s: &Session, account: Id, quiet: bool, refresh: String) -> Result<MailStart, Refusal> {
     let owner = s.mailbox.account(account).cloned().ok_or(Refusal::AccountGone)?;
-    if owner.goa.is_some() {
-        return Err(Refusal::NoSignIn);
-    }
-    let oauth = owner.oauth.clone().ok_or(Refusal::NoSignIn)?;
-    if refresh.is_empty() {
+    let managed = owner.goa.as_ref().is_some_and(|g| g.provider == "ms_graph") && owner.kind == mailcraft_model::AccountKind::Microsoft;
+    let oauth = if managed { OAuth::default() } else { owner.oauth.clone().ok_or(Refusal::NoSignIn)? };
+    if refresh.is_empty() && !managed {
         let address = owner.email.clone();
         return Ok(if quiet { MailStart::Quiet { address } } else { MailStart::SignIn { oauth, address } });
     }
     let mail = graph_mail_request(s, account).map_err(|e| Refusal::NotGraph(e.to_string()))?;
-    Ok(MailStart::Run(Box::new(MailPlan { owner, oauth, refresh, mail })))
+    Ok(MailStart::Run(Box::new(MailPlan { owner, oauth, refresh: if managed { String::new() } else { refresh }, mail })))
 }

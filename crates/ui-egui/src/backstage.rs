@@ -110,7 +110,11 @@ fn tile(ui: &mut Ui, icon: &str, title: &str, detail: &str, t: &Tokens) -> bool 
 /// for one on a mail server, its servers.
 pub(crate) fn account_detail(app: &MailApp, a: &mailcraft_model::Account) -> String {
     if a.goa.is_some() {
-        return tl!("Managed by GNOME Online Accounts · IMAP and SMTP").to_string();
+        return if a.kind == AccountKind::Microsoft {
+            tl!("Managed by GNOME Online Accounts · Microsoft Graph mail").to_string()
+        } else {
+            tl!("Managed by GNOME Online Accounts · IMAP and SMTP").to_string()
+        };
     }
     let server = |s: &Option<mailcraft_model::Server>| {
         s.as_ref().map(|s| {

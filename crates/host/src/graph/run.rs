@@ -55,11 +55,48 @@ pub fn graph(request: GraphRequest) -> GraphResult {
     if request.account.goa.is_some() {
         return GraphResult {
             account: request.account.id,
-            errors: vec!["This GNOME link cannot use Microsoft Graph in this build.".into()],
+            errors: vec!["Use a GOA-capable MailCraft desktop to connect this account.".into()],
             ..Default::default()
         };
     }
     graph_in(request, &local_zone())
+}
+
+/// Mail-only Graph work with credentials supplied by an external account manager. The callback
+/// is also used for the existing bounded 401 renewal; MailCraft's OAuth refresh is never used.
+pub fn managed_mail(mut request: GraphRequest, renew: Renew<'_>) -> GraphResult {
+    let allowed = request.account.goa.as_ref().is_some_and(|g| g.provider == "ms_graph")
+        && request.account.kind == mailcraft_model::AccountKind::Microsoft
+        && request.account.oauth.is_none()
+        && !request.account.is_shared()
+        && request.account.opened_calendars.is_empty()
+        && request
+            .mail
+            .as_ref()
+            .is_some_and(|m| !m.shared && m.account == request.account.id && m.email.eq_ignore_ascii_case(&request.account.email))
+        && request.outbox.is_empty()
+        && !request.directory
+        && request.calendar.is_none()
+        && request.changes.is_none()
+        && request.asks.is_empty()
+        && !request.settings
+        && !request.favorites
+        && !request.favorites_scopes;
+    if !allowed {
+        return GraphResult {
+            account: request.account.id,
+            errors: vec!["This GNOME connection supports only the selected account's mail.".into()],
+            ..Default::default()
+        };
+    }
+    request.access.clear();
+    request.refresh.clear();
+    request.oauth = Default::default();
+    request.signer = Some(request.account.clone());
+    let mut result = graph_sending_with(request, &local_zone(), renew, &|oauth, refresh| renew(oauth, refresh, false));
+    // External tokens never enter the front end's caches or credential store.
+    result.tokens = None;
+    result
 }
 
 /// [`graph`], with the owner's time zone as `zone` (a name Microsoft Graph knows).

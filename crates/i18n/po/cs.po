@@ -8947,6 +8947,12 @@ msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
 msgstr "Spravováno online účty GNOME · IMAP a SMTP"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
+msgstr "Spravováno online účty GNOME · Pošta Microsoft Graph"
+
+#. interface
 #: crates/ui-egui/src/gnome_accounts.rs
 #, fuzzy
 msgid "Managed by MailCraft"
@@ -13147,6 +13153,12 @@ msgstr "Opravte přihlašovací údaje pro odesílání pošty tohoto účtu v G
 #, fuzzy
 msgid "Repair this account's sign-in in GNOME Online Accounts."
 msgstr "Opravte přihlášení k tomuto účtu v online účtech GNOME."
+
+#. interface, why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
+msgstr "Opravte přihlašovací nebo poštovní oprávnění tohoto účtu v online účtech GNOME a zkuste znovu odeslat/přijmout."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -18277,8 +18289,26 @@ msgstr "Sdílejí: {what}."
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
 #, fuzzy
+msgid "This GNOME account does not expose Microsoft Graph mail access."
+msgstr "Tento účet GNOME neposkytuje přístup k poště přes Microsoft Graph."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
 msgstr "Tento účet GNOME chybí, je zakázaný nebo již neposkytuje podporovaný přístup k poště. Zkontrolujte online účty GNOME."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
+msgstr "Tento účet GNOME používá Microsoft Graph, nikoli IMAP nebo SMTP."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME connection supports only the selected account's mail."
+msgstr "Toto připojení GNOME podporuje pouze poštu vybraného účtu."
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -26077,26 +26107,6 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
-
-#, fuzzy
-#~ msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
-#~ msgstr "Spravováno online účty GNOME · Pošta Microsoft Graph"
-
-#, fuzzy
-#~ msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
-#~ msgstr "Opravte přihlašovací nebo poštovní oprávnění tohoto účtu v online účtech GNOME a zkuste znovu odeslat/přijmout."
-
-#, fuzzy
-#~ msgid "This GNOME account does not expose Microsoft Graph mail access."
-#~ msgstr "Tento účet GNOME neposkytuje přístup k poště přes Microsoft Graph."
-
-#, fuzzy
-#~ msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
-#~ msgstr "Tento účet GNOME používá Microsoft Graph, nikoli IMAP nebo SMTP."
-
-#, fuzzy
-#~ msgid "This GNOME connection supports only the selected account's mail."
-#~ msgstr "Toto připojení GNOME podporuje pouze poštu vybraného účtu."
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

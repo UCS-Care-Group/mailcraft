@@ -7412,6 +7412,11 @@ msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Managed by GNOME Online Accounts · Microsoft Graph mail"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/gnome_accounts.rs
 msgid "Managed by MailCraft"
 msgstr ""
@@ -10884,6 +10889,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
 msgid "Repair this account's sign-in in GNOME Online Accounts."
+msgstr ""
+
+#. interface, why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/lib.rs
+msgid "Repair this account's sign-in or mail permissions in GNOME Online Accounts, then try Send/Receive again."
 msgstr ""
 
 #. android, interface
@@ -15135,7 +15145,22 @@ msgstr ""
 
 #. why a mail server couldn't be used
 #: apps/mailcraft/src/gnome_accounts.rs
+msgid "This GNOME account does not expose Microsoft Graph mail access."
+msgstr ""
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
 msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
+msgstr ""
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+msgid "This GNOME account uses Microsoft Graph, not IMAP or SMTP."
+msgstr ""
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+msgid "This GNOME connection supports only the selected account's mail."
 msgstr ""
 
 #. name, ribbon
