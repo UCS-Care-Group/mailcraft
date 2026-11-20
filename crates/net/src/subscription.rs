@@ -6,8 +6,8 @@
 //! The address is the owner's choice, and it may hold a secret (a private token in its path), so
 //! [`fetch`] says as little as a request can:
 //!
-//! - only `https://` addresses; one with a user name in it, or `http://`, is refused, and so is a
-//!   redirect to anything but `https://`;
+//! - only `https://` addresses (`webcal://` is read as `https://`); one with a user name in it,
+//!   or `http://`, is refused, and so is a redirect to anything but `https://`;
 //! - nothing that says who is asking: no cookie, no credentials, no referrer, the same plain user
 //!   agent as everything else in this crate. What is added is `If-None-Match` and
 //!   `If-Modified-Since` with the marks the server gave for the copy taken before (a mark is
@@ -104,10 +104,20 @@ fn conditions(etag: &str, last_modified: &str) -> String {
     lines
 }
 
+/// A `webcal://` or `webcals://` address as the `https://` one it stands for (#1724); any other
+/// address as it is.
+fn as_https(address: &str) -> String {
+    let address = address.trim();
+    match address.split_once("://") {
+        Some((scheme, rest)) if scheme.eq_ignore_ascii_case("webcal") || scheme.eq_ignore_ascii_case("webcals") => format!("https://{rest}"),
+        _ => address.to_string(),
+    }
+}
+
 /// [`fetch`], with the reach and the limits said.
 pub(crate) fn fetch_with(address: &str, etag: &str, last_modified: &str, reach: &Reach<'_>, limits: &Limits) -> Result<Fetched, Failure> {
     let deadline = Instant::now() + limits.patience;
-    let first = pictures::address(address).map_err(|_| Failure::Address)?;
+    let first = pictures::address(&as_https(address)).map_err(|_| Failure::Address)?;
     if !first.secure {
         return Err(Failure::Address);
     }
