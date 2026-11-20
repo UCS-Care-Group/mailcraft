@@ -1522,6 +1522,11 @@ msgid "Animations"
 msgstr "动画"
 
 #. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Another download is still on its way. Try again in a moment."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Another mailbox was opened: the import stopped."
@@ -2689,7 +2694,7 @@ msgid "Can't sign"
 msgstr "无法签名"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "取消"
@@ -2752,11 +2757,21 @@ msgstr "取消登录"
 msgid "Cancel This Meeting?"
 msgstr "取消本次会议？"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Cancel Update Download"
+msgstr ""
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Cancelled"
 msgstr "已取消"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Cancelling…"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
@@ -4793,6 +4808,16 @@ msgstr "自动下载邮件中的图片"
 msgid "Download the bytes this message came as again, to check its Digital signature"
 msgstr "重新下载此邮件的原始字节，以检查其数字签名"
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Download the new version, check it by MailCraft's release signature, then restart to update. Nothing is installed until you do or quit."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Download update"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -4817,6 +4842,16 @@ msgstr "已下载 {name}"
 msgid "Downloaded {n} attachment"
 msgid_plural "Downloaded {n} attachments"
 msgstr[0] "已下载 {n} 个附件"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Downloading MailCraft {version}…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Downloading MailCraft {version}… {percent}%"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -8676,6 +8711,11 @@ msgstr "MailCraft 将以共享邮箱本人或代表它的名义从共享邮箱�
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+msgid "MailCraft {version} couldn't be downloaded: {why}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "MailCraft {version} didn't start."
 msgstr "MailCraft {version} 未启动。"
@@ -8691,6 +8731,11 @@ msgstr "MailCraft {version} 已可用"
 #, fuzzy
 msgid "MailCraft {version} is available and fixes a security problem"
 msgstr "MailCraft {version} 已可用，该版本修复了一项安全问题"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "MailCraft {version} is downloaded and checked: restart to update."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -10249,9 +10294,19 @@ msgstr "没有邮件。"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+msgid "No new version is being downloaded."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "No new version is ready to install."
 msgstr "没有新版本可供安装。"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "No newer version of MailCraft is known."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
@@ -11426,6 +11481,11 @@ msgstr "打开此附件？"
 #, fuzzy
 msgid "Open this calendar"
 msgstr "打开此日历"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Open this version's file for your computer in the browser (its page when no single file fits)."
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -16783,6 +16843,11 @@ msgstr "域名 {domain} 指定了 Exchange 自动设置 (Autodiscover) 所用的
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
 msgstr "域名 {domain} 指定了自动设置 (Autodiscover) 所用的服务器。Exchange 服务器通过这种方式查找，一些托管服务提供商的 IMAP 邮件也会使用。哪一个是您的？只有 DNS 被用来查找它，从未访问服务器本身。"
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "The download of MailCraft {version} was cancelled."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 #, fuzzy
@@ -19562,6 +19627,11 @@ msgstr "已是最新"
 msgid "Upcoming"
 msgstr "即将到来"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/updates.rs
+msgid "Update"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -19573,6 +19643,11 @@ msgstr "立即更新"
 #, fuzzy
 msgid "Update Subscribed Calendars"
 msgstr "更新已订阅的日历"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Update is the owner's click."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt

@@ -1521,6 +1521,12 @@ msgid "Animations"
 msgstr "ანიმაციები"
 
 #. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Another download is still on its way. Try again in a moment."
+msgstr "სხვა ჩამოტვირთვა ჯერ კიდევ მიმდინარეობს. სცადეთ ცოტა ხანში."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Another mailbox was opened: the import stopped."
@@ -2681,7 +2687,7 @@ msgid "Can't sign"
 msgstr "ხელმოწერა შეუძლებელია"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "გაუქმება"
@@ -2744,11 +2750,23 @@ msgstr "შესვლის გაუქმება"
 msgid "Cancel This Meeting?"
 msgstr "გავაუქმო ეს შეხვედრა?"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Cancel Update Download"
+msgstr "განახლების ჩამოტვირთვის გაუქმება"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Cancelled"
 msgstr "გაუქმებულია"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Cancelling…"
+msgstr "უქმდება…"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
@@ -4780,6 +4798,18 @@ msgstr "ფოსტაში სურათების ავტომატ�
 msgid "Download the bytes this message came as again, to check its Digital signature"
 msgstr "ამ წერილის თავდაპირველი ბაიტების ხელახლა ჩამოტვირთვა მისი ციფრული ხელმოწერის შესამოწმებლად"
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Download the new version, check it by MailCraft's release signature, then restart to update. Nothing is installed until you do or quit."
+msgstr "ჩამოტვირთეთ ახალი ვერსია, შეამოწმეთ MailCraft-ის გამოშვების ხელმოწერით, შემდეგ გადატვირთეთ განახლებისთვის. არაფერი დაინსტალირდება, სანამ ამას არ გააკეთებთ ან არ გახვალთ."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Download update"
+msgstr "განახლების ჩამოტვირთვა"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -4805,6 +4835,18 @@ msgid "Downloaded {n} attachment"
 msgid_plural "Downloaded {n} attachments"
 msgstr[0] "ჩამოიტვირთა დანართი: {n}"
 msgstr[1] "ჩამოიტვირთა დანართი: {n}"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Downloading MailCraft {version}…"
+msgstr "იტვირთება MailCraft {version}…"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Downloading MailCraft {version}… {percent}%"
+msgstr "იტვირთება MailCraft {version}… {percent}%"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -8660,6 +8702,12 @@ msgstr "MailCraft ფოსტას საერთო საფოსტო �
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
+msgid "MailCraft {version} couldn't be downloaded: {why}."
+msgstr "MailCraft {version}-ის ჩამოტვირთვა ვერ მოხერხდა: {why}."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "MailCraft {version} didn't start."
 msgstr "MailCraft {version} არ გაეშვა."
 
@@ -8674,6 +8722,12 @@ msgstr "ხელმისაწვდომია MailCraft {version}"
 #, fuzzy
 msgid "MailCraft {version} is available and fixes a security problem"
 msgstr "ხელმისაწვდომია MailCraft {version}, რომელიც უსაფრთხოების პრობლემას ასწორებს"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "MailCraft {version} is downloaded and checked: restart to update."
+msgstr "MailCraft {version} ჩამოტვირთულია და შემოწმებულია: განახლებისთვის გადატვირთეთ."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -10227,8 +10281,20 @@ msgstr "წერილები არ არის."
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
+msgid "No new version is being downloaded."
+msgstr "ახალი ვერსია არ იტვირთება."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "No new version is ready to install."
 msgstr "ინსტალაციისთვის მზად ახალი ვერსია არ არის."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "No newer version of MailCraft is known."
+msgstr "MailCraft-ის უფრო ახალი ვერსია არ არის ცნობილი."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
@@ -11400,6 +11466,12 @@ msgstr "გაიხსნას ეს დანართი?"
 #, fuzzy
 msgid "Open this calendar"
 msgstr "ამ კალენდრის გახსნა"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Open this version's file for your computer in the browser (its page when no single file fits)."
+msgstr "გახსენით ამ ვერსიის თქვენი კომპიუტერისთვის განკუთვნილი ფაილი ბრაუზერში (თუ ერთი ფაილი არ ერგება, მისი გვერდი)."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -16724,6 +16796,12 @@ msgstr "დომენი {domain} Exchange-ის ავტომატურ�
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
 msgstr "დომენი {domain} ავტომატური დაყენებისთვის (Autodiscover) სერვერს ასახელებს. ასე Exchange სერვერები მოიძებნება, ზოგიერთი ჰოსტინგ-პროვაიდერი კი მას თავისი IMAP ფოსტისთვისაც იყენებს. რომელია თქვენი? მის მოსაძებნად მხოლოდ DNS-ს მივმართეთ და არასოდეს თავად სერვერს."
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "The download of MailCraft {version} was cancelled."
+msgstr "MailCraft {version}-ის ჩამოტვირთვა გაუქმდა."
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 #, fuzzy
@@ -19498,6 +19576,12 @@ msgstr "განახლებულია"
 msgid "Upcoming"
 msgstr "მომავალი"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Update"
+msgstr "განახლება"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -19509,6 +19593,12 @@ msgstr "ახლავე განახლება"
 #, fuzzy
 msgid "Update Subscribed Calendars"
 msgstr "გამოწერილი კალენდრების განახლება"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Update is the owner's click."
+msgstr "განახლება მფლობელის დაწკაპუნებაა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt

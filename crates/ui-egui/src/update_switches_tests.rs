@@ -16,7 +16,7 @@ fn window() -> Harness<'static, MailApp> {
             let (_tx, rx) = std::sync::mpsc::channel();
             rx
         })),
-        update_download: Some(Box::new(|_| {
+        update_download: Some(Box::new(|_, _| {
             let (_tx, rx) = std::sync::mpsc::channel();
             rx
         })),

@@ -16,6 +16,10 @@
 //! too, must be HTTPS to one of GitHub's hosts for releases ([`HOSTS`]). The requests carry
 //! nothing of the owner: the crate's fixed `User-Agent`, `Accept`, and a `Range` when carrying
 //! on. An error names no address.
+//!
+//! Whoever asked for the download may watch it and stop it ([`Watch`]): it is told how much of
+//! the file has come, and a stop ends it as a download cut off ([`CANCELLED`]), the part that
+//! came kept for the next try and nothing of it believed. Watching changes nothing of the checks.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Read, Write};
@@ -45,6 +49,12 @@ const MAX_LINES: usize = 1_000;
 const MAX_REDIRECTS: usize = 5;
 /// What a file is called while it is coming.
 const PART: &str = ".part";
+/// Why a download stopped that its watcher stopped ([`Watch`]).
+pub const CANCELLED: &str = "the download was cancelled";
+
+/// Told, as the file comes, how many of its bytes have come and how many it has (the size the
+/// release gives); answers whether to go on. `false` stops the download as [`CANCELLED`].
+pub type Watch<'a> = &'a dyn Fn(u64, u64) -> bool;
 
 /// Why there is no update to be had.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -211,24 +221,59 @@ fn on_github(url: &Url) -> bool {
 /// earlier try stopped; one already there and checked is not downloaded again. Every other file
 /// in `dir` is deleted. Blocks for as long as the download takes; call it on a background thread.
 pub fn download(release: &Release, name: &str, dir: &Path) -> Result<Downloaded, DownloadError> {
+    download_watched(release, name, dir, &|_, _| true)
+}
+
+/// [`download`], told how far it has come and stopped when `watch` says so.
+pub fn download_watched(release: &Release, name: &str, dir: &Path, watch: Watch<'_>) -> Result<Downloaded, DownloadError> {
     let reach = Reach {
         allowed: &on_github,
         large: StreamPatience { connect: Duration::from_secs(10), idle: Duration::from_secs(30), total: Duration::from_secs(3_600) },
         small: StreamPatience { connect: Duration::from_secs(10), idle: Duration::from_secs(10), total: Duration::from_secs(20) },
     };
-    download_with(release, name, dir, &release_keys(), &reach)
+    download_with(release, name, dir, &release_keys(), &reach, watch)
 }
 
 /// [`download`] from a stand-in release server on this machine (`http://127.0.0.1:…`), trusting
 /// `keys` rather than the build's: for the tests of the crates that sit on this one.
 #[cfg(feature = "stand-in")]
-pub fn download_from_stand_in(release: &Release, name: &str, dir: &Path, keys: &[[u8; 32]]) -> Result<Downloaded, DownloadError> {
+pub fn download_from_stand_in(release: &Release, name: &str, dir: &Path, keys: &[[u8; 32]], watch: Watch<'_>) -> Result<Downloaded, DownloadError> {
     let loopback = |url: &Url| crate::transport::is_loopback(&url.host);
     let quick = StreamPatience { connect: Duration::from_secs(5), idle: Duration::from_secs(5), total: Duration::from_secs(20) };
-    download_with(release, name, dir, keys, &Reach { allowed: &loopback, large: quick, small: quick })
+    download_with(release, name, dir, keys, &Reach { allowed: &loopback, large: quick, small: quick }, watch)
 }
 
-pub(crate) fn download_with(release: &Release, name: &str, dir: &Path, keys: &[[u8; 32]], reach: &Reach<'_>) -> Result<Downloaded, DownloadError> {
+pub(crate) fn download_with(
+    release: &Release,
+    name: &str,
+    dir: &Path,
+    keys: &[[u8; 32]],
+    reach: &Reach<'_>,
+    watch: Watch<'_>,
+) -> Result<Downloaded, DownloadError> {
+    // A stop, whenever it came, is said as one: what was done is kept as for a cut-off download.
+    let stopped = std::cell::Cell::new(false);
+    let noted = |done: u64, total: u64| {
+        let go = watch(done, total);
+        if !go {
+            stopped.set(true);
+        }
+        go
+    };
+    match fetch_and_check(release, name, dir, keys, reach, &noted) {
+        Err(_) if stopped.get() => Err(failed(CANCELLED)),
+        other => other,
+    }
+}
+
+fn fetch_and_check(
+    release: &Release,
+    name: &str,
+    dir: &Path,
+    keys: &[[u8; 32]],
+    reach: &Reach<'_>,
+    watch: Watch<'_>,
+) -> Result<Downloaded, DownloadError> {
     if keys.is_empty() {
         return Err(refused("this build carries no release key"));
     }
@@ -241,6 +286,9 @@ pub(crate) fn download_with(release: &Release, name: &str, dir: &Path, keys: &[[
     let signature = file_of(SIGNATURE).ok_or_else(|| refused("the release isn't signed"))?;
     if asset.size > MAX_DOWNLOAD {
         return Err(refused("the file is larger than an update may be"));
+    }
+    if !watch(0, asset.size) {
+        return Err(failed(CANCELLED));
     }
     let sums_bytes = small(sums, MAX_SUMS, reach)?;
     let signature_bytes = small(signature, MAX_SIGNATURE, reach)?;
@@ -256,7 +304,7 @@ pub(crate) fn download_with(release: &Release, name: &str, dir: &Path, keys: &[[
         }
         let _ = fs::remove_file(&done);
     }
-    match large(asset, &part, reach) {
+    match large(asset, &part, reach, watch) {
         Ok(()) => {}
         Err(DownloadError::Refused(why)) => {
             let _ = fs::remove_file(&part);
@@ -368,8 +416,32 @@ fn range_carries_on(content_range: Option<&str>, from: u64) -> bool {
     }
 }
 
+/// A file's sink that tells `watch` how much has come, and stops when it says so.
+struct Watched<'a, W: Write> {
+    inner: W,
+    done: u64,
+    total: u64,
+    watch: Watch<'a>,
+}
+
+impl<W: Write> Write for Watched<'_, W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        // Not `Interrupted`: `write_all` would try again for ever.
+        if !(self.watch)(self.done, self.total) {
+            return Err(std::io::Error::other(CANCELLED));
+        }
+        let n = self.inner.write(buf)?;
+        self.done = self.done.saturating_add(u64::try_from(n).unwrap_or(u64::MAX));
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
 /// The large file into `part`: carried on from what is there, or from the start.
-fn large(asset: &Asset, part: &Path, reach: &Reach<'_>) -> Result<(), DownloadError> {
+fn large(asset: &Asset, part: &Path, reach: &Reach<'_>, watch: Watch<'_>) -> Result<(), DownloadError> {
     let cap = asset.size.min(MAX_DOWNLOAD);
     let mut have = fs::metadata(part).map(|m| m.len()).unwrap_or(0);
     if have > cap {
@@ -387,7 +459,7 @@ fn large(asset: &Asset, part: &Path, reach: &Reach<'_>) -> Result<(), DownloadEr
             .append(true)
             .open(part)
             .map_err(|e| failed(&format!("the download couldn't be written: {}", e.kind())))?;
-        let mut sink = BufWriter::new(file);
+        let mut sink = Watched { inner: BufWriter::new(file), done: have, total: cap, watch };
         let accept = |said: &Streamed| match from {
             None => said.status == 200,
             Some(from) => said.status == 206 && range_carries_on(said.content_range.as_deref(), from),
@@ -564,7 +636,7 @@ mod tests {
         let dir = scratch("ok");
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("mailcraft-9.9.8-linux-x86_64.AppImage.part"), b"an older one").unwrap();
-        let got = download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach()).unwrap();
+        let got = download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true).unwrap();
         assert_eq!(got.path, dir.join(NAME));
         assert_eq!(fs::read(&got.path).unwrap(), file);
         // The digest given is the signed list's, not one worked out from the file afterwards:
@@ -579,7 +651,7 @@ mod tests {
         assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
         // Asked again: the list and its signature, and not the file.
         let before = r.server.asked();
-        download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach()).unwrap();
+        download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true).unwrap();
         assert_eq!(r.server.asked(), before + 2);
         // The requests carry nothing of the owner.
         for n in 0..r.server.asked() {
@@ -597,17 +669,17 @@ mod tests {
         let keys = [public(&in_use), public(&spare)];
         let r = signed(&spare, &file, |_| {});
         let dir = scratch("spare");
-        assert!(download_with(&release(&r.server, 3), NAME, &dir, &keys, &reach()).is_ok());
+        assert!(download_with(&release(&r.server, 3), NAME, &dir, &keys, &reach(), &|_, _| true).is_ok());
         let r = signed(&stranger, &file, |_| {});
         let dir = scratch("stranger");
         assert_eq!(
-            download_with(&release(&r.server, 3), NAME, &dir, &keys, &reach()),
+            download_with(&release(&r.server, 3), NAME, &dir, &keys, &reach(), &|_, _| true),
             Err(refused("the release isn't signed by MailCraft's release key"))
         );
         assert!(!dir.join(NAME).exists() && !dir.join(format!("{NAME}{PART}")).exists());
         // No key at all: nothing is even asked.
         let r = signed(&in_use, &file, |_| {});
-        assert_eq!(download_with(&release(&r.server, 3), NAME, &dir, &[], &reach()), Err(refused("this build carries no release key")));
+        assert_eq!(download_with(&release(&r.server, 3), NAME, &dir, &[], &reach(), &|_, _| true), Err(refused("this build carries no release key")));
         assert_eq!(r.server.asked(), 0);
         // The build's own placeholders are no keys.
         assert!(keys_of(&["", "  ", "not base64", "AAAA"]).is_empty());
@@ -629,7 +701,7 @@ mod tests {
         for (adjust, why) in cases {
             let r = signed(&pair, &file, adjust);
             let size = r.stand.lock().unwrap().file.len() as u64;
-            assert_eq!(download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach()), Err(refused(why)));
+            assert_eq!(download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true), Err(refused(why)));
             assert!(!dir.join(NAME).exists() && !dir.join(format!("{NAME}{PART}")).exists(), "{why}");
         }
         // The signed list has no line for the file.
@@ -639,14 +711,14 @@ mod tests {
             s.sums = sums.clone();
         });
         assert_eq!(
-            download_with(&release(&r.server, 15), NAME, &dir, &[public(&pair)], &reach()),
+            download_with(&release(&r.server, 15), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true),
             Err(refused("the signed list has no checksum for the file"))
         );
         // A file that was there and was changed since is downloaded afresh.
         let r = signed(&pair, &file, |_| {});
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join(NAME), b"tampered").unwrap();
-        let got = download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach()).unwrap();
+        let got = download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true).unwrap();
         assert_eq!(fs::read(got.path).unwrap(), file);
         let _ = fs::remove_dir_all(&dir);
     }
@@ -661,11 +733,17 @@ mod tests {
         {
             let mut release = release(&r.server, 1);
             release.assets.retain(|a| a.name != without);
-            assert_eq!(download_with(&release, NAME, &dir, &[public(&pair)], &reach()), Err(refused(why)));
+            assert_eq!(download_with(&release, NAME, &dir, &[public(&pair)], &reach(), &|_, _| true), Err(refused(why)));
         }
         let release = release(&r.server, MAX_DOWNLOAD + 1);
-        assert_eq!(download_with(&release, NAME, &dir, &[public(&pair)], &reach()), Err(refused("the file is larger than an update may be")));
-        assert_eq!(download_with(&release, "../x", &dir, &[public(&pair)], &reach()), Err(refused("that is no name of a release's file")));
+        assert_eq!(
+            download_with(&release, NAME, &dir, &[public(&pair)], &reach(), &|_, _| true),
+            Err(refused("the file is larger than an update may be"))
+        );
+        assert_eq!(
+            download_with(&release, "../x", &dir, &[public(&pair)], &reach(), &|_, _| true),
+            Err(refused("that is no name of a release's file"))
+        );
         assert_eq!(r.server.asked(), 0);
     }
 
@@ -675,7 +753,10 @@ mod tests {
         let file = b"0123456789".repeat(10);
         let r = signed(&pair, &file, |_| {});
         let dir = scratch("large");
-        assert_eq!(download_with(&release(&r.server, 50), NAME, &dir, &[public(&pair)], &reach()), Err(refused("a file is larger than it may be")));
+        assert_eq!(
+            download_with(&release(&r.server, 50), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true),
+            Err(refused("a file is larger than it may be"))
+        );
         assert!(!dir.join(format!("{NAME}{PART}")).exists());
         let _ = fs::remove_dir_all(&dir);
     }
@@ -687,13 +768,13 @@ mod tests {
         let r = signed(&pair, &file, |s| s.cut_at = Some(20_000));
         let dir = scratch("cut");
         let size = file.len() as u64;
-        let first = download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach());
+        let first = download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true);
         assert!(matches!(first, Err(DownloadError::Failed(_))), "{first:?}");
         let part = dir.join(format!("{NAME}{PART}"));
         assert_eq!(fs::metadata(&part).unwrap().len(), 20_000);
         // The next try asks for the rest, and gets it.
         r.stand.lock().unwrap().cut_at = None;
-        let got = download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach()).unwrap();
+        let got = download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true).unwrap();
         assert_eq!(fs::read(&got.path).unwrap(), file);
         let last = r.server.request(r.server.asked() - 1);
         assert!(last.contains("Range: bytes=20000-"), "{last}");
@@ -704,9 +785,9 @@ mod tests {
             s.cut_at = Some(10_000);
             s.no_ranges = true;
         });
-        assert!(download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach()).is_err());
+        assert!(download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true).is_err());
         r.stand.lock().unwrap().cut_at = None;
-        let got = download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach()).unwrap();
+        let got = download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true).unwrap();
         assert_eq!(fs::read(&got.path).unwrap(), file);
         // A part as long as the whole file that is not the file.
         let _ = fs::remove_dir_all(&dir);
@@ -715,10 +796,57 @@ mod tests {
         fs::write(&part, vec![0u8; file.len()]).unwrap();
         // Refused, deleted, and fine the next time.
         assert_eq!(
-            download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach()),
+            download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true),
             Err(refused("the file's checksum isn't the one the signed list gives"))
         );
-        assert!(download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach()).is_ok());
+        assert!(download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true).is_ok());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_watcher_is_told_how_far_it_came_and_can_stop_it() {
+        use std::sync::atomic::AtomicU64;
+        let pair = key();
+        let file: Vec<u8> = (0..300_000u32).map(|n| (n % 251) as u8).collect();
+        let size = file.len() as u64;
+        let r = signed(&pair, &file, |_| {});
+        let dir = scratch("watched");
+        // Told how much has come, of the size the release gives, up to the whole.
+        let (done, total) = (AtomicU64::new(0), AtomicU64::new(0));
+        let watch = |d: u64, t: u64| {
+            done.fetch_max(d, Ordering::Relaxed);
+            total.store(t.max(total.load(Ordering::Relaxed)), Ordering::Relaxed);
+            true
+        };
+        assert!(download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &watch).is_ok());
+        assert_eq!(total.load(Ordering::Relaxed), size);
+        assert!(done.load(Ordering::Relaxed) > 0 && done.load(Ordering::Relaxed) <= size);
+        let _ = fs::remove_dir_all(&dir);
+
+        // Stopped halfway: cut off, the part kept, nothing in place; the next try carries on.
+        let stop_at = AtomicU64::new(100_000);
+        let watch = |d: u64, _t: u64| d < stop_at.load(Ordering::Relaxed);
+        let got = download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &watch);
+        assert_eq!(got, Err(failed(CANCELLED)));
+        let part = dir.join(format!("{NAME}{PART}"));
+        let kept = fs::metadata(&part).unwrap().len();
+        assert!(kept >= 100_000 && kept < size, "{kept}");
+        assert!(!dir.join(NAME).exists());
+        stop_at.store(u64::MAX, Ordering::Relaxed);
+        let got = download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &watch).unwrap();
+        assert_eq!(fs::read(&got.path).unwrap(), file);
+        let last = r.server.request(r.server.asked() - 1);
+        assert!(last.contains(&format!("Range: bytes={kept}-")), "{last}");
+        let _ = fs::remove_dir_all(&dir);
+
+        // Stopped before anything is asked: nothing is asked at all.
+        let before = r.server.asked();
+        assert_eq!(download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &|_, _| false), Err(failed(CANCELLED)));
+        assert_eq!(r.server.asked(), before);
+        // A stop never makes a refused file a kept one: a file not the release's is still refused.
+        let r = signed(&key(), &file, |_| {});
+        let got = download_with(&release(&r.server, size), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true);
+        assert!(matches!(got, Err(DownloadError::Refused(_))), "{got:?}");
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -728,19 +856,19 @@ mod tests {
         let file = b"by way of a redirect".to_vec();
         let r = signed(&pair, &file, |s| s.redirect = Some(format!("http://127.0.0.1:{{port}}/cdn/{NAME}")));
         let dir = scratch("redirect");
-        let got = download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach()).unwrap();
+        let got = download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true).unwrap();
         assert_eq!(fs::read(got.path).unwrap(), file);
         // Somewhere else: refused, and nothing asked of it.
         let _ = fs::remove_dir_all(&dir);
         for elsewhere in ["https://evil.example/x", "http://192.0.2.1/x", "javascript:alert(1)", "/relative", ""] {
             r.stand.lock().unwrap().redirect = Some(elsewhere.to_string());
-            let got = download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach());
+            let got = download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true);
             assert!(matches!(got, Err(DownloadError::Refused(_))), "{elsewhere}: {got:?}");
         }
         // One that goes round and round.
         r.stand.lock().unwrap().redirect = Some(format!("http://127.0.0.1:{{port}}/dl/{NAME}"));
         assert_eq!(
-            download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach()),
+            download_with(&release(&r.server, file.len() as u64), NAME, &dir, &[public(&pair)], &reach(), &|_, _| true),
             Err(failed("GitHub sent too many redirects"))
         );
         let _ = fs::remove_dir_all(&dir);

@@ -90,12 +90,15 @@ fn window(found: Release, trusted: [u8; 32], dir: &Path) -> MailApp {
             let _ = tx.send(Ok(found.clone()));
             rx
         })),
-        update_download: Some(Box::new(move |release: Release| {
+        update_download: Some(Box::new(move |release: Release, progress: mailcraft_ui_egui::updates::Progress| {
             let (tx, rx) = std::sync::mpsc::channel();
             let dir = dir.clone();
             std::thread::spawn(move || {
-                let fetch = |r: &Release, name: &str, d: &Path| mailcraft_net::update_download::download_from_stand_in(r, name, d, &[trusted]);
-                let _ = tx.send(super::updater::download(&release, Install::AppImage, &dir, fetch).map(|v| v.path));
+                let fetch = |r: &Release, name: &str, d: &Path, watch: mailcraft_net::update_download::Watch<'_>| {
+                    mailcraft_net::update_download::download_from_stand_in(r, name, d, &[trusted], watch)
+                };
+                let watch = |done: u64, total: u64| progress.note(done, total);
+                let _ = tx.send(super::updater::download(&release, Install::AppImage, &dir, &watch, fetch).map(|v| v.path));
             });
             rx
         })),
@@ -153,5 +156,56 @@ fn a_release_signed_by_anyone_else_is_refused_and_nothing_kept() {
     assert!(!dir.join(&name).exists());
     // The file itself was never asked for.
     assert_eq!(asked.lock().unwrap().len(), 2);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_owners_update_downloads_through_the_same_checks_with_both_switches_off() {
+    let pair = key();
+    let file = b"the next version of MailCraft".repeat(100);
+    let (found, name, asked) = release(&pair, &file);
+    let dir = scratch("owners-update");
+    let mut app = window(found, pair.public_key().as_ref().try_into().unwrap(), &dir);
+    app.apply_prefs(UiState { update_check: UpdateCheck::Off, update_install: false, ..Default::default() });
+    let ctx = egui::Context::default();
+    // Check for Updates finds it, and nothing is downloaded by itself.
+    app.run("ui.checkForUpdates", json!({})).unwrap();
+    for _ in 0..3 {
+        app.logic(&ctx);
+    }
+    assert!(asked.lock().unwrap().is_empty());
+    // Update: downloaded, checked by the signature, and to be installed at quit.
+    assert_eq!(app.run("ui.downloadUpdate", json!({})).unwrap()["pending"], "download");
+    for _ in 0..1_000 {
+        app.logic(&ctx);
+        if app.update_on_exit().is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(app.update_on_exit(), Some(mailcraft_ui_egui::updates::OnExit::Install { version: newer(), restart: false }));
+    assert_eq!(std::fs::read(dir.join(&name)).unwrap(), file);
+    let _ = std::fs::remove_dir_all(&dir);
+
+    // Signed by anyone else: refused the same way, nothing kept or installed.
+    let stranger = key();
+    let (found, name, _) = release(&stranger, b"not ours");
+    let dir = scratch("owners-update-stranger");
+    let mut app = window(found, pair.public_key().as_ref().try_into().unwrap(), &dir);
+    app.apply_prefs(UiState { update_check: UpdateCheck::Off, update_install: false, ..Default::default() });
+    app.run("ui.checkForUpdates", json!({})).unwrap();
+    for _ in 0..3 {
+        app.logic(&ctx);
+    }
+    app.run("ui.downloadUpdate", json!({})).unwrap();
+    for _ in 0..1_000 {
+        app.logic(&ctx);
+        if app.execute("ui.updateCheck", json!({"value": false})).unwrap()["install"]["downloading"] == false {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(app.update_on_exit().is_none());
+    assert!(!dir.join(&name).exists());
     let _ = std::fs::remove_dir_all(&dir);
 }

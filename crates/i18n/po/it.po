@@ -1522,6 +1522,12 @@ msgid "Animations"
 msgstr "Animazioni"
 
 #. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Another download is still on its way. Try again in a moment."
+msgstr "Un altro download è ancora in corso. Riprova tra un momento."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Another mailbox was opened: the import stopped."
@@ -2687,7 +2693,7 @@ msgid "Can't sign"
 msgstr "Impossibile firmare"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Annulla"
@@ -2750,11 +2756,23 @@ msgstr "Annulla accesso"
 msgid "Cancel This Meeting?"
 msgstr "Annullare questa riunione?"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Cancel Update Download"
+msgstr "Annulla il download dell'aggiornamento"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Cancelled"
 msgstr "Annullato"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Cancelling…"
+msgstr "Annullamento…"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
@@ -4788,6 +4806,18 @@ msgstr "Scarica automaticamente le immagini nella posta"
 msgid "Download the bytes this message came as again, to check its Digital signature"
 msgstr "Scarica di nuovo i byte con cui è arrivato questo messaggio, per controllarne la firma digitale"
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Download the new version, check it by MailCraft's release signature, then restart to update. Nothing is installed until you do or quit."
+msgstr "Scarica la nuova versione, verificala con la firma di rilascio di MailCraft, poi riavvia per aggiornare. Non viene installato nulla finché non lo fai o non esci."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Download update"
+msgstr "Scarica l'aggiornamento"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -4813,6 +4843,18 @@ msgid "Downloaded {n} attachment"
 msgid_plural "Downloaded {n} attachments"
 msgstr[0] "Scaricato {n} allegato"
 msgstr[1] "Scaricati {n} allegati"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Downloading MailCraft {version}…"
+msgstr "Download di MailCraft {version}…"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Downloading MailCraft {version}… {percent}%"
+msgstr "Download di MailCraft {version}… {percent}%"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -8679,6 +8721,12 @@ msgstr "MailCraft invierà posta da una casella condivisa, come essa o per suo c
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
+msgid "MailCraft {version} couldn't be downloaded: {why}."
+msgstr "Impossibile scaricare MailCraft {version}: {why}."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "MailCraft {version} didn't start."
 msgstr "MailCraft {version} non si è avviato."
 
@@ -8693,6 +8741,12 @@ msgstr "È disponibile MailCraft {version}"
 #, fuzzy
 msgid "MailCraft {version} is available and fixes a security problem"
 msgstr "È disponibile MailCraft {version}, che corregge un problema di sicurezza"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "MailCraft {version} is downloaded and checked: restart to update."
+msgstr "MailCraft {version} è stato scaricato e verificato: riavvia per aggiornare."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -10253,8 +10307,20 @@ msgstr "Nessun messaggio."
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
+msgid "No new version is being downloaded."
+msgstr "Nessuna nuova versione è in fase di download."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "No new version is ready to install."
 msgstr "Nessuna nuova versione pronta per l'installazione."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "No newer version of MailCraft is known."
+msgstr "Non è nota alcuna versione più recente di MailCraft."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
@@ -11427,6 +11493,12 @@ msgstr "Aprire questo allegato?"
 #, fuzzy
 msgid "Open this calendar"
 msgstr "Apri questo calendario"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Open this version's file for your computer in the browser (its page when no single file fits)."
+msgstr "Apri nel browser il file di questa versione per il tuo computer (la sua pagina se nessun singolo file è adatto)."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -16773,6 +16845,12 @@ msgstr "Il dominio {domain} indica un server per la configurazione automatica di
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
 msgstr "Il dominio {domain} indica un server per la configurazione automatica (Autodiscover). Con questo metodo si trovano i server Exchange e alcuni provider di hosting lo usano anche per la posta IMAP. Qual è il tuo? È stato interrogato solo il DNS per trovarlo, mai il server stesso."
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "The download of MailCraft {version} was cancelled."
+msgstr "Il download di MailCraft {version} è stato annullato."
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 #, fuzzy
@@ -19555,6 +19633,12 @@ msgstr "Aggiornato"
 msgid "Upcoming"
 msgstr "Prossimamente"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Update"
+msgstr "Aggiorna"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -19566,6 +19650,12 @@ msgstr "Aggiorna ora"
 #, fuzzy
 msgid "Update Subscribed Calendars"
 msgstr "Aggiorna calendari sottoscritti"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Update is the owner's click."
+msgstr "Solo il proprietario può fare clic su Aggiorna."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt

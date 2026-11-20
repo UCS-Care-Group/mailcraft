@@ -207,13 +207,13 @@ fn the_signed_digest_is_trusted_even_when_the_download_changes_afterwards() {
         mailcraft_model::update::Release { version: Version::parse("9.9.9").unwrap(), page: String::new(), security: false, assets: Vec::new() };
     // The release's signed list gives this digest; the file is swapped once it is in place,
     // before anything reads it back.
-    let fetch = |_: &mailcraft_model::update::Release, name: &str, d: &Path| {
+    let fetch = |_: &mailcraft_model::update::Release, name: &str, d: &Path, _: mailcraft_net::update_download::Watch<'_>| {
         fs::create_dir_all(d).unwrap();
         let path = d.join(name);
         fs::write(&path, b"swapped after the download").unwrap();
         Ok(mailcraft_net::update_download::Downloaded { path, sha256: sum(b"the signed installer") })
     };
-    let verified = crate::updater::download(&release, Install::Msi, &folders.updates(), fetch).unwrap();
+    let verified = crate::updater::download(&release, Install::Msi, &folders.updates(), &|_, _| true, fetch).unwrap();
     assert_eq!(verified.sha256, sum(b"the signed installer"));
     assert_eq!(verified.version, release.version);
     // So what is installed later is checked against what the release signed, and refused.
