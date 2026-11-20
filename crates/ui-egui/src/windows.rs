@@ -197,6 +197,9 @@ pub struct Windows {
     /// the dialog is parented to the main window, which the system brings forward when it closes
     /// (#1282).
     pub(crate) refocus: Option<u64>,
+    /// When the main window, minimized, was last painted unseen for the windows' sake ([`wake`]),
+    /// in milliseconds.
+    woken: f64,
 }
 
 /// Where a message being written that a command opens goes (#286).
@@ -361,6 +364,11 @@ fn open_message(app: &mut MailApp, id: Id) -> Result<Value, String> {
         return Err(tl!("Too many windows are open: close one first").to_string());
     }
     let window = app.windows.add(What::Message { message: id, seen: m });
+    // Opened in a window it is read, with the reading pane off too (#1734): the message the list
+    // has selected, whose selection a window doesn't change.
+    if app.session.sel.messages == [id] {
+        let _ = app.run("mail.select", json!({"id": id, "open": true}));
+    }
     Ok(json!({"window": window, "message": id}))
 }
 
@@ -1177,6 +1185,35 @@ fn placed(window: &Open) -> Option<egui::Rect> {
 /// a window in).
 fn main_is_hidden(ctx: &egui::Context) -> bool {
     ctx.input(|i| i.viewport().visible()) == Some(false)
+}
+
+/// How often at most [`wake`] has the main window painted unseen, in milliseconds.
+const WAKE_EVERY: f64 = 500.0;
+
+/// From the main window's logic, which runs while it is minimized too (#1314). The windows of the
+/// system are drawn in a pass of the main window, which eframe runs only while it thinks one of
+/// them is on screen, and it learns whether a window is on screen only in such a pass: one
+/// minimized while the main window was, then given back by the system, stays minimized as far as
+/// eframe knows, and its close button and everything in it do nothing. Such a window has the main
+/// window painted unseen, which shows it as it is now: at once when its close button was pressed,
+/// otherwise at most every [`WAKE_EVERY`] milliseconds.
+pub(crate) fn wake(app: &mut MailApp, ctx: &egui::Context) {
+    if ctx.embed_viewports() || !main_is_hidden(ctx) {
+        return;
+    }
+    let (minimized, closing) = ctx.input(|i| {
+        let infos: Vec<_> = app.windows.open.iter().filter(|w| w.asked).filter_map(|w| i.raw.viewports.get(&viewport_of(w.id))).collect();
+        (infos.iter().any(|v| v.minimized == Some(true)), infos.iter().any(|v| v.events.contains(&egui::ViewportEvent::Close)))
+    });
+    if !minimized && !closing {
+        return;
+    }
+    let now = crate::now_ms();
+    if closing || !(0.0..WAKE_EVERY).contains(&(now - app.windows.woken)) {
+        app.windows.woken = now;
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::RequestPaintWhileHidden);
+        ctx.request_repaint();
+    }
 }
 
 /// A window of the system. `last`: where the last other window of its kind that is open is, for
@@ -2972,6 +3009,10 @@ mod tests {
 #[cfg(test)]
 #[path = "window_minimized_tests.rs"]
 mod window_minimized_tests;
+
+#[cfg(test)]
+#[path = "window_restored_tests.rs"]
+mod window_restored_tests;
 
 #[cfg(test)]
 #[path = "window_identity_tests.rs"]

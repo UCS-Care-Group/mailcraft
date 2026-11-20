@@ -721,6 +721,11 @@ msgstr "Accent"
 msgid "Accent Colour"
 msgstr "Culoare de accent"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4093,6 +4098,11 @@ msgstr "Cutia poștală curentă"
 msgid "Current View"
 msgstr "Vizualizarea curentă"
 
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr ""
+
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -5839,7 +5849,7 @@ msgstr ""
 "dosar"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Panou dosare"
@@ -9442,11 +9452,23 @@ msgstr "Mutare în jos"
 msgid "Move Event"
 msgstr "Mutare eveniment"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Mută favoritul în sus sau în jos"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Mutare dosar"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Mută dosarul în sus sau în jos"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -20993,6 +21015,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "O ciornă nu poate avea memento: trimite-o mai întâi sau folosește Urmărire în mesajul însuși"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "un favorit nu poate fi pus înaintea lui însuși"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "un dosar nu poate fi pus înaintea lui însuși"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -21003,6 +21037,12 @@ msgstr "un dosar nu se poate muta în el însuși"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "un dosar nu se poate muta în alt cont"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "un dosar se pune printre dosarele de lângă el: numiți unul cu același dosar părinte"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -24406,6 +24446,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} nu este o cutie poștală partajată: eliminați-o cu account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} nu se află printre favorite"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24476,6 +24522,12 @@ msgstr "{name} v-a partajat un calendar."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} v-a partajat un calendar. Este în lista dvs. de calendare."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} rămâne în partea de sus a folderelor contului"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

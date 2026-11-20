@@ -664,6 +664,11 @@ msgstr "Akzent"
 msgid "Accent Colour"
 msgstr "Akzentfarbe"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr "Akzentfarbe als Hex"
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -791,6 +796,7 @@ msgstr "Konto hinzufügen"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
+#, fuzzy
 msgid "Add Appointment to Tasks"
 msgstr "Termin zu Aufgaben hinzufügen"
 
@@ -972,6 +978,7 @@ msgstr "Als Microsoft-Konto hinzufügen"
 
 #. interface
 #: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
 msgid "Add contacts to Favorites to keep them here"
 msgstr "Fügen Sie Kontakte zu den Favoriten hinzu, um sie hier zu sehen"
 
@@ -2297,6 +2304,7 @@ msgstr "Geburtstag"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Birthday:"
 msgstr "Geburtstag:"
 
@@ -3871,6 +3879,11 @@ msgstr "Aktuelles Postfach"
 #, fuzzy
 msgid "Current View"
 msgstr "Aktuelle Ansicht"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr "Eigene Farbe"
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
@@ -5472,7 +5485,7 @@ msgstr ""
 "eigenschaften"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Ordnerbereich"
@@ -7185,6 +7198,7 @@ msgstr "An {service}-Besprechung teilnehmen"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Join:"
 msgstr "Teilnehmen:"
 
@@ -8816,11 +8830,23 @@ msgstr "Nach unten"
 msgid "Move Event"
 msgstr "Ereignis verschieben"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Favoriten nach oben oder unten verschieben"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Ordner verschieben"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Ordner nach oben oder unten verschieben"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -18680,6 +18706,7 @@ msgstr "Möchten Sie mitmachen? Melden Sie sich in #11"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Web page:"
 msgstr "Webseite:"
 
@@ -18875,6 +18902,7 @@ msgstr "Bei unterschiedlichen Angaben übernimmt der beibehaltene Kontakt:"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Where:"
 msgstr "Wo:"
 
@@ -19631,6 +19659,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "Ein Entwurf kann keine Erinnerung haben: erst senden oder in der Nachricht selbst „Nachverfolgung“ benutzen"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "ein Favorit kann nicht vor sich selbst gesetzt werden"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "ein Ordner kann nicht vor sich selbst gesetzt werden"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -19641,6 +19681,12 @@ msgstr "ein Ordner kann nicht in sich selbst verschoben werden"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "ein Ordner kann nicht in ein anderes Konto verschoben werden"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "ein Ordner wird unter die Ordner neben ihm eingereiht: einen mit demselben übergeordneten Ordner nennen"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -22842,6 +22888,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} ist kein freigegebenes Postfach: Entfernen Sie es mit account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} gehört nicht zu den Favoriten"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 msgid "{name} isn't an Exchange server account"
 msgstr "{name} ist kein Exchange-Server-Konto"
@@ -22905,6 +22957,12 @@ msgstr "{name} hat einen Kalender für Sie freigegeben."
 #: crates/ui-egui/src/reading/sharing.rs
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} hat einen Kalender für Sie freigegeben. Er befindet sich in Ihrer Kalenderliste."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} bleibt oben in den Ordnern des Kontos"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
