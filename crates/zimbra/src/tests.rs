@@ -34,6 +34,31 @@ fn whole(pieces: &[ZimbraMailResult]) -> ZimbraMailResult {
 }
 
 #[test]
+fn special_folder_kinds_come_from_one_id_mapping_not_display_names() {
+    for (id, expected) in [
+        ("2", FolderKind::Inbox),
+        ("3", FolderKind::Deleted),
+        ("4", FolderKind::Junk),
+        ("5", FolderKind::Sent),
+        ("6", FolderKind::Drafts),
+        ("256", FolderKind::Custom),
+        ("1000", FolderKind::Custom),
+    ] {
+        assert_eq!(crate::folders::kind_of(id), expected);
+        for name in ["Inbox", "Gesendet", "Eigener Ordner"] {
+            let body = serde_json::json!({"Body":{"GetFolderResponse":{"folder":{"id":"1","folder":[{"id":id,"name":name,"view":"message"}]}}}});
+            let response = crate::http::HttpResponse::new(200, body.to_string().into_bytes());
+            let listing = crate::folders::answer(&response).unwrap();
+            assert!(listing.complete);
+            assert_eq!(listing.folders.len(), 1);
+            let folder = listing.folders.first().unwrap();
+            assert_eq!((folder.id.as_str(), folder.name.as_str(), folder.kind), (id, name, expected));
+            assert_eq!(folder.well_known, id.parse::<u64>().unwrap() < 256);
+        }
+    }
+}
+
+#[test]
 fn a_first_read_lists_the_folders_of_mail_and_reads_each_from_its_start() {
     let server = StandIn::new();
     let projects = server.add_folder(2, "Projects");
@@ -493,6 +518,130 @@ impl crate::http::HttpExchange for Altered {
             }
         }
         Ok(crate::http::HttpResponse::new(response.status(), body.to_string().into_bytes()))
+    }
+}
+
+#[derive(Clone, Copy)]
+enum InjectedFailure {
+    Unreadable,
+    Fault(&'static str),
+    Busy,
+    Transport(crate::http::TransportError),
+}
+
+struct FailsAt {
+    server: StandIn,
+    operation: &'static str,
+    failure: InjectedFailure,
+}
+
+impl crate::http::HttpExchange for FailsAt {
+    async fn exchange(&self, request: &crate::http::HttpRequest) -> Result<crate::http::HttpResponse, crate::http::TransportError> {
+        let body: serde_json::Value = serde_json::from_slice(request.body()).unwrap_or_default();
+        let asks = |operation| body.get("Body").and_then(serde_json::Value::as_object).is_some_and(|b| b.contains_key(operation));
+        if self.operation == "GetMsgRequest" && asks("SearchRequest") {
+            return Ok(crate::http::HttpResponse::new(200, br#"{"Body":{"SearchResponse":{"m":[]}}}"#.to_vec()));
+        }
+        if asks(self.operation) || (self.operation == "MIME" && request.method() == crate::http::Method::Get) {
+            return match self.failure {
+                InjectedFailure::Unreadable => Ok(crate::http::HttpResponse::new(200, b"synthetic-private-marker".to_vec())),
+                InjectedFailure::Fault(code) => {
+                    let fault = serde_json::json!({"Body":{"Fault":{"Reason":{"Text":"synthetic-private-marker"},"Detail":{"Error":{"Code":code}}}}});
+                    let status = if request.method() == crate::http::Method::Get { 401 } else { 500 };
+                    Ok(crate::http::HttpResponse::new(status, fault.to_string().into_bytes()))
+                }
+                InjectedFailure::Busy => Ok(crate::http::HttpResponse::new(503, Vec::new()).with_field("Retry-After", "120")),
+                InjectedFailure::Transport(error) => Err(error),
+            };
+        }
+        self.server.exchange(request).await
+    }
+}
+
+#[test]
+fn failed_sync_operations_keep_safe_phase_context_and_control_flags() {
+    use crate::http::TransportError;
+    for (operation, phase) in [
+        ("AuthRequest", "signing in"),
+        ("GetFolderRequest", "listing folders"),
+        ("SyncRequest", "reading mailbox changes"),
+        ("SearchRequest", "reading message headers"),
+        ("GetMsgRequest", "checking a message"),
+    ] {
+        for fresh in [true, false] {
+            for failure in [
+                InjectedFailure::Unreadable,
+                InjectedFailure::Fault("service.PERM_DENIED"),
+                InjectedFailure::Fault("service.AUTH_EXPIRED"),
+                InjectedFailure::Fault("account.TWO_FACTOR_AUTH_REQUIRED"),
+                InjectedFailure::Busy,
+                InjectedFailure::Transport(TransportError::Unreachable),
+                InjectedFailure::Transport(TransportError::Aborted),
+            ] {
+                let server = StandIn::new();
+                let token = whole(&run(&server, &request(""), PASSWORD)).token;
+                server.deliver(2, "Private subject", "");
+                let broken = FailsAt { server, operation, failure };
+                let from = if fresh && operation != "GetMsgRequest" { "" } else { &token };
+                let all = whole(&collect(&broken, from));
+                assert!(!all.whole && all.token.is_empty() && all.resume.is_none(), "{operation}");
+                assert_eq!(all.from, from);
+                assert!(all.pages.is_empty(), "{operation}");
+                let cancelled = matches!(failure, InjectedFailure::Transport(TransportError::Aborted));
+                assert_eq!(all.stopped, cancelled, "{operation}");
+                assert_eq!(all.auth_refused, matches!(failure, InjectedFailure::Fault("service.AUTH_EXPIRED" | "account.TWO_FACTOR_AUTH_REQUIRED")));
+                assert_eq!(all.busy_for, matches!(failure, InjectedFailure::Busy).then_some(120));
+                if cancelled {
+                    assert!(all.errors.is_empty());
+                } else {
+                    assert_eq!(all.errors.len(), 1);
+                    let error = &all.errors[0];
+                    assert!(error.contains(phase), "{operation}: {error}");
+                    for private in ["synthetic-private-marker", "Private subject", PASSWORD, TOKEN, USER, URL] {
+                        assert!(!error.contains(private), "{operation}");
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn failed_full_fetches_keep_phase_offline_backoff_and_size_handling() {
+    use crate::http::TransportError;
+    for (operation, phase) in [("AuthRequest", "signing in"), ("MIME", "downloading message bodies")] {
+        for failure in [
+            InjectedFailure::Fault("service.AUTH_EXPIRED"),
+            InjectedFailure::Busy,
+            InjectedFailure::Transport(TransportError::TimedOut),
+            InjectedFailure::Transport(TransportError::Aborted),
+            InjectedFailure::Transport(TransportError::BodyTooLarge),
+        ] {
+            let server = StandIn::new();
+            let id = server.deliver(2, "Private subject", "").to_string();
+            let request = ZimbraFetchRequest { account: 3, email: USER.into(), url: URL.into(), ids: vec![id.clone()], ..Default::default() };
+            let broken = FailsAt { server, operation, failure };
+            let got = block_on(fetch_messages(&broken, &request, &Secret::new(PASSWORD), &AtomicBool::new(false))).unwrap();
+            assert!(got.fetched.is_empty() && got.missing.is_empty());
+            assert_eq!(got.offline, matches!(failure, InjectedFailure::Transport(TransportError::TimedOut)));
+            assert_eq!(got.busy_for, matches!(failure, InjectedFailure::Busy).then_some(120));
+            let too_large = operation == "MIME" && matches!(failure, InjectedFailure::Transport(TransportError::BodyTooLarge));
+            if too_large {
+                assert_eq!(got.too_large.as_slice(), std::slice::from_ref(&id));
+                assert_eq!(got.failed, [id]);
+            } else {
+                assert!(got.too_large.is_empty() && got.failed.is_empty());
+            }
+            if too_large || matches!(failure, InjectedFailure::Transport(TransportError::Aborted)) {
+                assert!(got.errors.is_empty());
+            } else {
+                assert_eq!(got.errors.len(), 1);
+                assert!(got.errors[0].contains(phase));
+                for private in ["synthetic-private-marker", "Private subject", PASSWORD, TOKEN, USER, URL] {
+                    assert!(!got.errors[0].contains(private));
+                }
+            }
+        }
     }
 }
 

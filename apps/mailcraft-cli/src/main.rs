@@ -68,6 +68,9 @@ USAGE:
                                                 or changing is asked about in the app every time
                                                 (with input, the agent clicks as the owner does)
   mailcraft-cli --version
+
+  Experimental Zimbra: MAILCRAFT_ZIMBRA=1 enables account setup and pure
+  request/apply commands for testing. CLI Send/Receive is not wired up yet.
 ";
 
 /// A session on the mailbox file at `path`: one self-contained file, or a mailbox as the app
@@ -109,8 +112,8 @@ fn trusting(mut s: Session) -> Session {
     s
 }
 
-/// Zimbra accounts may be added and kept in step: `MAILCRAFT_ZIMBRA=1`, for testing. Read here, by
-/// the host, and never from a command's params.
+/// Zimbra account setup and pure request/apply commands: `MAILCRAFT_ZIMBRA=1`, for testing.
+/// Read here by the host, never from a command's params; CLI Send/Receive needs a host runner.
 fn zimbra_switch() -> bool {
     std::env::var("MAILCRAFT_ZIMBRA").is_ok_and(|value| value.trim() == "1")
 }

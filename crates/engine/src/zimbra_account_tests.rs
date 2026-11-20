@@ -32,9 +32,28 @@ fn with_the_switch_off_nothing_of_zimbra_is_made_or_run() {
     let mut s = Session::empty();
     assert!(said(s.run("account.add", &zimbra("ada@example.org"))).contains(SWITCHED_OFF));
     assert!(s.mailbox.accounts.iter().all(|a| a.kind != AccountKind::Zimbra));
-    for command in ["sync.zimbraRequest", "sync.applyZimbra", "sync.zimbraFetchRequest"] {
+    for command in ["sync.zimbraRequest", "sync.applyZimbra", "sync.zimbraFetchRequest", "sync.applyZimbraFetch"] {
         assert!(said(s.run(command, &json!({}))).contains(SWITCHED_OFF), "{command}");
     }
+}
+
+#[test]
+fn command_parameters_cannot_enable_zimbra_or_change_its_downloaded_mail() {
+    let mut s = switched_on();
+    let account = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let message = s.mailbox.add_message(Message { account, folder: inbox, ..Default::default() }).unwrap();
+    s.mailbox.message_mut(message).unwrap().body.text = "Already downloaded".into();
+    s.zimbra = false;
+    let before = serde_json::to_value(&s.mailbox).unwrap();
+    for command in ["sync.zimbraRequest", "sync.applyZimbra", "sync.zimbraFetchRequest", "sync.applyZimbraFetch"] {
+        let params = json!({"account":account,"result":{},"zimbra":true,"enabled":true,"MAILCRAFT_ZIMBRA":"1"});
+        assert!(said(s.run(command, &params)).contains(SWITCHED_OFF), "{command}");
+        assert!(!s.zimbra);
+        assert_eq!(serde_json::to_value(&s.mailbox).unwrap(), before, "{command}");
+    }
+    assert_eq!(s.mailbox.count(inbox), 1);
+    assert_eq!(s.mailbox.message(message).unwrap().body.text, "Already downloaded");
 }
 
 #[test]

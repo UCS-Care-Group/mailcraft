@@ -3,10 +3,10 @@
 //! A mailbox kept in step through a Zimbra server's own web service: what a run is asked to do and
 //! what it brings back.
 //!
-//! **Shapes only for now**: nothing speaks the protocol yet, and a run that is asked for answers
-//! that it is not built. The shapes are here so that the pieces can be built against them one at a
-//! time, as an account's kind and settings ([`crate::AccountKind::Zimbra`],
-//! [`crate::ZimbraServer`]) are.
+//! **Pure data contracts**: these types do no server I/O and remain readable when experimental
+//! Zimbra support is switched off. The host sets the engine's session switch from
+//! `MAILCRAFT_ZIMBRA=1`; enabled engine commands build requests and apply validated results.
+//! Normal Send/Receive still needs a host runner: enabling those commands does not wire one up.
 //!
 //! The counterpart of [`EwsMailRequest`](super::EwsMailRequest) and
 //! [`JmapMailRequest`](super::JmapMailRequest), beside them rather than bent into them. Plain data:

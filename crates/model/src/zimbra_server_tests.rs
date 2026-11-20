@@ -12,6 +12,28 @@ fn an_https_address_may_be_used() {
 }
 
 #[test]
+fn corporate_hosts_and_ip_addresses_need_no_provider_allowlist() {
+    for address in ["https://mail.corp.example:8443/zimbra", "https://zimbra", "https://192.0.2.20:8443", "https://[2001:db8::20]:8443"] {
+        assert_eq!(ZimbraServer::check_url(address), Ok(()), "{address}");
+        let server = ZimbraServer { url: address.into(), ..Default::default() };
+        assert!(server.host().is_some() && server.problem().is_none(), "{address}");
+    }
+}
+
+#[test]
+fn a_certificate_pin_does_not_relax_server_address_rules() {
+    for address in [
+        "http://mail.corp.example",
+        "https://ada:pw@mail.corp.example",
+        "https://mail.corp.example/?zauthtoken=synthetic",
+        "https://mail.corp.example/#fragment",
+    ] {
+        let server = ZimbraServer { url: address.into(), trusted: "ab".repeat(32), ..Default::default() };
+        assert!(server.problem().is_some(), "{address}");
+    }
+}
+
+#[test]
 fn other_addresses_are_refused() {
     for bad in [
         "",
