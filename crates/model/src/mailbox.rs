@@ -1477,6 +1477,16 @@ pub const FOLDERS_NOT_DELETED_YET: &str = "MailCraft doesn't delete a JMAP accou
 /// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607, #1074).
 pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again sends it";
 
+/// What a draft moved into an Outbox says instead ([`MOVED_INTO_OUTBOX`]): Send Again doesn't send
+/// a draft, for nobody has said its recipients are right; Send does, with its questions (#1747).
+pub const DRAFT_MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Open the draft and send it";
+
+/// Whether `held` says only that the message was moved into an Outbox ([`MOVED_INTO_OUTBOX`],
+/// [`DRAFT_MOVED_INTO_OUTBOX`]).
+pub fn held_for_moving_in(held: &str) -> bool {
+    held == MOVED_INTO_OUTBOX || held == DRAFT_MOVED_INTO_OUTBOX
+}
+
 /// Only what is queued with Send leaves through an IMAP account's Outbox (#607), and a message moved
 /// into a JMAP account's is held the same way (#1074, [`Mailbox::holds_what_is_moved_in`]): a message moved
 /// or copied there is held, as one a Microsoft account's server refused is, until Send Again. One
@@ -1490,9 +1500,9 @@ fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
     m.sent_here = false;
     if into_outbox {
         if m.held.is_empty() {
-            m.held = MOVED_INTO_OUTBOX.to_string();
+            m.held = if m.draft { DRAFT_MOVED_INTO_OUTBOX } else { MOVED_INTO_OUTBOX }.to_string();
         }
-    } else if m.held == MOVED_INTO_OUTBOX {
+    } else if held_for_moving_in(&m.held) {
         m.held.clear();
     }
 }
@@ -2773,7 +2783,7 @@ impl Mailbox {
             Some(format!("The text of \"{subject}\" couldn't be read on this computer, so it can't be {doing} to another mailbox"))
         } else if m.unfetched && !fetched_first {
             Some(not_downloaded_yet(&subject))
-        } else if m.draft || m.server_draft.is_some() || (!m.held.is_empty() && m.held != MOVED_INTO_OUTBOX) {
+        } else if m.draft || m.server_draft.is_some() || (!m.held.is_empty() && !held_for_moving_in(&m.held)) {
             Some(format!("The draft \"{subject}\" stays in its own mailbox: send it from there"))
         } else {
             None

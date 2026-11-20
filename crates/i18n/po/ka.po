@@ -22197,6 +22197,11 @@ msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "ეს საფოსტო ყუთი MailCraft-ის სხვა ფანჯარაშია გახსნილი; ჯერ იქ დახურეთ"
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "that message is a draft: open it and send it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "that message is a draft: open it to send it"
