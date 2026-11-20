@@ -166,6 +166,38 @@ fn a_shorter_window_is_thinned_at_the_next_tick_without_the_window_asking() {
 }
 
 #[test]
+fn switched_off_zimbra_keeps_downloaded_bodies_in_every_thinning_path() {
+    for enabled in [false, true] {
+        for path in ["command", "account", "direct", "tick"] {
+            let (mut s, account, ids) = aged("1m", &[40]);
+            let body = s.mailbox.message(ids[0]).unwrap().body.text.clone();
+            s.mailbox.account_mut(account).unwrap().kind = mailcraft_model::AccountKind::Zimbra;
+            s.zimbra = enabled;
+            let size = s.run("account.offlineSize", &json!({"account":account,"keepOffline":"1m"})).unwrap();
+            assert_eq!(size["messages"], usize::from(enabled));
+            match path {
+                "command" => {
+                    s.run("account.thinOffline", &json!({})).unwrap();
+                }
+                "account" => {
+                    s.run("account.thinOffline", &json!({"account":account})).unwrap();
+                }
+                "direct" => {
+                    super::offline::thin_these(&mut s, ids.clone());
+                }
+                _ => {
+                    s.driver.thinning.now = true;
+                    s.offline_tick(0.0);
+                }
+            }
+            let message = s.mailbox.message(ids[0]).unwrap();
+            assert_eq!(message.unfetched, enabled, "{path}, enabled={enabled}");
+            assert_eq!(message.body.text == body, !enabled, "{path}, enabled={enabled}");
+        }
+    }
+}
+
+#[test]
 fn another_mailbox_starts_the_background_fetch_afresh() {
     let (mut s, _, _) = session();
     s.driver.fetch.offline = true;
