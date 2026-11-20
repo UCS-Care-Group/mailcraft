@@ -94,12 +94,84 @@ fn edit_items_become_the_input_a_text_field_takes() {
     let mut app = app();
     run(&mut app, &Action::Edit(EditKey::Paste), || "pasted".to_string());
     run(&mut app, &Action::Edit(EditKey::SelectAll), String::new);
-    assert!(app.synthetic.iter().any(|e| matches!(e, Event::Paste(t) if t == "pasted")));
-    assert!(app.synthetic.iter().any(|e| matches!(e, Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command)));
+    assert!(app.edit_keys.iter().any(|e| matches!(e, Event::Paste(t) if t == "pasted")));
+    assert!(app.edit_keys.iter().any(|e| matches!(e, Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command)));
+    assert!(app.synthetic.is_empty(), "the owner's own menu isn't the control channel");
     for _ in 0..200 {
         run(&mut app, &Action::Edit(EditKey::Copy), String::new);
     }
-    assert!(app.synthetic.len() <= 70);
+    assert!(app.edit_keys.len() <= 70);
+}
+
+/// One frame's input, its main window with the keyboard or without.
+fn raw(focused: bool) -> egui::RawInput {
+    let mut raw = egui::RawInput::default();
+    raw.viewports.entry(egui::ViewportId::ROOT).or_default().focused = Some(focused);
+    raw
+}
+
+/// Edit › Copy (⌘C) goes to the window with the keyboard (#1500). The main window takes it while
+/// it has the keyboard; while a message or an appointment in a window of its own has it, that
+/// window does, and the main window gets nothing. What no window takes in a whole frame is
+/// dropped rather than landing in a text field later.
+#[test]
+fn edit_items_go_to_the_window_with_the_keyboard() {
+    let copied = |events: &[Event]| events.iter().filter(|e| matches!(e, Event::Copy)).count();
+    let mut app = app();
+    run(&mut app, &Action::Edit(EditKey::Copy), String::new);
+    let mut main = raw(true);
+    app.raw_input_hook(&mut main);
+    assert_eq!(copied(&main.events), 1, "the main window, with the keyboard, takes it");
+    assert!(app.edit_keys.is_empty());
+
+    // A window of its own has the keyboard: the main window leaves it to that window.
+    run(&mut app, &Action::Edit(EditKey::Copy), String::new);
+    let mut main = raw(false);
+    app.raw_input_hook(&mut main);
+    assert_eq!(copied(&main.events), 0);
+    let ctx = egui::Context::default();
+    let mut taken = 0;
+    ctx.run_ui(raw(true), |ui| {
+        crate::windows::edit_keys(&mut app, ui.ctx());
+        taken = ui.ctx().input(|i| copied(&i.events));
+    })
+    .textures_delta
+    .clear();
+    assert_eq!(taken, 1, "the window with the keyboard takes it");
+    assert!(app.edit_keys.is_empty());
+
+    // A window without the keyboard takes nothing; left a whole frame, it is dropped.
+    run(&mut app, &Action::Edit(EditKey::Copy), String::new);
+    ctx.run_ui(raw(false), |ui| crate::windows::edit_keys(&mut app, ui.ctx())).textures_delta.clear();
+    assert_eq!(app.edit_keys.len(), 1);
+    app.raw_input_hook(&mut raw(false));
+    app.raw_input_hook(&mut raw(false));
+    assert!(app.edit_keys.is_empty(), "nothing waits to land in a text field later");
+    let mut main = raw(true);
+    app.raw_input_hook(&mut main);
+    assert_eq!(copied(&main.events), 0);
+}
+
+/// Input left a whole frame for a window of its own that never took it is dropped, also when
+/// the main window gets the keyboard back the next frame: the Paste doesn't land in the text
+/// field the main window focuses then (#1500).
+#[test]
+fn edit_input_left_unclaimed_is_dropped_when_the_main_window_gets_the_keyboard() {
+    let pasted = |events: &[Event]| events.iter().filter(|e| matches!(e, Event::Paste(_))).count();
+    let mut app = app();
+    run(&mut app, &Action::Edit(EditKey::Paste), || "pasted".to_string());
+    app.raw_input_hook(&mut raw(false));
+    assert!(!app.edit_keys.is_empty(), "a window of its own has this frame to take it");
+    let mut main = raw(true);
+    app.raw_input_hook(&mut main);
+    assert_eq!(pasted(&main.events), 0, "no window took it in a whole frame");
+    assert!(app.edit_keys.is_empty());
+
+    // Fresh input while the main window has the keyboard still reaches it.
+    run(&mut app, &Action::Edit(EditKey::Paste), || "pasted".to_string());
+    let mut main = raw(true);
+    app.raw_input_hook(&mut main);
+    assert_eq!(pasted(&main.events), 1);
 }
 
 /// Wednesday 2026-10-14 16:00 UTC.

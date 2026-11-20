@@ -2171,7 +2171,7 @@ msgid "AutoArchive"
 msgstr "Automatikus archívum"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automatikus"
@@ -3151,6 +3151,12 @@ msgstr "Frissítések ellenőrzése"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Új verziók ellenőrzése"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Helyesírás ellenőrzése helyi szótárral"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5807,6 +5813,12 @@ msgstr "Kapcsolódó üzenetek keresése"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Időpont keresése"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Következő helyesírási hiba keresése"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -10625,6 +10637,24 @@ msgid "No signatures yet"
 msgstr "Még nincs aláírás."
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "Nincs helyesírási hiba"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "Nincs helyesírási hiba az ellenőrzött részben"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "Nincs helyesírási javaslat"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -11141,7 +11171,7 @@ msgid "October"
 msgstr "október"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Ki"
@@ -13231,6 +13261,12 @@ msgstr "Csere"
 #, fuzzy
 msgid "Replace All"
 msgstr "Az összes helyettesítése"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "Szöveg cseréje a megadott helyen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15740,8 +15776,26 @@ msgstr "A levelek legfeljebb ennyi helyet foglalhatnak"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Helyesírás és nyelvhelyesség"
+msgid "Spelling"
+msgstr "Helyesírás"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "A helyesírás-ellenőrzés ezen a platformon nem érhető el"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "A helyesírás-ellenőrzés nyelve"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "Helyesírási javaslatok"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -18102,6 +18156,12 @@ msgstr "A könyvtár és az alatta lévő mappák helye, hogy ezt a számítóg�
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "A könyvtár saját üzeneteinek helye, amit a számítógépen használ"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "A helyesírási szótár nem érhető el"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -21653,6 +21713,12 @@ msgstr "beírandó felhasználónév"
 msgid "everybody at @{domain}"
 msgstr "Mindenki a @{domain}-n"
 
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "a keresett és a helyettesítő szövegnek egy sorban kell lennie"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -23578,6 +23644,12 @@ msgstr "A szöveg nem kereshető a kiszolgálón"
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "A szövegnek van egy karaktere, amit nem lehet elküldeni"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "a cserélendő szöveg megváltozott"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -26089,6 +26161,18 @@ msgstr "−Sorok"
 #, fuzzy
 #~ msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
 #~ msgstr "HTML aláírás képeket mutat a webcímükről: váltsd át gazdag szövegre, hogy hozzáadj egyet"
+
+#, fuzzy
+#~ msgid "Capitalize the first word of sentences"
+#~ msgstr "A mondatok első szava kezdődjön nagybetűvel"
+
+#, fuzzy
+#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+#~ msgstr "A nagybetű a szó begépelése után jelenik meg. A visszavonás visszaállítja az eredeti szöveget."
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "Helyesírás és nyelvhelyesség"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"
