@@ -63,6 +63,19 @@ fn a_zimbra_account_is_added_and_its_commands_answer() {
 }
 
 #[test]
+fn missing_settings_keep_the_id_scheme_but_refuse_sync_requests() {
+    let mut s = switched_on();
+    let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+    s.mailbox.account_mut(id).unwrap().zimbra = None;
+    let account = s.mailbox.account(id).unwrap().clone();
+    assert!(account.kind.server_ids());
+    for command in ["sync.zimbraRequest", "sync.zimbraFetchRequest"] {
+        assert!(said(s.run(command, &json!({"account": id}))).contains("has no Zimbra server address that can be used"));
+        assert_eq!(s.mailbox.account(id).unwrap(), &account);
+    }
+}
+
+#[test]
 fn its_settings_are_checked_and_its_kind_is_kept() {
     let mut s = switched_on();
     for bad in [
