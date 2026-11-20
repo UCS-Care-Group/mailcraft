@@ -5,8 +5,7 @@
 An Exchange server account (#252) reaches an organisation's own mail server through Exchange Web
 Services: its mail, and now its calendars, address books and to-do lists, including a person's
 calendar or address book opened by address. This page says what has been seen working on servers
-other than Microsoft's, one at a time, and what has not. Everything here was tried with made-up
-data on a server running on the same computer; no real mailbox was used.
+other than Microsoft's, one at a time, and what has not. Each section describes the server and the operations exercised.
 
 The directory is read after the mail of a Send/Receive: the account's calendars, books and lists
 (the folders the server gives that kind), the events of a month back and a year ahead (with the
@@ -18,6 +17,15 @@ Another mailbox's calendar or address book is read with the owner's sign-in by p
 in every folder request; it is listed under Shared Calendars or with the account's books. Grommunio
 lets the owner into the shared folder it is given but not list that mailbox's other folders, so a
 shared calendar or book is read as its default folder there.
+
+## Calendar acceptance on a hosted EWS mailbox
+
+On Linux, the EWS directory runner discovered the default calendar over HTTPS and created a
+disposable appointment without attendees. A separate calendar read returned its subject and
+server ID. The runner changed the subject, read back the change, deleted the appointment and
+verified its absence in a complete read of the same time window. This check exercised the
+directory runner with a test transport, independently of the desktop window and its scheduler.
+The server product and version were not established.
 
 ## Grommunio
 

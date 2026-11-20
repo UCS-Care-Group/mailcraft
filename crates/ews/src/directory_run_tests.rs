@@ -49,6 +49,39 @@ fn a_contact_deletion_goes_as_a_delete_item_and_needs_no_card() {
     assert!(body.contains("<m:DeleteItem") && body.contains("contact-id"), "{body}");
 }
 
+struct RefusedUpdate;
+
+impl crate::http::HttpExchange for RefusedUpdate {
+    fn exchange(&self, request: &crate::http::HttpRequest) -> impl Future<Output = Result<crate::http::HttpResponse, crate::http::TransportError>> {
+        assert!(String::from_utf8_lossy(request.body()).contains("<m:UpdateItem"));
+        let body = crate::standin::response(
+            "UpdateItem",
+            r#"<m:UpdateItemResponseMessage ResponseClass="Error"><m:ResponseCode>ErrorAccessDenied</m:ResponseCode></m:UpdateItemResponseMessage>"#,
+        );
+        ready(Ok(crate::http::HttpResponse::new(200, body.into_bytes())))
+    }
+}
+
+#[test]
+fn an_event_update_refused_inside_http_success_is_denied() {
+    let client = crate::Client::new("http://127.0.0.1/EWS/Exchange.asmx", crate::Secret::new("test")).unwrap();
+    let request = mailcraft_model::sync::EwsDirectoryRequest {
+        changes: Some(mailcraft_model::remote::EventsUpload {
+            ops: vec![EventOp {
+                kind: EventChangeKind::Update,
+                remote: "event-id".into(),
+                fields: EventFields { title: Some("New title".into()), ..Default::default() },
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let result = crate::standin::block_on(sync_directory(&client, &RefusedUpdate, &request, &cancel, &mut |_| true)).unwrap();
+    assert_eq!(result.uploaded.unwrap().outcomes[0].result, EventResult::Denied);
+}
+
 #[test]
 fn an_event_to_make_has_the_fields_it_was_sent_with() {
     let op = EventOp {
@@ -150,4 +183,81 @@ fn a_task_patch_becomes_a_to_do() {
     assert_eq!(task.title, "Send it");
     assert_eq!(task.importance, Importance::Low);
     let _ = TaskFields::default();
+}
+
+struct TruncatedCalendar(crate::standin::StandIn);
+
+impl crate::http::HttpExchange for TruncatedCalendar {
+    async fn exchange(&self, request: &crate::http::HttpRequest) -> Result<crate::http::HttpResponse, crate::http::TransportError> {
+        let body = String::from_utf8_lossy(request.body());
+        if !body.contains("<m:CalendarView") {
+            return self.0.exchange(request).await;
+        }
+        let first = body.contains("StartDate=\"2026-11-01T00:00:00Z\"");
+        let second = body.contains("EndDate=\"2026-11-03T00:00:00Z\"");
+        let last = !(first && second);
+        let item = |id: &str, start: &str, end: &str| {
+            format!(r#"<t:CalendarItem><t:ItemId Id="{id}" /><t:Start>{start}</t:Start><t:End>{end}</t:End></t:CalendarItem>"#)
+        };
+        let mut items = item("long", "2026-11-01T00:00:00Z", "2026-11-03T00:00:00Z");
+        if second && last {
+            items.push_str(&item("short", "2026-11-02T12:00:00Z", "2026-11-02T13:00:00Z"));
+        }
+        let reply = crate::standin::response(
+            "FindItem",
+            &format!(
+                r#"<m:FindItemResponseMessage ResponseClass="Success"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder IncludesLastItemInRange="{last}"><t:Items>{items}</t:Items></m:RootFolder></m:FindItemResponseMessage>"#
+            ),
+        );
+        Ok(crate::http::HttpResponse::new(200, reply.into_bytes()))
+    }
+}
+
+#[test]
+fn an_overlapping_long_event_does_not_hide_the_next_appointment() {
+    let client = crate::Client::new("http://127.0.0.1/EWS/Exchange.asmx", crate::Secret::new(crate::standin::AUTHORIZATION)).unwrap();
+    let server = TruncatedCalendar(crate::standin::StandIn::new());
+    let request = mailcraft_model::sync::EwsDirectoryRequest {
+        calendars: true,
+        from: mailcraft_time::iso_to_timestamp("2026-11-01T00:00:00Z", 0).unwrap(),
+        to: mailcraft_time::iso_to_timestamp("2026-11-03T00:00:00Z", 0).unwrap(),
+        ..Default::default()
+    };
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let result = crate::standin::block_on(sync_directory(&client, &server, &request, &cancel, &mut |_| true)).unwrap();
+    let main = result.events.iter().find(|d| d.calendar.is_empty()).unwrap();
+    assert!(main.complete);
+    assert_eq!(main.events.iter().filter(|e| e.id == "long").count(), 1);
+    assert!(main.events.iter().any(|e| e.id == "short"));
+}
+
+/// Route the named mailbox to a stand-in of its own. Its single-mailbox requests
+/// have the same folder IDs and shapes without the mailbox qualifier.
+struct SharedDirectory(crate::standin::StandIn);
+
+impl crate::http::HttpExchange for SharedDirectory {
+    async fn exchange(&self, request: &crate::http::HttpRequest) -> Result<crate::http::HttpResponse, crate::http::TransportError> {
+        let body = String::from_utf8_lossy(request.body()).replace("<t:Mailbox><t:EmailAddress>shared@example.org</t:EmailAddress></t:Mailbox>", "");
+        let request = crate::http::HttpRequest::soap(request.url(), &crate::Secret::new(crate::standin::AUTHORIZATION), body).unwrap();
+        self.0.exchange(&request).await
+    }
+}
+
+#[test]
+fn shared_folders_alone_cannot_replace_the_account_directory() {
+    let client = crate::Client::new("http://127.0.0.1/EWS/Exchange.asmx", crate::Secret::new(crate::standin::AUTHORIZATION)).unwrap();
+    let server = SharedDirectory(crate::standin::StandIn::new());
+    let request = mailcraft_model::sync::EwsDirectoryRequest {
+        shared: vec![mailcraft_model::sync::EwsSharedMailbox {
+            address: "shared@example.org".into(),
+            calendar: true,
+            contacts: true,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let result = crate::standin::block_on(sync_directory(&client, &server, &request, &cancel, &mut |_| true)).unwrap();
+    assert!(!result.calendars.unwrap().complete);
+    assert!(!result.contacts.unwrap().complete);
 }

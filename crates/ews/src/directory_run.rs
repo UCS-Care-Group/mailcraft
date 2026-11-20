@@ -28,7 +28,7 @@ use mailcraft_model::remote_tasks::{RemoteTask, RemoteTaskList, TaskOpKind, Task
 
 use crate::client::Client;
 use crate::directory::{self, Answer, Item, ItemUp, Kind};
-use crate::error::{Error, ResponseCode};
+use crate::error::ResponseCode;
 use crate::folder::{DistinguishedFolder, FindFolder, FolderInfo, GetFolder};
 use crate::http::HttpExchange;
 use crate::run::{Asked, Run, Stop};
@@ -68,6 +68,13 @@ pub async fn sync_directory<E: HttpExchange>(
         ..Default::default()
     };
     if let Err(stop) = run.directory(request, &mut out).await {
+        // The remaining shared folders might already have cached items on this device.
+        if let Some(list) = out.calendars.as_mut() {
+            list.complete = false;
+        }
+        if let Some(contacts) = out.contacts.as_mut() {
+            contacts.complete = false;
+        }
         match stop {
             Asked::Stop(why) => stop_line(why, &mut out),
             Asked::Code(_) | Asked::Bad | Asked::Lost | Asked::Unreadable => {
@@ -154,36 +161,46 @@ impl<E: HttpExchange> Run<'_, E> {
             }
             if shared.calendar {
                 match self.read_calendars(request, Some(address), Some(address), true).await {
-                    Ok((list, events)) => {
-                        if let Some(mut list) = Some(list) {
-                            // (A shared mailbox's calendars are listed beside the account's own.)
-                            out.calendars.get_or_insert_with(|| CalendarsDownload {
-                                account: request.account,
-                                email: request.email.clone(),
-                                complete: true,
-                                ..Default::default()
-                            });
-                            if let Some(own) = out.calendars.as_mut() {
-                                own.calendars.append(&mut list.calendars);
-                            }
+                    Ok((mut list, events)) => {
+                        if let Some(own) = out.calendars.as_mut() {
+                            own.complete &= list.complete;
+                            own.calendars.append(&mut list.calendars);
+                        } else {
+                            // Shared folders alone never describe the whole account.
+                            list.complete = false;
+                            out.calendars = Some(list);
                         }
                         out.events.extend(events);
                     }
                     Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
-                    Err(_) => out.errors.push("Couldn't read a calendar that was shared with the account".to_owned()),
+                    Err(_) => {
+                        if let Some(list) = out.calendars.as_mut() {
+                            list.complete = false;
+                        }
+                        out.errors.push("Couldn't read a calendar that was shared with the account".to_owned());
+                    }
                 }
             }
             if shared.contacts {
                 match self.read_contacts(request.account, &request.email, Some(address), Some(address)).await {
-                    Ok(download) => match out.contacts.as_mut() {
+                    Ok(mut download) => match out.contacts.as_mut() {
                         Some(all) => {
+                            all.complete &= download.complete;
                             all.books.extend(download.books);
                             all.contacts.extend(download.contacts);
                         }
-                        None => out.contacts = Some(download),
+                        None => {
+                            download.complete = false;
+                            out.contacts = Some(download);
+                        }
                     },
                     Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
-                    Err(_) => out.errors.push("Couldn't read an address book that was shared with the account".to_owned()),
+                    Err(_) => {
+                        if let Some(all) = out.contacts.as_mut() {
+                            all.complete = false;
+                        }
+                        out.errors.push("Couldn't read an address book that was shared with the account".to_owned());
+                    }
                 }
             }
         }
@@ -192,17 +209,27 @@ impl<E: HttpExchange> Run<'_, E> {
 
     /// The folder lists of a kind: the default folder, and every folder of that class below the
     /// top of the mailbox.
-    async fn directory_folders(&mut self, kind: Kind, mailbox: Option<&str>) -> Result<(Option<FolderInfo>, Vec<FolderInfo>), Asked> {
+    async fn directory_folders(&mut self, kind: Kind, mailbox: Option<&str>) -> Result<(Option<FolderInfo>, Vec<FolderInfo>, bool), Asked> {
         let mut get = GetFolder::new(&[kind.distinguished()]).full();
         if let Some(address) = mailbox {
             get = get.in_mailbox(address);
         }
-        let default = match self.ask(&get.element(), &|reply| get.answer(reply)).await {
-            Ok(mut answers) => answers.pop().and_then(Result::ok),
+        let default = match self
+            .ask(&get.element(), &|reply| {
+                let mut answers = get.answer(reply)?;
+                if answers.len() != 1 {
+                    return Err(crate::Error::Unexpected);
+                }
+                answers.pop().ok_or(crate::Error::Unexpected)?
+            })
+            .await
+        {
+            Ok(folder) => Some(folder),
             Err(Asked::Code(ResponseCode::FolderNotFound | ResponseCode::NonExistentMailbox)) => None,
             Err(other) => return Err(other),
         };
         let mut all: Vec<FolderInfo> = Vec::new();
+        let mut complete = false;
         let mut offset = 0u32;
         for _ in 0..MAX_PAGES {
             let mut find = FindFolder::new(DistinguishedFolder::MessageRoot, true, offset, 512);
@@ -217,13 +244,14 @@ impl<E: HttpExchange> Run<'_, E> {
                     if mailbox.is_some() && default.is_some() =>
                 {
                     let default = default.clone().into_iter().collect::<Vec<_>>();
-                    return Ok((default.first().cloned(), default));
+                    return Ok((default.first().cloned(), default, false));
                 }
                 Err(other) => return Err(other),
             };
             let before = page.folders.len();
             all.extend(page.folders.into_iter().filter(|folder| folder.class.eq_ignore_ascii_case(kind.class())));
             if page.last || before == 0 {
+                complete = page.last;
                 break;
             }
             offset = offset.saturating_add(u32::try_from(before).unwrap_or(u32::MAX));
@@ -233,7 +261,7 @@ impl<E: HttpExchange> Run<'_, E> {
         {
             all.insert(0, default.clone());
         }
-        Ok((default, all))
+        Ok((default, all, complete))
     }
 
     async fn read_calendars(
@@ -243,8 +271,13 @@ impl<E: HttpExchange> Run<'_, E> {
         owner_address: Option<&str>,
         shared: bool,
     ) -> Result<(CalendarsDownload, Vec<EventsDownload>), Asked> {
-        let (default, folders) = self.directory_folders(Kind::Calendar, mailbox).await?;
-        let mut list = CalendarsDownload { account: request.account, email: request.email.clone(), complete: true, ..Default::default() };
+        let (default, folders, complete) = self.directory_folders(Kind::Calendar, mailbox).await?;
+        let mut list = CalendarsDownload {
+            account: request.account,
+            email: request.email.clone(),
+            complete: complete && folders.len() <= mailcraft_model::remote::MAX_REMOTE_CALENDARS,
+            ..Default::default()
+        };
         let mut events = Vec::new();
         for folder in folders.iter().take(mailcraft_model::remote::MAX_REMOTE_CALENDARS) {
             let main = default.as_ref().is_some_and(|default| default.id == folder.id);
@@ -307,7 +340,7 @@ impl<E: HttpExchange> Run<'_, E> {
                 }
             }
             if last || before == 0 {
-                masters_complete = true;
+                masters_complete = last;
                 break;
             }
             offset = offset.saturating_add(u32::try_from(before).unwrap_or(u32::MAX));
@@ -325,18 +358,29 @@ impl<E: HttpExchange> Run<'_, E> {
             ..Default::default()
         };
         download.events.extend(masters.into_iter().filter(|event| event.recurrence.is_some()));
-        let mut cursor = from;
-        let mut view_complete = false;
+        // CalendarView has no offset. A long appointment can overlap both halves of a
+        // truncated view, so cover both time ranges and keep each returned item only once.
+        let mut windows = vec![(from, to)];
+        let mut seen = std::collections::HashSet::new();
         for _ in 0..MAX_PAGES {
-            let find = directory::FindItems::new(Kind::Calendar, folder.id.as_str(), 0, 512).view(cursor, to);
+            let Some((start, end)) = windows.pop() else { break };
+            let find = directory::FindItems::new(Kind::Calendar, folder.id.as_str(), 0, 512).view(start, end);
             let find = if plain { find.plain() } else { find };
             let page = self.ask(&find.element(), &|reply| find.answer(reply)).await?;
-            let before = page.items.len();
-            let last = page.last;
-            let mut latest = cursor;
+            if !page.last {
+                let middle = start.midpoint(end);
+                if middle > start && middle < end {
+                    windows.push((middle, end));
+                    windows.push((start, middle));
+                } else {
+                    download.complete = false;
+                }
+            }
             for item in page.items {
                 if let Item::Event(mut event) = item {
-                    latest = latest.max(event.end.max(event.start));
+                    if !seen.insert(event.id.clone()) {
+                        continue;
+                    }
                     if matches!(event.kind, RemoteEventKind::Occurrence | RemoteEventKind::Exception) {
                         if let Some(master) = by_uid.get(&event.uid) {
                             event.series.clone_from(master);
@@ -352,16 +396,12 @@ impl<E: HttpExchange> Run<'_, E> {
                     }
                 }
                 if download.events.len() >= MAX_ITEMS {
+                    download.complete = false;
                     return Ok((download, false));
                 }
             }
-            if last || before == 0 || latest <= cursor {
-                view_complete = true;
-                break;
-            }
-            cursor = latest;
         }
-        download.complete &= view_complete;
+        download.complete &= windows.is_empty();
         let complete = download.complete;
         Ok((download, complete))
     }
@@ -373,12 +413,19 @@ impl<E: HttpExchange> Run<'_, E> {
         mailbox: Option<&str>,
         owner_address: Option<&str>,
     ) -> Result<ContactsDownload, Asked> {
-        let (_, folders) = self.directory_folders(Kind::Contacts, mailbox).await?;
-        let mut download = ContactsDownload { account, email: email.to_owned(), complete: true, books: Vec::new(), contacts: Vec::new() };
+        let (_, folders, complete) = self.directory_folders(Kind::Contacts, mailbox).await?;
+        let mut download = ContactsDownload {
+            account,
+            email: email.to_owned(),
+            complete: complete && folders.len() <= mailcraft_model::remote::MAX_REMOTE_CALENDARS,
+            books: Vec::new(),
+            contacts: Vec::new(),
+        };
         for folder in folders.iter().take(mailcraft_model::remote::MAX_REMOTE_CALENDARS) {
             let book = clean_name(&folder.display_name, owner_address);
             download.books.push(RemoteAddressBook { id: folder.id.as_str().to_owned(), name: book.clone(), rights: folder.rights });
             let mut offset = 0u32;
+            let mut finished = false;
             for _ in 0..MAX_PAGES {
                 let find = directory::FindItems::new(Kind::Contacts, folder.id.as_str(), offset, 512);
                 let find = if mailbox.is_some() { find.plain() } else { find };
@@ -397,20 +444,29 @@ impl<E: HttpExchange> Run<'_, E> {
                     }
                 }
                 if last || before == 0 {
+                    finished = last;
                     break;
                 }
                 offset = offset.saturating_add(u32::try_from(before).unwrap_or(u32::MAX));
             }
+            download.complete &= finished;
         }
         Ok(download)
     }
 
     async fn read_tasks(&mut self, account: mailcraft_model::Id, email: &str, mailbox: Option<&str>) -> Result<TasksDownload, Asked> {
-        let (_, folders) = self.directory_folders(Kind::Tasks, mailbox).await?;
-        let mut download = TasksDownload { account, email: email.to_owned(), complete: true, lists: Vec::new(), tasks: Vec::new() };
+        let (_, folders, complete) = self.directory_folders(Kind::Tasks, mailbox).await?;
+        let mut download = TasksDownload {
+            account,
+            email: email.to_owned(),
+            complete: complete && folders.len() <= mailcraft_model::remote_tasks::MAX_TASK_LISTS,
+            lists: Vec::new(),
+            tasks: Vec::new(),
+        };
         for folder in folders.iter().take(mailcraft_model::remote_tasks::MAX_TASK_LISTS) {
-            download.lists.push(RemoteTaskList { id: folder.id.as_str().to_owned(), complete: true, shared: false });
+            download.lists.push(RemoteTaskList { id: folder.id.as_str().to_owned(), complete: false, shared: false });
             let mut offset = 0u32;
+            let mut finished = false;
             for _ in 0..MAX_PAGES {
                 let find = directory::FindItems::new(Kind::Tasks, folder.id.as_str(), offset, 512);
                 let find = if mailbox.is_some() { find.plain() } else { find };
@@ -428,10 +484,15 @@ impl<E: HttpExchange> Run<'_, E> {
                     }
                 }
                 if last || before == 0 {
+                    finished = last;
                     break;
                 }
                 offset = offset.saturating_add(u32::try_from(before).unwrap_or(u32::MAX));
             }
+            if let Some(list) = download.lists.last_mut() {
+                list.complete = finished;
+            }
+            download.complete &= finished;
         }
         Ok(download)
     }
@@ -504,7 +565,7 @@ impl<E: HttpExchange> Run<'_, E> {
                     }
                 } else {
                     let element = directory::update_event(&op.fields, &op.remote, "", op.send, zone);
-                    self.ask(&element, &|_reply| Ok::<_, Error>(())).await.map(|()| (String::new(), String::new()))
+                    self.ask(&element, &|reply| directory::acknowledged(reply, "UpdateItem")).await.map(|()| (String::new(), String::new()))
                 }
             }
         };
@@ -581,7 +642,7 @@ impl<E: HttpExchange> Run<'_, E> {
                     Err(Asked::Bad)
                 } else {
                     let element = directory::update_item(Kind::Contacts, &ItemUp::Contact(Box::new(contact)), &op.remote, "", false, "");
-                    self.ask(&element, &|_reply| Ok::<_, Error>(())).await.map(|()| (op.remote.clone(), String::new()))
+                    self.ask(&element, &|reply| directory::acknowledged(reply, "UpdateItem")).await.map(|()| (op.remote.clone(), String::new()))
                 }
             }
         };
@@ -634,7 +695,7 @@ impl<E: HttpExchange> Run<'_, E> {
             }
             TaskOpKind::Update => {
                 let element = directory::update_task(&op.patch, &op.id, "");
-                self.ask(&element, &|_reply| Ok::<_, Error>(())).await.map(|()| (String::new(), String::new()))
+                self.ask(&element, &|reply| directory::acknowledged(reply, "UpdateItem")).await.map(|()| (String::new(), String::new()))
             }
         };
         match result {
