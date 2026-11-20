@@ -386,6 +386,27 @@ fn copying_or_deleting_another_appointment_never_asks_about_the_unsaved_window()
     assert!(a.session.mailbox.event(ids.series).is_some(), "the series behind that window wasn't touched");
 }
 
+/// An agent's move of an appointment whose window has unsaved changes, through the window, is
+/// refused as the owner chose to keep it (CAL-D3), in the words of a move: it is open with changes
+/// that aren't saved, to be saved or closed first (benandez on #1665). Nothing moves.
+#[test]
+fn an_agents_move_of_an_appointment_with_unsaved_changes_in_its_window_is_refused_as_a_move() {
+    let (mut a, ids) = app();
+    dirty_appointment_window(&mut a, ids.kickoff);
+    let before = a.session.mailbox.clone();
+    let (moved, _rx) = agent_allowed(&mut a, "calendar.move", json!({"id": ids.kickoff, "start": START}), Class::ALL.to_vec());
+    let moved = moved.expect("the move is answered at once");
+    assert_eq!(
+        moved["error"].as_str(),
+        Some(
+            "`calendar.move` would move an appointment that is open with changes the owner hasn't saved (to another time or another calendar), and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed its window"
+        ),
+        "{moved}"
+    );
+    assert!(a.session.mailbox == before, "nothing moved");
+    assert_eq!(a.windows.unsaved(), 1, "the owner's changes are still there");
+}
+
 #[path = "calendar_batch_dialog_tests.rs"]
 mod dialog_tests;
 

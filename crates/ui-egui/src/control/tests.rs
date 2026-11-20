@@ -62,6 +62,7 @@ fn keyed_entries_never_crowd_the_other_controls_out() {
     assert!(hit.rect("eventOccurrence:3999:2026-10-14", 0).is_some(), "keyed entries are recorded up to their own limit");
     assert!(hit.rect("eventOccurrence:4000:2026-10-14", 0).is_none(), "and no further");
     hit.clear();
-    hit.add_key("eventOccurrence:1:2026-10-14", rect);
-    assert!(hit.rect("eventOccurrence:1:2026-10-14", 0).is_some(), "a new frame has its budget again");
+    assert!(hit.rect("eventOccurrence:1:2026-10-14", 0).is_none(), "a new frame forgets what the last one recorded");
+    hit.add_key("eventOccurrence:4001:2026-10-14", rect);
+    assert!(hit.rect("eventOccurrence:4001:2026-10-14", 0).is_some(), "and has its budget again");
 }

@@ -28,6 +28,8 @@ enum Selected {
     Set,
     /// The older single focus on `c`, with no typed set.
     Focus,
+    /// A typed set of one, `a`, which has the focus: what a plain click selects.
+    One,
 }
 
 /// How the command took the payload.
@@ -60,6 +62,9 @@ fn session(selected: Selected) -> (Session, [u64; 3]) {
         Selected::Focus => {
             s.run("calendar.select", &json!({"id": ids[2]})).expect("the focus is selected");
         }
+        Selected::One => {
+            s.run("calendar.select", &json!({"items": [{"id": ids[0]}]})).expect("the set of one is selected");
+        }
     }
     (s, ids)
 }
@@ -85,7 +90,7 @@ fn route_taken(result: &Result<Value, crate::CmdError>) -> Route {
 
 #[test]
 fn the_agent_gate_reads_every_delete_payload_as_the_command_does() {
-    use Selected::{Focus, Nothing, Set};
+    use Selected::{Focus, Nothing, One, Set};
     // `C` stands for the third appointment's id, filled in per row.
     let rows: Vec<(Selected, Value, Route)> = vec![
         (Set, json!({}), Route::Batch),
@@ -112,6 +117,14 @@ fn the_agent_gate_reads_every_delete_payload_as_the_command_does() {
         (Focus, json!({}), Route::One),
         (Focus, json!({"occurrence": "2026-10-14"}), Route::One),
         (Focus, json!({"scope": "series"}), Route::One),
+        // A set of one that has the focus is that one event, as it was before sets (benandez on
+        // #1665): a day of a series is then asked about, or told by `scope`, as Delete always was.
+        (One, json!({}), Route::One),
+        (One, json!({"scope": "occurrence"}), Route::One),
+        (One, json!({"scope": "series"}), Route::One),
+        (One, json!({"id": "C"}), Route::One),
+        (One, json!({"items": [{"id": "C"}]}), Route::Batch),
+        (One, json!({"ids": ["C"]}), Route::Refused),
         (Set, json!({"ids": ["C"]}), Route::Refused),
         (Nothing, json!({"ids": ["C"]}), Route::Refused),
         (Focus, json!({"ids": ["C"]}), Route::Refused),
@@ -144,8 +157,53 @@ fn the_agent_gate_reads_every_delete_payload_as_the_command_does() {
             assert!(super::batch(&s, "calendar.delete", &params).is_err(), "the gate refuses what the command refuses: {case}");
         }
 
-        // What the command does with it.
+        // What the command does with it. An `id` that names no appointment (null, 0, text) is
+        // refused and deletes nothing, never the one in focus: `route_taken` alone can't tell the
+        // two apart (CodeRabbit on #1665, delete_form_tests.rs:149).
+        let before = s.mailbox.clone();
         let result = s.run("calendar.delete", &params);
         assert_eq!(route_taken(&result), expected, "the command took another path: {case}: {result:?}");
+        if params.get("id").is_some_and(|id| id.as_u64().is_none_or(|n| n == 0)) {
+            assert!(result.is_err(), "an id that names nothing is refused: {case}: {result:?}");
+            assert!(s.mailbox == before, "and nothing is deleted: {case}");
+        }
     }
+}
+
+/// A typed set of one that has the focus, as a plain click on one day of a series leaves it, is
+/// deleted as the one event in focus (benandez on #1665): the command, the agent gate and the
+/// binding of the owner's yes read it as the older Delete, so the window asks which of the series
+/// is meant and `scope` says it. A set of one beside another focus is still the set it names.
+#[test]
+fn a_set_of_one_in_focus_is_deleted_as_the_one_event_in_focus() {
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    let series = s.mailbox.events.values().find(|e| e.title == "Team stand-up").map(|e| e.id).expect("the sample has its stand-up");
+    let other = s.mailbox.events.values().find(|e| e.recurrence.is_none() && !e.cancelled).map(|e| e.id).expect("an appointment that doesn't repeat");
+    let select = |s: &mut Session, day: Date| {
+        s.run("calendar.select", &json!({"items": [{"id": series, "day": day.iso()}]})).expect("one day of the series is selected");
+        assert_eq!(s.sel.events.len(), 1, "fixture: a set of one");
+        assert_eq!((s.sel.event, s.sel.event_day), (Some(series), Some(day)), "fixture: it has the focus");
+    };
+    let (tuesday, wednesday) = (Date::new(2026, 10, 13).expect("a date"), Date::new(2026, 10, 14).expect("a date"));
+    select(&mut s, tuesday);
+    for params in [json!({}), json!({"scope": "occurrence"}), json!({"scope": "series"})] {
+        assert_eq!(delete_form(&s.sel, &params).ok(), Some(DeleteForm::One), "the command: {params}");
+        assert!(!super::is_batch(&s, "calendar.delete", &params), "the gate: {params}");
+        assert_eq!(super::bind::shape(&s, "calendar.delete", &params), Some(Shape::Legacy), "the binding: {params}");
+    }
+    // A set of one whose focus is another item is the set it names.
+    let mut beside = s.sel.clone();
+    beside.events = vec![crate::SelectedEvent { id: other, day: None }];
+    assert_eq!(delete_form(&beside, &json!({})).ok(), Some(DeleteForm::Batch), "a set of one beside another focus");
+
+    // "Just This One": that day alone goes.
+    let answer = s.run("calendar.delete", &json!({"scope": "occurrence"})).expect("the day goes");
+    assert_eq!(answer, json!({"id": series, "occurrence": tuesday.iso()}));
+    assert_eq!(s.mailbox.event(series).map(|e| e.exceptions.clone()), Some(vec![tuesday]), "just Tuesday's");
+    // Unscoped it is the older Delete of the focus, which the window asks about first: the
+    // entire series.
+    select(&mut s, wednesday);
+    let answer = s.run("calendar.delete", &json!({})).expect("the series goes");
+    assert_eq!(answer, json!({"deleted": series}));
+    assert!(s.mailbox.event(series).is_none(), "the entire series");
 }

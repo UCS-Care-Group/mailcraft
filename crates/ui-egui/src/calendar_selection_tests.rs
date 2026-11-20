@@ -551,3 +551,9 @@ mod paste_route_tests;
 
 #[path = "calendar_review_followup_tests.rs"]
 mod review_followup_tests;
+
+#[path = "calendar_coderabbit2_tests.rs"]
+mod coderabbit2_tests;
+
+#[path = "calendar_one_item_tests.rs"]
+mod one_item_tests;

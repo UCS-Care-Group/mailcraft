@@ -590,8 +590,10 @@ fn legacy_state(keys: &RandomState, s: &Session, id: &str, params: &Value, plann
     out.0.write_u64(s.openings());
     if focused && id == "calendar.delete" {
         // What the command reads from the window when it names no `id`: a Delete takes the owner's
-        // typed set instead when there is one. (A typed set appearing while the question waits
-        // therefore retracts the yes: the Delete would take that set, not this event.)
+        // typed set instead when it reads it as a set (two or more, or one that isn't this event in
+        // focus: `delete_form`). (A typed selection appearing while the question waits therefore
+        // retracts the yes, even one of this event alone in focus, which is the same Delete: that
+        // only fails closed, and the agent asks again.)
         out.0.write_u8(if s.sel.events.is_empty() { 0 } else { 1 });
     }
     // The day the question offered the owner, when it offered one: kept raw, so that a question

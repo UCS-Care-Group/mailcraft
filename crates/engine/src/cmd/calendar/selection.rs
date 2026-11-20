@@ -24,6 +24,9 @@ use serde_json::{Value, json};
 use crate::cmd::{bad, fail, remote};
 use crate::{CmdError, CmdResult, CommandSpec, MAX_SELECTED_EVENTS, SelectedEvent, Session, p};
 
+#[cfg(test)]
+mod selection_tests;
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("calendar.selectAll", "Select All", "Calendar", select_all).reads().key("Mod+A").params(
@@ -295,7 +298,7 @@ pub(super) fn select(s: &mut Session, v: &Value) -> CmdResult {
     let extend = p::opt_bool(v, "extend")?.unwrap_or(false);
     // `id: null` selects nothing, as it always did, whatever older `day` is beside it (#553);
     // beside a typed list it is refused by `named`, as any other id is.
-    if v.get("id").is_some_and(Value::is_null) && v.get("items").is_none() {
+    if v.get("id").is_some_and(Value::is_null) && v.get("items").is_none() && v.get("ids").is_none() {
         s.sel.event = None;
         s.sel.event_day = None;
         s.sel.events.clear();
@@ -435,6 +438,79 @@ fn mail_summary(plan: &[Notice]) -> MailSummary {
 /// appointment of its own (no rule, no people, no UID); a move keeps each item, and an occurrence
 /// of a series is changed on its own day, never cancelled and made again.
 fn paste(s: &mut Session, v: &Value) -> CmdResult {
+    let Checked { cut, agreed, target, resolved, destinations, placements, stays } = checked(s, v)?;
+    let moving = || resolved.iter().zip(&stays).filter(|(_, stays)| !**stays).map(|(r, _)| r);
+    let plan = if cut { cut_plan(s, moving(), target) } else { Vec::new() };
+    let mail = mail_summary(&plan);
+    if mail.invitations > 0 && mail.updates > 0 {
+        return Err(fail(
+            "Some of these invite the people to a new meeting and some tell them of a change: cut them one at a time, so that each is asked about on its own. Nothing was changed.",
+        ));
+    }
+    if mail.people() > 0 && !agreed {
+        let tells = if mail.invitations > 0 { super::TELLS_INVITE } else { super::TELLS_UPDATE };
+        return Err(super::unsent(mail.people(), tells));
+    }
+    let send = agreed && mail.people() > 0;
+    room_for_batch(s, changes_needed(s, &resolved, &destinations, &stays, cut))?;
+
+    let mut chosen: Vec<SelectedEvent> = Vec::with_capacity(resolved.len());
+    for (((r, destination), (from, to)), stays) in resolved.iter().zip(destinations.iter()).zip(placements.iter().copied()).zip(&stays) {
+        if *stays {
+            // (An item the paste leaves where it is, as an all-day one on its day beside a timed one
+            // moved within the day: nothing of it changes, and nobody is written to about it.)
+            chosen.push(r.item);
+        } else if cut {
+            // The owner's one yes is for the mail the plan names: an item that writes to nobody (a
+            // meeting somebody else organizes) never has mail of its own approved, or rewritten.
+            let tells = send && plan.iter().any(|notice| notice.item == r.item);
+            chosen.push(SelectedEvent { id: cut_one(s, r, *destination, from, to, tells)?, day: None });
+        } else {
+            let copy = Event {
+                calendar: *destination,
+                title: r.event.title.clone(),
+                location: r.event.location.clone(),
+                description: r.event.description.clone(),
+                start: from,
+                end: to,
+                all_day: r.event.all_day,
+                reminder_minutes: r.event.reminder_minutes,
+                show_as: r.event.show_as,
+                categories: r.event.categories.clone(),
+                private: r.event.private,
+                importance: r.event.importance,
+                ..Default::default()
+            };
+            let made = s.mailbox.add_event(copy)?;
+            remote::note_created(s, made)?;
+            chosen.push(SelectedEvent { id: made, day: None });
+        }
+    }
+    // The pasted items are what is selected now, once, in the order they were pasted.
+    let ids: Vec<Id> = chosen.iter().map(|item| item.id).collect();
+    set_selection(s, &chosen);
+    Ok(json!({"ids": ids, "cut": cut}))
+}
+
+/// A paste read and checked whole, as [`paste`] runs it and as the question about it reads it.
+struct Checked {
+    cut: bool,
+    /// The owner's yes to the mail (`send`).
+    agreed: bool,
+    target: Option<Id>,
+    resolved: Vec<Resolved>,
+    /// Where each item goes: `target`, or its own calendar.
+    destinations: Vec<Id>,
+    /// When each item starts and ends there.
+    placements: Vec<(DateTime, DateTime)>,
+    /// Which items a cut leaves exactly where they are (never one of a copy).
+    stays: Vec<bool>,
+}
+
+/// `calendar.paste`'s reading of `v`, and every refusal it can meet before it changes anything:
+/// the one reader of the command and of the question about it, so that what can't go whole is
+/// refused before anybody is asked about mail it would never send.
+fn checked(s: &Session, v: &Value) -> Result<Checked, CmdError> {
     let Named::Items(items) = named(v)? else {
         return Err(bad(format!(
             "paste takes `items`: the calendar items to paste, 1 to {MAX_SELECTED_EVENTS}, each {{\"id\": number, \"day\"?: \"YYYY-MM-DD\"}}"
@@ -452,6 +528,7 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let resolved = resolve(s, &items, Allow::Occurrences)?;
     let destinations: Vec<Id> = resolved.iter().map(|r| target.unwrap_or(r.event.calendar)).collect();
     let placements = placements(&resolved, start)?;
+    let mut stays = Vec::with_capacity(resolved.len());
     // Everything a batch could be refused for is checked before any of it is changed.
     for (r, (destination, (from, to))) in resolved.iter().zip(destinations.iter().zip(placements.iter().copied())) {
         if !cut {
@@ -480,54 +557,29 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
                 }
             }
             // (The same time in another calendar is a move into that calendar.)
-            if (from, to) == (r.start, r.end) && *destination == r.event.calendar {
-                return Err(fail("An item would land where it already is; nothing was moved."));
+            let stay = (from, to) == (r.start, r.end) && *destination == r.event.calendar;
+            // A move out of a server's calendar into another is refused for what the server can't
+            // move (a meeting, files attached, a series), here rather than halfway through.
+            if !stay
+                && r.event.recurrence.is_none()
+                && *destination != r.event.calendar
+                && let Some(who) = super::kept_by(s, &r.event)
+            {
+                let after = Event { calendar: *destination, start: from, end: to, ..(*r.event).clone() };
+                super::meeting::movable(s, &r.event, &after, &who)?;
             }
+            stays.push(stay);
+        } else {
+            stays.push(false);
         }
         super::writable(s, *destination)?;
     }
-    let mail = if cut { mail_summary(&cut_plan(s, &resolved, target)) } else { MailSummary::default() };
-    if mail.invitations > 0 && mail.updates > 0 {
-        return Err(fail(
-            "Some of these invite the people to a new meeting and some tell them of a change: cut them one at a time, so that each is asked about on its own. Nothing was changed.",
-        ));
+    // A cut of which nothing would move moves nothing; one where some items stay where they are
+    // (all-day ones on their days while the timed ones move within the day) moves the rest.
+    if cut && stays.iter().all(|stays| *stays) {
+        return Err(fail("An item would land where it already is; nothing was moved."));
     }
-    if mail.people() > 0 && !agreed {
-        let tells = if mail.invitations > 0 { super::TELLS_INVITE } else { super::TELLS_UPDATE };
-        return Err(super::unsent(mail.people(), tells));
-    }
-    let send = agreed && mail.people() > 0;
-    room_for_batch(s, changes_needed(s, &resolved, &destinations, cut))?;
-
-    let mut ids: Vec<Id> = Vec::with_capacity(resolved.len());
-    for ((r, destination), (from, to)) in resolved.iter().zip(destinations.iter()).zip(placements.iter().copied()) {
-        if cut {
-            ids.push(cut_one(s, r, *destination, from, to, send)?);
-        } else {
-            let copy = Event {
-                calendar: *destination,
-                title: r.event.title.clone(),
-                location: r.event.location.clone(),
-                description: r.event.description.clone(),
-                start: from,
-                end: to,
-                all_day: r.event.all_day,
-                reminder_minutes: r.event.reminder_minutes,
-                show_as: r.event.show_as,
-                categories: r.event.categories.clone(),
-                private: r.event.private,
-                importance: r.event.importance,
-                ..Default::default()
-            };
-            let made = s.mailbox.add_event(copy)?;
-            remote::note_created(s, made)?;
-            ids.push(made);
-        }
-    }
-    // The pasted items are what is selected now, once, in the order they were pasted.
-    let chosen: Vec<SelectedEvent> = ids.iter().map(|id| SelectedEvent { id: *id, day: None }).collect();
-    set_selection(s, &chosen);
-    Ok(json!({"ids": ids, "cut": cut}))
+    Ok(Checked { cut, agreed, target, resolved, destinations, placements, stays })
 }
 
 /// Where each item lands: the earliest one that isn't a whole day takes the requested time, and
@@ -675,10 +727,12 @@ fn shifted_series(series: &Event, day: Date, start: DateTime, end: DateTime, her
 
 /// How many server changes a paste notes, so that a mailbox with no room for them refuses it
 /// before it is made.
-fn changes_needed(s: &Session, resolved: &[Resolved], destinations: &[Id], cut: bool) -> usize {
+fn changes_needed(s: &Session, resolved: &[Resolved], destinations: &[Id], stays: &[bool], cut: bool) -> usize {
     let mut adds = 0usize;
-    for (r, destination) in resolved.iter().zip(destinations) {
-        if cut {
+    for ((r, destination), stays) in resolved.iter().zip(destinations).zip(stays) {
+        if *stays {
+            // (Left where it is: nothing is noted for its server.)
+        } else if cut {
             if r.event.recurrence.is_some() {
                 if super::kept_by(s, &r.event).is_some() {
                     adds = adds.saturating_add(1);
@@ -898,16 +952,18 @@ pub(super) fn paste_mail_of(s: &Session, v: &Value) -> Option<super::Mail> {
 
 /// The mail `calendar.delete` over a batch would make a server send, counted once for all of them.
 ///
-/// The implicit form is the typed selection, however small: the command takes any non-empty
-/// typed set as a batch (`cmd/calendar.rs::delete`), one item included. Only an empty selection
-/// names no batch, and the legacy `id`/focus never reaches here.
+/// The implicit form is the typed selection when the command reads it as a set
+/// ([`super::delete_form`]): two items or more, or one that isn't the item in focus. A selection
+/// of one item that has the focus is the older one-event Delete and never reaches here, nor do
+/// the legacy `id`/focus and an empty selection.
 pub(super) fn items_mail_of(s: &Session, id: &str, v: &Value) -> Option<super::Mail> {
     if id != "calendar.delete" || v.get("occurrence").is_some() {
         return None;
     }
     // (The set selected when the question is asked is pinned as it is now; a named list is read
     // strictly by the same reader the command and the gate use, and a malformed one is no
-    // question at all. A singleton is a set like any other: the command deletes it as one.)
+    // question at all. A set of one gets here only when it isn't the item in focus, and the
+    // command deletes it as a set.)
     if v.get("items").is_none() && s.sel.events.is_empty() {
         return None;
     }
@@ -1047,8 +1103,8 @@ fn delete_plan(s: &Session, resolved: &[Resolved], decline: bool) -> Vec<Notice>
 }
 
 /// A cut's plan: what each item makes a server write.
-fn cut_plan(s: &Session, resolved: &[Resolved], target: Option<Id>) -> Vec<Notice> {
-    resolved.iter().filter_map(|r| cut_notice(s, r, target)).collect()
+fn cut_plan<'a>(s: &Session, resolved: impl IntoIterator<Item = &'a Resolved>, target: Option<Id>) -> Vec<Notice> {
+    resolved.into_iter().filter_map(|r| cut_notice(s, r, target)).collect()
 }
 
 /// What a `calendar.delete` of a set would make servers write, item by item, read as the command
@@ -1086,15 +1142,15 @@ pub fn item_starts(s: &Session, items: &[SelectedEvent]) -> Vec<(SelectedEvent, 
 }
 
 /// What a `calendar.paste` would make servers write, item by item: nothing for a copy (a new
-/// appointment with nobody in it); for a cut, what each item's move writes. `None` when the
-/// command would refuse it (no readable `cut`, `start`, `items` or `calendar`).
+/// appointment with nobody in it); for a cut, what each item's move writes, and nothing for an
+/// item the cut leaves where it is. `None` when the command would refuse it before changing
+/// anything (no readable `cut`, `start`, `items` or `calendar`, or an item that can't go there):
+/// nobody is asked about mail that a refused paste never sends.
 pub fn paste_notices(s: &Session, v: &Value) -> Option<Vec<Notice>> {
     if !p::opt_bool(v, "cut").ok()?.unwrap_or(false) {
         return Some(Vec::new());
     }
-    p::datetime(v, "start").ok().flatten()?;
-    let Named::Items(items) = named(v).ok()? else { return None };
-    let target = p::id_strict(v, "calendar").ok()?;
-    let resolved = resolve(s, &items, Allow::Occurrences).ok()?;
-    Some(cut_plan(s, &resolved, target))
+    let checked = checked(s, v).ok()?;
+    let moving = checked.resolved.iter().zip(&checked.stays).filter(|(_, stays)| !**stays).map(|(r, _)| r);
+    Some(cut_plan(s, moving, checked.target))
 }

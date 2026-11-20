@@ -104,7 +104,13 @@ fn a_cut_of_a_meeting_whose_people_have_no_address_asks_first_and_then_goes_thro
 
     f.s.run("calendar.paste", &json!({"items": [{"id": room}], "start": START, "cut": true, "send": true})).expect("with the yes it moves");
     let upload = remote::event_upload(&f.s, account).expect("an upload can be built");
-    assert!(upload.ops.iter().any(|op| op.remote == "e-room"), "and its new time goes to the server: {:?}", upload.ops.len());
+    // (START, 2026-12-01 09:00 by this session's clock, which is UTC's.)
+    let new_start: i64 = 1_796_115_600;
+    assert!(
+        upload.ops.iter().any(|op| op.remote == "e-room" && op.fields.time.is_some_and(|time| time.start == new_start)),
+        "and its new time goes to the server: {:?}",
+        upload.ops.iter().map(|op| (&op.remote, op.fields.time)).collect::<Vec<_>>()
+    );
 }
 
 /// The agent's question names the people without an address too, among the people it counts, and
@@ -130,23 +136,42 @@ fn an_agents_question_names_the_people_without_an_address() {
     assert_eq!(cancelled_on_the_server(&f.s, account), ["e-plan", "e-room"], "both cancellations are approved");
 }
 
-/// A yes to deleting one day of a series, asked about as a typed set, never reaches a Delete that
-/// now takes the whole series: a pure `calendar.select` that turns the set into the older focus on
-/// the same day changes how the Delete reads it, and that is pinned with the yes, not only the
-/// question's words.
+/// A yes to deleting one day of a series, asked about as part of a typed set, never reaches a
+/// Delete that now takes the whole series: a pure `calendar.select` that turns the set into the
+/// older focus on that day changes how the Delete reads it (a set, then the one event in focus:
+/// of a series, all of it), and the yes is retracted. The set is of two, so that the first
+/// Delete really is a set's (a set of one in focus is already the older Delete, cal-sec N3).
 #[test]
 fn a_yes_for_one_day_of_a_series_never_reaches_a_delete_of_the_whole_series() {
     for params in [json!({}), json!({"send": true})] {
         let mut f = fixture();
-        f.s.run("calendar.select", &json!({"items": [{"id": f.series, "day": "2026-11-11"}]})).expect("one day, as a typed set");
+        let set = json!({"items": [{"id": f.unrelated}, {"id": f.series, "day": "2026-11-11"}]});
+        f.s.run("calendar.select", &set).expect("one day of the series and another appointment, as a typed set");
+        assert_eq!(calendar::delete_form(&f.s.sel, &params).ok(), Some(calendar::DeleteForm::Batch), "fixture: a set's Delete");
         let what = agent::describe(&f.s, "calendar.delete", &params);
+        assert!(!what.contains("all of its occurrences"), "fixture: the question is about one day: {what}");
         let shown = agent::bind::Shown::new(&f.s, "calendar.delete", &params, &what).expect("the question is pinned");
         assert!(shown.check(&f.s, "calendar.delete", &params).is_ok(), "fixture: untouched, the yes is answerable");
         // The agent's own pure command while the owner reads the question.
         f.s.run("calendar.select", &json!({"id": f.series, "day": "2026-11-11"})).expect("the older focus, on the same day");
         assert_eq!(calendar::delete_form(&f.s.sel, &params).ok(), Some(calendar::DeleteForm::One), "fixture: the Delete now takes one event");
+        assert!(agent::describe(&f.s, "calendar.delete", &params).contains("all of its occurrences"), "fixture: which is the whole series now");
         assert!(shown.check(&f.s, "calendar.delete", &params).is_err(), "{params}: the yes must not reach a Delete of the whole series");
     }
+}
+
+/// What `calendar.delete`'s help (which agents and MCP read) says of a typed selection is what the
+/// command does (cal-corr N1 on #1665): two or more are a set; one that has the focus (what a
+/// click selects) is the older Delete of that event, of a series the whole of it unless
+/// `"scope": "occurrence"` names the day.
+#[test]
+fn the_help_says_what_a_selection_of_one_in_focus_deletes() {
+    let f = fixture();
+    let doc = f.s.registry.get("calendar.delete").map(|spec| spec.params).unwrap_or_default();
+    assert!(!doc.contains("even when it holds one item"), "the help no longer says a selection of one is a set: {doc}");
+    assert!(doc.contains("a typed selection of two or more"), "{doc}");
+    assert!(doc.contains("a typed selection of one item that has the focus (what a click selects)"), "{doc}");
+    assert!(doc.contains(r#"of a series, the whole series unless "scope": "occurrence" names that day"#), "{doc}");
 }
 
 /// What a Delete answers, by its form: a set gives its count and its items; one whole event its

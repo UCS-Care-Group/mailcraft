@@ -31,8 +31,10 @@
 //!   and `delete_selected` removes each copy without a word to its organizer.
 //! - S-9, `calendar::selection::items_mail_of`: with no `items` in the payload it returns `None`
 //!   when `sel.events.len() <= 1`, so a single kept meeting selected as a typed item is never
-//!   asked about and the engine refuses the Delete as unsent; `calendar.delete` dispatches any
-//!   non-empty typed selection, one item included.
+//!   asked about and the engine refuses the Delete as unsent; `calendar.delete` then dispatched
+//!   any non-empty typed selection as a set, one item included. (Since then a selection of one
+//!   item that has the focus is the older one-event Delete, which asks about that meeting as it
+//!   always did; the test still pins that it is asked about.)
 //!
 //! Every assertion is a behaviour the contract requires, or a fixture fact checked before the
 //! behaviour (the pick names the block's front calendar while the item's calendar is in the same
@@ -272,6 +274,11 @@ fn a_cut_occurrence_of_an_overlaid_calendar_moves_only_its_own_day() {
     assert_picked_in_the_blocks_front(&w, front, &series, &slot);
     chord(&mut w, COMMAND, egui::Key::V);
     w.run_steps(3);
+    // A day of a series cut alone and pasted on that day is asked about as Cut and Paste always
+    // asked (benandez on #1665): just this one is the day that was cut.
+    let asked = open_question(&w, "a same-day paste of one cut day of a series asks which of the series is meant");
+    assert_eq!(asked.command, "calendar.move", "the question is the move's");
+    press(&mut w, "Just This One");
 
     // The cut day is an event of its own at the time picked, in the series' calendar.
     let moved: Vec<Event> = titled(&w, "Overlay stand-up").into_iter().filter(|event| event.recurrence.is_none()).collect();
@@ -550,7 +557,9 @@ fn a_single_typed_kept_meeting_is_asked_about_as_one_cancellation() {
     w.run_steps(3);
     let asked = open_question(&w, "a Delete of one kept meeting selected as a typed item must ask about its cancellation, not refuse it as unsent");
     assert_eq!(asked.command, "calendar.delete", "the question is about the Delete");
-    assert!(asked.text.contains("Lunch with Dev"), "and it names the meeting: {}", asked.text);
+    // (A set of one in focus is the one meeting in focus, benandez on #1665: asked about as Delete
+    // asked before sets, with its cancellation.)
+    assert!(asked.text.contains("Send the cancellation"), "and it asks about its cancellation: {}", asked.text);
     assert!(w.state().session.mailbox == before, "nothing is deleted while the question waits");
 
     // The yes: exactly that meeting goes, with the cancellation queued as mail.

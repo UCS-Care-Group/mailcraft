@@ -713,7 +713,9 @@ fn a_batch_question_tells_two_days_of_a_series_apart_and_says_where_a_cut_goes()
     let review = line("Review");
     assert!(names_day(&review, d(2026, 11, 11)) && names_day(&review, d(2026, 12, 4)), "and the same for Review: {review}");
     let clock = crate::dates::clock(at(d(2026, 12, 4), 10, 15), window.state().session.prefs.twelve_hour);
-    assert!(review.contains(clock.as_str()), "with its new time: {review}");
+    // (Read after "moves to": Review's own time is 10:15 too, which mustn't stand for the new one.)
+    let to = review.split("moves to").nth(1).unwrap_or_default();
+    assert!(names_day(to, d(2026, 12, 4)) && to.contains(clock.as_str()), "with its new day and time: {review}");
 }
 
 /// A set of meetings whose people have no address is asked about in the window as one meeting is,
@@ -922,10 +924,7 @@ fn a_batch_summary_with_two_writing_accounts_names_both_servers_in_the_plural() 
     let said = app.run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
     assert_eq!(said["pending"], "confirm", "{said}");
     let summary = app_listing(&app).summary;
-    assert!(
-        summary.contains(&format!("The servers of {KEPT_ACCOUNT} and {OTHER_ACCOUNT} tell the 2 people invited, so that they know it is cancelled.")),
-        "{summary}"
-    );
+    assert!(summary.contains("The servers of the accounts named below tell the 2 people invited, so that they know it is cancelled."), "{summary}");
     assert!(!summary.contains("The server of"), "{summary}");
 
     app.dialog = None;
@@ -933,7 +932,7 @@ fn a_batch_summary_with_two_writing_accounts_names_both_servers_in_the_plural() 
     let said = app.run("calendar.paste", cut).expect("a cut that writes to people asks first");
     assert_eq!(said["pending"], "confirm", "{said}");
     let summary = app_listing(&app).summary;
-    assert!(summary.contains(&format!("The servers of {KEPT_ACCOUNT} and {OTHER_ACCOUNT} tell the 2 people invited of the new time.")), "{summary}");
+    assert!(summary.contains("The servers of the accounts named below tell the 2 people invited of the new time."), "{summary}");
 }
 
 /// A title, or an address, with format characters (a right-to-left override, a zero-width space)
@@ -955,4 +954,234 @@ fn a_batch_question_shows_titles_and_people_without_format_characters() {
     assert!(!text.chars().any(mailcraft_names::is_format), "no format character is shown: {text:?}");
     assert!(text.contains("\"Kickoff\""), "the title, as it reads: {text}");
     assert!(text.contains("dee@example.org"), "and the address: {text}");
+}
+
+// ---- CodeRabbit's second pass over #1665, and review-05's follow-ups ----
+
+const THIRD_ACCOUNT: &str = "xan@example.com";
+
+/// The open question, as `Dialog::Confirm` holds it in `app`.
+fn app_question(app: &MailApp) -> &crate::dialogs::Question {
+    match &app.dialog {
+        Some(Dialog::Confirm { ask, .. }) => ask,
+        _ => panic!("no question is open"),
+    }
+}
+
+/// The account `email` names.
+fn account_of(app: &MailApp, email: &str) -> Id {
+    app.session.mailbox.accounts.iter().find(|account| account.email == email).map(|account| account.id).expect("the fixture's account")
+}
+
+/// A meeting `account`'s server keeps, in the mailbox's calendar, with `invited` invited.
+fn served_meeting(app: &mut MailApp, account: Id, title: &str, start: DateTime, remote: &str, invited: &str) -> Id {
+    let calendar = app.session.mailbox.default_calendar().expect("the mailbox has a calendar");
+    app.session
+        .mailbox
+        .add_event(Event {
+            title: title.into(),
+            start,
+            end: start.add_minutes(30),
+            calendar,
+            attendees: vec![Attendee { address: Address::new("", invited), ..Default::default() }],
+            origin: Origin { account, id: remote.into(), ..Default::default() },
+            ..Default::default()
+        })
+        .expect("the calendar takes a meeting")
+}
+
+/// Three accounts' servers write: the summary says so without naming them in a list, whose
+/// joining words aren't every language's and whose length would grow with the set (review-05
+/// NB2 and NB4; CodeRabbit, dialogs.rs:2809); each account has its heading in the list.
+#[test]
+fn a_batch_summary_with_three_writing_accounts_names_them_in_the_headings_alone() {
+    let (mut app, kept, planning) = two_accounts_app();
+    let added = app
+        .session
+        .run("account.add", &json!({"email": THIRD_ACCOUNT, "name": "Xan", "incoming": {"host": "imap.example.com"}}))
+        .expect("a third account is added");
+    let account = added["id"].as_u64().expect("the account's id");
+    let retro = served_meeting(&mut app, account, "Retro", at(d(2026, 11, 12), 15, 0), "server-xan", "di@example.com");
+    let set = json!({ "items": [{ "id": kept.first }, { "id": planning }, { "id": kept.second }, { "id": retro }] });
+    app.execute("calendar.select", set).expect("the four meetings are selected");
+    let said = app.run("calendar.delete", json!({})).expect("a Delete that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let listing = app_listing(&app);
+    assert!(
+        listing.summary.contains("The servers of the accounts named below tell the 3 people invited, so that they know it is cancelled."),
+        "{}",
+        listing.summary
+    );
+    assert!(!listing.summary.contains('@'), "no address in the summary: {}", listing.summary);
+    for email in [KEPT_ACCOUNT, OTHER_ACCOUNT, THIRD_ACCOUNT] {
+        assert_eq!(listing.groups.iter().filter(|group| group.heading.contains(email)).count(), 1, "one heading names {email}: {listing:?}");
+    }
+}
+
+/// The calendar a cut goes to is named without format characters, as every other name of the
+/// question is (review-05 NB3).
+#[test]
+fn a_cut_summary_names_its_calendar_without_format_characters() {
+    let (mut app, kept) = kept_app();
+    let calendar = app.session.mailbox.default_calendar().expect("the mailbox has a calendar");
+    if let Some(named) = app.session.mailbox.calendars.iter_mut().find(|named| named.id == calendar) {
+        named.name = "Te\u{202e}am\u{200b} Calendar".into();
+    }
+    let cut = json!({ "items": [{ "id": kept.first }, { "id": kept.second }], "start": START, "cut": true, "calendar": calendar });
+    let said = app.run("calendar.paste", cut).expect("a cut that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let summary = app_listing(&app).summary;
+    assert!(!summary.chars().any(mailcraft_names::is_format), "no format character: {summary:?}");
+    assert!(summary.contains("\"Team Calendar\""), "the name as it reads: {summary}");
+}
+
+/// Appointments of this computer's with people in them, cut into a calendar a server keeps, make
+/// that server send invitations: the button says so (CodeRabbit, dialogs.rs:1518).
+#[test]
+fn a_cut_that_sends_invitations_says_so_on_its_button() {
+    let (mut app, _) = kept_app();
+    let account = account_of(&app, KEPT_ACCOUNT);
+    let served = app.session.mailbox.alloc_id();
+    app.session.mailbox.calendars.push(mailcraft_model::Calendar {
+        id: served,
+        name: "Zoe's team".into(),
+        visible: true,
+        origin: Origin { account, id: "server-team".into(), ..Default::default() },
+        ..Default::default()
+    });
+    let calendar = app.session.mailbox.default_calendar().expect("the mailbox has a calendar");
+    let mut local = |title: &str, start: DateTime| {
+        let invited = vec![Attendee { address: Address::new("", "di@example.org"), ..Default::default() }];
+        let event = Event { title: title.into(), start, end: start.add_minutes(30), calendar, attendees: invited, ..Default::default() };
+        app.session.mailbox.add_event(event).expect("the calendar takes a meeting")
+    };
+    let (talk, club) = (local("Lunch talk", at(d(2026, 11, 12), 12, 0)), local("Book club", at(d(2026, 11, 13), 18, 0)));
+    let cut = json!({ "items": [{ "id": talk }, { "id": club }], "start": START, "cut": true, "calendar": served });
+    assert!(
+        matches!(
+            mailcraft_engine::cmd::calendar::mail_of(&app.session, "calendar.paste", &cut),
+            Some(mailcraft_engine::cmd::calendar::Mail::Invitation(_))
+        ),
+        "fixture: the cut sends invitations"
+    );
+    let said = app.run("calendar.paste", cut).expect("a cut that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    assert_eq!(app_question(&app).action, "Move and Send Invitations");
+}
+
+/// A cut of a whole day and a meeting with a time of day: the time asked for is the meeting's,
+/// and the summary says so; a cut of whole days alone names the day without a time (CodeRabbit,
+/// dialogs.rs:1409).
+#[test]
+fn a_cut_summary_says_which_item_takes_the_time_asked_for() {
+    let (mut app, kept) = kept_app();
+    let account = account_of(&app, KEPT_ACCOUNT);
+    let calendar = app.session.mailbox.default_calendar().expect("the mailbox has a calendar");
+    let mut whole = |title: &str, on: Date, remote: &str| {
+        let event = Event {
+            title: title.into(),
+            start: DateTime::at_midnight(on),
+            end: DateTime::at_midnight(on.add_days(1)),
+            all_day: true,
+            calendar,
+            attendees: vec![Attendee { address: Address::new("", "bo@example.org"), ..Default::default() }],
+            origin: Origin { account, id: remote.into(), ..Default::default() },
+            ..Default::default()
+        };
+        app.session.mailbox.add_event(event).expect("the calendar takes a whole-day meeting")
+    };
+    let (offsite, retreat) = (whole("Offsite", d(2026, 11, 8), "server-off"), whole("Retreat", d(2026, 11, 10), "server-ret"));
+    let mixed = json!({ "items": [{ "id": offsite }, { "id": kept.first }], "start": START, "cut": true });
+    let said = app.run("calendar.paste", mixed).expect("a cut that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let summary = app_listing(&app).summary;
+    assert!(summary.contains("the earliest with a time of day to"), "{summary}");
+
+    app.dialog = None;
+    let days = json!({ "items": [{ "id": offsite }, { "id": retreat }], "start": START, "cut": true });
+    let said = app.run("calendar.paste", days).expect("a cut that writes to people asks first");
+    assert_eq!(said["pending"], "confirm", "{said}");
+    let summary = app_listing(&app).summary;
+    let clock = crate::dates::clock(at(d(2026, 12, 2), 9, 0), app.session.prefs.twelve_hour);
+    assert!(summary.contains(&crate::dates::long(d(2026, 12, 2))) && !summary.contains(clock.as_str()), "the day alone: {summary}");
+}
+
+/// Somebody else's meetings in a Delete whose question can decline them: their organizers, one
+/// each, are named under a heading that says when they are told, never under what writes to
+/// nobody (CodeRabbit's reply on dialogs.rs, 4630368257). The heading names the question's own
+/// button that tells them, so that it never stands over "Decline without Telling" as if that
+/// told anybody (W2 on #1665).
+#[test]
+fn a_batch_delete_names_the_organizers_a_decline_would_tell() {
+    let (mut app, kept) = kept_app();
+    let account = account_of(&app, KEPT_ACCOUNT);
+    let calendar = app.session.mailbox.default_calendar().expect("the mailbox has a calendar");
+    let mut theirs = |title: &str, start: DateTime, organizer: &str, remote: &str| {
+        let event = Event {
+            title: title.into(),
+            start,
+            end: start.add_minutes(30),
+            calendar,
+            organizer: Some(Address::new("", organizer)),
+            attendees: vec![Attendee { address: Address::new("Zoe Example", KEPT_ACCOUNT), ..Default::default() }],
+            origin: Origin { account, id: remote.into(), guest: true, ..Default::default() },
+            ..Default::default()
+        };
+        app.session.mailbox.add_event(event).expect("the calendar takes somebody else's meeting")
+    };
+    let call = theirs("Their call", at(d(2026, 11, 12), 11, 0), "org@example.net", "server-call");
+    let demo = theirs("Vendor demo", at(d(2026, 11, 13), 14, 0), "sales@example.com", "server-demo");
+    for (set, choice) in
+        [(vec![kept.first, call, demo], "Decline the Others and Tell Their Organizers"), (vec![call, demo], "Decline and Tell the Organizer")]
+    {
+        app.dialog = None;
+        let items: Vec<Value> = set.iter().map(|id| json!({ "id": id })).collect();
+        app.execute("calendar.select", json!({ "items": items })).expect("the set is selected");
+        let said = app.run("calendar.delete", json!({})).expect("a Delete with somebody else's meetings asks first");
+        assert_eq!(said["pending"], "confirm", "{said}");
+        let listing = app_listing(&app);
+        let heading = format!("If you choose \"{choice}\", their organizers are told:");
+        let declined = listing.groups.iter().find(|group| group.heading == heading).unwrap_or_else(|| panic!("{heading} is a heading: {listing:?}"));
+        let buttons: Vec<&str> = match &app.dialog {
+            Some(crate::dialogs::Dialog::Confirm { ask, .. }) => {
+                std::iter::once(ask.action.as_str()).chain(ask.more.iter().map(|(label, _)| label.as_str())).collect()
+            }
+            _ => Vec::new(),
+        };
+        assert!(buttons.contains(&choice), "the heading names a button of this question: {buttons:?}");
+        for (title, organizer) in [("Their call", "org@example.net"), ("Vendor demo", "sales@example.com")] {
+            let line = declined.items.iter().find(|item| item.what.contains(title)).unwrap_or_else(|| panic!("{title} is under it: {listing:?}"));
+            assert!(line.to.as_deref().is_some_and(|to| to.contains(organizer)), "to its own organizer: {line:?}");
+        }
+        assert!(
+            !listing.groups.iter().any(|group| group.heading.contains("Nobody") && group.items.iter().any(|item| item.what.contains("Their call"))),
+            "a meeting a decline answers is not said to write to nobody: {listing:?}"
+        );
+    }
+}
+
+/// An address list uses its translated punctuation, not the English comma (W4). The pattern
+/// remains one catalogue entry: punctuation alone is deliberately not extracted by xtask.
+#[test]
+fn a_batch_questions_addresses_use_the_languages_list_punctuation() {
+    let _restore = crate::i18n::RestoreLanguage::hold();
+    let (mut app, kept) = kept_app();
+    let event = app.session.mailbox.events.get_mut(&kept.first).expect("the fixture's meeting");
+    std::sync::Arc::make_mut(event).attendees = ["a@example.org", "b@example.org", "c@example.org"]
+        .into_iter()
+        .map(|email| Attendee { address: Address::new("", email), ..Default::default() })
+        .collect();
+    for (language, expected) in [
+        (crate::i18n::Lang::English, "a@example.org, b@example.org, c@example.org"),
+        (crate::i18n::Lang::ChineseSimplified, "a@example.org\u{3001}b@example.org\u{3001}c@example.org"),
+    ] {
+        crate::i18n::set_current(language);
+        app.dialog = None;
+        let said = app.run("calendar.delete", json!({ "items": [{ "id": kept.first }, { "id": kept.second }] })).expect("the owner's Delete asks");
+        assert_eq!(said["pending"], "confirm");
+        let listing = app_listing(&app);
+        let item =
+            listing.groups.iter().flat_map(|group| &group.items).find(|item| item.what.contains("Kickoff")).expect("the question names the meeting");
+        assert!(item.to.as_deref().is_some_and(|to| to.contains(expected)), "{language:?}: {item:?}");
+    }
 }

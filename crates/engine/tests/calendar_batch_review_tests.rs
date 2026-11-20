@@ -113,12 +113,14 @@ fn one_typed_occurrence_is_what_delete_takes_not_its_whole_series() {
     assert_eq!(s.sel.events, vec![SelectedEvent { id: series, day: Some(day) }], "a typed set of one item");
     let steps = s.undo_steps_moved();
 
-    // Delete with no target of its own takes the selected set — which here is one day.
-    let said = s.run("calendar.delete", &json!({})).expect("Delete takes the one day that is selected");
+    // A set of one in focus is the older Delete of the focus (benandez on #1665): told that the
+    // day is meant, as the window's "Just This One" tells it, it takes that day alone. (Unscoped it
+    // is the entire series, which the window asks about first: `agent::delete_form_tests`.)
+    let said = s.run("calendar.delete", &json!({"scope": "occurrence"})).expect("Delete takes the one day that is selected");
     let after = s.mailbox.event(series).expect("the series still stands");
     assert_eq!(after.exceptions, vec![day], "only the selected day is cancelled");
-    assert_eq!(said["deleted"], json!(1));
-    assert_eq!(s.undo_steps_moved(), steps + 1, "the batch is one undo step");
+    assert_eq!(said["occurrence"], json!(day.iso()));
+    assert_eq!(s.undo_steps_moved(), steps + 1, "one undo step");
 }
 
 #[test]

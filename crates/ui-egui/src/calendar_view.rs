@@ -976,15 +976,28 @@ fn toggle_one(app: &mut MailApp, item: &Item) {
     if item.ev.cancelled {
         if is_selected(app, item) {
             let _ = app.run("calendar.select", json!({ "id": null }));
-        } else if !app.session.sel.events.is_empty() {
-            let title = mailcraft_names::shown(&item.ev.title, 80);
-            app.status(crate::i18n::fmt(tl!("\"{title}\" is cancelled, so it can't be added to the selection."), &[("title", &title)]));
+        } else if keeps_what_is_selected(app) {
+            say_cancelled(app, item);
         } else {
             select_one(app, item);
         }
         return;
     }
     let _ = app.run("calendar.select", json!({ "items": [occurrence_json(occurrence_item(item))], "extend": true }));
+}
+
+/// Whether something is selected that a Command or Shift click on a cancelled appointment must
+/// leave as it is: a set, or the one appointment in focus the older way when it isn't cancelled
+/// itself (a cancelled one in focus is replaced, as a plain click replaces it).
+fn keeps_what_is_selected(app: &MailApp) -> bool {
+    let sel = &app.session.sel;
+    !sel.events.is_empty() || sel.event.and_then(|id| app.session.mailbox.event(id)).is_some_and(|event| !event.cancelled)
+}
+
+/// Say in the status line why a cancelled appointment wasn't added to what is selected.
+fn say_cancelled(app: &mut MailApp, item: &Item) {
+    let title = mailcraft_names::shown(&item.ev.title, 80);
+    app.status(crate::i18n::fmt(tl!("\"{title}\" is cancelled, so it can't be added to the selection."), &[("title", &title)]));
 }
 
 /// The items of the visible, chronological range from the focus to `item`, each once, capped as a
@@ -1026,6 +1039,17 @@ fn range_to(app: &MailApp, items: &[Item], item: &Item) -> Vec<SelectedEvent> {
 /// the range runs: a range is in the order of times, so a backward one would otherwise leave the
 /// focus on the item it started from rather than on the one it landed on.
 fn extend_to(app: &mut MailApp, items: &[Item], item: &Item) {
+    // A cancelled appointment is no end of a range, as it is no member of one: what is selected
+    // stays as it is, and the status line says why (with nothing selected, it is selected alone,
+    // as a plain click selects it).
+    if item.ev.cancelled {
+        if keeps_what_is_selected(app) {
+            say_cancelled(app, item);
+        } else {
+            select_one(app, item);
+        }
+        return;
+    }
     let end = occurrence_item(item);
     let mut chosen = range_to(app, items, item);
     if let Some(at) = chosen.iter().position(|member| *member == end) {
@@ -1619,11 +1643,32 @@ pub(crate) fn paste_ready(app: &MailApp) -> bool {
         return false;
     }
     let Some(ctx) = app.ctx.as_ref() else { return false };
-    if !clear_of_the_window(app, ctx) {
-        return false;
-    }
+    clear_of_the_window(app, ctx) && clip_to_paste(app, ctx)
+}
+
+/// Whether the calendar's clipboard holds something of this very mailbox, still as it was taken,
+/// and a time is picked to put it at.
+fn clip_to_paste(app: &MailApp, ctx: &egui::Context) -> bool {
     let Some(clip) = ctx.data(|d| d.get_temp::<Clip>(egui::Id::unique(CLIP_ID))) else { return false };
     clip.opening == app.session.openings() && sources_unchanged(app, &clip) && load_slot(ctx).is_some_and(|slot| slot.text.is_none())
+}
+
+/// Whether the Calendar's Copy, Cut or Paste (`id`) would find what it needs once Command Search
+/// has gone, for the search's own list: they run only then ([`after_search`]), so the search
+/// window over the Calendar doesn't dim them, while anything else over it (a question, a dialog,
+/// the File page) still does. Anything but those three is `enabled` as ever.
+pub(crate) fn ready_once_searched(app: &MailApp, id: &str) -> bool {
+    let searching = app.dialog.as_ref().is_some_and(|dialog| dialog.name() == "commands");
+    if !searching || !waits_for_the_calendar(id) {
+        return app.enabled(id);
+    }
+    if app.session.view.module != mailcraft_engine::Module::Calendar || !app.asking.is_empty() || app.ui.backstage {
+        return false;
+    }
+    match id {
+        "ui.calendarPaste" => app.ctx.as_ref().is_some_and(|ctx| clip_to_paste(app, ctx)),
+        _ => app.copy_hint.ready(&app.session),
+    }
 }
 
 /// `ui.calendarCopy`: the Calendar's Copy as an owner/local-control command — the whole
@@ -3179,9 +3224,29 @@ impl Clip {
 #[derive(Clone, Debug)]
 pub(crate) struct CutReceipt {
     clip: Clip,
+    /// A cut of one day of a series that repeats by a zone of its own: the paste of just that day
+    /// (`calendar.paste`'s parameters), which the "Just This One" of the move's question runs
+    /// instead of the move ([`CutReceipt::instead`]). `None` for every other cut.
+    one_day: Option<Value>,
 }
 
 impl CutReceipt {
+    /// The command an answer to the question this cut's paste asked runs, with its parameters:
+    /// `command` with `params` (the answer's own added), unless the answer is "Just This One" of a
+    /// cut day of a series that repeats by a zone of its own, which pastes that day by
+    /// `calendar.paste` instead. The move would put that day by how far the series' first start
+    /// would go, an hour out across a change of the clocks; the paste places it by the occurrence
+    /// itself, at the time picked. Read once: a question the answer asks next (who is written to)
+    /// runs as it is answered.
+    pub(crate) fn instead(&mut self, command: String, params: Value) -> (String, Value) {
+        let Some(paste) = self.one_day.take() else { return (command, params) };
+        let cut_day = self.clip.items.first().map(|item| item.id);
+        let just_that_day = command == "calendar.move"
+            && params.get("scope").and_then(Value::as_str) == Some("occurrence")
+            && params.get("id").and_then(Value::as_u64) == cut_day;
+        if just_that_day { ("calendar.paste".to_string(), paste) } else { (command, params) }
+    }
+
     /// What the answer to the paste came to (`ran`), as the command answered it: the paste went
     /// through now — then the cut it was about is used up; the paste asked something more — then
     /// this receipt goes with that question, so that its own yes can use the cut up; or the paste
@@ -3645,7 +3710,17 @@ fn paste(app: &mut MailApp, ctx: &egui::Context, text: Option<&str>, ask: Ask) -
     if ask == Ask::Keys {
         ctx.data_mut(|d| d.insert_temp(guard, now));
     }
-    let did = match single_event(app, &clip) {
+    // A cut of one day of a series, alone (what a plain click and Cut take), is the owner's move
+    // of that day, which asks about it as a move always did (just this one, or the entire series)
+    // where the move would ask. A route that can't ask pastes the day it holds through
+    // `calendar.paste`, which moves just that day.
+    let single = single_event(app, &clip).or_else(|| if clip.cut && ask != Ask::Never { one_cut_day(app, &clip) } else { None });
+    // (Of a series that repeats by a zone of its own, that day's "Just This One" is its paste.)
+    let one_day = single
+        .as_ref()
+        .filter(|ev| ev.zone().is_some() && clip.items.iter().any(|item| item.day.is_some()))
+        .map(|_| paste_params(app, &clip, start, &slot));
+    let did = match single {
         Some(ev) => paste_single(app, &clip, &ev, start, &slot, ask),
         None => paste_batch(app, &clip, start, &slot, ask),
     };
@@ -3654,7 +3729,7 @@ fn paste(app: &mut MailApp, ctx: &egui::Context, text: Option<&str>, ask: Ask) -
     // refused paste or a cancelled question leaves it where it is.
     match &did {
         Pasted::Went { .. } if clip.cut => ctx.data_mut(|d| d.remove::<Clip>(id)),
-        Pasted::Asked if clip.cut => crate::dialogs::carry_cut(app, CutReceipt { clip: clip.clone() }),
+        Pasted::Asked if clip.cut => crate::dialogs::carry_cut(app, CutReceipt { clip: clip.clone(), one_day }),
         _ => {}
     }
     did
@@ -3674,15 +3749,25 @@ fn sources_unchanged(app: &MailApp, clip: &Clip) -> bool {
 }
 
 /// The one event of a clipboard that goes by the older single-item path: one whole event of its
-/// own, whose undo step stays "Copy Event" or "Move Event". A typed occurrence of a series is not
-/// that: it goes through `calendar.paste` even alone, which changes that one day and never the
-/// series, and never has to remap the occurrence's own day through the date it is shown on.
+/// own, whose undo step stays "Copy Event" or "Move Event". A copied occurrence of a series is not
+/// that: it goes through `calendar.paste` even alone, which copies that one day; one that was cut
+/// is the series of [`one_cut_day`] on the owner's own routes.
 fn single_event(app: &MailApp, clip: &Clip) -> Option<Arc<Event>> {
     let item = clip.items.first().filter(|_| clip.items.len() == 1)?;
     if item.day.is_some() {
         return None;
     }
     app.session.mailbox.events.get(&item.id).cloned()
+}
+
+/// The series of a clipboard that holds one day of it alone: a cut of that day is the owner's own
+/// move of it ([`paste_single`]), asked about as that move is (benandez on #1665: as Alt+Down and
+/// a drag ask, and as Cut and Paste asked before sets), a series that repeats by a zone of its own
+/// too (F6), whose day itself goes by `calendar.paste`. `None` for anything else.
+fn one_cut_day(app: &MailApp, clip: &Clip) -> Option<Arc<Event>> {
+    let item = clip.items.first().filter(|_| clip.items.len() == 1)?;
+    item.day?;
+    app.session.mailbox.events.get(&item.id).filter(|ev| ev.recurrence.is_some()).cloned()
 }
 
 /// When the paste lands: the picked time when times are picked; the picked day with the earliest
@@ -3716,7 +3801,11 @@ fn paste_start(app: &MailApp, clip: &Clip, slot: &Slot) -> Option<DateTime> {
 /// time is from where it was; an occurrence of a series is changed on its own day, by as much as
 /// the picked time is from where that occurrence actually is — never from where the series
 /// starts — and an occurrence that would go into another calendar's block is refused, as a
-/// series stays where it is. What it came to: went through, asked the owner, or refused.
+/// series stays where it is. One day of a series that repeats by a zone of its own is asked about
+/// where the move asks, and its day goes by `calendar.paste` (where the move doesn't ask, and for
+/// "Just This One": [`CutReceipt::instead`]), which places it by the occurrence itself rather than
+/// by the series' first start, an hour out across a change of the clocks; the entire series moves
+/// as main's Cut and Paste moved it. What it came to: went through, asked the owner, or refused.
 fn paste_single(app: &mut MailApp, clip: &Clip, ev: &Arc<Event>, start: DateTime, slot: &Slot, ask: Ask) -> Pasted {
     let into = other_block(app, ev, slot);
     let here = |at: mailcraft_time::Timestamp| app.session.offset_at(at);
@@ -3733,7 +3822,12 @@ fn paste_single(app: &mut MailApp, clip: &Clip, ev: &Arc<Event>, start: DateTime
             }
             return Pasted::Refused(series_stays().to_string());
         }
-        let by = was_start.minutes_until(start);
+        // (The entire series of a zone of its own goes by as much as from its own time of day on
+        // the day that was cut, as main's Cut and Paste took it: across a change of the clocks
+        // that day then reads an hour out, as it did there.)
+        let zoned = day.is_some() && ev.recurrence.is_some() && ev.zone().is_some();
+        let from = if zoned { to_minute(DateTime { date: was_start.date, ..ev.start }) } else { was_start };
+        let by = from.minutes_until(start);
         let (to, end) = (ev.start.add_minutes(by), ev.end.add_minutes(by));
         let mut params = if ev.all_day {
             json!({"id": ev.id, "start": to.date.iso(), "end": last_day(to, end).iso()})
@@ -3742,8 +3836,23 @@ fn paste_single(app: &mut MailApp, clip: &Clip, ev: &Arc<Event>, start: DateTime
         };
         if ev.recurrence.is_some() {
             // A day that moves across days is changed as that one day, with no question; one
-            // that stays on its day is asked about (just it, or the whole series).
+            // that stays on its day is asked about (just it, or the whole series). The question
+            // names the day that was cut, selected again for it as a click selected it: the time
+            // picked since may have taken the selection.
             alone(&mut params, ev, was_start.date, start.date);
+            // (A day of a series of a zone of its own that the move would change alone, unasked,
+            // goes by `calendar.paste`.)
+            if zoned && params.get("scope").is_some() {
+                return paste_batch(app, clip, start, slot, ask);
+            }
+            if let Some(item) = clip.items.first().filter(|item| item.day.is_some()) {
+                let _ = app.execute("calendar.select", json!({ "items": [occurrence_json(*item)] }));
+            }
+            // (Nor is it moved unasked as a whole: where the move's own question is not which of
+            // the series, its day goes by `calendar.paste` too.)
+            if zoned && !asks_which(app, &params) {
+                return paste_batch(app, clip, start, slot, ask);
+            }
             run_through(app, "calendar.move", params, ask, clip.cut)
         } else {
             // Into another calendar's block a whole event is an edit, which says both when and
@@ -3778,6 +3887,25 @@ fn paste_batch(app: &mut MailApp, clip: &Clip, start: DateTime, slot: &Slot, ask
         }
         return Pasted::Refused(series_stays().to_string());
     }
+    // One paste names one calendar for the whole set: picked in a block that draws some members
+    // in a calendar behind its front one while others are from another block, it would take
+    // those members out of their own calendar into the front one. Refused, and said.
+    if mixes_blocks(app, clip, slot) {
+        let why = tl!(
+            "Some of these are in the calendars shown where the time was picked and some are in others: paste them in two goes, so that each lands in the calendar you mean."
+        );
+        if ask != Ask::Never {
+            app.status(why);
+        }
+        return Pasted::Refused(why.to_string());
+    }
+    let params = paste_params(app, clip, start, slot);
+    run_through(app, "calendar.paste", params, ask, clip.cut)
+}
+
+/// What `calendar.paste` is told for `clip` at `start`, picked in `slot`: its items by their own
+/// days, whether it is a cut, and the calendar of the block picked in when that is another one.
+fn paste_params(app: &MailApp, clip: &Clip, start: DateTime, slot: &Slot) -> Value {
     let items: Vec<Value> = clip.items.iter().copied().map(occurrence_json).collect();
     let mut params = json!({ "items": items, "start": iso_minute(start) });
     if clip.cut {
@@ -3786,7 +3914,14 @@ fn paste_batch(app: &mut MailApp, clip: &Clip, start: DateTime, slot: &Slot, ask
     if let Some(calendar) = paste_calendar(app, clip, slot) {
         params["calendar"] = json!(calendar);
     }
-    run_through(app, "calendar.paste", params, ask, clip.cut)
+    params
+}
+
+/// Whether the move `params` of a series asks the owner which of it is meant ("Move Recurring
+/// Item", whose other answer is the entire series), as the window's own question predicate says.
+fn asks_which(app: &MailApp, params: &Value) -> bool {
+    crate::dialogs::confirmation(app, "calendar.move", params)
+        .is_some_and(|ask| ask.more.iter().any(|(_, with)| with.get("scope").and_then(Value::as_str) == Some("series")))
 }
 
 /// The calendar the paste is into: the block the time was picked in, when that block is another
@@ -3797,6 +3932,7 @@ fn paste_batch(app: &mut MailApp, clip: &Clip, start: DateTime, slot: &Slot, ask
 /// another, and when a member can't be read at all: a stale one is refused whole by the command,
 /// never re-homed into the calendar in front.
 fn paste_calendar(app: &MailApp, clip: &Clip, slot: &Slot) -> Option<Id> {
+    // (A set that [`mixes_blocks`] is refused before this is asked.)
     if slot.calendar == 0 {
         return None;
     }
@@ -3806,6 +3942,24 @@ fn paste_calendar(app: &MailApp, clip: &Clip, slot: &Slot) -> Option<Id> {
         elsewhere |= other_block(app, event, slot).is_some();
     }
     elsewhere.then_some(slot.calendar)
+}
+
+/// Whether a paste of `clip` at `slot` would name one calendar for members that belong in two:
+/// one drawn in the block the time was picked in, in a calendar behind that block's front one
+/// ([`paste_calendar`] would take it into the front one), beside one from another block.
+fn mixes_blocks(app: &MailApp, clip: &Clip, slot: &Slot) -> bool {
+    if slot.calendar == 0 {
+        return false;
+    }
+    let (mut elsewhere, mut behind) = (false, false);
+    for item in &clip.items {
+        let Some(event) = app.session.mailbox.events.get(&item.id) else { continue };
+        match other_block(app, event, slot) {
+            Some(_) => elsewhere = true,
+            None => behind |= event.calendar != slot.calendar,
+        }
+    }
+    elsewhere && behind
 }
 
 /// What a paste did: it went through now (with the command's own answer, and whether what it put
@@ -6908,13 +7062,10 @@ mod tests {
         rig.chord(ALT, Key::ArrowDown);
         assert_eq!(asked(&mut rig, 0), ("calendar.move".to_string(), "Move Recurring Item".to_string()));
         assert_eq!((ones(&rig), skipped(&rig)), (vec![(at(monday, 10, 0), at(monday, 10, 15))], vec![monday]));
-        // Delete already names Tuesday's typed occurrence; no series chooser is needed.
-        // The backtrace regression pins this policy change, without changing the input or
-        // the postconditions on the series and the Monday occurrence already moved.
+        // Delete, on Tuesday's: just this one goes.
         rig.click(spot(&rig, tuesday), 1);
         rig.key(Key::Delete);
-        assert_eq!(rig.dialog(), None, "a typed Delete already names just Tuesday's occurrence");
-        assert!(series(&rig).is_some_and(|e| e.start == standup.start && e.end == standup.end), "the series' anchor is unchanged");
+        assert_eq!(asked(&mut rig, 0), ("calendar.delete".to_string(), "Delete Recurring Item".to_string()));
         assert_eq!((ones(&rig).len(), skipped(&rig)), (1, vec![monday, tuesday]));
         // Enter, a double click and Open, on Wednesday's: it opens once it is said which is meant.
         rig.click(spot(&rig, wednesday), 1);
@@ -6941,10 +7092,7 @@ mod tests {
         rig.click(pos2(spot(&rig, thursday).x, after_noon(&rig, 4.0).y), 1);
         assert_eq!(rig.pick(), Some((at(thursday, 16, 0), at(thursday, 16, 30), false)));
         rig.chord(CTRL, Key::V);
-        // The clipboard already pins Thursday's intrinsic occurrence, including on the same
-        // day. No series choice is needed; retain the exact input and resulting dates below.
-        assert_eq!(rig.dialog(), None, "a cut names just Thursday's typed occurrence");
-        assert!(series(&rig).is_some_and(|e| e.start == standup.start && e.end == standup.end), "the series' anchor is unchanged");
+        assert_eq!(asked(&mut rig, 0), ("calendar.move".to_string(), "Move Recurring Item".to_string()));
         assert_eq!(skipped(&rig), [monday, tuesday, thursday]);
         assert_eq!(ones(&rig), [(at(monday, 10, 0), at(monday, 10, 15)), (at(thursday, 16, 0), at(thursday, 16, 15))]);
         // To another day there is nothing to ask: the series keeps its days, so it is that one
@@ -7001,16 +7149,13 @@ mod tests {
         rig.chord(ALT, Key::ArrowDown);
         assert_eq!((rig.dialog(), ones(&rig).len()), (None, own + 1));
         assert!(skipped(&rig).contains(&on) && ones(&rig).contains(&(at(on.add_days(7), 9, 30), at(on.add_days(7), 9, 45))));
-        // The explicit legacy Delete action still asks which of the series: the entire
-        // series goes, and the occurrences changed on their own stay. Keyboard Delete already
-        // names the typed occurrence, as Tuesday's check above proves; it is not this action.
+        // The entire series, with Delete: it is gone, and the ones that were changed on their
+        // own stay.
         rig.run("view.week", json!({}));
         rig.click(spot(&rig, friday), 1);
         assert_eq!(rig.selected(), (Some(standup.id), Some(friday)));
         let own = ones(&rig).len();
-        let waiting = rig.app.run("calendar.delete", json!({"id": standup.id})).expect("the legacy Delete action asks about its series");
-        assert_eq!(waiting.get("pending").and_then(Value::as_str), Some("confirm"));
-        rig.frames(2);
+        rig.key(Key::Delete);
         assert_eq!(rig.dialog(), Some("confirm"));
         assert_eq!(rig.answer(1).0, "calendar.delete");
         assert_eq!((series(&rig), ones(&rig).len()), (None, own));

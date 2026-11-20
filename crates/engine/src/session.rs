@@ -4195,9 +4195,9 @@ impl Session {
         // gone for good, an appointment the owner is changing taken away) is undone, whatever
         // path it took there.
         let result = match (result, &self.agent) {
-            (Ok(_), Some(_)) if self.owner_changing.iter().any(|e| taken_from(&before.mailbox, &self.mailbox, *e)) => Err(CmdError::Failed(format!(
-                "`{id}` would take away an appointment, a contact or a task the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
-            ))),
+            (Ok(_), Some(_)) if let Some(taken) = self.owner_changing.iter().filter_map(|e| taken_from(&before.mailbox, &self.mailbox, *e)).max() => {
+                Err(taken.refusal(id))
+            }
             // What is written in the message the owner is writing is theirs until it is closed
             // (#494): an agent doesn't change it, nor empty it and save that over its draft (#577).
             (Ok(_), Some(_)) if changes_owners_message(compose.as_ref(), self.compose.as_ref()) => Err(CmdError::Failed(format!(
@@ -4326,21 +4326,60 @@ impl Session {
     }
 }
 
+/// How an agent's command would take an item the owner is changing from under them
+/// ([`taken_from`]): the worse of two is what its refusal says.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Taken {
+    /// An appointment that stays, but moved: its times or its calendar.
+    Moved,
+    /// A series with a day cancelled, or moved out of it as an appointment of its own.
+    Days,
+    /// Gone from the mailbox.
+    Gone,
+}
+
+impl Taken {
+    /// The refusal of the agent's command `id`, in words that say what it would have done: "take
+    /// away" only for what would really go, and a move and a day taken out of a series each in
+    /// words of its own.
+    fn refusal(self, id: &str) -> CmdError {
+        match self {
+            Taken::Gone => CmdError::Failed(format!(
+                "`{id}` would take away an appointment, a contact or a task the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
+            )),
+            Taken::Moved => failed!(
+                "`{id}` would move an appointment that is open with changes the owner hasn't saved (to another time or another calendar), and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed its window",
+                id
+            ),
+            Taken::Days => failed!(
+                "`{id}` would change which days a series has (cancel one of them, or move one out of it as an appointment of its own) while that series is open with changes the owner hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed its window",
+                id
+            ),
+        }
+    }
+}
+
 /// Whether the event, contact or task `item` that `before` has is taken from under the owner in
-/// `after`: gone, or, for an event, moved (its times or its calendar) or with a day cancelled.
-fn taken_from(before: &Mailbox, after: &Mailbox, item: Id) -> bool {
+/// `after`, and how: gone, or, for an event, with a day cancelled or moved out of its series, or
+/// moved (its times or its calendar). `None` when it is as it was there.
+fn taken_from(before: &Mailbox, after: &Mailbox, item: Id) -> Option<Taken> {
     let there = |m: &Mailbox| m.event(item).is_some() || m.contact(item).is_some() || m.task(item).is_some();
     if there(before) && !there(after) {
-        return true;
+        return Some(Taken::Gone);
     }
-    // Cancelling or moving a day leaves its series present, but still takes away the item
-    // being edited. Protect the whole series conservatively while any of it is unsaved.
+    // Cancelling or moving a day leaves its series present, but still changes the item being
+    // edited. Protect the whole series conservatively while any of it is unsaved.
     match (before.event(item), after.event(item)) {
         (Some(was), Some(now)) => {
             let skipped: HashSet<Date> = was.exceptions.iter().copied().collect();
-            now.exceptions.iter().any(|day| !skipped.contains(day)) || was.start != now.start || was.end != now.end || was.calendar != now.calendar
+            // (Both at once is said as the worse of the two, as for two items.)
+            if now.exceptions.iter().any(|day| !skipped.contains(day)) {
+                return Some(Taken::Days);
+            }
+            let moved = was.start != now.start || was.end != now.end || was.calendar != now.calendar;
+            moved.then_some(Taken::Moved)
         }
-        _ => false,
+        _ => None,
     }
 }
 

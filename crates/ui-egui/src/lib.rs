@@ -1559,7 +1559,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.calendarPaste",
         "Paste",
         "Calendar",
-        r#"{} — Paste: what Copy or Cut put on the calendar's clipboard, at the time picked in the grid, moving it when it was a cut. Answers {"items": n, "cut": bool} once it is done, and nothing else. Refused with any parameter, without the Calendar in front, behind a question, File page or menu, with nothing on the calendar's clipboard, and with no time picked. The owner's own Paste (the ribbon, a menu, command search) asks what a paste asks first (who is written to, an appointment window's unsaved changes) and answers {"pending": "confirm"} while the question is up; through the control channel it never asks, and such a paste is refused. Never for an agent"#,
+        r#"{} — Paste: what Copy or Cut put on the calendar's clipboard, at the time picked in the grid, moving it when it was a cut. Answers {"items": n, "cut": bool} once it is done, and nothing else. Refused with any parameter, without the Calendar in front, behind a question, File page or menu, with nothing on the calendar's clipboard, and with no time picked. The owner's own Paste (the ribbon, a menu, command search) asks what a paste asks first (which of a series is meant, who is written to) and answers {"pending": "confirm"} while the question is up; it is the owner's own move of what was cut, as a drag is, also of an appointment open in a window of its own. Through the control channel it never asks: a paste that would ask, or would move an appointment whose window has unsaved changes, is refused. Never for an agent"#,
     ),
     (
         "ui.joinMeeting",

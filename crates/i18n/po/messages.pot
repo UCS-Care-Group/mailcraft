@@ -5786,6 +5786,11 @@ msgid "If that page says you need admin approval"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "If you choose \"{choice}\", their organizers are told:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "If you don't, nothing is sent to it, and the search goes on elsewhere or ends."
 msgstr ""
@@ -7896,6 +7901,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/nav.rs
 msgid "Move Up"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Move and Send Invitations"
 msgstr ""
 
 #. interface
@@ -12870,6 +12880,11 @@ msgstr ""
 msgid "Some of the search was checked on this computer"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Some of these are in the calendars shown where the time was picked and some are in others: paste them in two goes, so that each lands in the calendar you mean."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 msgid "Some of these invite the people to a new meeting and some tell them of a change: cut them one at a time, so that each is asked about on its own. Nothing was changed."
@@ -14766,22 +14781,22 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "The servers of {accounts} send the {n} person invited the invitation by mail."
-msgid_plural "The servers of {accounts} send the {n} people invited the invitation by mail."
+msgid "The servers of the accounts named below send the {n} person invited the invitation by mail."
+msgid_plural "The servers of the accounts named below send the {n} people invited the invitation by mail."
 msgstr[0] ""
 msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "The servers of {accounts} tell the {n} person invited of the new time."
-msgid_plural "The servers of {accounts} tell the {n} people invited of the new time."
+msgid "The servers of the accounts named below tell the {n} person invited of the new time."
+msgid_plural "The servers of the accounts named below tell the {n} people invited of the new time."
 msgstr[0] ""
 msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "The servers of {accounts} tell the {n} person invited, so that they know it is cancelled."
-msgid_plural "The servers of {accounts} tell the {n} people invited, so that they know it is cancelled."
+msgid "The servers of the accounts named below tell the {n} person invited, so that they know it is cancelled."
+msgid_plural "The servers of the accounts named below tell the {n} people invited, so that they know it is cancelled."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -15795,6 +15810,13 @@ msgstr ""
 #: crates/ui-egui/src/dialogs.rs
 msgid "This moves {n} appointment to {when}, in {to}."
 msgid_plural "This moves {n} appointments, the earliest to {when} and the others by as much, in {to}."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This moves {n} appointment, the earliest with a time of day to {when} and the others by as much, in {to}."
+msgid_plural "This moves {n} appointments, the earliest with a time of day to {when} and the others by as much, in {to}."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -17782,6 +17804,12 @@ msgstr[1] ""
 msgid "at most 200 messages can be forwarded together"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgctxt "between e-mail addresses"
+msgid "{others}, {last}"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 msgid "calendar"
@@ -19553,6 +19581,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "their calendar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "their own calendars"
 msgstr ""
 
 #. what a command says
@@ -21415,11 +21448,6 @@ msgstr ""
 #. what a command says
 #: crates/model/src/message.rs
 msgid "{n}.{tenth} MB"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-msgid "{others} and {last}"
 msgstr ""
 
 #. what a command says

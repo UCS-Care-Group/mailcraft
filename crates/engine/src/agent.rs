@@ -1630,7 +1630,11 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
         if let Err(e) = batch(s, id, params) {
             return Verdict::Refuse(e);
         }
-        if let Err(e) = batch_flags(id, params) {
+        // (Its flags strictly too; the older one-event Delete reads them as its command does, a
+        // `null` as not said.)
+        if is_batch(s, id, params)
+            && let Err(e) = batch_flags(id, params)
+        {
             return Verdict::Refuse(format!("`{id}`: {e}"));
         }
     }
@@ -1807,6 +1811,12 @@ fn legacy_delete(s: &Session, params: &Value) -> Result<Vec<crate::SelectedEvent
         crate::cmd::calendar::Part::Series => None,
     };
     Ok(vec![crate::SelectedEvent { id: named, day }])
+}
+
+/// The one item the older `calendar.delete` acts on, as [`legacy_delete`] reads it; `None` when the
+/// command would refuse the call.
+fn legacy_item(s: &Session, params: &Value) -> Option<crate::SelectedEvent> {
+    legacy_delete(s, params).ok().and_then(|items| items.first().copied())
 }
 
 fn batch_flags(id: &str, params: &Value) -> Result<(bool, bool), String> {
@@ -2026,8 +2036,16 @@ fn delete_reaches(s: &Session, params: &Value) -> Reaches {
         }
         crate::cmd::calendar::delete_notices(s, params).unwrap_or_default()
     } else {
-        named_event(s, params)
-            .and_then(|event| crate::cmd::calendar::delete_notice(s, event, crate::SelectedEvent { id: event.id, day: None }, decline))
+        // (The one event as the command reads it: a day of a series it already skips is deleted as
+        // the step that does nothing, which writes to nobody.)
+        legacy_item(s, params)
+            .and_then(|item| {
+                let event = s.mailbox.event(item.id)?;
+                if item.day.is_some_and(|day| event.exceptions.contains(&day)) {
+                    return None;
+                }
+                crate::cmd::calendar::delete_notice(s, event, item, decline)
+            })
             .into_iter()
             .collect()
     };
@@ -2119,7 +2137,12 @@ fn batch_text(s: &Session, id: &str, params: &Value, label: &str) -> String {
 /// event, and what the account's server would actually send about it — a cancellation to the
 /// people invited, a decline answered to the organizer, or nothing.
 fn delete_text(s: &Session, params: &Value) -> String {
-    let mut what = format!("delete {} from the calendar", event_title(s, "calendar.delete", params));
+    // A series says which of it goes, one day or all of it; anything else is named as it was.
+    let named = match legacy_item(s, params) {
+        Some(item) if s.mailbox.event(item.id).is_some_and(|event| event.recurrence.is_some()) => item_text(s, &item),
+        _ => event_title(s, "calendar.delete", params),
+    };
+    let mut what = format!("delete {named} from the calendar");
     append_reaches(&mut what, &reaches(s, "calendar.delete", params));
     what
 }

@@ -50,9 +50,9 @@ fn own_specs() -> Vec<CommandSpec> {
             .params(r#"{"start": "YYYY-MM-DDTHH:MM", "end"?: same (default: keep the length), "id"?: number, "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" — as for calendar.edit: with "occurrence", `start` is where the series would start, and that one occurrence moves by as much, "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent the update)}"#)
             .selection(needs_event),
         CommandSpec::new("calendar.delete", "Delete", "Appointment › Actions", delete)
-            .params(r#"{"id"?: number, "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" (only that day of a series), "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent a cancellation), "comment"?: string (a note for them), "decline"?: true (somebody else's meeting: decline it rather than only delete the owner's copy; the organizer is told when "send" is true)} — "items" deletes that set in one step (1 to 200; a day of a series needs its "day", and "scope": "series" deletes all of a series named without one); without "items" or "id", Delete takes the typed selection as such a set, even when it holds one item; `id` (or nothing, with no typed selection: the event in focus) is the one event it names, and keeps its older scope rules. A set answers {"deleted": n, "items": [...]}, n being a count; one whole event answers {"deleted": id}, its id; one day of a series answers {"id", "occurrence"}"#)
+            .params(r#"{"id"?: number, "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" (only that day of a series), "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent a cancellation), "comment"?: string (a note for them), "decline"?: true (somebody else's meeting: decline it rather than only delete the owner's copy; the organizer is told when "send" is true)} — "items" deletes that set in one step (1 to 200; a day of a series needs its "day", and "scope": "series" deletes all of a series named without one); without "items" or "id", Delete takes a typed selection of two or more as such a set (and one of one item that isn't the event in focus); a typed selection of one item that has the focus (what a click selects) is the one event it names, as `id` is (or nothing, with no typed selection: the event in focus), with the older scope rules: of a series, the whole series unless "scope": "occurrence" names that day. A set answers {"deleted": n, "items": [...]}, n being a count; one whole event answers {"deleted": id}, its id; one day of a series answers {"id", "occurrence"}"#)
             .selection(needs_event),
-        CommandSpec::new("calendar.select", "Select Event", "Calendar", selection::select).pure().params(r#"{"id"?: number | null, "day"?: "YYYY-MM-DD", "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "extend"?: bool} — "items" is the typed selection: whole events, and occurrences of a series by the day the series names them by; "extend" toggles each named item in or out. `id`: null selects nothing; `id`/`day` is the older single-event selection, and replaces the typed set"#),
+        CommandSpec::new("calendar.select", "Select Event", "Calendar", selection::select).reads().params(r#"{"id"?: number | null, "day"?: "YYYY-MM-DD", "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "extend"?: bool} — "items" is the typed selection: whole events, and occurrences of a series by the day the series names them by; "extend" toggles each named item in or out. `id`: null selects nothing; `id`/`day` is the older single-event selection, and replaces the typed set"#),
         CommandSpec::new("calendar.get", "Get Event", "Calendar", get).pure().params(r#"{"id"?: number}"#),
         CommandSpec::new("calendar.list", "List Events", "Calendar", list)
             .pure()
@@ -855,9 +855,11 @@ fn move_event(s: &mut Session, v: &Value) -> CmdResult {
 /// How `calendar.delete` reads what it is to delete.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeleteForm {
-    /// A set: the `items` it names, or, naming no `id`, the typed selection (one item included).
+    /// A set: the `items` it names, or, naming no `id`, a typed selection of two items or more
+    /// (or of one that isn't the item in focus).
     Batch,
-    /// The older one-event form: the event `id` names, or, naming none, the one in focus.
+    /// The older one-event form: the event `id` names, or, naming none, the one in focus, a
+    /// typed selection of that one item alone included (what a plain click selects).
     One,
 }
 
@@ -877,9 +879,16 @@ pub fn delete_form(sel: &crate::Selection, v: &Value) -> Result<DeleteForm, CmdE
         }
         return Ok(DeleteForm::Batch);
     }
-    // A named set, even one occurrence, is one batch; an explicit `id` (even `null`) is always
-    // the one event it names.
-    if v.get("id").is_none() && !sel.events.is_empty() { Ok(DeleteForm::Batch) } else { Ok(DeleteForm::One) }
+    // An explicit `id` (even `null`) is always the one event it names, and `items`, even one
+    // occurrence, is one batch. A typed selection of two or more is one batch too; a selection
+    // of one that has the focus is that one event, as it was before sets: a day of a series is
+    // asked about (just this one, or the entire series) or told by `scope`, as Delete always was.
+    if v.get("id").is_some() || sel.events.is_empty() || one_in_focus(sel) { Ok(DeleteForm::One) } else { Ok(DeleteForm::Batch) }
+}
+
+/// Whether the typed selection is one item alone, and that item has the focus.
+fn one_in_focus(sel: &crate::Selection) -> bool {
+    matches!(sel.events.as_slice(), [only] if sel.event == Some(only.id))
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {

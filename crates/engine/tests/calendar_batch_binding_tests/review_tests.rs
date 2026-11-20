@@ -88,9 +88,15 @@ fn question_for_one_day(day: Date) -> String {
         vec![SelectedEvent { id: f.series, day: Some(day) }],
         "fixture: `calendar.select` made the typed key, so the test asks about a typed selection"
     );
+    // (A set of one in focus is the older Delete of the focus, benandez on #1665: unscoped it is
+    // the entire series, and says so; told the day is meant, it is that day.)
     match agent::check(&f.s, "calendar.delete", &json!({}), &[]) {
+        Verdict::Ask(Class::Delete, said) => assert!(said.contains("all of its occurrences"), "unscoped, the whole series, and said: {said}"),
+        other => panic!("a parameterless delete over the owner's selection is theirs to approve, not {other:?}"),
+    }
+    match agent::check(&f.s, "calendar.delete", &json!({"scope": "occurrence"}), &[]) {
         Verdict::Ask(Class::Delete, said) => said,
-        other => panic!("a parameterless delete over the owner's typed selection is theirs to approve, not {other:?}"),
+        other => panic!("a delete of the day in focus is theirs to approve, not {other:?}"),
     }
 }
 

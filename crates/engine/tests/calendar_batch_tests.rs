@@ -209,7 +209,14 @@ fn hostile_items_are_refused_and_never_take_the_selection() {
     let event = add_event(&mut s, Event { title: "One".into(), start, end: start.add_minutes(30), ..Default::default() });
     s.run("calendar.select", &json!({"id": event})).expect("it is selected");
     let selection = s.sel.clone();
-    let many: Vec<serde_json::Value> = (0..201).map(|_| json!({"id": event})).collect();
+    // (201 different appointments, so that the length of the list is the only thing refused;
+    // naming one appointment twice is a case of its own.)
+    let many: Vec<serde_json::Value> = (0..201i64)
+        .map(|n| {
+            let start = at(d(2026, 11, 5), 0, 0).add_minutes(n);
+            json!({"id": add_event(&mut s, Event { title: format!("Many {n}"), start, end: start.add_minutes(1), ..Default::default() })})
+        })
+        .collect();
     let payloads: Vec<(&str, serde_json::Value)> = vec![
         ("calendar.select", json!({"items": [{}]})),
         ("calendar.select", json!({"items": "an item"})),

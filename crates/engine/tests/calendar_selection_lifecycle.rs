@@ -55,7 +55,12 @@ fn an_agent_cannot_cancel_an_occurrence_of_a_series_the_owner_is_editing() {
     let steps = s.undo_steps_moved();
     let result = s.run("calendar.delete", &json!({"id": series, "scope": "occurrence", "occurrence": day.iso()}));
     let error = result.expect_err("the series is still present, but cancelling its day must protect the owner's changes");
-    assert!(error.to_string().contains("the owner is changing"), "{error}");
+    // (In the words of what it would do: a day of the series goes, it is not taken away whole.)
+    assert_eq!(
+        error.to_string(),
+        "`calendar.delete` would change which days a series has (cancel one of them, or move one out of it as an appointment of its own) while that series is open with changes the owner hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed its window",
+        "{error}"
+    );
     assert!(s.mailbox == before, "the refused cancellation changes nothing");
     assert_eq!(s.sel, selection);
     assert_eq!(s.undo_steps_moved(), steps);

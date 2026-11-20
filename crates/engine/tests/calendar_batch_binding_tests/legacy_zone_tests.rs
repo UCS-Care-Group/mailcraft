@@ -117,7 +117,13 @@ fn a_legacy_occurrence_yes_is_refused_after_the_display_zone_remaps_the_shown_da
         assert_eq!(session.offset_at(instant), zone_b.offset_at(instant), "fixture: the effective offset at the occurrence is the new zone's");
         assert_eq!(session.openings(), openings, "fixture: no mailbox was opened while the question waited");
         assert_eq!(session.mailbox.event(id), Some(&event_before), "fixture: the digest's event bytes are unchanged");
-        assert_eq!(agent::describe(&session, command, &params), what, "fixture: the question's words are unchanged");
+        if command == "calendar.delete" {
+            // (A Delete's question names the day it resolves to now, CodeRabbit C2 on #1665: under
+            // zone B that is the other day, so its words change too.)
+            assert_ne!(agent::describe(&session, command, &params), what, "the Delete's question would now name the other day");
+        } else {
+            assert_eq!(agent::describe(&session, command, &params), what, "fixture: the question's words are unchanged");
+        }
 
         // The same command under the two clocks, in separate Session copies, shows the resolved
         // target. `calendar.delete`/`edit`/`move` all answer the intrinsic `occurrence` day they

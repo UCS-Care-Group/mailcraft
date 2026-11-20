@@ -385,12 +385,19 @@ fn a_copy_whose_id_was_given_to_another_appointment_is_not_pasted() {
     assert_eq!(other, holder, "fixture: the retained id now names a different appointment");
     assert_eq!(opening, w.state().session.openings(), "fixture: it is the same mailbox the copy was taken in");
     let events = w.state().session.mailbox.events.len();
+    // (What Ctrl+C put on the clipboard is a copy of what the id named then: a stale copy, not an
+    // empty clipboard, is what Paste is to refuse.)
+    let held = w.ctx.data(|d| d.get_temp::<Clip>(egui::Id::unique(CLIP_ID))).expect("Ctrl+C put the copy on the calendar's clipboard");
+    assert!(!held.cut && held.items.iter().map(|item| item.id).eq([holder]), "a copy of what the id named then: {:?}", held.items);
 
     // Paste where the sample's review ends: nothing comes of a copy whose event is gone.
     let somewhere = at_three(&w, "Design review");
     click(&mut w, somewhere, Modifiers::NONE, PointerButton::Primary);
+    w.state_mut().status_msg = None;
     chord(&mut w, COMMAND, egui::Key::V);
     w.run_steps(3);
+    let said = w.state().status_msg.as_ref().map(|(said, _)| said.clone()).unwrap_or_default();
+    assert!(said.contains("copy it again"), "Paste says the copy is no longer what was copied: {said:?}");
     assert_eq!(titled(&w, "Something else").len(), 1, "a copy of what holds the id now was made: {:?}", titled(&w, "Something else"));
     assert_eq!(w.state().session.mailbox.events.len(), events, "nothing came of a copy of an event that is gone");
     assert_eq!(
@@ -540,4 +547,207 @@ fn open_in_the_item_menu_opens_the_item_it_was_opened_over() {
     choose_in_menu(&mut w, "Open");
     w.run_steps(3);
     assert_eq!(focused(&w).0, Some(lunch.id), "Open is about the item the menu was opened over");
+    assert!(w.state().windows.of_event(lunch.id).is_some(), "Lunch's own window opened");
+    assert!(w.state().windows.of_event(dentist.id).is_none(), "and not Dentist's");
+}
+
+// ---- F6: one cut day of a series that repeats by a zone of its own ----
+
+/// How the owner cuts and pastes in [`cut_and_paste_at_noon`]: the grid's keys, or the ribbon's Cut and
+/// Paste (`ui.calendarCut`, then `ui.calendarPaste` run as the owner's own command).
+#[derive(Clone, Copy, Debug)]
+enum ZonedRoute {
+    Keys,
+    Ribbon,
+}
+
+/// What the owner answers the question with.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ZonedAnswer {
+    JustThisOne,
+    EntireSeries,
+    Cancel,
+}
+
+/// A window in New York's clock with "London sync", every Thursday at 14:00 by London's clock
+/// from 3 September 2026 (09:00 in New York), and an appointment from 11:00 to 11:30 on `day` to
+/// read the 12:00 row of that day off. Answers the window and the series' id.
+fn london_series(day: Date) -> (Window, Id) {
+    let mut mailbox = mailcraft_engine::sample::mailbox(now(), 0);
+    let calendar = mailbox.default_calendar().expect("the sample has a calendar");
+    let first = at(date(9, 3), 9, 0);
+    let series = mailbox
+        .add_event(Event {
+            title: "London sync".into(),
+            start: first,
+            end: first.add_minutes(30),
+            start_zone: "Europe/London".into(),
+            recurrence: Some(Recurrence::every(Freq::Weekly)),
+            calendar,
+            ..Default::default()
+        })
+        .expect("the calendar takes a series");
+    let anchor = at(day, 11, 0);
+    mailbox
+        .add_event(Event { title: "Noon anchor".into(), start: anchor, end: anchor.add_minutes(30), calendar, ..Default::default() })
+        .expect("the calendar takes an event");
+    let mut w = window_in(mailbox, "America/New_York");
+    let _ = w.state_mut().execute("view.goToDate", json!({ "date": day.iso() }));
+    let _ = w.state_mut().execute("view.week", json!({}));
+    w.run_steps(3);
+    (w, series)
+}
+
+/// The middle of the 12:00 row of the day "Noon anchor" (11:00 to 11:30) is drawn on.
+fn at_noon(w: &Window) -> Pos2 {
+    let block = drawn(w, "Noon anchor");
+    egui::pos2(block.center().x, block.max.y + 0.5 * HOUR_H + 6.0)
+}
+
+/// The "London sync" days that are events of their own now, as (start, end), earliest first.
+fn london_on_their_own(w: &Window) -> Vec<(DateTime, DateTime)> {
+    titled(w, "London sync").into_iter().filter(|event| event.recurrence.is_none()).map(|event| (event.start, event.end)).collect()
+}
+
+/// Where the day `day` of `series` starts in the window's clock.
+fn starts_on(w: &Window, series: &Event, day: Date) -> DateTime {
+    let here = |instant: Timestamp| w.state().session.offset_at(instant);
+    series.occurrence_times(day, &here).0
+}
+
+/// Click the day `day` of "London sync", cut it by `route`, pick 12:00 on that same day and paste
+/// it by `route`. Answers the series as it was before the cut.
+fn cut_and_paste_at_noon(w: &mut Window, series: Id, day: Date, route: ZonedRoute) -> Event {
+    let spot = occurrence(w, series, day).center();
+    click(w, spot, Modifiers::NONE, PointerButton::Primary);
+    assert_eq!(selected(w), [(series, Some(day))], "fixture: a plain click makes a set of one");
+    let before = w.state().session.mailbox.event(series).map(|event| (*event).clone()).expect("fixture: the series is there");
+    match route {
+        ZonedRoute::Keys => chord(w, COMMAND, egui::Key::X),
+        ZonedRoute::Ribbon => {
+            w.state_mut().run("ui.calendarCut", json!({})).expect("the ribbon's Cut takes the day");
+            w.run_steps(2);
+        }
+    }
+    let noon = at_noon(w);
+    click(w, noon, Modifiers::NONE, PointerButton::Primary);
+    match route {
+        ZonedRoute::Keys => chord(w, COMMAND, egui::Key::V),
+        ZonedRoute::Ribbon => {
+            let said = w.state_mut().run("ui.calendarPaste", json!({}));
+            assert_eq!(said.as_ref().ok().and_then(|said| said.get("pending")).and_then(|p| p.as_str()), Some("confirm"), "{said:?}");
+        }
+    }
+    w.run_steps(3);
+    before
+}
+
+/// The series `before` moved whole as main's Cut and Paste moved it (`calendar.move`, `"scope":
+/// "series"`): by as much as the day that was cut, read from the series' own first time of day
+/// on the day it is shown (main's clipboard kept `DateTime { date: shown, ..series.start }`), to
+/// the time picked. Run on the mailbox as it was, in a session of the window's clock.
+fn as_main_moved_it(mailbox: &mailcraft_model::Mailbox, before: &Event, shown: Date, picked: DateTime) -> Event {
+    let zone = Zone::named("America/New_York").expect("a zone of the bundled database");
+    let mut main = mailcraft_engine::Session::in_zone(mailbox.clone(), now(), zone);
+    let by = DateTime { date: shown, ..before.start }.minutes_until(picked);
+    let start = crate::calendar_view::iso_minute(before.start.add_minutes(by));
+    main.run("calendar.move", &json!({ "id": before.id, "start": start, "scope": "series" })).expect("main's move of the whole series");
+    main.mailbox.event(before.id).map(|event| (*event).clone()).expect("the series is there")
+}
+
+/// One day of a series that repeats by London's clock, seen in New York's, cut and pasted at
+/// another time of the same day by the owner (the keys, the ribbon), is asked about as every
+/// other route asks about one day of a series: "Move Recurring Item" (F6 on #1665). Nothing
+/// moves until it is answered. "Just This One" pastes that day by `calendar.paste`, which puts it
+/// at the time picked, also in the week between the change of the clocks in London (25 October)
+/// and in New York (1 November); "The Entire Series" moves the series as main's Cut and Paste
+/// did; Cancel changes nothing and keeps the cut. Each answer is one Undo.
+#[test]
+fn one_cut_day_of_a_zoned_series_pasted_on_its_day_asks_which_and_lands_where_asked() {
+    // 15 October: summer time on both sides (14:00 in London is 09:00 here); 29 October: London
+    // is on winter time and New York still on summer time (14:00 in London is 10:00 here).
+    for (day, shown_at) in [(date(10, 15), 9), (date(10, 29), 10)] {
+        for route in [ZonedRoute::Keys, ZonedRoute::Ribbon] {
+            for answer in [ZonedAnswer::JustThisOne, ZonedAnswer::EntireSeries, ZonedAnswer::Cancel] {
+                let case = format!("{} by {route:?}, {answer:?}", day.iso());
+                let (mut w, series) = london_series(day);
+                let first = w.state().session.mailbox.event(series).map(|event| (*event).clone()).expect("fixture: the series");
+                assert_eq!(starts_on(&w, &first, day), at(day, shown_at, 0), "{case}: fixture: where that day is shown");
+                let mailbox = w.state().session.mailbox.clone();
+                let before = cut_and_paste_at_noon(&mut w, series, day, route);
+                assert_eq!(question(&w).as_deref(), Some("Move Recurring Item"), "{case}: the series question is asked");
+                assert!(w.state().session.mailbox == mailbox, "{case}: nothing moves until it is answered");
+                let picked = at(day, 12, 0);
+                match answer {
+                    ZonedAnswer::Cancel => {
+                        choose_button(&mut w, "Cancel");
+                        assert!(question(&w).is_none(), "{case}: the question is gone");
+                        assert!(w.state().session.mailbox == mailbox, "{case}: nothing changed");
+                        // The cut is still on the clipboard: a time picked again and a paste ask again.
+                        let noon = at_noon(&w);
+                        click(&mut w, noon, Modifiers::NONE, PointerButton::Primary);
+                        chord(&mut w, COMMAND, egui::Key::V);
+                        w.run_steps(3);
+                        assert_eq!(question(&w).as_deref(), Some("Move Recurring Item"), "{case}: the cut is kept, to be pasted again");
+                        continue;
+                    }
+                    ZonedAnswer::JustThisOne => {
+                        choose_button(&mut w, "Just This One");
+                        let after = w.state().session.mailbox.event(series).map(|event| (*event).clone()).expect("the series stays");
+                        assert_eq!(after.exceptions, vec![day], "{case}: only that day left the series");
+                        assert_eq!((after.start, after.end), (before.start, before.end), "{case}: the series is where it was");
+                        assert_eq!(london_on_their_own(&w), [(picked, picked.add_minutes(30))], "{case}: and that day is at the time picked");
+                    }
+                    ZonedAnswer::EntireSeries => {
+                        choose_button(&mut w, "The Entire Series");
+                        let after = w.state().session.mailbox.event(series).map(|event| (*event).clone()).expect("the series stays");
+                        assert!(after.exceptions.is_empty() && london_on_their_own(&w).is_empty(), "{case}: the series moves whole");
+                        let main = as_main_moved_it(&mailbox, &before, day, picked);
+                        assert_eq!(
+                            (after.start, after.end, &after.start_zone, &after.recurrence),
+                            (main.start, main.end, &main.start_zone, &main.recurrence),
+                            "{case}: as main's Cut and Paste moved it"
+                        );
+                        // Every Thursday at 12:00 here, but for the week the clocks disagree, which
+                        // reads an hour later, as it did on main: the series moves by its own
+                        // time of day, not by that week's.
+                        assert_eq!(starts_on(&w, &after, date(10, 22)), at(date(10, 22), 12, 0), "{case}: a week of summer time on both sides");
+                        assert_eq!(starts_on(&w, &after, date(11, 5)), at(date(11, 5), 12, 0), "{case}: a week of winter time on both sides");
+                        let lands = if shown_at == 9 { 12 } else { 13 };
+                        assert_eq!(starts_on(&w, &after, day), at(day, lands, 0), "{case}: that day, as on main");
+                    }
+                }
+                assert!(question(&w).is_none(), "{case}: nothing more is asked of a local series");
+                assert!(w.state_mut().session.undo(), "{case}: one step");
+                w.run_steps(2);
+                assert_eq!(w.state().session.mailbox.event(series).map(|event| (*event).clone()), Some(before), "{case}: one Undo puts it back");
+                assert!(london_on_their_own(&w).is_empty(), "{case}: and takes the day of its own away");
+            }
+        }
+    }
+}
+
+/// The control channel's Paste (`ui.calendarPaste` by `execute`, the route that never asks) of
+/// one cut day of a series that repeats by a zone of its own stays as it was: no question, just
+/// that day, at the time picked, by `calendar.paste` (F6 on #1665 changes the owner's routes only).
+#[test]
+fn the_control_channels_paste_of_one_cut_day_of_a_zoned_series_never_asks() {
+    for day in [date(10, 15), date(10, 29)] {
+        let (mut w, series) = london_series(day);
+        let spot = occurrence(&w, series, day).center();
+        click(&mut w, spot, Modifiers::NONE, PointerButton::Primary);
+        let before = w.state().session.mailbox.event(series).map(|event| (*event).clone()).expect("fixture: the series");
+        w.state_mut().execute("ui.calendarCut", json!({})).expect("the control channel's Cut takes the day");
+        let noon = at_noon(&w);
+        click(&mut w, noon, Modifiers::NONE, PointerButton::Primary);
+        let said = w.state_mut().execute("ui.calendarPaste", json!({})).expect("the control channel's Paste goes through");
+        w.run_steps(3);
+        assert_eq!(said, json!({ "items": 1, "cut": true }), "{}: it answers counts only", day.iso());
+        assert!(question(&w).is_none(), "{}: it never asks", day.iso());
+        let after = w.state().session.mailbox.event(series).map(|event| (*event).clone()).expect("the series stays");
+        assert_eq!(after.exceptions, vec![day], "{}: just that day", day.iso());
+        assert_eq!(after.start, before.start, "{}: the series is where it was", day.iso());
+        let picked = at(day, 12, 0);
+        assert_eq!(london_on_their_own(&w), [(picked, picked.add_minutes(30))], "{}: at the time picked", day.iso());
+    }
 }
