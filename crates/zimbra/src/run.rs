@@ -55,7 +55,34 @@ enum Stop {
     /// The owner called it off.
     Cancelled,
     /// Something went wrong that ends the run: said in the last piece.
-    Failed(Error),
+    Failed(Error, Phase),
+}
+
+#[derive(Clone, Copy)]
+enum Phase {
+    SignIn,
+    Folders,
+    Changes,
+    Messages,
+    Probe,
+    Body,
+}
+
+impl Phase {
+    fn failed(self, error: Error) -> Stop {
+        Stop::Failed(error, self)
+    }
+
+    fn text(self) -> &'static str {
+        match self {
+            Self::SignIn => "signing in",
+            Self::Folders => "listing folders",
+            Self::Changes => "reading mailbox changes",
+            Self::Messages => "reading message headers",
+            Self::Probe => "checking a message",
+            Self::Body => "downloading message bodies",
+        }
+    }
 }
 
 /// A run under way.
@@ -68,15 +95,15 @@ struct Run<'a, E> {
 
 impl<E: HttpExchange> Run<'_, E> {
     /// One exchange, unless the run was called off.
-    async fn ask(&self, request: Result<HttpRequest, Error>) -> Result<HttpResponse, Stop> {
+    async fn ask(&self, phase: Phase, request: Result<HttpRequest, Error>) -> Result<HttpResponse, Stop> {
         if self.cancel.load(Ordering::Relaxed) {
             return Err(Stop::Cancelled);
         }
-        let request = request.map_err(Stop::Failed)?;
+        let request = request.map_err(|e| phase.failed(e))?;
         match self.exchange.exchange(&request).await {
             Ok(response) => Ok(response),
             Err(TransportError::Aborted) => Err(Stop::Cancelled),
-            Err(e) => Err(Stop::Failed(Error::Transport(e))),
+            Err(e) => Err(phase.failed(Error::Transport(e))),
         }
     }
 }
@@ -126,13 +153,13 @@ pub async fn sync_mail<E: HttpExchange>(
     match run(exchange, request, password, cancel, emit).await {
         Ok((token, resume, whole)) => (last.token, last.resume, last.whole) = (token, Some(resume), whole),
         Err(Stop::Cancelled) => last.stopped = true,
-        Err(Stop::Failed(e)) => {
+        Err(Stop::Failed(e, phase)) => {
             match e {
                 Error::AuthRefused | Error::TwoFactor => last.auth_refused = true,
                 Error::Busy(seconds) => last.busy_for = Some(seconds),
                 _ => {}
             }
-            last.errors.push(format!("Couldn't send and receive with the Zimbra server: {e}"));
+            last.errors.push(format!("Couldn't send and receive with the Zimbra server while {}: {e}", phase.text()));
         }
     }
     emit(last);
@@ -150,13 +177,13 @@ async fn run<E: HttpExchange>(
     let base = request.url.trim().trim_end_matches('/').to_string();
     let mut run = Run { exchange, cancel, base, token: Secret::new("") };
     let user = login(&request.username, &request.email);
-    let signed_in = run.ask(auth::request(&run.base, &user, password)).await?;
-    run.token = auth::answer(&signed_in).map_err(Stop::Failed)?;
+    let signed_in = run.ask(Phase::SignIn, auth::request(&run.base, &user, password)).await?;
+    run.token = auth::answer(&signed_in).map_err(|e| Phase::SignIn.failed(e))?;
     let token_ok = !request.token.is_empty() && mailcraft_model::ZimbraServer::token_ok(&request.token);
     if token_ok {
         let listing = folder_listing(&run, request, emit).await?;
         match changes(&run, request, &listing, emit).await {
-            Err(Stop::Failed(Error::MustResync)) => {}
+            Err(Stop::Failed(Error::MustResync, _)) => {}
             done => {
                 let (since, listing, complete) = done?;
                 let resume = resume_folders(&run, request, &listing, emit).await?;
@@ -176,14 +203,14 @@ async fn folder_listing<E: HttpExchange>(
     request: &ZimbraMailRequest,
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) -> Result<folders::Listing, Stop> {
-    let listed = run.ask(folders::request(&run.base, &run.token)).await?;
-    let listing = folders::answer(&listed).map_err(Stop::Failed)?;
+    let listed = run.ask(Phase::Folders, folders::request(&run.base, &run.token)).await?;
+    let listing = folders::answer(&listed).map_err(|e| Phase::Folders.failed(e))?;
     let mut piece = blank(request);
     piece.listing = Some(FolderListing { folders: listing.folders.clone(), complete: listing.complete });
     piece.well_known = listing.well_known.clone();
     piece.partial = true;
     emit(piece);
-    if listing.complete { Ok(listing) } else { Err(Stop::Failed(Error::Unreadable)) }
+    if listing.complete { Ok(listing) } else { Err(Phase::Folders.failed(Error::Unreadable)) }
 }
 
 /// What changed since the request's token, page by page. Answers the token to go on from.
@@ -201,10 +228,10 @@ async fn changes<E: HttpExchange>(
     let mut not_mail: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut since = request.token.clone();
     for _ in 0..MAX_ROUNDS {
-        let answered = run.ask(delta::request(&run.base, &run.token, &since)).await?;
-        let page = delta::answer(&answered, false).map_err(Stop::Failed)?;
+        let answered = run.ask(Phase::Changes, delta::request(&run.base, &run.token, &since)).await?;
+        let page = delta::answer(&answered, false).map_err(|e| Phase::Changes.failed(e))?;
         if page.more && page.token == since {
-            return Err(Stop::Failed(Error::Unreadable));
+            return Err(Phase::Changes.failed(Error::Unreadable));
         }
         let mut messages: Vec<GraphMessage> = Vec::new();
         let mut named: Vec<String> = Vec::new();
@@ -231,10 +258,10 @@ async fn changes<E: HttpExchange>(
             if relisted > MAX_RELISTS {
                 return Ok((since, listing, false));
             }
-            let listed = run.ask(folders::request(&run.base, &run.token)).await?;
-            let again = folders::answer(&listed).map_err(Stop::Failed)?;
+            let listed = run.ask(Phase::Folders, folders::request(&run.base, &run.token)).await?;
+            let again = folders::answer(&listed).map_err(|e| Phase::Folders.failed(e))?;
             if !again.complete {
-                return Err(Stop::Failed(Error::Unreadable));
+                return Err(Phase::Folders.failed(Error::Unreadable));
             }
             let mut piece = blank(request);
             piece.listing = Some(FolderListing { folders: again.folders.clone(), complete: true });
@@ -259,7 +286,7 @@ async fn changes<E: HttpExchange>(
         // would end the run on the same page for ever once one id is truly deleted.
         let returned: std::collections::HashSet<&str> = messages.iter().map(|m| m.server.id.as_str()).collect();
         if named.iter().any(|id| !returned.contains(id.as_str()) && !probed_gone.contains(id.as_str())) {
-            return Err(Stop::Failed(Error::Unreadable));
+            return Err(Phase::Messages.failed(Error::Unreadable));
         }
         let (messages, gone): (Vec<GraphMessage>, Vec<GraphMessage>) = messages.into_iter().partition(|m| mail.contains(m.server.folder.as_str()));
         let mut removed = page.deleted.clone();
@@ -285,14 +312,14 @@ async fn changes<E: HttpExchange>(
 /// server itself answered for by name — gone for certain, which an id a search left out alone
 /// never is.
 async fn messages_by_id<E: HttpExchange>(run: &Run<'_, E>, ids: &[String]) -> Result<(Vec<GraphMessage>, Vec<String>), Stop> {
-    let found = run.ask(items::by_id(&run.base, &run.token, ids)).await?;
+    let found = run.ask(Phase::Messages, items::by_id(&run.base, &run.token, ids)).await?;
     let mut messages = match items::answer(&found) {
         Ok(page) if page.messages.iter().all(|m| ids.contains(&m.server.id)) => page.messages,
-        Ok(_) => return Err(Stop::Failed(Error::Unreadable)),
+        Ok(_) => return Err(Phase::Messages.failed(Error::Unreadable)),
         // The chunk is faulted for an id it no longer has — or for `is:anywhere` walking a folder
         // the server already dropped, which faults any id.
         Err(Error::NoSuchItem) => Vec::new(),
-        Err(e) => return Err(Stop::Failed(e)),
+        Err(e) => return Err(Phase::Messages.failed(e)),
     };
     // Every id the batch didn't return is asked one at a time by `GetMsgRequest`, whether the
     // batch faulted for it or quietly left it out — an index that's behind can do either, and a
@@ -304,11 +331,11 @@ async fn messages_by_id<E: HttpExchange>(run: &Run<'_, E>, ids: &[String]) -> Re
     let have: std::collections::HashSet<String> = messages.iter().map(|m| m.server.id.clone()).collect();
     let mut gone = Vec::new();
     for id in ids.iter().filter(|id| !have.contains(id.as_str())) {
-        let one = run.ask(items::probe(&run.base, &run.token, id)).await?;
+        let one = run.ask(Phase::Probe, items::probe(&run.base, &run.token, id)).await?;
         match items::probe_answer(&one, id) {
             Ok(Some(message)) => messages.push(message),
             Ok(None) => gone.push(id.clone()),
-            Err(e) => return Err(Stop::Failed(e)),
+            Err(e) => return Err(Phase::Probe.failed(e)),
         }
     }
     Ok((messages, gone))
@@ -327,20 +354,22 @@ async fn folder_tail<E: HttpExchange>(
     let fresh = start.is_none();
     let mut cursor = start;
     for page_number in 0..MAX_FOLDER_PAGES {
-        let answered = run.ask(items::folder_page(&run.base, &run.token, folder, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort)))).await?;
-        let page = items::answer(&answered).map_err(Stop::Failed)?;
+        let answered = run
+            .ask(Phase::Messages, items::folder_page(&run.base, &run.token, folder, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort))))
+            .await?;
+        let page = items::answer(&answered).map_err(|e| Phase::Messages.failed(e))?;
         if page.messages.iter().any(|m| m.server.folder != folder) {
-            return Err(Stop::Failed(Error::Unreadable));
+            return Err(Phase::Messages.failed(Error::Unreadable));
         }
         // A page that says more and neither brings a message nor a cursor to follow is no
         // page to go on from: without one, whatever lies behind it is never read.
         if page.more && (page.messages.is_empty() || page.cursor.is_none()) {
-            return Err(Stop::Failed(Error::Unreadable));
+            return Err(Phase::Messages.failed(Error::Unreadable));
         }
         // A page that says more but hands back the cursor it was asked from is no page to go on
         // from either: asking it again would read the same items every run, for ever.
         if page.more && page.cursor == cursor {
-            return Err(Stop::Failed(Error::Unreadable));
+            return Err(Phase::Messages.failed(Error::Unreadable));
         }
         let last = !page.more;
         cursor = page.cursor;
@@ -397,8 +426,8 @@ async fn afresh<E: HttpExchange>(
     request: &ZimbraMailRequest,
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) -> Result<(String, Vec<ZimbraResume>, bool), Stop> {
-    let started = run.ask(delta::request(&run.base, &run.token, "")).await?;
-    let token = delta::answer(&started, true).map_err(Stop::Failed)?.token;
+    let started = run.ask(Phase::Changes, delta::request(&run.base, &run.token, "")).await?;
+    let token = delta::answer(&started, true).map_err(|e| Phase::Changes.failed(e))?.token;
     let listing = folder_listing(run, request, emit).await?;
     let mut order: Vec<&mailcraft_model::sync::GraphFolder> = listing.folders.iter().collect();
     order.sort_by_key(|f| turn(f.kind));
@@ -429,15 +458,15 @@ pub async fn fetch_messages<E: HttpExchange>(exchange: &E, request: &ZimbraFetch
     let base = request.url.trim().trim_end_matches('/').to_string();
     let mut run = Run { exchange, cancel, base, token: Secret::new("") };
     let stop = |out: &mut GraphFetchResult, stop: Stop| {
-        if let Stop::Failed(e) = stop {
+        if let Stop::Failed(e, phase) = stop {
             if let Error::Busy(seconds) = e {
                 out.busy_for = Some(seconds);
             }
             out.offline = matches!(e, Error::Transport(TransportError::Unreachable | TransportError::TimedOut));
-            out.errors.push(format!("Couldn't download messages from the Zimbra server: {e}"));
+            out.errors.push(format!("Couldn't download messages from the Zimbra server while {}: {e}", phase.text()));
         }
     };
-    let signed_in = match run.ask(auth::request(&run.base, &login(&request.username, &request.email), password)).await {
+    let signed_in = match run.ask(Phase::SignIn, auth::request(&run.base, &login(&request.username, &request.email), password)).await {
         Ok(signed_in) => signed_in,
         Err(e) => {
             stop(&mut out, e);
@@ -447,7 +476,7 @@ pub async fn fetch_messages<E: HttpExchange>(exchange: &E, request: &ZimbraFetch
     match auth::answer(&signed_in) {
         Ok(token) => run.token = token,
         Err(e) => {
-            stop(&mut out, Stop::Failed(e));
+            stop(&mut out, Phase::SignIn.failed(e));
             return out;
         }
     }
@@ -462,9 +491,9 @@ pub async fn fetch_messages<E: HttpExchange>(exchange: &E, request: &ZimbraFetch
             out.missing.push(id.clone());
             continue;
         }
-        let answer = match run.ask(asked).await {
+        let answer = match run.ask(Phase::Body, asked).await {
             Ok(response) => fetch::answer(&response),
-            Err(Stop::Failed(Error::Transport(TransportError::BodyTooLarge))) => {
+            Err(Stop::Failed(Error::Transport(TransportError::BodyTooLarge), _)) => {
                 out.too_large.push(id.clone());
                 out.failed.push(id.clone());
                 continue;
@@ -485,7 +514,7 @@ pub async fn fetch_messages<E: HttpExchange>(exchange: &E, request: &ZimbraFetch
             }
             Err(Error::NoSuchItem) => out.missing.push(id.clone()),
             Err(e @ (Error::AuthRefused | Error::Busy(_))) => {
-                stop(&mut out, Stop::Failed(e));
+                stop(&mut out, Phase::Body.failed(e));
                 return out;
             }
             Err(_) => out.failed.push(id.clone()),
