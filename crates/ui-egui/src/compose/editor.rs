@@ -803,7 +803,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     {
         let r = r.translate(origin.to_vec2());
         let corner = Rect::from_center_size(r.right_bottom(), vec2(10.0, 10.0));
-        let handle = ui.interact(corner, id.with("corner"), Sense::drag());
+        let handle = ui.interact(corner, id.with(("corner", pid)), Sense::drag());
         app.hit.add("pictureCorner", u64::from(pid), corner);
         if handle.hovered() || handle.dragged() {
             ctx.set_cursor_icon(egui::CursorIcon::ResizeNwSe);

@@ -267,6 +267,38 @@ fn a_corner_drag_dropped_when_the_selection_leaves_lets_a_click_place_the_caret(
     assert_eq!(sel(&h).head, 0, "a click places the caret");
 }
 
+#[test]
+fn a_corner_drag_is_not_handed_to_another_picture_selected_while_it_is_held() {
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    *board.0.borrow_mut() = (Some(png(40)), None);
+    paste(&mut h);
+    paste(&mut h);
+    let widths = |h: &Window| h.state().session.compose.as_ref().unwrap().pictures.iter().map(|p| p.width).collect::<Vec<_>>();
+    assert_eq!(widths(&h), [None, None]);
+    h.state_mut().execute("compose.select", json!({"from": 0, "to": 1})).unwrap();
+    h.run_steps(2);
+    let first = mailcraft_model::pictures::FIRST_ID;
+    let corner = h.state().hit.rect("pictureCorner", u64::from(first)).expect("the first picture is selected");
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let held = corner.center() + egui::vec2(-40.0, 0.0);
+    h.event(Event::PointerMoved(corner.center()));
+    h.step();
+    h.event(button(corner.center(), true));
+    h.step();
+    h.event(Event::PointerMoved(held));
+    h.step();
+    // A command selects the second picture while the first one's corner is still held.
+    h.state_mut().execute("compose.select", json!({"from": 1, "to": 2})).unwrap();
+    h.run_steps(2);
+    assert!(h.state().hit.rect("pictureCorner", u64::from(first + 1)).is_some(), "the second picture is selected");
+    h.event(Event::PointerMoved(held + egui::vec2(-10.0, 0.0)));
+    h.step();
+    h.event(button(held + egui::vec2(-10.0, 0.0), false));
+    h.run_steps(2);
+    assert_eq!(widths(&h), [None, None], "neither picture takes the width of a drag it didn't start");
+}
+
 fn size_box(h: &Window, name: &str) -> Option<egui::Rect> {
     h.state().hit.rect(name, u64::from(mailcraft_model::pictures::FIRST_ID))
 }
