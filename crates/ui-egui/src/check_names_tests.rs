@@ -26,6 +26,24 @@ fn check_names_candidate_row_text_anchors_to_hebrew_reading_edge_only() {
     assert_eq!(crate::check_names::candidate_text_start_x(row, 100.0, true), 30.0);
 }
 
+#[test]
+fn check_names_description_uses_hebrew_right_reading_edge_and_keeps_english_left() {
+    let ctx = egui::Context::default();
+    let mut observed = None;
+    let raw = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(480.0, 160.0))), ..Default::default() };
+    let output = ctx.run_ui(raw, |ui| {
+        ui.set_width(400.0);
+        let english = crate::check_names::choice_description(ui, "Choose a name", false).rect;
+        let hebrew = crate::check_names::choice_description(ui, "Choose a name", true).rect;
+        observed = Some((english, hebrew, ui.max_rect()));
+    });
+    output.drop_without_applying_deltas();
+    let (english, hebrew, bounds) = observed.expect("both labels painted");
+    assert!(english.left() < bounds.center().x, "English label moved from left edge: {english:?}");
+    assert!(hebrew.left() > english.left() + 40.0, "Hebrew description not right-anchored: {english:?} / {hebrew:?}");
+    assert!(hebrew.right() <= bounds.right() + 1.0, "Hebrew description escaped its row: {hebrew:?} / {bounds:?}");
+}
+
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
 

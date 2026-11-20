@@ -266,13 +266,14 @@ fn paint_candidate_line(painter: &egui::Painter, rect: egui::Rect, y: f32, text:
 }
 
 /// Right-anchor descriptive dialog text in Hebrew; leave English label layout unchanged.
-fn choice_description(ui: &mut Ui, text: impl Into<egui::WidgetText>, rtl: bool) {
+pub(crate) fn choice_description(ui: &mut Ui, text: impl Into<egui::WidgetText>, rtl: bool) -> egui::Response {
     if rtl {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.add(egui::Label::new(text).wrap());
-        });
+            ui.add(egui::Label::new(text).wrap())
+        })
+        .inner
     } else {
-        ui.label(text);
+        ui.label(text)
     }
 }
 
