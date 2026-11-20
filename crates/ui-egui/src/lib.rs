@@ -5014,15 +5014,25 @@ impl MailApp {
         }
     }
 
-    /// Open a file by path (the command line, a drop on the window, the system's Open With): a
-    /// mailbox opens, a message, calendar or contact file is imported, anything else is attached
-    /// to the message being written. A failure shows in the status bar.
+    /// Open a file by path (the command line, the system's Open With): a mailbox opens, a
+    /// message, calendar or contact file is imported, anything else is attached to the message
+    /// being written. A failure shows in the status bar. (A file let go over a window:
+    /// [`let_go`](Self::let_go).)
     pub fn open_path(&mut self, path: &str) {
         // Handed over while the mailbox opens: opened once it is.
         if opening::queue(self, path) {
             return;
         }
         files::dropped_path(self, path);
+    }
+
+    /// A file let go over a window ([`files::let_go`]): `writing` is the message being written
+    /// that window shows, if any; a picture goes into its text when it is in HTML.
+    pub(crate) fn let_go(&mut self, path: &str, writing: Option<u64>) {
+        if opening::queue(self, path) {
+            return;
+        }
+        files::let_go(self, path, writing);
     }
 
     /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
@@ -5326,6 +5336,10 @@ impl MailApp {
         if std::mem::replace(&mut self.signatures_shown, signatures) && !signatures {
             self.leave_signature();
         }
+        // The message the main window writes: the reading pane's, or, where the windows are
+        // inside it, the one in front. (Those of the system take their own: `windows`.)
+        #[cfg(not(target_arch = "wasm32"))]
+        let writing = if ctx.embed_viewports() { windows::compose_window::target(self) } else { windows::compose_window::pane_compose(self) };
         #[cfg(not(target_arch = "wasm32"))]
         for f in ctx.input(|i| i.raw.dropped_files.clone()) {
             // A file let go over the window is the owner's doing.
@@ -5335,7 +5349,7 @@ impl MailApp {
             if signatures && self.session.signature_edit.is_some() {
                 signatures::add_picture(self, json!({"path": path}));
             } else {
-                self.open_path(&path);
+                self.let_go(&path, writing);
             }
         }
         self.by_hand = false;
