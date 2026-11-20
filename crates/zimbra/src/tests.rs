@@ -286,6 +286,76 @@ fn folders_made_between_delta_pages_are_each_listed_and_kept() {
     assert!(!all.pages.iter().any(|p| p.removed.contains(&in_first.to_string()) || p.removed.contains(&in_second.to_string())));
 }
 
+struct Edited {
+    server: StandIn,
+    edit: Box<dyn Fn(&mut serde_json::Value)>,
+}
+
+impl crate::http::HttpExchange for Edited {
+    async fn exchange(&self, request: &crate::http::HttpRequest) -> Result<crate::http::HttpResponse, crate::http::TransportError> {
+        let response = self.server.exchange(request).await?;
+        let mut body: serde_json::Value = serde_json::from_slice(response.body()).unwrap();
+        (self.edit)(&mut body);
+        Ok(crate::http::HttpResponse::new(response.status(), body.to_string().into_bytes()))
+    }
+}
+
+#[test]
+fn exhausting_relists_before_any_page_completes_is_an_error() {
+    let server = StandIn::new();
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    server.deliver(900, "Unresolved folder", "");
+    let next = std::cell::Cell::new(10_000);
+    let changed = Edited {
+        server,
+        edit: Box::new(move |body| {
+            if let Some(children) = body.pointer_mut("/Body/GetFolderResponse/folder/0/folder").and_then(serde_json::Value::as_array_mut) {
+                let id = next.get() + 1;
+                next.set(id);
+                children.push(serde_json::json!({"id":id.to_string(),"l":"1","name":"Churning","view":"message"}));
+            }
+        }),
+    };
+    let all = whole(&collect(&changed, &token));
+    assert!(!all.whole);
+    assert!(all.token.is_empty());
+    assert!(!all.errors.is_empty());
+    assert!(all.pages.is_empty());
+}
+
+#[test]
+fn multibyte_subjects_and_previews_leave_every_emitted_piece_valid() {
+    for text in ["界".repeat(8 * 1024), "\u{20000}".repeat(6 * 1024)] {
+        let server = StandIn::new();
+        server.deliver(2, "Original", "");
+        let edited = Edited {
+            server,
+            edit: Box::new(move |body| {
+                if let Some(messages) = body.pointer_mut("/Body/SearchResponse/m").and_then(serde_json::Value::as_array_mut) {
+                    for message in messages {
+                        message["su"] = serde_json::json!(text);
+                        message["fr"] = serde_json::json!(text);
+                    }
+                }
+            }),
+        };
+        let pieces = collect(&edited, "");
+        for piece in &pieces {
+            assert_eq!(piece.check(), Ok(()));
+        }
+        let all = whole(&pieces);
+        assert!(all.whole && all.errors.is_empty());
+        let messages: Vec<_> = all.pages.iter().flat_map(|page| &page.messages).collect();
+        assert!(!messages.is_empty());
+        assert!(messages.iter().all(|message| {
+            !message.subject.is_ascii()
+                && !message.preview.is_ascii()
+                && message.subject.len() <= crate::json::MAX_TEXT
+                && message.preview.len() <= crate::json::MAX_TEXT
+        }));
+    }
+}
+
 #[test]
 fn folders_made_faster_than_relists_keep_the_last_whole_pages_token() {
     let server = StandIn::new();

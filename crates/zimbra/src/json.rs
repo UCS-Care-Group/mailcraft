@@ -97,6 +97,9 @@ pub(crate) fn checked_on(value: Option<&Value>) -> Option<bool> {
 /// id that isn't one could pass for a different id that is.
 pub(crate) fn own_id(value: Option<&Value>) -> Option<String> {
     let raw = raw(value)?;
+    if raw.chars().any(char::is_control) {
+        return None;
+    }
     let text = raw.trim();
     (!text.is_empty() && text.len() <= 10 && text.bytes().all(|b| b.is_ascii_digit()) && text.bytes().any(|b| b != b'0')).then(|| text.to_string())
 }
@@ -106,6 +109,9 @@ pub(crate) fn own_id(value: Option<&Value>) -> Option<String> {
 /// are read, on the value as sent.
 pub(crate) fn foreign_id(value: Option<&Value>) -> bool {
     let Some(raw) = raw(value) else { return false };
+    if raw.chars().any(char::is_control) {
+        return false;
+    }
     let raw = raw.trim();
     match raw.split_once(':') {
         Some((a, b)) => {

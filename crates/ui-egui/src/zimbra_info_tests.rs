@@ -41,7 +41,7 @@ fn a_zimbra_accounts_secret_is_kept_under_its_address_and_its_server() {
     let (a, imap, id) = app();
     let zimbra = a.session.mailbox.account(id).unwrap().clone();
     let key = MailApp::secret_key("password", &zimbra);
-    assert_eq!(key, "password:ada@zimbra.example|zimbra=https://zimbra.example.org|user=");
+    assert_eq!(key, "password:ada@zimbra.example|zimbra-v2=https://zimbra.example.org|user=");
     let mut other = zimbra.clone();
     other.zimbra.as_mut().unwrap().url = "https://other.example.org".into();
     let mut renamed = zimbra.clone();
