@@ -15,7 +15,7 @@
 use std::collections::HashMap;
 
 use mailcraft_model::sync::FolderDelta;
-use mailcraft_model::{AccountKind, Address, Id, Mailbox, Message, ORIGINAL_PATIENCE, ORIGINAL_TRIES};
+use mailcraft_model::{AccountKind, Address, Id, Mailbox, Message, NOT_DOWNLOADED, ORIGINAL_PATIENCE, ORIGINAL_TRIES};
 use mailcraft_time::Timestamp;
 
 /// Most messages one synchronisation request asks to have downloaded again, over all folders.
@@ -50,9 +50,8 @@ pub fn mark_unreadable(mb: &mut Mailbox) -> usize {
             && !m.draft
             && !m.unfetched
             && !m.incomplete
-            && m.not_downloaded == 0
             && m.moving_out.is_none();
-        if candidate && unreadable(m) {
+        if candidate && (unreadable(m) || m.not_downloaded > 0 || m.has_header(NOT_DOWNLOADED)) {
             std::sync::Arc::make_mut(m).refetch = true;
             marked = marked.saturating_add(1);
         }
@@ -112,7 +111,8 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     // for text read wrongly before (U+FFFD), which is taken from the same download too, as it
     // would have been had it been marked for that. (One being moved into another account, asked
     // for from the copy it came from, alike.)
-    if wanted && (m.draft || !unreadable(m)) {
+    let placeholder = m.not_downloaded > 0 || m.has_header(NOT_DOWNLOADED);
+    if wanted && (m.draft || (!unreadable(m) && !placeholder)) {
         if !m.parts_removed && read.original.is_some() {
             m.original = read.original;
         }
@@ -141,6 +141,11 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     m.hidden_text = read.hidden_text;
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
+    if placeholder {
+        m.not_downloaded = 0;
+        m.remove_header(NOT_DOWNLOADED);
+        m.attachments = read.attachments;
+    }
     // Digitally signed or Encrypted: the bytes it came as (#30), unless a part was removed here:
     // its files aren't taken from this download, so its original would bring a removed one back.
     if read.original.is_some() && !m.parts_removed {

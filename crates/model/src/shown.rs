@@ -177,7 +177,7 @@ fn content_id(src: &[u8]) -> Option<String> {
 }
 
 /// `%40` and the like decoded; anything that isn't a valid escape, or doesn't give UTF-8, is left.
-fn percent_decode(text: &str) -> String {
+pub fn percent_decode(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
