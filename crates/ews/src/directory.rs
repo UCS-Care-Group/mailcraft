@@ -1445,11 +1445,16 @@ pub fn saved(reply: &Reply, operation: &str) -> Result<(String, String), Error> 
     item_id(item).ok_or(Error::Unexpected)
 }
 
-/// Whether a `DeleteItem` answer says it was done.
-pub fn deleted(reply: &Reply) -> Result<(), Error> {
-    let messages = reply.messages("DeleteItem")?;
+/// Check the single response to a write that need not return an item.
+pub fn acknowledged(reply: &Reply, operation: &str) -> Result<(), Error> {
+    let messages = reply.messages(operation)?;
     let [message] = messages.as_slice() else { return Err(Error::Unexpected) };
     message.ok().map(|_| ())
+}
+
+/// Whether a `DeleteItem` answer says it was done.
+pub fn deleted(reply: &Reply) -> Result<(), Error> {
+    acknowledged(reply, "DeleteItem")
 }
 
 /// The response the owner makes to somebody else's invitation.
@@ -1480,9 +1485,7 @@ pub fn meeting_answer(answer: Answer, id: &str, comment: &str) -> Element {
 
 /// The id a response to an invitation was saved under (some servers answer with none).
 pub fn answered(reply: &Reply) -> Result<(), Error> {
-    let messages = reply.messages("CreateItem")?;
-    let [message] = messages.as_slice() else { return Err(Error::Unexpected) };
-    message.ok().map(|_| ())
+    acknowledged(reply, "CreateItem")
 }
 
 #[cfg(test)]
