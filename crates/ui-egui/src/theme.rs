@@ -1704,6 +1704,8 @@ mod tests {
             ("ro", include_str!("../../i18n/po/ro.po")),
             ("pl", include_str!("../../i18n/po/pl.po")),
             ("cs", include_str!("../../i18n/po/cs.po")),
+            // Not ka.po: no bundled font has Georgian. It is drawn by the system's Georgian face
+            // (`GEORGIAN_FACES`) or, in the browser, the face the page fetches (theme_font_tests.rs).
         ];
         let mut chars = BTreeSet::new();
         for (code, text) in catalogues {

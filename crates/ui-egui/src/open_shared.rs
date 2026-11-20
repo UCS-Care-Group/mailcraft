@@ -6,10 +6,11 @@
 //! calendar job reads the calendar at the person's address with the owner's sign-in and says what
 //! came of it ([`MailApp::take_in_opened`]): the calendar appears under Shared Calendars, or the
 //! dialog says why not (no rights, no such person, a grant that can take up to an hour). Reading
-//! other people's calendars takes a permission of its own (`Calendars.ReadWrite.Shared`), asked
-//! for by itself and never with a sign-in: the window asks the owner first, then Microsoft's page
-//! does ([`MailApp::shared_calendars_consent`]). A no takes off the calendars that were never
-//! read, so that a refusal adds nothing.
+//! other people's calendars takes a permission of its own (`Calendars.ReadWrite.Shared`), which a
+//! sign-in's page asks for with everything else; an account that signed in before is put the one
+//! question for an older sign-in when it opens one ([`MailApp::shared_calendars_consent`],
+//! [`crate::server_sync`]). A no takes off the calendars that were never read, so that a refusal
+//! adds nothing.
 //!
 //! When the server comes to list the same person's calendar as well (the invitation was
 //! accepted in Outlook), the owner is offered, once, to remove the copy opened by address.
@@ -20,8 +21,8 @@ use mailcraft_model::Id;
 use mailcraft_model::remote::{OpenedWhy, opened_id};
 use serde_json::{Value, json};
 
+use crate::MailApp;
 use crate::dialogs::{Dialog, Question};
-use crate::{MailApp, Tokens};
 
 /// Whether other people's calendars can be opened under `account` (the engine's rule).
 pub(crate) fn can_open(account: &mailcraft_model::Account) -> bool {
@@ -39,7 +40,7 @@ pub(crate) struct OpenShared {
     pub(crate) offered: HashSet<String>,
     /// The accounts whose owner said no to the permission since the window opened: a job that
     /// starts by itself doesn't ask again.
-    declined: HashSet<Id>,
+    pub(crate) declined: HashSet<Id>,
 }
 
 /// Why a calendar couldn't be opened, in words for the owner.
@@ -164,76 +165,60 @@ impl MailApp {
     }
 
     /// A calendar job found that the sign-in doesn't cover reading other people's calendars: when
-    /// the owner just asked for one, ask whether Microsoft's page may ask them (once); otherwise
-    /// say so in the status bar, unless they said no to it already.
+    /// the owner just asked for one, put the one question for an older sign-in (its page asks for
+    /// this with everything else, [`crate::server_sync`]); otherwise say so in the status bar,
+    /// unless they said no to it already.
     pub(crate) fn shared_calendars_consent(&mut self, account: Id) {
         if self.open_shared.declined.contains(&account) {
             return;
         }
-        if self.open_shared.waiting.as_ref().is_some_and(|(owner, _)| *owner == account) && self.signing_in.is_none() {
-            let text = tl!(
-                "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n\nWhat you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-            );
-            let ask = Question::new(tl!("Open Shared Calendar"), text.to_string(), tl!("Continue"), Value::Null);
-            self.dialog = Some(Dialog::Confirm { command: "ui.allowSharedCalendars".to_string(), params: json!({"account": account}), ask });
-        } else {
-            self.status(tl!("Calendars you opened by address need your permission to be read: open one again to be asked").to_string());
-            self.open_shared.declined.insert(account);
+        let asked_for = self.open_shared.waiting.as_ref().is_some_and(|(owner, _)| *owner == account);
+        // (The Open Shared Calendar dialog that made the request stays up while the job runs: the
+        // question takes its place, and a no still answers the request, in the status bar.)
+        let own_dialog = matches!(self.dialog, Some(Dialog::OpenCalendar { account: owner, .. }) if owner == account);
+        let kept = if asked_for && own_dialog { self.dialog.take() } else { None };
+        if asked_for && self.signing_in.is_none() && self.dialog.is_none() && self.ask_sync_again(account) {
+            return;
+        }
+        if kept.is_some() {
+            self.dialog = kept;
+        }
+        let said = tl!("Calendars you opened by address need your permission to be read: open one again to be asked").to_string();
+        // (A request the owner just made is answered, not left waiting: another dialog is up.)
+        if asked_for {
+            self.opened_not_allowed(account, said.clone());
+        }
+        self.status(said);
+        self.open_shared.declined.insert(account);
+    }
+
+    /// Whether calendars opened by address under `account` wait for the owner's permission.
+    pub(crate) fn opened_waits(&self, account: Id) -> bool {
+        let has = self.session.mailbox.account(account).is_some_and(|a| !a.opened_calendars.is_empty());
+        has && (self.open_shared.declined.contains(&account) || self.opened_waiting_for(account))
+    }
+
+    /// Whether a calendar was just opened by address under `account` and waits to be read.
+    pub(crate) fn opened_waiting_for(&self, account: Id) -> bool {
+        self.open_shared.waiting.as_ref().is_some_and(|(owner, _)| *owner == account)
+    }
+
+    /// The owner allowed reading other people's calendars: those opened by address are read now.
+    pub(crate) fn opened_allowed(&mut self, account: Id) {
+        self.open_shared.declined.remove(&account);
+        if self.session.mailbox.account(account).is_some_and(|a| !a.opened_calendars.is_empty()) {
+            self.read_opened_now(account);
         }
     }
 
-    /// `ui.allowSharedCalendars` for an account that opens calendars by address: Microsoft's page,
-    /// for reading other people's calendars too (the same permission as a shared mailbox's
-    /// calendars take, asked for without what shared mailboxes' mail takes).
-    pub(crate) fn begin_opened_calendars_sign_in(&mut self, account: Id) -> Result<Value, String> {
-        let owner = self.session.mailbox.account(account).filter(|a| a.oauth.is_some()).cloned();
-        let owner = owner.ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
-        let oauth = owner.oauth.clone().ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
-        self.shared_calendars_next = true;
-        let begun = self.begin_sign_in(owner.id, oauth, &owner.email, String::new(), false, true);
-        self.shared_calendars_next = false;
-        begun?;
-        self.session.sync_status = tl!("Allow MailCraft to read other people's calendars on the page that opened in your browser…").to_string();
-        Ok(json!({"pending": "signIn", "account": owner.id}))
-    }
-
-    /// The owner answered on Microsoft's page about other people's calendars: with the tokens,
-    /// the calendars are read now; without, those that were never read come off the list, and
-    /// why not is said.
-    pub(crate) fn opened_calendars_signed_in(&mut self, account: Id, answer: Result<Tokens, String>) {
-        use crate::approval::NO_BROWSER;
-        use crate::favorites_sync::{NEEDS_APPROVAL, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT};
-        self.session.sync_status.clear();
-        let said = match answer {
-            // (Somebody else's tokens are neither used nor remembered, #103.)
-            Ok(tokens) if self.signed_in_as_other(account, &tokens) => return,
-            Ok(tokens) => {
-                if !tokens.refresh.is_empty() {
-                    self.remember("refresh", account, &tokens.refresh);
-                    if let Some(kept) = self.tokens.get_mut(&account) {
-                        kept.refresh = tokens.refresh.clone();
-                    }
-                }
-                self.graph_tokens.insert(account, tokens);
-                self.open_shared.declined.remove(&account);
-                self.read_opened_now(account);
-                return;
-            }
-            Err(e) if e == NEEDS_APPROVAL => {
-                tl!("Your organisation's administrator has to approve reading other people's calendars once: File › Info").to_string()
-            }
-            Err(e) if e == REFUSED_BY_ORGANISATION || e == REFUSED_FOR_ACCOUNT || e == NO_BROWSER => e,
-            Err(e) => crate::i18n::fmt(tl!("Other people's calendars weren't allowed: {error}"), &[("error", &e)]),
-        };
-        // Nothing was refused by the server about a calendar, but the owner said no: what was
-        // never read comes off the list again, so that nothing is added by a no.
+    /// The owner didn't allow it (`said` is why): what was never read comes off the list again, so
+    /// that nothing is added by a no, and the dialog says why.
+    pub(crate) fn opened_not_allowed(&mut self, account: Id, said: String) {
         self.open_shared.declined.insert(account);
         self.drop_unread_opened(account);
-        self.open_shared.outcome = Some(Err(said.clone()));
-        self.open_shared.waiting = None;
-        self.status(said.clone());
-        if said.contains("administrator") {
-            let _ = self.run("ui.approvalHelp", json!({"account": account}));
+        if self.opened_waiting_for(account) {
+            self.open_shared.outcome = Some(Err(said));
+            self.open_shared.waiting = None;
         }
     }
 

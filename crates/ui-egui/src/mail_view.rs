@@ -559,7 +559,9 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let below = if searching { server_rows::height(app, &local, server_h) } else { 0.0 };
     let overlay = app.overlay_scroll_bars;
     let lane_w = lane_width(app);
+    let swipe_scope = crate::swipe::Scope { opening: app.session.openings(), folder: app.session.view.folder, list: ui.scope_id() };
     if rows.is_empty() {
+        crate::swipe::reconcile(ui, swipe_scope, |_, _| false);
         let r = ui.available_rect_before_wrap();
         let msg = if searching {
             tl!("Nothing matches the search.")
@@ -650,6 +652,13 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         }
         // Only the rows in view are laid out.
         let first = tops.partition_point(|top| top + row_h < viewport.min.y).saturating_sub(1);
+        crate::swipe::reconcile(ui, swipe_scope, |id, copy| {
+            rows.iter()
+                .enumerate()
+                .skip(first)
+                .take_while(|(i, _)| tops.get(*i).is_some_and(|top| *top <= viewport.max.y))
+                .any(|(i, row)| row.id == id && row.copy == copy && tops.get(i).is_some_and(|top| *top + row_h > viewport.min.y))
+        });
         for (i, row) in rows.iter().enumerate().skip(first) {
             let Some(top) = tops.get(i).copied() else { break };
             if top - GROUP_H > viewport.max.y {
@@ -668,7 +677,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            message_row(app, ui, row, rect, &drawn, focus);
+            message_row(app, ui, row, rect, &drawn, focus, swipe_scope);
         }
         if below > 0.0 {
             server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
@@ -872,7 +881,50 @@ fn drawn_selection(app: &mut MailApp, rows: &Arc<Vec<Row>>) -> Arc<Drawn> {
     drawn
 }
 
-fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>) {
+fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>, scope: crate::swipe::Scope) {
+    let over = ui.rect_contains_pointer(rect) && egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()).is_none();
+    let swipe = crate::swipe::input(ui, scope, (row.id, row.copy), &row.members, over, rect.width(), (app.ui.swipe_left, app.ui.swipe_right));
+    if let Some((action, members)) = swipe.completed
+        && let Some(command) = action.command()
+    {
+        let _ = app.run(command, json!({"ids": members}));
+        return;
+    }
+    if swipe.offset.abs() < 0.1 {
+        return message_row_content(app, ui, row, rect, drawn, focus);
+    }
+    let t = Tokens::get(ui.ctx());
+    let (background, ink) = if swipe.action == crate::swipe::Action::Delete {
+        (t.red, if ui.visuals().dark_mode { t.ink_on_light } else { Color32::WHITE })
+    } else {
+        (t.accent, t.on_accent)
+    };
+    let p = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+    p.rect_filled(rect, 0.0, background);
+    let left = swipe.offset > 0.0;
+    let edge = if left { rect.min.x } else { rect.max.x };
+    let center = pos2(edge + if left { 28.0 } else { -28.0 }, rect.center().y);
+    let icon_rect = Rect::from_center_size(center, vec2(20.0, 20.0));
+    icons::paint(&p, icon_rect, swipe.action.code(), ink, ink);
+    if swipe.offset.abs() > 90.0 {
+        let x = edge + if left { 46.0 } else { -46.0 };
+        p.text(
+            pos2(x, rect.center().y),
+            if left { Align2::LEFT_CENTER } else { Align2::RIGHT_CENTER },
+            swipe.action.label(),
+            regular(LIST_TEXT),
+            ink,
+        );
+    }
+    let moved = rect.translate(vec2(swipe.offset, 0.0));
+    p.rect_filled(moved, 0.0, t.surface);
+    ui.scope(|ui| {
+        ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+        message_row_content(app, ui, row, moved, drawn, focus);
+    });
+}
+
+fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };
@@ -1221,7 +1273,11 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     // Dragging a row carries it to a folder: the whole selection when the row is part of it,
     // otherwise just what the row stands for.
     if resp.drag_started() {
-        let ids: Vec<Id> = if selected { app.session.acting_on() } else { row.members.clone() };
+        let mut ids: Vec<Id> = if selected { app.session.acting_on() } else { row.members.clone() };
+        // The row grabbed first: what a drop on the module bar opens (#873).
+        if let Some(at) = ids.iter().position(|id| *id == row.id) {
+            ids[..=at].rotate_right(1);
+        }
         resp.dnd_set_drag_payload(MessageDrag(ids));
     }
     if let Some((delete, flag)) = &quick {
@@ -1287,10 +1343,22 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, "Forward", "mail.forward", json!({}));
         mi(ui, app, "Forward as Attachment", "mail.forwardAsAttachment", json!({}));
         ui.separator();
-        mi(ui, app, if read { "Mark as Unread" } else { "Mark as Read" }, if read { "mail.markUnread" } else { "mail.markRead" }, json!({}));
-        mi(ui, app, if flagged { "Clear Flag" } else { "Follow Up" }, if flagged { "mail.clearFlag" } else { "mail.flag" }, json!({}));
+        mi(
+            ui,
+            app,
+            if read { tl_later!("Mark as Unread") } else { tl_later!("Mark as Read") },
+            if read { "mail.markUnread" } else { "mail.markRead" },
+            json!({}),
+        );
+        mi(
+            ui,
+            app,
+            if flagged { tl_later!("Clear Flag") } else { tl_later!("Follow Up") },
+            if flagged { "mail.clearFlag" } else { "mail.flag" },
+            json!({}),
+        );
         crate::ribbon::follow_up_items(ui, app);
-        mi(ui, app, if pinned { "Unpin" } else { "Pin" }, "mail.pin", json!({}));
+        mi(ui, app, if pinned { tl_later!("Unpin") } else { tl_later!("Pin") }, "mail.pin", json!({}));
         ui.menu_button(tl!("Categorize"), |ui| {
             let ids = app.session.sel.messages.clone();
             let accounts = crate::ribbon::selected_accounts(app);
@@ -1352,6 +1420,8 @@ mod list_height_tests;
 mod open_conversation_tests;
 #[cfg(test)]
 mod overlay_scroll_tests;
+#[cfg(test)]
+mod wheel_scroll_tests;
 
 #[cfg(test)]
 mod tests {

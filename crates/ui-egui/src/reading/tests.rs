@@ -1329,8 +1329,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 22,
-        "reading.rs, colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
+        checked, 28,
+        "reading.rs, attachment pictures (and its tests), backdrop (and its tests), colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, react (and its tests), select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
     );
 }
 
@@ -2340,6 +2340,8 @@ fn what_is_kept_of_pictures_is_said_and_cleared_in_the_options() {
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
     assert!(says(&harness, "12 downloaded pictures are kept on this computer (3.2 MB)."));
+    harness.get_by_label("Clear").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Clear").click();
     harness.run_steps(4);
     assert_eq!(*kept.cleared.lock().unwrap(), 1);
@@ -4147,12 +4149,14 @@ fn the_selection_commands_take_anything_and_never_panic() {
 
 // ---- meetings that arrive as mail ----
 
+mod bg_pictures;
 mod inline_blocks;
 mod invitation;
 mod primary;
 mod remote_bar_why;
 mod remote_server;
 mod responsive;
+mod rtl;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
@@ -4804,6 +4808,8 @@ fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
 
     // File › Options shows the switch, ticked; off there asks nothing, and the bar offers it again.
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail automatically").scroll_to_me();
     harness.run_steps(3);
     harness.get_by_label("Download pictures in mail automatically").click();
     harness.run_steps(3);

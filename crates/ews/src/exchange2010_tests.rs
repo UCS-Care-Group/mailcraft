@@ -169,8 +169,9 @@ fn a_message_on_exchange_2010_is_marked_read_with_its_change_key() {
     let change =
         |message, id: &str| MessageChange::Update { message, id: id.to_owned(), read: Some(true), flag: None, categories: None, importance: None };
     let result = run(&standin, &EwsMailRequest { messages: vec![change(1, &first), change(2, &second)], ..request() });
-    for at in 0..2 {
-        assert!(matches!(result.messages[at].outcome, MessageOutcome::Done { .. }), "{:?}", result.messages[at].outcome);
+    assert_eq!(result.messages.len(), 2);
+    for message in &result.messages {
+        assert!(matches!(message.outcome, MessageOutcome::Done { .. }), "{:?}", message.outcome);
     }
     let state = standin.state();
     assert!(state.item(&first).unwrap().read && state.item(&second).unwrap().read);
@@ -230,8 +231,9 @@ fn a_flag_stays_here_and_the_read_mark_goes_up_on_exchange_2010() {
         importance: None,
     };
     let result = run(&standin, &EwsMailRequest { messages: vec![change(1, &one), change(2, &two)], ..request() });
-    for at in 0..2 {
-        assert!(matches!(result.messages[at].outcome, MessageOutcome::Refused { .. }), "{:?}", result.messages[at].outcome);
+    assert_eq!(result.messages.len(), 2);
+    for message in &result.messages {
+        assert!(matches!(message.outcome, MessageOutcome::Refused { .. }), "{:?}", message.outcome);
     }
     assert!(!standin.state().item(&one).unwrap().read);
     assert_eq!(codes(&standin, "UpdateItem"), ["ErrorChangeKeyRequiredForWriteOperations", "ErrorSchemaValidation", "ErrorSchemaValidation"]);
