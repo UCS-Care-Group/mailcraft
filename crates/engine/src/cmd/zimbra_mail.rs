@@ -191,9 +191,12 @@ fn apply_fetch(s: &mut Session, v: &Value) -> CmdResult {
 
 /// The account a result is for, when it may take it in: a Zimbra account, the one the run was for,
 /// at the server the run read when the result says which. Answers its name.
-fn receiving(mb: &Mailbox, account: Id, email: &str, url: &str) -> Result<String, CmdError> {
+fn receiving(mb: &Mailbox, account: Id, email: &str, url: &str, username: Option<&str>) -> Result<String, CmdError> {
     let (a, server) = zimbra_account(mb, account)?;
-    if !email.is_empty() && !a.email.trim().eq_ignore_ascii_case(email.trim()) {
+    let login = if server.username.trim().is_empty() { a.email.trim() } else { server.username.trim() };
+    if (!email.is_empty() && !a.email.trim().eq_ignore_ascii_case(email.trim()))
+        || username.is_some_and(|name| name.trim().to_lowercase() != login.to_lowercase())
+    {
         return Err(failed!("this Send/Receive was for another account, not for {name}", name = a.name));
     }
     if !url.is_empty() && server.base() != url.trim().trim_end_matches('/') {
@@ -219,10 +222,17 @@ pub fn apply_zimbra_mail(s: &mut Session, result: ZimbraMailResult) -> CmdResult
 fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     result.check().map_err(|why| failed!("the result {why}", why = mailcraft_i18n::Arg::words(why)))?;
     let account = result.account;
-    let name = receiving(&s.mailbox, account, &result.email, &result.url)?;
+    let name = receiving(&s.mailbox, account, &result.email, &result.url, Some(&result.username))?;
     // A piece of a run that went on from another token than the account's: the mailbox has moved
     // on, or back, since the run began, and the piece would carry it past what was lost.
-    let at = s.mailbox.account(account).and_then(|a| a.zimbra.as_ref()).map(|z| z.token.clone()).unwrap_or_default();
+    let at = s
+        .mailbox
+        .account(account)
+        .and_then(|a| a.zimbra.as_ref())
+        .map(|z| &z.token)
+        .filter(|token| ZimbraServer::token_ok(token))
+        .cloned()
+        .unwrap_or_default();
     if result.from != at {
         return Err(fail("this Send/Receive went on from where the account no longer is: the next one reads again"));
     }
@@ -233,7 +243,9 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     let mut taken = Taken::default();
     let mut down = Down::default();
     if let Some(listing) = &result.listing {
-        down.removed = zimbra_down::take_folders(&mut s.mailbox, account, listing, &result.well_known, &mut taken);
+        let mut additions = listing.clone();
+        additions.complete = false;
+        zimbra_down::take_folders(&mut s.mailbox, account, &additions, &result.well_known, &mut taken);
     }
     let mut index = std::mem::take(&mut s.graph_index);
     for page in &result.pages {
@@ -256,6 +268,9 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     // a run leaves no folder half-read.
     if !result.partial && !run_cut {
         if result.whole && result.resume.as_ref().is_none_or(Vec::is_empty) {
+            if let Some(listing) = &result.listing {
+                down.removed += zimbra_down::take_folders(&mut s.mailbox, account, listing, &result.well_known, &mut taken);
+            }
             graph_down::sweep(&mut s.mailbox, account, None, &mut down);
         }
         if !result.token.is_empty()
@@ -311,7 +326,7 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
 /// for the account they were fetched for.
 pub fn apply_zimbra_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult {
     let account = result.account;
-    receiving(&s.mailbox, account, &result.email, "")?;
+    receiving(&s.mailbox, account, &result.email, "", None)?;
     let result = super::ews_down::bounded_fetch(result);
     let missing: Vec<(Id, String)> = result.missing.iter().map(|id| (account, id.clone())).collect();
     let answer = graph_mail::apply_graph_fetch(s, result)?;

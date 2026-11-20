@@ -20,6 +20,7 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
             let _ = mailcraft_zimbra::delta::answer(&response, first);
         }
         let _ = mailcraft_zimbra::items::answer(&response);
+        let _ = mailcraft_zimbra::items::probe_answer(&response, "257");
         let _ = mailcraft_zimbra::fetch::answer(&response);
     }
 });

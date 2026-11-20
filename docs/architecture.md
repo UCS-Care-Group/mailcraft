@@ -108,7 +108,12 @@ can be avoided, no `TODO`); each file carries the SPDX lines (`cargo xtask spdx`
    `sync.zimbraFetchRequest` build requests, and `sync.applyZimbra` and `sync.applyZimbraFetch`
    validate and apply host results. They perform no server I/O; normal desktop/CLI Send/Receive
    still needs host-runner wiring. With the switch off, those commands refuse, while a Zimbra
-   account in a mailbox opens and shows its downloaded mail without synchronising.
+   account in a mailbox opens and shows its downloaded mail without synchronising. Each sync
+   result echoes the effective sign-in name in `username` (the account's email address when no
+   user name was set), which is checked before any part is applied and stays out of debug output.
+   Successful protocol runs repeat the latest complete folder listing in their final piece;
+   missing folders are pruned only after the messages have been reconciled, never from an early
+   listing, a stopped or cut run, or while any folder resume remains unfinished.
 5. **Save:** the desktop app writes the mailbox file a few seconds after each change and on
    exit; the browser writes to its storage; File › Save As and the exports write other files (a
    download in the browser).

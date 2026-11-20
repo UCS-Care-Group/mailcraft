@@ -40,6 +40,7 @@ fn result() -> ZimbraMailResult {
         account: 3,
         email: ME.into(),
         url: URL.into(),
+        username: "private-login".into(),
         listing: Some(FolderListing {
             folders: vec![GraphFolder { id: "2".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }],
             complete: true,
@@ -85,6 +86,16 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
     assert_eq!((whole.pages.len(), whole.errors.len(), whole.from.as_str(), whole.token.as_str()), (3, 2, "4711", "4713"));
     assert_eq!((whole.partial, whole.whole, whole.email.as_str(), whole.url.as_str()), (false, true, ME, URL));
     assert!(whole.listing.is_some());
+    assert_eq!(whole.username, "private-login");
+}
+
+#[test]
+fn result_login_identity_is_bounded_and_never_cleaned_into_another_name() {
+    for username in ["bad\nlogin".to_string(), "界".repeat(crate::ZimbraServer::MAX_USERNAME + 1)] {
+        let mut odd = result();
+        odd.username = username;
+        assert!(odd.check().is_err());
+    }
 }
 
 #[test]
@@ -119,7 +130,7 @@ fn what_is_out_of_bounds_is_refused_whole() {
 #[test]
 fn debug_output_holds_counts_only() {
     let shown = format!("{:?} {:?} {:?}", request(), result(), result().pages[0]);
-    for secret in [ME, "secret-host", "4711", "4712", "Secret subject", "260", "abab"] {
+    for secret in [ME, "secret-host", "private-login", "4711", "4712", "Secret subject", "260", "abab"] {
         assert!(!shown.contains(secret), "{secret} in {shown}");
     }
     let fetch = ZimbraFetchRequest { account: 3, email: ME.into(), url: URL.into(), ids: vec!["260".into()], ..Default::default() };

@@ -68,6 +68,13 @@ enum Phase {
     Body,
 }
 
+struct Finished {
+    token: String,
+    resume: Vec<ZimbraResume>,
+    whole: bool,
+    listing: folders::Listing,
+}
+
 impl Phase {
     fn failed(self, error: Error) -> Stop {
         Stop::Failed(error, self)
@@ -116,6 +123,7 @@ fn blank(request: &ZimbraMailRequest) -> ZimbraMailResult {
         account: request.account,
         email: request.email.clone(),
         url: request.url.clone(),
+        username: login(&request.username, &request.email),
         from: if mailcraft_model::ZimbraServer::token_ok(&request.token) { request.token.clone() } else { String::new() },
         ..ZimbraMailResult::default()
     }
@@ -151,7 +159,13 @@ pub async fn sync_mail<E: HttpExchange>(
 ) {
     let mut last = blank(request);
     match run(exchange, request, password, cancel, emit).await {
-        Ok((token, resume, whole)) => (last.token, last.resume, last.whole) = (token, Some(resume), whole),
+        Ok(done) => {
+            (last.token, last.resume, last.whole) = (done.token, Some(done.resume), done.whole);
+            if done.whole {
+                last.listing = Some(FolderListing { folders: done.listing.folders, complete: done.listing.complete });
+                last.well_known = done.listing.well_known;
+            }
+        }
         Err(Stop::Cancelled) => last.stopped = true,
         Err(Stop::Failed(e, phase)) => {
             match e {
@@ -173,7 +187,7 @@ async fn run<E: HttpExchange>(
     password: &Secret,
     cancel: &AtomicBool,
     emit: &mut dyn FnMut(ZimbraMailResult),
-) -> Result<(String, Vec<ZimbraResume>, bool), Stop> {
+) -> Result<Finished, Stop> {
     let base = request.url.trim().trim_end_matches('/').to_string();
     let mut run = Run { exchange, cancel, base, token: Secret::new("") };
     let user = login(&request.username, &request.email);
@@ -188,7 +202,7 @@ async fn run<E: HttpExchange>(
                 let (since, listing, complete) = done?;
                 let resume = resume_folders(&run, request, &listing, emit).await?;
                 let whole = complete && resume.is_empty();
-                return Ok((since, resume, whole));
+                return Ok(Finished { token: since, resume, whole, listing });
             }
         }
     }
@@ -421,11 +435,7 @@ async fn resume_folders<E: HttpExchange>(
 /// Every folder read from its start. The token is asked for **before** the folders are listed,
 /// so that what another program does while the folders are read is part of the delta that goes on
 /// from the run, not of a read that has already passed it by.
-async fn afresh<E: HttpExchange>(
-    run: &Run<'_, E>,
-    request: &ZimbraMailRequest,
-    emit: &mut dyn FnMut(ZimbraMailResult),
-) -> Result<(String, Vec<ZimbraResume>, bool), Stop> {
+async fn afresh<E: HttpExchange>(run: &Run<'_, E>, request: &ZimbraMailRequest, emit: &mut dyn FnMut(ZimbraMailResult)) -> Result<Finished, Stop> {
     let started = run.ask(Phase::Changes, delta::request(&run.base, &run.token, "")).await?;
     let token = delta::answer(&started, true).map_err(|e| Phase::Changes.failed(e))?.token;
     let listing = folder_listing(run, request, emit).await?;
@@ -449,7 +459,7 @@ async fn afresh<E: HttpExchange>(
         }
     }
     let whole = left.is_empty();
-    Ok((token, left, whole))
+    Ok(Finished { token, resume: left, whole, listing })
 }
 
 /// Fetch the messages `request` names whole, signing in with `password`.

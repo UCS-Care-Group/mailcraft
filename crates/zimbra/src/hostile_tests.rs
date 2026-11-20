@@ -62,6 +62,7 @@ proptest! {
         let _ = auth::answer(&response);
         let _ = folders::answer(&response);
         let _ = items::answer(&response);
+        let _ = items::probe_answer(&response, "257");
         let _ = delta::answer(&response, false);
         let _ = delta::answer(&response, true);
         let _ = fetch::answer(&response);

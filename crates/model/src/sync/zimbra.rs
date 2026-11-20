@@ -196,6 +196,8 @@ pub struct ZimbraMailResult {
     /// account names another server. Never logged.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub username: String,
     /// What became of the changes of folders sent.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub changes: Vec<FolderChangeDone>,
@@ -309,6 +311,9 @@ impl ZimbraMailResult {
         const ODD_ID: &str = "has a server id that can't be one";
         if self.email.chars().count() > crate::ZimbraServer::MAX_USERNAME || self.url.chars().count() > crate::ZimbraServer::MAX_URL {
             return Err("names an account or a server that is too long");
+        }
+        if crate::ZimbraServer::check_username(&self.username).is_err() {
+            return Err("has a user name that can't be one");
         }
         if self.pages.len() > MAX_ZIMBRA_PAGES || self.errors.len() > MAX_ZIMBRA_ERRORS {
             return Err(TOO_MANY);
@@ -443,9 +448,13 @@ impl ZimbraMailResult {
     /// and the rest in the order they came, and what the last piece says of the end.
     pub fn absorb(&mut self, piece: ZimbraMailResult) {
         self.account = piece.account;
-        for (mine, theirs) in
-            [(&mut self.email, piece.email), (&mut self.url, piece.url), (&mut self.from, piece.from), (&mut self.token, piece.token)]
-        {
+        for (mine, theirs) in [
+            (&mut self.email, piece.email),
+            (&mut self.url, piece.url),
+            (&mut self.username, piece.username),
+            (&mut self.from, piece.from),
+            (&mut self.token, piece.token),
+        ] {
             if !theirs.is_empty() {
                 *mine = theirs;
             }

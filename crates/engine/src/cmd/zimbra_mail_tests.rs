@@ -51,11 +51,85 @@ fn mail(id: &str, folder: &str, subject: &str, read: bool) -> GraphMessage {
 }
 
 fn result(account: Id, from: &str) -> ZimbraMailResult {
-    ZimbraMailResult { account, email: ME.into(), url: URL.into(), from: from.into(), ..Default::default() }
+    ZimbraMailResult { account, email: ME.into(), url: URL.into(), username: ME.into(), from: from.into(), ..Default::default() }
 }
 
 fn apply(s: &mut Session, r: ZimbraMailResult) -> Value {
     s.run("sync.applyZimbra", &json!({"result": r})).unwrap()
+}
+
+#[test]
+fn a_login_change_refuses_pieces_from_the_previous_login_before_listing() {
+    let (mut s, account) = session();
+    s.run("sync.zimbraRequest", &json!({"account": account})).unwrap();
+    s.run("account.edit", &json!({"id": account, "zimbra": {"username": "another"}})).unwrap();
+    let before = s.mailbox.clone();
+    let mut old = result(account, "");
+    old.listing = Some(listing());
+    old.partial = true;
+    assert!(s.run("sync.applyZimbra", &json!({"result": old})).is_err());
+    assert_eq!(s.mailbox, before);
+}
+
+#[test]
+fn sync_pieces_without_login_identity_are_refused_without_mailbox_changes() {
+    let (mut s, account) = session();
+    let before = s.mailbox.clone();
+    let mut piece = result(account, "");
+    piece.username.clear();
+    piece.listing = Some(listing());
+    piece.partial = true;
+    assert!(s.run("sync.applyZimbra", &json!({"result": piece})).is_err());
+    assert_eq!(s.mailbox, before);
+}
+
+#[test]
+fn an_unusable_saved_token_can_be_replaced_by_a_fresh_result() {
+    for bad in ["has spaces".to_string(), "\u{0}".into(), "x".repeat(257)] {
+        let (mut s, account) = session();
+        s.mailbox.account_mut(account).unwrap().zimbra.as_mut().unwrap().token = bad;
+        let request: ZimbraMailRequest = serde_json::from_value(s.run("sync.zimbraRequest", &json!({"account": account})).unwrap()).unwrap();
+        assert!(request.token.is_empty());
+        let mut fresh = result(account, "");
+        fresh.listing = Some(listing());
+        (fresh.token, fresh.whole, fresh.resume) = ("4711".into(), true, Some(Vec::new()));
+        apply(&mut s, fresh);
+        assert_eq!(s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap().token, "4711");
+    }
+}
+
+#[test]
+fn missing_folders_keep_their_mail_until_reconciliation_finishes() {
+    for finish in [true, false] {
+        let (mut s, account) = session();
+        first_read(&mut s, account);
+        let id = s.mailbox.messages.values().find(|m| m.subject == "Filed").unwrap().id;
+        let mut listed = result(account, "4711");
+        let mut folders = listing();
+        folders.folders.retain(|f| f.id != "300");
+        folders.folders.push(folder("301", "", "Archive", FolderKind::Custom));
+        listed.listing = Some(folders.clone());
+        listed.partial = true;
+        apply(&mut s, listed);
+        assert!(s.mailbox.folder_by_server(account, "300").is_some());
+        assert!(s.mailbox.messages.contains_key(&id));
+        let mut end = result(account, "4711");
+        if finish {
+            let mut moved = result(account, "4711");
+            moved.partial = true;
+            moved.pages.push(ZimbraMessagePage { messages: vec![mail("259", "301", "Filed", true)], ..Default::default() });
+            apply(&mut s, moved);
+            end.listing = Some(folders);
+            (end.token, end.whole, end.resume) = ("4712".into(), true, Some(Vec::new()));
+        } else {
+            end.listing = Some(folders);
+            end.errors.push("Read failed".into());
+        }
+        apply(&mut s, end);
+        assert_eq!(s.mailbox.folder_by_server(account, "300").is_none(), finish);
+        let message = s.mailbox.messages.get(&id).unwrap();
+        assert_eq!(message.server.as_ref().unwrap().folder, if finish { "301" } else { "300" });
+    }
 }
 
 #[test]

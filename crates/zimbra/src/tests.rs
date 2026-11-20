@@ -34,6 +34,20 @@ fn whole(pieces: &[ZimbraMailResult]) -> ZimbraMailResult {
 }
 
 #[test]
+fn each_piece_binds_the_login_and_a_successful_finish_repeats_the_complete_listing() {
+    for username in [String::new(), USER.into(), format!(" {USER} ")] {
+        let server = StandIn::new();
+        let mut request = request("");
+        request.username = username;
+        let pieces = run(&server, &request, PASSWORD);
+        assert!(pieces.iter().all(|piece| piece.username == USER));
+        let last = pieces.last().unwrap();
+        assert!(last.whole);
+        assert!(last.listing.as_ref().is_some_and(|listing| listing.complete && !listing.folders.is_empty()));
+    }
+}
+
+#[test]
 fn special_folder_kinds_come_from_one_id_mapping_not_display_names() {
     for (id, expected) in [
         ("2", FolderKind::Inbox),
@@ -529,6 +543,17 @@ enum InjectedFailure {
     Transport(crate::http::TransportError),
 }
 
+impl InjectedFailure {
+    fn error(self) -> crate::Error {
+        match self {
+            Self::Unreadable => crate::Error::Unreadable,
+            Self::Fault(code) => crate::error::from_code(code),
+            Self::Busy => crate::Error::Busy(120),
+            Self::Transport(error) => crate::Error::Transport(error),
+        }
+    }
+}
+
 struct FailsAt {
     server: StandIn,
     operation: &'static str,
@@ -597,6 +622,7 @@ fn failed_sync_operations_keep_safe_phase_context_and_control_flags() {
                     assert_eq!(all.errors.len(), 1);
                     let error = &all.errors[0];
                     assert!(error.contains(phase), "{operation}: {error}");
+                    assert!(error.ends_with(&format!(": {}", failure.error())), "{operation}: {error}");
                     for private in ["synthetic-private-marker", "Private subject", PASSWORD, TOKEN, USER, URL] {
                         assert!(!error.contains(private), "{operation}");
                     }
@@ -637,6 +663,7 @@ fn failed_full_fetches_keep_phase_offline_backoff_and_size_handling() {
             } else {
                 assert_eq!(got.errors.len(), 1);
                 assert!(got.errors[0].contains(phase));
+                assert!(got.errors[0].ends_with(&format!(": {}", failure.error())));
                 for private in ["synthetic-private-marker", "Private subject", PASSWORD, TOKEN, USER, URL] {
                     assert!(!got.errors[0].contains(private));
                 }
