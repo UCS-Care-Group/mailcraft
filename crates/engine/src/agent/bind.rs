@@ -88,6 +88,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.downloadPictures"
         | "ui.unsubscribe"
         | "mail.unsubscribe"
+        | "ui.unsubscribeMany"
         | "ui.retryPictures"
         | "ui.alwaysDownloadPictures"
         | "mail.categorize" => Messages,

@@ -2021,6 +2021,12 @@ msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Se pot abona cel mult {n} calendare: dezabonați-vă mai întâi de la unul."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "Pot pleca cel mult {n} cereri prin e-mail odată."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "At start time"
@@ -2548,6 +2554,12 @@ msgstr "După dimensiune"
 #, fuzzy
 msgid "By Subject"
 msgstr "După subiect"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "By mail"
+msgstr "Prin e-mail"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
@@ -3282,7 +3294,7 @@ msgid "Classic Ribbon"
 msgstr "Panglică clasică"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Clean Up"
 msgstr "Curățare"
@@ -3366,7 +3378,7 @@ msgid "Clipboard"
 msgstr "Clipboard"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/senders.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Închidere"
@@ -4254,6 +4266,12 @@ msgstr ""
 "Ștergere\n"
 "dosar"
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Delete All"
+msgstr "Șterge tot"
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -4970,6 +4988,12 @@ msgstr "Semnătura fiecărui cont se pune la sfârșitul mesajelor noi, al răsp
 #, fuzzy
 msgid "Each sender gets one automatic reply, with the message below:"
 msgstr "Fiecare expeditor primește un singur răspuns automat, cu mesajul de mai jos:"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Each ticked sender's newest message says how: MailCraft asks first."
+msgstr "Cel mai recent mesaj al fiecărui expeditor bifat spune cum: MailCraft întreabă mai întâi."
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/menubar.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
@@ -5771,7 +5795,7 @@ msgid "Fold the calendars of this group away"
 msgstr "Restrângeți calendarele acestui grup"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/unsubscribe.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Dosar"
@@ -6830,6 +6854,12 @@ msgstr "Felul în care se repetă îl stabilește organizatorul."
 msgid "How many messages each folder holds and the space they take"
 msgstr "Câte mesaje are fiecare dosar și cât spațiu ocupă"
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "How to unsubscribe"
+msgstr "Dezabonare"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -7198,6 +7228,12 @@ msgstr "Într-un mesaj text simplu"
 #, fuzzy
 msgid "In line with text"
 msgstr "În linie cu textul"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "In one click"
+msgstr "Cu un clic"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7963,6 +7999,12 @@ msgstr "Ultimul commit"
 #, fuzzy
 msgid "Last name"
 msgstr "Nume"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Last received"
+msgstr "Ultimul primit"
 
 #. interface, name
 #: crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/tasks_view.rs
@@ -9013,7 +9055,7 @@ msgid "Message sent."
 msgstr "Mesaj trimis."
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/senders.rs
 #, fuzzy
 msgid "Messages"
 msgstr "Mesaje"
@@ -9375,6 +9417,12 @@ msgstr "Mutare cont"
 #, fuzzy
 msgid "Move All and Send Invitations"
 msgstr "Mutare toate și trimitere invitații"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Move All…"
+msgstr "Mută tot…"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -10252,6 +10300,12 @@ msgstr "Nu s-a modificat nicio cutie poștală și nicio acreditare existentă. 
 msgid "No message is being read there"
 msgstr "Acolo nu se citește niciun mesaj"
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "No messages in this folder."
+msgstr "Niciun mesaj în acest dosar."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 #, fuzzy
@@ -10493,6 +10547,12 @@ msgid "None"
 msgstr "Niciunul"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "None of these messages can be unsubscribed from here."
+msgstr "Niciunul dintre aceste mesaje nu permite dezabonarea de aici."
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "None of those messages is in this mailbox any more."
@@ -10665,6 +10725,12 @@ msgstr "Încă necitit."
 #, fuzzy
 msgid "Not saved"
 msgstr "Nesalvat"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Not unsubscribed"
+msgstr "Nedezabonat"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -10883,7 +10949,7 @@ msgid "Numbering"
 msgstr "Numerotare"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/senders.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -10941,6 +11007,12 @@ msgstr "Pe"
 #, fuzzy
 msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
 msgstr "În Wayland, reporniți MailCraft după activarea acestei opțiuni. Sunt necesare un server X11/XWayland accesibil și o zonă de notificare."
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "On its own page"
+msgstr "Pe pagina proprie"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11373,6 +11445,12 @@ msgid "Open on GitHub"
 msgstr "Deschidere pe GitHub"
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Open one of its messages to unsubscribe there."
+msgstr "Deschideți unul dintre mesajele sale pentru a vă dezabona de acolo."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Open or save the Digital signature"
@@ -11743,6 +11821,12 @@ msgstr "Pagina în jos"
 #, fuzzy
 msgid "Page Up"
 msgstr "Pagina în sus"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Page opened"
+msgstr "Pagină deschisă"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -13085,6 +13169,12 @@ msgid "Request a Read Receipt"
 msgstr "Solicitare confirmare de citire"
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Request in your Outbox"
+msgstr "Cerere în Mesaje de trimis"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Request in your Outbox."
@@ -14031,6 +14121,12 @@ msgstr "Selectați pe cineva pentru a vedea detaliile"
 msgid "Select the message before previewing its attachment."
 msgstr "Selectați mesajul înainte de a-i previzualiza atașamentul."
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Selectați cel mult {n} mesaje pentru dezabonare."
+
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -14366,6 +14462,12 @@ msgstr "Trimitere/primire prin JMAP"
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Trimitere/primire prin Microsoft Graph"
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Sender"
+msgstr "Expeditor"
+
 #. command label
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
@@ -14389,6 +14491,18 @@ msgstr "Imagini expeditor"
 #, fuzzy
 msgid "Sender's address contains"
 msgstr "Adresa expeditorului conține"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Senders"
+msgstr "Expeditori"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Senders in {folder}"
+msgstr "Expeditori în {folder}"
 
 #. name
 #: crates/model/src/sync/progress.rs
@@ -15578,7 +15692,7 @@ msgid "Still indexing: some older mail is searched more slowly"
 msgstr "Indexarea continuă: unele e-mailuri mai vechi se caută mai încet"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/sync_panel.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/senders.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "Stop"
 msgstr "Oprire"
@@ -17013,6 +17127,12 @@ msgstr "Serverul listei nu a acceptat cererea: {why}."
 #, fuzzy
 msgid "The list's server took the request. Mail from it may take a few days to stop."
 msgstr "Serverul listei a acceptat cererea. Mesajele pot înceta abia după câteva zile."
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "The lists not yet asked aren't asked; the one being asked still is."
+msgstr "Listele încă neîntrebate nu mai sunt întrebate; cea în curs tot este."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -18974,6 +19094,18 @@ msgid "Tick at least one more contact to merge into the kept one."
 msgstr "Bifați cel puțin încă un contact de îmbinat în cel păstrat."
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Tick every sender listed"
+msgstr "Bifează toți expeditorii listați"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Tick senders to unsubscribe from their lists, or to delete or move all their messages in this folder."
+msgstr "Bifați expeditori pentru a vă dezabona de la listele lor sau pentru a șterge ori muta toate mesajele lor din acest dosar."
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Tick the contacts that are the same person, and choose the one to keep:"
@@ -19456,7 +19588,7 @@ msgid "Unpin"
 msgstr "Anulează fixarea"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/senders.rs
 #, fuzzy
 msgid "Unread"
 msgstr "Necitit"
@@ -19502,7 +19634,7 @@ msgid "Unsaved Message"
 msgstr "Mesaj nesalvat"
 
 #. command label, interface
-#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/senders.rs
 #, fuzzy
 msgid "Unsubscribe"
 msgstr "Dezabonare"
@@ -19519,6 +19651,27 @@ msgstr "Dezabonare de la calendar"
 msgid "Unsubscribe from Internet Calendar"
 msgstr "Dezabonare de la un calendar de pe Internet"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Dezabonare de la listele lor"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Dezabonare de la mesajele selectate"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Dezabonare de la {n} listă."
+msgstr[1] "Dezabonare de la {n} liste."
+msgstr[2] "Dezabonare de la {n} de liste."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -19526,10 +19679,31 @@ msgid "Unsubscribe on the list's page in your browser."
 msgstr "Dezabonați-vă pe pagina listei, în browser."
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Unsubscribed"
+msgstr "Dezabonat"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Dezabonat."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Dezabonare: {click} cu un clic, {mail} prin e-mail, {pages} de făcut pe pagina lor, {left} lăsate deoparte."
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Unsubscribing: {n} list left."
+msgid_plural "Unsubscribing: {n} lists left."
+msgstr[0] "Dezabonare: a mai rămas {n} listă."
+msgstr[1] "Dezabonare: au mai rămas {n} liste."
+msgstr[2] "Dezabonare: au mai rămas {n} de liste."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -21181,6 +21355,15 @@ msgstr[1] "și încă {n} dosare"
 msgstr[2] "și încă {n} de dosare"
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "and {n} more sender, with fewer messages"
+msgid_plural "and {n} more senders, with fewer messages"
+msgstr[0] "și încă {n} expeditor, cu mai puține mesaje"
+msgstr[1] "și încă {n} expeditori, cu mai puține mesaje"
+msgstr[2] "și încă {n} de expeditori, cu mai puține mesaje"
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "and {n} more, not merged now"
@@ -21785,7 +21968,7 @@ msgid "no folder \"{path}\""
 msgstr "nu există dosarul „{path}”"
 
 #. what a command says
-#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
+#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/unsubscribe.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "nu există dosar cu ID-ul {id}"
@@ -23449,6 +23632,12 @@ msgstr "categoriile acestui cont nu sunt sincronizate cu niciun server"
 msgid "this account's categories aren't kept in step with its server"
 msgstr "categoriile acestui cont nu sunt sincronizate cu serverul său"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "această versiune nu se poate dezabona cu un clic"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -24491,6 +24680,15 @@ msgstr[0] "{n} corp sau atașament lipsește din dosarul de conținut al cutiei 
 msgstr[1] "{n} corpuri sau atașamente lipsesc din dosarul de conținut al cutiei poștale sau sunt deteriorate."
 msgstr[2] "{n} de corpuri sau atașamente lipsesc din dosarul de conținut al cutiei poștale sau sunt deteriorate."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} printr-un mesaj din contul dvs., prin Mesaje de trimis:"
+msgstr[1] "{n} prin câte un mesaj din contul dvs., prin Mesaje de trimis:"
+msgstr[2] "{n} prin câte un mesaj din contul dvs., prin Mesaje de trimis:"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -24757,6 +24955,15 @@ msgid_plural "{n} hours before"
 msgstr[0] "{n} oră înainte"
 msgstr[1] "{n} ore înainte"
 msgstr[2] "{n} de ore înainte"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} cu un clic: serverului ei i se trimite adresa dată, nimic altceva."
+msgstr[1] "{n} cu un clic: serverului fiecărei liste i se trimite adresa dată, nimic altceva, pe rând."
+msgstr[2] "{n} cu un clic: serverului fiecărei liste i se trimite adresa dată, nimic altceva, pe rând."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -25097,6 +25304,15 @@ msgstr[0] "{n} minut înainte"
 msgstr[1] "{n} minute înainte"
 msgstr[2] "{n} de minute înainte"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "Încă {n} prin e-mail nu este trimisă acum: selectați mai puține mesaje pentru a o vedea."
+msgstr[1] "Încă {n} prin e-mail nu sunt trimise acum: selectați mai puține mesaje pentru a le vedea."
+msgstr[2] "Încă {n} de cereri prin e-mail nu sunt trimise acum: selectați mai puține mesaje pentru a le vedea."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 #, fuzzy
@@ -25374,6 +25590,15 @@ msgstr[1] "{n} selectate"
 msgstr[2] "{n} selectate"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} expeditor este lăsat deoparte: mesaje pentru care serverul nu garantează, din E-mail nedorit, cu un avertisment despre expeditor sau care nu spun cum."
+msgstr[1] "{n} expeditori sunt lăsați deoparte: mesaje pentru care serverul nu garantează, din E-mail nedorit, cu un avertisment despre expeditor sau care nu spun cum."
+msgstr[2] "{n} de expeditori sunt lăsați deoparte: mesaje pentru care serverul nu garantează, din E-mail nedorit, cu un avertisment despre expeditor sau care nu spun cum."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} stays on this computer"
@@ -25462,6 +25687,15 @@ msgid_plural "{n} unread on the server"
 msgstr[0] "{n} necitit pe server"
 msgstr[1] "{n} necitite pe server"
 msgstr[2] "{n} necitite pe server"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} se dezabonează pe pagina proprie: deschideți mesajul pentru a o face acolo."
+msgstr[1] "{n} se dezabonează pe pagina proprie: deschideți fiecare dintre aceste mesaje pentru a o face acolo."
+msgstr[2] "{n} se dezabonează pe pagina proprie: deschideți fiecare dintre aceste mesaje pentru a o face acolo."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -25739,6 +25973,12 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "• to {to}, subject “{subject}”"
+msgstr "• către {to}, subiect „{subject}”"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

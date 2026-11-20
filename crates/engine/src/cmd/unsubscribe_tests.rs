@@ -150,3 +150,115 @@ fn mail_in_junk_offers_nothing() {
     let outbox = s.mailbox.folders.iter().find(|f| f.kind == FolderKind::Outbox).map(|f| f.id).unwrap();
     assert_eq!(s.mailbox.messages_in(outbox).count(), 0);
 }
+
+/// A session with Avery's account, whose Inbox has a message from each of `senders`: its
+/// address, its `List-Unsubscribe`, whether its server vouched for it, and its date.
+fn inbox(senders: &[(&str, &str, bool, i64)]) -> (Session, Vec<Id>) {
+    let (mut s, _) = with(&[]);
+    let account = s.mailbox.accounts.first().map(|a| a.id).unwrap();
+    let new = senders
+        .iter()
+        .enumerate()
+        .map(|(n, (from, list, vouched, date))| {
+            let domain = from.rsplit_once('@').map_or("", |(_, d)| d);
+            let mut headers = vec![("List-Unsubscribe".to_string(), (*list).to_string())];
+            if *vouched {
+                headers.push(("Authentication-Results".into(), format!("mx.lumen.example; dmarc=pass header.from={domain}")));
+            }
+            Message {
+                uid: n as u32 + 10,
+                from: Address::new("", *from),
+                subject: format!("issue {n}"),
+                message_id: format!("{n}@{domain}"),
+                date: *date,
+                headers,
+                ..Default::default()
+            }
+        })
+        .collect();
+    let result = SyncResult {
+        account,
+        folders: vec![FolderDelta {
+            id: None,
+            remote: "INBOX".into(),
+            kind: FolderKind::Inbox,
+            uid_validity: 7,
+            uid_seen: 50,
+            new,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    s.run("sync.apply", &json!({"result": result})).unwrap();
+    let ids = (0..senders.len()).map(|n| s.mailbox.messages.values().find(|m| m.subject == format!("issue {n}")).map(|m| m.id).unwrap()).collect();
+    (s, ids)
+}
+
+#[test]
+fn many_messages_give_each_sender_once_and_say_what_is_left_out() {
+    let (mut s, ids) = inbox(&[
+        ("letter@news.example", "<https://news.example/u/old>", true, 100),
+        ("letter@news.example", "<https://news.example/u/new>", true, 200),
+        ("deals@shop.example", "<mailto:leave@shop.example?subject=leave>", true, 150),
+        ("club@club.example", "<https://club.example/leave>", true, 120),
+        ("spoof@bank.example", "<https://bank.example/u>", false, 130),
+    ]);
+    let said = s.run("mail.unsubscribeMany", &json!({"ids": ids})).unwrap();
+    let senders = said["senders"].as_array().unwrap();
+    assert_eq!(senders.len(), 3, "{said}");
+    // The newest message stands for its sender.
+    let news = senders.iter().find(|x| x["sender"] == "letter@news.example").unwrap();
+    assert_eq!((news["message"].as_u64(), news["url"].as_str()), (Some(ids[1]), Some("https://news.example/u/new")));
+    let left = said["leftOut"].as_array().unwrap();
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0]["sender"], "spoof@bank.example");
+    // A request by mail says where it goes and with what subject, so that both are seen first.
+    let shop = senders.iter().find(|x| x["sender"] == "deals@shop.example").unwrap();
+    assert_eq!((shop["way"].as_str(), shop["to"].as_str(), shop["subject"].as_str()), (Some("mail"), Some("leave@shop.example"), Some("leave")));
+    // Nothing is ever sent from here: each request by mail goes on its own (`mail.unsubscribe`).
+    assert!(s.run("mail.unsubscribeMany", &json!({"ids": ids, "send": true})).is_err());
+    assert!(s.run("mail.unsubscribeMany", &json!({"ids": ids, "send": false})).is_err());
+    let outbox = s.mailbox.folders.iter().find(|f| f.kind == FolderKind::Outbox).map(|f| f.id).unwrap();
+    assert_eq!(s.mailbox.messages_in(outbox).count(), 0);
+    // Named wrongly, refused.
+    assert!(s.run("mail.unsubscribeMany", &json!({"ids": "all"})).is_err());
+}
+
+#[test]
+fn the_senders_of_a_folder_are_counted_most_messages_first() {
+    let (mut s, ids) = inbox(&[
+        ("letter@news.example", "<https://news.example/u/old>", true, 100),
+        ("Letter@News.example ", "<https://news.example/u/new>", true, 200),
+        ("deals@shop.example", "<mailto:leave@shop.example>", true, 150),
+        ("spoof@bank.example", "<https://bank.example/u>", false, 130),
+    ]);
+    let inbox = s.mailbox.message(ids[0]).map(|m| m.folder).unwrap();
+    s.run("mail.markRead", &json!({"ids": [ids[0]]})).unwrap();
+    let said = s.run("mail.senders", &json!({"folder": inbox})).unwrap();
+    let senders = said["senders"].as_array().unwrap();
+    assert_eq!(
+        senders.iter().map(|x| x["sender"].as_str().unwrap()).collect::<Vec<_>>(),
+        ["letter@news.example", "deals@shop.example", "spoof@bank.example"]
+    );
+    // One sender however its address is written (with `with`'s message too); the newest stands for it.
+    let news = &senders[0];
+    assert_eq!((news["messages"].as_u64(), news["unread"].as_u64(), news["last"].as_i64()), (Some(3), Some(2), Some(200)));
+    assert_eq!((news["newest"].as_u64(), news["way"].as_str()), (Some(ids[1]), Some("page")));
+    assert_eq!(senders[1]["way"], "mail");
+    // Mail its server doesn't vouch for offers nothing, and says why.
+    assert!(senders[2].get("way").is_none() && senders[2]["why"].is_string(), "{said}");
+    assert_eq!(said["more"], 0);
+    // Its messages, for Delete All and Move All.
+    let wanted = std::collections::HashSet::from(["letter@news.example".to_string()]);
+    let mut theirs = crate::cmd::unsubscribe::of_senders(&s.mailbox, inbox, &wanted);
+    theirs.sort_unstable();
+    let mut expected: Vec<Id> = s.mailbox.messages_in(inbox).filter(|m| m.from.email.to_lowercase().contains("letter@news")).map(|m| m.id).collect();
+    assert_eq!(expected.len(), 3);
+    expected.sort_unstable();
+    assert_eq!(theirs, expected);
+    // The folder in view by default; one that isn't there, or named wrongly, is refused.
+    s.view.folder = inbox;
+    assert_eq!(s.run("mail.senders", &json!({})).unwrap()["senders"].as_array().map(Vec::len), Some(3));
+    assert!(s.run("mail.senders", &json!({"folder": 999_999})).is_err());
+    assert!(s.run("mail.senders", &json!({"folder": "Inbox"})).is_err());
+}

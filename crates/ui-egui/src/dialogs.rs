@@ -165,6 +165,9 @@ pub enum Dialog {
     /// People › Merge Duplicates (#506, [`crate::merge_contacts`]): it only collects what to
     /// merge, then runs `people.merge`.
     MergeContacts(Box<crate::merge_contacts::MergeContacts>),
+    /// Folder › Clean Up › Senders (#1207, [`crate::senders`]): it only lets the owner tick
+    /// senders, then runs Unsubscribe, Delete All or Move All once it has closed.
+    Senders(Box<crate::senders::Senders>),
     /// Insert › Item and Insert › Contact Card ([`crate::pick_item`]): it only chooses, then
     /// runs `compose.attachItem` or `insert.businessCard`.
     Pick(Box<crate::pick_item::Pick>),
@@ -288,6 +291,7 @@ impl Dialog {
             Dialog::ImportTree(_) => "importTree",
             Dialog::ImportPst(_) => "importPst",
             Dialog::MergeContacts(_) => "mergeContacts",
+            Dialog::Senders(_) => "senders",
             Dialog::Pick(p) => match p.kind {
                 crate::pick_item::PickKind::Message => "attachItem",
                 crate::pick_item::PickKind::Contact => "businessCard",
@@ -451,6 +455,10 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
         let kind = if name == "attachItem" { crate::pick_item::PickKind::Message } else { crate::pick_item::PickKind::Contact };
         return Some(Dialog::Pick(Box::new(crate::pick_item::Pick::new(kind))));
     }
+    if name == "senders" {
+        // (The engine counts; when it refuses, there is no dialog.)
+        return crate::senders::Senders::open(app, params).map(|d| Dialog::Senders(Box::new(d)));
+    }
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
     }
@@ -499,6 +507,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
         }
         // Unsubscribing from a list (#1207): what is sent, to whom, or what opens.
         "ui.unsubscribe" => crate::reading::unsubscribe::question(app, params),
+        // (Several messages' question asks the engine what goes: `MailApp::run` asks it.)
         // An Office file with macros, or a web page, from a message (#126).
         "mail.openAttachment" => {
             let (title, text, action) = crate::attachment_open::question(app, params)?;
@@ -945,6 +954,7 @@ pub(crate) fn pin_targets(app: &MailApp, id: &str, mut params: Value) -> Value {
         // The message the question was about, not whatever is selected when the owner says yes
         // (#1207); `null` reads as the selection there too.
         "ui.unsubscribe" if params.get("message").is_none_or(Value::is_null) => sel.focus().map(|m| ("message", json!(m))),
+        "ui.unsubscribeMany" if params.get("ids").is_none_or(Value::is_null) => Some(("ids", json!(sel.messages))),
         _ => None,
     };
     if let (Some((key, value)), Some(map)) = (pin, params.as_object_mut()) {
@@ -1353,6 +1363,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "people.edit" if empty => Some("editContact"),
         // Which contacts, and what the kept one has, are chosen in Merge Duplicates (#506).
         "people.merge" if !has("keep") => Some("mergeContacts"),
+        // The senders of a folder are a list to tick, in a dialog of their own (#1207).
+        "mail.senders" => Some("senders"),
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
@@ -1564,6 +1576,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     });
     let mut close = escape;
     let mut reopen: Option<Dialog> = None;
+    // What Senders runs once it has closed, so that the question or dialog it leads to is shown.
+    let mut then: Option<Vec<(String, Value)>> = None;
     // The Verify dialog's answer, run with the dialog in its place (`ui.markKeyVerified` does
     // nothing without it).
     let mut mark: Option<Value> = None;
@@ -2083,7 +2097,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             // The way of going ahead that was picked: what it adds to the parameters.
             let mut picked: Option<Value> = None;
             let open = window(ctx, &ask.title, if ask.more.is_empty() { 420.0 } else { 480.0 }, |ui| {
-                ui.label(ask.text.as_str());
+                // A long question (the requests by mail of a selection, #1207) scrolls: its
+                // buttons stay on screen.
+                egui::ScrollArea::vertical().id_salt("question_text").max_height(360.0).auto_shrink([false, true]).show(ui, |ui| {
+                    ui.label(ask.text.as_str());
+                });
                 if let Some((_, note, hint)) = &mut ask.note {
                     let field = ui
                         .add(egui::TextEdit::multiline(note).hint_text(hint.as_str()).desired_rows(2).desired_width(f32::INFINITY).char_limit(2_000));
@@ -2271,6 +2289,10 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, tl!("Merge Duplicate Contacts"), crate::merge_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
         }
+        Dialog::Senders(dialog) => {
+            let open = window(ctx, tl!("Senders"), crate::senders::WIDTH, |ui| then = dialog.show(app, ui, enter));
+            close |= !open || then.is_some();
+        }
         Dialog::Symbol(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Symbol"), crate::symbol::WIDTH, |ui| done = dialog.show(app, ui, enter));
@@ -2344,12 +2366,19 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         app.dialog = Some(dialog);
         return;
     }
+    for (id, params) in then.into_iter().flatten() {
+        if let Err(e) = app.run(&id, params) {
+            app.status(e);
+            break;
+        }
+    }
     // Command search hands over the command it picked.
     if let Some(Dialog::Commands { query: id, selected: usize::MAX }) = reopen {
         let id = match id.as_str() {
             "sync.request" => "ui.sync".to_string(),
             // Its question says what will be sent or opened before anything happens (#1207).
             "mail.unsubscribe" => "ui.unsubscribe".to_string(),
+            "mail.unsubscribeMany" => "ui.unsubscribeMany".to_string(),
             // Asked on its page, which says what the switch does.
             "account.graphSwitch" => "ui.graphSwitch".to_string(),
             _ => id,
