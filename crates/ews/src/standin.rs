@@ -221,6 +221,9 @@ pub struct State {
     /// The server's `SyncFolderItems` won't give the recipients (`ErrorInvalidPropertyForOperation`),
     /// as Exchange 2010's doesn't ([`State::exchange2010`] implies it).
     pub lists_no_recipients: bool,
+    /// The server's `SyncFolderItems` takes the recipients in the shape it is asked for and answers
+    /// without them, as Exchange 2013 to 2019 do (#1151); `GetItem` gives them.
+    pub omits_recipients: bool,
     /// The versions every request asked for, in order.
     pub versions: Vec<String>,
     /// The organisation's address list, for `ResolveNames` (#1262).
@@ -297,6 +300,7 @@ impl Default for State {
             exchange2010: false,
             takes_any_version: false,
             lists_no_recipients: false,
+            omits_recipients: false,
             versions: Vec::new(),
             directory: Vec::new(),
         }

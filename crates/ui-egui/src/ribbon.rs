@@ -160,6 +160,7 @@ pub(crate) enum Menu {
     Junk,
     RecentAttachments,
     OpenCalendar,
+    Spelling,
 }
 
 impl Menu {
@@ -992,14 +993,13 @@ fn insert() -> Tab {
     ])
 }
 
-/// Review, while a message is being written, in classic Outlook's groups: Word Count, and the
-/// rest still to be built.
+/// Review, while a message is being written.
 fn review() -> Tab {
     Tab::of(vec![
         g(
             "Proofing",
             vec![
-                Item::pending("review.spelling", "Spelling & Grammar", 0),
+                Item::big_menu("spelling", "spelling", "Spelling", "Check spelling with a local dictionary", Menu::Spelling).at(0, 2),
                 Item::pending("review.thesaurus", "Thesaurus", 0),
                 Item::big("wordCount", "Word\nCount", "review.wordCount", no()).at(0, 3),
             ],
@@ -1595,6 +1595,7 @@ pub(crate) fn junk_menu(ui: &mut Ui, app: &mut MailApp) {
 /// What `menu` lists.
 fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
     match menu {
+        Menu::Spelling => crate::spelling::review(ui, app),
         Menu::RecentAttachments => crate::recent_attachments::contents(ui, app),
         Menu::NewItems => new_items(ui, app),
         Menu::MoveMessages => {

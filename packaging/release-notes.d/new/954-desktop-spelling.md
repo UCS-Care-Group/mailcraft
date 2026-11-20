@@ -1,0 +1,1 @@
+- Spelling ([#954](https://github.com/GITHUB_REPOSITORY/issues/954)): in the desktop composer on Windows and macOS, installed system dictionaries mark misspellings as you write. Right-click a marked word for suggestions, or choose a dictionary and find the next error under Review › Spelling. The check stays on your computer.
