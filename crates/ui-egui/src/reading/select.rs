@@ -820,6 +820,7 @@ fn params(place: Place) -> Value {
     match place {
         Place::Pane => json!({"pane": true}),
         Place::Window(id) => json!({"window": id}),
+        Place::Thread(id) => json!({"thread": id}),
         Place::Quote => json!({"quote": true}),
         Place::Preview => json!({"preview": true}),
     }
@@ -1071,6 +1072,9 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
 /// The place a command is about: the one it names, else the one the keys are for, else the
 /// reading pane.
 fn place_of(app: &MailApp, p: &Value) -> Result<Place, String> {
+    if let Some(id) = p.get("thread").filter(|v| !v.is_null()) {
+        return id.as_u64().map(Place::Thread).ok_or_else(|| "`thread` is the id of a message stacked in the reading pane".to_string());
+    }
     match p.get("window") {
         None | Some(Value::Null) if p.get("pane").and_then(Value::as_bool) == Some(true) => Ok(Place::Pane),
         None | Some(Value::Null) => Ok(app.text_selection.focus.unwrap_or(Place::Pane)),
@@ -1205,6 +1209,7 @@ pub(crate) fn inspect(app: &MailApp, ctx: &egui::Context) -> Value {
         let window = match state.place {
             Place::Pane => Value::Null,
             Place::Window(id) => json!(id),
+            Place::Thread(id) => json!({"thread": id}),
             Place::Quote => json!("quote"),
             Place::Preview => json!("preview"),
         };

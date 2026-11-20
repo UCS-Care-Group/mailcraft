@@ -306,6 +306,16 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
         crate::widgets::mi(ui, app, "Reverse Sort", "view.reverseSort", json!({}));
         let conv = app.session.view.conversations;
         crate::widgets::mi_check(ui, app, "Show as Conversations", conv, "view.conversations", json!({}));
+        // Gmail's way of reading a conversation, beyond Outlook's (#1778): off by default.
+        let whole = conv && app.session.view.whole_conversation;
+        crate::widgets::mi_check(
+            ui,
+            app,
+            "Show Whole Conversation in Reading Pane (Gmail Style)",
+            whole,
+            "view.conversationSettings",
+            json!({"wholeConversation": !whole}),
+        );
         // The filters that have no tab of their own.
         ui.separator();
         for f in Filter::ALL {

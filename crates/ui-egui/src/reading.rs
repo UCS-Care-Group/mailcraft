@@ -32,6 +32,10 @@ mod backdrop_tests;
 pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
+pub(crate) mod conversation;
+mod conversation_state;
+#[cfg(test)]
+mod conversation_tests;
 pub(crate) mod fonts;
 #[cfg(test)]
 mod header_tests;
@@ -107,6 +111,9 @@ pub enum Place {
     Pane,
     /// A window of its own, by the window's number.
     Window(u64),
+    /// A message of the conversation stacked in the reading pane with the one selected (#1778),
+    /// by its id: each has a selection and a layout of its own, as a window has.
+    Thread(u64),
     /// Under the owner's text in a reply or forward being written: the original it carries.
     Quote,
     /// File › Signatures: a sample reply with the signature, as a recipient sees it.
@@ -179,6 +186,14 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         ui.painter().text(pos2(r.center().x, r.min.y + r.height() * 0.4), Align2::CENTER_CENTER, text, semibold(15.0), t.text_dim);
         return;
     }
+    // In conversation view, the rest of its conversation is read with it (#1778), but for a file
+    // it opens in the pane.
+    if !crate::attachment_preview::showing(app, m.id)
+        && let Some(thread) = conversation::stacked(app, m.id)
+    {
+        conversation::show(app, ui, &m, &thread);
+        return;
+    }
     show_message(app, ui, &m, Place::Pane);
 }
 
@@ -203,7 +218,6 @@ fn draft_bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
 /// One message in the room `ui` has: its header, its attachments, and its body, which scrolls.
 /// The reading pane shows the selected message with it, and a message window its own.
 pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
-    let ctx = ui.ctx().clone();
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     if crate::attachment_preview::showing(app, m.id) {
         select::begin(app, ui, m, place, false);
@@ -212,6 +226,33 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
         select::settle(app, ui, place);
         return;
     }
+    let (access, _) = above_body(app, ui, m, place, false);
+    // The body gets the part of the pane that can be seen, whatever was laid out above it: a
+    // header too wide for a narrow pane must not make the text run out of sight with it.
+    let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
+    ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
+        view::page(app, place, ui).show(ui, |ui| {
+            // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
+            egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
+                egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
+                    view::show(app, ui, m, place, access);
+                });
+            });
+        });
+    });
+    select::settle(app, ui, place);
+}
+
+/// Everything of a message above its body: its header and the bars under it (a meeting, a
+/// shared calendar, what is not downloaded yet, why it is held). What it says of the pictures on
+/// the web is what the body is to show of them. `stacked`: the message is one of its
+/// conversation's in the reading pane ([`conversation`]), whose subject and actions are said once
+/// above them all.
+///
+/// With it, whether the owner clicked the line of who sent it and when, which opens and closes a
+/// message stacked with its conversation (never `true` for one that is not stacked).
+fn above_body(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, stacked: bool) -> (Access, bool) {
+    let ctx = ui.ctx().clone();
     // A window shows its own copy of the message: what the mailbox keeps on disk is brought in
     // here, and the window takes the whole message up at its next frame.
     if place != Place::Quote && app.session.needs_load_for_display(m.id) {
@@ -231,7 +272,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     if place == Place::Pane {
         crate::send_later::queued_bar(app, ui, m);
     }
-    header(app, ui, m, place, |app, ui, t| {
+    let toggled = header_of(app, ui, m, place, stacked, |app, ui, t| {
         remote::line(app, ui, m, &doc, access, progress, place, t);
         unreadable_line(ui, m, doc.from_text, t, app.windows.len());
     });
@@ -265,20 +306,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
             });
         });
     }
-    // The body gets the part of the pane that can be seen, whatever was laid out above it: a
-    // header too wide for a narrow pane must not make the text run out of sight with it.
-    let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
-    ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
-        view::page(app, place, ui).show(ui, |ui| {
-            // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
-            egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
-                egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
-                    view::show(app, ui, m, place, access);
-                });
-            });
-        });
-    });
-    select::settle(app, ui, place);
+    (access, toggled)
 }
 
 /// What the reading pane says of a message of which only the headers and a preview are here.
@@ -473,10 +501,26 @@ pub(crate) fn header_date_on_own_line(row: f32, date: f32) -> bool {
 }
 
 fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictures: impl FnOnce(&mut MailApp, &mut Ui, &Tokens)) {
+    header_of(app, ui, m, place, false, pictures);
+}
+
+/// [`header`]; `stacked`: of a message stacked with the rest of its conversation in the reading
+/// pane, which says the subject, the actions and the conversation's messages once above them all,
+/// so the message's own header has none of them; a click on its line of who sent it and when
+/// closes it (#1778), and the answer says so. Its text can still be selected by dragging.
+fn header_of(
+    app: &mut MailApp,
+    ui: &mut Ui,
+    m: &Arc<Message>,
+    place: Place,
+    stacked: bool,
+    pictures: impl FnOnce(&mut MailApp, &mut Ui, &Tokens),
+) -> bool {
     let t = Tokens::get(ui.ctx());
     // The texts that can be selected are laid out here and painted once the pointer has had its
     // say ([`select::header`]).
     let mut fields = select::Fields::default();
+    let mut who = Rect::NOTHING;
     let around = egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 12, top: 12, bottom: 10 }).show(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         // What may not be what it seems about it, above everything else (#508).
@@ -486,144 +530,165 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         // What checking its Digital signature found (#30).
         signature::bar(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).
-        ui.horizontal(|ui| {
-            let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
-                if place == Place::Pane {
-                    for (icon, tip, id) in ACTIONS.iter().rev() {
-                        let sc = crate::widgets::shortcut_text(app, id);
-                        if crate::widgets::icon_button(ui, icon, &format!("{} ({sc})", tl!(tip)), 17.0, true).clicked() {
-                            let _ = app.run(id, json!({}));
-                        }
-                        // React sits between Forward and Delete (#1544).
-                        if *id == "mail.delete" {
-                            ui.push_id(("react", m.id), |ui| react::button(app, ui, m));
+        if !stacked {
+            ui.horizontal(|ui| {
+                let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
+                    if place == Place::Pane {
+                        for (icon, tip, id) in ACTIONS.iter().rev() {
+                            let sc = crate::widgets::shortcut_text(app, id);
+                            if crate::widgets::icon_button(ui, icon, &format!("{} ({sc})", tl!(tip)), 17.0, true).clicked() {
+                                let _ = app.run(id, json!({}));
+                            }
+                            // React sits between Forward and Delete (#1544).
+                            if *id == "mail.delete" {
+                                ui.push_id(("react", m.id), |ui| react::button(app, ui, m));
+                            }
                         }
                     }
-                }
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
-                    fields.add(ui, select::Field::Subject, egui::Label::new(egui::RichText::new(subject).font(semibold(17.0)).color(t.text)).wrap());
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                        fields.add(
+                            ui,
+                            select::Field::Subject,
+                            egui::Label::new(egui::RichText::new(subject).font(semibold(17.0)).color(t.text)).wrap(),
+                        );
+                    });
                 });
             });
-        });
-        ui.add_space(4.0);
+            ui.add_space(4.0);
+        }
         // Who and when.
-        ui.horizontal(|ui| {
-            let (r, _) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::hover());
-            if m.id == 0 {
-                // (Not in the mailbox: nothing is asked of the web for its sender.)
-                crate::widgets::avatar(ui, r.center(), 17.0, &m.from);
-            } else {
-                crate::sender_images::avatar(app, ui, r.center(), 17.0, m, &m.from);
-            }
-            ui.vertical(|ui| {
-                ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
-                let when = crate::dates::header_label(m.date, app.session.offset_at(m.date), app.session.prefs.twelve_hour);
-                // The date at the right; the name and address get what is left, cut short when
-                // the pane is narrow rather than run under the date (#630). A pane too narrow
-                // for both puts the date on a line of its own.
-                let date_w = ui.painter().layout_no_wrap(when.clone(), regular(11.5), t.text_dim).size().x + 8.0;
-                let on_own_line = header_date_on_own_line(ui.available_width(), date_w);
-                let date_label = |fields: &mut select::Fields, ui: &mut Ui| {
-                    fields.add(ui, select::Field::Date, egui::Label::new(egui::RichText::new(when.clone()).font(regular(11.5)).color(t.text_dim)));
-                };
-                let sender = |app: &mut MailApp, fields: &mut select::Fields, ui: &mut Ui| {
-                    const ADDRESS_GAP: f32 = 4.0;
-                    const TAG_GAP: f32 = 6.0;
-                    let room = ui.available_width();
-                    let external = warnings::external(app, m);
-                    let tag_room = if external { warnings::external_tag_width(ui, &t) + TAG_GAP } else { 0.0 };
-                    let has_address = !m.from.name.is_empty();
-                    let looks_like_address = mailcraft_model::confusables::as_seen(&m.from.name, 1_000).contains('@');
-                    let name = egui::RichText::new(m.from.display().to_string()).font(semibold(13.0)).color(if looks_like_address {
-                        t.orange
-                    } else {
-                        t.text
-                    });
-                    let address_text = format!("<{}>", m.from.email);
-                    let name_width = ui.painter().layout_no_wrap(m.from.display().to_string(), semibold(13.0), t.text).size().x;
-                    let address_width = ui.painter().layout_no_wrap(address_text.clone(), regular(11.5), t.text_dim).size().x;
-                    let address_on_own_line = has_address && name_width + ADDRESS_GAP + address_width + tag_room > room;
-
-                    let name_label = |fields: &mut select::Fields, ui: &mut Ui, width: f32| {
-                        ui.scope(|ui| {
-                            ui.set_max_width(width.max(0.0));
-                            fields.add(ui, select::Field::Sender, egui::Label::new(name).truncate());
-                        });
+        who = ui
+            .horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::hover());
+                if m.id == 0 {
+                    // (Not in the mailbox: nothing is asked of the web for its sender.)
+                    crate::widgets::avatar(ui, r.center(), 17.0, &m.from);
+                } else {
+                    crate::sender_images::avatar(app, ui, r.center(), 17.0, m, &m.from);
+                }
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
+                    let when = crate::dates::header_label(m.date, app.session.offset_at(m.date), app.session.prefs.twelve_hour);
+                    // The date at the right; the name and address get what is left, cut short when
+                    // the pane is narrow rather than run under the date (#630). A pane too narrow
+                    // for both puts the date on a line of its own.
+                    let date_w = ui.painter().layout_no_wrap(when.clone(), regular(11.5), t.text_dim).size().x + 8.0;
+                    let on_own_line = header_date_on_own_line(ui.available_width(), date_w);
+                    let date_label = |fields: &mut select::Fields, ui: &mut Ui| {
+                        fields.add(
+                            ui,
+                            select::Field::Date,
+                            egui::Label::new(egui::RichText::new(when.clone()).font(regular(11.5)).color(t.text_dim)),
+                        );
                     };
-                    let address_and_tag = |fields: &mut select::Fields, ui: &mut Ui| {
-                        if has_address {
-                            let width = (ui.available_width() - tag_room).max(0.0);
+                    let sender = |app: &mut MailApp, fields: &mut select::Fields, ui: &mut Ui| {
+                        const ADDRESS_GAP: f32 = 4.0;
+                        const TAG_GAP: f32 = 6.0;
+                        let room = ui.available_width();
+                        let external = warnings::external(app, m);
+                        let tag_room = if external { warnings::external_tag_width(ui, &t) + TAG_GAP } else { 0.0 };
+                        let has_address = !m.from.name.is_empty();
+                        let looks_like_address = mailcraft_model::confusables::as_seen(&m.from.name, 1_000).contains('@');
+                        let name = egui::RichText::new(m.from.display().to_string()).font(semibold(13.0)).color(if looks_like_address {
+                            t.orange
+                        } else {
+                            t.text
+                        });
+                        let address_text = format!("<{}>", m.from.email);
+                        let name_width = ui.painter().layout_no_wrap(m.from.display().to_string(), semibold(13.0), t.text).size().x;
+                        let address_width = ui.painter().layout_no_wrap(address_text.clone(), regular(11.5), t.text_dim).size().x;
+                        let address_on_own_line = has_address && name_width + ADDRESS_GAP + address_width + tag_room > room;
+
+                        let name_label = |fields: &mut select::Fields, ui: &mut Ui, width: f32| {
                             ui.scope(|ui| {
-                                ui.set_max_width(width);
-                                let address = egui::RichText::new(address_text).font(regular(11.5)).color(t.text_dim);
-                                fields.add(ui, select::Field::Address, egui::Label::new(address).truncate());
+                                ui.set_max_width(width.max(0.0));
+                                fields.add(ui, select::Field::Sender, egui::Label::new(name).truncate());
+                            });
+                        };
+                        let address_and_tag = |fields: &mut select::Fields, ui: &mut Ui| {
+                            if has_address {
+                                let width = (ui.available_width() - tag_room).max(0.0);
+                                ui.scope(|ui| {
+                                    ui.set_max_width(width);
+                                    let address = egui::RichText::new(address_text).font(regular(11.5)).color(t.text_dim);
+                                    fields.add(ui, select::Field::Address, egui::Label::new(address).truncate());
+                                });
+                            }
+                            if external {
+                                ui.add_space(TAG_GAP);
+                                let tag = warnings::external_tag(ui, &t);
+                                if place == Place::Pane {
+                                    app.hit.add("externalTag", m.id, tag.rect);
+                                }
+                            }
+                        };
+
+                        if address_on_own_line {
+                            name_label(fields, ui, room);
+                            ui.horizontal(|ui| address_and_tag(fields, ui));
+                        } else {
+                            ui.horizontal(|ui| {
+                                name_label(fields, ui, if has_address { name_width } else { room - tag_room });
+                                if has_address {
+                                    ui.add_space(ADDRESS_GAP);
+                                }
+                                address_and_tag(fields, ui);
                             });
                         }
-                        if external {
-                            ui.add_space(TAG_GAP);
-                            let tag = warnings::external_tag(ui, &t);
-                            if place == Place::Pane {
-                                app.hit.add("externalTag", m.id, tag.rect);
-                            }
-                        }
                     };
-
-                    if address_on_own_line {
-                        name_label(fields, ui, room);
-                        ui.horizontal(|ui| address_and_tag(fields, ui));
+                    if on_own_line {
+                        sender(app, &mut fields, ui);
+                        date_label(&mut fields, ui);
                     } else {
                         ui.horizontal(|ui| {
-                            name_label(fields, ui, if has_address { name_width } else { room - tag_room });
-                            if has_address {
-                                ui.add_space(ADDRESS_GAP);
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                                ui.add_space(8.0);
+                                date_label(&mut fields, ui);
+                                ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| sender(app, &mut fields, ui));
+                            });
+                        });
+                    }
+                    // (`said` is the line in the interface language, with `{names}` still to fill.)
+                    let mut line = |ui: &mut Ui, field: select::Field, said: &str, list: &[mailcraft_model::Address]| {
+                        if !list.is_empty() {
+                            // (A sender can write thousands of names; the first ones are shown.)
+                            let (mut names, more) = format_list_capped(list, SHOWN_NAMES);
+                            if more > 0 {
+                                names.push_str(&format!("; {}", tln!(more, "and {n} more", "and {n} more")));
                             }
-                            address_and_tag(fields, ui);
-                        });
-                    }
-                };
-                if on_own_line {
-                    sender(app, &mut fields, ui);
-                    date_label(&mut fields, ui);
-                } else {
-                    ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                            ui.add_space(8.0);
-                            date_label(&mut fields, ui);
-                            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| sender(app, &mut fields, ui));
-                        });
-                    });
-                }
-                // (`said` is the line in the interface language, with `{names}` still to fill.)
-                let mut line = |ui: &mut Ui, field: select::Field, said: &str, list: &[mailcraft_model::Address]| {
-                    if !list.is_empty() {
-                        // (A sender can write thousands of names; the first ones are shown.)
-                        let (mut names, more) = format_list_capped(list, SHOWN_NAMES);
-                        if more > 0 {
-                            names.push_str(&format!("; {}", tln!(more, "and {n} more", "and {n} more")));
+                            let said = crate::i18n::fmt(said, &[("names", &names)]);
+                            let text = egui::RichText::new(said).font(regular(11.5)).color(t.text_dim);
+                            fields.add(ui, field, egui::Label::new(text).truncate());
                         }
-                        let said = crate::i18n::fmt(said, &[("names", &names)]);
-                        let text = egui::RichText::new(said).font(regular(11.5)).color(t.text_dim);
-                        fields.add(ui, field, egui::Label::new(text).truncate());
-                    }
-                };
-                line(ui, select::Field::To, tl!("To: {names}"), &m.to);
-                line(ui, select::Field::Cc, tl!("Cc: {names}"), &m.cc);
-                line(ui, select::Field::Bcc, tl!("Bcc: {names}"), &m.bcc);
-            });
-        });
-        notes(app, ui, m, &t, pictures);
+                    };
+                    line(ui, select::Field::To, tl!("To: {names}"), &m.to);
+                    line(ui, select::Field::Cc, tl!("Cc: {names}"), &m.cc);
+                    line(ui, select::Field::Bcc, tl!("Bcc: {names}"), &m.bcc);
+                });
+            })
+            .response
+            .rect;
+        notes(app, ui, m, &t, stacked, pictures);
         attachments(app, ui, m, place, &t);
     });
     select::header(app, ui, place, fields, around.response.rect);
+    // Over the selectable text, for clicks alone: a drag still selects it.
+    let toggled = stacked && who.is_positive() && {
+        let line = Rect::from_x_y_ranges(around.response.rect.x_range(), who.y_range());
+        let clicked = ui.interact(line, ui.scope_id().with(("stackedHeader", m.id)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+        app.hit.add("conversationHeader", m.id, line.intersect(ui.clip_rect()));
+        clicked.clicked()
+    };
     let r = ui.available_rect_before_wrap();
     ui.painter().line_segment([pos2(r.min.x, r.min.y), pos2(r.max.x, r.min.y)], Stroke::new(1.0, t.border));
+    toggled
 }
 
 /// Info lines under the header: the flag, importance, what was done with the message, its
 /// pictures on the web (`pictures` lays that line out), categories.
-fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures: impl FnOnce(&mut MailApp, &mut Ui, &Tokens)) {
+fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, stacked: bool, pictures: impl FnOnce(&mut MailApp, &mut Ui, &Tokens)) {
     let mut lines: Vec<(&str, String)> = Vec::new();
     match m.flag {
         FlagStatus::Flagged => {
@@ -666,9 +731,9 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
         }
     }
     gmail_labels(app, ui, m);
-    // The rest of the conversation, to jump to.
+    // The rest of the conversation, to jump to; stacked, it is all on screen already.
     // (Worked out once per change to the mailbox, not at every frame.)
-    let thread = app.session.conversation(m.id);
+    let thread = if stacked { Arc::default() } else { app.session.conversation(m.id) };
     if thread.len() > 1 {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
