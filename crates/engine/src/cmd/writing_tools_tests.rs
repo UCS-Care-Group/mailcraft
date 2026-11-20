@@ -202,3 +202,23 @@ fn a_huge_body_is_counted_in_one_pass() {
     let c = count(&RichText::from_plain(&text));
     assert_eq!((c.words, c.paragraphs), (190_000, 10_000));
 }
+
+#[test]
+fn review_spelling_finds_a_misspelt_word_with_no_os_dictionary() {
+    let mut s = writing("I saw teh cat at https://teh.example today");
+    run(&mut s, "compose.set", json!({"subject": "Lunch tomorow"}));
+    let r = run(&mut s, "review.spelling", json!({}));
+    assert_eq!(r["language"], "en-US");
+    assert_eq!(r["dictionary"], "built-in");
+    assert_eq!(r["partial"], false);
+    let issues = r["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 2, "{r}");
+    assert_eq!(issues[0]["location"], "subject");
+    assert_eq!(issues[0]["word"], "tomorow");
+    assert_eq!((issues[0]["from"].as_u64(), issues[0]["to"].as_u64()), (Some(6), Some(13)));
+    assert!(issues[0]["suggestions"].as_array().unwrap().contains(&json!("tomorrow")));
+    assert_eq!(issues[1]["location"], "body");
+    assert_eq!(issues[1]["word"], "teh");
+    assert_eq!((issues[1]["from"].as_u64(), issues[1]["to"].as_u64()), (Some(6), Some(9)));
+    assert!(issues[1]["suggestions"].as_array().unwrap().contains(&json!("the")));
+}
