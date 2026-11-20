@@ -160,7 +160,7 @@ msgid "(no name)"
 msgstr "（无名称）"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "(no recipients)"
 msgstr "（无收件人）"
@@ -9192,12 +9192,6 @@ msgid "Microsoft's page said so."
 msgstr "Microsoft 页面显示了这一信息。"
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Microsoft's server couldn't be reached. Click to try again."
-msgstr "无法访问 Microsoft 的服务器。单击重试。"
-
-#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Middle name"
@@ -10754,12 +10748,6 @@ msgid "Nothing matches."
 msgstr "没有匹配项。"
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Nothing more was found on the server"
-msgstr "服务器上没有找到更多结果"
-
-#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Nothing new imported: {already}"
@@ -10922,16 +10910,10 @@ msgid "On the"
 msgstr "在"
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On the server"
 msgstr "在服务器上"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "On the server · Searching…"
-msgstr "在服务器上 · 正在搜索…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -13873,7 +13855,7 @@ msgid "Searching the server…"
 msgstr "正在搜索服务器…"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Searching…"
 msgstr "正在搜索…"
@@ -14303,9 +14285,8 @@ msgstr "发送/接收问题"
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Send/Receive signs in to Microsoft; then the server can be searched."
-msgstr "发送/接收会登录 Microsoft；之后即可搜索服务器。"
+msgid "Send/Receive signs in; then the server can be searched."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
@@ -15361,12 +15342,6 @@ msgstr "如上所列，部分内容仍然保留。关闭此窗口时，MailCraft
 #, fuzzy
 msgid "Some of the files were not attached: the message cannot carry any more."
 msgstr "部分文件未添加：邮件无法再容纳更多文件。"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Some of the search was checked on this computer"
-msgstr "部分搜索结果已在本机检查"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -17415,6 +17390,11 @@ msgstr "服务器的响应中未提供 Exchange Web 服务地址。请向管理�
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr "服务器已响应，但响应与 Exchange 服务器不符。请在服务器设置中检查地址。"
 
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server couldn't be reached. Click to try again."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 #, fuzzy
@@ -17486,6 +17466,11 @@ msgstr "服务器繁忙。请几分钟后重试。"
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "服务器或组织未提供其设置。请向管理员询问服务器地址，并在服务器设置中输入。"
+
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server search stopped after 40 messages. There may be more."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -22694,6 +22679,11 @@ msgstr "此邮件没有收件人"
 msgid "the message has too many recipients"
 msgstr "该邮件的收件人太多"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "the message is no longer on the server"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -22786,9 +22776,8 @@ msgstr "无法在搜索中按完整地址查找此发件人"
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
-#, fuzzy
-msgid "the search involves no mailbox of a Microsoft account"
-msgstr "搜索范围不包含 Microsoft 账户的任何邮箱"
+msgid "the search involves no mailbox that can be searched on its server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23502,6 +23491,11 @@ msgstr "此邮件已在“已暂缓”文件夹中"
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "此邮件尚未下载：请联网后打开，再重新发送"
+
+#. what a command says
+#: crates/engine/src/cmd/search_server.rs
+msgid "this message was deleted"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -25477,6 +25471,30 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Microsoft's server couldn't be reached. Click to try again."
+#~ msgstr "无法访问 Microsoft 的服务器。单击重试。"
+
+#, fuzzy
+#~ msgid "Nothing more was found on the server"
+#~ msgstr "服务器上没有找到更多结果"
+
+#, fuzzy
+#~ msgid "On the server · Searching…"
+#~ msgstr "在服务器上 · 正在搜索…"
+
+#, fuzzy
+#~ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
+#~ msgstr "发送/接收会登录 Microsoft；之后即可搜索服务器。"
+
+#, fuzzy
+#~ msgid "Some of the search was checked on this computer"
+#~ msgstr "部分搜索结果已在本机检查"
+
+#, fuzzy
+#~ msgid "the search involves no mailbox of a Microsoft account"
+#~ msgstr "搜索范围不包含 Microsoft 账户的任何邮箱"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

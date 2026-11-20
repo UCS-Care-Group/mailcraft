@@ -50,12 +50,13 @@ use mailcraft_ews::{
 };
 use mailcraft_model::sync::{
     DirectoryKind, DirectoryPerson, EwsFetchRequest, EwsMailRequest, EwsMailResult, EwsResolveRequest, EwsResolveResult, EwsResolved,
-    GraphFetchResult, MAX_RESOLVE_PEOPLE, MAX_RESOLVE_TEXTS, SyncPhase, Timings,
+    EwsSearchRequest, GraphFetchResult, GraphSearchResult, MAX_RESOLVE_PEOPLE, MAX_RESOLVE_TEXTS, SyncPhase, Timings,
 };
 use mailcraft_net::https::Connection;
 use mailcraft_net::{CertificateProblem, NetError};
 use mailcraft_ui_egui::check_names::EwsResolveJob;
 use mailcraft_ui_egui::ews_mail::{EwsFetchJob, EwsJob};
+use mailcraft_ui_egui::server_search::EwsSearchJob;
 
 /// What the run says when the secure connection could not be had for a reason the owner can't
 /// answer (an expired certificate, one for another server): in words with nothing of the certificate.
@@ -560,6 +561,60 @@ pub(crate) fn run_fetch_with(request: &EwsFetchRequest, password: &str, cancel: 
     let mut pause = |ms: u32| wait(cancel, ms);
     let result = crate::block_on::block_on(mailcraft_ews::fetch_messages(&client, &transport, request, cancel, &mut pause));
     settled_fetch(result, transport.problem().as_ref(), transport.auth_problem())
+}
+
+/// Searches the mailbox of an Exchange server account on its server, on a thread of its own
+/// (#1725): one page, `FindItem` in the folders the job names, which reads and changes nothing.
+pub(crate) fn run_search(job: EwsSearchJob, wake: &egui::Context) -> Receiver<GraphSearchResult> {
+    let EwsSearchJob { request, secret, cancel } = job;
+    on_thread("exchange search", wake, move || run_search_with(&request, &secret, &cancel))
+}
+
+/// Does `work` on a thread of its own called `name`, and wakes the window when its answer is in
+/// the channel. A thread that can't be started leaves the channel closed, which the window reads
+/// as an answer that never came.
+fn on_thread<T: Send + 'static>(name: &str, wake: &egui::Context, work: impl FnOnce() -> T + Send + 'static) -> Receiver<T> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let wake = wake.clone();
+    let done = move || {
+        let _ = tx.send(work());
+        wake.request_repaint();
+    };
+    if let Err(e) = std::thread::Builder::new().name(name.to_owned()).spawn(done) {
+        log::error!("couldn't start the thread for {name}: {e}");
+    }
+    rx
+}
+
+/// How long a busy server is waited for before a page of a search is asked again, at most: the
+/// owner is looking at the list.
+const MOST_SEARCH_WAIT_MS: u32 = 5_000;
+
+/// [`run_search`] on this thread. What the certificate or the way of signing in has to say is
+/// said in words: no question can be asked from a search.
+pub(crate) fn run_search_with(request: &EwsSearchRequest, password: &str, cancel: &Arc<AtomicBool>) -> GraphSearchResult {
+    let client = match client(&request.url, &request.username, &request.email, password) {
+        Ok(client) => client,
+        Err(why) => {
+            return GraphSearchResult {
+                account: request.account,
+                email: request.email.clone(),
+                ticket: request.ticket,
+                errors: vec![why.to_owned()],
+                ..Default::default()
+            };
+        }
+    };
+    let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));
+    let mut pause = |ms: u32| ms <= MOST_SEARCH_WAIT_MS && wait(cancel, ms);
+    let mut result = crate::block_on::block_on(mailcraft_ews::search_messages(&client, &transport, request, cancel, &mut pause));
+    const LINE: &str = "Couldn't search this mailbox";
+    if let Some(auth) = transport.auth_problem() {
+        result.errors = vec![format!("{LINE}: {}", auth.words())];
+    } else if let Some(problem) = transport.problem() {
+        result.errors = vec![format!("{LINE}: {problem}")];
+    }
+    result
 }
 
 /// Looks names up in the address list of an Exchange server account on a thread of its own

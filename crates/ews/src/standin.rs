@@ -228,6 +228,16 @@ pub struct State {
     pub versions: Vec<String>,
     /// The organisation's address list, for `ResolveNames` (#1262).
     pub directory: Vec<crate::standin_directory::Person>,
+    /// The server's schema has no `QueryString` in `FindItem` (Exchange 2007's, and other
+    /// servers'): a search that names one is a schema fault, and one with a `Restriction` is
+    /// answered (#1725).
+    pub lacks_query_string: bool,
+    /// The server takes a `QueryString` in `FindItem` and doesn't look at it: every item of the
+    /// folder is its answer, as Grommunio's is (#1725). A `Restriction` is answered.
+    pub ignores_query_string: bool,
+    /// `FindItem` gives no more than this many items to a page, whatever is asked for; 0 for
+    /// what is asked for.
+    pub find_page: usize,
 }
 
 impl Default for State {
@@ -303,6 +313,9 @@ impl Default for State {
             omits_recipients: false,
             versions: Vec::new(),
             directory: Vec::new(),
+            lacks_query_string: false,
+            ignores_query_string: false,
+            find_page: 0,
         }
     }
 }
@@ -498,6 +511,8 @@ impl State {
             "SyncFolderItems" => self.sync_items(operation),
             "GetItem" => self.get_item(operation),
             "ResolveNames" => self.resolve_names(operation),
+            // (A search of the mailbox; a copy looked for by its marker is `standin_write`'s.)
+            "FindItem" if !crate::standin_find::by_marker(operation) => self.search_items(operation),
             name if crate::standin_write::HANDLED.contains(&name) => {
                 self.writes.push(name.to_owned());
                 self.write(name, operation)

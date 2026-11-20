@@ -134,7 +134,7 @@ msgid "(no name)"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs
 msgid "(no recipients)"
 msgstr ""
 
@@ -7632,11 +7632,6 @@ msgid "Microsoft's page said so."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "Microsoft's server couldn't be reached. Click to try again."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "Middle name"
 msgstr ""
@@ -8922,11 +8917,6 @@ msgid "Nothing matches."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "Nothing more was found on the server"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Nothing new imported: {already}"
 msgstr ""
@@ -9062,13 +9052,8 @@ msgid "On the"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 msgid "On the server"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "On the server · Searching…"
 msgstr ""
 
 #. interface
@@ -11498,7 +11483,7 @@ msgid "Searching the server…"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/address_book.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/mail_view.rs
 msgid "Searching…"
 msgstr ""
 
@@ -11855,7 +11840,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "Send/Receive signs in to Microsoft; then the server can be searched."
+msgid "Send/Receive signs in; then the server can be searched."
 msgstr ""
 
 #. interface
@@ -12733,11 +12718,6 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 msgid "Some of the files were not attached: the message cannot carry any more."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "Some of the search was checked on this computer"
 msgstr ""
 
 #. interface
@@ -14443,6 +14423,11 @@ msgstr ""
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server couldn't be reached. Click to try again."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 msgid "The server couldn't be searched. Try again in a few minutes."
@@ -14501,6 +14486,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server search stopped after 40 messages. There may be more."
 msgstr ""
 
 #. interface
@@ -18839,6 +18829,11 @@ msgstr ""
 msgid "the message has too many recipients"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "the message is no longer on the server"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 msgid "the message is plain text; switch it to HTML first"
@@ -18916,7 +18911,7 @@ msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
-msgid "the search involves no mailbox of a Microsoft account"
+msgid "the search involves no mailbox that can be searched on its server"
 msgstr ""
 
 #. what a command says
@@ -19512,6 +19507,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this message isn't downloaded: open it once you're online, then send it again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/search_server.rs
+msgid "this message was deleted"
 msgstr ""
 
 #. what a command says

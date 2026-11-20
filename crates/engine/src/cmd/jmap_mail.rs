@@ -80,7 +80,7 @@ fn named_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
 
 /// The account `account` and its server, when it is a JMAP account whose session address may be
 /// used ([`JmapServer::check_session`]: a mailbox file can say anything).
-fn jmap_account(mb: &Mailbox, account: Id) -> Result<(&mailcraft_model::Account, &JmapServer), CmdError> {
+pub(crate) fn jmap_account(mb: &Mailbox, account: Id) -> Result<(&mailcraft_model::Account, &JmapServer), CmdError> {
     let a = mb.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Jmap {
         return Err(failed!("{name} isn't kept in step over JMAP", name = a.name));

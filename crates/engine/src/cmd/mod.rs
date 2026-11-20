@@ -158,6 +158,7 @@ pub mod rules;
 pub mod rules_remote;
 #[cfg(test)]
 mod rules_remote_tests;
+pub mod search_requests;
 #[cfg(test)]
 mod search_scope_tests;
 pub mod search_server;

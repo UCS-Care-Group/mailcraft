@@ -45,7 +45,7 @@ const FIELDS: [(&str, &str, usize, bool); 6] = [
 
 /// The marks an email has among its keywords (RFC 8621 §2.3).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) struct Marks {
+pub(crate) struct Marks {
     pub read: bool,
     pub flagged: bool,
     pub answered: bool,
@@ -90,14 +90,22 @@ impl Marks {
 /// An email that says nothing of where it lies (or only ids that mean nothing) belongs to the mailbox it
 /// was found in.
 pub(super) fn claims(mailbox: &str, mailbox_ids: Option<&Value>, claimable: Option<&HashMap<String, usize>>) -> bool {
-    let Some(map) = mailbox_ids.and_then(Value::as_object) else { return true };
+    if mailbox_ids.and_then(Value::as_object).is_none() {
+        return true;
+    }
+    first_place(mailbox_ids, claimable).is_none_or(|first| first == mailbox)
+}
+
+/// The mailbox that lists an email whose `mailboxIds` are these ([`claims`] says which that is): `None`
+/// when it says nothing of where it lies, or names no mailbox that counts.
+pub(crate) fn first_place<'v>(mailbox_ids: Option<&'v Value>, claimable: Option<&HashMap<String, usize>>) -> Option<&'v str> {
+    let map = mailbox_ids.and_then(Value::as_object)?;
     let rank = |id: &str| match claimable {
         _ if Id::new(id).is_err() => None,
         None => Some(0),
         Some(all) => all.get(id).copied(),
     };
-    let first = map.iter().filter(|(_, on)| **on == Value::Bool(true)).filter_map(|(id, _)| Some((rank(id)?, id.as_str()))).min();
-    first.is_none_or(|(_, first)| first == mailbox)
+    map.iter().filter(|(_, on)| **on == Value::Bool(true)).filter_map(|(id, _)| Some((rank(id)?, id.as_str()))).min().map(|(_, first)| first)
 }
 
 /// What the server says of an email: its id, the mailbox it was listed in and its marks.
@@ -120,7 +128,7 @@ pub(super) fn known(id: &str, mailbox: &str, marks: Marks) -> GraphMessage {
 }
 
 /// An email this mailbox has not: its header fields, size, arrival, preview and marks.
-pub(super) fn whole(id: &str, mailbox: &str, entry: &Value, marks: Marks) -> GraphMessage {
+pub(crate) fn whole(id: &str, mailbox: &str, entry: &Value, marks: Marks) -> GraphMessage {
     let fields = Fields::read(entry.get("headers"));
     let received = entry
         .get("receivedAt")

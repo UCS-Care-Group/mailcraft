@@ -90,7 +90,7 @@ mod changes;
 #[cfg(test)]
 mod changes_tests;
 mod folders;
-mod message;
+pub(crate) mod message;
 mod send;
 #[cfg(test)]
 mod send_tests;
@@ -143,13 +143,13 @@ const SECRET_ID: usize = 8;
 /// its size in memory, so a request is given no more than it can need. A list of mailboxes (10,000 at the
 /// most), the ids and keywords of a window (500), and the header fields of 200 emails.
 const LIST_BYTES: usize = 4 << 20;
-const WINDOW_BYTES: usize = 2 << 20;
-const DETAILS_BYTES: usize = 8 << 20;
+pub(crate) const WINDOW_BYTES: usize = 2 << 20;
+pub(crate) const DETAILS_BYTES: usize = 8 << 20;
 
 /// What the mailboxes' list asks for, and what an email is read for in the window and for a message list.
 const MAILBOX_PROPERTIES: [&str; 6] = ["id", "name", "parentId", "role", "totalEmails", "unreadEmails"];
 const WINDOW_PROPERTIES: [&str; 3] = ["id", "keywords", "mailboxIds"];
-const EMAIL_PROPERTIES: [&str; 10] =
+pub(crate) const EMAIL_PROPERTIES: [&str; 10] =
     ["id", "blobId", "keywords", "mailboxIds", "size", "receivedAt", "hasAttachment", "preview", "headers", "threadId"];
 /// Most emails one call asks the thread of (#795), and never more than the server's
 /// `maxObjectsInGet`.
@@ -344,7 +344,7 @@ impl Places {
 
 /// Where a mailbox of a kind comes among those an email lies in, the first listing it: the Inbox, then the
 /// special mailboxes in the order the folder pane lists them ([`SPECIAL`]), then the rest (by id, there).
-fn rank(kind: FolderKind) -> usize {
+pub(crate) fn rank(kind: FolderKind) -> usize {
     if kind == FolderKind::Inbox {
         return 0;
     }

@@ -61,6 +61,9 @@ mod delete_check;
 pub mod error;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+pub mod find;
+#[deny(missing_docs)]
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod folder;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
@@ -85,6 +88,9 @@ pub mod resolve;
 pub mod run;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+pub mod search;
+#[deny(missing_docs)]
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod soap;
 mod up;
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
@@ -99,6 +105,8 @@ pub mod standin_autodiscover;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin_directory;
 #[cfg(any(test, feature = "stand-in"))]
+pub mod standin_find;
+#[cfg(any(test, feature = "stand-in"))]
 pub mod standin_mail;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin_ntlm;
@@ -109,6 +117,8 @@ pub mod standin_write;
 mod delete_check_tests;
 #[cfg(test)]
 mod exchange2010_tests;
+#[cfg(test)]
+mod find_tests;
 #[cfg(test)]
 mod hostile_tests;
 #[cfg(test)]
@@ -141,4 +151,5 @@ pub use ntlm::{Credentials as NtlmCredentials, NtlmError};
 pub use reply::{Message, Reply};
 pub use resolve::{Candidate, RecipientKind, ResolveNames, Resolved};
 pub use run::{failed_run, fetch_messages, sync_mail};
+pub use search::search_messages;
 pub use soap::{Element, Version};

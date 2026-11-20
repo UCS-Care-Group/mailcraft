@@ -94,6 +94,8 @@ const UPLOAD_PATH: &str = "/jmap/upload/";
 /// Largest request it reads (`maxSizeRequest`), and most ids one `Email/query` answers however many are asked.
 const MAX_REQUEST: usize = 10_000_000;
 const MAX_QUERY: usize = 500;
+/// How deep a filter's operators may nest.
+const MAX_FILTER_DEPTH: usize = 8;
 /// Most requests kept for a test to look at.
 const MAX_SEEN: usize = 10_000;
 /// Most header fields, and longest preview, of an email.
@@ -697,20 +699,8 @@ impl Data {
     fn email_query(&self, args: &Map<String, Value>) -> Outcome<Value> {
         allow_only(args, &["accountId", "filter", "sort", "position", "limit", "calculateTotal", "collapseThreads"])?;
         account(args)?;
-        let unsupported = || refuse("unsupportedFilter", "only one mailbox can be listed: {\"inMailbox\": id}");
-        let mailbox = match args.get("filter") {
-            Some(Value::Object(filter)) if filter.len() == 1 => filter.get("inMailbox").and_then(Value::as_str).ok_or_else(unsupported)?,
-            _ => return Err(unsupported()),
-        };
-        if Id::new(mailbox).is_err() {
-            return Err(invalid("not a mailbox id"));
-        }
-        if !self.mailboxes.iter().any(|m| m.id == mailbox) {
-            return Err(invalid("no such mailbox"));
-        }
-        if let Some(kind) = self.broken_mailboxes.get(mailbox) {
-            return Err(refuse(kind, "this mailbox can't be read just now"));
-        }
+        let filter = args.get("filter").ok_or_else(unsupported_filter)?;
+        self.check_filter(filter, 0)?;
         let ascending = sort_direction(args)?;
         let asked = number(args, "limit")?;
         let limit = asked.map_or(MAX_QUERY, |limit| limit.min(MAX_QUERY));
@@ -725,13 +715,10 @@ impl Data {
             Some(_) => return Err(invalid("collapseThreads is a boolean")),
         }
         // Oldest first, and those received together in the order they were delivered.
-        let mut found: Vec<(usize, &Email)> = self.emails.iter().enumerate().filter(|(_, e)| e.mailboxes.contains(mailbox)).collect();
+        let mut found: Vec<(usize, &Email)> = self.emails.iter().enumerate().filter(|(_, e)| self.filter_matches(filter, e)).collect();
         found.sort_by(|a, b| (a.1.received.as_str(), a.0).cmp(&(b.1.received.as_str(), b.0)));
         if !ascending {
             found.reverse();
-        }
-        if self.hollow.contains(mailbox) {
-            found.clear();
         }
         let count = found.len();
         // A negative position counts from the end (RFC 8620 §5.5), and not beyond the start.
@@ -751,6 +738,87 @@ impl Data {
             }
         }
         Ok(out)
+    }
+
+    /// Whether `filter` is one this stand-in answers (RFC 8621 §4.4.1): a mailbox to list, what a search
+    /// asks (`text`, `from`, `to`, `cc`, `subject`, `body`, `hasAttachment`, `header`,
+    /// `inMailboxOtherThan`), or conditions joined by an operator. Anything else is `unsupportedFilter`.
+    fn check_filter(&self, filter: &Value, depth: usize) -> Outcome<()> {
+        let Value::Object(filter) = filter else { return Err(unsupported_filter()) };
+        if let Some(operator) = filter.get("operator") {
+            let conditions = filter.get("conditions").and_then(Value::as_array).filter(|all| !all.is_empty() && filter.len() == 2);
+            let known = matches!(operator.as_str(), Some("AND" | "OR" | "NOT"));
+            let Some(conditions) = conditions.filter(|_| known && depth < MAX_FILTER_DEPTH) else { return Err(unsupported_filter()) };
+            return conditions.iter().try_for_each(|condition| self.check_filter(condition, depth.saturating_add(1)));
+        }
+        if filter.is_empty() {
+            return Err(unsupported_filter());
+        }
+        for (name, value) in filter {
+            let fits = match name.as_str() {
+                "inMailbox" => {
+                    let mailbox = value.as_str().ok_or_else(unsupported_filter)?;
+                    if Id::new(mailbox).is_err() {
+                        return Err(invalid("not a mailbox id"));
+                    }
+                    if !self.mailboxes.iter().any(|m| m.id == mailbox) {
+                        return Err(invalid("no such mailbox"));
+                    }
+                    if let Some(kind) = self.broken_mailboxes.get(mailbox) {
+                        return Err(refuse(kind, "this mailbox can't be read just now"));
+                    }
+                    true
+                }
+                "inMailboxOtherThan" => value.as_array().is_some_and(|ids| ids.iter().all(|id| id.as_str().is_some_and(|id| Id::new(id).is_ok()))),
+                "text" | "from" | "to" | "cc" | "subject" | "body" => value.is_string(),
+                "hasAttachment" => value.is_boolean(),
+                "header" => value.as_array().is_some_and(|parts| matches!(parts.len(), 1 | 2) && parts.iter().all(Value::is_string)),
+                _ => false,
+            };
+            if !fits {
+                return Err(unsupported_filter());
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether `email` matches `filter`, which [`Data::check_filter`] let through. Text is looked for
+    /// without regard to letter case, a text in double quotes as the words inside them.
+    fn filter_matches(&self, filter: &Value, email: &Email) -> bool {
+        let Value::Object(filter) = filter else { return false };
+        if let Some(operator) = filter.get("operator").and_then(Value::as_str) {
+            let mut each = filter.get("conditions").and_then(Value::as_array).into_iter().flatten().map(|c| self.filter_matches(c, email));
+            return match operator {
+                "AND" => each.all(|one| one),
+                "OR" => each.any(|one| one),
+                _ => !each.any(|one| one),
+            };
+        }
+        let text = String::from_utf8_lossy(&email.raw).to_lowercase();
+        let (fields, body) = split_message(&text);
+        let field =
+            |name: &str| fields.iter().filter(|(have, _)| have.eq_ignore_ascii_case(name)).map(|(_, value)| value.as_str()).collect::<String>();
+        let needle = |value: &Value| value.as_str().unwrap_or_default().trim_matches('"').to_lowercase();
+        filter.iter().all(|(name, value)| match name.as_str() {
+            "inMailbox" => value.as_str().is_some_and(|mailbox| email.mailboxes.contains(mailbox) && !self.hollow.contains(mailbox)),
+            "inMailboxOtherThan" => {
+                let others: Vec<&str> = value.as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+                email.mailboxes.iter().any(|mailbox| !others.contains(&mailbox.as_str()))
+            }
+            "from" | "to" | "cc" | "subject" => field(name).contains(&needle(value)),
+            "body" => body.contains(&needle(value)),
+            "text" => ["from", "to", "cc", "bcc", "subject"].iter().any(|name| field(name).contains(&needle(value))) || body.contains(&needle(value)),
+            "hasAttachment" => value.as_bool() == Some(text.contains("content-disposition: attachment")),
+            "header" => {
+                let parts: Vec<&str> = value.as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+                match parts.as_slice() {
+                    [name] => fields.iter().any(|(have, _)| have.eq_ignore_ascii_case(name)),
+                    [name, wanted] => field(name).contains(&wanted.to_lowercase()),
+                    _ => false,
+                }
+            }
+            _ => false,
+        })
     }
 
     fn email_get(&self, args: &Map<String, Value>) -> Outcome<Value> {
@@ -969,6 +1037,10 @@ fn sort_direction(args: &Map<String, Value>) -> Outcome<bool> {
         }
         Some(_) => Err(unsupported()),
     }
+}
+
+fn unsupported_filter() -> Refusal {
+    refuse("unsupportedFilter", "a mailbox to list ({\"inMailbox\": id}) or what a search asks, and nothing else")
 }
 
 fn email_json(email: &Email, properties: &[String]) -> Value {

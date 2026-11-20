@@ -94,7 +94,7 @@ pub fn has_address_list(mb: &Mailbox, account: Id) -> bool {
 
 /// The account `account` and its server, when it is an Exchange server account whose server
 /// settings may be used ([`EwsServer::problem`]: a mailbox file can say anything).
-fn ews_account(mb: &Mailbox, account: Id) -> Result<(&Account, &EwsServer), CmdError> {
+pub(crate) fn ews_account(mb: &Mailbox, account: Id) -> Result<(&Account, &EwsServer), CmdError> {
     let a = mb.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Exchange {
         return Err(failed!("{name} isn't an Exchange server account", name = a.name));

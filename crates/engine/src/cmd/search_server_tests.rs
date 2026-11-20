@@ -325,3 +325,171 @@ fn current_mailbox_and_subfolders_ask_the_account_in_view_and_keep_what_they_loo
     answer(&mut s, &requests[0], replies(), "");
     assert_eq!(subjects(&s), ["Budget in"]);
 }
+
+/// The same IMAP UID in two folders is two messages. A hit whose folder and UID are already
+/// here is not added again, and opening it selects that message. A new hit remembers the
+/// server's flags, so a flag set here is not undone at the next run.
+#[test]
+fn an_imap_uid_is_only_unique_in_its_folder_and_opening_reuses_what_arrived() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    use mailcraft_model::{Address, FlagStatus, Message};
+    let mut s = Session::empty();
+    let a = s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let mail =
+        |uid, subject: &str| Message { uid, subject: subject.into(), from: Address::new("Bo", "bo@example.org"), date: 100, ..Default::default() };
+    let delta =
+        |remote: &str, kind, seen, new| FolderDelta { remote: remote.into(), kind, uid_validity: 3, uid_seen: seen, new, ..Default::default() };
+    s.run(
+        "sync.apply",
+        &json!({"result": SyncResult {
+            account: a,
+            folders: vec![
+                delta("INBOX", FolderKind::Inbox, 8, vec![mail(7, "Already here")]),
+                delta("Archive", FolderKind::Archive, 2, vec![mail(1, "Older")]),
+            ],
+            ..Default::default()
+        }}),
+    )
+    .unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let archive = s.mailbox.folders.iter().find(|f| f.remote == "Archive").unwrap().id;
+    s.view.folder = inbox;
+    search(&mut s, "already", "everywhere");
+    let request = asked(&mut s).into_iter().find(|r| r.account == a).unwrap();
+    let hit = |folder: &str| GraphMessage {
+        server: ServerMessage { id: "imap:7".into(), folder: folder.into(), read: true, ..Default::default() },
+        subject: format!("Hit {folder}"),
+        received: NOW,
+        sent: NOW,
+        ..Default::default()
+    };
+    answer(&mut s, &request, vec![hit("INBOX"), hit("Archive")], "");
+    assert_eq!(subjects(&s), ["Hit Archive"], "INBOX uid 7 is already here; Archive's uid 7 is another message");
+
+    // Not here yet: opening adds it, with the server's flags as the base.
+    let added = open(&mut s, 0).unwrap();
+    let m = s.mailbox.message(added).unwrap();
+    assert_eq!((m.folder, m.uid, m.synced.map(|f| (f.uid, f.flagged))), (archive, 7, Some((7, false))));
+    assert!(m.unfetched);
+    let whole = Message {
+        subject: "Whole".into(),
+        from: Address::new("Ada", "ada@example.org"),
+        body: mailcraft_model::Body { text: "the text".into(), html: None },
+        in_reply_to: "first@example.org".into(),
+        references: vec!["first@example.org".into()],
+        headers: vec![("X-Test".into(), "yes".into())],
+        attachments: vec![mailcraft_model::Attachment::new("note.pdf", "application/pdf", b"%PDF".to_vec())],
+        ..Default::default()
+    };
+    crate::cmd::imap_again::take_again(&mut s.mailbox, added, whole);
+    let m = s.mailbox.message(added).unwrap();
+    assert!(!m.unfetched && m.body.text == "the text" && m.attachments.len() == 1);
+    assert_eq!((m.in_reply_to.as_str(), m.headers.first().map(|h| h.0.as_str())), ("first@example.org", Some("X-Test")));
+    assert_eq!((m.folder, m.uid), (archive, 7), "where it is stays");
+    s.run("mail.flag", &json!({"id": added})).unwrap();
+    assert_eq!(s.mailbox.message(added).unwrap().flag, FlagStatus::Flagged);
+    assert!(!s.mailbox.message(added).unwrap().synced.unwrap().flagged, "the flag is a change still to send");
+
+    // Deleted after it was opened: the row does not add it again.
+    s.mailbox.remove_message(added).unwrap();
+    let before = s.mailbox.messages.len();
+    assert!(open(&mut s, 0).is_err());
+    assert_eq!(s.mailbox.messages.len(), before);
+}
+
+/// A hit whose folder and UID arrived with Send/Receive is the message already here.
+#[test]
+fn an_imap_hit_that_arrived_meanwhile_is_not_added_again() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    use mailcraft_model::{Address, Message};
+    let mut s = Session::empty();
+    let a = s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let mail =
+        Message { uid: 7, subject: "Came with Send/Receive".into(), from: Address::new("Bo", "bo@example.org"), date: 100, ..Default::default() };
+    s.run(
+        "sync.apply",
+        &json!({"result": SyncResult {
+            account: a,
+            folders: vec![FolderDelta {
+                remote: "Archive".into(),
+                kind: FolderKind::Archive,
+                uid_validity: 3,
+                uid_seen: 8,
+                new: vec![mail],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }}),
+    )
+    .unwrap();
+    let archive = s.mailbox.folders.iter().find(|f| f.remote == "Archive").unwrap().id;
+    s.view.folder = archive;
+    search(&mut s, "came", "folder");
+    let request = asked(&mut s).into_iter().find(|r| r.account == a).unwrap();
+    let hit = GraphMessage {
+        server: ServerMessage { id: "imap:7".into(), folder: "Archive".into(), ..Default::default() },
+        subject: "Hit Archive".into(),
+        received: NOW,
+        sent: NOW,
+        ..Default::default()
+    };
+    answer(&mut s, &request, vec![hit], "");
+    assert!(subjects(&s).is_empty());
+    let before = s.mailbox.messages.len();
+    // Nothing was listed, so there is no row to open. Applying did not add a copy.
+    assert_eq!(s.mailbox.messages.len(), before);
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.folder == archive && m.uid == 7).count(), 1);
+}
+
+/// A word that sits only in a message that was not downloaded is not in the local list, so the
+/// server's copy of that UID stays. Once the message here matches the search, it is shown once.
+/// A hit from another UIDVALIDITY is a different message and stays too.
+#[test]
+fn an_unfetched_message_stays_when_only_its_body_matches() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    use mailcraft_model::{Address, Message};
+    let mut s = Session::empty();
+    let a = s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let mail = Message { uid: 7, subject: "Hello".into(), from: Address::new("Bo", "bo@example.org"), date: 100, ..Default::default() };
+    s.run(
+        "sync.apply",
+        &json!({"result": SyncResult {
+            account: a,
+            folders: vec![FolderDelta {
+                remote: "INBOX".into(),
+                kind: FolderKind::Inbox,
+                uid_validity: 11,
+                uid_seen: 8,
+                new: vec![mail],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }}),
+    )
+    .unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    assert_eq!(s.mailbox.folder(inbox).unwrap().uid_validity, 11);
+    let id = s.mailbox.messages.values().find(|m| m.uid == 7).unwrap().id;
+    s.mailbox.message_mut(id).unwrap().unfetched = true;
+    s.view.folder = inbox;
+    search(&mut s, "budget", "folder");
+    let request = asked(&mut s).into_iter().find(|r| r.account == a).unwrap();
+    let hit = |server_id: &str| GraphMessage {
+        server: ServerMessage { id: server_id.into(), folder: "INBOX".into(), read: true, ..Default::default() },
+        subject: "Hello".into(),
+        preview: "the budget is in the body".into(),
+        received: NOW,
+        sent: NOW,
+        ..Default::default()
+    };
+    answer(&mut s, &request, vec![hit("imap:11:7")], "");
+    assert_eq!(subjects(&s), ["Hello"], "the local copy does not match, so the server's does");
+
+    s.mailbox.message_mut(id).unwrap().body.text = "the budget is in the body".into();
+    s.mailbox.message_mut(id).unwrap().unfetched = false;
+    search(&mut s, "body", "folder");
+    let request = asked(&mut s).into_iter().find(|r| r.account == a).unwrap();
+    answer(&mut s, &request, vec![hit("imap:11:7"), hit("imap:99:7")], "");
+    assert_eq!(subjects(&s), ["Hello"], "the same epoch is already listed; another UIDVALIDITY is another message");
+    assert_eq!(s.server_search.results[0].found.server.id, "imap:99:7");
+}
