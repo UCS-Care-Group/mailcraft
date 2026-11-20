@@ -528,3 +528,6 @@ fn format_plain(s: &mut Session, _: &Value) -> CmdResult {
 #[cfg(test)]
 #[path = "highlight_tests.rs"]
 mod highlight_tests;
+#[cfg(test)]
+#[path = "paste_link_tests.rs"]
+mod paste_link_tests;
