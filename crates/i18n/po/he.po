@@ -66,6 +66,12 @@ msgid "\"{name}\" is kept by the server of {who}. Changes made here are not sent
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "\"{name}\" is no longer on the recipient lines"
+msgstr "\"{name}\" כבר אינו מופיע בשדות הנמענים"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"
@@ -573,6 +579,18 @@ msgstr ""
 #: crates/ui-egui/src/dialogs.rs
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Address list"
+msgstr "רשימת כתובות"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "All names are checked"
+msgstr "כל השמות אומתו"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -3537,6 +3555,12 @@ msgstr "תצוגה נוכחית"
 #, fuzzy
 msgid "Cut"
 msgstr "גזור"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Distribution list"
+msgstr "רשימת תפוצה"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -7195,6 +7219,18 @@ msgid "Looking for your Exchange server…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Looking the names up in the organisation's address list…"
+msgstr "מתבצע חיפוש שמות ברשימת הכתובות של הארגון…"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Looking the names up stopped unexpectedly"
+msgstr "חיפוש השמות הופסק באופן בלתי צפוי"
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "Looking… {folders}, {files}, {messages} so far"
 msgstr ""
@@ -8116,6 +8152,12 @@ msgstr ""
 #: crates/ui-egui/src/lib.rs
 msgid "More results on the server can't be asked for now"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "More than one person matches \"{name}\". Choose one:"
+msgstr "נמצאו כמה אנשים התואמים לשם \"{name}\". יש לבחור אחד מהם:"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -9058,6 +9100,12 @@ msgstr ""
 msgid "Nobody matches the search"
 msgstr "לא נמצאו אנשי קשר התואמים לחיפוש"
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Nobody matches: {names}"
+msgstr "לא נמצאו התאמות עבור: {names}"
+
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
 msgid "Nobody with an address is invited"
@@ -9089,6 +9137,12 @@ msgstr ""
 #, fuzzy
 msgid "Not Junk"
 msgstr "לא דואר זבל"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Not looked up in the address list: {names}"
+msgstr "השמות הבאים לא חופשו ברשימת הכתובות: {names}"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
@@ -10086,6 +10140,12 @@ msgstr "מחוץ לארגון שלי (כבוי)"
 #, fuzzy
 msgid "Outside My Organization (On)"
 msgstr "מחוץ לארגון שלי (פעיל)"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Outside the organisation"
+msgstr "מחוץ לארגון"
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
@@ -13910,6 +13970,18 @@ msgstr ""
 #: crates/ui-egui/src/lib.rs
 msgid "The .pst file has {what} to import; nothing was imported"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "The account's password is needed first: press Send/Receive and type it"
+msgstr "תחילה נדרשת סיסמת החשבון. לחצו על שליחה/קבלה והקלידו אותה"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
+msgstr "ברשימת הכתובות יש עוד אנשים בשם זה מעבר לאלה שמוצגים. הקלידו חלק נוסף מהשם כדי למצוא אדם שאינו מוצג."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
