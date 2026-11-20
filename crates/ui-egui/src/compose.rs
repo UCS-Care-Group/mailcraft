@@ -542,7 +542,15 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
             // not hold keeps the address the HTML gives it — the existing cleaning leaves such a
             // reference alone — and no part is invented here for it.
             let sig = mailcraft_model::Signature::assemble(inserted.name.clone(), inserted.text.clone(), &inserted.pictures, inserted.layout);
-            let bound = mailcraft_engine::mime::rich::bound_signature_html(&sig, &html, &cid);
+            // With its style sheets scoped to it in the head, as the message sends it
+            // (`authored_signature_html`); one whose sheets can't be, as a draft keeps it.
+            let authored = mailcraft_html::AuthoredScope::new("mc-preview")
+                .ok()
+                .and_then(|scope| mailcraft_engine::mime::rich::authored_signature_html(&sig, &html, &scope, &cid).ok());
+            let bound = match authored {
+                Some(f) => mailcraft_engine::mime::rich::document_with_head(&f.head, &f.body, None),
+                None => mailcraft_engine::mime::rich::bound_signature_html(&sig, &html, &cid),
+            };
             let m = std::sync::Arc::new(crate::signatures::message_of(bound, sig.pictures(), cid));
             // One entry for each HTML: what was kept for this one goes first, so that the draw
             // cannot find the message the draft no longer holds beside the one made now.

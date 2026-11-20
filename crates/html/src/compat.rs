@@ -355,7 +355,7 @@ pub fn check(html: &str) -> Result<Vec<Finding>, CheckError> {
     elements.finish(&mut found);
     let sheets = style_elements(html);
     for sheet in &sheets {
-        styles.sheet(html, sheet.css.clone(), 0);
+        styles.sheet(html, sheet.css.clone(), 0, !sheet.conditional);
     }
     generated_content(&styles, &mut found)?;
     variables(&styles, &mut found)?;
@@ -685,9 +685,10 @@ fn size(html: &str, tag: &Tag<'_>, within: &Range<usize>, name_end: usize, found
             continue;
         };
         let (value_text, important) = strip_important(value);
-        // No CSS value holds a `&` (one that is left once decoded was written twice): CSS drops
-        // such a declaration, and the one before it stands.
-        if value_text.contains('&') {
+        // No CSS value holds a `&` (one that is left once decoded was written twice), nor is a
+        // word that is no size a size (`width:bogus`): CSS drops such a declaration, and the one
+        // before it stands.
+        if value_text.contains('&') || dropped_size(value_text) {
             continue;
         }
         let range = match &whole {
@@ -719,6 +720,15 @@ fn size(html: &str, tag: &Tag<'_>, within: &Range<usize>, name_end: usize, found
     let fix = fixable.then_some(Fix { range: name_end..name_end, replacement });
     found.push(finding(Rule::CssOnlyImageSize, start..end, fix));
     Ok(())
+}
+
+/// Whether `value`, a `width` or `height`, is nothing or a word that no CSS reader takes for a size
+/// or a keyword of those properties: CSS drops the declaration.
+fn dropped_size(value: &str) -> bool {
+    const KEYWORDS: [&str; 7] = ["auto", "min-content", "max-content", "fit-content", "stretch", "-webkit-fill-available", "-moz-available"];
+    let value = value.trim();
+    let word = value.chars().all(|c| c.is_ascii_alphabetic() || c == '-');
+    word && !KEYWORDS.iter().chain(CSS_WIDE.iter()).any(|k| value.eq_ignore_ascii_case(k))
 }
 
 /// What a `width` or `height` value sets: `None` for a keyword or nothing, `Some(Some(px))` for
@@ -803,7 +813,7 @@ struct StyleRule {
     /// `:after`).
     generated: bool,
     /// Whether it is the root of the document (`:root`, `html`, `body` or `*`) outside `@media`,
-    /// and so holds for every window.
+    /// in a sheet for every window, and so holds for every window.
     root: bool,
 }
 
@@ -842,8 +852,9 @@ impl Styles {
 
     /// The rules and declarations of the sheet `html[css]`, `level` `@media` blocks deep (from 0),
     /// walked as the writer of an authored signature walks them: every `@media` block, whatever
-    /// its media say; no other at-rule.
-    fn sheet(&mut self, html: &str, css: Range<usize>, level: usize) {
+    /// its media say; no other at-rule. `everywhere`: the sheet is for every window (its element
+    /// has no `media`).
+    fn sheet(&mut self, html: &str, css: Range<usize>, level: usize, everywhere: bool) {
         let Some(text) = html.get(css.clone()) else { return };
         let b = text.as_bytes();
         let mut i = 0;
@@ -861,7 +872,7 @@ impl Styles {
                     }
                     let close = block_end(b, end);
                     if media_prelude(text.get(i..end).unwrap_or("")).is_some() && level < MAX_SHEET_LEVELS {
-                        self.sheet(html, css.start + end + 1..css.start + close, level + 1);
+                        self.sheet(html, css.start + end + 1..css.start + close, level + 1, everywhere);
                     }
                     i = close.saturating_add(1);
                 }
@@ -875,7 +886,7 @@ impl Styles {
                         range: css.start + i..css.start + close.saturating_add(1).min(b.len()),
                         tables_only: tables_only(prelude),
                         generated: lower.contains(":before") || lower.contains(":after"),
-                        root: level == 0 && matches!(lower.as_str(), ":root" | "html" | "body" | "*"),
+                        root: everywhere && level == 0 && matches!(lower.as_str(), ":root" | "html" | "body" | "*"),
                     });
                     for (property, value) in declarations(text.get(open + 1..close).unwrap_or("")) {
                         let property = after_comments(property);
@@ -1179,8 +1190,9 @@ fn dimensions(value: &str) -> Vec<(Range<usize>, &str)> {
 /// The value a `var()` of the declaration `used` stands for, when it is known for certain and can
 /// be written in its place as it is: the call is in a `style` attribute, its variable is defined
 /// once in the text, at the root of the document (`:root`, `html`, `body` or `*`, outside
-/// `@media`) or in the same `style` attribute, and that definition is a plain value (no `var()`,
-/// no `!important`, no quote, character reference, `<`, `>`, `\`, `;` or brace, and no CSS-wide
+/// `@media` and in a sheet with no `media`) or in the same `style` attribute, and that definition
+/// is a plain value (no `var()`, no `!important`, no comment, no quote, character reference, `<`,
+/// `>`, `\`, `;` or brace, and no CSS-wide
 /// keyword such as `initial`: a `var()` of one stands for its fallback, never for the keyword)
 /// of at most [`MAX_FIX_BYTES`] bytes.
 fn variable_value(styles: &Styles, defined: &HashMap<&str, Definition<'_>>, used: &Decl, call: &Call<'_>) -> Option<String> {
@@ -1238,6 +1250,7 @@ fn plain_value(d: &Decl) -> Option<&str> {
         && value.len() <= MAX_FIX_BYTES
         && !important
         && !value.to_ascii_lowercase().contains("var(")
+        && !value.contains("/*")
         && !value.contains(['"', '\'', '&', '<', '>', '\\', ';', '{', '}'])
         && !CSS_WIDE.iter().any(|k| value.trim().eq_ignore_ascii_case(k));
     plain.then_some(value)
@@ -1252,6 +1265,9 @@ struct StyleElement {
     element: Range<usize>,
     /// Its start tag; the sheet's own text when that can't be found again.
     start_tag: Range<usize>,
+    /// Whether it may not hold for every window: its element has a `media`, or had attributes
+    /// past those kept, a `media` among them unknown.
+    conditional: bool,
 }
 
 /// Most scope classes tried before the checker gives up looking for one the text doesn't hold.
@@ -1303,9 +1319,9 @@ fn style_elements(html: &str) -> Vec<StyleElement> {
     let mut tokens = Tokenizer::new(html);
     loop {
         let token = tokens.next();
-        for (_, css) in std::mem::take(&mut tokens.styles) {
+        for style in std::mem::take(&mut tokens.styles) {
             if template == 0
-                && let Some(sheet) = style_element(html, css)
+                && let Some(sheet) = style_element(html, style.css, !style.media.is_empty() || style.overflowed)
             {
                 out.push(sheet);
             }
@@ -1320,14 +1336,15 @@ fn style_elements(html: &str) -> Vec<StyleElement> {
     out
 }
 
-/// Where the sheet `css`, a slice the tokenizer gave of `html`, and its element are.
-fn style_element(html: &str, css: &str) -> Option<StyleElement> {
+/// Where the sheet `css`, a slice the tokenizer gave of `html`, and its element are; `conditional`
+/// as [`StyleElement::conditional`].
+fn style_element(html: &str, css: &str, conditional: bool) -> Option<StyleElement> {
     let Range { start, end } = span_of(html, css)?;
     // The element ends where the tokenizer goes on from: after the `>` that follows the sheet.
     let close = html.get(end..)?.find('>').map_or(html.len(), |at| end + at + 1);
     Some(match style_start(html, css, start) {
-        Some(tag) => StyleElement { css: start..end, element: tag..close, start_tag: tag..start },
-        None => StyleElement { css: start..end, element: start..close, start_tag: start..end },
+        Some(tag) => StyleElement { css: start..end, element: tag..close, start_tag: tag..start, conditional },
+        None => StyleElement { css: start..end, element: start..close, start_tag: start..end, conditional },
     })
 }
 
@@ -1343,7 +1360,7 @@ fn style_start(html: &str, css: &str, at: usize) -> Option<usize> {
         if html.get(p + 1..p + 6).is_some_and(|name| name.eq_ignore_ascii_case("style")) {
             let mut again = Tokenizer::new(html.get(p..)?);
             let _ = again.next();
-            if again.styles.first().is_some_and(|(_, read)| read.as_ptr() == css.as_ptr() && read.len() == css.len()) {
+            if again.styles.first().is_some_and(|read| read.css.as_ptr() == css.as_ptr() && read.css.len() == css.len()) {
                 return Some(p);
             }
         }

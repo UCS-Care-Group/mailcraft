@@ -860,3 +860,38 @@ fn a_document_after_an_unrelated_mailbox_change_is_staged() {
     deliver(&mut h, &picked, Delivered::picked("doc.html".into(), TWO.as_bytes().to_vec(), HTML, ticket, 1));
     assert_eq!(rows(&h), Some(vec![None, None]), "an answer was let go of for a change that left the editor alone");
 }
+
+/// D2: a document that arrives once the open signature was renamed is not staged, and nothing
+/// changes: renaming it began another time of the editor.
+#[test]
+fn a_document_for_the_signature_renamed_meanwhile_is_ignored() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let (mut h, picks, picked) = window();
+    press(&mut h, "signatureHtmlImport", 0);
+    let ticket = last_ticket(&picks);
+    let name = h.state().session.signature_edit.as_ref().map(|e| e.signature.name.clone()).expect("fixture: a signature is open");
+    let to = format!("{name} (renamed)");
+    h.state_mut().execute("signature.rename", json!({"name": name, "to": to})).expect("the open signature is renamed");
+    assert_eq!(h.state().session.signature_edit.as_ref().map(|e| e.signature.name.clone()), Some(to), "fixture: the renamed signature is open");
+    let before = kept(&h);
+    deliver(&mut h, &picked, Delivered::picked("doc.html".into(), TWO.as_bytes().to_vec(), HTML, ticket, 1));
+    assert!(rows(&h).is_none(), "a document asked for before the rename was staged");
+    assert!(kept(&h) == before, "the mailbox or the editor changed");
+}
+
+/// D2: a document that arrives once the open signature was given new words (`signature.set`) is
+/// not staged, and nothing changes.
+#[test]
+fn a_document_for_the_signature_set_meanwhile_is_ignored() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let (mut h, picks, picked) = window();
+    press(&mut h, "signatureHtmlImport", 0);
+    let ticket = last_ticket(&picks);
+    let name = h.state().session.signature_edit.as_ref().map(|e| e.signature.name.clone()).expect("fixture: a signature is open");
+    h.state_mut().execute("signature.set", json!({"name": name, "text": "Priya Raman\nNorthwind Atelier"})).expect("the open signature is set");
+    assert_eq!(h.state().session.signature_edit.as_ref().map(|e| e.signature.name.clone()), Some(name), "fixture: the same signature is open");
+    let before = kept(&h);
+    deliver(&mut h, &picked, Delivered::picked("doc.html".into(), TWO.as_bytes().to_vec(), HTML, ticket, 1));
+    assert!(rows(&h).is_none(), "a document asked for before the signature was set was staged");
+    assert!(kept(&h) == before, "the mailbox or the editor changed");
+}

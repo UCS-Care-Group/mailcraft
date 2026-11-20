@@ -440,8 +440,9 @@ msgstr "Már van fájlablak."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "A file is still being chosen for the import."
-msgstr ""
+msgstr "Az importáláshoz még fájl kiválasztása folyik."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -541,8 +542,9 @@ msgstr "A leiratkozást kérő üzenet {from} címről {to} címre megy a Postá
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "A message being written couldn't be saved to Drafts: {why}"
-msgstr ""
+msgstr "Egy írás alatt álló üzenetet nem sikerült a Piszkozatok közé menteni: {why}"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -2362,8 +2364,9 @@ msgstr "Vissza a fiókbeállításokhoz"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Background picture"
-msgstr ""
+msgstr "Háttérkép"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -2565,8 +2568,9 @@ msgstr "Tárgy szerint"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "CSS variable"
-msgstr ""
+msgstr "CSS-változó"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
@@ -3258,13 +3262,15 @@ msgstr "Az alapértelmezett aláírások kiválasztása"
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "Choose image…"
-msgstr ""
+msgstr "Kép kiválasztása…"
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "Choose the file for each picture the HTML names:"
-msgstr ""
+msgstr "Válassza ki a fájlt minden képhez, amelyet a HTML megnevez:"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3292,8 +3298,9 @@ msgstr "Válassza ki, kinek a nevében küldi"
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "Chosen: {file}"
-msgstr ""
+msgstr "Kiválasztva: {file}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3303,103 +3310,123 @@ msgstr "Város"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows can't play video or audio in a message, so recipients see nothing here: link to the recording instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem tud videót vagy hangot lejátszani egy üzenetben, így a címzettek itt semmit sem látnak: helyette adjon meg hivatkozást a felvételre."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows can't show SVG pictures, so this one will be missing there: use a PNG instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem tud SVG-képeket megjeleníteni, így ez ott hiányozni fog: helyette használjon PNG-t."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows can't show WebP, AVIF or HEIC pictures, so this one will be missing there: use a PNG or a JPEG instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem tud WebP-, AVIF- vagy HEIC-képeket megjeleníteni, így ez ott hiányozni fog: helyette használjon PNG-t vagy JPEG-et."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows doesn't draw gradients: give the element a plain background colour as well, for it to show there."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem rajzol színátmeneteket: adjon az elemnek egyszerű háttérszínt is, hogy ott látszódjon."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows doesn't draw shadows, so this one won't appear there."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem rajzol árnyékokat, így ez ott nem jelenik meg."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows doesn't read a colour whose numbers are separated by spaces, and some mail services drop the whole style because of it: separate them with commas."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem olvassa be azt a színt, amelynek számait szóközök választják el, és egyes levelezőszolgáltatások emiatt az egész stílust elvetik: válassza el őket vesszővel."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows doesn't show a picture whose data is written into the HTML, so this one will be missing there: attach the picture to the signature instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem jelenít meg olyan képet, amelynek adatai a HTML-be vannak írva, így ez ott hiányozni fog: helyette csatolja a képet az aláíráshoz."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows doesn't show background pictures, so only the background colour appears there: make sure the text can be read on it."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem jelenít meg háttérképeket, így ott csak a háttérszín látszik: ügyeljen rá, hogy a szöveg olvasható legyen rajta."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows doesn't show text or symbols that a style rule adds before or after an element, so they will be missing: write them into the HTML itself."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem jeleníti meg azt a szöveget vagy jelet, amelyet egy stílusszabály egy elem elé vagy mögé tesz, így ezek hiányozni fognak: írja őket magába a HTML-be."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows doesn't understand CSS variables, so a style that uses one is lost there: write the value itself instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem érti a CSS-változókat, így az ilyet használó stílus ott elvész: helyette írja be magát az értéket."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows doesn't understand sizes in rem, so this size is ignored there: use pixels instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem érti a rem-ben megadott méreteket, így ott figyelmen kívül hagyja ezt a méretet: helyette használjon képpontot."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows doesn't understand sizes relative to the window (vw, vh, vmin, vmax), so this size is ignored there: use pixels or a percentage instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook nem érti az ablakhoz viszonyított méreteket (vw, vh, vmin, vmax), így ott figyelmen kívül hagyja ezt a méretet: helyette használjon képpontot vagy százalékot."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows draws square corners, so these corners won't be rounded there."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook szögletes sarkokat rajzol, így ezek a sarkok ott nem lesznek lekerekítve."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows ignores a minimum or maximum width here, so this part may be as wide as the whole message there: give a table a fixed width instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook itt figyelmen kívül hagy egy legkisebb vagy legnagyobb szélességet, így ez a rész ott olyan széles lehet, mint az egész üzenet: helyette adjon egy táblázatnak rögzített szélességet."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows ignores a picture's size when only its style sets it, and shows the picture at the file's own size."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook figyelmen kívül hagyja a kép méretét, ha csak a stílusa adja meg, és a képet a fájl saját méretében mutatja."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows ignores flexible box layout, so these items will be stacked or run together there: a table can put them side by side."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook figyelmen kívül hagyja a rugalmas dobozos elrendezést, így ezek az elemek ott egymás alá kerülnek vagy összefolynak: egy táblázat egymás mellé teheti őket."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows ignores floating, so this element won't sit beside the others there: use table cells, or an align attribute on a picture or a table."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook figyelmen kívül hagyja a lebegtetést, így ez az elem ott nem a többi mellett lesz: használjon táblázatcellákat, vagy align attribútumot egy képen vagy táblázaton."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows ignores grid layout, so these items will be stacked there: a table with rows and cells lays them out instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook figyelmen kívül hagyja a rácsos elrendezést, így ezek az elemek ott egymás alá kerülnek: helyette egy sorokból és cellákból álló táblázat rendezi el őket."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows ignores positioning, so this element will be shown in the ordinary flow there: put it in a table cell instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook figyelmen kívül hagyja a pozicionálást, így ez az elem ott a szokásos folyásban jelenik meg: helyette tegye egy táblázatcellába."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Classic Outlook for Windows, like other mail programs, doesn't show frames or embedded objects, so this part will be missing: link to it instead."
-msgstr ""
+msgstr "A klasszikus Windowsos Outlook más levelezőprogramokhoz hasonlóan nem jelenít meg kereteket vagy beágyazott objektumokat, így ez a rész hiányozni fog: helyette adjon meg rá hivatkozást."
 
 #. name
 #: crates/ui-egui/src/ribbon.rs
@@ -3583,13 +3610,15 @@ msgstr "Szín"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Colour gradient"
-msgstr ""
+msgstr "Színátmenet"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Colour written with spaces"
-msgstr ""
+msgstr "Szóközökkel írt szín"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -4667,8 +4696,9 @@ msgstr "Elvetés"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Discard changes"
-msgstr ""
+msgstr "Módosítások elvetése"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
@@ -5250,8 +5280,9 @@ msgstr "E-mail küldése az értekezlet résztvevőinek"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Embedded frame or object"
-msgstr ""
+msgstr "Beágyazott keret vagy objektum"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -5857,30 +5888,35 @@ msgstr "Először mentse el a Google szokásos IMAP és SMTP beállításait és
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Fix {n} email compatibility error to save this signature."
 msgid_plural "Fix {n} email compatibility errors to save this signature."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Javítson ki {n} e-mail-kompatibilitási hibát az aláírás mentéséhez."
+msgstr[1] "Javítson ki {n} e-mail-kompatibilitási hibát az aláírás mentéséhez."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Fix: add the size as width and height attributes"
-msgstr ""
+msgstr "Javítás: a méret megadása width és height attribútumként"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Fix: put the variable's value in its place"
-msgstr ""
+msgstr "Javítás: a változó értékének beírása a helyére"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Fix: remove this element"
-msgstr ""
+msgstr "Javítás: az elem eltávolítása"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Fix: separate the colour's numbers with commas"
-msgstr ""
+msgstr "Javítás: a szín számainak elválasztása vesszővel"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
@@ -5914,13 +5950,15 @@ msgstr "Megjelölve"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Flexible box layout"
-msgstr ""
+msgstr "Rugalmas dobozos elrendezés"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Floating element"
-msgstr ""
+msgstr "Lebegtetett elem"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -6058,8 +6096,9 @@ msgstr "Betűméret"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Font list without a general family"
-msgstr ""
+msgstr "Betűtípuslista általános család nélkül"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6141,8 +6180,9 @@ msgstr "Elfelejti a megőrzött képeket; kérésére újra letöltődnek."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Form or form field"
-msgstr ""
+msgstr "Űrlap vagy űrlapmező"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -6176,8 +6216,9 @@ msgstr "Formázás egyszerű szövegként"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Forms, fields and buttons don't work in an email, and Classic Outlook for Windows drops them or shows them as plain text: use a link instead."
-msgstr ""
+msgstr "Az űrlapok, mezők és gombok nem működnek egy e-mailben, és a klasszikus Windowsos Outlook elveti őket vagy egyszerű szövegként mutatja: helyette használjon hivatkozást."
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -6733,8 +6774,9 @@ msgstr "Szürke"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Grid layout"
-msgstr ""
+msgstr "Rácsos elrendezés"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
@@ -7122,13 +7164,15 @@ msgstr "Kapcsolatok importálása"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "Import HTML Signature"
-msgstr ""
+msgstr "HTML-aláírás importálása"
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "Import HTML…"
-msgstr ""
+msgstr "HTML importálása…"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -7266,8 +7310,9 @@ msgstr "Ide importálták."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "Imported the signature {name}"
-msgstr ""
+msgstr "A(z) {name} aláírás importálva"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7957,8 +8002,9 @@ msgstr "Adatok megtartása"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Keep editing"
-msgstr ""
+msgstr "Szerkesztés folytatása"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs
@@ -9434,8 +9480,9 @@ msgstr "Kis méret"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Minimum or maximum width"
-msgstr ""
+msgstr "Legkisebb vagy legnagyobb szélesség"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
@@ -10077,8 +10124,9 @@ msgstr "Új szabály"
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "New signature from an HTML file"
-msgstr ""
+msgstr "Új aláírás HTML-fájlból"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
@@ -10404,8 +10452,9 @@ msgstr "Nincs esemény"
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "No file chosen yet"
-msgstr ""
+msgstr "Még nincs kiválasztott fájl"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -10463,8 +10512,9 @@ msgstr "Nincs üzenet."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "No more files can be chosen in this window."
-msgstr ""
+msgstr "Ebben az ablakban nem lehet több fájlt kiválasztani."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -12116,18 +12166,21 @@ msgstr "Kép a szöveg mellett"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Picture format that may not show"
-msgstr ""
+msgstr "Esetleg meg nem jelenő képformátum"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Picture sized only by its style"
-msgstr ""
+msgstr "Csak a stílusával méretezett kép"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Picture written into the HTML"
-msgstr ""
+msgstr "A HTML-be írt kép"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -12259,8 +12312,9 @@ msgstr "Megnyitás külön ablakban"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Positioned element"
-msgstr ""
+msgstr "Pozicionált elem"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12732,8 +12786,9 @@ msgstr "A címzett címe tartalmazza"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Recipients who don't have these fonts get another one, often a serif font in Classic Outlook for Windows: end the list with serif, sans-serif or monospace."
-msgstr ""
+msgstr "Azok a címzettek, akiknek nincsenek meg ezek a betűtípusok, másikat kapnak, a klasszikus Windowsos Outlookban gyakran talpas betűt: zárja a listát a serif, sans-serif vagy monospace szóval."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13481,8 +13536,9 @@ msgstr "Közvetlenül a következő előtt vagy után: {items}"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Rounded corners"
-msgstr ""
+msgstr "Lekerekített sarkok"
 
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
@@ -13610,8 +13666,9 @@ msgstr "SHA-256 ujjlenyomat"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "SVG picture"
-msgstr ""
+msgstr "SVG-kép"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
@@ -14669,8 +14726,8 @@ msgstr "Elküldött elemek"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
-msgstr "A képek a webcímükről származnak, és a címzettek programjai döntik el, hogy betöltik-e őket. Az Ön által írt üzenet az aláírás egyszerűbb másolatát mutatja; ha ott szerkeszti, akkor azt helyette küldik el."
+msgid "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr "Úgy küldjük el, ahogy meg van írva, minden futó vagy nyomkövető elem nélkül. A webcímmel rendelkező képet ezen a címen küldjük el, és a címzettek programjai döntik el, betöltik-e; a HTML importálása… paranccsal behozott képek ennek az aláírásnak a saját képei, és minden üzenettel együtt mennek. Az írt üzenet ennek az aláírásnak egy egyszerűsített másolatát mutatja; ha ott szerkeszti, helyette ez a másolat lesz elküldve."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14776,8 +14833,9 @@ msgstr "Beállítások…"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Shadow"
-msgstr ""
+msgstr "Árnyék"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -15519,13 +15577,15 @@ msgstr "Méret"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Size in rem"
-msgstr ""
+msgstr "Méret rem-ben"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Size relative to the window"
-msgstr ""
+msgstr "Az ablakhoz viszonyított méret"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
@@ -15871,13 +15931,15 @@ msgstr "Erősebb kontrasztú szöveg és körvonalak világos és sötét témá
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Style rule that can't be sent"
-msgstr ""
+msgstr "Nem elküldhető stílusszabály"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Style that can't be sent"
-msgstr ""
+msgstr "Nem elküldhető stílus"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -16313,8 +16375,9 @@ msgstr "Szövegkiemelő szín"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Text added by a style rule"
-msgstr ""
+msgstr "Stílusszabály által hozzáadott szöveg"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -16336,18 +16399,21 @@ msgstr "Köszönöm, csütörtökön tízkor ráérek. Viszem a rajzokat."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "That HTML can't be made a signature: {why}"
-msgstr ""
+msgstr "Ebből a HTML-ből nem lehet aláírás: {why}"
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "That HTML file is larger than a signature's HTML may be (64 KB)."
-msgstr ""
+msgstr "Ez a HTML-fájl nagyobb, mint amekkora egy aláírás HTML-je lehet (64 KB)."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "That HTML file isn't UTF-8 text."
-msgstr ""
+msgstr "Ez a HTML-fájl nem UTF-8 szöveg."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -16453,8 +16519,9 @@ msgstr "Az a fájl nagyobb, mint egy kulcsfájl lehet."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "That file is larger than a signature may take."
-msgstr ""
+msgstr "Ez a fájl nagyobb, mint amennyit egy aláírás befogadhat."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -16512,13 +16579,15 @@ msgstr "Az a kulcs már a kártyán van."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "That picture is larger than a signature's picture may be (256 KB)."
-msgstr ""
+msgstr "Ez a kép nagyobb, mint amekkora egy aláírás képe lehet (256 KB)."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "That picture is no longer part of the import."
-msgstr ""
+msgstr "Ez a kép már nem része az importálásnak."
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -17062,8 +17131,9 @@ msgstr "A fájlt nem sikerült megosztani."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "The file couldn't be read"
-msgstr ""
+msgstr "A fájlt nem sikerült beolvasni"
 
 #. interface
 #: crates/ui-egui/src/files.rs crates/ui-egui/src/signature_import.rs
@@ -17297,8 +17367,9 @@ msgstr "A postafiókát nem lehetett elolvasni."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "The mailbox or the signature being edited changed, so the HTML import was given up."
-msgstr ""
+msgstr "A postafiók vagy a szerkesztett aláírás megváltozott, ezért a HTML importálása megszakadt."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -17524,8 +17595,9 @@ msgstr "A kép túl nagy volt, így kisebb lett ({w} px wide)."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "The pictures would be larger than a signature's pictures may be together (512 KB)."
-msgstr ""
+msgstr "A képek együtt nagyobbak lennének, mint amekkorák egy aláírás képei lehetnek (512 KB)."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18285,8 +18357,9 @@ msgstr "Ezt osztják meg: {what}."
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "This HTML names no picture files."
-msgstr ""
+msgstr "Ez a HTML nem nevez meg képfájlt."
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -19162,13 +19235,15 @@ msgstr "A megosztott postafiókhoz tartozó fiók már nincs meg. Távolítsa el
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "This signature can't be saved until its email compatibility errors are fixed."
-msgstr ""
+msgstr "Ezt az aláírást addig nem lehet menteni, amíg az e-mail-kompatibilitási hibái nincsenek kijavítva."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "This signature can't be saved: {why}"
-msgstr ""
+msgstr "Ezt az aláírást nem lehet menteni: {why}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -19178,23 +19253,27 @@ msgstr "Ez az aláírás képet vagy saját elrendezést tartalmaz. Módosítsa 
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "This signature's HTML could not be checked for email compatibility, so it can't be saved yet."
-msgstr ""
+msgstr "Az aláírás HTML-jének e-mail-kompatibilitását nem sikerült ellenőrizni, ezért még nem menthető."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "This signature's HTML could not be checked for email compatibility."
-msgstr ""
+msgstr "Az aláírás HTML-jének e-mail-kompatibilitását nem sikerült ellenőrizni."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "This style rule uses something MailCraft can't send safely (such as an import, a web address or an unsupported selector). Remove or simplify the rule."
-msgstr ""
+msgstr "Ez a stílusszabály olyasmit használ, amit a MailCraft nem tud biztonságosan elküldeni (például importálást, webcímet vagy nem támogatott kijelölőt). Távolítsa el vagy egyszerűsítse a szabályt."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "This style uses something MailCraft can't send safely (such as a web address for a background picture), so the whole style would be left out, its colours and spacing with it. Remove that part of the style."
-msgstr ""
+msgstr "Ez a stílus olyasmit használ, amit a MailCraft nem tud biztonságosan elküldeni (például egy háttérkép webcímét), így az egész stílus kimaradna, a színeivel és térközeivel együtt. Távolítsa el a stílusnak ezt a részét."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -19778,8 +19857,9 @@ msgstr "Mentetlen üzenet"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Unsaved Signature"
-msgstr ""
+msgstr "Mentetlen aláírás"
 
 #. command label, interface
 #: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
@@ -20089,8 +20169,9 @@ msgstr "A {version} kész:"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "Video or audio player"
-msgstr ""
+msgstr "Videó- vagy hanglejátszó"
 
 #. name, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
@@ -20154,8 +20235,9 @@ msgstr "MailCraft Google-regisztrációjára várva"
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "Waiting for the HTML file…"
-msgstr ""
+msgstr "Várakozás a HTML-fájlra…"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -20165,8 +20247,9 @@ msgstr "Várva a jóváhagyás váratlanul leállt"
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "Waiting for the previous file to finish being read."
-msgstr ""
+msgstr "Várakozás az előző fájl beolvasásának befejezésére."
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -21398,8 +21481,9 @@ msgstr "a Exchange szerverfiók szervere, címe és felhasználóneve nem módos
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "an HTML signature's pictures are sized, described and taken out in its HTML"
-msgstr ""
+msgstr "egy HTML-aláírás képeinek méretét, leírását és eltávolítását a HTML-jében lehet megadni"
 
 #. what a command says
 #: crates/engine/src/digital_signature.rs
@@ -22519,8 +22603,9 @@ msgstr "someone@ example.org or @ example.org"
 
 #. what a command says
 #: crates/model/src/signature.rs
+#, fuzzy
 msgid "switch the HTML signature to rich text before inserting a picture into its text"
-msgstr ""
+msgstr "kép beszúrása előtt állítsa át a HTML-aláírást formázott szövegre"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -23082,8 +23167,9 @@ msgstr "a javasolt befejezés nem a javasolt kezdet után történik"
 
 #. interface
 #: crates/ui-egui/src/signature_import.rs
+#, fuzzy
 msgid "the reader stopped unexpectedly"
-msgstr ""
+msgstr "az olvasás váratlanul leállt"
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
@@ -23662,28 +23748,33 @@ msgstr "Ez a Exchange kiszolgáló fiók nem rendelkezik kiszolgáló beállít�
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "this HTML conversion would lose the signature's embedded pictures"
-msgstr ""
+msgstr "ez a HTML-átalakítás elveszítené az aláírás beágyazott képeit"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "this HTML hides a picture of the signature where its text can't show it"
-msgstr ""
+msgstr "ez a HTML az aláírás egy képét olyan helyen rejti el, ahol a szövege nem tudja megmutatni"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "this HTML names a picture inside a <template> that is neither on the web nor one of this signature's own: such a picture is never sent, so take it out or give it a web address (https://…)"
-msgstr ""
+msgstr "ez a HTML egy <template> belsejében olyan képet nevez meg, amely sem a weben nincs, sem ennek az aláírásnak a saját képe: ilyen képet sosem küldünk el, ezért távolítsa el, vagy adjon neki webcímet (https://…)"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "this HTML names a picture that is neither on the web nor one of this signature's own: give it a web address (https://…), or name the picture's file relative to the HTML file and bring both in with Import HTML…"
-msgstr ""
+msgstr "ez a HTML olyan képet nevez meg, amely sem a weben nincs, sem ennek az aláírásnak a saját képe: adjon neki webcímet (https://…), vagy a kép fájlját a HTML-fájlhoz viszonyítva nevezze meg, és hozza be mindkettőt a HTML importálása… paranccsal"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "this HTML names a picture this signature doesn't have"
-msgstr ""
+msgstr "ez a HTML olyan képet nevez meg, amely nincs meg ebben az aláírásban"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
@@ -23867,33 +23958,39 @@ msgstr "Ez a sorozat túl sok változás nap"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "this signature has email compatibility errors to fix before it can be saved"
-msgstr ""
+msgstr "az aláírásnak mentés előtt kijavítandó e-mail-kompatibilitási hibái vannak"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "this signature's HTML could not be checked for email compatibility"
-msgstr ""
+msgstr "az aláírás HTML-jének e-mail-kompatibilitását nem sikerült ellenőrizni"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "this signature's HTML could not be read for its pictures"
-msgstr ""
+msgstr "az aláírás HTML-jéből nem sikerült beolvasni a képeket"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "this signature's HTML could not be read for its pictures: it may name at most {n} pictures"
-msgstr ""
+msgstr "az aláírás HTML-jéből nem sikerült beolvasni a képeket: legfeljebb {n} képet nevezhet meg"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "this signature's HTML could not be read for its pictures: remove its <base> element"
-msgstr ""
+msgstr "az aláírás HTML-jéből nem sikerült beolvasni a képeket: távolítsa el a <base> elemét"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "this signature's styles can't be sent safely: fix them in File › Signatures, then insert the signature again (Message › Include › Signature), or choose Edit Signature as Text"
-msgstr ""
+msgstr "az aláírás stílusai nem küldhetők el biztonságosan: javítsa ki őket a Fájl › Aláírások helyen, majd szúrja be újra az aláírást (Üzenet › Belefoglalás › Aláírás), vagy válassza Az aláírás szerkesztése szövegként lehetőséget"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -24957,10 +25054,11 @@ msgstr[1] "Ezen a telefonon {n} letöltött kép van tárolva ({size})."
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "{n} email compatibility error"
 msgid_plural "{n} email compatibility errors"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} e-mail-kompatibilitási hiba"
+msgstr[1] "{n} e-mail-kompatibilitási hiba"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -25690,10 +25788,11 @@ msgstr[1] "{n} olvasatlan a kiszolgálón"
 
 #. interface
 #: crates/ui-egui/src/compat.rs
+#, fuzzy
 msgid "{n} warning"
 msgid_plural "{n} warnings"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} figyelmeztetés"
+msgstr[1] "{n} figyelmeztetés"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -25978,6 +26077,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Sorok"
+
+#, fuzzy
+#~ msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+#~ msgstr "A képek a webcímükről származnak, és a címzettek programjai döntik el, hogy betöltik-e őket. Az Ön által írt üzenet az aláírás egyszerűbb másolatát mutatja; ha ott szerkeszti, akkor azt helyette küldik el."
 
 #, fuzzy
 #~ msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"

@@ -91,7 +91,7 @@ fn named<'a>(s: &'a mut Session, v: &Value) -> Result<&'a mut Signature, CmdErro
 /// The open signature's text is what `set` gave the signature of that name.
 fn reopen(s: &mut Session, name: &str) {
     let open = s.signature_edit.as_ref().is_some_and(|e| e.signature.name.eq_ignore_ascii_case(name));
-    if let Some(sig) = s.mailbox.signature(name).cloned().filter(|_| open) {
+    if open && let Some(sig) = s.mailbox.signature(name).cloned() {
         let generation = s.next_signature_editor();
         s.signature_edit = Some(SignatureEdit { body: RichBody::new(sig.body().clone()), signature: sig, dirty: false, generation });
     }

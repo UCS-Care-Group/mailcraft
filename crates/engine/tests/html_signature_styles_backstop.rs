@@ -33,9 +33,33 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
     s.run(id, &params).unwrap_or_else(|e| panic!("{id} {params}: {e}"))
 }
 
+/// The class the engine scopes a message's HTML signature to, as its documentation says: `mc-sig-`
+/// and the 64-bit FNV-1a digest, in hex, of the Message-ID's local part.
+fn scope_of(message_id: &str) -> String {
+    let local = message_id.split('@').next().unwrap_or("");
+    let digest = local.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3));
+    format!("mc-sig-{digest:016x}")
+}
+
+/// Every `mc-sig-…` class an element of `html` has, in order.
+fn scope_classes(html: &str) -> Vec<String> {
+    html.split("class=\"")
+        .skip(1)
+        .filter_map(|rest| rest.split('"').next())
+        .flat_map(str::split_whitespace)
+        .filter(|class| class.starts_with("mc-sig-"))
+        .map(str::to_string)
+        .collect()
+}
+
 /// A session with an HTML signature using `sheet`, put into the mailbox directly (no save gate),
 /// as the account's default, and a new message to a recipient with that signature in it.
 fn writing_with(sheet: &str) -> Session {
+    writing_with_text(sheet, "Thanks,")
+}
+
+/// [`writing_with`], the owner's own text being `typed`.
+fn writing_with_text(sheet: &str, typed: &str) -> Session {
     let now = DateTime::new(Date::new(2026, 10, 14).unwrap(), 16, 0, 0).unwrap().to_timestamp(0);
     let mut s = Session::at(sample::mailbox(now, 0), now, 0);
     let account = s.mailbox.default_account().expect("the sample mailbox has an account").id;
@@ -44,7 +68,7 @@ fn writing_with(sheet: &str) -> Session {
     sig.set_html(Some(own.clone())).expect("the model keeps the HTML");
     s.mailbox.signatures.push(sig);
     run(&mut s, "signature.defaults", json!({"account": account, "new": NAME}));
-    run(&mut s, "mail.new", json!({"account": account, "to": "ada@example.org", "subject": "Card", "body": "Thanks,"}));
+    run(&mut s, "mail.new", json!({"account": account, "to": "ada@example.org", "subject": "Card", "body": typed}));
     let c = s.compose.as_ref().expect("a message is being written");
     assert_eq!(c.signature_html(), Some(own.as_str()), "fixture guard: the HTML signature went in unedited");
     s
@@ -266,4 +290,142 @@ fn a_reopened_draft_saved_again_keeps_the_simpler_copy_and_the_refusal() {
     run(&mut s, "mail.editDraft", json!({"id": again}));
     let err = s.run("compose.send", &json!({})).expect_err("still the HTML signature");
     assert_eq!(err.to_string(), REFUSAL);
+}
+
+/// D1 on this computer: the mailbox file written and read again keeps what the draft keeps, so
+/// the draft opened from it is still refused at Send, and nothing changes.
+#[test]
+fn a_draft_read_back_from_the_mailbox_file_is_still_refused() {
+    let mut s = writing_with(IMPORTING);
+    let own = s.compose.as_ref().and_then(|c| c.signature_html()).map(str::to_string).expect("fixture guard: an HTML signature");
+    let saved = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().expect("the saved draft's id");
+    run(&mut s, "compose.close", json!({}));
+    let bytes = mailcraft_engine::io::write_mailbox(&s.mailbox).expect("the mailbox file is written");
+    let back = mailcraft_engine::io::read_mailbox(&bytes).expect("the mailbox file is read back");
+    let kept = |m: &mailcraft_model::Mailbox| m.message(saved).and_then(|d| d.draft_signature.clone());
+    assert!(kept(&s.mailbox).is_some(), "fixture guard: the draft keeps the signature as it went in");
+    assert_eq!(kept(&back), kept(&s.mailbox), "the file keeps it as it was");
+    let mut t = Session::at(back, s.now(), 0);
+    run(&mut t, "mail.editDraft", json!({"id": saved}));
+    assert_eq!(t.compose.as_ref().and_then(|c| c.signature_html()), Some(own.as_str()), "opened again, the draft holds the HTML signature");
+    let (compose, mailbox) = (t.compose.clone(), t.mailbox.clone());
+    let err = t.run("compose.send", &json!({})).expect_err("still the HTML signature");
+    assert_eq!(err.to_string(), REFUSAL, "the refusal says what to do");
+    assert_eq!(t.compose, compose, "the message being written is as it was");
+    assert!(t.mailbox == mailbox, "the mailbox is as it was");
+}
+
+/// D1 holds on this computer only: the server's copy of the draft keeps nothing of the signature
+/// as it went in, so a draft replaced by it opens with the simpler copy as its words, and sends
+/// that copy, with nothing of the refused sheet.
+#[test]
+fn a_draft_replaced_by_the_servers_copy_opens_with_the_simpler_copy_and_sends_it() {
+    let mut s = writing_with(FETCHING);
+    let saved = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().expect("the saved draft's id");
+    run(&mut s, "compose.close", json!({}));
+    let server = s.mailbox.message(saved).cloned().expect("the saved draft").for_server();
+    assert!(server.draft_signature.is_none(), "fixture guard: the server's copy keeps nothing of it");
+    *s.mailbox.message_mut(saved).expect("the saved draft") = server;
+    run(&mut s, "mail.editDraft", json!({"id": saved}));
+    let c = s.compose.as_ref().expect("the draft is being written again");
+    assert_eq!(c.signature_html(), None, "no snapshot, no HTML signature");
+    let words = c.body.text().to_plain();
+    assert!(words.contains("Thanks,") && words.contains("Priya Raman"), "the owner's words and the simpler copy's are its text: {words:?}");
+    let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().expect("sent with the simpler copy");
+    let html = s.mailbox.message(sent).and_then(|m| m.body.html.clone()).expect("sent as HTML");
+    assert!(html.contains("Priya Raman"), "the simpler copy went: {html}");
+    assert!(!html.to_ascii_lowercase().contains("<style") && !html.contains("track.example.net"), "nothing of the refused sheet: {html}");
+}
+
+/// CodeRabbit (compose.rs:1662): the owner's text says what the signature's simpler copy says, the
+/// same two lines. The draft's HTML still holds the copy its signature is bound to once, so opened
+/// again the draft holds the HTML signature and Send is still refused, nothing changing; edited as
+/// text it goes, the owner's words and the signature's, with nothing that marked the signature's
+/// place in the draft.
+#[test]
+fn a_reopened_draft_whose_text_repeats_the_signatures_words_is_still_refused() {
+    let mut s = writing_with_text(IMPORTING, "Northwind Studio card\nPriya Raman");
+    let own = s.compose.as_ref().and_then(|c| c.signature_html()).map(str::to_string).expect("fixture guard: an HTML signature");
+    let saved = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().expect("the saved draft's id");
+    let draft = s.mailbox.message(saved).expect("the draft is kept").clone();
+    let html = draft.body.html.clone().expect("an HTML draft");
+    assert_eq!(html.matches("<div>Priya Raman</div>").count(), 2, "fixture guard: the owner's text and the simpler copy say the same: {html}");
+    assert_kept_bound_to_stand_in(&draft, &own);
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": saved}));
+    let c = s.compose.as_ref().expect("the draft is being written again");
+    assert_eq!(c.signature_html(), Some(own.as_str()), "opened again, the draft holds the HTML signature");
+    assert_eq!(c.body.text().to_plain().matches("Priya Raman").count(), 2, "the owner's words and the signature's: {:?}", c.body.text().to_plain());
+    let (compose, mailbox) = (s.compose.clone(), s.mailbox.clone());
+    let err = s.run("compose.send", &json!({})).expect_err("the reopened draft holds the signature as it went in");
+    assert_eq!(err.to_string(), REFUSAL, "the refusal says what to do");
+    assert_eq!(s.compose, compose, "the message being written is as it was");
+    assert!(s.mailbox == mailbox, "the mailbox is as it was");
+    run(&mut s, "compose.signatureAsText", json!({"value": true}));
+    let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().expect("sent with the signature edited as text");
+    let html = s.mailbox.message(sent).and_then(|m| m.body.html.clone()).expect("sent as HTML");
+    assert_eq!(html.matches("Priya Raman").count(), 2, "the owner's words and the signature's went: {html}");
+    assert!(
+        !html.contains("mc-sig-") && !html.to_ascii_lowercase().contains("<style"),
+        "nothing of the draft's binding or the refused sheet: {html}"
+    );
+}
+
+/// The binding is still refused when the draft's HTML holds the copy its signature is bound to
+/// twice, above the signature or below it where a quoted original would be: which one is the
+/// signature can't be told, so the draft opens with no HTML signature, its words as text.
+#[test]
+fn a_draft_whose_html_holds_the_signatures_copy_twice_opens_without_it() {
+    for place in ["above", "below"] {
+        let mut s = writing_with(IMPORTING);
+        let saved = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().expect("the saved draft's id");
+        run(&mut s, "compose.close", json!({}));
+        let m = s.mailbox.message_mut(saved).expect("the saved draft");
+        let rendered = m.draft_signature.as_ref().expect("the snapshot").rendered().to_string();
+        let html = m.body.html.clone().expect("an HTML draft");
+        let changed = match place {
+            "above" => html.replacen(&rendered, &format!("{rendered}{rendered}"), 1),
+            _ => html.replacen("</body>", &format!("{rendered}</body>"), 1),
+        };
+        assert_eq!(changed.matches(&rendered).count(), 2, "fixture guard ({place}): the copy twice: {changed}");
+        m.body.html = Some(changed);
+        run(&mut s, "mail.editDraft", json!({"id": saved}));
+        let c = s.compose.as_ref().expect("the draft is being written again");
+        assert_eq!(c.signature_html(), None, "{place}: no HTML signature when its copy is there twice");
+        assert!(c.signature.is_none(), "{place}: no signature at all");
+        assert!(c.body.text().to_plain().contains("Priya Raman"), "{place}: its words are text: {:?}", c.body.text().to_plain());
+    }
+}
+
+/// What the reply to CodeRabbit (compose.rs:1662) says: the `<div>` the simpler copy is put in has
+/// the class an HTML signature of the same message is scoped to (`mc-sig-` and the digest of the
+/// Message-ID's local part) and no other, so the copy of the draft a server gets carries nothing
+/// that a sendable HTML signature of that message doesn't carry already.
+#[test]
+fn the_simpler_copys_wrapper_has_the_class_of_the_messages_html_signature() {
+    let mut s = writing_with(IMPORTING);
+    let saved = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().expect("the saved draft's id");
+    let draft = s.mailbox.message(saved).expect("the draft is kept").clone();
+    let scope = scope_of(&draft.message_id);
+    let kept = draft.draft_signature.as_ref().expect("the draft keeps the signature as it went in");
+    assert!(kept.rendered().starts_with(&format!("<div class=\"{scope}\">")), "the copy is in the message's scope class: {}", kept.rendered());
+    let html = draft.body.html.clone().expect("an HTML draft");
+    assert_eq!(scope_classes(&html), std::slice::from_ref(&scope), "the draft's HTML has that class once, and no other: {html}");
+    // The same message with a signature whose styles can be sent: it goes in that same class.
+    let mut clean = Signature::plain_text("Clean", "Northwind Studio card\nPriya Raman");
+    let own = format!("<html><head>{CLEAN}</head><body><div class=\"studio-card\">Northwind Studio card</div><div>Priya Raman</div></body></html>");
+    clean.set_html(Some(own)).expect("the model keeps the HTML");
+    s.mailbox.signatures.push(clean);
+    run(&mut s, "compose.signature", json!({"name": "Clean"}));
+    let again = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().expect("the saved draft's id");
+    assert_eq!(again, saved, "fixture guard: the same draft");
+    let m = s.mailbox.message(saved).expect("the draft is kept");
+    assert_eq!(m.message_id, draft.message_id, "fixture guard: the same message");
+    let html = m.body.html.clone().expect("an HTML draft");
+    let classes = scope_classes(&html);
+    assert!(
+        !classes.is_empty() && classes.iter().all(|c| *c == scope),
+        "a sendable signature of the message is in the same class: {classes:?} {html}"
+    );
+    assert!(html.contains(&format!(".{scope} ")), "and its sheet is scoped to that class: {html}");
 }

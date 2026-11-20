@@ -143,3 +143,45 @@ fn a_draft_saved_without_an_html_signature_keeps_no_snapshot() {
     let draft = s.mailbox.message(saved).expect("the saved draft");
     assert!(draft.draft_signature.is_none(), "no HTML signature, no snapshot: {:?}", draft.draft_signature);
 }
+
+/// (e) A second inline part under the snapshot's Content-ID, with other bytes: the snapshot can't
+/// say which of the two is the signature's picture, so the draft opens as any draft does, with no
+/// signature, and the other part is still one of the message's files.
+#[test]
+fn a_second_part_under_the_snapshots_content_id_keeps_the_signature_out_and_the_part_in() {
+    let (mut s, saved) = saved_and_closed();
+    let m = s.mailbox.message_mut(saved).expect("the saved draft");
+    let cid = m.draft_signature.as_ref().expect("the snapshot").content_ids().first().cloned().expect("one Content-ID for the one picture");
+    let mut other =
+        m.attachments.iter().find(|a| a.inline && a.content_id == cid).cloned().expect("fixture guard: the part under the snapshot's Content-ID");
+    let mut bytes = other.data.to_vec();
+    let last = bytes.last_mut().expect("the picture has bytes");
+    *last ^= 0xff;
+    other.data = Arc::new(bytes.clone());
+    other.name = "other-mark.png".into();
+    m.attachments.push(other);
+    assert_eq!(reopen(&mut s, saved), None, "two parts under one Content-ID: the draft gets no signature back");
+    let c = s.compose.as_ref().expect("the draft is being written again");
+    assert!(
+        c.attachments.iter().any(|a| a.data.as_slice() == bytes.as_slice()),
+        "the other part was dropped: {:?}",
+        c.attachments.iter().map(|a| (&a.name, &a.content_id)).collect::<Vec<_>>()
+    );
+}
+
+/// (f) The owner's words and the signature together are more than a message holds: the draft
+/// opens as any draft does, with no signature, rather than with the signature cut short.
+#[test]
+fn a_draft_too_long_to_hold_its_signature_too_opens_without_it() {
+    let (mut s, saved) = saved_and_closed();
+    let m = s.mailbox.message_mut(saved).expect("the saved draft");
+    let html = m.body.html.clone().expect("an HTML draft");
+    let at = html.find("Thanks,").expect("fixture guard: the owner's words in the HTML");
+    let filler = "a".repeat(mailcraft_model::rich::MAX_CHARS - 20);
+    m.body.html = Some(format!("{}{filler}{}", &html[..at], &html[at..]));
+    let answer = run(&mut s, "mail.editDraft", json!({"id": saved}));
+    assert_eq!(answer["draft"].as_u64(), Some(saved), "the saved draft opened");
+    let c = s.compose.as_ref().expect("the draft is being written again");
+    assert!(c.body.text().text().contains("Thanks,"), "the owner's words are back");
+    assert_eq!(c.signature.as_ref().map(|i| i.text.text()), None, "a signature cut short came back as the signature");
+}

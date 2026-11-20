@@ -33,6 +33,21 @@ pub(crate) fn span_of(whole: &str, part: &str) -> Option<std::ops::Range<usize>>
     (found.as_ptr() == part.as_ptr()).then_some(start..end)
 }
 
+/// A `<style>` element the tokenizer skipped over.
+#[derive(Debug, PartialEq)]
+pub(crate) struct Style<'a> {
+    /// Its `media` attribute as an attribute reads, character references decoded and trimmed as a
+    /// media list is tested ([`crate::media::trim`]: one made only of spaces that aren't CSS white
+    /// space stays, a media type no window has), cut to one byte more than a media list may be.
+    pub media: String,
+    /// The sheet's own text.
+    pub css: &'a str,
+    /// Whether its start tag had attributes past those kept ([`MAX_ATTRS`]) and none of those kept
+    /// is `media`: a `media` among those dropped is then unknown. (One kept is the one that counts:
+    /// of an attribute written twice, HTML takes the first.)
+    pub overflowed: bool,
+}
+
 /// A start tag.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Tag<'a> {
@@ -96,7 +111,7 @@ pub(crate) struct Tokenizer<'a> {
     tag_start: usize,
     /// The text of the `<style>` elements skipped over since the last token was given, each with its
     /// `media` attribute (at most [`MAX_STYLES`]): the one who reads style sheets takes them.
-    pub styles: Vec<(String, &'a str)>,
+    pub styles: Vec<Style<'a>>,
 }
 
 impl<'a> Tokenizer<'a> {
@@ -305,8 +320,13 @@ impl<'a> Iterator for Tokenizer<'a> {
                         // Skip the content and the end tag.
                         let end = find_end_tag(b, self.pos, &tag.name).unwrap_or(b.len());
                         if tag.name == "style" && self.styles.len() < MAX_STYLES && for_screen(&tag) {
-                            let media = crate::truncate(tag.raw_attr("media").unwrap_or("").trim(), crate::media::MAX_QUERY_BYTES + 1);
-                            self.styles.push((media.to_string(), self.slice(self.pos, end)));
+                            let media = tag.attr("media").unwrap_or_default();
+                            let media = crate::truncate(crate::media::trim(&media), crate::media::MAX_QUERY_BYTES + 1).to_string();
+                            self.styles.push(Style {
+                                media,
+                                css: self.slice(self.pos, end),
+                                overflowed: tag.attrs_overflowed() && !tag.has("media"),
+                            });
                         }
                         self.pos = find_byte(b, end, b'>').map_or(b.len(), |i| i + 1);
                         continue;
@@ -352,6 +372,9 @@ fn find_end_tag(b: &[u8], from: usize, name: &str) -> Option<usize> {
     }
     None
 }
+
+#[cfg(test)]
+mod style_tests;
 
 #[cfg(test)]
 mod tests {

@@ -163,6 +163,20 @@ pub(crate) struct Verdict {
     pub dark: bool,
 }
 
+/// A media query list (the text between `@media` and `{`, or a `media` attribute) trimmed as it is
+/// tested: of the white space round it, and to nothing (`all`) only when it is nothing but CSS's own
+/// white space. One made only of other spaces (a no-break space, an em space, a vertical tab) is
+/// kept as it is: a CSS reader reads such a space as part of a media type it doesn't know, so the
+/// list holds for no window. (Such spaces round a list that says something else are trimmed, as
+/// this reader always has.)
+pub(crate) fn trim(list: &str) -> &str {
+    let css = crate::sheet::css_trim(list);
+    match css.trim() {
+        "" => css,
+        said => said,
+    }
+}
+
 /// Test a media query list (the text between `@media` and `{`, or a `media` attribute).
 pub(crate) fn test(list: &str, env: &Env) -> Verdict {
     // A comment is white space.
@@ -173,9 +187,9 @@ pub(crate) fn test(list: &str, env: &Env) -> Verdict {
     } else {
         list
     };
-    let list = list.trim();
+    let list = trim(list);
     let mut verdict = Verdict::default();
-    // An empty list is `all`.
+    // An empty list is `all`. (A list of other spaces alone is a query not understood: false.)
     if list.is_empty() {
         verdict.holds = true;
         return verdict;

@@ -722,7 +722,7 @@ fn simple(cur: &mut Cursor<'_>, depth: usize) -> Result<Option<Simple>, ()> {
                         return Err(());
                     }
                     for part in parts {
-                        let mut inner = Cursor { text: part.trim(), at: 0 };
+                        let mut inner = Cursor { text: css_trim(part), at: 0 };
                         let one = compound(&mut inner, depth + 1).ok_or(())?;
                         if !inner.done() {
                             return Err(());
@@ -827,7 +827,8 @@ fn compound(cur: &mut Cursor<'_>, depth: usize) -> Option<Compound> {
 
 /// One selector of a list.
 fn selector(text: &str) -> Option<Selector> {
-    let mut cur = Cursor { text: text.trim(), at: 0 };
+    // CSS's own white space round it, and no other space: one may be part of a name.
+    let mut cur = Cursor { text: css_trim(text), at: 0 };
     let (mut compounds, mut combinators) = (Vec::new(), Vec::new());
     let (mut ids, mut classes, mut tags) = (0u32, 0u32, 0u32);
     loop {
@@ -1245,7 +1246,7 @@ pub(crate) fn media_lists(html: &str) -> Vec<String> {
 /// message, `size` being what the sheets before it took, whatever their `media` says. `each` gets
 /// a sheet's `media` attribute and its text.
 fn take_styles(tokens: &mut Tokenizer<'_>, template: usize, size: &mut usize, mut each: impl FnMut(&str, &str)) {
-    for (media, css) in std::mem::take(&mut tokens.styles) {
+    for crate::tokenizer::Style { media, css, .. } in std::mem::take(&mut tokens.styles) {
         if template > 0 {
             continue;
         }

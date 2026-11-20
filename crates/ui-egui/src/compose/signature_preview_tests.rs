@@ -330,3 +330,37 @@ fn the_composers_html_signature_preview_refreshes_the_picture_when_its_bytes_cha
         "unchanged frames after the other signature was drawn made a new preview message instead of the one kept: the preview is drawn again every frame rather than reused"
     );
 }
+
+/// An HTML signature with a style sheet: the composer's preview shows it as it goes out, its class
+/// rule (scoped to the signature) giving its words their colour, as the message sent gives them.
+#[test]
+fn the_composers_preview_shows_what_the_signatures_style_sheet_gives() {
+    let own = "<html><head><style>.studio-card { color: #1f4e79; }</style></head><body><div class=\"studio-card\">Northwind Studio card</div><div>Priya Raman</div></body></html>";
+    let mut sig = Signature::plain_text("Northwind Work", "Northwind Studio card\nPriya Raman");
+    sig.set_html(Some(own.to_string())).expect("the model keeps the HTML");
+    let mut a = app();
+    a.session.mailbox.signatures.push(sig);
+    let account = a.session.mailbox.default_account().expect("the sample mailbox has an account").id;
+    a.execute("signature.defaults", json!({"account": account, "new": "Northwind Work"})).expect("the account takes the signature for new messages");
+    a.execute("mail.new", json!({"account": account, "to": "maya@lumen.example", "body": "Thanks,"})).expect("a new message opens");
+    assert_eq!(editor::unedited_html_signature(&a), Some(own), "fixture guard: the HTML signature went in unedited");
+    let mut h = window(a);
+    h.run_steps(4);
+    let message = kept_preview(&h);
+    fn span<'b>(blocks: &'b [mailcraft_html::Block], text: &str) -> Option<&'b mailcraft_html::Span> {
+        blocks.iter().find_map(|b| match &b.kind {
+            BlockKind::Table(t) => t.rows.iter().flat_map(|r| &r.cells).find_map(|c| span(&c.blocks, text)),
+            _ => b.spans.iter().find(|s| s.text.contains(text)),
+        })
+    }
+    let blocks = crate::reading::blocks_of(&message);
+    let card = span(&blocks, "Northwind Studio card").expect("the preview shows the signature's words");
+    assert_eq!(
+        card.color,
+        Some(mailcraft_html::Rgb(0x1f, 0x4e, 0x79)),
+        "the composer's preview drops the signature's style sheet: {:?}",
+        message.body.html
+    );
+    let name = span(&blocks, "Priya Raman").expect("the preview shows the signature's words");
+    assert_eq!(name.color, None, "the rule reaches past its class");
+}

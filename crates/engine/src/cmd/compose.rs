@@ -1137,8 +1137,8 @@ fn reopened(s: &Session, m: &Message) -> Compose {
 /// Where in `own_html` (a draft's HTML above any original quoted under it) the HTML signature the
 /// draft was saved with is, and the snapshot of it the draft keeps ([`Message::draft_signature`]),
 /// only while the draft still holds that signature as it was saved: it is a draft, its HTML holds
-/// the snapshot's fragment exactly once, and under each of the snapshot's Content-IDs is an inline
-/// part with that picture's own type and bytes. The snapshot is data, not authority: otherwise the
+/// the snapshot's fragment exactly once, and under each of the snapshot's Content-IDs is exactly
+/// one inline part, with that picture's own type and bytes. The snapshot is data, not authority: otherwise the
 /// draft was changed, and it opens with no signature. The account's signatures are never asked.
 fn saved_signature<'m>(m: &'m Message, own_html: &str) -> Option<(usize, &'m DraftSignature)> {
     let snapshot = m.draft_signature.as_ref().filter(|_| m.draft)?;
@@ -1151,7 +1151,10 @@ fn saved_signature<'m>(m: &'m Message, own_html: &str) -> Option<(usize, &'m Dra
     let pictures = snapshot.signature().pictures();
     let parts = pictures.len() == snapshot.content_ids().len()
         && pictures.iter().zip(snapshot.content_ids()).all(|(p, id)| {
-            m.attachments.iter().any(|a| a.inline && a.content_id == *id && a.mime == p.mime && a.data.as_slice() == p.data.as_slice())
+            // With two parts under one Content-ID, which is the signature's can't be told, and
+            // taking them back as its pictures would drop the other.
+            let mut under = m.attachments.iter().filter(|a| a.inline && a.content_id == *id);
+            under.next().is_some_and(|a| a.mime == p.mime && a.data.as_slice() == p.data.as_slice()) && under.next().is_none()
         });
     parts.then_some((at, snapshot))
 }
@@ -1171,9 +1174,19 @@ fn with_signature(read: &mut dyn FnMut(&str) -> RichText, html: &str, at: usize,
     let marked = snapshot.signature().body().paragraphs().iter().map(|p| Paragraph { signature: true, ..p.clone() });
     let written = line_break_in_body(above);
     let paragraphs: Vec<Paragraph> = own(&before, written).into_iter().chain(marked).chain(own(&after, false)).collect();
+    // `from_paragraphs` cuts what is more than a message holds without saying so: what the parts
+    // hold is counted before they are joined, and the whole is kept only when nothing was cut.
+    let size = |ps: &[Paragraph]| {
+        let chars = ps.iter().map(Paragraph::chars).fold(ps.len().saturating_sub(1), usize::saturating_add);
+        let objects = ps.iter().flat_map(|p| &p.runs).filter(|r| r.picture.is_some() || r.table.is_some()).count();
+        (ps.len(), chars, objects)
+    };
+    let whole = size(&paragraphs);
+    if whole.0 > mailcraft_model::rich::MAX_PARAGRAPHS || whole.1 > mailcraft_model::rich::MAX_CHARS {
+        return None;
+    }
     let text = RichText::from_paragraphs(paragraphs);
-    let fits = text.len() <= mailcraft_model::rich::MAX_CHARS && text.paragraphs().len() <= mailcraft_model::rich::MAX_PARAGRAPHS;
-    fits.then_some(text)
+    (size(text.paragraphs()) == whole).then_some(text)
 }
 
 /// Whether `above`, a draft's HTML above its signature, writes a line break in its body: a `<br>`
@@ -1668,9 +1681,20 @@ fn draft_signature_of(c: &Compose, message_id: &str) -> Option<DraftSignature> {
 }
 
 /// The simpler copy of an HTML signature whose styles can't be sent, as a draft's HTML holds it in
-/// the signature's place ([`body_of`]) and its snapshot is bound to ([`draft_signature_of`]).
+/// the signature's place ([`body_of`]) and its snapshot is bound to ([`draft_signature_of`]): in a
+/// `<div>` of the message's scope class ([`signature_scope`]), as the HTML signature itself goes,
+/// so that it is told from the owner's text where that text says the same (the owner's text is
+/// written with no class). Send refuses such a signature, and a message written from the draft
+/// again writes its text afresh; but a draft moved into the Outbox and sent with Send Again goes as
+/// it is, this copy in its `<div>` with it: that class is the one every HTML signature of the
+/// message carries, and nothing of the refused sheet or of what the draft keeps on this computer
+/// goes ([`Message::for_server`]).
 fn stand_in_html(sig: &Signature, message_id: &str) -> String {
-    mailcraft_mime_model::rich::signature_html(sig, &|p: &Picture| signature_cid(p, message_id))
+    let copy = mailcraft_mime_model::rich::signature_html(sig, &|p: &Picture| signature_cid(p, message_id));
+    match signature_scope(message_id) {
+        Ok(scope) => format!("<div class=\"{}\">{copy}</div>\r\n", scope.as_str()),
+        Err(_) => copy,
+    }
 }
 
 /// A signature picture's Content-ID: unique to the message, and naming nothing of the owner.

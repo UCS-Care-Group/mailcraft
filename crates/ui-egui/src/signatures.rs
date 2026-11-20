@@ -352,7 +352,7 @@ fn html_source(app: &mut MailApp, ui: &mut Ui, t: &Tokens, mut source: String) {
     }
     ui.label(
         egui::RichText::new(tl!(
-            "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+            "Sent as written, without anything that runs or tracks. A picture with a web address is sent as that address, and recipients' programs decide whether to load it; the pictures brought in with Import HTML… are this signature's own and go with each message. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
         ))
         .font(regular(11.5))
         .color(t.text_dim),

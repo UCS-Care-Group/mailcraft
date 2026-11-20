@@ -219,9 +219,14 @@ impl Writer<'_> {
         if found.len() >= MAX_STYLES {
             return Err(Truncated);
         }
-        for (list, css) in found {
+        for crate::tokenizer::Style { media: list, css, overflowed } in found {
             if template > 0 {
                 continue;
+            }
+            // Its start tag had more attributes than are kept: a `media` among those dropped
+            // would be lost, and the sheet sent for every window.
+            if overflowed {
+                return Err(Unsupported);
             }
             // The sheet ends at its end tag, and that tag at its `>`.
             let end = span_of(html, css).ok_or(Unclosed)?.end;
@@ -239,7 +244,9 @@ impl Writer<'_> {
             // Line breaks this reader doesn't read as a CSS reader does, anywhere in the sheet.
             unread_breaks(css)?;
             unread_breaks(&list)?;
-            let list = list.trim();
+            // Trimmed as it is tested: a condition of spaces that aren't CSS white space is kept,
+            // for no window, rather than dropped and the sheet sent for every window.
+            let list = media::trim(&list);
             if list.len() > media::MAX_QUERY_BYTES {
                 return Err(Unsupported);
             }
@@ -353,9 +360,11 @@ impl Writer<'_> {
                 return Err(Unsupported);
             }
             // The wrapper stands where the signature's body stood, but not in its place among
-            // its siblings: a structural test of it, or a sibling of it, would mean other things.
+            // its siblings, and its attributes are not the body's (its class has the scope in
+            // it): a structural test of it, a sibling of it or an attribute test of it would mean
+            // other things.
             let wrapper = |rest: &str, out: &mut Vec<String>| -> Result<(), AuthoredError> {
-                if shape.structural || shape.sibling {
+                if shape.structural || shape.sibling || shape.attribute {
                     return Err(Unsupported);
                 }
                 out.push(format!(".{scope}{rest}"));
