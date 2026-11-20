@@ -268,3 +268,45 @@ fn mail_from_the_owner_is_not_mail_to_the_owner() {
     post(&mut s, FolderKind::Inbox, Address::new("Rae Moss", "rae@example.org"), vec![owner()], vec![], now() - 10);
     shows(&s, "quinn", &["quinn.ade@example.org", "avery@lumen.example"]);
 }
+
+/// More non-matching addresses than the suggestion cap, in the Inbox and in Sent Items, then two
+/// people who match: one written to, one only in the Inbox. Both are still offered, the one
+/// written to first.
+#[test]
+fn a_long_mailbox_still_suggests_who_matches() {
+    let mut s = local("Avery Quinn", "avery@lumen.example");
+    let account = s.mailbox.accounts[0].id;
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let n = super::compose::MAX_SUGGEST_TRACKED.saturating_add(10);
+    for i in 0..n {
+        let m = Message {
+            account,
+            folder: inbox,
+            from: Address::new("News", format!("n{i}@news.example")),
+            to: vec![owner()],
+            date: 1_000,
+            subject: "x".into(),
+            ..Default::default()
+        };
+        s.mailbox.add_message(m).unwrap();
+    }
+    let sent_folder = s.mailbox.folder_of_kind(account, FolderKind::Sent).unwrap();
+    for i in 0..n {
+        let m = Message {
+            account,
+            folder: sent_folder,
+            from: owner(),
+            to: vec![Address::new("List", format!("s{i}@lists.example"))],
+            date: 1_500,
+            subject: "x".into(),
+            ..Default::default()
+        };
+        s.mailbox.add_message(m).unwrap();
+    }
+    post(&mut s, FolderKind::Sent, owner(), vec![Address::new("Jo Sent", "jo.sent@example.org")], vec![], 2_000);
+    post(&mut s, FolderKind::Inbox, Address::new("Jo Late", "jo.late@example.org"), vec![owner()], vec![], 3_000);
+    let found = names(&s, "jo");
+    let sent = found.iter().position(|e| e == "jo.sent@example.org");
+    let late = found.iter().position(|e| e == "jo.late@example.org");
+    assert!(sent.is_some() && late.is_some() && sent < late, "{found:?}");
+}

@@ -67,7 +67,7 @@ pub mod zoned;
 
 use serde::{Deserialize, Serialize};
 
-pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, mailbox_address};
+pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, is_valid_email, mailbox_address};
 pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
