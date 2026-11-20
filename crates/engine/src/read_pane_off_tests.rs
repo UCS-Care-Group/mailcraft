@@ -52,6 +52,44 @@ fn pane_off_opening_in_a_window_respects_the_option() {
 }
 
 #[test]
+fn pane_off_arrowing_leaves_it_unread() {
+    let (mut s, _) = with(Pane::Off);
+    // An unread message with a row above it, arrowed down to from that row.
+    let rows: Vec<_> = s.rows().iter().map(|r| r.id).collect();
+    let i = (1..rows.len()).find(|i| s.mailbox.message(rows[*i]).is_some_and(|m| !m.read && !m.draft)).unwrap();
+    run(&mut s, "mail.select", json!({"id": rows[i - 1]}));
+    run(&mut s, "mail.next", json!({}));
+    assert_eq!(s.sel.messages, [rows[i]]);
+    assert!(!read(&s, rows[i]));
+}
+
+#[test]
+fn pane_turned_on_marks_the_selected_one_read() {
+    for value in ["right", "bottom"] {
+        let (mut s, id) = with(Pane::Off);
+        run(&mut s, "mail.select", json!({"id": id}));
+        run(&mut s, "view.readingPane", json!({"value": value}));
+        assert!(read(&s, id), "{value}");
+    }
+    // Out of the Preview view, whose pane is off, too.
+    let (mut s, id) = with(Pane::Right);
+    run(&mut s, "view.changeView", json!({"value": "preview"}));
+    run(&mut s, "mail.select", json!({"id": id}));
+    assert!(!read(&s, id));
+    run(&mut s, "view.changeView", json!({"value": "compact"}));
+    assert!(read(&s, id));
+}
+
+#[test]
+fn pane_turned_on_respects_the_option() {
+    let (mut s, id) = with(Pane::Off);
+    s.prefs.mark_read_on_open = false;
+    run(&mut s, "mail.select", json!({"id": id}));
+    run(&mut s, "view.readingPane", json!({"value": "right"}));
+    assert!(!read(&s, id));
+}
+
+#[test]
 fn pane_showing_selecting_marks_it_read() {
     for pane in [Pane::Right, Pane::Bottom] {
         let (mut s, id) = with(pane);

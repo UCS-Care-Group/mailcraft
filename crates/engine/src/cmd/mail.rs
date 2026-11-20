@@ -16,7 +16,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.select", "Select Message", "Mail", select)
             .reads()
-            .params(r#"{"id": number} | {"ids": [number] ([] selects nothing)}, "extend"?: bool (add to the selection), "range"?: bool (select up to it), "copy"?: number (which of its rows, arranged by categories), "open"?: bool (it is being opened in a window of its own: marked read as File › Options says, even with the reading pane off), "elsewhere"?: bool (opened from outside the list, as from a task: shown in its folder, in the All tab, with no search)"#),
+            .params(r#"{"id": number} | {"ids": [number] ([] selects nothing)}, "extend"?: bool (add to the selection), "range"?: bool (select up to it), "copy"?: number (which of its rows, arranged by categories), "open"?: bool (it is being opened in a window of its own: marked read as File › Options says, even with the reading pane off; when it is the selection already, the selection is left as it is), "elsewhere"?: bool (opened from outside the list, as from a task: shown in its folder, in the All tab, with no search)"#),
         CommandSpec::new("mail.selectAll", "Select All", "Folder › Actions", select_all).reads().key("Mod+A"),
         CommandSpec::new("mail.next", "Next Message", "Mail", next).reads().key("ArrowDown / Shift+ArrowDown").params(EXTEND),
         CommandSpec::new("mail.previous", "Previous Message", "Mail", previous).reads().key("ArrowUp / Shift+ArrowUp").params(EXTEND),
@@ -159,6 +159,12 @@ pub fn select_target(s: &mut Session, v: &Value) -> Result<(Vec<Id>, u16), crate
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     let open = p::bool(v, "open") == Some(true);
     let (ids, copy) = select_target(s, v)?;
+    // Opened in a window while it is the selection: marked, and the selection (the row it is on,
+    // whether a conversation's row stands for the rest) left as it is.
+    if open && !ids.is_empty() && s.sel.messages == ids {
+        mark_opened(s, true);
+        return Ok(json!({"selected": s.sel.messages}));
+    }
     let Some(last) = ids.last().copied() else {
         s.sel.clear_messages();
         return done();
@@ -252,7 +258,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 /// mailbox, and is a reading command, which takes no copy of it.
 /// Only when the reading pane shows it, or `open` says it is opened some other way (in a window
 /// of its own, #1734): with the pane off, selecting reads nothing.
-fn mark_opened(s: &mut Session, open: bool) {
+pub(crate) fn mark_opened(s: &mut Session, open: bool) {
     if !s.prefs.mark_read_on_open || s.sel.messages.len() != 1 || (!open && s.view.reading_pane == crate::session::Pane::Off) {
         s.opened = None;
         return;
