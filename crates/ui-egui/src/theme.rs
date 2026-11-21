@@ -497,24 +497,23 @@ impl Tokens {
         self.surface.lerp_to_gamma(self.text, if self.high_contrast { 0.07 } else { 0.04 })
     }
 
-    /// What is under a message-list row's text, laid as the list lays it: the list or its shaded
-    /// band, a flag's tint, a selection's fill (let a little of a flag's tint through), or the
-    /// pointer's shade. `selected` is whether the list has the focus, for a selected row. Its
-    /// coloured text is fitted to this ([`Tokens::text_ink_on`]), as no single sheet is under it.
-    pub fn list_row_under(&self, shaded: bool, flagged: bool, selected: Option<bool>, hovered: bool) -> Color32 {
-        let mut under = if shaded { self.row_shade() } else { self.surface };
-        if flagged {
-            under = over(self.flagged_row, under);
+    /// How a message-list row is laid, from the bottom up (#1657): its shaded band, a flag's tint,
+    /// a selection's fill (letting a little of a flag's tint through) or else the pointer's shade.
+    /// `selected` is whether the list has the focus, for a selected row. The list paints these
+    /// and its coloured text is fitted to what they make ([`RowLayers::under`]), so the two can't
+    /// part.
+    pub fn list_row_layers(&self, shaded: bool, flagged: bool, selected: Option<bool>, hovered: bool) -> RowLayers {
+        let selection = selected.map(|focus| {
+            let fill = if focus { self.selection } else { self.selection_unfocused };
+            if flagged { fill.gamma_multiply(LIST_FLAGGED_SELECTION) } else { fill }
+        });
+        RowLayers {
+            base: self.surface,
+            band: shaded.then(|| self.row_shade()),
+            flag: flagged.then_some(self.flagged_row),
+            selection,
+            hover: (selected.is_none() && hovered).then_some(self.hover_subtle),
         }
-        match selected {
-            Some(focus) => {
-                let fill = if focus { self.selection } else { self.selection_unfocused };
-                under = over(if flagged { fill.gamma_multiply(LIST_FLAGGED_SELECTION) } else { fill }, under);
-            }
-            None if hovered => under = over(self.hover_subtle, under),
-            None => {}
-        }
-        under
     }
 
     /// The strength with which a mailbox colour tints an event block over `surface`.
@@ -1453,6 +1452,29 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
 
 /// How much of a selected row's fill is laid over a flag's tint, so the tint shows through.
 pub const LIST_FLAGGED_SELECTION: f32 = 0.72;
+
+/// The layers of a message-list row, from the bottom up ([`Tokens::list_row_layers`]): each one
+/// that is there is painted in this order, and the row's coloured text is fitted to [`Self::under`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RowLayers {
+    /// The list's own colour, under everything.
+    pub base: Color32,
+    /// The band of a shaded row (View › Shade Alternate Rows).
+    pub band: Option<Color32>,
+    /// A flagged or overdue message's tint.
+    pub flag: Option<Color32>,
+    /// A selected row's fill.
+    pub selection: Option<Color32>,
+    /// The pointer's shade, on a row that is not selected.
+    pub hover: Option<Color32>,
+}
+
+impl RowLayers {
+    /// What the row's text sits on: every layer laid over the one before, as egui blends them.
+    pub fn under(&self) -> Color32 {
+        [self.band, self.flag, self.selection, self.hover].into_iter().flatten().fold(self.base, |under, layer| over(layer, under))
+    }
+}
 
 /// `src` (premultiplied, as egui's colours are) painted over `dst`, blended as the painter does.
 fn over(src: Color32, dst: Color32) -> Color32 {

@@ -145,3 +145,54 @@ fn what_sits_at_the_end_of_an_empty_row_moves_down_with_its_text() {
         assert!((size - subject).abs() < 2.0, "{lines} lines: the size is at {size}, the subject at {subject}");
     }
 }
+
+/// Where an empty row's sender is from its row's top, two frames after its body arrives and
+/// once it has settled, with `preview_lines` lines of preview and animations `motion`.
+fn sender_as_body_arrives(preview_lines: u8, motion: crate::motion::Motion) -> (f32, f32, f32) {
+    let mut app = app();
+    app.ui.animations = motion;
+    app.session.prefs.preview_lines = preview_lines;
+    let rows = app.session.rows();
+    let Some(id) = rows.get(2).map(|r| r.id) else { panic!("too few rows") };
+    let Some(m) = app.session.mailbox.messages.get_mut(&id) else { panic!("no message {id}") };
+    let m = Arc::make_mut(m);
+    m.body.html = None;
+    m.body.text.clear();
+    let mut harness = window(app);
+    // The test harness has egui's animations off; the window's own setting stops them or not.
+    if motion != crate::motion::Motion::Off {
+        harness.ctx.all_styles_mut(|s| s.animation_time = egui::Style::default().animation_time);
+    }
+    let sender_at = |harness: &Window| {
+        let hit = &harness.state().hit;
+        let (Some(sender), Some(row)) = (hit.rect("messageSender", id), hit.rect("message", id)) else { panic!("row {id} not drawn") };
+        sender.center().y - row.min.y
+    };
+    let empty = sender_at(&harness);
+    // The body arrives, as a new copy of the message the way a synchronisation brings it.
+    let Some(old) = harness.state().session.mailbox.messages.get(&id).cloned() else { panic!("no message {id}") };
+    let mut arrived = (*old).clone();
+    arrived.body.text = "Here is what the message says, now that it has been downloaded.".into();
+    harness.state_mut().session.mailbox.messages.insert(id, Arc::new(arrived));
+    harness.run_steps(2);
+    let easing = sender_at(&harness);
+    harness.run_steps(30);
+    (empty, easing, sender_at(&harness))
+}
+
+#[test]
+fn an_empty_rows_lines_ease_up_when_its_body_arrives() {
+    use crate::motion::Motion;
+    for lines in 1..=3 {
+        let drop = empty_preview_drop(lines);
+        let (empty, easing, settled) = sender_as_body_arrives(lines, Motion::On);
+        assert!((empty - settled - drop).abs() < 0.01, "{lines} lines: the lines end up {drop} higher: {empty} then {settled}");
+        assert!(easing < empty && easing > settled, "{lines} lines: on their way, not there at once: {empty}, {easing}, {settled}");
+        // With Animations off they are there at once.
+        let (empty, easing, settled) = sender_as_body_arrives(lines, Motion::Off);
+        assert!(
+            (empty - settled - drop).abs() < 0.01 && (easing - settled).abs() < 0.01,
+            "{lines} lines, no animations: {empty}, {easing}, {settled}"
+        );
+    }
+}

@@ -301,7 +301,7 @@ fn a_list_rows_text_reads_on_whatever_is_under_it() {
     for (mode, t, high) in &themes {
         let need = if *high { STRONG } else { TEXT };
         for (shaded, flagged, selected, hovered) in row_unders() {
-            let under = t.list_row_under(shaded, flagged, selected, hovered);
+            let under = t.list_row_layers(shaded, flagged, selected, hovered).under();
             let inks = [
                 ("text", t.text),
                 ("text_dim", t.text_dim),

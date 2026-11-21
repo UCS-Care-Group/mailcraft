@@ -358,7 +358,7 @@ impl Tokens {
     /// `fg` as text on `bg`: kept as it is when it reads at 4.5:1 there (7:1 in High Contrast),
     /// otherwise darkened on a light background or lightened on a dark one until it does. For a
     /// colour over a background it was not chosen for: a message-list row's unread sender,
-    /// overdue text and red "[Draft]" on whatever is under them ([`Tokens::list_row_under`], #1657).
+    /// overdue text and red "[Draft]" on whatever is under them ([`Tokens::list_row_layers`], #1657).
     pub fn text_ink_on(&self, fg: Color32, bg: Color32) -> Color32 {
         fg_for(fg, &[bg], if self.high_contrast { 7.0 } else { 4.5 })
     }

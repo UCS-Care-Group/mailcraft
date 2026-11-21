@@ -202,6 +202,10 @@ fn empty_preview_drop(preview_lines: u8) -> f32 {
     }
 }
 
+/// How long, in seconds, a row's two lines take to move when its preview comes or goes, as when a
+/// message's body arrives.
+const EMPTY_PREVIEW_EASE: f32 = 0.2;
+
 /// A row of the single-line list: the sender, the subject, the marks and the time on one line.
 const ONE_LINE_H: f32 = 32.0;
 
@@ -870,16 +874,6 @@ impl FollowUp {
     }
 }
 
-/// What a row is filled with, under the pointer's shade: a selected row's colour, a flagged
-/// one's tint, or nothing (the list shows through).
-pub(crate) fn row_fill(t: &Tokens, follow_up: FollowUp, selected: bool, focus: bool) -> Option<Color32> {
-    match (selected, follow_up) {
-        (true, _) => Some(if focus { t.selection } else { t.selection_unfocused }),
-        (false, FollowUp::Flagged | FollowUp::Overdue) => Some(t.flagged_row),
-        (false, FollowUp::None) => None,
-    }
-}
-
 /// One message in the list: the sender in the larger size, the subject with the time at the end
 /// of its line, then the preview in the dimmer colour; marks at the right of the sender's line,
 /// category marks and the size of a conversation at the right of the preview's.
@@ -980,8 +974,18 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     // A message with nothing to preview (one not downloaded yet) has its two lines in the middle
     // of its row, not at the top with the preview's room left blank under them: that blank looked
     // like the gap between messages and put the next sender with this subject (#1657).
+    // When the body arrives, the lines ease up to make room for its preview rather than jump
+    // (at once with Animations off). The ease is kept per number of preview lines, so changing
+    // that moves every row at once rather than sliding the empty ones.
     let nothing_said = said.as_ref().is_some_and(|s| s.trim().is_empty());
-    let lift = tightening(app.session.prefs.tight_spacing, one) / 2.0 - if nothing_said { empty_preview_drop(lines) } else { 0.0 };
+    let drop = if nothing_said { empty_preview_drop(lines) } else { 0.0 };
+    let drop = if lines == 0 {
+        drop
+    } else {
+        let ease = crate::motion::fade(ui, EMPTY_PREVIEW_EASE);
+        ui.ctx().animate_value_with_time(ui.scope_id().with(("messageEmptyDrop", key, lines)), drop, ease)
+    };
+    let lift = tightening(app.session.prefs.tight_spacing, one) / 2.0 - drop;
     let (line1, line2) = if one { (line1, line2) } else { (line1 - lift, line2 - lift) };
     // A conversation's row has an arrow between the read switch and the text (#503): a click opens
     // or closes it, as Right and Left do.
@@ -1024,38 +1028,37 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     // The row is what is above the line under it; its content starts a little in from the list's edge.
     let body = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), pos2(rect.max.x, rect.max.y - 1.0));
     let follow_up = FollowUp::of(&m, &app.session);
-    let fill = row_fill(&t, follow_up, selected, focus);
-    // A selected row is a rounded card a little in from the list's edges: its fill and an
-    // accent edge (quieter while the list has no focus); a flag's tint is laid first, so it shows
-    // through the selection rather than being replaced by it.
-    let card = body.shrink2(vec2(4.0, 1.0));
+    let flag_tint = matches!(follow_up, FollowUp::Flagged | FollowUp::Overdue);
+    let hovered = resp.hovered() || read_resp.hovered() || arrow.as_ref().is_some_and(egui::Response::hovered) || quick.is_some();
+    // The row's layers, bottom up; its coloured text (an unread sender in the accent's colour, an
+    // overdue one in red, "[Draft]") is fitted to what they make, which no one colour of the
+    // palette is (#1657).
+    let layers = t.list_row_layers(shade, flag_tint, selected.then_some(focus), hovered);
     // A shaded row's band is laid under everything else, from the list's edge to the row's end.
-    if shade {
-        p.rect_filled(Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - 1.0)), 0.0, t.row_shade());
+    if let Some(band) = layers.band {
+        p.rect_filled(Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - 1.0)), 0.0, band);
         app.hit.add("messageShade", row.id, body);
     }
-    let flag_tint = matches!(follow_up, FollowUp::Flagged | FollowUp::Overdue);
-    if flag_tint {
-        if selected {
-            p.rect_filled(card, 6.0, t.flagged_row);
-        } else {
-            p.rect_filled(card, 6.0, t.flagged_row);
+    // A selected row is a rounded card a little in from the list's edges: its fill and an
+    // accent edge (quieter while the list has no focus); a flag's tint is laid first, so it shows
+    // through the selection rather than being replaced by it; the pointer's shade goes over the
+    // tint of a row that is not selected.
+    let card = body.shrink2(vec2(4.0, 1.0));
+    if let Some(tint) = layers.flag {
+        p.rect_filled(card, 6.0, tint);
+        if !selected {
             app.hit.add("messageFlagShade", row.id, body);
         }
     }
-    if let (true, Some(fill)) = (selected, fill) {
-        p.rect_filled(card, 6.0, if flag_tint { fill.gamma_multiply(crate::theme::LIST_FLAGGED_SELECTION) } else { fill });
+    if let Some(fill) = layers.selection {
+        p.rect_filled(card, 6.0, fill);
         let edge = if focus { t.selection_edge } else { t.selection_edge_unfocused };
         p.rect_stroke(card, 6.0, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
     }
-    let hovered = resp.hovered() || read_resp.hovered() || arrow.as_ref().is_some_and(egui::Response::hovered) || quick.is_some();
-    if !selected && hovered {
-        // The pointer's shade goes over a flagged row's tint.
-        p.rect_filled(card, 6.0, t.hover_subtle);
+    if let Some(pointer) = layers.hover {
+        p.rect_filled(card, 6.0, pointer);
     }
-    // The row's coloured text (an unread sender in the accent's colour, an overdue one in red,
-    // "[Draft]") is fitted to what is under it, which no one colour of the palette is (#1657).
-    let under = t.list_row_under(shade, flag_tint, selected.then_some(focus), hovered);
+    let under = layers.under();
     let ink = |c: Color32| t.text_ink_on(c, under);
     // Past its due date, its text is red.
     let overdue = follow_up == FollowUp::Overdue;
@@ -1086,6 +1089,7 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     }
     // What is in the row is laid out from its top as in a row of the full height, moved up with
     // its lines (the background and the line under it are the row's own, above).
+    let row_bottom = rect.max.y - 1.0;
     let rect = if one { rect } else { rect.translate(vec2(0.0, -lift)) };
     if let Some(arrow) = &arrow {
         let at = Rect::from_center_size(arrow_rect.center(), vec2(12.0, 12.0));
@@ -1317,8 +1321,10 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
         job.wrap =
             egui::text::TextWrapping { max_width: preview_end - left, max_rows: usize::from(lines), break_anywhere: false, overflow_character: None };
         let galley = p.layout_job(job);
-        // A word too long for the column runs on: it stops at the column's edge.
-        let clip = Rect::from_min_max(pos2(left, rect.min.y), pos2(preview_end, rect.max.y - 1.0)).intersect(p.clip_rect());
+        // A word too long for the column runs on: it stops at the column's edge. Nor does it run
+        // past the row's line while the lines ease up after a body arrives.
+        let bottom = (rect.max.y - 1.0).min(row_bottom);
+        let clip = Rect::from_min_max(pos2(left, rect.min.y), pos2(preview_end, bottom)).intersect(p.clip_rect());
         p.with_clip_rect(clip).galley(pos2(left, rect.min.y + PREVIEW_TOP), galley, t.text_dim);
     }
 
@@ -1964,9 +1970,12 @@ mod tests {
         assert_eq!(look(&harness, ids[0]), (false, true));
         // The tint is neither the list, the selection nor the pointer's shade, in either palette.
         for t in [Tokens::light(), Tokens::dark()] {
-            assert_eq!(row_fill(&t, FollowUp::Flagged, false, false), Some(t.flagged_row));
-            assert_eq!(row_fill(&t, FollowUp::Overdue, true, true), Some(t.selection));
-            assert_eq!(row_fill(&t, FollowUp::None, false, false), None);
+            let flagged = t.list_row_layers(false, true, None, false);
+            assert_eq!((flagged.flag, flagged.selection), (Some(t.flagged_row), None));
+            let picked = t.list_row_layers(false, true, Some(true), false);
+            assert_eq!(picked.selection, Some(t.selection.gamma_multiply(crate::theme::LIST_FLAGGED_SELECTION)));
+            let plain = t.list_row_layers(false, false, None, false);
+            assert_eq!((plain.band, plain.flag, plain.selection, plain.hover), (None, None, None, None));
             assert!(![t.surface, t.selection, t.hover].contains(&t.flagged_row));
         }
     }
