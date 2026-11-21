@@ -103,7 +103,7 @@ fn window(found: Release, trusted: [u8; 32], dir: &Path) -> MailApp {
     };
     let mut app = MailApp::new(Session::at(Mailbox::with_local_account("", ""), NOW, 0), services);
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     app.apply_prefs(UiState { update_check: UpdateCheck::On, ..Default::default() });
     app
 }

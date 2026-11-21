@@ -144,7 +144,9 @@ impl Timed {
     }
 }
 
-/// The next line (trimmed), `None` at the end of the stream or after a read error.
+/// The next line (trimmed), `None` at the end of the stream or after a read error. A line the
+/// stream ends in the middle of is never run: the client couldn't finish writing it, and may send
+/// it again on a new connection (`mailcraft-mcp`'s bridge does).
 fn read_line(r: &mut BufReader<Timed>) -> Option<Result<String, &'static str>> {
     let mut buf = Vec::new();
     let n = r.by_ref().take(MAX_LINE as u64 + 1).read_until(b'\n', &mut buf).ok()?;
@@ -153,6 +155,9 @@ fn read_line(r: &mut BufReader<Timed>) -> Option<Result<String, &'static str>> {
     }
     if buf.len() > MAX_LINE {
         return Some(Err("line too long"));
+    }
+    if buf.last() != Some(&b'\n') {
+        return None;
     }
     Some(String::from_utf8(buf).map(|s| s.trim().to_string()).map_err(|_| "not UTF-8"))
 }
@@ -437,6 +442,16 @@ mod tests {
         let req = answer(&rx);
         assert_eq!((req.method.as_str(), &req.params), ("ui.key", &json!({"key": "Enter"})));
         assert_eq!(c.recv()["ok"], true);
+    }
+
+    #[test]
+    fn a_line_the_connection_ends_in_is_never_run() {
+        let (port, rx) = boot();
+        let mut c = Conn::open(port);
+        write!(c.1, r#"{{"id":1,"key":"{KEY}","method":"mailbox.inspect"}}"#).unwrap();
+        c.1.shutdown(std::net::Shutdown::Write).unwrap();
+        assert!(c.closed());
+        assert!(rx.recv_timeout(Duration::from_millis(300)).is_err());
     }
 
     #[test]

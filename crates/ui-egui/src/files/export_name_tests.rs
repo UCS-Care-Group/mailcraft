@@ -47,3 +47,32 @@ fn save_message_as_suggests_the_name_of_the_message_it_saves() {
         assert_eq!(asked.try_recv().unwrap(), FileDialogRequest::Save { name: "message.eml".into() }, "{subject:?}");
     }
 }
+
+/// A name typed over the suggestion without an extension gets the suggestion's (a Linux save
+/// dialog keeps it as typed), but never over a file the dialog didn't ask about.
+#[test]
+fn a_name_typed_without_an_extension_is_saved_with_the_suggested_one() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-export-ext-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let typed = dir.join("v6").to_string_lossy().into_owned();
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
+    let answer = typed.clone();
+    app.services.file_dialog = Some(Box::new(move |_| {
+        let (tx, rx) = mpsc::channel();
+        let _ = tx.send(Some(vec![answer.clone()]));
+        rx
+    }));
+    let id = *app.session.mailbox.messages.keys().next().unwrap();
+    app.run("file.exportMessage", json!({"id": id})).unwrap();
+    assert!(dir.join("v6.eml").is_file());
+    assert!(!dir.join("v6").exists());
+
+    // `v6.eml` is there now: a second `v6` is saved as typed.
+    app.run("file.exportMessage", json!({"id": id})).unwrap();
+    assert!(dir.join("v6").is_file());
+
+    // A name with an extension, or a folder's path, is left alone.
+    assert_eq!(super::with_extension(format!("{typed}.txt"), "eml"), format!("{typed}.txt"));
+    assert_eq!(super::with_extension("/".into(), "eml"), "/");
+    let _ = std::fs::remove_dir_all(&dir);
+}

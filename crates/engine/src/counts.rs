@@ -12,7 +12,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use mailcraft_model::{Id, Mailbox, Message};
+use mailcraft_model::{GmailCategory, Id, Mailbox, Message};
 
 use crate::Session;
 
@@ -70,6 +70,8 @@ struct InFolder {
 pub struct FolderCounts {
     folders: HashMap<Id, InFolder>,
     accounts: HashMap<Id, Held>,
+    /// What each of Gmail's categories holds in each folder (#911): only messages that are in one.
+    gmail: HashMap<(Id, GmailCategory), Held>,
     /// How many messages were counted: the mailbox's, when the counts are of it.
     messages: usize,
 }
@@ -79,13 +81,17 @@ impl FolderCounts {
     pub fn of(mb: &Mailbox) -> FolderCounts {
         let mut folders: HashMap<Id, InFolder> = HashMap::with_capacity(mb.folders.len());
         let mut accounts: HashMap<Id, Held> = HashMap::with_capacity(mb.accounts.len());
+        let mut gmail: HashMap<(Id, GmailCategory), Held> = HashMap::new();
         for m in mb.messages.values() {
             let f = folders.entry(m.folder).or_default();
             f.held.add(m.read);
             f.ids.push(m.id);
             accounts.entry(m.account).or_default().add(m.read);
+            if let Some(category) = m.gmail_category {
+                gmail.entry((m.folder, category)).or_default().add(m.read);
+            }
         }
-        FolderCounts { folders, accounts, messages: mb.messages.len() }
+        FolderCounts { folders, accounts, gmail, messages: mb.messages.len() }
     }
 
     /// What `folder` holds (nothing, for a folder with no mail or none of that id).
@@ -107,6 +113,11 @@ impl FolderCounts {
     /// Unread messages in `folder`, as [`Mailbox::unread_count`] has them.
     pub fn unread(&self, folder: Id) -> usize {
         self.folder(folder).unread
+    }
+
+    /// What the messages of `folder` that Gmail put in `category` come to (#911).
+    pub fn gmail(&self, folder: Id, category: GmailCategory) -> Held {
+        self.gmail.get(&(folder, category)).copied().unwrap_or_default()
     }
 
     /// What the messages of `account` come to, whichever folders they are in.
@@ -138,11 +149,17 @@ impl FolderCounts {
                 if let Some(a) = self.accounts.get_mut(&w.account) {
                     a.take(w.read);
                 }
+                if let Some(g) = w.gmail_category.and_then(|c| self.gmail.get_mut(&(w.folder, c))) {
+                    g.take(w.read);
+                }
                 self.messages = self.messages.saturating_sub(1);
             }
             if let Some(n) = now {
                 self.folders.entry(n.folder).or_default().held.add(n.read);
                 self.accounts.entry(n.account).or_default().add(n.read);
+                if let Some(c) = n.gmail_category {
+                    self.gmail.entry((n.folder, c)).or_default().add(n.read);
+                }
                 self.messages = self.messages.saturating_add(1);
             }
             match (was, now) {
@@ -169,14 +186,17 @@ impl FolderCounts {
         }
         self.folders.retain(|_, f| f.held.total > 0 || !f.ids.is_empty());
         self.accounts.retain(|_, a| a.total > 0);
+        self.gmail.retain(|_, g| g.total > 0);
         true
     }
 
-    /// A message of `folder`, in `account`, is now read (`read`) or unread: its folder's and its
-    /// account's unread follow, for counts kept through read marks rather than counted again.
-    pub fn read_changed(&mut self, folder: Id, account: Id, read: bool) {
+    /// A message of `folder`, in `account` (and in Gmail's `gmail` category, if any), is now read
+    /// (`read`) or unread: its folder's, its account's and its category's unread follow, for counts
+    /// kept through read marks rather than counted again.
+    pub fn read_changed(&mut self, folder: Id, account: Id, gmail: Option<GmailCategory>, read: bool) {
+        let category = gmail.and_then(|c| self.gmail.get_mut(&(folder, c)));
         let folder = self.folders.get_mut(&folder).map(|f| &mut f.held);
-        for held in [folder, self.accounts.get_mut(&account)].into_iter().flatten() {
+        for held in [folder, self.accounts.get_mut(&account), category].into_iter().flatten() {
             held.unread = if read { held.unread.saturating_sub(1) } else { held.unread.saturating_add(1) };
         }
     }

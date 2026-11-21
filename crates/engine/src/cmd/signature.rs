@@ -169,7 +169,7 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
             if html.len() > super::format::MAX_PASTE {
                 return Err(bad("`html` is too long"));
             }
-            mailcraft_mime::rich::from_html(html)
+            mailcraft_mime_model::rich::from_html(html)
         }
         (None, None, Some(text)) => Signature::plain_text("", text).body().clone(),
         (None, None, None) => return Err(bad("`text`, `body` or `html` is required")),
@@ -229,6 +229,10 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
             a.signature.clear();
         }
         a.reply_signature = Some(if reply.eq_ignore_ascii_case(&name) { String::new() } else { reply });
+        // A sender address that had it starts with the account's (#797).
+        for x in a.sender_addresses.iter_mut().filter(|x| x.signature.eq_ignore_ascii_case(&name)) {
+            x.signature.clear();
+        }
     }
     done()
 }
@@ -252,6 +256,9 @@ fn rename(s: &mut Session, v: &Value) -> CmdResult {
             a.signature = to.clone();
         }
         a.reply_signature = Some(if reply.eq_ignore_ascii_case(&from) { to.clone() } else { reply });
+        for x in a.sender_addresses.iter_mut().filter(|x| x.signature.eq_ignore_ascii_case(&from)) {
+            x.signature = to.clone();
+        }
     }
     Ok(json!({"name": to}))
 }
@@ -375,7 +382,7 @@ fn html(s: &mut Session, v: &Value) -> CmdResult {
     // What a message being written shows of it: its words and look as rich text, or for HTML
     // with no words (a logo alone) its pictures' descriptions.
     let stand_in = html.as_deref().map(|h| {
-        let rich = mailcraft_mime::rich::from_html(h);
+        let rich = mailcraft_mime_model::rich::from_html(h);
         if rich.to_plain().trim().is_empty() { RichText::from_plain(mailcraft_html::to_text(h).trim()) } else { rich }
     });
     if let Some(text) = &stand_in {

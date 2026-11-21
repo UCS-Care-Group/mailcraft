@@ -1,1 +1,0 @@
-| 2026-11-07 | AU3-V3, AU3-V4: the attachment verdict refuses nine more kinds of file and folds a kind to lower case by ASCII rules only, asking about any kind with a non-ASCII letter; a table test of names and verdicts, with every refused kind in it, keeps the list and the test together |

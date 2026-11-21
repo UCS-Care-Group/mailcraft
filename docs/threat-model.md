@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-05 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-16 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -13,6 +13,7 @@ bug: report it like one.
 |---|---|
 | The owner's correspondence (messages, attachments, drafts) | the `.mailcraft` mailbox file and the folder of message content beside it; the servers |
 | Sign-ins: passwords, OAuth refresh and access tokens | memory for the session (`MailApp::passwords`, `MailApp::tokens`); the operating system's credential store when the owner wants them remembered |
+| The owner's own private keys imported into MailCraft (OpenPGP everywhere; S/MIME on Linux and FreeBSD) | the operating system's credential store, the file as it came and still protected by its passphrase, under `key:openpgp:<fingerprint>` or `key:smime:<sha-256>`; only their public facts in `ui.json` |
 | Contacts, calendars, tasks | the mailbox file; the servers |
 | The owner's privacy: when and whether they read a message, where they are, who they are | everything that leaves the computer |
 
@@ -57,9 +58,17 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
   checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
-  placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
-  Pictures on the web only on the owner's say-so, and only `<img>` addresses (no backgrounds,
-  style sheets, fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
+  placeholder; a `data:` address is never a link (`crates/html/src/data.rs`). A picture behind a
+  table, a cell, a block or the body is shown only when it is attached (`cid:`) or written into the
+  message (`data:`, within the same caps; none for a box that is hidden or 2 px or less across,
+  #601); an address on the web is never one: `crates/html/src/bg.rs` keeps none, so nothing asks for
+  it, in Junk E-mail or out of it, whatever the owner allows.
+  Under a reply or forward, each one the reading pane would show goes as a part of its own beside
+  the HTML, which refers to it by a Content-ID naming nothing of the owner (#602,
+  `mailcraft_html::quotable_with_pictures`); one refused, hidden or past the caps is left out, and
+  a `data:` address is never sent on. Pictures on the web only on the owner's say-so, and only
+  `<img>` addresses (no backgrounds, style sheets, fonts or frames, nothing 2 px or smaller), so a
+  tracking pixel doesn't fire.
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
@@ -141,14 +150,44 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   `dmarc` that is the server's word, judged from the full list; a signer chooses its own
   `header.d`, so a suffix missing from the short list (`uk.com`, `eu.org`) could sign for every
   name under it. Only whoever holds that suffix's own DNS can publish a key for it.
+- **A picture that comes as an attachment is decoded only as one in the body is** (#834). With
+  the owner's choice (`ui.attachmentPictures`, a checkbox in File › Options, on by default as
+  pictures written into a message are) an attached file is shown as a
+  picture only when it is a PNG, JPEG, GIF or WebP by its own bytes (`images::probe`: never by its
+  name or declared type, so never SVG or HTML), within the reading pane's caps on a picture's
+  bytes, sides and pixels, decoded by the same capped decoder off the window's thread (in the
+  browser, one a frame), one at a time, into a small texture (at most 24 a message, 64 kept). Nothing is fetched. A file kept on
+  disk beside the mailbox is brought in for it only when its declared type or name says it may be
+  a picture, at most 24 a message and 96 MB (what is in memory already counts by its length, so the
+  cap holds from one frame to the next), through the session's memory budget. Only the first 24 files
+  of a message that may be pictures are looked at in a frame, and no more than 4 MB are compared by
+  content in a frame to tell a picture read again from a new one, so a message with a thousand
+  attachments costs no more a frame than one with a few
+  (`crates/ui-egui/src/reading/attachment_pictures.rs`). Anything else, or a picture that fails to
+  decode, stays a chip. Mail in Junk E-mail, or in a folder under it, is shown by names only: no
+  attachment there is looked at, brought in or decoded for a picture. An agent asks before it turns
+  the switch over (`settings`).
 - **Sender warnings say what the server said, and what MailCraft can see, nothing more** (#508).
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above, and like it never from a last clause
   cut off at 4,000 characters or left open) says `dmarc=fail` for the sender's domain, or, with no
-  DMARC verdict at all, `spf=fail` for it, unless Exchange Online's `compauth=pass`
-  overrides it (the sender's domain is read from whatever its address is written in, `xn--`
-  labels as the letters they stand for, and only labels that write back to exactly themselves are
-  read so); or the sender's name carries another address, or is a contact's or the owner's own
+  DMARC verdict at all, `spf=fail` for it (the sender's domain is read from whatever its address
+  is written in, `xn--` labels as the letters they stand for, and only labels that write back to
+  exactly themselves are read so), unless Exchange Online's `compauth=pass` overrides it, or, for
+  a sender outside the account's own domain, its `compauth=none reason=905` does: Exchange Online
+  says it didn't enforce DMARC because the mail came through another service first, such as a
+  filtering gateway in front of it (#1568). Only that code: the other `compauth=none` codes, an
+  allow list among them, leave the failure standing, and the gateway's own verdict below the edge
+  hop is still not read, so such mail is not vouched for either. Exchange gives that code from how
+  the tenant's mail is routed, not from the message, so it gives it as well to mail sent straight
+  to Microsoft 365 past the gateway ("direct send"). A sender at the account's own domain (the
+  same registrable part as the account's address: the domain, a name under it, or one above it)
+  therefore keeps its warning, and a spoof of a colleague sent that way still gets the red banner.
+  The limit: in a tenant behind a gateway, the warning can't catch such a spoof of an outside
+  domain, nor of another domain of the organisation that the account's address isn't at; only
+  the tenant's administrator can close that path (a connector that takes mail only from the
+  gateway, or Enhanced Filtering for Connectors). Or
+  the sender's name carries another address, or is a contact's or the owner's own
   name on an address that isn't theirs. Amber for **cautions** alone: a `dmarc=fail` for a domain
   whose policy is `p=none` (said in the server's comment, `(p=NONE …)`, or a `policy.` property),
   which asks for nothing to be done about mail that fails; the sender's domain is one character
@@ -192,6 +231,35 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
   only between names one character apart in length). An agent gets the warnings with `mail.get`
   as data, their details framed as message content. The owner can dismiss the banner (the cross at its right, `mail.dismissWarnings`, kept with the message as the kinds it held): a caution goes, a warning stays as a slim bar that opens again, and a kind that was not there brings the banner back. The command needs the owner (`Class::Settings`), so an agent cannot hide a warning.
+- **The signer's domain is the sender's choice** (#1472). `authentication.dkimDomain` in `mail.get` and `read_message` is the `header.d` of a passing DKIM signature, which whoever signs the mail picks; for an agent it is framed as untrusted, data and never instructions (`TEXT_KEYS`). The `spf`, `dkim` and `dmarc` words are short plain words read from the account's own server's topmost header.
+- **Send warnings are the owner's to answer** (#509). Before a message goes, `compose.send` looks
+  for a recipient whose domain is a lookalike sender's would be (above), or whose part before the
+  @ is one edit or one skeleton from a known address at the same domain (five characters or
+  more; compared as it reads, without a `+tag` and without the dots Gmail ignores, so that none
+  of them, nor what draws nothing, pads a lookalike past the comparison), and for 5 or more
+  people outside the owner's organisation, at 2 or more registrable domains, in To and Cc (not
+  when all of them were on the message replied to or forwarded, whose To and Cc its sender wrote;
+  never for an owner without an organisation, for whom everybody would be outside). The
+  known correspondents are the same contacts and Sent Items, never somebody who only wrote to the
+  owner, so a lookalike that wrote first is still asked about when the owner replies. A message
+  with a warning is refused unless the call says `"confirmed": true` (or `"moveToBcc": true`
+  moves the outsiders first); the window asks its owner, and an agent's send through the window
+  is asked about every time, whatever `--allow` says, with its own `confirmed` and `moveToBcc`
+  dropped. The yes holds only for the warnings shown: what would send more is refused. Headless,
+  nobody can be asked, so the call's own `confirmed` is honoured, as for any script; sending at
+  all still needs `--allow send`. The yes, the owner's or an agent's question's, holds for the
+  recipient lines asked about: a message changed while the question was up is asked about again
+  (the owner's) or not sent (the agent's). An address is shown with what draws nothing, and a
+  look-alike `@` or `.`, before the @ as its code (`<U+200B>`, `<U+FF20>`), and its domain as it goes over
+  the wire (`xn--…`). Numbered mailboxes (`sales1`, `sales2`) and
+  dots Gmail ignores are not lookalikes. The rules are `crates/model/src/send_warnings.rs`,
+  bounded to 1,000 different recipients (each counted once, however often it is named, so padding
+  with a known address hides nothing) and 20 lookalikes said; a message to more is a warning of its
+  own (`tooManyRecipients`), so what isn't looked at is never let through unasked. What they don't cover: only `compose.send`
+  is checked (Send Again of a message held in an Outbox, and meeting requests and their answers,
+  are not); the known correspondents are whatever the contacts and Sent Items hold, so an agent
+  that adds a contact or moves a message into Sent Items (both safe for agents) makes that address
+  known; and an agent allowed input (`--allow input`) can press any button, a question's included.
 - **A meeting invitation does not rewrite a meeting it isn't about.** An invitation carrying the
   `UID` of a meeting on a local calendar changes or removes it only when it names the same
   organizer (`crates/engine/src/cmd/calendar/invitation.rs`, `same_organizer`); the bar shows the
@@ -226,6 +294,15 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **Header injection.** A value that reaches a header loses CR, LF and NUL
   (`crates/mime/src/header.rs`, `clean`; `crates/mime/src/write.rs`), so a reply can't be made to
   carry headers the owner didn't write.
+- **Who mail says it is from.** A message is from the account's own address or one of the other
+  sender addresses its owner listed for an IMAP account (#797; `account.setSenderAddresses`,
+  each checked as a mailbox's own address: plain ASCII, nothing a protocol line could read
+  otherwise). A From that isn't one of them never reaches SMTP's `MAIL FROM`, which falls back to
+  the account's own (`crates/net/src/send.rs`, `Envelope::of`), and a message being written from
+  an address taken off the list isn't sent. A reply's From is picked from the original's To, Cc,
+  `X-Original-To` and `Delivered-To`, but only among the owner's own addresses: what a sender
+  writes there can't make the owner's mail claim to be from an address the owner didn't list.
+  An agent changes the list only on the owner's yes (class accounts), shown every address.
 
 ### A malicious picture host
 
@@ -241,6 +318,28 @@ Gets the request for a picture the owner asked for.
 - The picture cache (`apps/mailcraft/src/picture_cache.rs`) names files by hashes and never writes
   the address; it is capped and read back through the same checks as a download.
 
+### A reaction sent by one click
+
+React (#1544, `mail.react`) sends mail from one click: an emoji, as a reply (RFC 9078) to the
+sender of a message. It is the one thing that sends mail without a message to read through before
+Send, so it is held narrow. The emoji is one of six fixed ones (anything else is refused, so
+nothing a caller or a message writes reaches the mail's text), the recipient is one address (the
+message's sender, never its Reply-To: a message from `boss@company.example` with a Reply-To of
+another domain must not tell that domain the address is read, and the owner is shown the recipient
+beside the emoji), and nothing of the original is
+quoted. It is refused for a message with a warning about its sender (a failed check, a name that shows another address, a look-alike, made-up or brand-copying domain; not a warning about a link in the body, nor the External tag; an answer would confirm the address to whoever is behind it), for drafts, for the owner's own mail, for Junk E-mail (an answer would tell a
+spammer the address is read), for automated mail (`Auto-Submitted` other than `no`,
+`Precedence: bulk`, `list` or `junk`, a no-reply or `mailer-daemon` sender, a list's own address as
+the sender: nobody reads an answer, and a list could echo it to its members; only the headers
+MailCraft keeps by name are looked at, so mail read before this was added is judged by its sender
+alone) and for a second identical reaction (also when the server's copy in Sent Items has lost the
+mark). It waits as long as the owner's Undo Send says, like any sent mail, and can be taken back
+in that time. An agent is asked about it in the window (`send`) and must name the message. A reaction tells the sender the mail was read,
+as a read receipt does, but only when the owner clicks (PRIVACY.md says so). It goes through the account's normal
+sending over TLS like any mail, and a Microsoft or Exchange server account is refused rather than
+given a path of its own. The message text is never read into a reaction: `Content-Disposition:
+reaction` is written, never taken from mail that comes in.
+
 ### A hostile or compromised mail server
 
 Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
@@ -255,8 +354,25 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   in that set and below the mailbox's UIDNEXT, at most twice its EXISTS plus 1,000 distinct ones;
   more is the command's error and nothing of it is taken in.
 - **Secrets aren't handed to the wrong party:** a sign-in goes only to the server the account names,
-  over TLS (below). OAuth uses the authorization code with PKCE and a loopback redirect
+  over TLS (below). An outgoing server the owner marked as needing no sign-in (a relay,
+  #836) is never shown the password, even when it offers a way to sign in; an account that signs in
+  on its provider's page has no such choice. OAuth uses the authorization code with PKCE and a loopback redirect
   (`crates/net/src/oauth.rs`).
+- **An address list is a server's word, read as hostile** (#1262). Check Names asks an Exchange
+  server account's address list (`ResolveNames`, the directory alone) only on the owner's press,
+  and only for the names typed that the contacts don't settle: at most ten, each one line of at
+  most 256 characters; People's Address Book asks it for what the owner types in its search box,
+  one text at a time, once typing pauses, and lets go of a look-up that what is typed has passed.
+  Of each answer at most 100 people are read, each a name, an SMTP address that has one `@` and
+  nothing that could end a header or add a recipient, the kind of recipient, four bounded lines
+  (company, department, job title, office) and the work and mobile numbers, kept only when they
+  are written as phone numbers are (digits with spaces, `+`, `-`, `.`, `/`, brackets and an
+  extension's `x`); other numbers, postal addresses and notes the answer holds are dropped
+  (`crates/ews/src/resolve.rs`, and again in `DirectoryPerson::checked`). Who is found lives in
+  the window and is never written down, unless the owner presses Add to Contacts. The engine checks them again
+  as a command's params (`compose.checkNames` `found`), puts a name in only when exactly one
+  person matches it, and asks the owner to choose among several. A server can offer a wrong
+  person for a name; the owner sees the address before the message goes.
 - A compromised server can still read and change the mail it holds. That is the server's job, not
   something a client can prevent; end-to-end encryption would be (see Known limits).
 
@@ -276,9 +392,23 @@ Watches or changes traffic between MailCraft and its servers.
   is allowed only to loopback, for tests.
 - **No silent downgrade:** a server that doesn't offer STARTTLS when it was asked for is an error
   ("the server doesn't offer STARTTLS", `crates/net/src/sync.rs`, `crates/net/src/send.rs`).
-- **Provider discovery** asks a DNS-over-HTTPS resolver for the domain's mail exchangers
-  (`mailcraft_net::lookup_mx`): only the domain goes out, never the mailbox name, and only when the
-  owner presses Connect.
+- **Provider discovery** asks a DNS-over-HTTPS resolver about the domain alone, never the mailbox
+  name, and only when the owner presses Connect: for its mail exchangers (`mailcraft_net::lookup_mx`)
+  and, for a domain nobody here knows, for its mail servers' SRV records of RFC 6186
+  (`mailcraft_net::discover`, #1063), the hosts its `_autodiscover._tcp` SRV record names and
+  the host `autodiscover.<domain>` is an alias of (CNAME; `mailcraft_net::autodiscover_hosts`).
+  The Autodiscover hosts only choose a page, and none of them is asked anything for it:
+  Microsoft's is Microsoft 365, signed in on Microsoft's page; cPanel's is IMAP; any other is a
+  question to the owner, an Exchange server or IMAP, with neither the default. IMAP is the servers
+  the RFC 6186 records name, else the guess.
+- **The alias step** ([autodiscover.md](autodiscover.md) specifies it). The Exchange server search
+  (`crates/ews/src/autodiscover.rs`) asks the alias's host too, after the SRV record's targets, at
+  port 443, at most two. It takes the place of MS-OXDISCO §3.1.5.4, the plain-HTTP redirect, which
+  is never taken, so that a domain whose SRV record is only in its own network's DNS is found. An
+  alias isn't the SRV record's word: its host is asked about before anything is sent to it outside
+  the domain, and has the sign-in only after the owner's yes inside it too (AU3-V1, as §3.1.5.4 asks
+  the user, and RFC 9525 §6.1.1 lets a name from the DNS be checked against only once the user has
+  associated it). A forged or stale alias costs a question, never the password.
 - The one thing fetched over plain `http` is a picture the owner asked for, when that is the address
   the message gives; nothing of the owner's travels with it.
 
@@ -296,11 +426,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - Mail from an `.eml` or `.mbox` file is never put in an Outbox or a folder under one: with an
   Outbox in view it goes to the account's Drafts (as drafts, not queued), else its Inbox; naming an
   Outbox is refused (`crates/engine/src/io.rs`).
-- Autocomplete (`compose.suggest`) takes nobody from mail in Junk E-mail, counts a date after now as
-  now, and puts addresses the owner has written to (Sent Items) above those that only wrote. The
-  people the search box offers after `from:`, `to:` and `cc:` (#308) come from it, so the same
-  holds for them (and then the owner's own addresses, which it leaves out); nothing is asked of
-  a server for them.
+- Autocomplete (`compose.suggest`) skips Junk E-mail and Drafts, counts a date after now as now,
+  and ranks by how often each address was sent to from Sent Items or the Outbox, without trusting
+  an incoming `From:` (a sender writes that line). When nobody was written to, contacts come ahead
+  of people only seen in mail that arrived. A new message's suggestions include the owner's own
+  addresses; the people the search box offers after `from:`, `to:` and `cc:` (#308) come from the
+  same ranking and then offer those addresses last. Nothing is asked of a server for them.
 - A reply, forward or reopened draft quotes an HTML original as its HTML reads
   (`quote_text`), never the text/plain alternative the sender wrote beside it, which the owner
   never saw.
@@ -339,9 +470,16 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   accounts, rules or signatures of before. The question shows the call in full: one too long to
   show (`MAX_QUESTION`) is refused, never cut; a calendar question names the event and the people
   it writes to. `ui.copyDiagnostics` is not available to agents.
-  Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
+  Undo and redo put back what the step changed (mail, contacts and events that downloads changed
+  since stay as they are now: #605, #1674), so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
+  On a Microsoft account whose categories are kept in step with Outlook, an agent is asked
+  (`send`) before it writes a category there: one kept on this computer only sent there, a rename
+  of one that is there already, a name new to the list (given to an item, or by a rule) or another
+  colour; so is an Undo or Redo that would make one there again or give one there another colour,
+  and one that would have a category deleted there is asked as `delete`; the question names the
+  category.
   A copy that the server of a Microsoft account (Outlook.com, Microsoft 365) or an Exchange
   server account has made goes to Deleted Items on undo and is not counted as a removal; on any
   other account (IMAP, JMAP, one on this computer) the copy is removed and `delete` is asked. A step
@@ -369,6 +507,14 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   body budget allows at a kilobyte each is refused before it uses the memory. Loading keeps at most
   1,000 accounts, 50,000 folders and 1,000 categories, cleans their names, and repairs in time
   linear in the file (`Mailbox::repair`).
+- A `.pst` file's distribution list that keeps its members in a stream of their own
+  ([MS-OXOCNTC] 2.2.2.2.4, `crates/pst/src/list_stream.rs`) is read within the import's caps: at
+  most 4 MB of stream, 4,000 entries looked at and 1,000 members kept, each entry at most 16 KB;
+  a count of members the bytes can't hold refuses the stream before anything is read, nothing is
+  allocated by what the stream says, a length that runs past the end stops the reading there
+  (the members before it are kept and the rest named in the report), and a stream that can't be
+  believed is named and left aside. It has its property tests and is fed by the `pst` fuzz
+  target.
 
 ### Other programs and users on the same computer
 
@@ -397,7 +543,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). So does
   every background job of the window, listed in one place (`crates/ui-egui/src/jobs.rs`): each
   Send/Receive (IMAP, Microsoft Graph, Exchange, JMAP, Inbox passes, shared mailboxes), the
-  calendar and its check, free and busy times, the to-dos, the rules and the automatic replies.
+  calendar and its check, free and busy times, the to-dos, the rules, the automatic replies and the
+  categories.
   When another mailbox takes the place of the open one they are all called off, an answer that
   still comes for the old one is let go of whole, and no answer is taken in for an account under
   the address of the account open now; a shared mailbox's sign-in is checked against its owner's
@@ -406,6 +553,35 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   at the account's next run (the answer was let go of, or MailCraft stopped mid-send) is held as
   one that may have been sent, never sent again until the owner says so (AU3-26). A
   `mailto:` link handed in from outside saves a message with changes to Drafts first (AU2-19).
+- **The owner's own private keys** (#30; File › Options › Security). An imported key never
+  passes through a command: the window reads the file the owner picked and hands it, with a
+  `.p12`'s passphrase typed into the import dialog, to the host in a job, never in a command's
+  params, `ui.json`, a log or an error. The rules are in one place
+  (`crates/engine/src/private_keys.rs`): an OpenPGP key must have a passphrase, and not an empty
+  one (each secret part is tried with an empty passphrase, its key derivation capped); a `.p12`
+  kept by MailCraft must have its private key encrypted in the file, not only under its MAC; the
+  file holds one secret key and nothing else, since the whole file is what is kept; and no RSA
+  private-key operation runs in the process (an OpenPGP key with any RSA part, a subkey for
+  encryption too, is refused, and a `.p12`'s kind is its private key's own PKCS #8 algorithm and
+  curve, its certificate required to match it). What passes is kept as it came, still protected
+  by its passphrase, in the operating system's credential store under `key:openpgp:<fingerprint>`
+  or `key:smime:<sha-256>` (S/MIME only on Linux and FreeBSD: on Windows and macOS a `.p12` goes
+  into the certificate store or the keychain, which keep it themselves), at most 64 of them, and
+  nothing is kept that the page doesn't list; nothing is kept where there is no credential store.
+  `ui.json` holds only their public facts, and removing MailCraft's data deletes them from the
+  store. A key is removed, and an OpenPGP key marked Verified, only by the owner's own click: the
+  commands are never an agent's, and the buttons don't answer input the control channel
+  injected (`MailApp::driven`), so an agent allowed to click can't do either. Marking the owner's
+  own key Verified on import covers only the User IDs that are the mailbox's accounts' addresses.
+- **GnuPG is run, never a shell** (`apps/mailcraft/src/own_keys/gnupg.rs`): `gpgconf
+  --list-components` names `gpg`, and `gpg` lists the owner's secret keys and the User IDs it
+  holds valid, with fixed arguments and no input, for at most 20 seconds and 4 MB of output (a
+  program that runs longer or writes more is stopped and said not to work), and its colon
+  listing read for a few fields with every value bounded. Validity is asked under GnuPG's direct
+  trust model whatever its options say (`--trust-model=direct`), so that a key counts as Verified
+  only by what the owner set on that very key in GnuPG, never through the web of trust, TOFU or
+  `trust-model always`; it is asked at start, by Refresh, and when the window comes back to the
+  front, at most once a minute.
 - **The control channel** (only when started with `--control`) listens on `127.0.0.1` only, and every
   request must carry a key: 32 random bytes from the operating system, written to a key file created
   0600 on Unix and compared in constant time (`apps/mailcraft/src/control_server.rs`,
@@ -551,8 +727,10 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 - **Malware running as the owner.** A program with the owner's rights can read the mailbox, the
   control key and, usually, the credential store. MailCraft doesn't defend against its own user's
   account being compromised.
-- **No S/MIME or OpenPGP yet.** Messages are protected in transit (TLS) but not end to end, and
-  signatures aren't checked.
+- **No end-to-end encryption yet.** Messages are protected in transit (TLS) but not end to end:
+  S/MIME and OpenPGP signatures are checked where a message is read (S/MIME without a revocation
+  check), but signing and encrypting what is sent, and opening encrypted mail, are not built
+  (#30).
 - **The mailbox isn't encrypted at rest.** It relies on the operating system's disk encryption
   (BitLocker, FileVault, LUKS, GELI).
 - **Builds not signed by Windows or macOS.** Releases carry MailCraft's own signature over their
@@ -571,6 +749,25 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-16 | minor | #1544: a reaction sent by one click: six fixed emoji, one recipient (the sender, never the Reply-To, shown beside the emoji), nothing quoted, refused for a message with a sender warning, for drafts, own mail, Junk E-mail and automated mail, held back by Undo Send, asked about for an agent |
+| 2026-11-15 | patch | Known limits: S/MIME and OpenPGP signatures are checked; encrypting and signing sent mail are not built |
+| 2026-11-14 | patch | #1262: Check Names and People's Address Book ask an Exchange server account's address list only on the owner's press or search, and read its answer within caps, keeping a name, an address, four short lines and two numbers of each person, in the window alone |
+| 2026-11-13 | minor | #834: mail in Junk E-mail is shown by names only, no attachment there is decoded for a picture; the choice between names and pictures is a checkbox in File › Options too |
+| 2026-11-12 | patch | #661: an agent is asked `send` before it writes a category to Outlook (sent there, renamed there, new to the list, another colour, or put back so by an undo or redo), and `delete` for an undo or redo that has one deleted there |
+| 2026-11-12 | minor | #1103: provider discovery asks the DNS for the domain's Autodiscover hosts (SRV record and `autodiscover.<domain>` alias) beside its exchangers; the Exchange search's alias step, in the place of MS-OXDISCO's plain-HTTP redirect and specified in autodiscover.md, asks the owner before the sign-in goes to the alias's host |
+| 2026-11-11 | patch | #661: the window's background jobs that are called off for another mailbox include the categories' |
+| 2026-11-11 | minor | #30 part 4: the owner's own private keys kept in the credential store (`key:openpgp:`, `key:smime:`; passphrase-protected, S/MIME on Linux and FreeBSD only) and the rules they pass; running GnuPG (fixed arguments, no shell, a time limit and a cap on its output, the direct trust model) |
+| 2026-11-08 | minor | #836: an outgoing relay the owner marked as needing no sign-in is never shown the password, even when it offers a way to sign in; not for an account that signs in on its provider's page |
+| 2026-11-08 | minor | #834: a picture that comes as an attachment, shown as a picture at the owner's switch, is told by its bytes and decoded within the reading pane's caps off the window's thread; files kept on disk are brought in for it within caps |
+| 2026-11-08 | minor | #797: who mail says it is from: the account's own address or a sender address its owner listed; any other From never reaches the SMTP envelope, and a reply's From is chosen only among the owner's own addresses |
+| 2026-11-08 | patch | The HTML whitelist adds `direction` and the `dir` attribute, which only choose the side a paragraph stands at (a paragraph with neither reads left to right); nothing is run or fetched for them (#603) |
+| 2026-11-07 | patch | #843: a `.pst` distribution list's stream of members is read within caps |
+| 2026-11-07 | patch | AU3-11, AU3-12, AU3-13, AU3-14, AU3-15, AU3-V5: on Exchange Online only its own verdict above the hop where it took the mail in is read (with its id or none), only for mail it says came in, and a failure there without that word; a copy MailCraft puts on a server leaves every verdict behind; Safe Senders don't take mail its server failed out of Junk; a meeting a server keeps is changed only by its organizer's own message; links are judged in every look a message has, and a message with more looks than are checked says so; a part is shown in place only as a picture an `<img>` asks for |
+| 2026-11-07 | patch | AU3-08, AU3-09, AU3-10, AU3-21, AU3-26, AU3-V8, H6: every background job of the window answers only for the mailbox opening it was started under and is called off when another mailbox takes its place; no answer is relabelled with the account open now; a shared mailbox's sign-in is checked against its owner; a message handed to a server is marked as being sent on disk first, and one still marked at the next run is held, not sent again |
+| 2026-11-07 | patch | AU3-02, AU3-03, AU3-18, AU3-19: secrets are read and written by the account itself, an Exchange server account's name holds the certificate it trusts, a mailbox where two accounts share an address reads nothing until confirmed, every entry read is noted for the full wipe, removing an account deletes its entries under every name, and no build but a test's sends a Microsoft sign-in to this computer |
+| 2026-11-06 | minor | #509: send warnings (a lookalike recipient, compared as it reads without a `+tag` or Gmail's dots; outsiders who would see each other, never without an organisation) are the owner's to answer: refused without `confirmed`, asked in the window, an agent's own answer dropped; headless honours the call's `confirmed`; each recipient counted once, and more than 1,000 different ones a warning of its own (`tooManyRecipients`) |
+| 2026-11-05 | minor | #601: a picture behind a box is shown only from the message itself (`cid:`, `data:`); one on the web is never kept or fetched |
+| 2026-11-05 | minor | #602: under a reply or forward, the pictures written into a message (`data:`) that the reading pane shows go as parts of their own with Content-IDs naming nothing of the owner, within #533's checks and caps; the rest are left out and a `data:` address is never sent on |
 | 2026-11-05 | patch | #781 review: an Exchange stamp already in a mailbox file, which a move from another account may have carried in before, vouches for nothing; only one read by this version is believed |
 | 2026-11-04 | patch | #473 follow-up: only a Microsoft or an Exchange server account's copy goes to Deleted Items on undo; on any other account the copy is removed and Delete is asked. An undo that puts back the accounts and takes messages, drafts or contacts away is asked once, naming both, and a yes covers both; the owner's yes holds for the step and the items asked about only, not for one done or downloaded meanwhile |
 | 2026-11-04 | patch | #781 review: mail another program uploads to Exchange Online keeps a forged `Internal` stamp (observed for a Graph upload), the same limit a forged topmost `Authentication-Results` already has |

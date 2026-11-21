@@ -29,7 +29,7 @@ impl SecretStore for Store {
     fn get(&self, key: &str) -> Option<String> {
         self.0.lock().unwrap().get(key).cloned()
     }
-    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+    fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.lock().unwrap().insert(key.into(), secret.into());
         Ok(())
     }
@@ -67,7 +67,7 @@ fn exchange(id: u64, email: &str, trusted: &str) -> Account {
         kind: AccountKind::Exchange,
         email: email.into(),
         name: email.into(),
-        ews: Some(EwsServer { url: URL.into(), username: String::new(), trusted: trusted.into(), hierarchy: String::new() }),
+        ews: Some(EwsServer { url: URL.into(), username: String::new(), trusted: trusted.into(), hierarchy: String::new(), parents: false }),
         ..Default::default()
     }
 }
@@ -355,6 +355,10 @@ fn the_secret_cache_and_the_old_names_are_used_only_where_they_are_listed() {
         ("secret_read.rs", "legacy_secret_key(", 1),
         ("lib.rs", "secret_cache.get(", 2),
         ("secret_read.rs", "secret_cache.contains_key(", 2),
+        // A subscribed calendar's address is kept like a password (#209): found again by the name
+        // that holds its host (`subscribed_address`), and moved into memory for the session when
+        // remembering is switched off (`keep_read_subscription_addresses`): two reads.
+        ("subscribed.rs", "secret_cache.get(", 2),
     ];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut stack = vec![root.clone()];

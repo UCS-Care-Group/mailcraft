@@ -200,7 +200,7 @@ fn folder_of(body: &Value) -> Option<Found> {
 }
 
 /// What a header of an answer inside a batch says, whatever the case of its name.
-fn header<'v>(answer: &'v Value, name: &str) -> Option<&'v str> {
+pub(super) fn header<'v>(answer: &'v Value, name: &str) -> Option<&'v str> {
     let headers = answer.get("headers")?.as_object()?;
     headers.iter().take(64).find(|(have, _)| have.eq_ignore_ascii_case(name)).and_then(|(_, value)| value.as_str())
 }
@@ -285,7 +285,7 @@ impl Graph<'_> {
                     }
                     Slot::Later(_, 0) => return Err(nonsense("Microsoft Graph left a question about a folder unanswered")),
                     Slot::Later(_, status) => {
-                        return Err(NetError::Proto(ProtoError::Rejected(format!("Microsoft Graph answered with status {status}"))));
+                        return Err(NetError::Proto(ProtoError::Rejected(format!("Microsoft Graph answered with status {status}").into())));
                     }
                 }
             }

@@ -34,7 +34,7 @@ fn window(answer: Result<Tokens, String>) -> (MailApp, Id, Answers, Jobs, SignIn
     app.autosave = false;
     let owner = app.execute("account.add", json!({"email": OWNER, "kind": "microsoft", "tenant": "organizations"})).unwrap()["id"].as_u64().unwrap();
     app.tokens.insert(owner, tokens("own-access", "ref-1"));
-    app.graph_checked.insert(owner, f64::MAX);
+    app.session.driver.calendar.checked.insert(owner, f64::MAX);
     let (answers, jobs, sign_ins): (Answers, Jobs, SignIns) = Default::default();
     let (to_answer, log) = (answers.clone(), jobs.clone());
     app.services.graph = Some(Box::new(move |req: GraphRequest| {
@@ -47,7 +47,7 @@ fn window(answer: Result<Tokens, String>) -> (MailApp, Id, Answers, Jobs, SignIn
     }));
     let asked = sign_ins.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        asked.lock().unwrap().push((req.graph, req.shared_calendars));
+        asked.lock().unwrap().push((req.graph, req.sync));
         let (tx, rx) = mpsc::channel();
         tx.send(answer.clone()).unwrap();
         rx
@@ -77,7 +77,7 @@ fn listed(owner: Id, calendars: Vec<RemoteCalendar>, refused: Vec<OpenedRefusal>
 /// Start the account's next calendar job and take in its answer.
 fn job(app: &mut MailApp) {
     // (A job that brought no events counts as a failure, which waits: not what these look at.)
-    app.calendar.failures.clear();
+    app.session.driver.calendar.book.forget_all_failures();
     assert!(app.calendar_tick_at(true, 1.0e9), "a calendar job was started");
     app.poll_calendar();
 }
@@ -116,18 +116,18 @@ fn a_refusal_says_why_and_adds_nothing() {
 }
 
 #[test]
-fn the_owner_is_asked_first_then_microsofts_page_by_itself_and_a_yes_reads_it_at_once() {
+fn an_older_sign_in_is_put_the_one_question_first_then_the_one_page_and_a_yes_reads_it_at_once() {
     let (mut app, owner, answers, jobs, sign_ins) = window(Ok(Tokens { email: OWNER.into(), ..tokens("cal-access", "ref-9") }));
     answers.lock().unwrap().push_back(GraphResult { shared_calendars_consent_needed: true, ..Default::default() });
     answers.lock().unwrap().push_back(listed(owner, vec![main_calendar(), cy_calendar()], vec![]));
     app.begin_open_shared(owner, CY).unwrap();
     job(&mut app);
-    // The window asks; nothing was asked of Microsoft yet.
+    // The window puts the one question for an older sign-in; nothing was asked of Microsoft yet.
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("the owner is asked first") };
-    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSharedCalendars", Some(owner)));
-    assert!(ask.text.contains("this computer only"), "{}", ask.text);
+    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSync", Some(owner)));
+    assert!(ask.text.contains("calendars shared with you"), "{}", ask.text);
     assert!(sign_ins.lock().unwrap().is_empty());
-    // Go ahead: the page, for other people's calendars alone, never an ordinary sign-in.
+    // Go ahead (the older id is the same as the one question's): the one page.
     app.dialog = None;
     assert_eq!(app.run("ui.allowSharedCalendars", json!({"account": owner, "confirmed": true})).unwrap()["account"], owner);
     assert_eq!(*sign_ins.lock().unwrap(), [(true, true)]);
@@ -163,6 +163,22 @@ fn a_no_takes_off_what_was_never_read_and_an_approval_has_its_page() {
 }
 
 #[test]
+fn a_calendar_opened_while_another_dialog_is_up_is_answered_not_left_waiting() {
+    let (mut app, owner, answers, _, sign_ins) = window(Ok(tokens("x", "y")));
+    answers.lock().unwrap().push_back(GraphResult { shared_calendars_consent_needed: true, ..Default::default() });
+    app.begin_open_shared(owner, CY).unwrap();
+    // Another dialog took the window before the job answered.
+    app.dialog = Some(crate::dialogs::Dialog::About(Default::default()));
+    job(&mut app);
+    // The request is finished with a no that says why, and nothing is left waiting.
+    assert!(app.open_shared.waiting.is_none());
+    let Some(Err(said)) = app.open_shared.outcome.clone() else { panic!("the request has an outcome") };
+    assert!(said.contains("need your permission"), "{said}");
+    assert!(app.session.mailbox.account(owner).unwrap().opened_calendars.is_empty());
+    assert!(sign_ins.lock().unwrap().is_empty());
+}
+
+#[test]
 fn a_job_that_starts_by_itself_says_so_in_a_line_and_never_asks_twice() {
     let (mut app, owner, answers, _, sign_ins) = window(Ok(tokens("x", "y")));
     // (An entry that was opened earlier, whose permission is missing now.)
@@ -190,8 +206,8 @@ fn a_person_the_server_lists_as_well_is_offered_for_removal_once() {
         ..Default::default()
     };
     answers.lock().unwrap().push_back(listed(owner, vec![main_calendar(), cy_calendar(), server_has_it.clone()], vec![]));
-    app.calendar.checked.clear();
-    app.graph_checked.remove(&owner);
+    app.session.driver.calendar.book.forget_all_checked();
+    app.session.driver.calendar.checked.remove(&owner);
     job(&mut app);
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("offered") };
     assert_eq!((command.as_str(), params["address"].as_str()), ("calendar.removeShared", Some(CY)));
@@ -199,7 +215,7 @@ fn a_person_the_server_lists_as_well_is_offered_for_removal_once() {
     // Said no: not asked again.
     app.dialog = None;
     answers.lock().unwrap().push_back(listed(owner, vec![main_calendar(), cy_calendar(), server_has_it], vec![]));
-    app.graph_checked.remove(&owner);
+    app.session.driver.calendar.checked.remove(&owner);
     job(&mut app);
     assert!(app.dialog.is_none(), "offered once");
     // Yes: the copy opened by address goes, the server's stays.
@@ -249,8 +265,8 @@ fn ops_copy() -> RemoteCalendar {
 /// The account's list comes again with the next job.
 fn list_again(app: &mut MailApp, owner: Id, answers: &Answers, calendars: Vec<RemoteCalendar>) {
     answers.lock().unwrap().push_back(listed(owner, calendars, vec![]));
-    app.calendar.checked.clear();
-    app.graph_checked.remove(&owner);
+    app.session.driver.calendar.book.forget_all_checked();
+    app.session.driver.calendar.checked.remove(&owner);
     job(app);
 }
 
@@ -288,7 +304,7 @@ fn a_shared_mailboxs_calendar_the_server_lists_too_is_offered_to_be_hidden_once(
 
     // Shown again: the account's list is read at once, and the copy is back; nothing is asked.
     app.run("calendar.hideListedCopy", json!({"address": OPS, "hide": false})).unwrap();
-    assert!(app.calendar.due && !app.calendar.checked.contains_key(&owner));
+    assert!(app.session.driver.calendar.due && app.session.driver.calendar.book.checked(owner).is_none());
     answers.lock().unwrap().push_back(listed(owner, vec![main_calendar(), ops_copy()], vec![]));
     job(&mut app);
     assert!(has_copy(&app) && app.dialog.is_none());
@@ -296,4 +312,38 @@ fn a_shared_mailboxs_calendar_the_server_lists_too_is_offered_to_be_hidden_once(
     app.open_shared.offered.clear();
     list_again(&mut app, owner, &answers, vec![main_calendar(), ops_copy()]);
     assert!(app.dialog.is_none());
+}
+
+/// The owner signs in as somebody else on the page while a calendar opened by address waits: the
+/// request is answered (the dialog says why, and opening it again asks again), not left waiting
+/// for ever.
+#[test]
+fn a_page_that_signs_in_somebody_else_answers_a_calendar_opened_by_address() {
+    let other = Tokens { email: "someone.else@example.org".into(), ..tokens("x", "y") };
+    let (mut app, owner, answers, _, _) = window(Ok(other));
+    answers.lock().unwrap().push_back(GraphResult { shared_calendars_consent_needed: true, ..Default::default() });
+    app.begin_open_shared(owner, CY).unwrap();
+    job(&mut app);
+    app.dialog = None;
+    app.run("ui.allowSharedCalendars", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    assert!(app.open_shared.waiting.is_none(), "not left waiting");
+    let Some(Err(said)) = app.open_shared.outcome.clone() else { panic!("the dialog says why") };
+    assert!(said.contains("someone.else@example.org"), "{said}");
+    assert!(app.session.mailbox.account(owner).unwrap().opened_calendars.is_empty(), "nothing was read, nothing is kept");
+    assert!(!app.sync_asking.contains(&owner));
+}
+
+#[test]
+fn the_open_calendar_dialog_that_made_the_request_gives_way_to_the_one_question() {
+    let (mut app, owner, answers, _, sign_ins) = window(Ok(Tokens { email: OWNER.into(), ..tokens("cal-access", "ref-9") }));
+    answers.lock().unwrap().push_back(GraphResult { shared_calendars_consent_needed: true, ..Default::default() });
+    app.dialog = Some(crate::dialogs::Dialog::OpenCalendar { account: owner, address: CY.into(), error: String::new(), reading: None });
+    app.begin_open_shared(owner, CY).unwrap();
+    job(&mut app);
+    let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else {
+        panic!("the question, not the refusal: {:?}", app.open_shared.outcome)
+    };
+    assert_eq!(command, "ui.allowSync");
+    assert!(app.open_shared.outcome.is_none() && sign_ins.lock().unwrap().is_empty());
 }

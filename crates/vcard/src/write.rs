@@ -15,7 +15,9 @@ use crate::text::{escape, multi, single};
 /// `TYPE` for (`work`, `home`, `other`; for phones also `mobile`, `fax`, `pager`) is written as
 /// that type; any other label is written as the `X-ABLabel` of a group (`item1.TEL` +
 /// `item1.X-ABLabel:Car`), which is how address books exchange custom labels. E-mail addresses,
-/// phone numbers, postal addresses and web sites with nothing in them are left out.
+/// phone numbers, postal addresses and web sites with nothing in them are left out. Keys are
+/// written as `KEY;TYPE=X509;ENCODING=b:` and `KEY;TYPE=PGP;ENCODING=b:`; one that would not read
+/// back as itself is left out, and so is the address of a key, which vCard 3.0 has no form for.
 pub fn write(contacts: &[&Contact]) -> String {
     let mut out = String::new();
     for contact in contacts {
@@ -124,6 +126,9 @@ fn card(out: &mut String, c: &Contact) {
     let categories: Vec<String> = c.categories.iter().map(|name| field(name)).filter(|name| !name.is_empty()).collect();
     if !categories.is_empty() {
         fold(out, &format!("CATEGORIES:{}", categories.join(",")));
+    }
+    for key in c.keys.iter().filter_map(crate::key::line).take(Contact::MAX_KEYS) {
+        fold(out, &key);
     }
     optional(out, "UID", &c.uid);
     if c.favorite {

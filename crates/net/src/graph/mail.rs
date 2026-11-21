@@ -38,7 +38,7 @@ use std::time::{Duration, Instant};
 
 use mailcraft_model::sync::{
     ChangeOutcome, FolderChange, FolderChangeDone, FolderListing, GraphFolder, GraphMailRequest, GraphMailResult, MAX_FOLDER_CHANGES,
-    MAX_LISTED_FOLDERS, SyncPhase,
+    MAX_LISTED_FOLDERS, OWN_FOLDER_CODES, SyncPhase,
 };
 use mailcraft_model::{FolderKind, clean_name};
 use serde_json::{Value, json};
@@ -167,6 +167,7 @@ pub(crate) fn sync_mail_renewing_with(
                 let (threads, busy_for) = threads::conversations(&graph, request, cancel);
                 (last.threads, last.busy_for) = (threads, busy_for);
             }
+            renamed_into(&graph, request, cancel, &mut last, emit);
             last
         }
         Err(e) => GraphMailResult {
@@ -211,6 +212,36 @@ fn inbox_pass(
     // (Only the Inbox was read: that is not every folder of the mailbox.)
     (last.partial, last.whole, last.inbox_pass) = (true, false, true);
     emit(last);
+}
+
+/// Then a renamed category, for the mail that isn't kept here (#851): the owner's own mailbox
+/// alone, and not while the server asks to be left alone or the owner stopped the run. What
+/// came of it goes into `last`; how far it has got goes out through `emit` as it goes, for
+/// Send/Receive Progress.
+pub(super) fn renamed_into(
+    graph: &Graph<'_>,
+    request: &GraphMailRequest,
+    cancel: &AtomicBool,
+    last: &mut GraphMailResult,
+    emit: &mut dyn FnMut(GraphMailResult),
+) {
+    let quiet = last.busy_for.is_none() && !last.stopped && !cancel.load(std::sync::atomic::Ordering::Relaxed);
+    let Some(rename) = request.rename.as_ref().filter(|_| quiet && !request.shared && !graph.shared()) else { return };
+    let items = super::recategorize::Items { lists: vec![graph.mail_path("/messages")], item: graph.batch_path("/messages/") };
+    let (account, email) = (request.account, request.email.clone());
+    let mut progress = |done: u32, total: u32| {
+        let renaming = Some(mailcraft_model::sync::RenameProgress { done, total });
+        emit(GraphMailResult { account, email: email.clone(), partial: true, renaming, ..Default::default() });
+    };
+    let came = super::recategorize::rename(graph, &items, rename, Some(cancel), &mut progress);
+    last.renamed = Some(came.renamed);
+    last.busy_for = came.busy_for;
+    // (Stopped by the owner part-way: said as for the rest of the run.)
+    last.stopped |= came.stopped;
+    // (Said, as for any other part of the run that the sign-in stops.)
+    if came.token_refused {
+        last.errors.push("Couldn't rename the category on Microsoft's server: the sign-in was refused.".into());
+    }
 }
 
 /// Every piece of a run of [`sync_mail_with`] put together, in order: what a caller that takes a
@@ -961,16 +992,33 @@ fn done_in_place(known: &Known, reply: &Reply) -> Result<ChangeOutcome, NetError
 /// In a shared mailbox (#70) a refusal never puts back what the owner changed: one that is by
 /// Graph's code no access (or no mailbox) stops the run's changes as [`NetError::SharedRefused`],
 /// and any other 403 stops them too, the change waiting here for the next run.
+///
+/// A folder the server answers is one of its own is [`ChangeOutcome::OwnFolder`] (#1069): put
+/// back here and never offered for it again. That is only an answer with one of
+/// [`OWN_FOLDER_CODES`], whatever its status: a bare 403 may pass (a policy changed later, a
+/// token short of a scope), so it is a refusal and marks nothing. Any other answer that is the
+/// server's last word on a change (a 400, a 403, a 405, a 422) is a refusal, so that the folder is
+/// put back rather than the run stopping on it every time.
 fn outcome_of(graph: &Graph<'_>, reply: &Reply, sent: &str) -> Result<Option<ChangeOutcome>, NetError> {
     refusing(graph, reply)?;
+    let body = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+    let code = body.get("error").map_or("", |error| text(error, "code"));
+    if OWN_FOLDER_CODES.iter().any(|own| own.eq_ignore_ascii_case(code)) {
+        return Ok(Some(own_folder()));
+    }
     if graph.shared() && reply.status == 403 {
         return Err(graph.refusal(Doing::Folders, reply, sent));
     }
     match reply.status {
-        400 => Ok(Some(refused("the server says the change isn't one it can make"))),
+        400 | 405 | 422 => Ok(Some(refused("the server says the change isn't one it can make"))),
         403 => Ok(Some(refused("the server says this account may not make that change"))),
         _ => Err(graph.refusal(Doing::Folders, reply, sent)),
     }
+}
+
+/// One of the server's own folders, which stays where it is (#1069).
+fn own_folder() -> ChangeOutcome {
+    ChangeOutcome::OwnFolder { why: "the server keeps this folder and doesn't let it be moved or deleted".to_string() }
 }
 
 /// The folder called `name` (in any case) in `parent` (a server id; empty: the top).
@@ -1012,6 +1060,8 @@ mod down_tests;
 #[cfg(test)]
 mod draft_content_tests;
 #[cfg(test)]
+mod fetch_error_tests;
+#[cfg(test)]
 mod header_order_tests;
 #[cfg(test)]
 mod inbox_first_tests;
@@ -1031,3 +1081,9 @@ mod tests;
 mod threads_tests;
 #[cfg(test)]
 mod well_known_tests;
+#[cfg(test)]
+mod window_continue_tests;
+#[cfg(test)]
+mod window_plain_tests;
+#[cfg(test)]
+mod window_tests;

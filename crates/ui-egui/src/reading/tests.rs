@@ -215,6 +215,9 @@ fn build_corpus() -> Vec<(&'static str, Message)> {
             html_message(34, ("Hollowpine Rambling Club", "bulletin@hollowpine.example"), "The Hollowpine bulletin", corpus::STYLE_BOXES),
         ),
         ("style inline", html_message(35, ("Marrowby Trust", "garden@marrowby.example"), "Autumn open day at the garden", corpus::STYLE_INLINE)),
+        ("parcel notice", html_message(36, ("Lumen Bay Goods", "parcels@lumenbay.example"), "Dispatched: Brass desk lamp", corpus::PARCEL_NOTICE)),
+        ("bill ready", html_message(37, ("Kestrel Mobile", "bills@kestrel.example"), "Your Kestrel bill is ready to view", corpus::BILL_READY)),
+        ("listing card", html_message(38, ("Homefield", "picks@homefield.example"), "New listing in Ashcombe at £315K", corpus::LISTING_CARD)),
     ];
     // A file that is really attached, next to the pictures shown in place.
     if let Some((_, m)) = out.get_mut(4) {
@@ -306,7 +309,11 @@ fn check(laid: &Laid, t: &Tokens, what: &str) {
                     section.format.color,
                     if t.dark { "dark" } else { "light" }
                 );
-                assert!((9.0..=33.0).contains(&section.format.font_id.size), "{what}: text of size {}", section.format.font_id.size);
+                assert!(
+                    (9.0..=f32::from(mailcraft_html::MAX_FONT_PX)).contains(&section.format.font_id.size),
+                    "{what}: text of size {}",
+                    section.format.font_id.size
+                );
             }
         }
     }
@@ -356,7 +363,7 @@ fn corpus_app(large: bool) -> (MailApp, Vec<(&'static str, u64)>) {
     }
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     (app, ids)
 }
 
@@ -594,6 +601,115 @@ fn a_data_table_keeps_its_columns_and_a_layout_table_gives_way() {
     });
 }
 
+/// Whether the words `words` are drawn underlined where the laid-out piece that holds them is:
+/// by egui's own line (the message asked for one), or, for a link, by the line drawn close to its
+/// words (`view::paint_link_underlines`).
+fn underlined(laid: &Laid, words: &str) -> bool {
+    let item = laid.items.iter().find(|i| text_of(i).contains(words)).unwrap_or_else(|| panic!("no text holds {words:?}"));
+    let ItemKind::Text(text) = &item.kind else { panic!() };
+    let at = text.job.text.find(words).unwrap_or_default();
+    let char_at = text.job.text.get(..at).unwrap_or_default().chars().count();
+    if text.links.iter().any(|link| link.underlined && link.range.contains(&char_at)) {
+        return true;
+    }
+    let section = text
+        .job
+        .sections
+        .iter()
+        .find(|s| s.byte_range.start.0 <= at && at < s.byte_range.end.0)
+        .unwrap_or_else(|| panic!("no section for {words:?}"));
+    section.format.underline != egui::Stroke::NONE
+}
+
+/// A link is drawn with its line unless it says otherwise itself (the parcel notice's style sheet
+/// turns it off for every link, a bill's support links in their own style), and a link written as
+/// a block with a look of its own is a button as wide as its column (the listing card).
+#[test]
+fn links_are_underlined_as_the_message_says_and_block_links_are_buttons() {
+    in_frame(false, |ctx| {
+        let parcel = lay_out(ctx, &corpus_message("parcel notice"), 820.0);
+        for words in ["Your Orders", "Your Payments", "Track parcel", "Brass desk lamp", "here"] {
+            assert!(!underlined(&parcel, words), "{words} is underlined");
+        }
+        let reply = lay_out(ctx, &corpus_message("gmail reply"), 820.0);
+        assert!(underlined(&reply, "written plan"), "an ordinary link keeps its line");
+        let news = lay_out(ctx, &corpus_message("newsletter"), 820.0);
+        assert!(!underlined(&news, "See the members' weekend"), "a button without its line");
+        let listing = lay_out(ctx, &corpus_message("listing card"), 820.0);
+        assert!(!underlined(&listing, "Explore this plot"));
+        // The button's blue fills its 480-pixel column (the card's 504 less its 12 a side), and
+        // its words are in the middle of it.
+        let blue = Color32::from_rgb(0x00, 0x41, 0xd9);
+        let button =
+            listing.items.iter().find(|i| matches!(i.kind, ItemKind::Fill { color, .. } if color == blue)).unwrap_or_else(|| panic!("no button"));
+        assert!((button.rect.width() - 480.0).abs() < 1.5, "{:?}", button.rect);
+        // The heading is at the left of the 504-pixel column the outer cell centres (as Outlook
+        // has it), and the labels are boxes as wide as their words.
+        let (heading, card) = (find(&listing, "New listing picked"), find(&listing, "£315,000"));
+        assert!((heading.rect.min.x - (card.rect.min.x - 12.0)).abs() < 4.0, "{:?} {:?}", heading.rect, card.rect);
+        let red = Color32::from_rgb(0xd0, 0x3c, 0x0b);
+        let label =
+            listing.items.iter().find(|i| matches!(i.kind, ItemKind::Fill { color, .. } if color == red)).unwrap_or_else(|| panic!("no label"));
+        assert!(label.rect.width() < 60.0, "{:?}", label.rect);
+        let words = find(&listing, "Explore this plot");
+        assert!(
+            button.rect.contains(words.rect.center()) && (words.rect.center().x - button.rect.center().x).abs() < 2.0,
+            "{:?} in {:?}",
+            words.rect,
+            button.rect
+        );
+    });
+}
+
+/// Tables that float, the way older templates write columns (the bill notice): the two buttons
+/// stand side by side at the left of their column, and the header's title, floating right,
+/// stands at the right end of the header beside the wordmark. Where the column is too narrow for
+/// both buttons, the second goes under the first.
+#[test]
+fn tables_that_float_are_laid_out_side_by_side() {
+    in_frame(false, |ctx| {
+        let m = corpus_message("bill ready");
+        let wide = lay_out(ctx, &m, 820.0);
+        let (one, two) = (find(&wide, "View my bill"), find(&wide, "Schedule a payment"));
+        assert!((one.rect.center().y - two.rect.center().y).abs() < 1.0 && one.rect.max.x < two.rect.min.x, "{:?} {:?}", one.rect, two.rect);
+        let text = find(&wide, "Hi MARROW");
+        assert!(one.rect.min.x - text.rect.min.x < 140.0, "the buttons are at the left of the column: {:?} {:?}", one.rect, text.rect);
+        // The title is at the right of the 590-pixel card, beside the wordmark rather than under it.
+        let title = find(&wide, "Your online Kestrel bill");
+        let logo = shown_pictures(&wide).into_iter().next().map(|p| p.rect).unwrap_or_else(|| panic!("no wordmark"));
+        assert!(title.rect.min.y < logo.max.y + 40.0 && title.rect.min.x > logo.max.x + 100.0, "{:?} {:?}", title.rect, logo);
+        // Narrow: the buttons one under the other.
+        let narrow = lay_out(ctx, &m, 400.0);
+        let (one, two) = (find(&narrow, "View my bill"), find(&narrow, "Schedule a payment"));
+        assert!(one.rect.max.y <= two.rect.min.y, "{:?} {:?}", one.rect, two.rect);
+    });
+}
+
+/// Each float goes to its own side whatever order the source writes them in: a zig-zag row that
+/// writes its picture first (for phones) and floats it right has it at the right, with the text
+/// floating left at the left; two that float right have the first rightmost.
+#[test]
+fn a_float_to_the_right_written_first_is_at_the_right() {
+    let float = |side: &str, word: &str| format!("<table align='{side}' width='280'><tr><td bgcolor='#0568ae'>{word}</td></tr></table>");
+    in_frame(false, |ctx| {
+        let zigzag =
+            html_message(1, ("Shop", "shop@example.org"), "Zig-zag", &format!("<div>{}{}</div>", float("right", "Picture"), float("left", "Words")));
+        let laid = lay_out(ctx, &zigzag, 800.0);
+        let (picture, words) = (find(&laid, "Picture"), find(&laid, "Words"));
+        assert!(words.rect.max.x < picture.rect.min.x && picture.rect.min.x > 400.0, "{:?} {:?}", words.rect, picture.rect);
+        assert!(words.rect.min.x < 100.0, "the left float is at the left: {:?}", words.rect);
+        let two = html_message(
+            2,
+            ("Shop", "shop@example.org"),
+            "Two right",
+            &format!("<div>{}{}</div>", float("right", "First"), float("right", "Second")),
+        );
+        let laid = lay_out(ctx, &two, 800.0);
+        let (first, second) = (find(&laid, "First"), find(&laid, "Second"));
+        assert!(second.rect.max.x < first.rect.min.x && first.rect.min.x > 400.0, "{:?} {:?}", first.rect, second.rect);
+    });
+}
+
 #[test]
 fn quoted_text_has_a_bar_for_every_level() {
     in_frame(false, |ctx| {
@@ -705,7 +821,7 @@ fn a_link_is_under_the_pointer_only_where_its_text_is() {
             for row in &galley.rows {
                 for (i, glyph) in row.row.glyphs.iter().enumerate() {
                     let point = egui::vec2(row.pos.x + glyph.pos.x + glyph.advance_width / 2.0, row.pos.y + row.row.size.y / 2.0);
-                    let wanted = text.links.iter().find(|(range, _)| range.contains(&(index + i))).map(|(_, url)| url.clone());
+                    let wanted = text.links.iter().find(|link| link.range.contains(&(index + i))).map(|link| link.url.clone());
                     assert_eq!(super::view::link_under(text, &galley, point), wanted, "{start}: character {}", index + i);
                 }
                 index += row.row.glyphs.len() + usize::from(row.ends_with_newline);
@@ -716,7 +832,43 @@ fn a_link_is_under_the_pointer_only_where_its_text_is() {
             assert_eq!(super::view::link_under(text, &galley, egui::vec2(galley.rect.center().x, galley.rect.max.y + 40.0)), None);
         }
         let ItemKind::Text(text) = &find(&laid, "Some words").kind else { panic!() };
-        assert_eq!(text.links.iter().map(|(r, url)| (r.clone(), &**url)).collect::<Vec<_>>(), [(20..36, "https://example.org/there")]);
+        assert_eq!(text.links.iter().map(|link| (link.range.clone(), &*link.url)).collect::<Vec<_>>(), [(20..36, "https://example.org/there")]);
+    });
+}
+
+/// Tall HTML line spacing leaves each wrapped link underline next to its own glyphs.
+#[test]
+fn link_underlines_follow_the_baseline_of_each_wrapped_row() {
+    in_frame(false, |ctx| {
+        let html =
+            "<p style='line-height:2.5' align='center'>Préface <a href='https://example.org'>a link that wraps across several lines</a> fin</p>";
+        let m = html_message(0, ("A", "a@example.org"), "Links", html);
+        let laid = lay_out(ctx, &m, 140.0);
+        let ItemKind::Text(text) = &find(&laid, "Préface").kind else { panic!() };
+        let link = text.links.first().unwrap();
+        let galley = ctx.fonts_mut(|f| f.layout_job((*text.job).clone()));
+        assert!(text.job.sections.iter().all(|section| section.format.underline.is_empty()));
+        let layer = egui::LayerId::new(egui::Order::Middle, egui::Id::unique("link underlines"));
+        let at = egui::pos2(200.0, 50.0);
+        super::view::paint_link_underlines(&ctx.layer_painter(layer), at, &galley, &text.links);
+        ctx.graphics(|graphics| {
+            let mut lines = graphics.get(layer).unwrap().all_entries();
+            assert!(lines.len() > 1, "the link should wrap");
+            let mut index = 0;
+            for row in &galley.rows {
+                let glyphs: Vec<_> = row.glyphs.iter().enumerate().filter(|(i, _)| link.range.contains(&(index + i))).map(|(_, g)| g).collect();
+                if let (Some(first), Some(last)) = (glyphs.first(), glyphs.last()) {
+                    let egui::Shape::LineSegment { points: [from, to], stroke } = &lines.next().unwrap().shape else { panic!() };
+                    let baseline = at.y + row.pos.y + first.pos.y;
+                    assert!((baseline + 1.0..=baseline + 2.5).contains(&from.y));
+                    assert_eq!((from.x, to.x), (at.x + row.pos.x + first.pos.x, at.x + row.pos.x + last.max_x()));
+                    assert_eq!(from.y, to.y);
+                    assert_eq!(stroke.color, link.ink);
+                }
+                index += row.glyphs.len() + usize::from(row.ends_with_newline);
+            }
+            assert_eq!(lines.len(), 0);
+        });
     });
 }
 
@@ -847,10 +999,10 @@ fn a_link_shows_the_hand_and_opens_when_clicked_and_only_then() {
         let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if !t.links.is_empty())).unwrap();
         let ItemKind::Text(text) = &item.kind else { panic!() };
         let galley = ctx.fonts_mut(|f| f.layout_job((*text.job).clone()));
-        let (range, url) = text.links.first().unwrap();
+        let link = text.links.first().unwrap();
         let (mut index, mut at) = (0, None);
         for row in &galley.rows {
-            if let Some(glyph) = range.start.checked_sub(index).and_then(|i| row.row.glyphs.get(i + 1)) {
+            if let Some(glyph) = link.range.start.checked_sub(index).and_then(|i| row.row.glyphs.get(i + 1)) {
                 at = Some(
                     origin + item.rect.min.to_vec2() + egui::vec2(text.anchor + row.pos.x + glyph.pos.x + 1.0, row.pos.y + row.row.size.y / 2.0),
                 );
@@ -859,7 +1011,7 @@ fn a_link_shows_the_hand_and_opens_when_clicked_and_only_then() {
             index += row.row.glyphs.len() + usize::from(row.ends_with_newline);
         }
         let plain = find(laid, "Hi Priya");
-        (at.unwrap(), url.to_string(), origin + plain.rect.min.to_vec2() + egui::vec2(4.0, 6.0))
+        (at.unwrap(), link.url.to_string(), origin + plain.rect.min.to_vec2() + egui::vec2(4.0, 6.0))
     })
     .unwrap();
     assert_eq!(url, "https://docs.juniperlabs.example/migration/plan");
@@ -1177,8 +1329,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 18,
-        "reading.rs, colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), view (and its zoom tests) and warnings (and its tests)"
+        checked, 29,
+        "reading.rs, attachment pictures (and its tests), backdrop (and its tests), colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, react (and its tests), scroll keys tests, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
     );
 }
 
@@ -1308,7 +1460,7 @@ pub(super) fn app_with(messages: Vec<Message>) -> (MailApp, Vec<u64>) {
     let ids = messages.into_iter().map(|m| mailbox.add_message(Message { folder: inbox, ..m }).unwrap()).collect();
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     (app, ids)
 }
 
@@ -2188,6 +2340,8 @@ fn what_is_kept_of_pictures_is_said_and_cleared_in_the_options() {
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
     assert!(says(&harness, "12 downloaded pictures are kept on this computer (3.2 MB)."));
+    harness.get_by_label("Clear").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Clear").click();
     harness.run_steps(4);
     assert_eq!(*kept.cleared.lock().unwrap(), 1);
@@ -3164,8 +3318,8 @@ fn a_selection_copies_tables_lists_quotes_and_links_as_text() {
     let (start, range, url) = super::view::kept(&ctx, gmail, |laid, _| {
         let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if !t.links.is_empty())).unwrap();
         let ItemKind::Text(text) = &item.kind else { panic!() };
-        let (range, url) = text.links.first().unwrap();
-        (text.job.text.clone(), range.clone(), url.to_string())
+        let link = text.links.first().unwrap();
+        (text.job.text.clone(), link.range.clone(), link.url.to_string())
     })
     .unwrap();
     let (from, to) = (gap(&harness, gmail, &start, range.start), gap(&harness, gmail, &start, range.end));
@@ -3808,8 +3962,8 @@ fn the_menu_of_the_body_copies_selects_all_and_knows_a_links_address() {
     let (start, range, url) = super::view::kept(&ctx, id, |laid, _| {
         let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if !t.links.is_empty())).unwrap();
         let ItemKind::Text(text) = &item.kind else { panic!() };
-        let (range, url) = text.links.first().unwrap();
-        (text.job.text.clone(), range.clone(), url.to_string())
+        let link = text.links.first().unwrap();
+        (text.job.text.clone(), link.range.clone(), link.url.to_string())
     })
     .unwrap();
     let on_link = gap(&harness, id, &start, range.start + 1) + egui::vec2(1.0, 0.0);
@@ -3995,11 +4149,14 @@ fn the_selection_commands_take_anything_and_never_panic() {
 
 // ---- meetings that arrive as mail ----
 
+mod bg_pictures;
 mod inline_blocks;
 mod invitation;
 mod primary;
+mod remote_bar_why;
 mod remote_server;
 mod responsive;
+mod rtl;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
@@ -4112,8 +4269,10 @@ fn a_centred_digest_keeps_its_column_its_tiles_and_its_lines() {
             for line in small.chunks(3) {
                 assert!(line.iter().all(|i| (i.rect.min.y - line[0].rect.min.y).abs() < 0.5), "{line:?}");
                 assert!(line.windows(2).all(|w| w[1].rect.min.x > w[0].rect.max.x), "{line:?}");
+                // (The table of them is centred; in its cells they are at the left, as Outlook has
+                // them, so the little slack its columns are laid out with is on their right.)
                 let centre = (line[0].rect.min.x + line[2].rect.max.x) / 2.0;
-                assert!((centre - 500.0).abs() < 2.0, "{line:?}");
+                assert!((centre - 500.0).abs() < 3.0, "{line:?}");
             }
             // The table of roles: the long cells wrap in the share they ask for, and every cell
             // of the ruled rows has the same room round it.
@@ -4164,6 +4323,83 @@ fn small_pictures_in_a_table_in_a_centred_cell_stand_in_the_middle() {
 }
 
 #[test]
+fn an_inner_percentage_table_can_keep_a_centred_wrapper_at_content_width() {
+    let icons: String = (0..5)
+        .map(|i| {
+            let pad = if i < 4 { 32 } else { 0 };
+            format!("<td style='width:20%'><img src='cid:tick-16@quillon.example' width='40' height='40' style='padding-right:{pad}px'></td>")
+        })
+        .collect();
+    let html = format!(
+        "<table align='center'><tr><td style='padding:20px 0'><table width='100%' cellspacing='0'><tr>{icons}</tr></table></td></tr></table>"
+    );
+    let message = html_message(53, ("Digest", "digest@bellweather.example"), "Icons", &html);
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &message, 600.0);
+        let icons = shown_pictures(&laid);
+        assert_eq!(icons.len(), 5);
+        for (index, icon) in icons.iter().enumerate() {
+            assert_eq!(icon.rect.size(), egui::vec2(40.0, 40.0));
+            assert_eq!(icon.rect.min, egui::pos2(136.0 + index as f32 * 72.0, 20.0));
+        }
+    });
+}
+
+/// An inner full-width header bar fills its auto-sized wrapper in either alignment.
+#[test]
+fn a_short_header_bar_in_a_nested_table_keeps_its_alignment() {
+    in_frame(false, |ctx| {
+        for align in ["center", "right"] {
+            let html = format!(
+                "<table role='presentation' width='600' cellspacing='0'><tr><td style='padding:0'>\
+                 <table role='presentation' align='{align}' cellspacing='0'><tr><td style='padding:0'>\
+                 <table role='presentation' width='100%' bgcolor='#d8e6da' cellspacing='0'><tr><td style='padding:0'>Header</td></tr></table>\
+                 </td></tr></table></td></tr></table>"
+            );
+            let message = html_message(56, ("Digest", "digest@bellweather.example"), "Header", &html);
+            let laid = lay_out(ctx, &message, 700.0);
+            let bar = laid.items.iter().find(|item| matches!(item.kind, ItemKind::Fill { .. })).unwrap().rect;
+            assert!((24.0..120.0).contains(&bar.width()), "{align}: {bar:?}");
+            let offset = if align == "center" { bar.center().x - 300.0 } else { bar.max.x - 600.0 };
+            assert!(offset.abs() < 1.0, "{align}: {bar:?}");
+        }
+    });
+}
+
+/// The picture mark fits a narrow reading slot even when its requested padding does not.
+#[test]
+fn a_padded_picture_placeholder_fits_its_slot() {
+    let html = "<img src='https://example.org/icon.png' width='24' height='24' style='margin:0 auto;padding:0 64px'>";
+    let message = html_message(54, ("Digest", "digest@bellweather.example"), "Padded picture", html);
+    in_frame(false, |ctx| {
+        for (width, left) in [(40.0, 8.0), (200.0, 88.0)] {
+            let laid = lay_out(ctx, &message, width);
+            let placeholder = laid.items.iter().find(|item| matches!(item.kind, ItemKind::Placeholder(_))).unwrap();
+            assert_eq!(placeholder.rect.width(), 24.0);
+            assert_eq!(placeholder.rect.min.x, left);
+            assert!(placeholder.rect.max.x <= laid.width());
+        }
+    });
+}
+
+/// A decoded picture keeps its size until the slot itself is too small, then scales to fit.
+#[test]
+fn a_padded_decoded_picture_keeps_space_for_its_pixels() {
+    let html = "<img src='cid:tick-16@quillon.example' width='80' style='margin:0 auto;padding:0 64px'>";
+    let message = html_message(55, ("Digest", "digest@bellweather.example"), "Padded picture", html);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            for (width, size, left) in [(100.0, 80.0, 10.0), (60.0, 60.0, 0.0), (250.0, 80.0, 85.0)] {
+                let laid = lay_out(ctx, &message, width);
+                let picture = shown_pictures(&laid)[0];
+                assert_eq!(picture.rect.size(), egui::Vec2::splat(size));
+                assert_eq!(picture.rect.min.x, left);
+            }
+        });
+    }
+}
+
+#[test]
 fn a_picture_and_text_in_one_line_go_on_lines_of_their_own_when_short_of_room() {
     let html = "<p style='text-align:center'><img src='cid:quillon-mark@quillon.example' width='32' height='32' alt=''> Bellweather Directory, the weekly digest</p>";
     let m = html_message(51, ("Digest", "digest@bellweather.example"), "Logo", html);
@@ -4191,9 +4427,21 @@ fn a_character_that_couldnt_be_read_is_explained_once() {
         message(3, ("Mila Horvat", "mila@example.org"), "Hello", None, "We\u{fffd}ve met \u{fffd} twice.".into()),
         message(4, ("Mila Horvat", "mila@example.org"), "Hello", Some("<p>We\u{fffd}ve met</p>".into()), String::new()),
     ];
-    assert!(!super::has_unreadable(&clean));
+    // As the pane decides: whether what is shown is the text part, by the document laid out.
+    let unreadable = |m: &Message| super::has_unreadable(m, Doc::of(m).from_text);
+    assert!(!unreadable(&clean));
+    // A mark in the plain copy of a message read as HTML is not shown, and says nothing; in the
+    // plain copy of one whose HTML comes to nothing, or that is all pictures the pane shows, it is
+    // shown only when the text is.
+    let html_read = message(5, ("Mila Horvat", "mila@example.org"), "Hello", Some("<p>We met</p>".into()), "\u{fffd}2026 Mila".into());
+    assert!(!unreadable(&html_read));
+    let html_empty = message(6, ("Mila Horvat", "mila@example.org"), "Hello", Some("<p> </p>".into()), "\u{fffd}2026 Mila".into());
+    assert!(unreadable(&html_empty));
+    // What the pane shows decides, not a parse of its own: a body the pane's own document shows as
+    // HTML says nothing of its text part, one it shows as text does.
+    assert!(!super::has_unreadable(&html_empty, false) && super::has_unreadable(&html_empty, true));
     for m in &marked {
-        assert!(super::has_unreadable(m), "{:?}", m.subject);
+        assert!(unreadable(m), "{:?}", m.subject);
     }
     let (app, ids) = app_with(std::iter::once(clean).chain(marked).collect());
     let mut harness = window(app, (1100.0, 700.0));
@@ -4498,4 +4746,88 @@ fn cellspacing_is_the_gap_between_cells() {
         assert!(apart("cellspacing='0'").abs() < 0.5);
         assert!((apart("cellspacing='10'") - 10.0).abs() < 0.5);
     });
+}
+
+/// "Download pictures in all mail" in the bar above a message (#910): it turns on the switch of
+/// File › Options, but only once the owner has read what that means and said yes; it is not
+/// offered in Junk E-mail, whose mail still never downloads by itself; and it is kept with the
+/// settings. Off from File › Options asks nothing.
+#[test]
+fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
+    let (mut app, ids) = app_with(vec![
+        web_message(0, "news@shop.example", "First", &web_pictures("a.shop.example", 2)),
+        web_message(1, "other@elsewhere.example", "Second", &web_pictures("b.elsewhere.example", 2)),
+        web_message(2, "news@shop.example", "In the junk", &web_pictures("c.shop.example", 2)),
+    ]);
+    let (first, second, junk) = (ids[0], ids[1], ids[2]);
+    app.execute("mail.junk", json!({"ids": [junk]})).unwrap();
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    let mut harness = window(app, (1280.0, 800.0));
+    let asking = |harness: &Window| matches!(&harness.state().dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.downloadPicturesAutomatically");
+
+    // Off unless the owner turns it on; the bar offers it, and not in Junk E-mail.
+    assert!(!harness.state().ui.download_pictures);
+    select(&mut harness, junk);
+    assert!(harness.state().hit.rect("downloadPictures", junk).is_some());
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", junk).is_none());
+    select(&mut harness, first);
+    assert!(says(&harness, "Download pictures in all mail"));
+    let all = harness.state().hit.rect("downloadPicturesInAllMail", first).unwrap();
+
+    // It asks first, saying what it means; Cancel leaves it off and asks no server.
+    click_at(&mut harness, all.center());
+    assert!(asking(&harness));
+    assert!(says(&harness, "Each sender's server then learns when you opened the message and from which internet address"));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(6);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    assert_eq!((shown(&harness, first), host.asked().len()), ((0, 2, 2), 0));
+
+    // Yes turns it on: this message's pictures come, and the next one's without a word.
+    click_at(&mut harness, all.center());
+    assert!(asking(&harness));
+    harness.get_by_label("Download in all mail").click();
+    harness.run_steps(8);
+    assert!(harness.state().dialog.is_none());
+    assert!(harness.state().ui.download_pictures);
+    assert_eq!(shown(&harness, first), (2, 0, 0));
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", first).is_none());
+    select(&mut harness, second);
+    assert_eq!(shown(&harness, second), (2, 0, 0));
+    // Junk E-mail's still don't.
+    select(&mut harness, junk);
+    assert_eq!(shown(&harness, junk), (0, 2, 2));
+    assert!(host.asked().iter().all(|url| !url.contains("c.shop")), "{:?}", host.asked());
+
+    // It is kept with the settings, and comes back with them.
+    let saved = serde_json::to_value(harness.state().prefs()).unwrap();
+    assert_eq!(saved["downloadPictures"], json!(true));
+    let restored: crate::UiState = serde_json::from_value(saved).unwrap();
+    assert!(restored.download_pictures);
+
+    // File › Options shows the switch, ticked; off there asks nothing, and the bar offers it again.
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail automatically").scroll_to_me();
+    harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail automatically").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    // On again there asks the same question; Cancel leaves it off.
+    harness.get_by_label("Download pictures in mail automatically").click();
+    harness.run_steps(3);
+    assert!(asking(&harness));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    harness.state_mut().execute("ui.backstage", json!({"value": false})).unwrap();
+    select(&mut harness, second);
+    select(&mut harness, first);
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", first).is_some());
+    // A script or an agent is never asked: the command does what it is told.
+    assert_eq!(harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": true})).unwrap()["value"], true);
+    assert!(harness.state().dialog.is_none());
 }

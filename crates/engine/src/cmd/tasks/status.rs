@@ -3,7 +3,6 @@
 //! Send Status Report: a new message saying how a task stands, for the owner to address and
 //! send. Nothing is sent from here.
 
-use mailcraft_i18n::Lang;
 use mailcraft_model::{Importance, Task};
 use mailcraft_time::Date;
 use serde_json::{Value, json};
@@ -14,9 +13,9 @@ use crate::{CmdError, CmdResult, Session, p};
 /// Most lines of a task's notes a report carries.
 const MAX_NOTE_LINES: usize = 200;
 
-fn day_said(lang: Lang, d: Date) -> String {
+fn day_said(s: &Session, d: Date) -> String {
     let day = mailcraft_i18n::date::Day { year: d.year, month: d.month, day: d.day, weekday: d.weekday().index() };
-    mailcraft_i18n::date::long(&lang, day)
+    mailcraft_i18n::date::long(&s.dated(), day)
 }
 
 /// The task a report is of: `id`, read strictly, else the selected one.
@@ -30,7 +29,7 @@ fn named(s: &Session, v: &Value) -> Result<Task, CmdError> {
 fn status(s: &Session, t: &Task) -> String {
     let lang = s.interface_language;
     match t.completed {
-        Some(at) => format!("{} ({})", lang.t("Completed"), day_said(lang, s.local(at).date)),
+        Some(at) => format!("{} ({})", lang.t("Completed"), day_said(s, s.local(at).date)),
         None if t.start.is_some_and(|d| d <= s.today()) => lang.t("In Progress").to_string(),
         None => lang.t("Not Started").to_string(),
     }
@@ -44,11 +43,11 @@ pub fn text(s: &Session, t: &Task) -> String {
     out.push_str(&format!("{} {}\n", lang.t("Task:"), one(&t.title)));
     out.push_str(&format!("{} {}\n", lang.t("Status:"), status(s, t)));
     let none = lang.t("None");
-    let start = t.start.map_or_else(|| none.to_string(), |d| day_said(lang, d));
+    let start = t.start.map_or_else(|| none.to_string(), |d| day_said(s, d));
     out.push_str(&format!("{} {start}\n", lang.t("Start date:")));
     let due = match t.due {
-        Some(d) if t.is_overdue(s.today()) => format!("{} ({})", day_said(lang, d), lang.t("overdue")),
-        Some(d) => day_said(lang, d),
+        Some(d) if t.is_overdue(s.today()) => format!("{} ({})", day_said(s, d), lang.t("overdue")),
+        Some(d) => day_said(s, d),
         None => none.to_string(),
     };
     out.push_str(&format!("{} {due}\n", lang.t("Due date:")));

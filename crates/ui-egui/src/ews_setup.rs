@@ -63,6 +63,8 @@ pub enum EwsConsentReason {
     /// A host in the owner's own domain that is not its Autodiscover server asks for the sign-in,
     /// or is named as the mail server by one that didn't have it (AU3-V1).
     SignIn,
+    /// A host the domain's `autodiscover` name is an alias of, not named by its SRV record.
+    Alias,
 }
 
 /// A certificate the owner may be asked to trust for this account.

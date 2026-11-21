@@ -1,1 +1,0 @@
-| 2026-11-07 | AU3-R3: Windows reads the machine's physical memory (through `sysinfo`, `system` part alone, Windows only) for the mailbox load budget instead of the fixed 8 GiB; a reading of 0 falls back to it. Tests in `store_budget_tests.rs` |

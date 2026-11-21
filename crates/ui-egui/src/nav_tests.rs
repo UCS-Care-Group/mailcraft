@@ -165,7 +165,7 @@ fn counts_are_unread_or_a_total_in_brackets() {
     }
 }
 
-fn window() -> egui_kittest::Harness<'static, MailApp> {
+pub(crate) fn window() -> egui_kittest::Harness<'static, MailApp> {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
     let mut harness =
@@ -538,4 +538,123 @@ fn an_accounts_menu_moves_it_up_and_down() {
     menu(&mut harness, family, "Move Up");
     assert_eq!(order(&harness), [family, work, first]);
     assert_eq!(harness.state().session.mailbox.default_account().map(|a| a.id), Some(first));
+}
+
+/// Gmail's categories under a Gmail account's Inbox (#911) are rows the keyboard reaches: each
+/// read out with its unread count, the arrow keys go from one to the next, and Enter shows it.
+#[test]
+fn gmail_categories_are_reached_and_chosen_with_the_keyboard() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    use mailcraft_model::{GmailCategory, Message};
+    let mut harness = window();
+    let app = harness.state_mut();
+    let servers = serde_json::json!({"email": "ada@mail.example", "incoming": {"host": "imap.gmail.com"}, "outgoing": {"host": "smtp.gmail.com"}});
+    let account = app.execute("account.add", servers).unwrap()["id"].as_u64().unwrap();
+    let inbox = app.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let new: Vec<Message> = [GmailCategory::Primary, GmailCategory::Social, GmailCategory::Promotions]
+        .into_iter()
+        .zip(1..)
+        .map(|(category, uid)| Message { uid, subject: format!("Message {uid}"), gmail_category: Some(category), ..Default::default() })
+        .collect();
+    let delta =
+        FolderDelta { id: Some(inbox), remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 3, new, ..Default::default() };
+    app.execute("sync.apply", serde_json::json!({"result": SyncResult { account, folders: vec![delta], ..Default::default() }})).unwrap();
+    harness.run_steps(4);
+    harness.get_by_role_and_label(egui::accesskit::Role::TreeItem, "Social, 1 unread").focus();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::ArrowDown);
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert_eq!(harness.state().session.view.gmail, Some((inbox, GmailCategory::Promotions)));
+    assert_eq!(mailcraft_engine::gmail::in_view(&harness.state().session), Some(GmailCategory::Promotions));
+}
+
+/// #1514: a folder let go over the upper half of a row beside it goes before that row, over the
+/// lower half after it; over itself, or over one it doesn't move among, nothing.
+#[test]
+fn a_folder_dragged_goes_before_or_after_the_row() {
+    let peers = [1, 2, 3, 4];
+    assert_eq!(drop_before(&peers, 4, 2, true), Some(Some(2)));
+    assert_eq!(drop_before(&peers, 1, 2, false), Some(Some(3)));
+    assert_eq!(drop_before(&peers, 1, 4, false), Some(None), "after the last: last");
+    assert_eq!(drop_before(&peers, 2, 2, true), None);
+    assert_eq!(drop_before(&peers, 9, 2, true), None);
+    assert_eq!(drop_before(&peers, 1, 9, true), None);
+    assert_eq!(drop_before(&[], 1, 2, true), None);
+}
+
+/// Three folders of the sample's first account at its top level, Zz Alpha, Zz Beta and Zz Gamma, with the
+/// Favorites folded away; their ids and the account's.
+fn three_folders(harness: &mut egui_kittest::Harness<'static, MailApp>) -> (Id, [Id; 3]) {
+    let account = harness.state().session.mailbox.accounts[0].id;
+    let mut new = |name: &str| {
+        harness.state_mut().session.run("folder.new", &serde_json::json!({"name": name, "account": account, "parent": null})).unwrap()["id"]
+            .as_u64()
+            .unwrap()
+    };
+    // (Named to come last, side by side.)
+    let ids = [new("Zz Alpha"), new("Zz Beta"), new("Zz Gamma")];
+    harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": FAVORITES})).unwrap();
+    harness.run_steps(3);
+    (account, ids)
+}
+
+/// #1514: a folder is dragged among the folders beside it and stays where it was let go; its
+/// right-click menu moves it up and down; Inbox's has neither and doesn't drag.
+#[test]
+fn a_folder_is_dragged_and_moved_with_its_menu() {
+    let mut harness = window();
+    let (account, [alpha, beta, gamma]) = three_folders(&mut harness);
+    let order = |h: &egui_kittest::Harness<'static, MailApp>| -> Vec<Id> {
+        h.state().session.mailbox.reorder_siblings(alpha).into_iter().filter(|id| [alpha, beta, gamma].contains(id)).collect()
+    };
+    assert_eq!(order(&harness), [alpha, beta, gamma]);
+    let row = |h: &egui_kittest::Harness<'static, MailApp>, id: Id| h.state().hit.rect("folder", id).unwrap();
+    // Gamma into the upper half of Alpha's row: the line shows while it is held, and it goes first.
+    let from = row(&harness, gamma).center();
+    let to = pos2(from.x, row(&harness, alpha).min.y + 4.0);
+    press_and_move(&mut harness, from, to);
+    assert!(harness.state().hit.rect("folderGap", alpha).is_some(), "the line above Alpha");
+    let_go(&mut harness, to);
+    assert_eq!(order(&harness), [gamma, alpha, beta]);
+    // The menu.
+    let menu = |h: &mut egui_kittest::Harness<'static, MailApp>, id: Id, label: &str| {
+        let at = h.state().hit.rect("folder", id).unwrap().center();
+        right_click(h, at);
+        h.get_by_label(label).click();
+        h.run_steps(3);
+    };
+    menu(&mut harness, beta, "Move Up");
+    assert_eq!(order(&harness), [gamma, beta, alpha]);
+    menu(&mut harness, gamma, "Move Down");
+    assert_eq!(order(&harness), [beta, gamma, alpha]);
+    // Inbox leads: no Move Up in its menu.
+    let inbox = harness.state().session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let at = row(&harness, inbox).center();
+    right_click(&mut harness, at);
+    assert!(harness.query_by_label("Move Up").is_none());
+}
+
+/// #1514: the Favorites kept in MailCraft move with their menu too.
+#[test]
+fn a_favorite_is_moved_with_its_menu() {
+    let mut harness = window();
+    let (account, [alpha, beta, _]) = three_folders(&mut harness);
+    for id in [alpha, beta] {
+        harness.state_mut().session.run("folder.favorite", &serde_json::json!({"id": id, "value": true})).unwrap();
+    }
+    // The Favorites shown, the account folded: each favourite's row is its only one.
+    for id in [FAVORITES, account] {
+        harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": id})).unwrap();
+    }
+    harness.run_steps(3);
+    let own = |h: &egui_kittest::Harness<'static, MailApp>| mailcraft_engine::cmd::folder::own_favorites(&h.state().session);
+    let last_two = |v: Vec<Id>| v.into_iter().rev().take(2).collect::<Vec<_>>();
+    assert_eq!(last_two(own(&harness)), [beta, alpha]);
+    let at = harness.state().hit.rect("folder", beta).unwrap().center();
+    right_click(&mut harness, at);
+    harness.get_by_label("Move Up").click();
+    harness.run_steps(3);
+    assert_eq!(last_two(own(&harness)), [alpha, beta]);
 }

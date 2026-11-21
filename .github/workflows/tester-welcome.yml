@@ -20,7 +20,9 @@ jobs:
           persist-credentials: false
           sparse-checkout: .github/tester-welcome.md
           sparse-checkout-cone-mode: false
-      - run: gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file .github/tester-welcome.md
+      - run: |
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file .github/tester-welcome.md
+          gh issue close "$ISSUE" --repo "$GITHUB_REPOSITORY" --reason completed
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ github.event.issue.number }}

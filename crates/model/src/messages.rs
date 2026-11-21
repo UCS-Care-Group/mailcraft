@@ -38,7 +38,28 @@ fn chunk_of(id: Id) -> Id {
 pub struct Messages {
     chunks: BTreeMap<Id, Arc<Chunk>>,
     len: usize,
+    originals: Originals,
 }
+
+/// The bytes of originals (#30) the map holds, kept as a running total ([`Messages::originals_size`]):
+/// each chunk's share, and the chunks changed since (any way of changing one marks it), whose
+/// shares are worked out again when the total is next asked for. A total is thus at most a
+/// chunk's work, however many messages the map holds. Not part of what the map is: two maps
+/// with the same messages are equal whatever each has worked out.
+#[derive(Clone, Default)]
+struct Originals {
+    per_chunk: BTreeMap<Id, u64>,
+    stale: std::collections::BTreeSet<Id>,
+    total: u64,
+}
+
+impl PartialEq for Originals {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for Originals {}
 
 /// A message that differs between two maps ([`Messages::changes`]): as it was, and as it is.
 /// `None` for one that isn't there.
@@ -51,6 +72,22 @@ impl Messages {
 
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    /// How many bytes of originals (`Message::original`, #30) the messages hold, in memory or
+    /// kept outside it: a running total, brought up to date for the chunks changed since it was
+    /// last asked for.
+    pub fn originals_size(&mut self) -> u64 {
+        let o = &mut self.originals;
+        for key in std::mem::take(&mut o.stale) {
+            let share = self
+                .chunks
+                .get(&key)
+                .map_or(0, |c| c.values().filter_map(|m| m.original.as_ref()).map(crate::Original::size).fold(0u64, u64::saturating_add));
+            let was = if share == 0 { o.per_chunk.remove(&key) } else { o.per_chunk.insert(key, share) };
+            o.total = o.total.saturating_sub(was.unwrap_or(0)).saturating_add(share);
+        }
+        o.total
     }
 
     /// The chunks, in order: for an index of the messages that follows the map chunk by chunk
@@ -79,10 +116,12 @@ impl Messages {
         if !chunk.contains_key(id) {
             return None;
         }
+        self.originals.stale.insert(chunk_of(*id));
         Arc::make_mut(chunk).get_mut(id)
     }
 
     pub fn insert(&mut self, id: Id, message: Arc<Message>) -> Option<Arc<Message>> {
+        self.originals.stale.insert(chunk_of(id));
         let chunk = Arc::make_mut(self.chunks.entry(chunk_of(id)).or_default());
         let was = chunk.insert(id, message);
         if was.is_none() {
@@ -97,6 +136,7 @@ impl Messages {
         if !chunk.contains_key(id) {
             return None;
         }
+        self.originals.stale.insert(key);
         let shared = Arc::make_mut(chunk);
         let was = shared.remove(id);
         if shared.is_empty() {
@@ -111,6 +151,7 @@ impl Messages {
     pub fn clear(&mut self) {
         self.chunks.clear();
         self.len = 0;
+        self.originals = Originals::default();
     }
 
     pub fn iter(&self) -> Iter<'_> {
@@ -133,11 +174,13 @@ impl Messages {
 
     /// Every message, to change: every chunk becomes this map's own (a copy of those shared).
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut Arc<Message>> {
+        self.originals.stale.extend(self.chunks.keys().copied());
         self.chunks.values_mut().flat_map(|c| Arc::make_mut(c).values_mut())
     }
 
     /// [`Messages::values_mut`] with the ids.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&Id, &mut Arc<Message>)> {
+        self.originals.stale.extend(self.chunks.keys().copied());
         self.chunks.values_mut().flat_map(|c| Arc::make_mut(c).iter_mut())
     }
 
@@ -150,6 +193,7 @@ impl Messages {
             if gone.is_empty() {
                 continue;
             }
+            self.originals.stale.insert(*key);
             let own = Arc::make_mut(chunk);
             for id in &gone {
                 own.remove(id);
@@ -220,6 +264,34 @@ impl Messages {
         self.remove(&id).map(|m| (id, m))
     }
 
+    /// Put `new` in place of message `id` where this map has `old` itself (the same allocation),
+    /// as another copy of the map (`live`) already did: a message let go of from memory there,
+    /// that a copy kept to undo to holds too. The chunk becomes `live`'s own when it then holds
+    /// what `live`'s holds, and copies that shared the chunk before share the new one after
+    /// (`done`, kept across the copies given it). Whether it was put in place.
+    pub fn put_in_place_of(&mut self, id: Id, old: &Arc<Message>, new: &Arc<Message>, live: &Messages, done: &mut Replaced) -> bool {
+        let key = chunk_of(id);
+        let Some(chunk) = self.chunks.get_mut(&key) else { return false };
+        if let Some((_, _, after)) = done.chunks.iter().find(|(was, before, _)| *was == id && Arc::ptr_eq(before, chunk)) {
+            *chunk = after.clone();
+            self.originals.stale.insert(key);
+            return true;
+        }
+        if !chunk.get(&id).is_some_and(|m| Arc::ptr_eq(m, old)) {
+            return false;
+        }
+        let mut own = Chunk::clone(chunk);
+        own.insert(id, new.clone());
+        let after = match live.chunks.get(&key) {
+            Some(theirs) if same_chunk(&own, theirs) => theirs.clone(),
+            _ => Arc::new(own),
+        };
+        done.chunks.push((id, chunk.clone(), after.clone()));
+        *chunk = after;
+        self.originals.stale.insert(key);
+        true
+    }
+
     /// The messages that differ between `before` and this map, in order of id: in only one of
     /// them, or not the same allocation in both (which may hold the same message: a caller
     /// that cares compares them). The chunks the two share aren't looked into.
@@ -253,6 +325,20 @@ impl Messages {
         }
         out
     }
+}
+
+/// The chunks [`Messages::put_in_place_of`] has replaced in the copies it was given, each with the
+/// message put in place and as the chunk was and became, so that copies sharing one share its
+/// replacement. (One is for one message: the same chunk with another message put in it is
+/// another replacement.)
+#[derive(Default)]
+pub struct Replaced {
+    chunks: Vec<(Id, Arc<Chunk>, Arc<Chunk>)>,
+}
+
+/// Whether two chunks hold the same messages, each the same allocation.
+fn same_chunk(a: &Chunk, b: &Chunk) -> bool {
+    a.len() == b.len() && a.iter().zip(b.iter()).all(|((x, m), (y, n))| x == y && Arc::ptr_eq(m, n))
 }
 
 /// The messages of `chunk` in `range`: none for bounds the wrong way round, as
@@ -369,14 +455,52 @@ impl IntoIterator for Messages {
     }
 }
 
+/// Each message with every header line it kept in its `headers`, and no header block: as a
+/// MailCraft from before the two were kept apart reads a mailbox file (`crate::headers`). One
+/// message is copied at a time.
 impl Serialize for Messages {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.collect_map(self.iter())
+        serializer.collect_map(self.iter().map(|(id, m)| (id, as_written(m))))
     }
 }
 
+/// One message in the same compatible form as a whole mailbox: header blocks are joined into
+/// `headers` and removed header placeholders are omitted, without changing the source message.
+pub fn as_written(message: &Message) -> impl Serialize + '_ {
+    Whole(message)
+}
+
+/// A message as [`Messages`] writes it.
+struct Whole<'a>(&'a Message);
+
+impl Serialize for Whole<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        // (A line taken off while the block was kept outside left an empty one: not written.)
+        if self.0.header_block.data.is_empty() && self.0.headers.iter().all(|(name, _)| !name.is_empty()) {
+            return self.0.serialize(serializer);
+        }
+        let mut whole = self.0.clone();
+        whole.join_headers();
+        whole.serialize(serializer)
+    }
+}
+
+/// The header lines nothing reads by name go to each message's block ([`Message::split_headers`]).
 impl<'de> Deserialize<'de> for Messages {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        BTreeMap::<Id, Arc<Message>>::deserialize(deserializer).map(Messages::from)
+        BTreeMap::<Id, Arc<Message>>::deserialize(deserializer).map(Messages::read)
+    }
+}
+
+impl Messages {
+    /// The messages of a file, read: the header lines nothing reads by name go to each one's
+    /// block ([`Message::split_headers`]).
+    pub(crate) fn read(mut map: BTreeMap<Id, Arc<Message>>) -> Messages {
+        for m in map.values_mut() {
+            if m.headers.iter().any(|(name, value)| !crate::headers::is_working(name, value)) {
+                Arc::make_mut(m).split_headers();
+            }
+        }
+        Messages::from(map)
     }
 }

@@ -263,7 +263,11 @@ pub(crate) fn lists(s: &Session, ids: &[Id]) -> std::collections::HashSet<Id> {
     let in_view = in_view(s);
     let me = me(s);
     let kept = s.kept();
-    let shows = |m: &Message| in_view(m) && (filtered(s, m, &me) || kept.as_ref().is_some_and(|kept| kept.contains(&m.id)));
+    // (The folder's messages are looked through only for conversations of a Gmail category.)
+    let gmail = crate::gmail::Shown::of(s, s.mailbox.messages.values().map(|m| m.as_ref()));
+    let shows = |m: &Message| {
+        in_view(m) && ((gmail.as_ref().is_none_or(|g| g.keeps(m)) && filtered(s, m, &me)) || kept.as_ref().is_some_and(|kept| kept.contains(&m.id)))
+    };
     ids.iter().copied().filter(|id| s.mailbox.message(*id).is_some_and(shows)).collect()
 }
 
@@ -279,11 +283,15 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
     let kept = s.kept();
     let mut kept_only = Vec::new();
     let mut unfetched = 0usize;
-    let mut shown: Vec<&Message> = looked_at(s, everywhere, &folders)
+    let looked = looked_at(s, everywhere, &folders);
+    // A Gmail category of the Inbox shows the Inbox's mail Gmail put in it (#911).
+    let gmail = crate::gmail::Shown::of(s, looked.iter().copied());
+    let mut shown: Vec<&Message> = looked
         .into_iter()
         .filter(|m| {
             unfetched = unfetched.saturating_add(usize::from(m.unfetched));
-            let hit = filtered(s, m, &me)
+            let hit = gmail.as_ref().is_none_or(|g| g.keeps(m))
+                && filtered(s, m, &me)
                 && (query.is_empty()
                     || match decided.get(&m.id).or_else(|| searched.get(&m.id).filter(|_| m.body_is_kept())) {
                         Some(hit) => *hit,
@@ -393,7 +401,8 @@ fn sort_by_words(shown: &mut Vec<&Message>, sort: SortBy, desc: bool) {
             SortBy::From | SortBy::Subject => an.cmp(bn).then(when(b).cmp(&when(a))),
             // As the row says it (#273): the server's size for what isn't here; one not known
             // counts as the smallest.
-            SortBy::Size => a.list_size().cmp(&b.list_size()),
+            // Within one size, newest first as within one sender (#1511).
+            SortBy::Size => a.list_size().cmp(&b.list_size()).then(when(b).cmp(&when(a))),
             SortBy::Importance => a.importance.cmp(&b.importance).then(when(a).cmp(&when(b))),
             // Newest first; `by_category` then lists each under its categories.
             SortBy::Categories => when(b).cmp(&when(a)),

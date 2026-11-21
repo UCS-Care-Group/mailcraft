@@ -17,14 +17,18 @@ mailcraft-cli — MailCraft from the command line
 USAGE:
   mailcraft-cli info <mailbox>                  accounts and counts (JSON)
   mailcraft-cli folders <mailbox>               the folder tree with counts (JSON)
-  mailcraft-cli list <mailbox> [--folder PATH] [--query Q] [--limit N]
-                                                messages, newest first (JSON)
+  mailcraft-cli list <mailbox> [--folder FOLDER] [--query Q] [--limit N]
+                                                messages, newest first (JSON); FOLDER is an id,
+                                                a kind (inbox, sent, drafts, deleted, junk,
+                                                archive, outbox) in any language of the mailbox,
+                                                or a path such as Inbox/Projects
   mailcraft-cli show <mailbox> <id>             one message in full (JSON)
-  mailcraft-cli import <mailbox> <file>... [--folder PATH]
+  mailcraft-cli import <mailbox> <file>... [--folder FOLDER]
                                                 bring .eml, .mbox, .ics and .vcf files into a
                                                 mailbox (made if it doesn't exist) and save it
   mailcraft-cli import-pst <mailbox> <file.pst> [--dry-run] [--under PATH]
-                                                preview: the mail and contacts of a .pst file;
+                                                the mail, contacts, calendar, tasks, notes and
+                                                journal of a .pst file;
                                                 mail into a new folder named after the file on this
                                                 computer (or under the local folder PATH),
                                                 contacts into the computer's contacts, each marked
@@ -33,7 +37,7 @@ USAGE:
                                                 MAILCRAFT_PST_PASSWORD. Prints the import report
                                                 (JSON) and saves the mailbox (not with --dry-run);
                                                 a second import skips what is already there
-  mailcraft-cli export <mailbox> <out> [--folder PATH] [--id N]
+  mailcraft-cli export <mailbox> <out> [--folder FOLDER] [--id N]
                                                 by extension: .mbox (a folder), .eml (message --id),
                                                 .ics (the calendar), .vcf (the contacts),
                                                 .mailcraft (everything, in one file)
@@ -74,7 +78,7 @@ fn open(path: &str) -> Result<Session, String> {
     if let Some(notice) = opened.notice() {
         eprintln!("warning: {path}: {notice}");
     }
-    let mut s = Session::new(opened.mailbox);
+    let mut s = trusting(Session::new(opened.mailbox));
     s.path = Some(path.into());
     // The steps every opening takes (#793): mail put back empty is fetched again before a
     // command can move it.
@@ -87,14 +91,21 @@ fn open_or_new(path: &str) -> Result<Session, String> {
     if std::path::Path::new(path).exists() {
         return open(path);
     }
-    let mut s = Session::new(Mailbox::with_local_account("", ""));
+    let mut s = trusting(Session::new(Mailbox::with_local_account("", "")));
     s.path = Some(path.into());
     Ok(s)
 }
 
 fn sample() -> Session {
     let now = mailcraft_time::now();
-    Session::new(mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now)))
+    trusting(Session::new(mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now))))
+}
+
+/// `s` with the certification authorities this computer trusts for mail (#30), as the window
+/// has them: a Digital signature is checked here as there.
+fn trusting(mut s: Session) -> Session {
+    s.set_trust_anchors(mailcraft_net::system_trust_anchors());
+    s
 }
 
 /// Every `--allow` value, split at commas: what the owner lets an agent do without asking.
@@ -231,22 +242,27 @@ fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Resu
             }
             let open = |url: &str| eprintln!("sync: open this page in a browser to sign in:\n{url}");
             let cancel = std::sync::atomic::AtomicBool::new(false);
-            let tokens = if request.shared && !request.sends.is_empty() {
-                // (And for sending from it, when something waits in its Outbox.)
-                let signed = mailcraft_net::oauth::sign_in_for_shared_send(&oauth, &hint, &open, &cancel);
-                signed.map_err(|refusal| format!("sync: sending from shared mailboxes wasn't allowed ({refusal:?})"))?
-            } else if request.shared {
-                let signed = mailcraft_net::oauth::sign_in_for_shared(&oauth, &hint, &open, &cancel);
-                signed.map_err(|refusal| format!("sync: shared mailboxes weren't allowed ({refusal:?})"))?
-            } else {
-                let resource = mailcraft_net::oauth::Resource::GraphMail;
-                mailcraft_net::oauth::sign_in_for(&oauth, &hint, &open, &cancel, resource).map_err(|e| format!("sync: {e}"))?
-            };
-            // (Whoever signs in has to be the account that reads it: a shared mailbox's owner.)
+            let resource = mailcraft_net::oauth::Resource::GraphMail;
+            let signed = mailcraft_net::oauth::sign_in_for(&oauth, &hint, &open, &cancel, resource).map_err(|e| format!("sync: {e}"))?;
+            // (Whoever signs in has to be the account that reads it: a shared mailbox's owner. Nothing
+            // of somebody else's sign-in is used, not even to renew it.)
             let username = s.mailbox.account(signer).map(|a| a.username.clone()).unwrap_or_default();
-            if tokens.someone_else(&hint, &username) {
+            if signed.someone_else(&hint, &username) {
                 return Err(SOMEONE_ELSE.to_string().into());
             }
+            // A shared mailbox's token is asked for with what reading it takes, and sending from it
+            // when something waits in its Outbox (a sign-in's page asks for both with the rest).
+            let tokens = if request.shared {
+                let renewed = if request.sends.is_empty() {
+                    mailcraft_net::oauth::refresh_graph_shared(&oauth, &signed.refresh)
+                } else {
+                    mailcraft_net::oauth::refresh_graph_shared_send(&oauth, &signed.refresh)
+                };
+                let renewed = renewed.map_err(|e| format!("sync: the sign-in doesn't cover this shared mailbox ({e})"))?;
+                renewed.tokens
+            } else {
+                signed
+            };
             tokens.access
         }
     };
@@ -277,10 +293,11 @@ fn parse_cmd(text: &str) -> Result<(String, Value), String> {
     }
 }
 
-/// Go to the folder `--folder` names (a path such as `Inbox/Projects`), when given.
+/// Go to the folder `--folder` names, when given: an id, a standard folder's kind (`sent`,
+/// `inbox`…) in any language of the mailbox, or a path such as `Inbox/Projects` (#1200).
 fn go_to_folder(s: &mut Session, args: &[String]) -> Result<(), Failure> {
-    if let Some(path) = arg_value(args, "--folder") {
-        s.run("folder.select", &json!({"path": path}))?;
+    if let Some(folder) = arg_value(args, "--folder") {
+        s.run("folder.select", &json!({"folder": folder}))?;
     }
     Ok(())
 }
@@ -406,7 +423,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let mut s = match mailcraft_engine::io::Format::from_extension(input) {
                 Some(mailcraft_engine::io::Format::Mailbox) => open(input)?,
                 _ => {
-                    let mut s = Session::new(Mailbox::with_local_account("", ""));
+                    let mut s = trusting(Session::new(Mailbox::with_local_account("", "")));
                     s.run("file.import", &json!({"path": input})).map_err(|e| format!("{input}: {e}"))?;
                     s
                 }
@@ -423,7 +440,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let mut s = match (arg_value(&rest, "--file"), rest.iter().any(|a| a == "--sample")) {
                 (Some(f), _) => open(&f)?,
                 (None, true) => sample(),
-                (None, false) => Session::new(Mailbox::with_local_account("", "")),
+                (None, false) => trusting(Session::new(Mailbox::with_local_account("", ""))),
             };
             let print = rest.iter().any(|a| a == "--print");
             let mut i = 0;
@@ -562,16 +579,26 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let address = pos.first().ok_or_else(missing)?;
             let mut s = Session::empty();
             // From the address alone first; a domain nobody here knows is asked about (only the
-            // domain goes out, never the mailbox name).
+            // domain goes out, never the mailbox name): its mail exchangers, and the servers its
+            // own records name (#1063).
             let mut found = s.run("account.preset", &json!({"email": address}))?;
             if found["known"] != true
                 && !rest.iter().any(|a| a == "--offline")
                 && let Some((_, domain)) = address.rsplit_once('@')
             {
-                match mailcraft_net::lookup_mx(domain) {
-                    Ok(mx) => {
-                        found = s.run("account.preset", &json!({"email": address, "mx": mx}))?;
-                        found["mx"] = json!(mx);
+                match mailcraft_net::discover(domain) {
+                    Ok(discovered) => {
+                        let server = |server: &mailcraft_model::provider::FoundServer| json!({"host": server.server.host, "port": server.server.port, "security": server.server.security.code(), "via": server.via.code()});
+                        let mut params = json!({"email": address, "mx": discovered.exchangers});
+                        if discovered.incoming.is_some() || discovered.outgoing.is_some() {
+                            params["found"] = json!({
+                                "incoming": discovered.incoming.as_ref().map(server),
+                                "outgoing": discovered.outgoing.as_ref().map(server),
+                                "username": discovered.username,
+                            });
+                        }
+                        found = s.run("account.preset", &params)?;
+                        found["mx"] = json!(discovered.exchangers);
                     }
                     Err(e) => eprintln!("detect: couldn't look up {domain}: {e}"),
                 }
@@ -605,7 +632,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     let session = match (arg_value(&rest, "--file"), rest.iter().any(|a| a == "--sample")) {
                         (Some(f), _) => open(&f)?,
                         (None, true) => sample(),
-                        (None, false) => Session::empty(),
+                        (None, false) => trusting(Session::empty()),
                     };
                     Box::new(mailcraft_mcp::Headless::new(session, allow.clone()))
                 }
@@ -633,11 +660,23 @@ fn main() -> ExitCode {
 }
 
 #[cfg(test)]
+mod folder_kinds_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     fn strings(a: &[&str]) -> Vec<String> {
         a.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    /// A session of the command line (and of the MCP server it runs) has the system's
+    /// authorities for mail handed in, as the window's has (#30): read, whether any were found.
+    #[test]
+    fn a_session_has_the_systems_authorities_for_mail() {
+        assert!(sample().trust_anchors_read().is_some());
+        assert!(trusting(Session::empty()).trust_anchors_read().is_some());
+        assert!(Session::empty().trust_anchors_read().is_none(), "the engine reads none itself");
     }
 
     #[test]

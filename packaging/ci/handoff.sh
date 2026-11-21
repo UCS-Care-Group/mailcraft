@@ -30,14 +30,14 @@ files() {
 
 seal() {
   local dir="$1" name="$2" list
-  [ -d "$dir" ] || die "$dir isn't a folder"
+  [[ -d "$dir" ]] || die "$dir isn't a folder"
   case "$name" in *[!A-Za-z0-9._-]* | "") die "bad handoff name: $name" ;; esac
   list="$name.sha256"
   (
     cd "$dir"
     rm -f -- "$list"
     files >"$RUNNER_TEMP_LIST"
-    [ -s "$RUNNER_TEMP_LIST" ] || die "$dir has no files to hand on"
+    [[ -s "$RUNNER_TEMP_LIST" ]] || die "$dir has no files to hand on"
     while IFS= read -r f; do sha256 "$f"; done <"$RUNNER_TEMP_LIST" >"$list.part"
     mv -- "$list.part" "$list"
     sha256 "$list" | cut -d' ' -f1
@@ -47,7 +47,7 @@ seal() {
 check() {
   local dir="$1" pair name digest optional list got
   shift
-  [ -d "$dir" ] || die "$dir isn't a folder"
+  [[ -d "$dir" ]] || die "$dir isn't a folder"
   cd "$dir"
   : >"$RUNNER_TEMP_LIST.named"
   for pair in "$@"; do
@@ -57,7 +57,7 @@ check() {
     case "$name" in *\?) optional=1; name="${name%\?}" ;; esac
     case "$name" in *[!A-Za-z0-9._-]* | "") die "bad handoff name: $name" ;; esac
     list="$name.sha256"
-    if [ -z "$digest" ] && [ ! -e "$list" ] && [ "$optional" = 1 ]; then
+    if [[ -z "$digest" ]] && [[ ! -e "$list" ]] && [[ $optional == 1 ]]; then
       echo "$name: not built, nothing to check"
       continue
     fi
@@ -65,10 +65,10 @@ check() {
       "") die "$name: the job that made it gave no digest" ;;
       *[!0-9a-f]*) die "$name: the digest isn't SHA-256 in hex" ;;
     esac
-    [ "${#digest}" = 64 ] || die "$name: the digest isn't SHA-256 in hex"
-    [ -f "$list" ] || die "$name: $list isn't among the downloaded files"
+    [[ ${#digest} == 64 ]] || die "$name: the digest isn't SHA-256 in hex"
+    [[ -f "$list" ]] || die "$name: $list isn't among the downloaded files"
     got="$(sha256 "$list" | cut -d' ' -f1)"
-    [ "$got" = "$digest" ] || die "$name: its list of files has SHA-256 $got, but the job that made it gave $digest"
+    [[ $got == "$digest" ]] || die "$name: its list of files has SHA-256 $got, but the job that made it gave $digest"
     # Every name is under this folder: `./`, and no `..` on the way.
     while IFS= read -r f; do
       case "$f" in
@@ -89,7 +89,7 @@ check() {
   if ! LC_ALL=C comm -23 "$RUNNER_TEMP_LIST" "$RUNNER_TEMP_LIST.named" >"$RUNNER_TEMP_LIST.extra"; then
     die "could not compare the downloaded files with their lists"
   fi
-  if [ -s "$RUNNER_TEMP_LIST.extra" ]; then
+  if [[ -s "$RUNNER_TEMP_LIST.extra" ]]; then
     cat "$RUNNER_TEMP_LIST.extra" >&2
     die "files no job's list names were downloaded"
   fi
@@ -107,7 +107,7 @@ RUNNER_TEMP_LIST="$(mktemp "$TMP/handoff.XXXXXX")"
 trap 'rm -f "$RUNNER_TEMP_LIST" "$RUNNER_TEMP_LIST".*' EXIT
 
 case "${1:-}" in
-  seal) [ $# = 3 ] || die "usage: handoff.sh seal <dir> <name>"; seal "$2" "$3" ;;
-  check) [ $# -ge 3 ] || die "usage: handoff.sh check <dir> <name>=<digest>..."; shift; check "$@" ;;
+  seal) [[ $# == 3 ]] || die "usage: handoff.sh seal <dir> <name>"; seal "$2" "$3" ;;
+  check) [[ $# -ge 3 ]] || die "usage: handoff.sh check <dir> <name>=<digest>..."; shift; check "$@" ;;
   *) die "usage: handoff.sh seal <dir> <name> | check <dir> <name>=<digest>..." ;;
 esac

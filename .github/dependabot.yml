@@ -26,6 +26,22 @@ updates:
     groups:
       crates:
         patterns: ["*"]
+    # The OpenPGP crypto crates move together, by hand: a new `sha2`, `sha1`, `sha3` or `rand`
+    # needs a `digest` and `rand_core` that `mailcraft-openpgp`'s `rsa` 0.9 doesn't take, so a
+    # bump on its own doesn't build (#955). Lift this once #988 has moved them.
+    ignore:
+      - dependency-name: "sha1"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "sha2"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "sha3"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "rand"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "rsa"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "ed25519-dalek"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps"
   - package-ecosystem: cargo
@@ -37,5 +53,19 @@ updates:
     groups:
       fuzz-crates:
         patterns: ["*"]
+    # The same crypto crates as above, for the same reason (#988).
+    ignore:
+      - dependency-name: "sha1"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "sha2"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "sha3"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "rand"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "rsa"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "ed25519-dalek"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps"

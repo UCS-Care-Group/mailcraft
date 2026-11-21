@@ -23,7 +23,7 @@ const DAY_MINUTES: i64 = 24 * 60;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("calendar.copy", "Copy Event", "Appointment", copy)
-            .params(r#"{"start": "YYYY-MM-DDTHH:MM" (a date alone for whole days), "end"?: same (default: keep the length; for whole days it names the last day), "allDay"?: bool (default: as the original), "calendar"?: number (default: the original's), "id"?: number} — the copy happens once, whatever the original does, and nobody is invited to it"#)
+            .params(r#"{"start": "YYYY-MM-DDTHH:MM" (a date alone for whole days), "end"?: same (default: keep the length; for whole days it names the last day), "allDay"?: bool (default: as the original), "calendar"?: number (default: the original's), "id"?: number} — the copy happens once, whatever the original does, and nobody is invited to it; an item with files attached is refused (only its server keeps them, so a copy would be without them)"#)
             .selection(needs_event),
         CommandSpec::new("view.days", "Number of Days", "Home › Arrange", days)
             .reads()
@@ -58,6 +58,12 @@ pub fn days_shown(s: &Session) -> i64 {
 fn copy(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::id_strict(v, "id")?.or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
     let source = s.mailbox.event(id).cloned().ok_or_else(|| failed!("no event with id {id}", id))?;
+    // Its files stay on its server: a copy made from here would be without them (#1664).
+    if source.has_attachments {
+        return Err(fail(
+            "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here.",
+        ));
+    }
     let start = p::datetime(v, "start")?.ok_or_else(|| bad("`start` is required"))?;
     let end = p::datetime(v, "end")?;
     let all_day = p::bool(v, "allDay").unwrap_or(source.all_day);

@@ -5,7 +5,7 @@
 
 use crate::{WriteOptions, parse, write};
 
-fn kept<'a>(m: &'a mailcraft_model::Message, name: &str) -> Option<&'a str> {
+fn kept<'a>(m: &'a crate::Message, name: &str) -> Option<&'a str> {
     m.headers.iter().find(|(have, _)| have.eq_ignore_ascii_case(name)).map(|(_, value)| value.as_str())
 }
 
@@ -69,8 +69,8 @@ fn text_and_names_are_still_decoded() {
 
 #[test]
 fn who_got_a_blind_copy_of_a_resend_is_written_only_with_the_bcc() {
-    let m = mailcraft_model::Message {
-        bcc: vec![mailcraft_model::Address::new("", "eve@example.net")],
+    let m = crate::Message {
+        bcc: vec![crate::Address::new("", "eve@example.net")],
         headers: vec![("Resent-To".into(), "carol@example.org".into()), ("resent-BCC".into(), "mallory@example.net".into())],
         ..Default::default()
     };

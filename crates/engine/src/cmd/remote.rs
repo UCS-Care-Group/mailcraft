@@ -62,7 +62,8 @@
 //! ([`Dropped`]), and what it changed is put back.
 //!
 //! Undo: a change that hasn't been sent yet is undone like any other, and the note goes with it
-//! (the mailbox is put back whole, the notes included). Once the server has been told, the undo
+//! (the events the change touched are put back as they were, with their notes; what downloads
+//! brought for the others since stays, #1674, `crate::undo`). Once the server has been told, the undo
 //! history is forgotten, as it is when mail was moved on the server: the mailbox of before is
 //! not what the server has any more. Should an answer arrive for a change that was undone while
 //! it was on its way, the server is told the opposite ([`apply_event_outcomes`]).
@@ -81,7 +82,6 @@ use mailcraft_model::remote::{
     MAX_CHECK_AGE, MAX_CHECK_TRIES, MAX_CONTACTS, MAX_EVENT_CHANGES, MAX_EVENT_CHECKS, MAX_EVENT_OPS, MAX_EVENTS, MAX_FAVORITE_DEPTH, MAX_KEY,
     RemoteContact, RemoteEvent, RemoteEventKind, RemoteFavorite, clean_key, id_tag,
 };
-use mailcraft_model::sync::same_category;
 use mailcraft_model::zoned;
 use mailcraft_model::{
     Account, Attendee, Calendar, Contact, Event, FolderKind, Id, Importance, Mailbox, OnlineMeeting, Origin, Proposal, Response, Rights,
@@ -123,7 +123,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"download": CalendarsDownload} — the account's calendars as a host brought them from its server: {"account": number, "email"?: string, "complete": bool, "calendars": [{"id": string, "name": string, "color"?: [r, g, b], "group"?: string, "readOnly": bool, "main": bool}]}"#),
         CommandSpec::new("sync.applyCategories", "Apply Downloaded Categories", "Send / Receive", apply_categories_command)
             .pure()
-            .params(r#"{"download": CategoriesDownload} — the mailbox's categories as a host brought them from the account's server: {"account": number, "email"?: string, "categories": [{"name": string, "color": [r, g, b]}]}"#),
+            .params(r#"{"download": CategoriesDownload} — the mailbox's categories as a host brought them from the account's server: {"account": number, "email"?: string, "categories": [{"name": string, "color": [r, g, b]}], "complete"?: bool (every category the server has is here; without it, none is taken for deleted there for not being here)}"#),
         CommandSpec::new("sync.applyFavorites", "Apply Downloaded Favorites", "Send / Receive", apply_favorites_command)
             .pure()
             .params(r#"{"download": FavoritesDownload} — the account's Favorites as a host read them from its server (the folders Outlook shows under Favorites): {"account": number, "email"?: string, "outcome": "read"|"missing"|"notPermitted"|"failed", "folders": [{"path": [string] (names from the top of the mailbox down to the folder), "kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox"|"custom", "root"?: the same (which special folder the first name of the path is)}], "skipped": number, "unresolved": number} — "read": the folders of that account that match (by kind first, then by path, whatever the case) are its Favorites from now on, in that order, and `folder.favorite` is refused for it; "missing" or "notPermitted": the server has no list to show, and the Favorites marked here are what there is; "failed": nothing changes. The marks made here are never touched. Answers {"outcome", "from": "server"|"mailbox", "favorites": [number], "absent": number (listed by the server, not a folder here), "changed": bool}"#),
@@ -772,14 +772,15 @@ pub fn only_here(mailbox: &Mailbox) -> Vec<(Id, usize)> {
     if server_calendar(mailbox).is_none() {
         return Vec::new();
     }
-    let own = mailbox.calendars.iter().filter(|calendar| keeper(mailbox, &calendar.origin).is_none());
+    let own = mailbox.calendars.iter().filter(|calendar| keeper(mailbox, &calendar.origin).is_none() && !calendar.is_subscribed());
     own.map(|calendar| (calendar.id, mailbox.events.values().filter(|event| event.calendar == calendar.id).count())).filter(|(_, n)| *n > 0).collect()
 }
 
 /// Whether the event `id` is kept on this computer only although an account's server keeps a
 /// calendar here ([`only_here`]): a change to it goes nowhere, and whoever makes one is told.
 pub fn stays_here(mailbox: &Mailbox, id: Id) -> bool {
-    let own = |calendar: Id| mailbox.calendar(calendar).is_some_and(|calendar| keeper(mailbox, &calendar.origin).is_none());
+    let own =
+        |calendar: Id| mailbox.calendar(calendar).is_some_and(|calendar| keeper(mailbox, &calendar.origin).is_none() && !calendar.is_subscribed());
     server_calendar(mailbox).is_some() && mailbox.event(id).is_some_and(|event| own(event.calendar))
 }
 
@@ -789,8 +790,11 @@ pub fn stays_here(mailbox: &Mailbox, id: Id) -> bool {
 /// not one that is only free and busy blocks.
 pub fn is_own_calendar(mailbox: &Mailbox, calendar: &Calendar) -> bool {
     match keeper(mailbox, &calendar.origin) {
-        None => true,
-        Some(account) => !account.is_shared() && calendar.rights != Rights::FreeBusy && !super::calendar_settings::is_shared_with(account, calendar),
+        // (Not a copy of somebody's calendar on the web either: nothing in it is the owner's.)
+        None => !calendar.is_subscribed(),
+        Some(account) => {
+            !account.is_shared() && calendar.rights != Rights::FreeBusy && !super::calendar_settings::is_shared_with(mailbox, account, calendar)
+        }
     }
 }
 
@@ -855,6 +859,8 @@ fn new_token(event: Id, salt: u64) -> String {
 /// only read (somebody else's, a calendar of holidays): the server would refuse it anyway.
 pub(crate) fn writable(mailbox: &Mailbox, calendar: Id) -> Result<(), CmdError> {
     match mailbox.calendar(calendar) {
+        // A copy of a calendar on the web (Internet Calendars): the next look would take a change back.
+        Some(c) if c.is_subscribed() => Err(failed!("The calendar \"{name}\" is a copy of one on the web: it can only be read here.", name = c.name)),
         // A shared mailbox's calendar, with the rights this account has on it (#70): the owner
         // of the mailbox sets them, and they are read again at every listing.
         Some(c) if !c.can_edit() && keeper(mailbox, &c.origin).is_some_and(Account::is_shared) => {
@@ -1217,7 +1223,11 @@ fn keep_on_this_computer(mailbox: &mut Mailbox, id: Id) -> bool {
     if mailbox.event(id).is_none() {
         return false;
     }
-    let own = mailbox.calendars.iter().find(|calendar| keeper(mailbox, &calendar.origin).is_none()).map(|calendar| calendar.id);
+    let own = mailbox
+        .calendars
+        .iter()
+        .find(|calendar| keeper(mailbox, &calendar.origin).is_none() && !calendar.is_subscribed())
+        .map(|calendar| calendar.id);
     let own = match own {
         Some(own) => own,
         None if mailbox.calendars.len() < MAX_CALENDARS => {
@@ -1426,7 +1436,10 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
     }
     // (The zone the calendar is shown in: whole days are days there, and a series without a
     // zone of its own is told by its clock.)
-    Ok(EventsUpload { ops, zone: s.zone().id(), ..Default::default() }.for_account(owner))
+    // A category renamed here, for the events on the server that aren't kept here (#851): the
+    // account's own calendars alone, never a shared mailbox's.
+    let rename = s.mailbox.events_rename(owner.id);
+    Ok(EventsUpload { ops, zone: s.zone().id(), rename, ..Default::default() }.for_account(owner))
 }
 
 /// The sign-in of `account` changed (the owner gave a permission, say): what was held back
@@ -1478,6 +1491,8 @@ pub struct EventsApplied {
     pub unverified: usize,
     /// What the owner should hear, a line each.
     pub messages: Vec<String>,
+    /// How many events on the server were given a renamed category's new name (#851).
+    pub renamed: u32,
     /// Changes that were given up without the server taking them: one that could not be sent
     /// any more, or one about an event the server no longer has ([`Dropped`]).
     pub dropped: Vec<Dropped>,
@@ -1627,12 +1642,32 @@ pub fn apply_event_outcomes(s: &mut Session, uploaded: &EventsUploaded) -> Resul
         applied.say(dropped.message.clone());
         applied.dropped.push(dropped);
     }
+    // A renamed category, given to the events that aren't kept here (#851): what is done no
+    // longer holds the old name's deletion, and what the server wouldn't change is said.
+    let sweeps_before = s.mailbox.category_sweeps.get(&account).cloned();
+    if let Some(came) = &uploaded.renamed {
+        let mut came = came.clone();
+        came.tidy();
+        // (Said once it is done: a part that goes on with a later run says nothing yet.)
+        // (With what the runs before reached.)
+        applied.renamed = if came.done { s.mailbox.renamed_before(account, false, &came).saturating_add(came.changed) } else { 0 };
+        if let Some(line) = s.mailbox.take_renamed(account, false, &came) {
+            applied.say(line);
+        }
+    }
+    let renamed = s.mailbox.category_sweeps.get(&account) != sweeps_before.as_ref();
     applied.waiting = s.mailbox.event_changes.iter().filter(|change| change.account == account).count();
     applied.unverified = events_unverified(s, account);
     if told {
         s.forget_history();
     }
-    if told || applied.refused > 0 || !applied.dropped.is_empty() || s.mailbox.event_changes != before || s.mailbox.event_checks != checks_before {
+    if told
+        || renamed
+        || applied.refused > 0
+        || !applied.dropped.is_empty()
+        || s.mailbox.event_changes != before
+        || s.mailbox.event_checks != checks_before
+    {
         s.mailbox_changed();
     }
     Ok(applied)
@@ -2537,9 +2572,15 @@ fn updated(
             applied.refused += 1;
             let name = called(event.and_then(|id| mailbox.event(id)));
             if let (Some(base), Some(Ok(event))) = (change.base, event.map(|id| mailbox.event_mut(id))) {
-                // As the server has it.
-                let (id, calendar) = (event.id, event.calendar);
+                // As the server has it. Categories the base has as this very change sent them
+                // are not there: a change never sends what its base has, so an undo or a redo took
+                // them to be there while the change was on its way (#661). The event keeps its own.
+                let guessed = op.fields.categories.as_ref().is_some_and(|sent| *sent == base.categories);
+                let (id, calendar, categories) = (event.id, event.calendar, std::mem::take(&mut event.categories));
                 *event = Event { id, calendar, ..*base };
+                if guessed {
+                    event.categories = categories;
+                }
             }
             applied.say(format!("The server wouldn't take the change to {name}{}. It was put back as it was.", because(&outcome.error)));
         }
@@ -2686,6 +2727,7 @@ fn settle_calendars(mailbox: &mut Mailbox) {
     if !mailbox.calendars.iter().any(|calendar| server_kept(mailbox, calendar)) {
         return;
     }
+    rehome_strays(mailbox);
     let renamed: Vec<Id> = mailbox
         .calendars
         .iter()
@@ -2710,6 +2752,41 @@ fn settle_calendars(mailbox: &mut Mailbox) {
     }
     mailbox.calendars.retain(|calendar| !(own.contains(&calendar.id) && !in_use.contains(&calendar.id)));
 }
+
+/// An event of the owner's own in a calendar that a server keeps (an `.ics` file put one there
+/// before #1050) is on that server nowhere, and nothing would ever send it: it goes to a calendar
+/// on this computer, which says where it is and offers to move it to the account's calendar.
+fn rehome_strays(mailbox: &mut Mailbox) {
+    let served = |mailbox: &Mailbox, calendar: Id| mailbox.calendar(calendar).is_some_and(|c| keeper(mailbox, &c.origin).is_some());
+    // What is on its way to a server is never a stray: one made or moved into a server's
+    // calendar has that account in its origin from then on ([`note_created`], [`note_moved`]),
+    // and anything a waiting change names stays where it is all the same.
+    let waiting: HashSet<Id> = mailbox.event_changes.iter().map(|change| change.event).collect();
+    let stray = |e: &Event| e.origin.is_local() && !waiting.contains(&e.id) && served(mailbox, e.calendar);
+    let strays: Vec<Id> = mailbox.events.values().filter(|e| stray(e)).map(|e| e.id).take(MAX_STRAYS).collect();
+    if strays.is_empty() {
+        return;
+    }
+    // (One that is shown, when there is one: what was in view stays in view.)
+    let own = || mailbox.calendars.iter().filter(|c| keeper(mailbox, &c.origin).is_none() && !c.is_subscribed());
+    let home = match own().find(|c| c.visible).or_else(|| own().next()).map(|c| c.id) {
+        Some(calendar) => calendar,
+        None if mailbox.calendars.len() < MAX_CALENDARS => {
+            let (id, color) = (mailbox.alloc_id(), super::calendar::next_color(mailbox));
+            mailbox.calendars.push(Calendar { id, name: LOCAL_CALENDAR.into(), color, visible: true, ..Default::default() });
+            id
+        }
+        None => return,
+    };
+    for id in strays {
+        if let Ok(event) = mailbox.event_mut(id) {
+            event.calendar = home;
+        }
+    }
+}
+
+/// Most events [`rehome_strays`] moves in one go (the rest at the next download).
+const MAX_STRAYS: usize = 10_000;
 
 /// What a download makes of the changes that were sent and are yet to be seen ([`check_sent`]).
 #[derive(Default)]
@@ -3457,8 +3534,14 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
 /// The local zone's offset at an instant, as the session's clock has it.
 pub(crate) fn offset_of(s: &Session) -> impl Fn(Timestamp) -> i32 + use<> {
     // The zone the calendar is shown in, which is the one the mailbox's times are by.
-    let (fixed, zone) = (s.clock.offset, s.zone());
-    move |instant| fixed.unwrap_or_else(|| zone.offset_at(instant))
+    // Where the system names no zone, the phone's offset stands in, as in `Session::offset_at`.
+    let (fixed, zone, fallback) = (s.clock.offset, s.zone(), s.fallback_offset.clone());
+    move |instant| {
+        fixed.unwrap_or_else(|| match &fallback {
+            Some(phone) if zone.is_local() => phone(instant).clamp(-18 * 60, 18 * 60),
+            _ => zone.offset_at(instant),
+        })
+    }
 }
 
 /// Take in the events a host downloaded ([`merge_events`]), with times in the session's zone.
@@ -3562,7 +3645,7 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     // to: not another account's, whose server would never be sent it.
     let left_in = |event: &std::sync::Arc<Event>| mailbox.calendars.iter().any(|calendar| calendar.id == event.calendar && followed(calendar));
     let homeless = mailbox.events.values().any(left_in);
-    let own_stays = mailbox.calendars.iter().any(|calendar| !followed(calendar) && calendar.origin.is_local());
+    let own_stays = mailbox.calendars.iter().any(|calendar| !followed(calendar) && calendar.is_own());
     if calendars > 0 && (calendars == mailbox.calendars.len() || (homeless && !own_stays)) {
         // No calendar of the mailbox's own would be left (for what was made here, or at all):
         // one becomes that, the account's main one when it is here (not a Birthdays it lists
@@ -3576,7 +3659,7 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     }
     let gone: Vec<Id> = mailbox.calendars.iter().filter(|calendar| followed(calendar)).map(|calendar| calendar.id).collect();
     // Events made here that sat in a calendar that goes move to one of the mailbox's own.
-    let home = mailbox.calendars.iter().find(|calendar| !followed(calendar) && calendar.origin.is_local());
+    let home = mailbox.calendars.iter().find(|calendar| !followed(calendar) && calendar.is_own());
     if let Some(home) = home.map(|calendar| calendar.id) {
         for event in mailbox.events.values_mut().filter(|event| gone.contains(&event.calendar)) {
             std::sync::Arc::make_mut(event).calendar = home;
@@ -3722,48 +3805,45 @@ pub(crate) fn forget_calendars(mailbox: &mut Mailbox, ids: &[Id]) -> usize {
 }
 
 /// Take in the mailbox's own categories as an account's server has them
-/// ([`CategoriesDownload`]): each is a category of a Microsoft account's own list (#633; any
-/// other's go on the shared list), in the server's colour. Categories that are only here stay,
-/// and one that its server has stopped listing leaves the list. Not an undo step.
+/// ([`CategoriesDownload`]): a Microsoft account's go on its own list (#633), kept in step with
+/// its server both ways (#661, [`mailcraft_model::Mailbox::take_server_categories`]): what wasn't
+/// changed here since the last read follows the server, and what was changed here and not sent
+/// yet stays. Any other account's go on the shared list, in the server's colours. Not an undo
+/// step.
 pub fn apply_categories(s: &mut Session, download: &CategoriesDownload) -> CmdResult {
     let microsoft = owner(&s.mailbox, download.account, &download.email)?.kind == mailcraft_model::AccountKind::Microsoft;
     let mut download = download.clone();
     download.tidy();
-    let list = if microsoft { s.mailbox.junk_owner(download.account) } else { 0 };
-    let names: Vec<String> = download.categories.iter().map(|c| c.name.clone()).collect();
-    if microsoft {
+    let changed = if microsoft {
+        let list = s.mailbox.junk_owner(download.account);
+        let names: Vec<String> = download.categories.iter().map(|c| c.name.clone()).collect();
         s.mailbox.start_account_categories(list, &names);
-    }
-    let mut changed = 0usize;
-    for category in &download.categories {
-        let have = s.mailbox.category_of(list, &category.name).map(|have| (have.name == category.name, have.color));
-        if have != Some((true, category.color)) && s.mailbox.categories_of(list).len() < 2 * mailcraft_model::remote::MAX_REMOTE_CATEGORIES {
-            // Under the server's spelling of the name, wherever that list is used.
-            if have.is_some_and(|(same, _)| !same) {
-                let old = s.mailbox.category_of(list, &category.name).map(|have| have.name.clone()).unwrap_or_default();
-                let _ = s.mailbox.rename_category(list, &old, &category.name);
+        s.mailbox.take_server_categories(list, &download.categories, download.complete)
+    } else {
+        let mut changed = 0usize;
+        for category in &download.categories {
+            let have = s.mailbox.category(&category.name).map(|have| (have.name == category.name, have.color));
+            if have == Some((true, category.color)) {
+                continue;
             }
-            if s.mailbox.set_category(list, &category.name, category.color).is_ok() {
+            // Under the server's spelling of the name; a colour of one already there is always
+            // taken, and a new name while the list has room.
+            if have.is_some_and(|(same, _)| !same) {
+                let old = s.mailbox.category(&category.name).map(|have| have.name.clone()).unwrap_or_default();
+                let _ = s.mailbox.rename_category(0, &old, &category.name);
+            }
+            if (have.is_some() || s.mailbox.categories.len() < mailcraft_model::MAX_CATEGORIES)
+                && s.mailbox.set_category(0, &category.name, category.color).is_ok()
+            {
                 changed += 1;
             }
         }
-    }
-    // Outlook's list, by name, for its colours to win here (R3 spec S18). The items of a name that
-    // left it keep the name, in grey.
-    if microsoft {
-        let last = s.mailbox.server_categories.get(&list);
-        if last != Some(&names) {
-            let left: Vec<String> = last.into_iter().flatten().filter(|old| !names.iter().any(|name| same_category(name, old))).cloned().collect();
-            if let Some(own) = s.mailbox.account_categories.get_mut(&list) {
-                own.retain(|c| !left.iter().any(|old| same_category(old, &c.name)));
-            }
-            s.mailbox.server_categories.insert(list, names);
-            changed += 1;
-        }
-    }
+        changed
+    };
     if changed > 0 {
         s.mailbox_changed();
     }
+    let list = s.mailbox.junk_owner(download.account);
     Ok(json!({"changed": changed, "categories": s.mailbox.categories_of(list).len()}))
 }
 
@@ -3908,3 +3988,12 @@ mod shared_calendar_tests;
 
 #[cfg(test)]
 mod cross_move_tests;
+
+#[cfg(test)]
+mod fallback_offset_tests;
+
+#[cfg(test)]
+mod undo_events_tests;
+
+#[cfg(test)]
+mod undo_gate_tests;

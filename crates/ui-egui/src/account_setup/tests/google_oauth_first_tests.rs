@@ -266,3 +266,28 @@ fn google_desktop_requires_registration_and_keeps_password_as_default() {
     );
     assert!(app.session.mailbox.accounts.iter().all(|account| account.email != "one@gmail.com"));
 }
+
+#[test]
+fn while_google_sign_in_is_for_testers_only_gmail_starts_on_an_app_password() {
+    let mut app = registered();
+    app.services.google_testers_only = true;
+    let signed_in = sign_ins(&mut app, None);
+    checks(&mut app, None);
+    lookups(&mut app, Some(Ok(vec!["aspmx.l.google.com"])));
+    let mut h = open(app, json!({"email":"staff@example.org"}));
+    click(&mut h, "Connect");
+
+    assert_eq!(page(&h), Some(Page::Password));
+    assert!(wizard(&h).unwrap().google_app_password_selected);
+    assert!(says(&h, "Use a Google app password"));
+    assert!(says(&h, "open only to invited testers"));
+    assert!(h.query_by_role_and_label(Role::Button, "Sign in with Google").is_none());
+
+    // A tester still gets there, told again who it is for.
+    click(&mut h, "Use Google sign-in instead");
+    assert!(says(&h, "Sign in with Google"));
+    assert!(says(&h, "open only to invited testers"));
+    assert!(!says(&h, "Recommended"));
+    click(&mut h, "Sign in with Google");
+    assert_eq!(signed_in.lock().unwrap().len(), 1);
+}

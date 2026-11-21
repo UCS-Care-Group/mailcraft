@@ -1,1 +1,0 @@
-- A mailbox file that would take more memory to open than MailCraft allows for it on this computer is refused with an error when it is opened, in every form it comes in, instead of using up the memory (AU3-05, AU3-06, AU3-07).
