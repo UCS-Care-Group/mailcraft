@@ -13,8 +13,10 @@
 //!
 //! `mail.copyAttachment` (#807) is here too: the same attachment, put on the clipboard as a file.
 
+use std::sync::{Arc, Weak};
+
 use mailcraft_engine::opening::{self, Verdict};
-use mailcraft_model::Id;
+use mailcraft_model::{Attachment, ContentRef, Id};
 use serde_json::{Value, json};
 
 use crate::MailApp;
@@ -28,9 +30,35 @@ pub(crate) const COPY: &str = "mail.copyAttachment";
 #[derive(Default)]
 pub(crate) struct Copies(Vec<(Copied, std::path::PathBuf)>);
 
-/// Which attachment, of which opening of the mailbox: its message, its index, its name and size.
+/// Which attachment was copied: its mailbox opening, message, slot, name and bytes. A
+/// different attachment can move into that slot after a removal.
 #[derive(PartialEq)]
-struct Copied(u64, Id, usize, String, u64);
+struct Copied(u64, Id, usize, String, CopiedBytes);
+
+/// Identify the bytes without reading from the store or keeping an in-memory attachment alive.
+enum CopiedBytes {
+    Kept(ContentRef),
+    InMemory(Weak<Vec<u8>>),
+}
+
+impl CopiedBytes {
+    fn of(attachment: &Attachment) -> Self {
+        match attachment.kept.filter(|_| attachment.data.is_empty()) {
+            Some(reference) => Self::Kept(reference),
+            None => Self::InMemory(Arc::downgrade(&attachment.data)),
+        }
+    }
+}
+
+impl PartialEq for CopiedBytes {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Kept(a), Self::Kept(b)) => a == b,
+            (Self::InMemory(a), Self::InMemory(b)) => a.ptr_eq(b),
+            _ => false,
+        }
+    }
+}
 
 /// The most attachments remembered; the oldest go first.
 const MOST_COPIES: usize = 16;
@@ -50,8 +78,8 @@ impl Copies {
     }
 }
 
-/// The attachment the params name: its message, its index and its name.
-fn target(app: &MailApp, p: &Value) -> Result<(Id, usize, String), String> {
+/// The attachment the params name, with its message and slot.
+fn target<'a>(app: &'a MailApp, p: &Value) -> Result<(Id, usize, &'a Attachment), String> {
     // Read as the engine reads it (#553): named wrongly, it is refused, never taken for the selection.
     let id = mailcraft_engine::p::message_strict(p)
         .map_err(|e| e.to_string())?
@@ -61,15 +89,15 @@ fn target(app: &MailApp, p: &Value) -> Result<(Id, usize, String), String> {
     let index = usize::try_from(index).map_err(|_| tl!("The message has no such attachment").to_string())?;
     let m = app.session.mailbox.message(id).ok_or_else(|| tl!("The message isn't there any more").to_string())?;
     let a = m.attachments.get(index).ok_or_else(|| tl!("The message has no such attachment").to_string())?;
-    Ok((id, index, a.name.clone()))
+    Ok((id, index, a))
 }
 
 /// What the owner is asked before an Office file with macros or a web page is opened; `None`
 /// for everything else (it opens, or it is refused, without a question).
 pub(crate) fn question(app: &MailApp, p: &Value) -> Option<(String, String, String)> {
-    let (_, _, name) = target(app, p).ok()?;
-    let shown = opening::file_name(&name);
-    let why = match opening::verdict(&name) {
+    let (_, _, attachment) = target(app, p).ok()?;
+    let shown = opening::file_name(&attachment.name);
+    let why = match opening::verdict(&attachment.name) {
         Verdict::Macros => tl!("Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it."),
         Verdict::Scripts => {
             tl!("Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it.")
@@ -96,7 +124,7 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
 ///
 /// [`Services::copy_file`]: crate::Services::copy_file
 fn copy(app: &mut MailApp, p: &Value) -> Result<Value, String> {
-    let (message, index, name) = target(app, p)?;
+    let (message, index, attachment) = target(app, p)?;
     // The control channel's clicks are no Copy of the owner's: the clipboard is never an agent's.
     if app.driven {
         return Err(tl!("Only you can copy an attachment, with its menu's Copy or Ctrl+C.").to_string());
@@ -104,8 +132,8 @@ fn copy(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let (Some(write), Some(board)) = (&app.services.copy_file, &app.services.clipboard) else {
         return Err(tl!("An attachment can't be copied here: save it with Save As instead.").to_string());
     };
-    let size = app.session.mailbox.message(message).and_then(|m| m.attachments.get(index)).map_or(0, |a| a.size() as u64);
-    let what = Copied(app.session.openings(), message, index, name.clone(), size);
+    let name = attachment.name.clone();
+    let what = Copied(app.session.openings(), message, index, name.clone(), CopiedBytes::of(attachment));
     // The same one again (a key held down repeats Ctrl+C): the file written for it already is put
     // on the clipboard once more, nothing is read or written.
     if let Some(path) = app.copies.of(&what).map(std::path::Path::to_path_buf) {
@@ -142,11 +170,12 @@ fn discard_copy(path: &std::path::Path) {
 }
 
 fn open(app: &mut MailApp, p: &Value) -> Result<Value, String> {
-    let (message, index, name) = target(app, p)?;
-    if opening::verdict(&name) == Verdict::Blocked {
-        return Err(opening::blocked_message(&name));
+    let (message, index, attachment) = target(app, p)?;
+    let name = &attachment.name;
+    if opening::verdict(name) == Verdict::Blocked {
+        return Err(opening::blocked_message(name));
     }
-    let file = opening::file_name(&name);
+    let file = opening::file_name(name);
     let bytes = app.session.content(message, mailcraft_engine::Part::Attachment(index)).map_err(|e| e.to_string())?;
     if let Some(open_file) = &app.services.open_file {
         open_file(&file, bytes.as_slice())?;

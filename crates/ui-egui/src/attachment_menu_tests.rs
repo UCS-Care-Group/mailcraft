@@ -506,6 +506,21 @@ fn a_held_ctrl_c_writes_the_attachment_once() {
     assert!(written(&c, 3, "other.pdf").is_file());
 }
 
+#[test]
+fn copying_a_shifted_attachment_uses_its_own_bytes() {
+    let (mut h, c) = copying(&["notes.pdf", "notes.pdf"]);
+    let slot = json!({"id": A, "index": 0});
+    h.state_mut().run("mail.copyAttachment", slot.clone()).unwrap();
+    h.state_mut().execute("mail.removeAttachment", slot.clone()).unwrap();
+    h.state_mut().run("mail.copyAttachment", slot.clone()).unwrap();
+    h.state_mut().run("mail.copyAttachment", slot).unwrap();
+
+    let (first, second) = (written(&c, 1, "notes.pdf"), written(&c, 2, "notes.pdf"));
+    assert_eq!(put(&c), vec![vec![first.clone()], vec![second.clone()], vec![second.clone()]]);
+    assert_eq!(std::fs::read(first).unwrap(), b"a0");
+    assert_eq!(std::fs::read(second).unwrap(), b"a1");
+}
+
 /// The macOS menu bar's Edit › Copy (⌘C) is the owner's own Copy, as the key is: it copies the
 /// picked attachment, where the control channel's input is refused.
 #[test]
