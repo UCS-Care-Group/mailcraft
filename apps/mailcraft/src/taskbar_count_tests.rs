@@ -27,4 +27,5 @@ fn the_same_dot_waits_to_be_sent_again_and_a_change_does_not() {
     assert!(super::send_overlay(false, true, now, None, soon));
     assert!(!super::send_overlay(false, true, now, later, None));
     assert!(!super::send_overlay(false, false, now, None, None));
+    assert!(!super::send_overlay(false, false, now + std::time::Duration::from_secs(30), None, soon));
 }

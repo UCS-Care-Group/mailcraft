@@ -96,7 +96,8 @@ fn send_overlay(
     if retry_at.is_some_and(|at| now < at) {
         return false;
     }
-    if dot == want { reassert_at.is_some_and(|at| now >= at) } else { true }
+    // A dot that is already on is sent again. A cleared one is not.
+    if dot == want { want && reassert_at.is_some_and(|at| now >= at) } else { true }
 }
 
 #[cfg(target_os = "windows")]
@@ -150,7 +151,7 @@ impl Icons {
                 self.main = Some(hwnd);
                 self.dot = want;
                 self.retry_at = None;
-                self.reassert_at = Some(now + REASSERT);
+                self.reassert_at = want.then(|| now + REASSERT);
             }
             Err(e) => {
                 self.main = Some(hwnd);
@@ -209,7 +210,7 @@ fn load_icon() -> Result<winsafe::guard::DestroyIconGuard, String> {
 }
 
 /// A 16×16 icon: a red dot on a clear square. The corner pixels are clear.
-#[cfg(target_os = "windows")]
+#[cfg(any(test, target_os = "windows"))]
 fn dot_icon() -> Vec<u8> {
     const SIDE: usize = 16;
     let xor = SIDE * SIDE * 4;
@@ -253,7 +254,7 @@ fn dot_icon() -> Vec<u8> {
 }
 
 /// Whether `(x, y)` is inside the dot. The middle of the 16×16 square, a small radius.
-#[cfg(target_os = "windows")]
+#[cfg(any(test, target_os = "windows"))]
 fn dot_pixel(x: usize, y: usize) -> bool {
     let dx = x as i32 - 7;
     let dy = y as i32 - 7;
