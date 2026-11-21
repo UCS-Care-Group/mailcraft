@@ -1705,7 +1705,7 @@ msgstr "应用通过 Microsoft Graph 发送/接收的结果"
 #: crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Apply Send/Receive with Zimbra"
-msgstr " Zimbra /"
+msgstr "应用通过 Zimbra 发送/接收的结果"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -4761,7 +4761,7 @@ msgstr "自动下载邮件中的图片"
 #: crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Download Zimbra Messages in Full"
-msgstr " Zimbra "
+msgstr "下载完整的 Zimbra 邮件"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14374,7 +14374,7 @@ msgstr "使用 Microsoft Graph 发送/接收"
 #: crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Send/Receive with Zimbra"
-msgstr " Zimbra /"
+msgstr "使用 Zimbra 发送/接收"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -20733,6 +20733,11 @@ msgstr "Zimbra 账户正在测试中：使用 MAILCRAFT_ZIMBRA=1 启动 MailCraf
 msgid "Zimbra accounts can't be sent and received yet: that part is not built"
 msgstr "Zimbra 账户尚不能收发邮件：该部分尚未构建"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -22882,6 +22887,11 @@ msgstr "提醒时间必须在将来"
 #, fuzzy
 msgid "the request was lost"
 msgstr "请求已丢失"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "the result is for another Zimbra server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs

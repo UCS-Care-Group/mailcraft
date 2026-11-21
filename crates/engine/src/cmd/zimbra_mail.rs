@@ -101,6 +101,12 @@ fn apply(s: &mut Session, v: &Value) -> CmdResult {
     if !a.email.trim().eq_ignore_ascii_case(result.email.trim()) {
         return Err(fail("the result is for another account"));
     }
+    // The server too, when the result names one: a result produced for another host, whose
+    // `from` token still matches, would apply its pages and its token here.
+    let server = a.zimbra.as_ref().map(|z| z.base()).unwrap_or_default();
+    if !result.url.is_empty() && !result.url.trim().trim_end_matches('/').eq_ignore_ascii_case(server) {
+        return Err(fail("the result is for another Zimbra server"));
+    }
     Err(fail(NOT_BUILT))
 }
 

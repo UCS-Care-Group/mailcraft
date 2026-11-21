@@ -17204,6 +17204,11 @@ msgstr ""
 msgid "Zimbra accounts can't be sent and received yet: that part is not built"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Zimbra {host} · not kept in step yet: this part is not built"
@@ -19001,6 +19006,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "the request was lost"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "the result is for another Zimbra server"
 msgstr ""
 
 #. what a command says

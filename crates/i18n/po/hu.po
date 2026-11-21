@@ -20739,6 +20739,11 @@ msgstr "A Zimbra-fiókok tesztelés alatt állnak: indítsa a MailCraftot MAILCR
 msgid "Zimbra accounts can't be sent and received yet: that part is not built"
 msgstr "A Zimbra-fiókokkal még nem lehet küldeni és fogadni: ez a rész még nincs elkészítve"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -22891,6 +22896,11 @@ msgstr "az emlékeztető időpontjának a jövőben kell lennie"
 #, fuzzy
 msgid "the request was lost"
 msgstr "a kérés elveszett"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "the result is for another Zimbra server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs

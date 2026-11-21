@@ -63,6 +63,21 @@ fn a_zimbra_account_is_added_and_its_commands_answer() {
 }
 
 #[test]
+fn a_result_for_another_zimbra_server_is_refused() {
+    let mut s = switched_on();
+    let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+    let result = |url: &str| json!({"result": {"account": id, "email": "ada@example.org", "url": url}});
+    // Another host's result is refused even though it names this account and its login.
+    assert!(said(s.run("sync.applyZimbra", &result("https://other.example.org"))).contains("another Zimbra server"));
+    // A trailing slash or other case still names the account's server, and so does no URL at
+    // all; each is refused only by what the stage then doesn't do.
+    for url in [URL, "https://zimbra.example.org/", "HTTPS://ZIMBRA.EXAMPLE.ORG"] {
+        assert!(said(s.run("sync.applyZimbra", &result(url))).contains(NOT_BUILT), "{url}");
+    }
+    assert!(said(s.run("sync.applyZimbra", &json!({"result": {"account": id, "email": "ada@example.org"}}))).contains(NOT_BUILT));
+}
+
+#[test]
 fn missing_settings_keep_the_id_scheme_but_refuse_sync_requests() {
     let mut s = switched_on();
     let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();

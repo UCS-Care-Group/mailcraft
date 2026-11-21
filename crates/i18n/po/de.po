@@ -19468,6 +19468,11 @@ msgstr "Zimbra-Konten werden getestet: Starten Sie MailCraft mit MAILCRAFT_ZIMBR
 msgid "Zimbra accounts can't be sent and received yet: that part is not built"
 msgstr "Mit Zimbra-Konten kann noch nicht gesendet und empfangen werden: Dieser Teil ist noch nicht gebaut"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -21486,6 +21491,11 @@ msgstr "die Erinnerungszeit muss in der Zukunft liegen"
 #, fuzzy
 msgid "the request was lost"
 msgstr "die Anfrage ist verloren gegangen"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "the result is for another Zimbra server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
