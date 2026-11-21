@@ -689,6 +689,12 @@ pub trait RichClipboard {
     fn text(&self) -> Option<String> {
         None
     }
+    /// Text for a paste, distinguishing an unavailable reader from a failed transfer. A native
+    /// text reader may answer when this one has no selection. A transfer that failed (notably
+    /// one that timed out) must not be retried through another reader on the window thread.
+    fn paste_text(&self) -> std::io::Result<Option<String>> {
+        Ok(self.text())
+    }
 }
 
 /// The largest side of a picture taken from the clipboard, in pixels.

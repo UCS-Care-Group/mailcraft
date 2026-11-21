@@ -1,0 +1,1 @@
+| 2026-11-19 | #1217 follow-up: Ctrl+V and menu Paste can use the window's native text reader when the rich Wayland reader has no selection; empty text and failed transfers are not retried, and Wayland reads no longer fall back to X11 |

@@ -67,6 +67,46 @@ fn ctrl_v_with_nothing_to_paste_sends_nothing() {
 }
 
 #[test]
+fn an_unavailable_wayland_reader_requests_the_windows_native_paste() {
+    use crate::{MailApp, Services};
+    use mailcraft_engine::Session;
+
+    for (text, picture, expected) in [(None, false, true), (Some(""), false, false), (Some("text"), false, false), (None, true, false)] {
+        let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0), Services::default());
+        app.services.clipboard_keys = true;
+        app.services.clipboard = Some(Box::new(Board { text, picture }));
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput { events: vec![press(Key::V, Modifiers::COMMAND)], ..Default::default() };
+        let mut out = ctx.run_ui(raw, |ui| crate::windows::clipboard_keys(&app, ui.ctx()));
+        out.textures_delta.clear();
+        let requested = out.viewport_output.values().any(|v| v.commands.iter().any(|c| matches!(c, egui::ViewportCommand::RequestPaste)));
+        assert_eq!(requested, expected, "text={text:?}, picture={picture}");
+    }
+}
+
+#[test]
+fn a_timed_out_transfer_is_not_retried_through_the_native_reader() {
+    struct TimedOut;
+    impl RichClipboard for TimedOut {
+        fn put(&self, _: &str, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn html(&self) -> Option<String> {
+            None
+        }
+        fn paste_text(&self) -> std::io::Result<Option<String>> {
+            Err(std::io::ErrorKind::TimedOut.into())
+        }
+        fn has_image(&self) -> bool {
+            panic!("a failed text transfer must not start another read")
+        }
+    }
+    let mut events = vec![press(Key::V, Modifiers::COMMAND)];
+    assert!(!translate(&mut events, Some(&TimedOut)));
+    assert!(events.is_empty());
+}
+
+#[test]
 fn cut_and_copy_become_their_events() {
     let board = Board { text: None, picture: false };
     let out = run(vec![press(Key::X, Modifiers::COMMAND), press(Key::C, Modifiers::COMMAND), press(Key::Copy, Modifiers::NONE)], &board);

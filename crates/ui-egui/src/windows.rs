@@ -1366,7 +1366,9 @@ pub(crate) fn edit_keys(app: &mut MailApp, ctx: &egui::Context) {
 pub(crate) fn clipboard_keys(app: &MailApp, ctx: &egui::Context) {
     if app.services.clipboard_keys {
         let board = app.services.clipboard.as_deref();
-        ctx.input_mut(|i| crate::paste_keys::translate(&mut i.events, board));
+        if ctx.input_mut(|i| crate::paste_keys::translate(&mut i.events, board)) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+        }
     }
 }
 

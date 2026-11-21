@@ -44,12 +44,15 @@ fn shortcut(key: Key, modifiers: egui::Modifiers) -> Option<Shortcut> {
     }
 }
 
-/// Replace the key presses that are clipboard shortcuts by their events.
-pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) {
+/// Replace the key presses that are clipboard shortcuts by their events. Returns whether the
+/// window must request its native paste: the rich reader can have no selection while the
+/// window backend's regular Wayland clipboard still has text. Never retry a failed transfer.
+pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) -> bool {
     if !events.iter().any(|e| matches!(e, Event::Key { pressed: true, key, modifiers, .. } if shortcut(*key, *modifiers).is_some())) {
-        return;
+        return false;
     }
     let mut out = Vec::with_capacity(events.len());
+    let mut native_paste = false;
     for event in events.drain(..) {
         let Event::Key { pressed: true, key, modifiers, .. } = &event else {
             out.push(event);
@@ -59,17 +62,22 @@ pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) {
             Some(Shortcut::Cut) => out.push(Event::Cut),
             Some(Shortcut::Copy) => out.push(Event::Copy),
             Some(Shortcut::Paste) => {
-                let text = board.and_then(|b| b.text()).map(|t| t.replace("\r\n", "\n")).unwrap_or_default();
+                let Ok(text) = board.map_or(Ok(None), |b| b.paste_text()) else { continue };
+                let unavailable = text.is_none();
+                let text = text.unwrap_or_default().replace("\r\n", "\n");
                 if !text.is_empty() {
                     out.push(Event::Paste(text));
                 } else if board.is_some_and(|b| b.has_image()) {
                     out.push(Event::Paste(String::new()));
+                } else {
+                    native_paste |= unavailable;
                 }
             }
             None => out.push(event),
         }
     }
     *events = out;
+    native_paste
 }
 
 #[cfg(test)]

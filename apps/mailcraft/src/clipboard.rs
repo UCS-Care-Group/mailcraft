@@ -14,7 +14,8 @@
 //! Under Wayland in the Flatpak neither of those is there (no data-control protocol, no X11), so
 //! HTML, pictures and text are read through winit's own `wl_data_device`, the one the window
 //! already uses for its text and file drops: the types asked for and the caps are in
-//! `clipboard_mime`. `arboard` is the way back when that has nothing to say (#1217).
+//! `clipboard_mime`. If that reader has no text, the UI can ask egui's regular Wayland reader;
+//! it must not depend on an X11 fallback being available (#1217).
 //!
 //! One clipboard is opened at the first copy or paste and kept: on X11 and Wayland what was
 //! copied is served from this program for as long as it holds the clipboard.
@@ -27,7 +28,7 @@ use mailcraft_ui_egui::{RichClipboard, clipboard_picture_png as png};
 use winit::platform::wayland::Clipboard as WaylandBoard;
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-use crate::clipboard_mime::{HTML_MIMES, IMAGE_MIMES, MAX_HTML_BYTES, MAX_PICTURE_BYTES, decode_html, png_fits};
+use crate::clipboard_mime::{HTML_MIMES, IMAGE_MIMES, MAX_HTML_BYTES, MAX_PICTURE_BYTES, TEXT_MIMES, decode_html, png_fits};
 
 /// The most HTML one paste takes, in bytes (the engine's own limit).
 const MAX_HTML: usize = 4 << 20;
@@ -38,6 +39,7 @@ pub fn board(display: Option<std::ptr::NonNull<std::ffi::c_void>>) -> Option<Box
     let mut board = Board::default();
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     {
+        board.wayland_display = display.is_some();
         board.wayland = display.and_then(WaylandBoard::for_display);
     }
     #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
@@ -60,6 +62,9 @@ struct Board {
     /// Winit's clipboard on the compositor's `wl_data_device`, under Wayland.
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     wayland: Option<WaylandBoard>,
+    /// A Wayland window must not silently fall back to X11 when its reader is unavailable.
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    wayland_display: bool,
 }
 
 impl Board {
@@ -86,45 +91,50 @@ impl RichClipboard for Board {
 
     fn html(&self) -> Option<String> {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        if let Some(wayland) = &self.wayland {
-            match wayland.load_mime(&HTML_MIMES, MAX_HTML_BYTES) {
-                Ok((_, bytes)) => return html_of(&decode_html(&bytes)),
-                // Nothing of that kind offered: `arboard` may still have some.
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        if self.wayland_display {
+            return match self.wayland.as_ref()?.load_mime(&HTML_MIMES, MAX_HTML_BYTES) {
+                Ok((_, bytes)) => html_of(&decode_html(&bytes)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
                 // The owner didn't answer in time: asking it again through `arboard` would wait as long.
-                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
-                Err(e) => log::debug!("the Wayland clipboard gave no HTML: {e}"),
-            }
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => None,
+                Err(e) => {
+                    log::debug!("the Wayland clipboard gave no HTML: {e}");
+                    None
+                }
+            };
         }
         let html = self.with(|b| b.get().html()).ok()?;
         html_of(&html)
     }
 
     fn text(&self) -> Option<String> {
+        self.paste_text().ok().flatten()
+    }
+
+    fn paste_text(&self) -> std::io::Result<Option<String>> {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        if let Some(wayland) = &self.wayland {
-            match wayland.load_text() {
-                Ok(text) => return Some(text),
-                // The owner didn't answer in time: asking it again through `arboard` would wait as long.
-                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
-                Err(_) => {}
-            }
+        if self.wayland_display {
+            let Some(wayland) = &self.wayland else { return Ok(None) };
+            return wayland_text(wayland.load_text(), |mimes| wayland.offers(mimes));
         }
         // All of it, as Ctrl+V has it: what is too much for a message is refused where the paste
         // is made (`edit.paste`), the same for both.
-        self.with(|b| b.get_text()).ok()
+        Ok(self.with(|b| b.get_text()).ok())
     }
 
     fn image(&self) -> Option<Vec<u8>> {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        if let Some(wayland) = &self.wayland {
-            match wayland.load_mime(&IMAGE_MIMES, MAX_PICTURE_BYTES) {
-                Ok((_, bytes)) => return png_fits(&bytes).then_some(bytes),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        if self.wayland_display {
+            return match self.wayland.as_ref()?.load_mime(&IMAGE_MIMES, MAX_PICTURE_BYTES) {
+                Ok((_, bytes)) => png_fits(&bytes).then_some(bytes),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
                 // The owner didn't answer in time: asking it again through `arboard` would wait as long.
-                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
-                Err(e) => log::debug!("the Wayland clipboard gave no picture: {e}"),
-            }
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => None,
+                Err(e) => {
+                    log::debug!("the Wayland clipboard gave no picture: {e}");
+                    None
+                }
+            };
         }
         let image = self.with(|b| b.get_image()).ok()?;
         png(image.width, image.height, &image.bytes)
@@ -133,14 +143,31 @@ impl RichClipboard for Board {
     fn has_image(&self) -> bool {
         // Winit says from the types on offer, without a read; when it can't, read as before.
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        if let Some(wayland) = &self.wayland
-            && wayland.offers(&IMAGE_MIMES)
-        {
-            return true;
+        if self.wayland_display {
+            return self.wayland.as_ref().is_some_and(|w| w.offers(&IMAGE_MIMES));
         }
         self.image().is_some()
     }
 }
+
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+fn wayland_text(read: std::io::Result<String>, offers: impl FnOnce(&[&str]) -> bool) -> std::io::Result<Option<String>> {
+    match read {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        // Winit also reports a picture-only selection as InvalidData. Query its announced
+        // formats without reading again: oversized text has the same error kind and must stay
+        // a failed transfer, even when a picture is offered beside it.
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData && !offers(&TEXT_MIMES) => Ok(None),
+        // Retrying a timed-out or broken transfer on the window thread would wait on
+        // the same unresponsive owner again, through a different clipboard reader.
+        Err(e) => Err(e),
+    }
+}
+
+#[cfg(all(test, any(target_os = "linux", target_os = "freebsd")))]
+#[path = "clipboard_wayland_tests.rs"]
+mod wayland_tests;
 
 /// The HTML to paste out of what the clipboard held: none when it comes to nothing or to more
 /// than the engine takes.
