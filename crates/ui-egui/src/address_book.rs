@@ -536,6 +536,17 @@ pub(crate) fn choose_address_list(app: &mut MailApp, account: Id) {
     }
 }
 
+/// What there is to say in place of the list, said.
+fn say(ui: &mut Ui, t: &Tokens, text: String, icon: &str) {
+    ui.vertical_centered(|ui| {
+        ui.add_space(56.0);
+        let (r, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
+        icons::paint(ui.painter(), r, icon, t.border_strong, t.border_strong);
+        ui.add_space(10.0);
+        ui.add(egui::Label::new(RichText::new(text).font(regular(12.5)).color(t.text_dim)).wrap());
+    });
+}
+
 fn list(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
@@ -556,9 +567,12 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
             (true, false) => Some((tl!("Nobody in the address book matches").to_string(), "search")),
             _ => None,
         }
-    } else if held.is_some_and(|h| h.pending.is_some()) {
-        Some((tl!("Downloading the organisation's address book…").to_string(), "people"))
     } else if typed.chars().count() < MIN_CHARS {
+        // While the whole list downloads, that is said; what is typed meanwhile is searched as
+        // without it, and shown as such below.
+        if held.is_some_and(|h| h.pending.is_some()) {
+            return say(ui, &t, tl!("Downloading the organisation's address book…").to_string(), "people");
+        }
         let hint = tl!("Type a name in the search box to search the organisation's address list");
         let text = match held.and_then(|h| h.error.as_ref()) {
             Some(error) => format!("{}\n\n{hint}", tl!(error)),
@@ -577,14 +591,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         None
     };
     if let Some((text, icon)) = said {
-        ui.vertical_centered(|ui| {
-            ui.add_space(56.0);
-            let (r, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
-            icons::paint(ui.painter(), r, icon, t.border_strong, t.border_strong);
-            ui.add_space(10.0);
-            ui.add(egui::Label::new(RichText::new(text).font(regular(12.5)).color(t.text_dim)).wrap());
-        });
-        return;
+        return say(ui, &t, text, icon);
     }
     let (count, more, selected) = (book.people.len(), book.more, book.selected);
     let mut clicked = None;

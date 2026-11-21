@@ -701,6 +701,34 @@ fn a_long_list_draws_only_what_is_on_screen() {
     assert_eq!(h.state().address_book_found().len(), 5000);
 }
 
+/// While the whole list downloads, People says so; a search typed meanwhile shows who it found,
+/// not the notice.
+#[test]
+fn a_search_during_the_download_shows_who_it_found() {
+    let (app, _, _) = window_downloading(false, Some(organisation()), true);
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.state_mut().run("people.addressBook", json!({})).unwrap();
+    h.run_steps(3);
+    h.get_by_label("Downloading the organisation's address book…");
+    h.state_mut().type_people_search("ada");
+    h.run_steps(1);
+    if let Some(book) = &mut h.state_mut().address_book {
+        book.typed.1 -= PAUSE_MS * 2.0;
+    }
+    h.run_steps(4);
+    assert!(h.state().downloading_address_list());
+    assert_eq!(names(h.state()), ["Ada Lovelace", "Ada Byron", "Ada's team"]);
+    assert!(h.query_by_label("Downloading the organisation's address book…").is_none());
+    assert!(h.state().hit.rect("addressListRow", 0).is_some());
+}
+
 /// Add to Contacts says on the card that the person is in the contacts now, and becomes Open
 /// Contact, which shows that contact among the contacts: nothing is made twice (#1393).
 #[test]
