@@ -413,12 +413,15 @@ mod hebrew_email_bidi_tests {
         let person = json!({"name": "דנה", "email": "dana@example.org"});
         assert_eq!(first_line(&person, false), "דנה <dana@example.org>");
         assert_eq!(first_line(&person, true), "דנה \u{2066}<dana@example.org>\u{2069}");
-        // With no display name the bare address remains unchanged in both locales.
+        // English keeps the bare address; Hebrew isolates it for LTR reading.
         let bare = json!({"name": "", "email": "dana@example.org"});
         assert_eq!(first_line(&bare, false), "dana@example.org");
         assert_eq!(first_line(&bare, true), "\u{2066}dana@example.org\u{2069}");
         let punctuated = json!({"name": "", "email": "dana+tag@sub.example.org"});
-        assert_eq!(first_line(&punctuated, true), "\u{2066}dana+tag@sub.example.org\u{2069}");
+        assert_eq!(
+            first_line(&punctuated, true),
+            "\u{2066}dana+tag@sub.example.org\u{2069}"
+        );
     }
 
     #[test]
