@@ -492,8 +492,29 @@ impl Tokens {
 
     /// The faint band every other row of the message list wears with View › Shade Alternate Rows
     /// (#1657): the list's own colour a little towards its text, a little more in High Contrast.
+    /// A custom accent is fitted against it ([`accent::custom_ink`]).
     pub fn row_shade(&self) -> Color32 {
         self.surface.lerp_to_gamma(self.text, if self.high_contrast { 0.07 } else { 0.04 })
+    }
+
+    /// What is under a message-list row's text, laid as the list lays it: the list or its shaded
+    /// band, a flag's tint, a selection's fill (let a little of a flag's tint through), or the
+    /// pointer's shade. `selected` is whether the list has the focus, for a selected row. Its
+    /// coloured text is fitted to this ([`Tokens::text_ink_on`]), as no single sheet is under it.
+    pub fn list_row_under(&self, shaded: bool, flagged: bool, selected: Option<bool>, hovered: bool) -> Color32 {
+        let mut under = if shaded { self.row_shade() } else { self.surface };
+        if flagged {
+            under = over(self.flagged_row, under);
+        }
+        match selected {
+            Some(focus) => {
+                let fill = if focus { self.selection } else { self.selection_unfocused };
+                under = over(if flagged { fill.gamma_multiply(LIST_FLAGGED_SELECTION) } else { fill }, under);
+            }
+            None if hovered => under = over(self.hover_subtle, under),
+            None => {}
+        }
+        under
     }
 
     /// The strength with which a mailbox colour tints an event block over `surface`.
@@ -1428,6 +1449,16 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
     let (r, g, b) = PALETTE.get(hash as usize % PALETTE.len()).copied().unwrap_or((0x0B, 0x7F, 0xAB));
     let c = Color32::from_rgb(r, g, b);
     c.linear_multiply(t.avatar_shade)
+}
+
+/// How much of a selected row's fill is laid over a flag's tint, so the tint shows through.
+pub const LIST_FLAGGED_SELECTION: f32 = 0.72;
+
+/// `src` (premultiplied, as egui's colours are) painted over `dst`, blended as the painter does.
+fn over(src: Color32, dst: Color32) -> Color32 {
+    let keep = 1.0 - f32::from(src.a()) / 255.0;
+    let ch = |s: u8, d: u8| (f32::from(s) + f32::from(d) * keep).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgb(ch(src.r(), dst.r()), ch(src.g(), dst.g()), ch(src.b(), dst.b()))
 }
 
 #[cfg(test)]

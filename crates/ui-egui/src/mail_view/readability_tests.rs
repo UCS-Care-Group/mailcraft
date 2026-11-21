@@ -76,9 +76,12 @@ fn rows_are_plain_until_shading_is_turned_on() {
     assert!(rows.iter().all(|(row, _)| harness.state().hit.rect("messageShade", row.id).is_none()));
 }
 
-#[test]
-fn a_message_with_nothing_to_preview_sits_in_the_middle_of_its_row() {
+/// Where an empty row's sender and the next row's sender are, from each row's top, and how tall
+/// the rows are, with `preview_lines` lines of preview and Tighter Spacing on or off.
+fn empty_and_full_row(preview_lines: u8, tight: bool) -> (f32, f32, f32) {
     let mut app = app();
+    app.session.prefs.preview_lines = preview_lines;
+    app.session.prefs.tight_spacing = tight;
     let rows = app.session.rows();
     // The third row and the one after it: neither pinned, both under a date's heading.
     let (Some(empty), Some(other)) = (rows.get(2).map(|r| r.id), rows.get(3).map(|r| r.id)) else { panic!("too few rows") };
@@ -89,14 +92,30 @@ fn a_message_with_nothing_to_preview_sits_in_the_middle_of_its_row() {
     let mut harness = window(app);
     let rows = drawn(&mut harness);
     let rect_of = |id| rows.iter().find(|(row, _)| row.id == id).map(|(_, rect)| *rect).unwrap_or_else(|| panic!("row {id} not drawn"));
-    let sender_y = |harness: &Window, id| harness.state().hit.rect("messageSender", id).unwrap_or_else(|| panic!("no sender on {id}")).center().y;
+    let sender_at = |id| {
+        let y = harness.state().hit.rect("messageSender", id).unwrap_or_else(|| panic!("no sender on {id}")).center().y;
+        y - rect_of(id).min.y
+    };
     let (empty_rect, other_rect) = (rect_of(empty), rect_of(other));
-    assert_eq!(empty_rect.height(), other_rect.height(), "every row stays as tall");
-    assert!((sender_y(&harness, other) - (other_rect.min.y + SENDER_Y)).abs() < 0.01, "a row with a preview is as it was");
-    let drop = empty_preview_drop(1);
-    assert!(drop > 0.0);
-    assert!((sender_y(&harness, empty) - (empty_rect.min.y + SENDER_Y + drop)).abs() < 0.01, "the empty row's lines move down");
-    // The blank is now shared about evenly above the sender's line and below the subject's.
-    let (above, below) = (SENDER_Y + drop, empty_rect.height() - (SUBJECT_Y + drop));
-    assert!((above - below).abs() < 3.0, "{above} above, {below} below");
+    assert_eq!(empty_rect.height(), other_rect.height(), "every row stays as tall ({preview_lines} lines, tight {tight})");
+    (sender_at(empty), sender_at(other), empty_rect.height())
+}
+
+#[test]
+fn a_message_with_nothing_to_preview_sits_in_the_middle_of_its_row() {
+    // One, two and three lines of preview, with Tighter Spacing off and on.
+    for lines in 1..=3 {
+        for tight in [false, true] {
+            let (empty, full, height) = empty_and_full_row(lines, tight);
+            let drop = empty_preview_drop(lines);
+            assert!(drop > 0.0);
+            // A row with a preview is where it was; the empty row's lines move down by the drop.
+            let lift = tightening(tight, false) / 2.0;
+            assert!((full - (SENDER_Y - lift)).abs() < 0.01, "{lines} lines, tight {tight}: a row with a preview is at {full}");
+            assert!((empty - (full + drop)).abs() < 0.01, "{lines} lines, tight {tight}: the empty row's lines move down by {drop}");
+            // The blank is now shared about evenly above the sender's line and below the subject's.
+            let (above, below) = (empty, height - (empty + SUBJECT_Y - SENDER_Y));
+            assert!((above - below).abs() < 3.0, "{lines} lines, tight {tight}: {above} above, {below} below");
+        }
+    }
 }

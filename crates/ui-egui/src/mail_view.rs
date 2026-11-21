@@ -1044,14 +1044,19 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
         }
     }
     if let (true, Some(fill)) = (selected, fill) {
-        p.rect_filled(card, 6.0, if flag_tint { fill.gamma_multiply(0.72) } else { fill });
+        p.rect_filled(card, 6.0, if flag_tint { fill.gamma_multiply(crate::theme::LIST_FLAGGED_SELECTION) } else { fill });
         let edge = if focus { t.selection_edge } else { t.selection_edge_unfocused };
         p.rect_stroke(card, 6.0, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
     }
-    if !selected && (resp.hovered() || read_resp.hovered() || arrow.as_ref().is_some_and(egui::Response::hovered) || quick.is_some()) {
+    let hovered = resp.hovered() || read_resp.hovered() || arrow.as_ref().is_some_and(egui::Response::hovered) || quick.is_some();
+    if !selected && hovered {
         // The pointer's shade goes over a flagged row's tint.
         p.rect_filled(card, 6.0, t.hover_subtle);
     }
+    // The row's coloured text (an unread sender in the accent's colour, an overdue one in red,
+    // "[Draft]") is fitted to what is under it, which no one colour of the palette is (#1657).
+    let under = t.list_row_under(shade, flag_tint, selected.then_some(focus), hovered);
+    let ink = |c: Color32| t.text_ink_on(c, under);
     // Past its due date, its text is red.
     let overdue = follow_up == FollowUp::Overdue;
     if overdue {
@@ -1122,8 +1127,8 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
         crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
     let (date_font, date_color) = match (unread, overdue) {
         (true, false) => (semibold(LIST_TEXT), t.text),
-        (true, true) => (semibold(LIST_TEXT), t.overdue),
-        (false, _) => (regular(LIST_TEXT), if overdue { t.overdue } else { t.text }),
+        (true, true) => (semibold(LIST_TEXT), ink(t.overdue)),
+        (false, _) => (regular(LIST_TEXT), if overdue { ink(t.overdue) } else { t.text }),
     };
     if let Some((delete, flag)) = &quick {
         for (resp, at, icon, color) in
@@ -1215,14 +1220,14 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     let who_end = if one { (left + one_line_sender_width(time_end - left)).min(x - 4.0 - size_room - one_tags.width) } else { text_end.min(x - 4.0) };
     let mut who_x = left;
     if m.draft {
-        let w = paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), tl!("[Draft]"), regular(SENDER_TEXT), t.red);
+        let w = paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), tl!("[Draft]"), regular(SENDER_TEXT), ink(t.red));
         who_x += w + 5.0;
     }
     // An unread sender is in the accent's text colour as well as heavier, so that unread mail
     // stands out from read mail down the list (#1657).
     let who_color = match (overdue, unread) {
-        (true, _) => t.overdue,
-        (false, true) => t.accent_text,
+        (true, _) => ink(t.overdue),
+        (false, true) => ink(t.accent_text),
         (false, false) => t.text,
     };
     let w = paint_clipped(p, pos2(who_x, line1), (who_end - who_x).max(0.0), &who, who_font, who_color);
@@ -1291,8 +1296,8 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
     let (sfont, scolor) = match (unread, overdue) {
         (true, false) => (semibold(LIST_TEXT), t.text),
-        (true, true) => (semibold(LIST_TEXT), t.overdue),
-        (false, _) => (regular(LIST_TEXT), if overdue { t.overdue } else { t.text }),
+        (true, true) => (semibold(LIST_TEXT), ink(t.overdue)),
+        (false, _) => (regular(LIST_TEXT), if overdue { ink(t.overdue) } else { t.text }),
     };
     let subject_x = if one { who_end + 10.0 } else { left };
     paint_clipped(p, pos2(subject_x, line2), (subject_end - subject_x).max(0.0), subject, sfont, scolor);
