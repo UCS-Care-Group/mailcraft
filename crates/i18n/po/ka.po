@@ -7883,7 +7883,7 @@ msgstr "ინახება სისტემის ავტორიზა�
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Kept in this browser's storage, saved as you go. Use Open & Export to keep a copy as a file."
-msgstr "ინახება ამ ბრაუზერის საცავში, მუშაობისას ავტომატურად. ფაილად ასლის შესანახად გამოიყენეთ „გახსნა და ექსპორტირება“."
+msgstr "ინახება ამ ბრაუზერის საცავში, მუშაობისას ავტომატურად. ფაილად ასლის შესანახად გამოიყენეთ „გახსნა და ექსპორტი“."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10649,7 +10649,7 @@ msgstr "Outlook-ის სიაში არ არის: იქ ფერი 
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
-msgstr "ჯერ არსად ინახება: გამოიყენეთ „გახსნა და ექსპორტირება › საფოსტო ყუთის შენახვა როგორც“."
+msgstr "ჯერ არსად ინახება: გამოიყენეთ „გახსნა და ექსპორტი › საფოსტო ყუთის შენახვა როგორც“."
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
@@ -11277,7 +11277,7 @@ msgstr ""
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Open & Export"
-msgstr "გახსნა და ექსპორტირება"
+msgstr "გახსნა და ექსპორტი"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
