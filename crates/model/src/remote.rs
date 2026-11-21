@@ -885,6 +885,12 @@ pub struct EventsUpload {
     /// name; whoever carries the upload out then uses what it knows of this computer's zone.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub zone: String,
+    /// A category renamed here, for the events on the server that aren't kept here (#851): after
+    /// the changes, the server is asked for the events of the account's own calendars that carry
+    /// the old name and each is given the new one ([`crate::Mailbox::events_rename`]). Never for
+    /// a shared mailbox's calendars.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rename: Option<CategoryRename>,
 }
 
 /// What a server made of one [`EventOp`].
@@ -978,6 +984,9 @@ pub struct EventsUploaded {
     /// The server stopped taking the sign-in part-way: a new one is needed for the rest.
     #[serde(skip_serializing_if = "is_false")]
     pub token_refused: bool,
+    /// What the server made of the upload's rename of a category ([`EventsUpload::rename`], #851).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renamed: Option<CategoryRenamed>,
 }
 
 impl EventsUpload {
@@ -1239,6 +1248,132 @@ impl CategoriesDownload {
 
 /// Most changes to a list of categories that one job tells its server (#661).
 pub const MAX_CATEGORY_CHANGES: usize = 100;
+
+/// Most renames of one account's categories that wait for the items on its server at once
+/// ([`crate::Mailbox::category_sweeps`]); the oldest gives way to one more.
+pub const MAX_CATEGORY_SWEEPS: usize = 32;
+/// Most items one run gives a renamed category's new name on a server; the rest go with later runs.
+pub const MAX_RENAMED_ITEMS: usize = 2_000;
+/// Most calendars one run asks for the events that carry a renamed category.
+pub const MAX_RENAMED_CALENDARS: usize = 64;
+
+/// A category renamed here whose old name items on the account's server may still carry (#851):
+/// mail and events that aren't kept on this computer, which the server is asked for and gives the
+/// new name. The old name is deleted from the server's list only after them
+/// ([`crate::Mailbox::category_upload`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategorySweep {
+    /// The old name, as the server has it.
+    pub from: String,
+    pub to: String,
+    /// The account's mail on its server has the new name (or can't be given it).
+    #[serde(skip_serializing_if = "is_false")]
+    pub mail_done: bool,
+    /// So have the events of its own calendars.
+    #[serde(skip_serializing_if = "is_false")]
+    pub events_done: bool,
+    /// Runs in a row that changed none of its mail (of its events) while the server answered "not
+    /// now" for some of them, or failed at the question: after [`MAX_RENAME_TRIES`] it is given up.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub mail_tries: u32,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub events_tries: u32,
+    /// Some of its mail or events on the server keep the old name for good (the server wouldn't
+    /// change them or say which they are, or they were left as they are): the old name isn't
+    /// deleted from the server's list, and is put back on the list here once both parts ended.
+    #[serde(skip_serializing_if = "is_false")]
+    pub kept: bool,
+    /// The owner was told that its events wait for the calendar's permission.
+    #[serde(skip_serializing_if = "is_false")]
+    pub events_told: bool,
+    /// How many of its messages (of its events) on the server the runs before gave the new name:
+    /// a rename of more than a run changes is said with all of them once it is done.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub mail_changed: u32,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub events_changed: u32,
+}
+
+/// How many runs in a row may change nothing of a renamed category's items, the server answering
+/// "not now" for them or failing at the question each time, before those items are left with the
+/// old name. (A busy server and a lost connection are no such runs: they are waited out.)
+pub const MAX_RENAME_TRIES: u32 = 10;
+
+/// What a server is asked to do for a [`CategorySweep`]: give every item that carries `from` the
+/// name `to` in its place. For mail, the whole mailbox; for events, the account's main calendar
+/// and `calendars`, by what the server calls them.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoryRename {
+    pub from: String,
+    pub to: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub calendars: Vec<String>,
+}
+
+impl CategoryRename {
+    /// Cut to size: names are one line, the calendars are capped and are ids a server could give.
+    pub fn tidy(&mut self) {
+        self.from = line(&self.from, MAX_NAME);
+        self.to = line(&self.to, MAX_NAME);
+        self.calendars.truncate(MAX_RENAMED_CALENDARS);
+        for calendar in &mut self.calendars {
+            *calendar = clean_key(calendar);
+        }
+        self.calendars.retain(|calendar| !calendar.is_empty());
+    }
+}
+
+/// What a server made of a [`CategoryRename`].
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoryRenamed {
+    pub from: String,
+    pub to: String,
+    /// Nothing on the server carries the old name any more, but what it wouldn't change
+    /// (`skipped`) and what was left as it is (`passed`). Without it the rest goes with a later run.
+    #[serde(skip_serializing_if = "is_false")]
+    pub done: bool,
+    /// The sign-in doesn't cover it: asking again changes nothing.
+    #[serde(skip_serializing_if = "is_false")]
+    pub denied: bool,
+    /// The server wouldn't say which items carry the name: asking again changes nothing.
+    #[serde(skip_serializing_if = "is_false")]
+    pub refused: bool,
+    /// How many items were given the new name, and how many the server wouldn't change.
+    pub changed: u32,
+    pub skipped: u32,
+    /// How many it answered "not now" for (changed there meanwhile, its own trouble), or gave no
+    /// answer for when asked to change them: they wait for a later run.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub stuck: u32,
+    /// How many were left as they are, no change asked for: the change writes an item's whole
+    /// list of categories, and theirs is longer than is taken in, or holds what isn't a plain
+    /// name. They keep the old name.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub passed: u32,
+    /// The server failed at the question itself (its own trouble, a refusal part-way through
+    /// a list, or a run's fill listed of which none was changed and some were gone): not done, and unlike a busy server or a connection lost while the lists are read it counts as a try.
+    #[serde(skip_serializing_if = "is_false")]
+    pub failed: bool,
+    /// How many of the lists asked (calendars) the server wouldn't say it for, while it did for
+    /// others: their items keep the old name.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub lists_refused: u32,
+    /// Done without the lists having been read to their ends: a run's fill was listed and none
+    /// of it could be changed, so more items than are counted may keep the old name.
+    #[serde(skip_serializing_if = "is_false")]
+    pub more: bool,
+}
+
+impl CategoryRenamed {
+    /// Cut to size: names are one line.
+    pub fn tidy(&mut self) {
+        self.from = line(&self.from, MAX_NAME);
+        self.to = line(&self.to, MAX_NAME);
+    }
+}
 
 /// What a change to an account's list of categories does on its server (#661).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

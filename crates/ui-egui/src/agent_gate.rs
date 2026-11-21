@@ -307,17 +307,24 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class], only: Option
     app.session.agent = Some(allow.to_vec());
     app.session.owner_changing = changing;
     app.session.only_shown = only;
+    let owner = app.windows.dialog_for;
     let r = app.execute(id, params);
     app.session.agent = None;
     app.session.owner_changing = Vec::new();
     app.session.only_shown = None;
-    if let Some(form) = owners
-        && let Some(opened) = app.dialog.replace(form)
-    {
-        return err(format!(
-            "`{id}` ran, but the dialog \"{}\" it opened would have taken the place of a form the owner is filling in and hasn't saved: the form stays, and that dialog wasn't shown. Try again once the owner has closed the form",
-            opened.name()
-        ));
+    if let Some(form) = owners {
+        // The form was only set aside. A dialog the command opened is not shown, and the form
+        // is still the one its window had open.
+        let opened = app.dialog.replace(form);
+        if let Some(compose) = owner {
+            app.windows.claim_dialog(compose);
+        }
+        if let Some(opened) = opened {
+            return err(format!(
+                "`{id}` ran, but the dialog \"{}\" it opened would have taken the place of a form the owner is filling in and hasn't saved: the form stays, and that dialog wasn't shown. Try again once the owner has closed the form",
+                opened.name()
+            ));
+        }
     }
     match r {
         Ok(v) => ok(v),

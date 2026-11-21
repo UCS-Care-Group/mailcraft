@@ -229,7 +229,7 @@ impl MailApp {
             ask.more.push((label(*id), json!({"account": id})));
         }
         self.tasks.offer_open = true;
-        self.dialog = Some(Dialog::Confirm { command: "tasks.sendLocal".to_string(), params: json!({}), ask: Box::new(ask) });
+        self.set_dialog(Some(Dialog::Confirm { command: "tasks.sendLocal".to_string(), params: json!({}), ask: Box::new(ask) }));
         true
     }
 
