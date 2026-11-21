@@ -312,7 +312,7 @@ impl NameChoice {
                 } else if r.hovered() {
                     ui.painter().rect_filled(rect, 4.0, t.hover);
                 }
-                paint_candidate_line(ui.painter(), rect, rect.min.y + 11.0, &first_line(person), regular(13.0), t.text, rtl);
+                paint_candidate_line(ui.painter(), rect, rect.min.y + 11.0, &first_line(person, rtl), regular(13.0), t.text, rtl);
                 paint_candidate_line(ui.painter(), rect, rect.min.y + 27.0, &second_line(person), regular(11.0), t.text_dim, rtl);
                 if r.clicked() {
                     self.selected = index;
@@ -352,9 +352,17 @@ impl NameChoice {
 }
 
 /// The name and address of a person of a choice.
-fn first_line(person: &Value) -> String {
+fn first_line(person: &Value, rtl: bool) -> String {
     let (name, email) = (person["name"].as_str().unwrap_or(""), person["email"].as_str().unwrap_or(""));
-    if name.is_empty() { email.to_string() } else { format!("{name} <{email}>") }
+    if name.is_empty() {
+        email.to_string()
+    } else if rtl && !email.is_empty() {
+        // Keep <address@domain> together in its LTR order beside a Hebrew display name.
+        // These isolates affect the painted label only, never the chosen recipient JSON.
+        format!("{name} \u{2066}<{email}>\u{2069}")
+    } else {
+        format!("{name} <{email}>")
+    }
 }
 
 /// What tells them apart: the job title, department and company, what kind of recipient it is
@@ -387,4 +395,29 @@ fn key(text: &str) -> String {
 
 fn strings(v: &Value) -> Vec<String> {
     v.as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect()
+}
+
+
+#[cfg(test)]
+mod hebrew_email_bidi_tests {
+    use super::*;
+
+    #[test]
+    fn check_names_hebrew_name_keeps_email_brackets_left_to_right() {
+        let person = json!({"name": "דנה", "email": "dana@example.org"});
+        assert_eq!(first_line(&person, false), "דנה <dana@example.org>");
+        assert_eq!(first_line(&person, true), "דנה \u{2066}<dana@example.org>\u{2069}");
+        // With no display name the bare address remains unchanged in both locales.
+        let bare = json!({"name": "", "email": "dana@example.org"});
+        assert_eq!(first_line(&bare, false), "dana@example.org");
+        assert_eq!(first_line(&bare, true), "dana@example.org");
+    }
+
+    #[test]
+    fn check_names_ltr_and_empty_address_keep_previous_display() {
+        let person = json!({"name": "Dana", "email": "dana@example.org"});
+        assert_eq!(first_line(&person, false), "Dana <dana@example.org>");
+        let empty = json!({"name": "דנה", "email": ""});
+        assert_eq!(first_line(&empty, true), "דנה <>");
+    }
 }
