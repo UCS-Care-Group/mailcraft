@@ -1308,6 +1308,25 @@ fn repair_drops_a_saved_search_with_nothing_to_search_for() {
     assert_eq!(mb.search_favorites[0].name, "Kept");
 }
 
+/// A damaged entry does not take one of the 50 slots from a real search that follows it.
+#[test]
+fn repair_keeps_a_real_saved_search_that_sits_past_fifty_damaged_ones() {
+    let (mut mb, _) = mailbox();
+    mb.search_favorites = (0..MAX_SEARCH_FAVORITES)
+        .map(|_| SearchFavorite { id: 0, name: "Gone".into(), query: "x".into(), scope: "folder".into(), folder: 0 })
+        .collect();
+    mb.search_favorites.push(SearchFavorite { id: 4, name: "Kept".into(), query: "from:ada".into(), scope: "folder".into(), folder: 0 });
+    mb.repair();
+    assert_eq!(mb.search_favorites.len(), 1);
+    assert_eq!(mb.search_favorites[0].name, "Kept");
+    mb.search_favorites = (1..=u64::try_from(MAX_SEARCH_FAVORITES).unwrap_or(50) + 1)
+        .map(|id| SearchFavorite { id, name: format!("S{id}"), query: "from:ada".into(), scope: "folder".into(), folder: 0 })
+        .collect();
+    mb.repair();
+    assert_eq!(mb.search_favorites.len(), MAX_SEARCH_FAVORITES);
+    assert_eq!(mb.search_favorites.last().unwrap().id, u64::try_from(MAX_SEARCH_FAVORITES).unwrap_or(50));
+}
+
 #[test]
 fn removing_an_account_clears_a_saved_search_that_named_its_folder() {
     let (mut mb, account) = mailbox();

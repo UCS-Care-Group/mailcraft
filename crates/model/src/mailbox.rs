@@ -4457,8 +4457,7 @@ impl Mailbox {
     fn repair_search_favorites(&mut self) -> bool {
         let scopes = ["folder", "subfolders", "mailbox", "everywhere"];
         let folders: HashSet<Id> = self.folders.iter().map(|f| f.id).collect();
-        let mut changed = self.search_favorites.len() > MAX_SEARCH_FAVORITES;
-        self.search_favorites.truncate(MAX_SEARCH_FAVORITES);
+        let mut changed = false;
         let mut seen = HashSet::new();
         self.search_favorites.retain(|f| {
             let keep = (1..=MAX_ID).contains(&f.id) && seen.insert(f.id);
@@ -4493,7 +4492,11 @@ impl Mailbox {
         }
         let before = self.search_favorites.len();
         self.search_favorites.retain(|f| !f.name.is_empty() && !f.query.trim().is_empty());
-        changed || self.search_favorites.len() != before
+        changed |= self.search_favorites.len() != before;
+        // After the bad ones are gone, so a damaged entry cannot take a slot a real search needs.
+        let over = self.search_favorites.len() > MAX_SEARCH_FAVORITES;
+        self.search_favorites.truncate(MAX_SEARCH_FAVORITES);
+        changed || over
     }
 
     /// Make a mailbox read from a file consistent, whatever the file held: ids are unique and

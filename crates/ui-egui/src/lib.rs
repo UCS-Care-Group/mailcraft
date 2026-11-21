@@ -3986,7 +3986,7 @@ impl MailApp {
             self.secrets_opening = opening;
             // A question about the mailbox that was open goes with it: it names messages and
             // accounts by ids, which the other mailbox may have too (#503).
-            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. })) {
+            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. } | dialogs::Dialog::SearchFavorite { .. })) {
                 self.set_dialog(None);
             }
             // An agent's too.
