@@ -16,6 +16,8 @@ mod bulk;
 mod followup;
 #[path = "mailbox_snooze.rs"]
 mod snooze;
+#[path = "category_sweep.rs"]
+mod sweep;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
@@ -1369,6 +1371,12 @@ pub struct Mailbox {
     /// there all the same.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_renames")]
     pub category_renames: BTreeMap<Id, BTreeMap<String, String>>,
+    /// The renames of each Microsoft account's categories that items on its server still wait
+    /// for (#851): mail and events that aren't kept on this computer, asked for there and given
+    /// the new name, before the old one is deleted from the server's list. In the file, so that
+    /// it goes on after MailCraft was closed.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_sweeps")]
+    pub category_sweeps: BTreeMap<Id, Vec<crate::remote::CategorySweep>>,
     /// The next id to be given when the first of [`Mailbox::account_categories`] was made: an
     /// account with a lower id was here while one list served them all, so
     /// [`Mailbox::categories`] may hold its server's names. One added since has none there.
@@ -1452,6 +1460,7 @@ impl Default for Mailbox {
             category_writes: std::collections::BTreeSet::new(),
             categories_found: BTreeMap::new(),
             category_renames: BTreeMap::new(),
+            category_sweeps: BTreeMap::new(),
             category_stamp: 0,
             own_lists_began: 0,
             zone: String::new(),
@@ -1498,6 +1507,16 @@ pub const FOLDERS_NOT_DELETED_YET: &str = "MailCraft doesn't delete a JMAP accou
 /// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607, #1074).
 pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again sends it";
 
+/// What a draft moved into an Outbox says instead ([`MOVED_INTO_OUTBOX`]): Send Again doesn't send
+/// a draft, for nobody has said its recipients are right; Send does, with its questions (#1747).
+pub const DRAFT_MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Open the draft and send it";
+
+/// Whether `held` says only that the message was moved into an Outbox ([`MOVED_INTO_OUTBOX`],
+/// [`DRAFT_MOVED_INTO_OUTBOX`]).
+pub fn held_for_moving_in(held: &str) -> bool {
+    held == MOVED_INTO_OUTBOX || held == DRAFT_MOVED_INTO_OUTBOX
+}
+
 /// Only what is queued with Send leaves through an IMAP account's Outbox (#607), and a message moved
 /// into a JMAP account's is held the same way (#1074, [`Mailbox::holds_what_is_moved_in`]): a message moved
 /// or copied there is held, as one a Microsoft account's server refused is, until Send Again. One
@@ -1511,9 +1530,9 @@ fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
     m.sent_here = false;
     if into_outbox {
         if m.held.is_empty() {
-            m.held = MOVED_INTO_OUTBOX.to_string();
+            m.held = if m.draft { DRAFT_MOVED_INTO_OUTBOX } else { MOVED_INTO_OUTBOX }.to_string();
         }
-    } else if m.held == MOVED_INTO_OUTBOX {
+    } else if held_for_moving_in(&m.held) {
         m.held.clear();
     }
 }
@@ -1661,6 +1680,7 @@ impl Mailbox {
         self.local_categories.retain(|account, _| !going.contains(account));
         self.category_writes.retain(|account| !going.contains(account));
         self.category_renames.retain(|account, _| !going.contains(account));
+        self.category_sweeps.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
         for task in self.tasks.values_mut().filter(|t| going.contains(&t.origin.account)) {
             let task = Arc::make_mut(task);
@@ -2806,7 +2826,7 @@ impl Mailbox {
             Some(format!("The text of \"{subject}\" couldn't be read on this computer, so it can't be {doing} to another mailbox"))
         } else if m.unfetched && !fetched_first {
             Some(not_downloaded_yet(&subject))
-        } else if m.draft || m.server_draft.is_some() || (!m.held.is_empty() && m.held != MOVED_INTO_OUTBOX) {
+        } else if m.draft || m.server_draft.is_some() || (!m.held.is_empty() && !held_for_moving_in(&m.held)) {
             Some(format!("The draft \"{subject}\" stays in its own mailbox: send it from there"))
         } else {
             None
@@ -3683,6 +3703,13 @@ impl Mailbox {
             let known =
                 self.synced_categories.get(&owner).and_then(|synced| synced.iter().find(|c| same_category(&c.name, from))).map(|c| c.name.clone());
             let earlier = self.category_renames.get_mut(&owner).and_then(|renames| renames.remove(&category_key(from)));
+            // What only the server has of it takes the new name there too (#851): what carries
+            // the name the server knows, and what an earlier rename was giving this one.
+            let given = self.category_sweeps.get(&owner).is_some_and(|sweeps| sweeps.iter().any(|s| same_category(&s.to, from)));
+            if known.is_some() || given {
+                let there = known.clone().unwrap_or_else(|| from.to_string());
+                self.note_category_sweep(owner, &there, &to);
+            }
             match earlier.or(known) {
                 Some(old) => {
                     self.category_renames.entry(owner).or_default().insert(category_key(&to), old);
@@ -3881,7 +3908,8 @@ impl Mailbox {
             // The items that carried it take their new names there first, as Outlook moves them.
             let names: Vec<&str> = deletes.iter().map(|d| d.name.as_str()).collect();
             let carried = self.carried_there(owner, &names);
-            changes.extend(deletes.into_iter().filter(|d| !carried.contains(&category_key(&d.name))));
+            // So does what only the server has of it, which is asked for there (#851).
+            changes.extend(deletes.into_iter().filter(|d| !carried.contains(&category_key(&d.name)) && !self.sweep_holds(owner, &d.name)));
         }
         changes.extend(creates);
         changes.extend(colors);
@@ -4094,6 +4122,7 @@ impl Mailbox {
         self.set_synced(owner, synced);
         self.tidy_local(owner);
         self.tidy_renames(owner);
+        self.tidy_sweeps(owner);
         (said, news)
     }
 
@@ -4139,6 +4168,7 @@ impl Mailbox {
         self.category_writes.remove(&owner);
         self.categories_found.remove(&owner);
         self.category_renames.remove(&owner);
+        self.category_sweeps.remove(&owner);
         let names: Vec<String> = self.categories_of(owner).iter().map(|c| c.name.clone()).collect();
         if names.is_empty() {
             self.local_categories.remove(&owner);
@@ -4293,6 +4323,7 @@ impl Mailbox {
         self.local_categories.retain(|account, _| own.contains(account));
         self.category_writes.retain(|account| keep.contains(account));
         self.category_renames.retain(|account, _| keep.contains(account));
+        self.category_sweeps.retain(|account, _| keep.contains(account));
         let unsettled: Vec<Id> = self.server_categories.keys().copied().filter(|id| !self.synced_categories.contains_key(id)).collect();
         for owner in unsettled {
             let names = self.server_categories.get(&owner).cloned().unwrap_or_default();
@@ -4624,6 +4655,9 @@ impl Mailbox {
                     }
                     if let Some(renames) = self.category_renames.remove(&old) {
                         self.category_renames.insert(a.id, renames);
+                    }
+                    if let Some(sweeps) = self.category_sweeps.remove(&old) {
+                        self.category_sweeps.insert(a.id, sweeps);
                     }
                 }
                 seen.insert(a.id);

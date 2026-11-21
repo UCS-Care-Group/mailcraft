@@ -8,7 +8,7 @@
 use egui::{Color32, Stroke};
 
 use super::Tokens;
-use super::accent::{Accent, AccentInk};
+use super::accent::{Accent, AccentInk, DEFAULT_CUSTOM_COLOR, custom_ink};
 
 fn hex(v: u32) -> Color32 {
     Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8)
@@ -65,8 +65,8 @@ impl serde::Serialize for DarkStyle {
 
 impl Accent {
     /// The accent's colours on the blue-tinted dark greys, high contrast or not: its washes are
-    /// tinted to sit on them.
-    pub fn ink_on_blue(self, high_contrast: bool) -> AccentInk {
+    /// tinted to sit on them. A custom accent is worked out from `custom` against this palette.
+    pub fn ink_on_blue(self, high_contrast: bool, custom: Option<egui::Color32>) -> AccentInk {
         let row = |a, at, oa, soft, st, sel, today| AccentInk {
             accent: hex(a),
             text: hex(at),
@@ -85,6 +85,11 @@ impl Accent {
             (Accent::Teal, true) => row(0x6FE8DA, 0x9FF2E8, 0x03201C, 0x0F4440, 0xE0FAF7, 0x123B3A, 0x10403F),
             (Accent::Violet, true) => row(0xC2B6FF, 0xDAD2FF, 0x120A35, 0x352A72, 0xEFEBFF, 0x2A2552, 0x2E2865),
             (Accent::Graphite, true) => row(0xC0CCDB, 0xDCE3EC, 0x0C131D, 0x344055, 0xF0F3F7, 0x2A3342, 0x2E3849),
+            (Accent::Custom, high_contrast) => {
+                let base = Tokens::dark_blue();
+                let base = if high_contrast { base.high_contrast().high_contrast_blue() } else { base };
+                custom_ink(custom.unwrap_or(DEFAULT_CUSTOM_COLOR), &base)
+            }
         }
     }
 }
@@ -92,12 +97,21 @@ impl Accent {
 impl Tokens {
     /// The tokens for a dark window in `style`, in `accent`, with high contrast on or off.
     pub fn build_dark(style: DarkStyle, accent: Accent, high_contrast: bool) -> Tokens {
+        Self::build_dark_choice(style, accent, None, high_contrast)
+    }
+
+    /// The tokens for a dark window in `style`, in `accent` — with `custom` as the colour when the
+    /// accent is a custom one, fitted to the style's own greys — and high contrast on or off.
+    pub fn build_dark_choice(style: DarkStyle, accent: Accent, custom: Option<egui::Color32>, high_contrast: bool) -> Tokens {
         match style {
-            DarkStyle::Neutral => Tokens::build(true, accent, high_contrast),
+            DarkStyle::Neutral => Tokens::build_choice(true, accent, custom, high_contrast),
             DarkStyle::Blue => {
                 let base = Tokens::dark_blue();
                 let base = if high_contrast { base.high_contrast().high_contrast_blue() } else { base };
-                base.with_accent(accent.ink_on_blue(high_contrast))
+                match accent {
+                    Accent::Custom => base.with_accent(custom_ink(custom.unwrap_or(DEFAULT_CUSTOM_COLOR), &base)),
+                    a => base.with_accent(a.ink_on_blue(high_contrast, custom)),
+                }
             }
         }
     }

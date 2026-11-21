@@ -721,6 +721,11 @@ msgstr "Accent"
 msgid "Accent Colour"
 msgstr "Culoare de accent"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4068,6 +4073,11 @@ msgstr "Cutia poștală curentă"
 #, fuzzy
 msgid "Current View"
 msgstr "Vizualizarea curentă"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr ""
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
@@ -11853,6 +11863,11 @@ msgid "Paste Picture"
 msgstr "Lipire imagine"
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+msgid "Paste Text Only"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste or write the signature's HTML"
@@ -12979,6 +12994,18 @@ msgstr "Redenumește folderul…"
 #, fuzzy
 msgid "Rename Signature"
 msgstr "Redenumire semnătură"
+
+#. name
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Renaming a category on the server"
+msgstr "Redenumirea unei categorii pe server"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr "Redenumirea unei categorii pe server: {done} din {total} mesaje"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16675,6 +16702,24 @@ msgstr "Categoriile trimise nu au putut fi înregistrate: {error}"
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "Categoria „{name}” nu a putut fi pusă la loc: lista de categorii este plină."
 
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] "Categorie redenumită la evenimente pe server: {n}"
+msgstr[1] "Categorie redenumită la evenimente pe server: {n}"
+msgstr[2] "Categorie redenumită la evenimente pe server: {n}"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] "Categorie redenumită la mesaje pe server: {n}"
+msgstr[1] "Categorie redenumită la mesaje pe server: {n}"
+msgstr[2] "Categorie redenumită la mesaje pe server: {n}"
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
@@ -17757,6 +17802,11 @@ msgstr "Autentificarea a fost anulată."
 #, fuzzy
 msgid "The sign-in was declined."
 msgstr "Autentificarea a fost refuzată."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -22357,6 +22407,11 @@ msgstr "aceasta nu este parola acestui fișier .pst: nu s-a importat nimic"
 #, fuzzy
 msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "acea cutie poștală este deschisă în altă fereastră MailCraft; închideți-o întâi acolo"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "that message is a draft: open it and send it"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

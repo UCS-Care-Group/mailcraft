@@ -28,6 +28,8 @@ pub mod categories_remote;
 mod categories_remote_tests;
 pub mod category;
 #[cfg(test)]
+mod category_sweep_tests;
+#[cfg(test)]
 mod category_tests;
 pub mod compose;
 #[cfg(test)]

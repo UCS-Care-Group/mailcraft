@@ -119,6 +119,10 @@ impl MailApp {
         let facts = CalendarFacts { focused, backstage: self.ui.backstage, reachable: self.services.graph.is_some(), busy: self.job_busy() };
         let look = self.session.calendar_due(&facts, now);
         self.tell_dropped(&look.dropped);
+        for (account, line) in look.said.iter().take(20) {
+            self.status(line.clone());
+            self.keep_sync_problems(*account, std::slice::from_ref(line));
+        }
         // A calendar ticked in a shared mailbox that the owner's permission is missing for: asked.
         if look.may_ask {
             self.shared_calendars_ask_tick();
@@ -467,7 +471,7 @@ impl MailApp {
         } else {
             tl!("The calendar connection check found a problem: see its report")
         });
-        self.dialog = Some(crate::dialogs::Dialog::Report { name: "calendarCheck", title: tl!("Calendar Connection Check").to_string(), lines });
+        self.set_dialog(Some(crate::dialogs::Dialog::Report { name: "calendarCheck", title: tl!("Calendar Connection Check").to_string(), lines }));
         // The calendar is looked at again at once, when it is in front.
         self.session.driver.calendar.due = true;
     }

@@ -720,6 +720,11 @@ msgstr "Zvýraznění"
 msgid "Accent Colour"
 msgstr "Barva zvýraznění"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4060,6 +4065,11 @@ msgstr "Aktuální poštovní schránka"
 #, fuzzy
 msgid "Current View"
 msgstr "Aktuální zobrazení"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr ""
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
@@ -11836,6 +11846,11 @@ msgid "Paste Picture"
 msgstr "Vložit obrázek"
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+msgid "Paste Text Only"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste or write the signature's HTML"
@@ -12961,6 +12976,18 @@ msgstr "Přejmenovat složku…"
 #, fuzzy
 msgid "Rename Signature"
 msgstr "Přejmenovat podpis"
+
+#. name
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Renaming a category on the server"
+msgstr "Přejmenování kategorie na serveru"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr "Přejmenování kategorie na serveru: {done} z {total} zpráv"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16651,6 +16678,24 @@ msgstr "Odeslané kategorie se nepodařilo zaznamenat: {error}"
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "Kategorii „{name}“ se nepodařilo vrátit: seznam kategorií je plný."
 
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] "Kategorie přejmenována u událostí na serveru: {n}"
+msgstr[1] "Kategorie přejmenována u událostí na serveru: {n}"
+msgstr[2] "Kategorie přejmenována u událostí na serveru: {n}"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] "Kategorie přejmenována u zpráv na serveru: {n}"
+msgstr[1] "Kategorie přejmenována u zpráv na serveru: {n}"
+msgstr[2] "Kategorie přejmenována u zpráv na serveru: {n}"
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
@@ -17733,6 +17778,11 @@ msgstr "Přihlášení bylo zrušeno."
 #, fuzzy
 msgid "The sign-in was declined."
 msgstr "Přihlášení bylo odmítnuto."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -22332,6 +22382,11 @@ msgstr "to není heslo k tomuto souboru .pst: nic nebylo importováno"
 #, fuzzy
 msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "ta poštovní schránka je otevřená v jiném okně MailCraftu; nejprve ji tam zavřete"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "that message is a draft: open it and send it"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
