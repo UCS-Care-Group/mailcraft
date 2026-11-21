@@ -501,7 +501,7 @@ impl Tokens {
     /// a selection's fill (letting a little of a flag's tint through) or else the pointer's shade.
     /// `selected` is whether the list has the focus, for a selected row. The list paints these
     /// and its coloured text is fitted to what they make ([`RowLayers::under`]), so the two can't
-    /// part.
+    /// part, as long as every layer it paints covers all of the row's text.
     pub fn list_row_layers(&self, shaded: bool, flagged: bool, selected: Option<bool>, hovered: bool) -> RowLayers {
         let selection = selected.map(|focus| {
             let fill = if focus { self.selection } else { self.selection_unfocused };

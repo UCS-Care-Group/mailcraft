@@ -1087,8 +1087,9 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
         }
         app.hit.add("messageAccountColor", row.id, stripe);
     }
-    // What is in the row is laid out from its top as in a row of the full height, moved up with
-    // its lines (the background and the line under it are the row's own, above).
+    // What is in the row is laid out from its top as in a row of the full height, moved with its
+    // lines: up with tighter spacing, down with nothing to preview (the background and the line
+    // under it are the row's own, above).
     let row_bottom = rect.max.y - 1.0;
     let rect = if one { rect } else { rect.translate(vec2(0.0, -lift)) };
     if let Some(arrow) = &arrow {

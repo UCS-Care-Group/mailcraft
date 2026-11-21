@@ -196,3 +196,37 @@ fn an_empty_rows_lines_ease_up_when_its_body_arrives() {
         );
     }
 }
+
+#[test]
+fn results_on_the_server_alternate_too() {
+    use mailcraft_model::sync::{FolderListing, GraphFolder, GraphMailResult, GraphMessage, GraphSearchResult, ServerMessage};
+    const OWNER: &str = "owner@example.org";
+    let mut app = app();
+    app.execute("view.shadeRows", json!({"value": true})).unwrap();
+    // A Microsoft account with its Inbox, searched everywhere for what nothing here says.
+    let s = &mut app.session;
+    let owner = s.run("account.add", &json!({"email": OWNER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = GraphFolder { id: "in".into(), name: "Inbox".into(), kind: mailcraft_model::FolderKind::Inbox, ..Default::default() };
+    let listing = FolderListing { folders: vec![inbox], complete: true };
+    let result = GraphMailResult { account: owner, email: OWNER.into(), listing: Some(listing), ..Default::default() };
+    s.run("sync.applyGraph", &json!({"result": result})).unwrap();
+    s.run("view.search", &json!({"query": "quokka", "scope": "everywhere"})).unwrap();
+    let asked = s.run("sync.graphSearchRequest", &json!({})).unwrap()["requests"][0].clone();
+    let messages: Vec<GraphMessage> = (0..4)
+        .map(|i| GraphMessage {
+            server: ServerMessage { id: format!("AAkA-{i}"), folder: "in".into(), ..Default::default() },
+            subject: format!("Quokka {i}"),
+            received: NOW - 60 * (i + 1),
+            ..Default::default()
+        })
+        .collect();
+    let found = GraphSearchResult { account: owner, email: OWNER.into(), ticket: asked["ticket"].as_u64().unwrap(), messages, ..Default::default() };
+    s.run("sync.applyGraphSearch", &json!({"result": found})).unwrap();
+    let harness = window(app);
+    let hit = &harness.state().hit;
+    assert!(hit.rect("onTheServer", 0).is_some(), "the server's heading is drawn");
+    for i in 0..4 {
+        assert!(hit.rect("serverResult", i).is_some(), "result {i} is drawn");
+        assert_eq!(hit.rect("serverResultShade", i).is_some(), i % 2 == 1, "result {i}, number {i} under its heading");
+    }
+}
