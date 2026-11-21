@@ -56,6 +56,9 @@ pub fn decompress(file: &[u8], limits: &Limits) -> Result<Vec<u8>, Error> {
     // reserves nothing.
     let mut out: Vec<u8> = Vec::new();
     let mut at = HEADER;
+    // The window the last packed block unpacked with: the server's, as a rule, so it is tried
+    // first for the next.
+    let mut window = None;
     while out.len() < target {
         let [flags, packed, unpacked, crc] = words(file, at, "LZX_BLK")?;
         let (packed, unpacked) = (packed as usize, unpacked as usize);
@@ -77,7 +80,7 @@ pub fn decompress(file: &[u8], limits: &Limits) -> Result<Vec<u8>, Error> {
             }
             0 => return Err(Error::Corrupt("a stored LZX_BLK of two sizes")),
             // Its CRC is checked there, for each window tried.
-            1 => out.extend_from_slice(&unpack(data, unpacked, crc, largest)?),
+            1 => out.extend_from_slice(&unpack(data, unpacked, crc, largest, &mut window)?),
             _ => return Err(Error::Corrupt("LZX_BLK flags")),
         }
         at = from.saturating_add(packed);
@@ -95,20 +98,34 @@ fn grow(out: &mut Vec<u8>, more: usize, target: usize) {
     }
 }
 
-/// A packed block: with the window that holds it, and, should that fail, with each other window
-/// up to the one that holds the largest block; only output with the block's CRC is taken, so a
-/// wrong window is never believed. The first failure is the one named.
-fn unpack(data: &[u8], unpacked: usize, crc: u32, largest: u32) -> Result<Vec<u8>, Error> {
+/// A packed block: with the window the block before unpacked with (`window`), then with the one
+/// that holds it, and, should those fail, with each other window up to the one that holds the
+/// largest block; only output with the block's CRC is taken, so a wrong window is never believed.
+/// The window that worked is kept in `window` for the next block. A failure with the window that
+/// holds the block is the one named.
+fn unpack(data: &[u8], unpacked: usize, crc: u32, largest: u32, window: &mut Option<u32>) -> Result<Vec<u8>, Error> {
     let first = window_bits(unpacked)?;
-    let failure = match lzxd::decode(data, &[], first, unpacked) {
-        Ok(block) if crc32(&block) == crc => return Ok(block),
-        Ok(_) => Error::BadChecksum("LZX_BLK"),
+    let try_with = |bits: u32| match lzxd::decode(data, &[], bits, unpacked) {
+        Ok(block) if crc32(&block) == crc => Ok(block),
+        Ok(_) => Err(Error::BadChecksum("LZX_BLK")),
+        Err(e) => Err(e),
+    };
+    let last = window.filter(|&bits| bits != first && (MIN_WINDOW_BITS..=largest).contains(&bits));
+    if let Some(bits) = last
+        && let Ok(block) = try_with(bits)
+    {
+        return Ok(block);
+    }
+    let failure = match try_with(first) {
+        Ok(block) => {
+            *window = Some(first);
+            return Ok(block);
+        }
         Err(e) => e,
     };
-    for bits in (MIN_WINDOW_BITS..=largest).filter(|&b| b != first) {
-        if let Ok(block) = lzxd::decode(data, &[], bits, unpacked)
-            && crc32(&block) == crc
-        {
+    for bits in (MIN_WINDOW_BITS..=largest).filter(|&b| b != first && Some(b) != last) {
+        if let Ok(block) = try_with(bits) {
+            *window = Some(bits);
             return Ok(block);
         }
     }

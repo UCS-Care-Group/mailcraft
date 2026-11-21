@@ -84,7 +84,7 @@ impl HeldList {
     }
 
     /// The people every word of `typed` is found in, in the list's order.
-    fn matching(&self, typed: &str) -> Vec<DirectoryPerson> {
+    fn matching(&self, typed: &str) -> Vec<Arc<DirectoryPerson>> {
         let Some(list) = &self.list else { return Vec::new() };
         let words: Vec<String> = typed.split_whitespace().map(str::to_lowercase).collect();
         list.people.iter().zip(&self.keys).filter(|(_, key)| words.iter().all(|w| key.contains(w.as_str()))).map(|(p, _)| p.clone()).collect()
@@ -98,7 +98,8 @@ pub(crate) struct AddressBook {
     opening: u64,
     /// What was looked up last (or the list narrowed by), and its answer.
     query: String,
-    pub(crate) people: Vec<DirectoryPerson>,
+    /// Shared with the whole list when it is narrowed from one.
+    pub(crate) people: Vec<Arc<DirectoryPerson>>,
     pub(crate) more: bool,
     pub(crate) error: Option<String>,
     pub(crate) selected: Option<usize>,
@@ -163,7 +164,7 @@ impl AddressBook {
 
     /// The person whose card is shown.
     pub(crate) fn chosen(&self) -> Option<&DirectoryPerson> {
-        self.selected.and_then(|i| self.people.get(i))
+        self.selected.and_then(|i| self.people.get(i)).map(|p| &**p)
     }
 
     fn clear(&mut self) {
@@ -210,7 +211,7 @@ impl MailApp {
     }
 
     /// Who People's Address Book shows, while it is shown.
-    pub fn address_book_found(&self) -> &[DirectoryPerson] {
+    pub fn address_book_found(&self) -> &[Arc<DirectoryPerson>] {
         self.address_book.as_ref().map_or(&[], |b| b.people.as_slice())
     }
 
@@ -265,8 +266,9 @@ impl MailApp {
             held.at_ms = now;
             match result.address_list {
                 Some(mut list) => {
-                    list.people = std::mem::take(&mut list.people).into_iter().filter_map(DirectoryPerson::checked).collect();
-                    held.keys = list.people.iter().map(HeldList::key).collect();
+                    list.people =
+                        std::mem::take(&mut list.people).into_iter().filter_map(|p| Arc::unwrap_or_clone(p).checked().map(Arc::new)).collect();
+                    held.keys = list.people.iter().map(|p| HeldList::key(p)).collect();
                     held.list = Some(list);
                     held.error = None;
                     held.version = held.version.wrapping_add(1);
@@ -368,10 +370,6 @@ impl MailApp {
         if changed {
             book.clear();
         }
-        // Being downloaded: nothing is searched meanwhile.
-        if held.is_some_and(|h| h.pending.is_some()) {
-            return;
-        }
         if let Some(pending) = &book.pending {
             match pending.rx.try_recv() {
                 Ok(result) => {
@@ -380,7 +378,7 @@ impl MailApp {
                     let answer = result.found.into_iter().find(|f| f.text.to_lowercase() == query.to_lowercase());
                     book.people = answer
                         .as_ref()
-                        .map(|a| a.people.iter().take(MAX_RESOLVE_PEOPLE).cloned().filter_map(DirectoryPerson::checked).collect())
+                        .map(|a| a.people.iter().take(MAX_RESOLVE_PEOPLE).cloned().filter_map(DirectoryPerson::checked).map(Arc::new).collect())
                         .unwrap_or_default();
                     book.more = answer.is_some_and(|a| a.more);
                     book.error = result.error;
@@ -593,7 +591,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let mut write = None;
     // Only the rows on screen are drawn: a whole address list may hold many thousands.
     egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("address_list").show_rows(ui, ROW_H, count, |ui, rows| {
-        let shown: Vec<(usize, DirectoryPerson)> =
+        let shown: Vec<(usize, Arc<DirectoryPerson>)> =
             app.address_book.as_ref().map(|b| rows.clone().filter_map(|i| b.people.get(i).cloned().map(|p| (i, p))).collect()).unwrap_or_default();
         for (index, person) in &shown {
             let index = *index;

@@ -242,8 +242,8 @@ pub(crate) fn address_list_within(file: &[u8], first: usize, values: usize, kept
     let limits = Limits { max_output: MAX_UNPACKED, max_values: values, max_kept_bytes: kept_bytes, keep_first: Some(first), ..Limits::default() };
     let details = mailcraft_oab::read_details_keeping(&mailcraft_oab::decompress(file, &limits)?, &limits, wanted)?;
     let mut people: Vec<DirectoryPerson> = details.records.iter().filter_map(person).collect();
-    let more = details.cut || people.len() > first;
-    people.truncate(first);
+    // (No more than `first` entries are read, so the people are never more than that.)
+    let more = details.cut;
     // The certificates held, in all: past it, the people after have none.
     let mut room = MAX_CERTIFICATE_BYTES;
     for p in &mut people {
@@ -258,7 +258,7 @@ pub(crate) fn address_list_within(file: &[u8], first: usize, values: usize, kept
     }
     people.sort_by_cached_key(|p| (p.name.to_lowercase(), p.email.to_lowercase()));
     let name = details.name().map(|n| mailcraft_model::sync::one_line(n, 256)).unwrap_or_default();
-    Ok(EwsAddressList { name, sequence: details.sequence().unwrap_or(0), people, more })
+    Ok(EwsAddressList { name, sequence: details.sequence().unwrap_or(0), people: people.into_iter().map(Arc::new).collect(), more })
 }
 
 /// What stopped a download of the address list.

@@ -227,7 +227,8 @@ pub struct EwsAddressList {
     pub name: String,
     /// Its generation: one more each time the server writes it anew.
     pub sequence: u32,
-    pub people: Vec<DirectoryPerson>,
+    /// Shared, so that the people a search narrows it to are handed on without copying them.
+    pub people: Vec<Arc<DirectoryPerson>>,
     /// The list has more people than were kept.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub more: bool,

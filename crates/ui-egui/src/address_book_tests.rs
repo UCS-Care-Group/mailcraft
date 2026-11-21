@@ -59,6 +59,11 @@ fn window(hold: bool) -> (MailApp, Id, Asked) {
 }
 
 fn window_with(hold: bool, list: Option<Vec<DirectoryPerson>>) -> (MailApp, Id, Asked) {
+    window_downloading(hold, list, false)
+}
+
+/// [`window_with`], with a download of the whole list that never ends when `endless`.
+fn window_downloading(hold: bool, list: Option<Vec<DirectoryPerson>>, endless: bool) -> (MailApp, Id, Asked) {
     let mut app = MailApp::new(Session::at(Mailbox::with_local_account("", ""), NOW, 0), Services::default());
     app.autosave = false;
     let added = app
@@ -76,10 +81,17 @@ fn window_with(hold: bool, list: Option<Vec<DirectoryPerson>>) -> (MailApp, Id, 
     app.services.ews_resolve = Some(Box::new(move |job| {
         log.lock().unwrap().push((job.request.texts.clone(), job.request.address_list, job.cancel.clone()));
         let (tx, rx) = std::sync::mpsc::channel();
-        if job.request.address_list {
+        if job.request.address_list && endless {
+            held.lock().unwrap().push(tx);
+        } else if job.request.address_list {
             let result = match &list {
                 Some(people) => EwsResolveResult {
-                    address_list: Some(EwsAddressList { name: "Address list".into(), sequence: 3, people: people.clone(), more: false }),
+                    address_list: Some(EwsAddressList {
+                        name: "Address list".into(),
+                        sequence: 3,
+                        people: people.iter().cloned().map(std::sync::Arc::new).collect(),
+                        more: false,
+                    }),
                     ..Default::default()
                 },
                 None => EwsResolveResult {
@@ -513,6 +525,23 @@ fn the_whole_list_is_listed_and_narrowed_without_asking_the_server() {
     assert_eq!(downloads(&asked), 1);
     // Nobody is kept in the mailbox.
     assert!(app.session.mailbox.contacts.is_empty());
+}
+
+/// While the whole list is still being downloaded, what is typed is searched on the server as
+/// without one: a slow download, or one that never ends, doesn't leave the owner without a search.
+#[test]
+fn while_the_list_downloads_what_is_typed_is_searched_on_the_server() {
+    let (mut app, _, asked) = window_downloading(false, Some(organisation()), true);
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    assert!(app.downloading_address_list());
+    search(&mut app, &ctx, "ada");
+    search(&mut app, &ctx, "ada");
+    assert!(app.downloading_address_list());
+    assert_eq!(texts(&asked), [vec!["ada".to_string()]]);
+    assert_eq!(names(&app), ["Ada Lovelace", "Ada Byron", "Ada's team"]);
+    assert_eq!(downloads(&asked), 1, "the download is not asked for again meanwhile");
 }
 
 /// A day later it is downloaded again; a download that failed is tried again a minute later.
