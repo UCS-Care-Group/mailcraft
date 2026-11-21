@@ -108,9 +108,10 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
                 app.hit.add("serverNote", 0, rect);
             }
             Line::Problem(text) => {
+                let text = tl!(&text);
                 let r = Rect::from_center_size(pos2(rect.min.x + 16.0, rect.center().y), vec2(12.0, 12.0));
                 icons::paint(ui.painter(), r, "highImportance", t.orange, t.accent);
-                let w = paint_clipped(ui.painter(), pos2(rect.min.x + 28.0, rect.center().y), rect.width() - 36.0, &text, regular(11.5), t.text);
+                let w = paint_clipped(ui.painter(), pos2(rect.min.x + 28.0, rect.center().y), rect.width() - 36.0, text, regular(11.5), t.text);
                 if w >= rect.width() - 40.0 {
                     ui.interact(rect, ui.scope_id().with(("server_problem", y as i64)), Sense::hover()).on_hover_text(text);
                 }

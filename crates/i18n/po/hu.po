@@ -21931,6 +21931,11 @@ msgstr "nincs {folder} mappa"
 msgid "nobody else is invited to this appointment"
 msgstr "Senki más nem lesz meghívva erre a találkozóra."
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "none of the folders could be searched on the server"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy

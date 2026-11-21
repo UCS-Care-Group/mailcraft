@@ -63,6 +63,8 @@ pub fn search(
     let (folders, folders_left) = chosen(folders);
     let mut hits = 0usize;
     let mut checked = 0usize;
+    let mut opened_any = false;
+    let mut skipped = false;
     let last = folders.len().saturating_sub(1);
     for (at, folder) in folders.iter().enumerate() {
         if hits >= MAX_HITS {
@@ -83,14 +85,23 @@ pub fn search(
                     let _ = imap.logout();
                     return;
                 }
-                // A folder that won't open is skipped. The others are still asked.
+                // A folder that won't open is skipped. The others are still asked. When
+                // none opened, that is said; when some did, the page says the search
+                // stopped early, so the ones that failed are not a silent success.
+                skipped = true;
                 if at == last {
+                    if !opened_any {
+                        page.errors.push(said!("none of the folders could be searched on the server").to_string());
+                    } else {
+                        page.capped = true;
+                    }
                     page.partial = false;
                     on_page(page);
                 }
                 continue;
             }
         };
+        opened_any = true;
         let clause_refs: Vec<(&str, Option<&str>, &str)> = asked.iter().map(|c| (c.key, c.header, c.text.as_str())).collect();
         // `has:attachment` is not sent: some servers' `TEXT` never sees a nested part's headers,
         // and a message that only quotes the phrase would be a false hit. It is checked on what
@@ -192,7 +203,7 @@ pub fn search(
         }
         let more_folders = at != last && hits < MAX_HITS && !stopped;
         page.partial = more_folders;
-        page.capped = stopped || truncated || oversized || folders_left || (hits >= MAX_HITS && at != last);
+        page.capped = stopped || truncated || oversized || folders_left || skipped || (hits >= MAX_HITS && at != last);
         on_page(page);
         if !more_folders {
             let _ = imap.logout();

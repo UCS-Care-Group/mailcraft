@@ -21855,6 +21855,11 @@ msgstr "საქაღალდე {folder} არ არსებობს"
 msgid "nobody else is invited to this appointment"
 msgstr "ამ ჩანაწერზე სხვა არავინაა მოწვეული"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "none of the folders could be searched on the server"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy

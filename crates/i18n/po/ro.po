@@ -22004,6 +22004,11 @@ msgstr "nu există dosarul {folder}"
 msgid "nobody else is invited to this appointment"
 msgstr "nimeni altcineva nu este invitat la această programare"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "none of the folders could be searched on the server"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy

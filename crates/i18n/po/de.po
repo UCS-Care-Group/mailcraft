@@ -20581,6 +20581,12 @@ msgstr "kein Ordner „{folder}“"
 msgid "nobody else is invited to this appointment"
 msgstr "niemand sonst ist zu diesem Termin eingeladen"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+#, fuzzy
+msgid "none of the folders could be searched on the server"
+msgstr "Keiner der Ordner konnte auf dem Server durchsucht werden"
+
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy

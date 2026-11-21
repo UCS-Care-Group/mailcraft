@@ -21316,6 +21316,11 @@ msgstr "geen map {folder}"
 msgid "nobody else is invited to this appointment"
 msgstr "er is niemand anders uitgenodigd voor deze afspraak"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "none of the folders could be searched on the server"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy

@@ -497,3 +497,42 @@ fn the_inbox_is_asked_even_when_it_is_past_the_folder_limit() {
     assert!(pages.iter().all(|page| page.errors.is_empty()), "{pages:?}");
     assert!(pages.iter().any(|page| page.messages.iter().any(|m| m.server.folder == "INBOX")), "the Inbox past the first 24 names is still asked");
 }
+
+#[test]
+fn a_folder_that_will_not_open_is_said_and_does_not_hide_one_that_could() {
+    let body = b"From: Ada <ada@example.org>\r\nSubject: needle\r\n\r\nneedle\r\n";
+    let mailbox = |raw: &str, refuse_open: bool| FakeMailbox {
+        raw: raw.into(),
+        flags: "\\HasNoChildren".into(),
+        uid_validity: 11,
+        messages: vec![FakeMessage {
+            uid: 1,
+            flags: String::new(),
+            internal_date: " 1-Jul-2003 09:52:37 +0000".into(),
+            body: body.to_vec(),
+            claimed_size: None,
+        }],
+        refuse_open,
+        next_uid: 0,
+    };
+    let closed =
+        Fake::imap(ImapWorld { user: "ada".into(), password: "hunter2".into(), mailboxes: vec![mailbox("INBOX", true)], ..Default::default() });
+    let mut pages = Vec::new();
+    search(&account_on(closed.port), "hunter2", 9, &["INBOX".into(), "Gone".into()], "needle", &none_known(), |page| pages.push(page));
+    assert_eq!(pages.len(), 1, "{pages:?}");
+    assert!(!pages[0].partial);
+    assert!(pages[0].messages.is_empty());
+    assert_eq!(pages[0].errors, ["none of the folders could be searched on the server"]);
+
+    let open = Fake::imap(ImapWorld {
+        user: "ada".into(),
+        password: "hunter2".into(),
+        mailboxes: vec![mailbox("INBOX", false), mailbox("Old", true)],
+        ..Default::default()
+    });
+    pages.clear();
+    search(&account_on(open.port), "hunter2", 9, &["Old".into(), "INBOX".into()], "needle", &none_known(), |page| pages.push(page));
+    assert!(pages.iter().all(|page| page.errors.is_empty()), "{pages:?}");
+    assert!(pages.iter().any(|page| page.capped), "a folder that would not open is not a finished search");
+    assert_eq!(pages.iter().flat_map(|page| page.messages.iter()).map(|m| m.server.folder.as_str()).collect::<Vec<_>>(), ["INBOX"]);
+}

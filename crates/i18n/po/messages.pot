@@ -18203,6 +18203,11 @@ msgstr ""
 msgid "nobody else is invited to this appointment"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "none of the folders could be searched on the server"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
 msgid "none of these messages has a reminder showing"

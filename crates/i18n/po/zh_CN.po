@@ -21922,6 +21922,11 @@ msgstr "没有 {folder} 文件夹"
 msgid "nobody else is invited to this appointment"
 msgstr "没有邀请其他人参加此约会"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "none of the folders could be searched on the server"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy
