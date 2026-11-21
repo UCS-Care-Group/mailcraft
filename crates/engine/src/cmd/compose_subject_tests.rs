@@ -93,3 +93,41 @@ fn a_replacement_is_refused_when_the_subject_changed_and_leaves_no_step() {
     assert!(s.run("compose.undo", &json!({})).is_err(), "typing over the replacement drops that step");
     assert_eq!(compose(&s).subject, "Lunch today");
 }
+
+/// A picture's width and a Subject replacement share one undo list: the replacement is the later
+/// step, and putting the width back does not bring the replacement with it.
+#[test]
+fn picture_width_and_subject_replacement_undo_and_redo_in_order() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    let mut png = b"\x89PNG\r\n\x1a\nIHDR....".to_vec();
+    png.resize(png.len() + 8, 7);
+    let data = mailcraft_charset::base64::STANDARD.encode(png);
+    let id = run(&mut s, "insert.picture", json!({"data": data, "file": "chart.png"}))["id"].as_u64().unwrap();
+    run(&mut s, "compose.picture.set", json!({"id": id, "width": 80}));
+    run(&mut s, "compose.set", json!({"subject": "Lunch tomorow"}));
+    let (from, to) = span("Lunch tomorow", "tomorow");
+    run(&mut s, "compose.replaceSubject", json!({"from": from, "to": to, "expected": "tomorow", "text": "tomorrow"}));
+    assert_eq!(compose(&s).subject, "Lunch tomorrow");
+    assert_eq!(picture_width(&s, id), Some(80));
+
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(compose(&s).subject, "Lunch tomorow");
+    assert_eq!(picture_width(&s, id), Some(80));
+
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(picture_width(&s, id), None);
+    assert_eq!(compose(&s).subject, "Lunch tomorow");
+
+    run(&mut s, "compose.redo", json!({}));
+    assert_eq!(picture_width(&s, id), Some(80));
+    assert_eq!(compose(&s).subject, "Lunch tomorow");
+
+    run(&mut s, "compose.redo", json!({}));
+    assert_eq!(compose(&s).subject, "Lunch tomorrow");
+    assert_eq!(picture_width(&s, id), Some(80));
+}
+
+fn picture_width(s: &Session, id: u64) -> Option<u16> {
+    compose(s).pictures.iter().find(|p| u64::from(p.id) == id).and_then(|p| p.width)
+}
