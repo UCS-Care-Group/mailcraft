@@ -720,6 +720,92 @@ fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
 }
 
+/// File › Options › Spelling: as-you-type, the default language, the two ignore switches, and the
+/// custom dictionary. Every change is a command.
+fn spelling_options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
+    let languages = {
+        let Some(host) = app.services.spelling.as_deref() else {
+            ui.label(tl!("Spelling is unavailable on this platform"));
+            return;
+        };
+        let mut languages = host.locales();
+        languages.sort_unstable();
+        languages.dedup();
+        languages
+    };
+    let mut as_you_type = app.ui.check_spelling_as_you_type;
+    let switch = ui.checkbox(&mut as_you_type, tl!("Check spelling as you type"));
+    app.hit.add("optionSpellingAsYouType", 0, switch.rect);
+    if switch.changed() {
+        let _ = app.run("ui.spelling", json!({"asYouType": as_you_type}));
+    }
+    let saved = app.ui.spelling_language.clone();
+    let offered = languages.iter().any(|tag| tag == &saved);
+    row(ui, tl!("Default spelling language"), |ui| {
+        let shown = if saved.is_empty() || !offered { tl!("Automatic").to_string() } else { crate::spelling::locale_name(&saved) };
+        let combo = egui::ComboBox::from_id_salt("opt_spelling_language").selected_text(shown.clone()).show_ui(ui, |ui| {
+            if ui.selectable_label(saved.is_empty() || !offered, tl!("Automatic")).clicked() {
+                let _ = app.run("ui.spelling", json!({"language": ""}));
+            }
+            for tag in &languages {
+                if ui.selectable_label(offered && tag == &saved, crate::spelling::locale_name(tag)).clicked() {
+                    let _ = app.run("ui.spelling", json!({"language": tag}));
+                }
+            }
+        });
+        combo.response.widget_info(|| {
+            let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Default spelling language"));
+            info.current_text_value = Some(shown.clone());
+            info
+        });
+    });
+    let mut upper = app.ui.spelling_ignore_uppercase;
+    if ui.checkbox(&mut upper, tl!("Ignore words in UPPERCASE")).changed() {
+        let _ = app.run("ui.spelling", json!({"ignoreUppercase": upper}));
+    }
+    let mut numbers = app.ui.spelling_ignore_numbers;
+    if ui.checkbox(&mut numbers, tl!("Ignore words that contain numbers")).changed() {
+        let _ = app.run("ui.spelling", json!({"ignoreNumbers": numbers}));
+    }
+    ui.label(egui::RichText::new(tl!("Custom dictionary")).color(t.text));
+    let count = app.ui.custom_dictionary.len();
+    ui.label(tln!(count, "{n} word", "{n} words"));
+    if count > 0 {
+        egui::ScrollArea::vertical().id_salt("opt_spelling_dictionary").max_height(132.0).auto_shrink([false, true]).show_rows(
+            ui,
+            24.0,
+            count,
+            |ui, range| {
+                let shown: Vec<String> = range.filter_map(|index| app.ui.custom_dictionary.get(index).cloned()).collect();
+                for word in shown {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Label::new(word.clone()).truncate());
+                        if ui.button(tl!("Remove")).clicked() {
+                            let _ = app.run("ui.dictionary.remove", json!({"word": word}));
+                        }
+                    });
+                }
+            },
+        );
+    }
+    let draft_id = ui.scope_id().with("spelling_dict_draft");
+    let mut draft = ui.ctx().data(|data| data.get_temp::<String>(draft_id)).unwrap_or_default();
+    ui.horizontal(|ui| {
+        let edit = ui.add(egui::TextEdit::singleline(&mut draft).hint_text(tl!("Words, separated by commas or spaces")).desired_width(280.0));
+        let add = ui.button(tl!("Add"));
+        if add.clicked() || (edit.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter))) {
+            let pending: Vec<String> = crate::spelling::split_words(&draft).iter().map(|word| (*word).to_string()).collect();
+            draft.clear();
+            for word in pending {
+                if app.run("ui.dictionary.add", json!({"word": word})).is_err() {
+                    break;
+                }
+            }
+        }
+    });
+    ui.ctx().data_mut(|data| data.insert_temp(draft_id, draft));
+}
+
 fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     heading(ui, tl!("Options"), t);
     section(ui, tl!("General"), t);
@@ -924,6 +1010,8 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     });
     // (Whose Favorites the folder pane shows, for an account that signs in with Microsoft.)
     crate::favorites_sync::options(app, ui, t);
+    section(ui, tl!("Spelling"), t);
+    spelling_options(app, ui, t);
     // Where the system can show them (not in the browser).
     if app.services.alert.is_some() {
         section(ui, tl!("Desktop alerts"), t);

@@ -34,7 +34,7 @@ fn spelling_suggestion_uses_composer_undo_and_checks_the_original_word() {
     app.execute("mail.new", json!({})).unwrap();
     app.execute("compose.set", json!({"body": "È sopratutto così."})).unwrap();
     let issue = Issue { span: 2..12, word: "sopratutto".into() };
-    let suggestions = Suggestions::new(&Italian, "it-IT", issue, 0);
+    let suggestions = Suggestions::new(&Italian, "it-IT", issue, 0, &[]);
     let selected = suggestions.words[0].clone();
     suggestions.clone().apply(&mut app, selected.clone());
     assert_eq!(app.session.compose.as_ref().unwrap().body.plain(), "È soprattutto così.");
@@ -103,7 +103,7 @@ fn spelling_review_starts_at_the_caret_and_marks_large_paragraphs_partial() {
     let selection = app.session.compose.as_ref().unwrap().body.selection();
     assert_eq!((selection.start(), selection.end()), (start, start + 10));
     let oversized = Paragraph::new(vec![Run::plain("a".repeat(9000))], ListKind::None);
-    assert!(check(&Italian, "it-IT", &oversized).partial);
+    assert!(check(&Italian, "it-IT", &oversized, &mailcraft_engine::spelling::Filter::default(), 0).partial);
 }
 
 #[test]
@@ -186,6 +186,39 @@ fn automatic_prefers_an_os_en_us_and_falls_back_to_the_built_in_tag() {
     // language match then takes that tag.
     let only = app_with(&[mailcraft_spell::EN_US_TAG, "fr-FR"], Some("en-US"));
     assert_eq!(locale(&only, &ctx).as_deref(), Some(mailcraft_spell::EN_US_TAG));
+}
+
+struct Quiet;
+
+impl HostChecker for Quiet {
+    fn locales(&self) -> Vec<String> {
+        vec!["en-GB".to_string()]
+    }
+
+    fn check(&self, _locale: &str, _text: &str) -> Option<Vec<Range<usize>>> {
+        Some(Vec::new())
+    }
+
+    fn suggest(&self, _locale: &str, _word: &str) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+#[test]
+fn a_custom_word_one_edit_away_is_offered_before_the_hosts() {
+    let issue = Issue { span: 0..4, word: "helo".into() };
+    let suggestions = Suggestions::new(&Quiet, "en-GB", issue, 0, &["hello".into(), "zzzz".into()]);
+    assert_eq!(suggestions.words, vec!["hello".to_string()]);
+}
+
+#[test]
+fn the_built_in_list_is_asked_with_the_custom_dictionary() {
+    if mailcraft_spell::en_us().is_none() {
+        return;
+    }
+    let issue = Issue { span: 0..8, word: "mailcraf".into() };
+    let suggestions = Suggestions::new(&Quiet, mailcraft_spell::EN_US_TAG, issue, 0, &["mailcraft".into()]);
+    assert!(suggestions.words.iter().any(|word| word.eq_ignore_ascii_case("mailcraft")), "{:?}", suggestions.words);
 }
 
 #[test]
