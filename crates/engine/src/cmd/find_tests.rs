@@ -147,6 +147,38 @@ fn find_whole_word_counts_and_selects_only_whole_words() {
 }
 
 #[test]
+fn whole_word_keeps_a_combining_mark_with_its_letter() {
+    // Decomposed café: U+0301 is part of the word, so `cafe` is not a whole word on its own.
+    let mut s = writing("cafe\u{301}");
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "cafe", "wholeWord": true}))["found"], false);
+    let r = run(&mut s, "edit.replace", json!({"text": "cafe", "with": "tea", "all": true, "wholeWord": true}));
+    assert_eq!(r["replaced"], 0);
+    assert_eq!(mine(&s), "cafe\u{301}");
+    assert!(!compose(&s).dirty);
+    // The mark and the letters together are the whole word. A place that starts on the mark is not.
+    let r = run(&mut s, "edit.find", json!({"text": "cafe\u{301}", "wholeWord": true}));
+    assert_eq!((r["from"].as_u64(), r["to"].as_u64(), r["count"].as_u64()), (Some(0), Some(5), Some(1)));
+    let mut s = writing("\u{301}");
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "\u{301}", "wholeWord": true}))["found"], false);
+    // A word character, then only marks, then the letters: still inside that word.
+    let mut s = writing("x\u{301}cafe");
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "cafe", "wholeWord": true}))["found"], false);
+    // The same letters standing alone, beside the decomposed word, still match.
+    let mut s = writing("cafe\u{301} cafe");
+    let r = run(&mut s, "edit.find", json!({"text": "cafe", "wholeWord": true}));
+    assert_eq!((r["found"].as_bool(), r["from"].as_u64(), r["to"].as_u64(), r["count"].as_u64()), (Some(true), Some(6), Some(10), Some(1)));
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "cafe"}))["count"], 2);
+    let r = run(&mut s, "edit.replace", json!({"text": "cafe", "with": "tea", "all": true, "wholeWord": true}));
+    assert_eq!(r["replaced"], 1);
+    assert_eq!(mine(&s), "cafe\u{301} tea");
+    // Without whole word, the prefix of the decomposed word is still replaced.
+    let mut s = writing("cafe\u{301}");
+    let r = run(&mut s, "edit.replace", json!({"text": "cafe", "with": "tea", "all": true}));
+    assert_eq!(r["replaced"], 1);
+    assert_eq!(mine(&s), "tea\u{301}");
+}
+
+#[test]
 fn whole_word_off_still_replaces_inside_a_word() {
     let mut s = writing(TEH);
     let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "all": true}));

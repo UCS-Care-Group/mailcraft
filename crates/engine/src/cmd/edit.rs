@@ -142,32 +142,61 @@ fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '_' | '\'' | '’')
 }
 
-/// The places `text` is in the owner's text. `whole_word` keeps a place only when the character
-/// before it and the character after it are not word characters (the ends of the text count).
+/// A combining mark. Nothing already depended on reports a character's general category
+/// (`unicode-segmentation` segments words, it does not classify them), so this is the main
+/// combining blocks: a mark in one of them is part of the word it follows.
+fn is_combining_mark(c: char) -> bool {
+    matches!(
+        c,
+        '\u{0300}'..='\u{036F}'
+            | '\u{1AB0}'..='\u{1AFF}'
+            | '\u{1DC0}'..='\u{1DFF}'
+            | '\u{20D0}'..='\u{20FF}'
+            | '\u{FE20}'..='\u{FE2F}'
+    )
+}
+
+/// The places `text` is in the owner's text. `whole_word` keeps a place only when it is a whole
+/// word ([`whole_word_only`]).
 fn places(s: &Session, text: &str, match_case: bool, whole_word: bool) -> Vec<Place> {
     let Some((body, _)) = s.doc() else { return Vec::new() };
     let found = body.text().find(text, match_case, 0, reach(s));
     if whole_word { whole_word_only(&body.plain(), &found) } else { found }
 }
 
-/// Places whose neighbours in `text` (character offsets, as [`Place`]) are not word characters.
+/// Places whose neighbours in `text` (character offsets, as [`Place`]) are not part of the same
+/// word. A combining mark after the place keeps it inside the word, as does a word character
+/// with only marks between it and the place, and a place that itself starts on a mark.
 fn whole_word_only(text: &str, places: &[Place]) -> Vec<Place> {
     let mut kept = Vec::with_capacity(places.len());
     let mut chars = text.chars();
     let mut at = 0usize;
-    let mut prev = None;
+    // The last character before `at` that is not a combining mark.
+    let mut base = None;
     for &(start, end) in places {
         while at < start {
-            prev = chars.next();
+            if let Some(c) = chars.next()
+                && !is_combining_mark(c)
+            {
+                base = Some(c);
+            }
             at = at.saturating_add(1);
         }
-        let before = !prev.is_some_and(is_word_char);
+        let before = !base.is_some_and(is_word_char);
+        let mut first = None;
         while at < end {
-            prev = chars.next();
+            if let Some(c) = chars.next() {
+                if first.is_none() {
+                    first = Some(c);
+                }
+                if !is_combining_mark(c) {
+                    base = Some(c);
+                }
+            }
             at = at.saturating_add(1);
         }
-        let after = !chars.as_str().chars().next().is_some_and(is_word_char);
-        if before && after {
+        let after = !chars.as_str().chars().next().is_some_and(|c| is_word_char(c) || is_combining_mark(c));
+        if before && after && !first.is_some_and(is_combining_mark) {
             kept.push((start, end));
         }
     }
