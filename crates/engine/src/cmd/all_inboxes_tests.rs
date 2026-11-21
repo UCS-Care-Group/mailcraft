@@ -78,6 +78,29 @@ fn a_message_moved_into_a_later_inbox_is_ruled_once() {
     assert_ne!(s.mailbox.message(copy).unwrap().folder, second);
 }
 
+/// A folder and every Inbox are not both named. The call is refused, and no Inbox is marked.
+#[test]
+fn a_named_folder_and_every_inbox_are_not_both_taken() {
+    let mut s = session();
+    let first = s.mailbox.inboxes()[0];
+    s.run("mail.markAllRead", &json!({"folder": first})).unwrap();
+    let one = s.mailbox.messages_in(first).next().unwrap().id;
+    s.run("mail.markUnread", &json!({"id": one})).unwrap();
+    s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}})).unwrap();
+    let second = s.mailbox.inboxes().into_iter().find(|id| *id != first).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [one], "folder": second})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.markUnread", &json!({"id": copy})).unwrap();
+
+    let refused = s.run("mail.markAllRead", &json!({"folder": first, "allInboxes": true})).unwrap_err().to_string();
+    assert!(refused.contains("allInboxes"), "{refused}");
+    assert!(s.run("rules.run", &json!({"folder": first, "allInboxes": true})).is_err());
+    assert!(s.run("mail.markAllRead", &json!({"folder": 0, "allInboxes": true})).is_err());
+    assert!(!s.mailbox.message(one).unwrap().read);
+    assert!(!s.mailbox.message(copy).unwrap().read);
+
+    assert_eq!(s.run("mail.markAllRead", &json!({"allInboxes": true})).unwrap()["changed"], 2);
+}
+
 /// A search of every mailbox is not the All Inboxes list. The ribbon's buttons, which name no
 /// folder, then act on the folder in view. Naming every Inbox still does.
 #[test]

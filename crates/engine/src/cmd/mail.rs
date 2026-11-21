@@ -54,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.markUnread", "Mark as Unread", "Home › Tags", mark_unread).key("Mod+U").params(IDS).selection(needs_message),
         CommandSpec::new("mail.toggleRead", "Unread/ Read", "Home › Tags", toggle_read).params(IDS).selection(needs_message),
         CommandSpec::new("mail.markAllRead", "Mark All as Read", "Folder › Clean Up", mark_all_read)
-            .params(r#"{"folder"?: number, "allInboxes"?: bool} — a folder that is there, read strictly: an id as text, `null`, `0` or a fraction is refused rather than taken for the folder in view (default: the folder in view; while All Inboxes is the list on screen and neither is named, every Inbox of the owner's own accounts). {"allInboxes": true} is those Inboxes. Answers {"folder", "changed"}"#),
+            .params(r#"{"folder"?: number, "allInboxes"?: bool} — a folder that is there, read strictly: an id as text, `null`, `0` or a fraction is refused rather than taken for the folder in view (default: the folder in view; while All Inboxes is the list on screen and neither is named, every Inbox of the owner's own accounts). {"allInboxes": true} is those Inboxes, and naming a folder as well is refused. Answers {"folder", "changed"}"#),
         CommandSpec::new("mail.flag", "Follow Up", "Home › Tags", flag)
             .key("Insert")
             .params(r#"{"due"?: "YYYY-MM-DD", "ids"?: [number]}"#)
@@ -876,13 +876,17 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
 /// `view.folder`, which is still the folder that was open before. A search of every mailbox is
 /// a different list: the folder pane marks no All Inboxes row then, and neither does this.
 /// A named folder is read strictly (#1449): an id as text, `null`, `0` or a fraction is refused,
-/// never taken to mean the folder in view. `allInboxes: true` does not read `folder`.
+/// never taken to mean the folder in view. A folder named together with `allInboxes: true`
+/// is refused: the call must not quietly act on every Inbox instead of the folder it named.
 pub(crate) fn folders_asked(s: &Session, v: &Value) -> Result<Vec<Id>, crate::CmdError> {
+    let named = p::id_strict(v, "folder")?;
     let every = p::opt_bool(v, "allInboxes")?;
     if every == Some(true) {
+        if named.is_some() {
+            return Err(fail("a folder and allInboxes are not both named"));
+        }
         return inboxes_of(s);
     }
-    let named = p::id_strict(v, "folder")?;
     // The same test the folder pane uses: a non-empty search of every mailbox is not that list.
     let everywhere = !s.view.search.is_empty() && s.view.scope == crate::Scope::Everywhere;
     if named.is_none() && every.is_none() && s.view.all_inboxes && !everywhere {

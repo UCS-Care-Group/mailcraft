@@ -217,7 +217,10 @@ fn running_rules_with_all_inboxes_on_asks_before_filing_onto_another_server() {
     s.view.folder = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
     s.view.all_inboxes = true;
     assert!(matches!(classify(&s, "rules.run", &json!({})), Access::Owner(Class::Send)));
-    assert!(matches!(classify(&s, "rules.run", &json!({"allInboxes": true, "folder": 0})), Access::Owner(Class::Send)));
+    assert!(
+        !matches!(classify(&s, "rules.run", &json!({"allInboxes": true, "folder": 0})), Access::Owner(Class::Send)),
+        "a folder of 0 is refused beside allInboxes too"
+    );
     assert!(!matches!(classify(&s, "rules.run", &json!({"folder": 0})), Access::Owner(Class::Send)), "a folder of 0 is refused");
     assert!(!matches!(classify(&s, "rules.run", &json!({"folder": null})), Access::Owner(Class::Send)), "a folder of null is refused");
     assert!(!matches!(classify(&s, "rules.run", &json!({"folder": s.view.folder})), Access::Owner(Class::Send)));

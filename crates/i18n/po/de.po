@@ -19637,6 +19637,12 @@ msgid "a favourite can't be put before itself"
 msgstr "ein Favorit kann nicht vor sich selbst gesetzt werden"
 
 #. what a command says
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "a folder and allInboxes are not both named"
+msgstr "ein Ordner und alle Posteingänge werden nicht beide genannt"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't be put before itself"
