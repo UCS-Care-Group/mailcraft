@@ -55,8 +55,6 @@ pub struct GraphSearchJob {
 struct Pending {
     unreached: GraphSearchResult,
     rx: Receiver<GraphSearchResult>,
-    /// A final answer (not `partial`) already arrived, so a dropped thread is not a failure.
-    settled: bool,
 }
 
 /// The pages being asked for, in the window: whose, and the answer to come. Several mailboxes
@@ -228,7 +226,7 @@ impl MailApp {
             return;
         };
         let rx = search(GraphSearchJob { request, access });
-        self.server_searching.pending.push(Pending { unreached, rx, settled: false });
+        self.server_searching.pending.push(Pending { unreached, rx });
     }
 
     fn start_imap_search(&mut self, request: GraphSearchRequest) {
@@ -245,7 +243,7 @@ impl MailApp {
         let folders = imap_folders(&self.session, request.account, &request.folder);
         let known = known_uids(&self.session, request.account, &folders);
         let rx = search(ImapSearchJob { account, secret, ticket: request.ticket, folders, query: request.query, known });
-        self.server_searching.pending.push(Pending { unreached, rx, settled: false });
+        self.server_searching.pending.push(Pending { unreached, rx });
     }
 
     fn unreached(&self, request: &GraphSearchRequest) -> GraphSearchResult {
@@ -267,16 +265,15 @@ impl MailApp {
         let mut came = Vec::new();
         self.server_searching.pending.retain_mut(|pending| match pending.rx.try_recv() {
             Ok(result) => {
-                pending.settled = !result.partial;
+                let more = result.partial;
                 came.push(result);
-                !pending.settled
+                more
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => true,
-            // A host that went away before a final answer: as not reached.
+            // A host that went away before a final answer: as not reached. A final answer has
+            // already dropped this pending, so a disconnect only arrives when nothing final did.
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                if !pending.settled {
-                    came.push(pending.unreached.clone());
-                }
+                came.push(pending.unreached.clone());
                 false
             }
         });

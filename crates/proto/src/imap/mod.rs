@@ -1077,41 +1077,11 @@ impl<S: Read + Write> Imap<S> {
         self.take_search(command)
     }
 
-    /// UID SEARCH UNDELETED TEXT <word> TEXT <word>…: the messages of the open mailbox, other than
-    /// those marked as deleted, whose header or body has every word (the server matches a part of
-    /// the text, whatever its case), by UID in UID order, at most [`MAX_FOUND`] of them. A word
-    /// with CR, LF or NUL is refused unsent; an empty list is nothing to ask.
-    pub fn uid_search_words(&mut self, words: &[&str]) -> Result<Vec<u32>, ProtoError> {
-        if words.is_empty() || words.len() > 8 {
-            return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));
-        }
-        let mut cleaned: Vec<String> = Vec::new();
-        for word in words {
-            let word: String = word.chars().filter(|c| !matches!(c, '\r' | '\n' | '\0')).take(80).collect();
-            if word.is_empty() {
-                return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));
-            }
-            cleaned.push(word);
-        }
-        let mut command = Command::new(search_verb(&cleaned.iter().map(String::as_str).collect::<Vec<_>>()));
-        for word in &cleaned {
-            command = command.arg("TEXT").string(word.as_bytes());
-        }
-        // The words are the owner's search. The log keeps the command, not what was looked for.
-        self.take_search(command.shown_as("UID SEARCH"))
-    }
-
     /// UID SEARCH UNDELETED with one key per clause (`FROM`, `TO`, `CC`, `SUBJECT`, `BODY`,
-    /// `TEXT`, or `HEADER` and a field name). A word that is not ASCII is sent as UTF-8
-    /// (`CHARSET UTF-8`), which a server that requires a charset otherwise refuses. The words
-    /// stay out of the log.
-    pub fn uid_search_clauses(&mut self, clauses: &[(&str, Option<&str>, &str)]) -> Result<Vec<u32>, ProtoError> {
-        self.uid_search_clauses_newest(clauses).map(|(uids, _)| uids)
-    }
-
-    /// Like [`uid_search_clauses`](Self::uid_search_clauses), keeping the highest UIDs when the
-    /// answer names more than [`MAX_FOUND`]: a later UID is the newer message, and the caller
-    /// hears that the answer was cut (`true`).
+    /// `TEXT`, or `HEADER` and a field name), keeping the highest UIDs when the answer names more
+    /// than [`MAX_FOUND`]: a later UID is the newer message, and the caller hears that the answer
+    /// was cut (`true`). A word that is not ASCII is sent as UTF-8 (`CHARSET UTF-8`), which a
+    /// server that requires a charset otherwise refuses. The words stay out of the log.
     pub fn uid_search_clauses_newest(&mut self, clauses: &[(&str, Option<&str>, &str)]) -> Result<(Vec<u32>, bool), ProtoError> {
         if clauses.is_empty() || clauses.len() > 8 {
             return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));

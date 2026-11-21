@@ -17520,7 +17520,7 @@ msgstr "El servidor o la organización no dio su configuración. Pida a su admin
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "The server search stopped after 40 messages. There may be more."
+msgid "The server search stopped before it finished. There may be more."
 msgstr ""
 
 #. interface

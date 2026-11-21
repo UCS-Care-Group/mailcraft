@@ -16951,7 +16951,7 @@ msgstr "De server of de organisatie wilde de instellingen niet geven. Vraag uw b
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "The server search stopped after 40 messages. There may be more."
+msgid "The server search stopped before it finished. There may be more."
 msgstr ""
 
 #. interface

@@ -17437,7 +17437,7 @@ msgstr "Le serveur ou l'organisation n'a pas fourni ses paramètres. Demandez l'
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "The server search stopped after 40 messages. There may be more."
+msgid "The server search stopped before it finished. There may be more."
 msgstr ""
 
 #. interface

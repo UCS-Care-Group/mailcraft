@@ -57,7 +57,7 @@ fn lines(app: &MailApp, local: &HashSet<Id>) -> Vec<Line> {
         return out;
     }
     if search.capped {
-        out.push(Line::Note(tl!("The server search stopped after 40 messages. There may be more.").to_string()));
+        out.push(Line::Note(tl!("The server search stopped before it finished. There may be more.").to_string()));
     }
     out.extend(search.errors.iter().take(MAX_SAID).map(|e| Line::Problem(e.clone())));
     for (i, r) in search.results.iter().enumerate() {
