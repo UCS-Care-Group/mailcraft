@@ -910,6 +910,15 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rect(2.5, 3.5, 17.5, 16.5, c);
             pen.line_c(&[(7.0, 3.5), (7.0, 16.5)], a);
         }
+        // The Tasks and Calendar Bar (#831): a strip down the right of the window, with two ticked lines.
+        "tasksCalendarBar" => {
+            pen.rect(2.5, 3.5, 17.5, 16.5, c);
+            pen.line_c(&[(12.0, 3.5), (12.0, 16.5)], a);
+            if !small {
+                pen.check(14.6, 7.6, 0.45, a);
+                pen.check(14.6, 12.4, 0.45, a);
+            }
+        }
         // The switch between the modules at the foot of the pane (#1174): the pane, with a row
         // of four dots along its lower edge where the modules sit.
         "navigationBar" => {
@@ -1423,6 +1432,7 @@ pub const NAMES: &[&str] = &[
     "filter",
     "readingPane",
     "folderPane",
+    "tasksCalendarBar",
     "navigationBar",
     "conversations",
     "ribbon",

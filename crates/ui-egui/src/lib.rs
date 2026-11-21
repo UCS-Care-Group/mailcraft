@@ -288,6 +288,7 @@ mod sync_panel;
 pub mod task_sync;
 #[cfg(test)]
 mod task_sync_tests;
+pub mod tasks_calendar_bar;
 pub mod tasks_view;
 mod text_menu;
 #[cfg(test)]
@@ -945,6 +946,8 @@ pub struct UiState {
     pub people_account_address: String,
     pub folder_pane_width: f32,
     pub list_width: f32,
+    /// The Tasks and Calendar Bar's width, as the owner dragged it (#831); one for every module, as in Outlook.
+    pub tasks_calendar_bar_width: f32,
     /// The message list's height with the reading pane at the bottom, as the owner dragged it
     /// (#1372; 0: a share of the window's height).
     pub list_height: f32,
@@ -1062,6 +1065,7 @@ impl Default for UiState {
             task_account_address: String::new(),
             people_account_address: String::new(),
             folder_pane_width: 230.0,
+            tasks_calendar_bar_width: tasks_calendar_bar::DEFAULT_WIDTH,
             list_width: 380.0,
             list_height: 0.0,
             sync_panel_width: sync_panel::WIDTH,
@@ -2197,6 +2201,7 @@ impl MailApp {
         self.ui.backstage_page = "info".into();
         self.ui.folder_pane_width = if self.ui.folder_pane_width.is_finite() { self.ui.folder_pane_width.clamp(150.0, 500.0) } else { 230.0 };
         self.ui.list_width = if self.ui.list_width.is_finite() { self.ui.list_width.clamp(240.0, 900.0) } else { 380.0 };
+        self.ui.tasks_calendar_bar_width = tasks_calendar_bar::sane_width(self.ui.tasks_calendar_bar_width);
         self.ui.list_height =
             if self.ui.list_height.is_finite() && self.ui.list_height > 0.0 { self.ui.list_height.clamp(120.0, 4000.0) } else { 0.0 };
         (self.ui.sync_panel_width, self.ui.sync_panel_height) = sync_panel::sane_size(self.ui.sync_panel_width, self.ui.sync_panel_height);
@@ -2211,6 +2216,8 @@ impl MailApp {
         let v = &mut self.session.view;
         (v.sort, v.sort_descending, v.conversations, v.reading_pane, v.folder_pane, v.calendar, v.task_filter) =
             (saved.sort, saved.sort_descending, saved.conversations, saved.reading_pane, saved.folder_pane, saved.calendar, saved.task_filter);
+        // The Tasks and Calendar Bar of each module (#831), likewise.
+        v.tasks_calendar_bar = saved.tasks_calendar_bar;
         // How People and Tasks are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
@@ -5680,6 +5687,8 @@ impl MailApp {
             send_later::undo_bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);
+            // The Tasks and Calendar Bar, at the right of whatever module is in front (#831).
+            tasks_calendar_bar::show(self, ui);
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| match self.session.view.module {
                 mailcraft_engine::Module::Mail => mail_view::show(self, ui),
                 mailcraft_engine::Module::Calendar => calendar_view::show(self, ui),
