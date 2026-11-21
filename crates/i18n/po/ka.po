@@ -6595,6 +6595,12 @@ msgid "Have replies sent to other addresses"
 msgstr "პასუხები სხვა მისამართებზე გაიგზავნოს"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Height"
+msgstr "სიმაღლე"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -11863,11 +11869,23 @@ msgstr "აირჩიეთ ბოლო დღე"
 msgid "Picture"
 msgstr "სურათი"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "სურათის ფორმატი"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Layout"
 msgstr "სურათის განლაგება"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "სურათის ზომა"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -11886,6 +11904,12 @@ msgstr "სურათი ტექსტის ზემოთ"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "სურათი ტექსტის გვერდით"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "სურათის ზომა"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -13065,6 +13089,12 @@ msgid ""
 msgstr ""
 "ხედის\n"
 "ჩამოყრა"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Reset Size"
+msgstr "ზომის აღდგენა"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14850,6 +14880,12 @@ msgstr "საქაღალდეების პანელის ჩვე�
 msgid "Show the messages of this conversation"
 msgstr "ამ მიმოწერის წერილების ჩვენება"
 
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Show the picture at its own size"
+msgstr "სურათის საკუთარი ზომით ჩვენება"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -15236,8 +15272,8 @@ msgstr "გამარტივებული ლენტი"
 msgid "Single Line"
 msgstr "ერთი სტრიქონი"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "ზომა"
@@ -20031,7 +20067,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "ვინ მოაწერა ხელი ამ წერილს და სერტიფიკატი"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "სიგანე"
@@ -20999,6 +21035,12 @@ msgstr "საერთო საფოსტო ყუთის წესებ
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "ხელმოწერა გახსნილია: მისი სურათები დაამატეთ signature.picture.add-ით"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "ხელმოწერა გახსნილია: მისი სურათების ზომა შეცვალეთ signature.picture.set-ით"
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21792,6 +21834,12 @@ msgstr "გამავალი სერვერი არ არის"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "ამ ხელმოწერაში სურათი {id} არ არის"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "no picture {id} was put in this message"
+msgstr "ამ შეტყობინებაში სურათი {id} არ ჩასმულა"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs

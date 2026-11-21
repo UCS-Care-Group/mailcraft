@@ -6601,6 +6601,12 @@ msgid "Have replies sent to other addresses"
 msgstr "Válaszok fogadása más címeken"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Height"
+msgstr "Magasság"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -11895,11 +11901,23 @@ msgstr "Válassza ki az utolsó napot"
 msgid "Picture"
 msgstr "Kép"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "Képformátum"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Layout"
 msgstr "Kép elrendezése"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "Képméret"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -11918,6 +11936,12 @@ msgstr "Kép a szöveg fölött"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Kép a szöveg mellett"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "Képméret"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -13106,6 +13130,12 @@ msgid ""
 msgstr ""
 "Nézet\n"
 "alaphelyzetbe"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Reset Size"
+msgstr "Méret visszaállítása"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14906,6 +14936,12 @@ msgstr "Mappaablak megjelenítése"
 msgid "Show the messages of this conversation"
 msgstr "A beszélgetés üzeneteinek megjelenítése"
 
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Show the picture at its own size"
+msgstr "A kép megjelenítése a saját méretében"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -15294,8 +15330,8 @@ msgstr "Egyszerűsített menüszalag"
 msgid "Single Line"
 msgstr "Egysoros"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Méret"
@@ -20102,7 +20138,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Ki írta alá ezt az üzenetet, és a tanúsítványt?"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Szélesség"
@@ -21075,6 +21111,12 @@ msgstr "a megosztott postafiók szabályai a sajátjai: ez a verzió nem teszi �
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "egy aláírás nyitva van: hozzáadja képeit aláírással.kép.add"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "egy aláírás nyitva van: képei méretét a signature.picture.set paranccsal állítsa be"
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21868,6 +21910,12 @@ msgstr "nincs kimenő kiszolgáló"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "nincs kép {id} ezen az aláíráson"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "no picture {id} was put in this message"
+msgstr "ebbe az üzenetbe nem került {id} kép"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs

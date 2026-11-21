@@ -6602,6 +6602,12 @@ msgid "Have replies sent to other addresses"
 msgstr "将回复发送到其他地址"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Height"
+msgstr "高度"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -11894,11 +11900,23 @@ msgstr "选择最后一天"
 msgid "Picture"
 msgstr "图片"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "图片格式"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Layout"
 msgstr "图片布局"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "图片大小"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -11917,6 +11935,12 @@ msgstr "图片在文字上方"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "图片在文字旁"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "图片大小"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -13109,6 +13133,12 @@ msgid ""
 msgstr ""
 "重置\n"
 "视图"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Reset Size"
+msgstr "重置大小"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14907,6 +14937,12 @@ msgstr "显示文件夹窗格"
 msgid "Show the messages of this conversation"
 msgstr "显示此会话中的邮件"
 
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Show the picture at its own size"
+msgstr "以图片自身大小显示"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -15293,8 +15329,8 @@ msgstr "简化功能区"
 msgid "Single Line"
 msgstr "单行"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "大小"
@@ -20092,7 +20128,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "邮件的签名者及其证书"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "宽度"
@@ -21069,6 +21105,12 @@ msgstr "共享邮箱有自己的规则：此版本无法创建这些规则"
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "已有签名打开：请使用 signature.picture.add 添加图片"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "已有签名打开：请使用 signature.picture.set 调整其图片大小"
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21859,6 +21901,12 @@ msgstr "没有发送服务器"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "此签名中没有图片 {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "no picture {id} was put in this message"
+msgstr "此邮件中未插入图片 {id}"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
