@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-12 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-16 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -171,10 +171,23 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above, and like it never from a last clause
   cut off at 4,000 characters or left open) says `dmarc=fail` for the sender's domain, or, with no
-  DMARC verdict at all, `spf=fail` for it, unless Exchange Online's `compauth=pass`
-  overrides it (the sender's domain is read from whatever its address is written in, `xn--`
-  labels as the letters they stand for, and only labels that write back to exactly themselves are
-  read so); or the sender's name carries another address, or is a contact's or the owner's own
+  DMARC verdict at all, `spf=fail` for it (the sender's domain is read from whatever its address
+  is written in, `xn--` labels as the letters they stand for, and only labels that write back to
+  exactly themselves are read so), unless Exchange Online's `compauth=pass` overrides it, or, for
+  a sender outside the account's own domain, its `compauth=none reason=905` does: Exchange Online
+  says it didn't enforce DMARC because the mail came through another service first, such as a
+  filtering gateway in front of it (#1568). Only that code: the other `compauth=none` codes, an
+  allow list among them, leave the failure standing, and the gateway's own verdict below the edge
+  hop is still not read, so such mail is not vouched for either. Exchange gives that code from how
+  the tenant's mail is routed, not from the message, so it gives it as well to mail sent straight
+  to Microsoft 365 past the gateway ("direct send"). A sender at the account's own domain (the
+  same registrable part as the account's address: the domain, a name under it, or one above it)
+  therefore keeps its warning, and a spoof of a colleague sent that way still gets the red banner.
+  The limit: in a tenant behind a gateway, the warning can't catch such a spoof of an outside
+  domain, nor of another domain of the organisation that the account's address isn't at; only
+  the tenant's administrator can close that path (a connector that takes mail only from the
+  gateway, or Enhanced Filtering for Connectors). Or
+  the sender's name carries another address, or is a contact's or the owner's own
   name on an address that isn't theirs. Amber for **cautions** alone: a `dmarc=fail` for a domain
   whose policy is `p=none` (said in the server's comment, `(p=NONE …)`, or a `policy.` property),
   which asks for nothing to be done about mail that fails; the sender's domain is one character
@@ -413,11 +426,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - Mail from an `.eml` or `.mbox` file is never put in an Outbox or a folder under one: with an
   Outbox in view it goes to the account's Drafts (as drafts, not queued), else its Inbox; naming an
   Outbox is refused (`crates/engine/src/io.rs`).
-- Autocomplete (`compose.suggest`) takes nobody from mail in Junk E-mail, counts a date after now as
-  now, and puts addresses the owner has written to (Sent Items) above those that only wrote. The
-  people the search box offers after `from:`, `to:` and `cc:` (#308) come from it, so the same
-  holds for them (and then the owner's own addresses, which it leaves out); nothing is asked of
-  a server for them.
+- Autocomplete (`compose.suggest`) skips Junk E-mail and Drafts, counts a date after now as now,
+  and ranks by how often each address was sent to from Sent Items or the Outbox, without trusting
+  an incoming `From:` (a sender writes that line). When nobody was written to, contacts come ahead
+  of people only seen in mail that arrived. A new message's suggestions include the owner's own
+  addresses; the people the search box offers after `from:`, `to:` and `cc:` (#308) come from the
+  same ranking and then offer those addresses last. Nothing is asked of a server for them.
 - A reply, forward or reopened draft quotes an HTML original as its HTML reads
   (`quote_text`), never the text/plain alternative the sender wrote beside it, which the owner
   never saw.
@@ -456,7 +470,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   accounts, rules or signatures of before. The question shows the call in full: one too long to
   show (`MAX_QUESTION`) is refused, never cut; a calendar question names the event and the people
   it writes to. `ui.copyDiagnostics` is not available to agents.
-  Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
+  Undo and redo put back what the step changed (mail, contacts and events that downloads changed
+  since stay as they are now: #605, #1674), so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
   On a Microsoft account whose categories are kept in step with Outlook, an agent is asked
@@ -734,12 +749,24 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-16 | minor | #1544: a reaction sent by one click: six fixed emoji, one recipient (the sender, never the Reply-To, shown beside the emoji), nothing quoted, refused for a message with a sender warning, for drafts, own mail, Junk E-mail and automated mail, held back by Undo Send, asked about for an agent |
+| 2026-11-15 | patch | Known limits: S/MIME and OpenPGP signatures are checked; encrypting and signing sent mail are not built |
+| 2026-11-14 | patch | #1262: Check Names and People's Address Book ask an Exchange server account's address list only on the owner's press or search, and read its answer within caps, keeping a name, an address, four short lines and two numbers of each person, in the window alone |
+| 2026-11-13 | minor | #834: mail in Junk E-mail is shown by names only, no attachment there is decoded for a picture; the choice between names and pictures is a checkbox in File › Options too |
+| 2026-11-12 | patch | #661: an agent is asked `send` before it writes a category to Outlook (sent there, renamed there, new to the list, another colour, or put back so by an undo or redo), and `delete` for an undo or redo that has one deleted there |
 | 2026-11-12 | minor | #1103: provider discovery asks the DNS for the domain's Autodiscover hosts (SRV record and `autodiscover.<domain>` alias) beside its exchangers; the Exchange search's alias step, in the place of MS-OXDISCO's plain-HTTP redirect and specified in autodiscover.md, asks the owner before the sign-in goes to the alias's host |
+| 2026-11-11 | patch | #661: the window's background jobs that are called off for another mailbox include the categories' |
 | 2026-11-11 | minor | #30 part 4: the owner's own private keys kept in the credential store (`key:openpgp:`, `key:smime:`; passphrase-protected, S/MIME on Linux and FreeBSD only) and the rules they pass; running GnuPG (fixed arguments, no shell, a time limit and a cap on its output, the direct trust model) |
+| 2026-11-08 | minor | #836: an outgoing relay the owner marked as needing no sign-in is never shown the password, even when it offers a way to sign in; not for an account that signs in on its provider's page |
+| 2026-11-08 | minor | #834: a picture that comes as an attachment, shown as a picture at the owner's switch, is told by its bytes and decoded within the reading pane's caps off the window's thread; files kept on disk are brought in for it within caps |
+| 2026-11-08 | minor | #797: who mail says it is from: the account's own address or a sender address its owner listed; any other From never reaches the SMTP envelope, and a reply's From is chosen only among the owner's own addresses |
+| 2026-11-08 | patch | The HTML whitelist adds `direction` and the `dir` attribute, which only choose the side a paragraph stands at (a paragraph with neither reads left to right); nothing is run or fetched for them (#603) |
 | 2026-11-07 | patch | #843: a `.pst` distribution list's stream of members is read within caps |
 | 2026-11-07 | patch | AU3-11, AU3-12, AU3-13, AU3-14, AU3-15, AU3-V5: on Exchange Online only its own verdict above the hop where it took the mail in is read (with its id or none), only for mail it says came in, and a failure there without that word; a copy MailCraft puts on a server leaves every verdict behind; Safe Senders don't take mail its server failed out of Junk; a meeting a server keeps is changed only by its organizer's own message; links are judged in every look a message has, and a message with more looks than are checked says so; a part is shown in place only as a picture an `<img>` asks for |
 | 2026-11-07 | patch | AU3-08, AU3-09, AU3-10, AU3-21, AU3-26, AU3-V8, H6: every background job of the window answers only for the mailbox opening it was started under and is called off when another mailbox takes its place; no answer is relabelled with the account open now; a shared mailbox's sign-in is checked against its owner; a message handed to a server is marked as being sent on disk first, and one still marked at the next run is held, not sent again |
 | 2026-11-07 | patch | AU3-02, AU3-03, AU3-18, AU3-19: secrets are read and written by the account itself, an Exchange server account's name holds the certificate it trusts, a mailbox where two accounts share an address reads nothing until confirmed, every entry read is noted for the full wipe, removing an account deletes its entries under every name, and no build but a test's sends a Microsoft sign-in to this computer |
+| 2026-11-06 | minor | #509: send warnings (a lookalike recipient, compared as it reads without a `+tag` or Gmail's dots; outsiders who would see each other, never without an organisation) are the owner's to answer: refused without `confirmed`, asked in the window, an agent's own answer dropped; headless honours the call's `confirmed`; each recipient counted once, and more than 1,000 different ones a warning of its own (`tooManyRecipients`) |
+| 2026-11-05 | minor | #601: a picture behind a box is shown only from the message itself (`cid:`, `data:`); one on the web is never kept or fetched |
 | 2026-11-05 | minor | #602: under a reply or forward, the pictures written into a message (`data:`) that the reading pane shows go as parts of their own with Content-IDs naming nothing of the owner, within #533's checks and caps; the rest are left out and a `data:` address is never sent on |
 | 2026-11-05 | patch | #781 review: an Exchange stamp already in a mailbox file, which a move from another account may have carried in before, vouches for nothing; only one read by this version is believed |
 | 2026-11-04 | patch | #473 follow-up: only a Microsoft or an Exchange server account's copy goes to Deleted Items on undo; on any other account the copy is removed and Delete is asked. An undo that puts back the accounts and takes messages, drafts or contacts away is asked once, naming both, and a yes covers both; the owner's yes holds for the step and the items asked about only, not for one done or downloaded meanwhile |

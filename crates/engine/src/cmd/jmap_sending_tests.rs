@@ -229,23 +229,24 @@ fn a_message_moved_into_a_jmap_accounts_outbox_is_held_and_not_sent() {
     let brought = s.mailbox.add_message(here(inbox, "Invoice", false)).unwrap();
     let queued = written(&mut s, jmap, "Lunch");
     s.run("mail.move", &json!({"ids": [draft, brought], "folder": outbox})).unwrap();
-    for id in [draft, brought] {
+    for (id, held) in [(draft, mailcraft_model::DRAFT_MOVED_INTO_OUTBOX), (brought, mailcraft_model::MOVED_INTO_OUTBOX)] {
         let m = s.mailbox.message(id).unwrap();
-        assert_eq!((m.folder, m.held.as_str()), (outbox, mailcraft_model::MOVED_INTO_OUTBOX));
+        assert_eq!((m.folder, m.held.as_str()), (outbox, held));
     }
     // The next run sends what Send queued, and nothing that was only moved there.
     assert_eq!(offered(&s, jmap), [queued]);
     assert_eq!(super::graph_send::waiting(&s, jmap), 1);
-    // Until the owner says so.
-    s.run("mail.sendAgain", &json!({"id": draft})).unwrap();
-    assert_eq!(offered(&s, jmap), [draft, queued]);
+    // Until the owner says so; a draft goes with Send, which asks about its recipients (#1747).
+    assert!(s.run("mail.sendAgain", &json!({"id": draft})).is_err());
+    s.run("mail.sendAgain", &json!({"id": brought})).unwrap();
+    assert_eq!(offered(&s, jmap), [brought, queued]);
     // Moved out again, it is no longer held for having been there.
-    s.run("mail.move", &json!({"ids": [brought], "folder": inbox})).unwrap();
-    assert!(s.mailbox.message(brought).unwrap().held.is_empty());
+    s.run("mail.move", &json!({"ids": [draft], "folder": drafts})).unwrap();
+    assert!(s.mailbox.message(draft).unwrap().held.is_empty());
     // What Send queued, taken out and put back, waits for Send Again too.
     s.run("mail.move", &json!({"ids": [queued], "folder": drafts})).unwrap();
     s.run("mail.move", &json!({"ids": [queued], "folder": outbox})).unwrap();
-    assert_eq!(offered(&s, jmap), [draft]);
+    assert_eq!(offered(&s, jmap), [brought]);
 }
 
 #[test]

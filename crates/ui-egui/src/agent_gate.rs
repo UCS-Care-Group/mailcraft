@@ -88,6 +88,10 @@ fn err(e: impl std::fmt::Display) -> Outcome {
 /// A request from an agent: `Some` when the gate settles it (refused, asked about, or run
 /// here), `None` when it goes on as anybody's (looking, a screenshot into the answer).
 pub fn screen(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Option<Outcome> {
+    // The gate reads the mailbox, and the windows, as the command will find them: requests are
+    // handled before the frame follows the zone, and the computer may have been carried to
+    // another since the last one (#1674; `Session::run` settles it before anything else).
+    app.follow_zone();
     let p = &req.params;
     let given = |k: &str| p.get(k).is_some_and(|v| !v.is_null());
     match req.method.as_str() {
@@ -302,17 +306,24 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class], only: Option
     app.session.agent = Some(allow.to_vec());
     app.session.owner_changing = changing;
     app.session.only_shown = only;
+    let owner = app.windows.dialog_for;
     let r = app.execute(id, params);
     app.session.agent = None;
     app.session.owner_changing = Vec::new();
     app.session.only_shown = None;
-    if let Some(form) = owners
-        && let Some(opened) = app.dialog.replace(form)
-    {
-        return err(format!(
-            "`{id}` ran, but the dialog \"{}\" it opened would have taken the place of a form the owner is filling in and hasn't saved: the form stays, and that dialog wasn't shown. Try again once the owner has closed the form",
-            opened.name()
-        ));
+    if let Some(form) = owners {
+        // The form was only set aside. A dialog the command opened is not shown, and the form
+        // is still the one its window had open.
+        let opened = app.dialog.replace(form);
+        if let Some(compose) = owner {
+            app.windows.claim_dialog(compose);
+        }
+        if let Some(opened) = opened {
+            return err(format!(
+                "`{id}` ran, but the dialog \"{}\" it opened would have taken the place of a form the owner is filling in and hasn't saved: the form stays, and that dialog wasn't shown. Try again once the owner has closed the form",
+                opened.name()
+            ));
+        }
     }
     match r {
         Ok(v) => ok(v),
@@ -379,6 +390,8 @@ pub fn answer(app: &mut MailApp, yes: bool) {
 /// The owner's answer to the question on screen.
 pub fn answer_with(app: &mut MailApp, said: Answer) {
     let Some(a) = app.asking.pop_front() else { return };
+    // (Asked again of the mailbox the command will run on, as `screen` asks.)
+    app.follow_zone();
     let out = if a.opening != app.session.openings() {
         err(format!("another mailbox was opened before the owner answered about `{}`: nothing was done", a.id))
     } else if said != Answer::No {

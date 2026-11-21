@@ -1329,8 +1329,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 28,
-        "reading.rs, attachment pictures (and its tests), backdrop (and its tests), colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, react (and its tests), select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
+        checked, 29,
+        "reading.rs, attachment pictures (and its tests), backdrop (and its tests), colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, react (and its tests), scroll keys tests, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
     );
 }
 
@@ -2340,6 +2340,8 @@ fn what_is_kept_of_pictures_is_said_and_cleared_in_the_options() {
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
     assert!(says(&harness, "12 downloaded pictures are kept on this computer (3.2 MB)."));
+    harness.get_by_label("Clear").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Clear").click();
     harness.run_steps(4);
     assert_eq!(*kept.cleared.lock().unwrap(), 1);

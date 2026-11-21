@@ -28,6 +28,8 @@ pub mod categories_remote;
 mod categories_remote_tests;
 pub mod category;
 #[cfg(test)]
+mod category_sweep_tests;
+#[cfg(test)]
 mod category_tests;
 pub mod compose;
 #[cfg(test)]
@@ -59,6 +61,8 @@ mod folder_empty_tests;
 mod folder_kind_tests;
 #[cfg(test)]
 mod folder_new_tests;
+#[cfg(test)]
+mod folder_order_tests;
 #[cfg(test)]
 mod folder_properties_tests;
 pub mod followup;

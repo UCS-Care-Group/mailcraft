@@ -377,6 +377,11 @@ fn send_again(s: &mut Session, v: &Value) -> CmdResult {
     if m.held.is_empty() {
         return Err(fail("that message isn't held"));
     }
+    // A draft goes with Send, which asks what it asks of the recipients first (#509); Send Again
+    // would let it go unasked (#1747).
+    if m.draft {
+        return Err(fail("that message is a draft: open it and send it"));
+    }
     let m = s.mailbox.message_mut(id)?;
     m.held.clear();
     m.sending = false;

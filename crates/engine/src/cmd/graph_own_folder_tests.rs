@@ -189,3 +189,29 @@ fn a_bare_403_puts_the_folder_back_by_its_name_says_so_and_marks_nothing() {
     s.run("folder.delete", &json!({"id": projects})).unwrap();
     assert_eq!(s.mailbox.folder(projects).unwrap().parent, Some(deleted));
 }
+
+#[test]
+fn a_refused_move_puts_the_folder_back_in_its_old_place_too() {
+    // #1514: moving clears the folder's place among its siblings; a refusal restores it.
+    let (mut s, account) = session();
+    let projects = s.mailbox.folder_by_server(account, "pr").unwrap();
+    let rss = s.mailbox.folder_by_server(account, "rs").unwrap();
+    s.run("folder.reorder", &json!({"id": rss, "before": projects})).unwrap();
+    let place = s.mailbox.folder(projects).unwrap().place;
+    assert!(place.is_some());
+    s.run("folder.delete", &json!({"id": projects})).unwrap();
+    assert_eq!(s.mailbox.folder(projects).unwrap().place, None);
+    let refused: Vec<FolderChangeDone> = graph_mail_request(&s, account)
+        .unwrap()
+        .changes
+        .into_iter()
+        .filter(|c| matches!(c, FolderChange::Move { id, .. } if id == "pr"))
+        .map(|change| FolderChangeDone { change, outcome: ChangeOutcome::Refused { why: "the server says no".into() } })
+        .collect();
+    assert!(!refused.is_empty());
+    take(&mut s, account, refused);
+    let f = s.mailbox.folder(projects).unwrap();
+    assert_eq!((f.parent, f.place, f.place_before_move), (None, place, None));
+    let top: Vec<Id> = s.mailbox.children(account, None).iter().map(|f| f.id).collect();
+    assert!(top.iter().position(|i| *i == rss) < top.iter().position(|i| *i == projects));
+}

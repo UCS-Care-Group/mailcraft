@@ -563,6 +563,9 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     if rows.is_empty() {
         crate::swipe::reconcile(ui, swipe_scope, |_, _| false);
         let r = ui.available_rect_before_wrap();
+        // Painting the placeholder alone takes no space: keep the panel at its chosen size,
+        // including while its splitter is dragged in an empty folder or search.
+        ui.expand_to_include_rect(r);
         let msg = if searching {
             tl!("Nothing matches the search.")
         } else if app.session.view.filter != Filter::All {

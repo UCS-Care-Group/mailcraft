@@ -4,6 +4,16 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Whether `email` looks deliverable: `local@domain`, no spaces.
+pub fn is_valid_email(email: &str) -> bool {
+    match email.split_once('@') {
+        Some((local, domain)) => {
+            !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.') && !email.contains(char::is_whitespace)
+        }
+        None => false,
+    }
+}
+
 /// A mailbox: an optional display name and an address.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Address {
@@ -97,18 +107,9 @@ impl Address {
         letters.to_uppercase()
     }
 
-    /// Whether the address looks deliverable: `local@domain`, no spaces.
+    /// Whether the address looks deliverable ([`is_valid_email`]).
     pub fn is_valid(&self) -> bool {
-        match self.email.split_once('@') {
-            Some((local, domain)) => {
-                !local.is_empty()
-                    && domain.contains('.')
-                    && !domain.starts_with('.')
-                    && !domain.ends_with('.')
-                    && !self.email.contains(char::is_whitespace)
-            }
-            None => false,
-        }
+        is_valid_email(&self.email)
     }
 
     /// The same mailbox, whatever the display name or letter case.
