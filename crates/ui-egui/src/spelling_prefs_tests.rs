@@ -117,6 +117,30 @@ fn a_hostile_settings_file_is_cleaned_and_capped() {
 }
 
 #[test]
+fn a_large_custom_dictionary_is_deduped_quickly() {
+    let mut words =
+        vec![json!("Hello"), json!("hello"), json!("HELLO"), json!("Colour"), json!("COLOUR"), json!("ABC"), json!("Abc"), json!("Hello")];
+    for n in 0..9_996 {
+        words.push(json!(format!("w{n}")));
+    }
+    for n in 0..9_996 {
+        words.push(json!(format!("W{n}")));
+    }
+    let started = std::time::Instant::now();
+    let ui: UiState = serde_json::from_value(json!({"customDictionary": words})).unwrap();
+    let elapsed = started.elapsed();
+    assert!(elapsed.as_secs() < 2, "cleaning 10000 words took {elapsed:?}");
+    assert_eq!(ui.custom_dictionary.len(), 10_000);
+    assert_eq!(ui.custom_dictionary.first().map(String::as_str), Some("Hello"));
+    assert!(ui.custom_dictionary.iter().any(|word| word == "Colour"));
+    assert!(ui.custom_dictionary.iter().any(|word| word == "ABC" || word == "Abc"));
+    assert!(ui.custom_dictionary.iter().any(|word| word == "ABC") && ui.custom_dictionary.iter().any(|word| word == "Abc"));
+    assert!(!ui.custom_dictionary.iter().any(|word| word == "hello" || word == "HELLO" || word == "COLOUR"));
+    assert_eq!(ui.custom_dictionary.iter().filter(|word| word.starts_with('w')).count(), 9_996);
+    assert!(!ui.custom_dictionary.iter().any(|word| word.starts_with('W')));
+}
+
+#[test]
 fn custom_words_live_in_the_settings_remove_mailcraft_data_deletes() {
     // File › Info › Remove MailCraft's data deletes the settings folder, and with it `ui.json`
     // (the desktop host; the wipe tests assert the file is gone). The browser keeps the same
@@ -165,18 +189,26 @@ fn spelling_commands_answer_and_refuse_what_they_should() {
 
     assert_eq!(window.execute("ui.dictionary.add", json!({"word": " Colour "})).unwrap()["added"], true);
     let rev = window.spelling_rev;
-    assert_eq!(window.execute("ui.dictionary.add", json!({"word": "colour"})).unwrap()["added"], false);
+    // `Colour` does not cover `colour` (the checker would still flag it), so the lowercase spelling replaces it.
+    assert_eq!(window.execute("ui.dictionary.add", json!({"word": "colour"})).unwrap()["added"], true);
+    assert!(window.spelling_rev > rev);
+    let rev = window.spelling_rev;
     assert_eq!(window.execute("ui.dictionary.add", json!({"word": "COLOUR"})).unwrap()["added"], false);
     assert_eq!(window.spelling_rev, rev);
     assert!(window.execute("ui.dictionary.add", json!({"word": "bad word"})).is_err());
     assert!(window.execute("ui.dictionary.add", json!({"word": "a".repeat(70)})).is_err());
     assert!(window.execute("ui.dictionary.add", json!({})).is_err());
-    assert_eq!(window.execute("ui.dictionary.list", json!({})).unwrap()["words"], json!(["Colour"]));
+    assert_eq!(window.execute("ui.dictionary.list", json!({})).unwrap()["words"], json!(["colour"]));
 
     assert_eq!(window.execute("ui.dictionary.remove", json!({"word": "colour"})).unwrap()["removed"], 1);
     assert!(window.ui.custom_dictionary.is_empty());
     assert!(window.execute("ui.dictionary.remove", json!({"word": "colour"})).is_err());
 
+    window.ui.custom_dictionary = (0..mailcraft_engine::spelling::MAX_CUSTOM_WORDS.saturating_sub(1)).map(|n| format!("n{n}")).collect();
+    let kept = crate::spelling::words_not_added(&mut window, vec!["extra".into(), "more".into()]);
+    assert_eq!(kept, vec!["more".to_string()]);
+    assert!(window.ui.custom_dictionary.iter().any(|word| word == "extra"));
+    assert!(!window.ui.custom_dictionary.iter().any(|word| word == "more"));
     window.ui.custom_dictionary = (0..mailcraft_engine::spelling::MAX_CUSTOM_WORDS).map(|n| format!("w{n}")).collect();
     assert!(window.execute("ui.dictionary.add", json!({"word": "extra"})).unwrap_err().contains("full"));
     let rev = window.spelling_rev;
@@ -186,6 +218,14 @@ fn spelling_commands_answer_and_refuse_what_they_should() {
     assert_eq!(window.execute("ui.dictionary.ignore", json!({"word": "mispelt"})).unwrap()["ignored"], true);
     let rev = window.spelling_rev;
     assert_eq!(window.execute("ui.dictionary.ignore", json!({"word": "mispelt"})).unwrap()["ignored"], true);
+    assert_eq!(window.spelling_rev, rev);
+    window.spelling_ignored.clear();
+    assert_eq!(window.execute("ui.dictionary.ignore", json!({"word": "Zorblin"})).unwrap()["ignored"], true);
+    let rev = window.spelling_rev;
+    assert_eq!(window.execute("ui.dictionary.ignore", json!({"word": "zorblin"})).unwrap()["ignored"], true);
+    assert!(window.spelling_rev > rev, "Ignore All on the lowercase word is not covered by the capitalised one");
+    let rev = window.spelling_rev;
+    assert_eq!(window.execute("ui.dictionary.ignore", json!({"word": "zorblin"})).unwrap()["ignored"], true);
     assert_eq!(window.spelling_rev, rev);
     assert!(window.execute("ui.dictionary.ignore", json!({"word": "has space"})).is_err());
 

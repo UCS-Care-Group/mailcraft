@@ -800,12 +800,7 @@ fn spelling_options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let add = ui.button(tl!("Add"));
         if add.clicked() || (edit.lost_focus() && crate::keys::enter(ui.ctx(), ui.layer_id())) {
             let pending: Vec<String> = crate::spelling::split_words(&draft).iter().map(|word| (*word).to_string()).collect();
-            draft.clear();
-            for word in pending {
-                if app.run("ui.dictionary.add", json!({"word": word})).is_err() {
-                    break;
-                }
-            }
+            draft = crate::spelling::words_not_added(app, pending).join(" ");
         }
     });
     ui.ctx().data_mut(|data| data.insert_temp(draft_id, draft));

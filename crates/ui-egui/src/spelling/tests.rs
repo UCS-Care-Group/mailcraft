@@ -106,6 +106,60 @@ fn spelling_review_starts_at_the_caret_and_marks_large_paragraphs_partial() {
     assert!(check(&Italian, "it-IT", &oversized, &mailcraft_engine::spelling::Filter::default(), 0).partial);
 }
 
+struct Teh;
+
+impl HostChecker for Teh {
+    fn locales(&self) -> Vec<String> {
+        vec!["en-US".to_string()]
+    }
+
+    fn check(&self, locale: &str, text: &str) -> Option<Vec<Range<usize>>> {
+        if locale != "en-US" {
+            return None;
+        }
+        let mut ranges = Vec::new();
+        for word in ["TEH", "teh"] {
+            let mut from = 0usize;
+            while let Some(at) = text.get(from..).and_then(|rest| rest.find(word)) {
+                let abs = from.saturating_add(at);
+                ranges.push(abs..abs.saturating_add(word.len()));
+                from = abs.saturating_add(word.len());
+                if from > text.len() {
+                    break;
+                }
+            }
+        }
+        Some(ranges)
+    }
+
+    fn suggest(&self, _locale: &str, _word: &str) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+#[test]
+fn find_next_restarts_when_ignore_uppercase_changes() {
+    let mut app = MailApp::new(
+        mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0),
+        crate::Services { spelling: Some(Box::new(Teh)), ..Default::default() },
+    );
+    let ctx = Context::default();
+    app.execute("mail.new", json!({})).unwrap();
+    app.execute("ui.spelling", json!({"language": "en-US", "ignoreUppercase": true})).unwrap();
+    let body = format!("TEH\n{}teh", "ok\n".repeat(7));
+    app.execute("compose.set", json!({"body": body})).unwrap();
+    app.execute("compose.select", json!({"from": 0})).unwrap();
+    review_next(&mut app, &ctx, "en-US");
+    advance_review(&mut app, &ctx, Some("en-US"));
+    let selection = app.session.compose.as_ref().unwrap().body.selection();
+    assert_eq!(selection.start(), 0, "TEH is skipped while Ignore Uppercase is on");
+    app.execute("ui.spelling", json!({"ignoreUppercase": false})).unwrap();
+    advance_review(&mut app, &ctx, Some("en-US"));
+    advance_review(&mut app, &ctx, Some("en-US"));
+    let selection = app.session.compose.as_ref().unwrap().body.selection();
+    assert_eq!((selection.start(), selection.end()), (0, 3), "the first paragraph is checked again");
+}
+
 #[test]
 fn spelling_off_preserves_the_selected_writing_language() {
     let app = MailApp::new(
@@ -213,9 +267,7 @@ fn a_custom_word_one_edit_away_is_offered_before_the_hosts() {
 
 #[test]
 fn the_built_in_list_is_asked_with_the_custom_dictionary() {
-    if mailcraft_spell::en_us().is_none() {
-        return;
-    }
+    assert!(mailcraft_spell::en_us().is_some(), "the built-in dictionary loads");
     let issue = Issue { span: 0..8, word: "mailcraf".into() };
     let suggestions = Suggestions::new(&Quiet, mailcraft_spell::EN_US_TAG, issue, 0, &["mailcraft".into()]);
     assert!(suggestions.words.iter().any(|word| word.eq_ignore_ascii_case("mailcraft")), "{:?}", suggestions.words);

@@ -367,6 +367,8 @@ struct ReviewScan {
     first: usize,
     visited: usize,
     partial: bool,
+    /// [`MailApp::spelling_rev`] when this scan started. A newer revision starts again.
+    rev: u64,
 }
 
 fn review_next(app: &mut MailApp, ctx: &Context, locale: &str) {
@@ -392,6 +394,7 @@ fn review_next(app: &mut MailApp, ctx: &Context, locale: &str) {
         first,
         visited: 0,
         partial: false,
+        rev: app.spelling_rev,
     };
     ctx.data_mut(|d| d.insert_temp(editor::id(app).with("spelling-scan"), scan));
     ctx.request_repaint();
@@ -411,6 +414,11 @@ pub(crate) fn advance_review(app: &mut MailApp, ctx: &Context, locale: Option<&s
     }
     let Some(compose) = app.session.compose.as_ref() else { return };
     if locale != Some(&scan.locale) || compose.body.text() != scan.body.as_ref() || compose.body.selection() != scan.selection {
+        return;
+    }
+    if app.spelling_rev != scan.rev {
+        let locale = scan.locale.clone();
+        review_next(app, ctx, &locale);
         return;
     }
     let count = scan.paragraphs.len();
@@ -493,6 +501,7 @@ pub(crate) fn read_dictionary<'de, D: serde::Deserializer<'de>>(deserializer: D)
         }
         fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
             let mut out = Vec::new();
+            let mut seen = Kept::default();
             let mut looked = 0usize;
             // A hostile file can list far more than the dictionary keeps. Stop copying once it is
             // full, and stop reading after a bounded look so the rest is not stored.
@@ -500,7 +509,7 @@ pub(crate) fn read_dictionary<'de, D: serde::Deserializer<'de>>(deserializer: D)
                 looked = looked.saturating_add(1);
                 match seq.next_element::<Word>() {
                     Ok(Some(Word(Some(word)))) => {
-                        if out.len() < spelling::MAX_CUSTOM_WORDS && !dictionary_has(&out, &word) {
+                        if out.len() < spelling::MAX_CUSTOM_WORDS && seen.keep(&word) {
                             out.push(word);
                         }
                     }
@@ -602,16 +611,65 @@ fn accept_saved_word(text: &str) -> Option<String> {
     spelling::clean_custom_word(text)
 }
 
-/// Whether `word` is already named by an entry. A lowercase entry matches any casing, and a
-/// lowercase word is the same entry as an earlier capitalised spelling of it.
-pub(crate) fn dictionary_has(words: &[String], word: &str) -> bool {
-    words.iter().any(|entry| spelling::word_matches(entry, word))
-        || (!word.chars().any(char::is_uppercase) && words.iter().any(|entry| spelling::word_matches(word, entry)))
+/// Words already kept, so a long list is deduplicated without scanning it again for each word.
+/// A lowercase entry covers every casing, a capitalised entry covers that spelling and the same
+/// word in all capitals, and a lowercase word is the same entry as any earlier spelling of it.
+#[derive(Default)]
+struct Kept {
+    folded: std::collections::HashSet<String>,
+    lower: std::collections::HashSet<String>,
+    exact: std::collections::HashSet<String>,
+}
+
+impl Kept {
+    /// `true` when `word` is not already covered and is now remembered.
+    fn keep(&mut self, word: &str) -> bool {
+        if self.has(word) {
+            return false;
+        }
+        let (exact, folded, has_upper) = word_keys(word);
+        self.folded.insert(folded.clone());
+        if has_upper {
+            self.exact.insert(exact);
+        } else {
+            self.lower.insert(folded);
+        }
+        true
+    }
+
+    fn has(&self, word: &str) -> bool {
+        let (exact, folded, has_upper) = word_keys(word);
+        if !has_upper {
+            return self.folded.contains(&folded);
+        }
+        self.lower.contains(&folded) || self.exact.contains(&exact) || (all_capitals(&exact) && self.folded.contains(&folded))
+    }
+}
+
+/// Apostrophe-folded spelling, its lower case, and whether it has a capital.
+fn word_keys(word: &str) -> (String, String, bool) {
+    let exact: String = word.chars().map(|c| if c == '\u{2019}' { '\'' } else { c }).collect();
+    let has_upper = exact.chars().any(char::is_uppercase);
+    let folded: String = exact.chars().flat_map(char::to_lowercase).collect();
+    (exact, folded, has_upper)
+}
+
+fn all_capitals(word: &str) -> bool {
+    let mut letters = 0usize;
+    for c in word.chars() {
+        if !c.is_alphabetic() {
+            continue;
+        }
+        if !c.is_uppercase() {
+            return false;
+        }
+        letters = letters.saturating_add(1);
+    }
+    letters >= 1
 }
 
 fn ignored_has(words: &std::collections::BTreeSet<String>, word: &str) -> bool {
     words.iter().any(|entry| spelling::word_matches(entry, word))
-        || (!word.chars().any(char::is_uppercase) && words.iter().any(|entry| spelling::word_matches(word, entry)))
 }
 
 /// Clean what [`MailApp::apply_prefs`] just took from a file, including a `UiState` built in code.
@@ -619,15 +677,15 @@ pub(crate) fn sanitize_saved(ui: &mut crate::UiState) {
     ui.spelling_language = clean_language(&ui.spelling_language);
     let taken = std::mem::take(&mut ui.custom_dictionary);
     let mut out = Vec::new();
+    let mut seen = Kept::default();
     for word in taken {
         if out.len() >= spelling::MAX_CUSTOM_WORDS {
             break;
         }
         let Some(word) = accept_saved_word(&word) else { continue };
-        if dictionary_has(&out, &word) {
-            continue;
+        if seen.keep(&word) {
+            out.push(word);
         }
-        out.push(word);
     }
     ui.custom_dictionary = out;
 }
@@ -720,9 +778,12 @@ fn accepted_language(app: &MailApp, tag: &str) -> Result<String, String> {
 
 fn add_word(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let word = one_word(p)?;
-    if dictionary_has(&app.ui.custom_dictionary, &word) {
+    // Only an entry the checker would accept for this spelling suppresses the add. A capitalised
+    // entry does not cover the lowercase word, so that spelling replaces it.
+    if app.ui.custom_dictionary.iter().any(|entry| spelling::word_matches(entry, &word)) {
         return Ok(json!({"word": word, "added": false}));
     }
+    app.ui.custom_dictionary.retain(|entry| spelling::word_matches(entry, &word) || !spelling::word_matches(&word, entry));
     if app.ui.custom_dictionary.len() >= spelling::MAX_CUSTOM_WORDS {
         return Err(tl!("The custom dictionary is full.").to_string());
     }
@@ -783,6 +844,20 @@ pub(crate) fn paint_squiggle(painter: &egui::Painter, left: f32, right: f32, y: 
 }
 
 /// Words typed into File › Options, separated by commas, spaces or new lines.
+/// Words from a custom-dictionary draft that were not added, including the one that failed and
+/// every word after it, so the draft can be tried again.
+pub(crate) fn words_not_added(app: &mut MailApp, words: Vec<String>) -> Vec<String> {
+    let mut rest = Vec::new();
+    let mut failed = false;
+    for word in words {
+        if failed || app.run("ui.dictionary.add", json!({"word": word})).is_err() {
+            failed = true;
+            rest.push(word);
+        }
+    }
+    rest
+}
+
 pub(crate) fn split_words(text: &str) -> Vec<&str> {
     text.split(|c: char| c == ',' || c.is_whitespace()).filter(|word| !word.is_empty()).collect()
 }
