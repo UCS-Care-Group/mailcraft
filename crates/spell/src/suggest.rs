@@ -3,6 +3,8 @@
 //! Spelling suggestions: replacement table, one edit, then an n-gram shortlist
 //! re-ranked by a weighted Damerau-Levenshtein distance.
 
+use std::collections::HashMap;
+
 use crate::dict::{Dictionary, grams_of, overlap};
 use crate::fold::{self, CaseKind};
 
@@ -46,7 +48,8 @@ impl<'a> Sink<'a> {
 }
 
 impl Dictionary {
-    /// Up to six spellings for `word`. `extra` words (the owner's own list) are candidates too.
+    /// Up to six spellings for `word`. `extra` words (the owner's own list, the first 10_000)
+    /// are candidates too.
     ///
     /// Words longer than 64 characters yield nothing: the search is bounded.
     /// A stem marked `NOSUGGEST` is never offered. The suggestion follows the capitals of `word`,
@@ -65,13 +68,14 @@ impl Dictionary {
         let kind = fold::case_kind(word);
         let lower_input = !word.chars().any(|c| c.is_uppercase());
         let (_original, _folded, lower) = self.owned_forms(word);
+        let extras = Extras::new(extra);
         let mut sink = Sink::new(word, kind);
         self.suggest_rep(lower.as_str(), &mut sink);
         if !sink.full() {
-            self.suggest_edits(lower.as_str(), extra, lower_input, &mut sink);
+            self.suggest_edits(lower.as_str(), &extras, lower_input, &mut sink);
         }
         if !sink.full() {
-            self.suggest_ngram(lower.as_str(), extra, lower_input, &mut sink);
+            self.suggest_ngram(lower.as_str(), &extras, lower_input, &mut sink);
         }
         sink.out
     }
@@ -117,7 +121,7 @@ impl Dictionary {
         }
     }
 
-    fn suggest_edits(&self, lower: &str, extra: &[&str], lower_input: bool, sink: &mut Sink<'_>) {
+    fn suggest_edits(&self, lower: &str, extras: &Extras<'_>, lower_input: bool, sink: &mut Sink<'_>) {
         let chars: Vec<char> = lower.chars().take(MAX_CHARS).collect();
         if chars.is_empty() {
             return;
@@ -131,12 +135,12 @@ impl Dictionary {
             }
         }
         let mut cands = Vec::new();
-        self.keyboard_subs(&chars, extra, &mut cands);
-        self.swaps(&chars, extra, &mut cands);
-        self.deletes(&chars, extra, &mut cands);
-        self.inserts(&chars, &tries, extra, &mut cands);
-        self.substitutes(&chars, &tries, extra, &mut cands);
-        self.splits(&chars, extra, &mut cands);
+        self.keyboard_subs(&chars, extras, &mut cands);
+        self.swaps(&chars, extras, &mut cands);
+        self.deletes(&chars, extras, &mut cands);
+        self.inserts(&chars, &tries, extras, &mut cands);
+        self.substitutes(&chars, &tries, extras, &mut cands);
+        self.splits(&chars, extras, &mut cands);
         cands.sort_by(|a, b| {
             rank_key(a, lower_input).cmp(&rank_key(b, lower_input)).then(b.overlap.cmp(&a.overlap)).then(a.word.len().cmp(&b.word.len()))
         });
@@ -148,19 +152,19 @@ impl Dictionary {
         }
     }
 
-    fn keyboard_subs(&self, chars: &[char], extra: &[&str], cands: &mut Vec<Ranked>) {
+    fn keyboard_subs(&self, chars: &[char], extras: &Extras<'_>, cands: &mut Vec<Ranked>) {
         for i in 0..chars.len() {
             let Some(&ch) = chars.get(i) else { continue };
             let mut neigh = ['\0'; 8];
             let n = neighbours(ch, &mut neigh);
             for slot in neigh.iter().take(n) {
                 let word = replace_at(chars, i, *slot);
-                self.consider(chars, word, COST_KEY, i == 0, extra, cands);
+                self.consider(chars, word, COST_KEY, i == 0, extras, cands);
             }
         }
     }
 
-    fn swaps(&self, chars: &[char], extra: &[&str], cands: &mut Vec<Ranked>) {
+    fn swaps(&self, chars: &[char], extras: &Extras<'_>, cands: &mut Vec<Ranked>) {
         if chars.len() < 2 {
             return;
         }
@@ -179,11 +183,11 @@ impl Dictionary {
                     word.push(*ch);
                 }
             }
-            self.consider(chars, word, COST_SWAP, i == 0, extra, cands);
+            self.consider(chars, word, COST_SWAP, i == 0, extras, cands);
         }
     }
 
-    fn deletes(&self, chars: &[char], extra: &[&str], cands: &mut Vec<Ranked>) {
+    fn deletes(&self, chars: &[char], extras: &Extras<'_>, cands: &mut Vec<Ranked>) {
         if chars.len() < 2 {
             return;
         }
@@ -204,23 +208,23 @@ impl Dictionary {
                     word.push(*ch);
                 }
             }
-            self.consider(chars, word, cost, i == 0, extra, cands);
+            self.consider(chars, word, cost, i == 0, extras, cands);
         }
     }
 
-    fn inserts(&self, chars: &[char], tries: &[char], extra: &[&str], cands: &mut Vec<Ranked>) {
+    fn inserts(&self, chars: &[char], tries: &[char], extras: &Extras<'_>, cands: &mut Vec<Ranked>) {
         for i in 0..=chars.len() {
             for ch in tries {
                 let prev = if i > 0 { chars.get(i.saturating_sub(1)).copied() } else { None };
                 let next = chars.get(i).copied();
                 let cost = if prev == Some(*ch) || next == Some(*ch) { COST_DOUBLE_INS } else { COST_INSERT };
                 let word = insert_at(chars, i, *ch);
-                self.consider(chars, word, cost, i == 0, extra, cands);
+                self.consider(chars, word, cost, i == 0, extras, cands);
             }
         }
     }
 
-    fn substitutes(&self, chars: &[char], tries: &[char], extra: &[&str], cands: &mut Vec<Ranked>) {
+    fn substitutes(&self, chars: &[char], tries: &[char], extras: &Extras<'_>, cands: &mut Vec<Ranked>) {
         for i in 0..chars.len() {
             let Some(&current) = chars.get(i) else { continue };
             for ch in tries {
@@ -228,12 +232,12 @@ impl Dictionary {
                     continue;
                 }
                 let word = replace_at(chars, i, *ch);
-                self.consider(chars, word, COST_SUB, i == 0, extra, cands);
+                self.consider(chars, word, COST_SUB, i == 0, extras, cands);
             }
         }
     }
 
-    fn splits(&self, chars: &[char], extra: &[&str], cands: &mut Vec<Ranked>) {
+    fn splits(&self, chars: &[char], extras: &Extras<'_>, cands: &mut Vec<Ranked>) {
         if chars.len() < 4 {
             return;
         }
@@ -243,18 +247,18 @@ impl Dictionary {
             if !split_piece(&left) || !split_piece(&right) {
                 continue;
             }
-            if part_ok(self, &left, extra) && part_ok(self, &right, extra) {
+            if part_ok(self, &left, extras) && part_ok(self, &right, extras) {
                 let mut phrase = left;
                 phrase.push(' ');
                 phrase.push_str(&right);
-                self.consider(chars, phrase, COST_SPLIT, false, extra, cands);
+                self.consider(chars, phrase, COST_SPLIT, false, extras, cands);
             }
         }
     }
 
-    fn consider(&self, typo: &[char], word: String, cost: u32, first_changed: bool, extra: &[&str], cands: &mut Vec<Ranked>) {
+    fn consider(&self, typo: &[char], word: String, cost: u32, first_changed: bool, extras: &Extras<'_>, cands: &mut Vec<Ranked>) {
         let phrase = word.contains(' ');
-        if word.is_empty() || (!phrase && !self.suggestable(&word) && !extra_has(extra, &word)) {
+        if word.is_empty() || (!phrase && !self.suggestable(&word) && !extras.has(&word)) {
             return;
         }
         let letters: Vec<char> = word.chars().filter(|c| *c != ' ').collect();
@@ -272,7 +276,7 @@ impl Dictionary {
         cands.push(Ranked { cost, first_changed: u8::from(first_changed), capital, overlap, word });
     }
 
-    fn suggest_ngram(&self, lower: &str, extra: &[&str], lower_input: bool, sink: &mut Sink<'_>) {
+    fn suggest_ngram(&self, lower: &str, extras: &Extras<'_>, lower_input: bool, sink: &mut Sink<'_>) {
         let chars: Vec<char> = lower.chars().take(MAX_CHARS).collect();
         let len = chars.len();
         if len == 0 {
@@ -311,21 +315,33 @@ impl Dictionary {
                 }
             }
         }
-        for extra_word in extra.iter().take(256) {
-            if extra_word.chars().count() > MAX_CHARS || extra_word.is_empty() {
+        let mut extra_scored: Vec<(i32, String, &str)> = Vec::new();
+        for (key, display) in &extras.by_key {
+            let elen = key.chars().count();
+            if elen == 0 || elen > MAX_CHARS {
                 continue;
             }
-            let extra_lower = fold::to_lower(&fold::fold_accents(extra_word));
-            let (bi, tri) = grams_of(&extra_lower);
-            let elen = extra_lower.chars().count();
-            let diff = (elen as i32).saturating_sub(len as i32).unsigned_abs() as i32;
+            let diff = (elen as i32).saturating_sub(len as i32).unsigned_abs();
+            if usize::try_from(diff).unwrap_or(usize::MAX) > NGRAM_WINDOW {
+                continue;
+            }
+            let (bi, tri) = grams_of(key);
             let score = (overlap(&query_bi, &bi) as i32)
                 .saturating_mul(2)
                 .saturating_add((overlap(&query_tri, &tri) as i32).saturating_mul(3))
-                .saturating_sub(diff.saturating_mul(2));
-            let distance = weighted_distance(&chars, &extra_lower);
-            if score > 0 && distance <= limit {
-                ranked.push(Near::new(distance, score, (*extra_word).to_string()));
+                .saturating_sub((diff as i32).saturating_mul(2));
+            if score > 0 {
+                extra_scored.push((score, key.clone(), *display));
+            }
+        }
+        extra_scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.2.cmp(b.2)));
+        if extra_scored.len() > NGRAM_KEEP {
+            extra_scored.truncate(NGRAM_KEEP);
+        }
+        for (score, key, display) in extra_scored {
+            let distance = weighted_distance(&chars, &key);
+            if distance <= limit {
+                ranked.push(Near::new(distance, score, display.to_string()));
             }
         }
         ranked.sort_by(|a, b| near_key(a, lower_input).cmp(&near_key(b, lower_input)).then(b.score.cmp(&a.score)));
@@ -438,12 +454,47 @@ fn phrase_ok(dict: &Dictionary, phrase: &str) -> bool {
     any
 }
 
-fn part_ok(dict: &Dictionary, word: &str, extra: &[&str]) -> bool {
-    dict.suggestable(word) || extra_has(extra, word)
+fn part_ok(dict: &Dictionary, word: &str, extras: &Extras<'_>) -> bool {
+    dict.suggestable(word) || extras.has(word)
 }
 
-fn extra_has(extra: &[&str], word: &str) -> bool {
-    extra.iter().take(256).any(|item| fold::case_ok(item, word, &fold::fold_accents(word)) || item.eq_ignore_ascii_case(word))
+/// The owner's own words, indexed once per suggestion so a list of thousands stays a lookup.
+struct Extras<'a> {
+    by_key: HashMap<String, &'a str>,
+}
+
+impl<'a> Extras<'a> {
+    const MAX_EXTRA: usize = 10_000;
+
+    fn new(extra: &'a [&str]) -> Self {
+        let mut by_key = HashMap::new();
+        for word in extra.iter().take(Self::MAX_EXTRA) {
+            if word.is_empty() {
+                continue;
+            }
+            let mut count = 0usize;
+            for _ in word.chars() {
+                count = count.saturating_add(1);
+                if count > MAX_CHARS {
+                    break;
+                }
+            }
+            if count == 0 || count > MAX_CHARS {
+                continue;
+            }
+            let key = fold::to_lower(&fold::fold_accents(word));
+            by_key.entry(key).or_insert(*word);
+        }
+        Self { by_key }
+    }
+
+    fn has(&self, word: &str) -> bool {
+        if self.by_key.is_empty() {
+            return false;
+        }
+        let key = fold::to_lower(&fold::fold_accents(word));
+        self.by_key.contains_key(&key)
+    }
 }
 
 fn replace_at(chars: &[char], index: usize, new: char) -> String {

@@ -121,6 +121,18 @@ fn custom_words_are_candidates() {
 }
 
 #[test]
+fn custom_word_past_256_is_still_a_candidate() {
+    let mut owned = Vec::new();
+    for n in 0..256 {
+        owned.push(format!("zzz{n}word"));
+    }
+    owned.push("MailCraft".to_string());
+    let extra: Vec<&str> = owned.iter().map(String::as_str).collect();
+    let got = dict().suggest("mailcraf", &extra);
+    assert!(got.iter().any(|word| word.eq_ignore_ascii_case("MailCraft")), "{got:?}");
+}
+
+#[test]
 fn release_timings() {
     let started = std::time::Instant::now();
     let built =
