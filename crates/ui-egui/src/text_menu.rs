@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The menu of a text the owner types in (#557): Cut, Copy, Paste and Select All on a right
 //! click, in the body of a message or a signature ([`body`]) and in egui's text fields ([`field`],
-//! [`secret`], [`read_only`]).
+//! [`field_with`], [`secret`], [`read_only`]).
 //!
 //! - An item does what its key does: it becomes the input that key gives (`Event::Cut`,
 //!   `Event::Copy`, what Ctrl+V gives, Ctrl+A), handed to the text at the start of its window's
@@ -168,16 +168,17 @@ pub(crate) fn menu_item(ui: &mut Ui, enabled: bool, label: &str, key: &str) -> R
     ui.add_enabled(enabled, button)
 }
 
-/// The items for a text of `kind` that takes `takes`, `selected` whether anything is selected in
-/// it, `paste` whether there is a clipboard to paste from. What was chosen; the menu shuts then.
-fn items(ui: &mut Ui, kind: Kind, takes: Takes, selected: bool, paste: bool) -> (Option<Item>, bool) {
+/// The items for a text of `kind`, `text_only` whether it offers Paste Text Only, `selected`
+/// whether anything is selected in it, `paste` whether there is a clipboard to paste from. What was
+/// chosen; the menu shuts then.
+fn items(ui: &mut Ui, kind: Kind, text_only: bool, selected: bool, paste: bool) -> (Option<Item>, bool) {
     let (mut chosen, mut keyboard) = (None, false);
     let edits = kind == Kind::Text;
     let shown = [
         (edits, selected, "Cut", "Mod+X", Item::Cut),
         (kind != Kind::Secret, selected, "Copy", "Mod+C", Item::Copy),
         (kind != Kind::ReadOnly, paste, "Paste", "Mod+V", Item::Paste),
-        (edits && takes == Takes::Pictures, paste, tl_later!("Paste Text Only"), "", Item::PasteText),
+        (edits && text_only, paste, tl_later!("Paste Text Only"), "", Item::PasteText),
         (kind != Kind::Secret, true, "Select All", "Mod+A", Item::SelectAll),
     ];
     for (offered, enabled, label, key, item) in shown {
@@ -203,10 +204,10 @@ fn items(ui: &mut Ui, kind: Kind, takes: Takes, selected: bool, paste: bool) -> 
 /// has its menu as a submenu of it instead: open by its own note ([`Nested`]), and counted by the
 /// drop-down as one of its own (`MenuState`), so that neither closes the other.
 fn menu(resp: &Response, kind: Kind, selected: bool, takes: Takes) {
-    menu_with(resp, kind, selected, takes, |_| false);
+    menu_with(resp, kind, selected, takes, false, |_| false);
 }
 
-fn menu_with(resp: &Response, kind: Kind, selected: bool, takes: Takes, mut extra: impl FnMut(&mut Ui) -> bool) {
+fn menu_with(resp: &Response, kind: Kind, selected: bool, takes: Takes, text_only: bool, mut extra: impl FnMut(&mut Ui) -> bool) {
     let ctx = &resp.ctx;
     let id = Popup::default_response_id(resp);
     let pass = ctx.cumulative_pass_nr();
@@ -226,7 +227,7 @@ fn menu_with(resp: &Response, kind: Kind, selected: bool, takes: Takes, mut extr
     let (mut chosen, mut keyboard) = (None, false);
     let mut contents = |ui: &mut Ui| {
         let extra_keyboard = extra(ui);
-        (chosen, keyboard) = items(ui, kind, takes, selected, paste);
+        (chosen, keyboard) = items(ui, kind, text_only, selected, paste);
         keyboard |= extra_keyboard;
     };
     let open = match nested.as_mut() {
@@ -326,7 +327,13 @@ fn keyboard_in(id: Id) -> Id {
 
 /// A text field egui draws, `resp` (what `ui.add(TextEdit…)` answered), with the menu.
 pub(crate) fn field(resp: Response) -> Response {
-    attach(resp, Kind::Text)
+    field_with(resp, |_| false)
+}
+
+/// [`field`], with `extra` items above Cut, Copy, Paste and Select All. `extra` reports whether
+/// one of its items has the keyboard, as [`body`] does, so the field is not left for its own menu.
+pub(crate) fn field_with(resp: Response, extra: impl FnMut(&mut Ui) -> bool) -> Response {
+    open_field_menu(resp, Kind::Text, extra)
 }
 
 /// A password field, with the menu: Paste alone.
@@ -345,9 +352,10 @@ fn on(range: CCursorRange, at: CCursor) -> bool {
     !range.is_empty() && r.start <= at.index && at.index <= r.end
 }
 
-fn attach(resp: Response, kind: Kind) -> Response {
-    let ctx = resp.ctx.clone();
-    let mut state = TextEdit::load_state(&ctx, resp.id);
+/// Whether anything is selected in the field `resp`, keeping that selection for its menu.
+fn field_selected(resp: &Response) -> bool {
+    let ctx = &resp.ctx;
+    let mut state = TextEdit::load_state(ctx, resp.id);
     let was = ctx.data(|d| d.get_temp::<CCursorRange>(kept(resp.id)));
     // egui puts the caret where any button goes down: a right click on what is selected gives it
     // back.
@@ -357,7 +365,7 @@ fn attach(resp: Response, kind: Kind) -> Response {
         && state.cursor.char_range().is_some_and(|now| on(was, now.primary))
     {
         state.cursor.set_char_range(Some(was));
-        state.clone().store(&ctx, resp.id);
+        state.clone().store(ctx, resp.id);
     }
     // egui lets go of a field's selection as soon as the field hasn't the keyboard, which a click
     // on its menu takes: what was selected while it had it is kept for the menu, and given back
@@ -369,15 +377,27 @@ fn attach(resp: Response, kind: Kind) -> Response {
     {
         ctx.data_mut(|d| d.insert_temp(kept(resp.id), now));
     }
-    menu(&resp, kind, range.is_some_and(|r| !r.is_empty()), Takes::Text);
+    range.is_some_and(|r| !r.is_empty())
+}
+
+fn attach(resp: Response, kind: Kind) -> Response {
+    let selected = field_selected(&resp);
+    menu(&resp, kind, selected, Takes::Text);
+    resp
+}
+
+fn open_field_menu(resp: Response, kind: Kind, extra: impl FnMut(&mut Ui) -> bool) -> Response {
+    let selected = field_selected(&resp);
+    menu_with(&resp, kind, selected, Takes::Text, false, extra);
     resp
 }
 
 /// The body of a message being written, or a signature being edited, `resp`, with the menu;
-/// `selected`: whether anything is selected in it; `takes`: what a paste brings into it. (Where a
-/// right click puts the caret is the body's own.)
-pub(crate) fn body(resp: &Response, selected: bool, takes: Takes, extra: impl FnMut(&mut Ui) -> bool) {
-    menu_with(resp, Kind::Text, selected, takes, extra);
+/// `selected`: whether anything is selected in it; `takes`: what a paste brings into it; `plain`:
+/// the message is plain text, where Paste brings the text alone and Paste Text Only isn't offered.
+/// (Where a right click puts the caret is the body's own.)
+pub(crate) fn body(resp: &Response, selected: bool, takes: Takes, plain: bool, extra: impl FnMut(&mut Ui) -> bool) {
+    menu_with(resp, Kind::Text, selected, takes, takes == Takes::Pictures && !plain, extra);
 }
 
 /// What was chosen this pass becomes its input, for [`deliver`]. The extra pass asked for runs in

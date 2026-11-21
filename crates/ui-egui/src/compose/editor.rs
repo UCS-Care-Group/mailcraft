@@ -994,7 +994,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         // Both take pictures: a signature, and a message's text since #547.
         let takes = crate::text_menu::Takes::Pictures;
         let mut chosen = None;
-        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes, |ui| {
+        let (selected, plain) = now(app, which).map_or((false, false), |(sel, plain)| (!sel.is_empty(), plain));
+        crate::text_menu::body(&resp, selected, takes, plain, |ui| {
             st.spelling_menu.as_ref().is_some_and(|suggestions| suggestions.show(ui, &mut chosen))
         });
         if let Some(choice) = chosen
@@ -1133,7 +1134,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 {
                     let _ = app.run(command, params);
                 }
-                st.spelling_typed_until = if command == "compose.type" { spelling_time + 0.6 } else { 0.0 };
+                st.spelling_typed_until = if command == "compose.type" { spelling_time + spelling::TYPING_PAUSE } else { 0.0 };
                 own(app, which, &mut st, Some(command));
             }
         }
@@ -1382,14 +1383,7 @@ fn paint_spelling(painter: &egui::Painter, p: &Para, at: egui::Pos2, span: std::
             let left = x + row.x_offset(CharIndex(lo - start));
             let right = x + row.x_offset(CharIndex(hi - start));
             let y = at.y + row.max_y() - 1.0;
-            if left < right {
-                let path = std::iter::successors(Some(left), |x| (*x + 2.0 < right).then_some(*x + 2.0))
-                    .chain(std::iter::once(right))
-                    .enumerate()
-                    .map(|(i, x)| pos2(x, y + (i % 2) as f32))
-                    .collect();
-                painter.add(egui::Shape::line(path, Stroke::new(1.0, ink)));
-            }
+            spelling::paint_squiggle(painter, left, right, y, ink);
         }
         start = end;
         if start >= span.end {

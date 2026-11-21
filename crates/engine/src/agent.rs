@@ -228,6 +228,7 @@ const SAFE: &[&str] = &[
     "compose.select",
     "compose.type",
     "compose.replaceText",
+    "compose.replaceSubject",
     "compose.delete",
     "compose.undo",
     "compose.redo",

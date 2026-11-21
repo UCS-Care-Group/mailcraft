@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 
 use super::followup::FollowUpPlan;
 use super::{bad, base64_decode, done, fail, needs_compose, needs_message, source};
+use crate::session::SubjectStep;
 use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, ComposeMode, InsertedSignature, Quote, Session, p};
 
 /// Largest single attachment and most attachments on one message.
@@ -50,6 +51,10 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("compose.set", "Edit Message", "Message", set)
             .pure()
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "importance"?: "low"|"normal"|"high", "account"?: number, "from"?: string (the address it is from: the account's own, or one of its sender addresses, account.senderAddresses; "" for its own. Another account without `from` sends from that one's own)}"#)
+            .when_writing(needs_compose),
+        CommandSpec::new("compose.replaceSubject", "Replace Subject Text", "Message", replace_subject)
+            .pure()
+            .params(r#"{"from": number, "to": number, "expected": string, "text": string} — replace the expected text at [from, to) in the Subject as one undo step (`compose.undo`). Offsets count characters. Each string is on one line and at most 256 characters. A stale range or different text leaves the Subject alone"#)
             .when_writing(needs_compose),
         CommandSpec::new("compose.attach", "Attach File", "Message › Include", attach)
             .pure()
@@ -218,7 +223,11 @@ fn chosen_signature(s: &Session, account: Id, from: &str, name: Option<&str>, re
 /// Put `sig` in the message as its signature (in place of the one there, else at `at`), or take
 /// it out; and remember what went in, to tell later whether the owner has edited it.
 fn put_signature(c: &mut Compose, sig: Option<&Signature>, at: usize) -> Result<(), CmdError> {
+    let before = c.body.text().clone();
     c.body.put_signature(sig.map(Signature::body), at).map_err(|e| fail(e.to_string()))?;
+    if c.body.text() != &before {
+        c.note_body_edit();
+    }
     c.signature = match (sig, c.body.text().signature()) {
         (Some(sig), Some(text)) => Some(InsertedSignature {
             name: sig.name.clone(),
@@ -1206,14 +1215,27 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(sig) = swap {
         put_signature(c, sig.as_ref(), 0)?;
     }
-    for (key, field) in [("to", &mut c.to), ("cc", &mut c.cc), ("bcc", &mut c.bcc), ("replyTo", &mut c.reply_to), ("subject", &mut c.subject)] {
+    for (key, field) in [("to", &mut c.to), ("cc", &mut c.cc), ("bcc", &mut c.bcc), ("replyTo", &mut c.reply_to)] {
         if let Some(text) = p::str(v, key) {
             *field = text.replace(['\r', '\n'], " ");
         }
     }
+    // Typed by hand, the Subject is undone by the field, not `compose.undo`. A change that no
+    // longer matches a spelling replacement drops that step.
+    if let Some(text) = p::str(v, "subject") {
+        let text = text.replace(['\r', '\n'], " ");
+        if text != c.subject {
+            c.subject = text;
+            drop_broken_subject(c);
+        }
+    }
     // The body as plain text: what didn't change keeps its formatting.
     if let Some(text) = p::str(v, "body") {
+        let body_before = c.body.text().clone();
         c.body.set_plain(text).map_err(|e| fail(e.to_string()))?;
+        if c.body.text() != &body_before {
+            c.note_body_edit();
+        }
     }
     if let Some(i) = importance {
         c.importance = i;
@@ -1228,6 +1250,243 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
         c.dirty = true;
     }
     done()
+}
+
+/// A spelling replacement in the Subject: one step of [`undo_writing`], and nothing if the
+/// characters at `[from, to)` are no longer `expected`.
+fn replace_subject(s: &mut Session, v: &Value) -> CmdResult {
+    p::only(v, &["from", "to", "expected", "text"])?;
+    let from = super::format::position(v, "from")?.ok_or_else(|| bad("`from` (number) is required"))?;
+    let to = super::format::position(v, "to")?.ok_or_else(|| bad("`to` (number) is required"))?;
+    let expected = p::req_str(v, "expected")?;
+    let text = p::req_str(v, "text")?.replace(['\r', '\n'], " ");
+    let span = to.saturating_sub(from);
+    if from >= to || expected.chars().count() != span || !plain_line(expected, false) || !plain_line(&text, true) {
+        return Err(bad("expected and replacement must be on one line"));
+    }
+    let c = compose_mut(s)?;
+    let Some(start) = char_byte(&c.subject, from) else {
+        return Err(fail("the text has changed at the place to replace"));
+    };
+    let Some(end) = char_byte(&c.subject, to) else {
+        return Err(fail("the text has changed at the place to replace"));
+    };
+    if c.subject.get(start..end) != Some(expected) {
+        return Err(fail("the text has changed at the place to replace"));
+    }
+    if expected == text {
+        return Ok(json!({"subject": c.subject}));
+    }
+    let mut next = String::new();
+    next.push_str(c.subject.get(..start).unwrap_or(""));
+    next.push_str(&text);
+    next.push_str(c.subject.get(end..).unwrap_or(""));
+    align_body(&mut c.subject_edits.undo, c.body.undo_len());
+    c.subject_edits.redo.clear();
+    c.body.clear_redo();
+    let before = std::mem::replace(&mut c.subject, next);
+    c.subject_edits.undo.push(SubjectStep::Subject { before, after: c.subject.clone() });
+    cap_subject_steps(&mut c.subject_edits.undo);
+    c.dirty = true;
+    Ok(json!({"subject": c.subject}))
+}
+
+/// At most this many Subject replacements stay on the undo stack. Body steps are capped with the text.
+const MAX_SUBJECT_STEPS: usize = 100;
+
+fn plain_line(text: &str, allow_empty: bool) -> bool {
+    let mut count = 0usize;
+    for c in text.chars() {
+        if c.is_control() {
+            return false;
+        }
+        count = count.saturating_add(1);
+        if count > 256 {
+            return false;
+        }
+    }
+    allow_empty || count > 0
+}
+
+/// Byte index of character `chars`, or the end when `chars` is the length. `None` when past the end.
+fn char_byte(text: &str, chars: usize) -> Option<usize> {
+    let mut seen = 0usize;
+    for (index, _) in text.char_indices() {
+        if seen == chars {
+            return Some(index);
+        }
+        seen = seen.saturating_add(1);
+    }
+    (seen == chars).then_some(text.len())
+}
+
+fn body_tokens(steps: &[SubjectStep]) -> usize {
+    steps.iter().filter(|step| matches!(step, SubjectStep::Body)).count()
+}
+
+/// Keep one body token per step the text can still undo, dropping the oldest when the text did.
+fn align_body(steps: &mut Vec<SubjectStep>, undo_len: usize) {
+    let mut tokens = body_tokens(steps);
+    while tokens < undo_len {
+        steps.push(SubjectStep::Body);
+        tokens = tokens.saturating_add(1);
+    }
+    while tokens > undo_len {
+        let Some(index) = steps.iter().position(|step| matches!(step, SubjectStep::Body)) else { break };
+        steps.remove(index);
+        tokens = tokens.saturating_sub(1);
+    }
+}
+
+fn cap_subject_steps(steps: &mut Vec<SubjectStep>) {
+    let mut subjects = steps.iter().filter(|step| matches!(step, SubjectStep::Subject { .. })).count();
+    while subjects > MAX_SUBJECT_STEPS {
+        let Some(index) = steps.iter().position(|step| matches!(step, SubjectStep::Subject { .. })) else { break };
+        steps.remove(index);
+        subjects = subjects.saturating_sub(1);
+    }
+}
+
+/// The newest Subject step no longer matches what the line says: the owner typed over it.
+fn drop_broken_subject(c: &mut Compose) {
+    let undo_broken = c.subject_edits.undo.iter().rev().find_map(|step| match step {
+        SubjectStep::Subject { after, .. } => Some(after != &c.subject),
+        SubjectStep::Body => None,
+    });
+    if undo_broken == Some(true) {
+        c.subject_edits.undo.retain(|step| matches!(step, SubjectStep::Body));
+    }
+    let redo_broken = c.subject_edits.redo.iter().rev().find_map(|step| match step {
+        SubjectStep::Subject { before, .. } => Some(before != &c.subject),
+        SubjectStep::Body => None,
+    });
+    if redo_broken == Some(true) {
+        c.subject_edits.redo.retain(|step| matches!(step, SubjectStep::Body));
+    }
+}
+
+impl Compose {
+    /// The text gained a step, which clears Redo, including a Subject replacement undone just now.
+    pub(crate) fn note_body_edit(&mut self) {
+        self.subject_edits.redo.clear();
+    }
+}
+
+/// Whether `compose.undo` has a step while no signature is open: the text, or a Subject replacement.
+pub(super) fn writing_can_undo(s: &Session) -> bool {
+    let Some(c) = s.compose.as_ref() else { return false };
+    c.body.can_undo() || subject_can_undo(c)
+}
+
+/// Whether `compose.redo` has a step while no signature is open.
+pub(super) fn writing_can_redo(s: &Session) -> bool {
+    let Some(c) = s.compose.as_ref() else { return false };
+    c.body.can_redo() || subject_can_redo(c)
+}
+
+fn subject_can_undo(c: &Compose) -> bool {
+    c.subject_edits
+        .undo
+        .iter()
+        .rev()
+        .find_map(|step| match step {
+            SubjectStep::Subject { after, .. } => Some(after == &c.subject),
+            SubjectStep::Body => None,
+        })
+        .unwrap_or(false)
+}
+
+fn subject_can_redo(c: &Compose) -> bool {
+    c.subject_edits
+        .redo
+        .iter()
+        .rev()
+        .find_map(|step| match step {
+            SubjectStep::Subject { before, .. } => Some(before == &c.subject),
+            SubjectStep::Body => None,
+        })
+        .unwrap_or(false)
+}
+
+/// Undo the latest body edit or Subject replacement. A signature open in File › Signatures is the
+/// other command's, and is not handled here.
+pub(super) fn undo_writing(s: &mut Session) -> CmdResult {
+    let done = {
+        let c = s.compose.as_mut().ok_or_else(|| fail("no message is being written"))?;
+        align_body(&mut c.subject_edits.undo, c.body.undo_len());
+        let mut done = false;
+        loop {
+            match c.subject_edits.undo.pop() {
+                Some(SubjectStep::Body) => {
+                    if super::format::step_compose_body(c, false) {
+                        c.subject_edits.redo.push(SubjectStep::Body);
+                        c.dirty = true;
+                        done = true;
+                        break;
+                    }
+                }
+                Some(SubjectStep::Subject { before, after }) => {
+                    if c.subject != after {
+                        continue;
+                    }
+                    c.subject = before.clone();
+                    c.subject_edits.redo.push(SubjectStep::Subject { before, after });
+                    c.dirty = true;
+                    done = true;
+                    break;
+                }
+                None => break,
+            }
+        }
+        done
+    };
+    if !done {
+        return Err(fail("nothing to undo in the message"));
+    }
+    Ok(super::format::state(s))
+}
+
+/// Redo the latest undone body edit or Subject replacement.
+pub(super) fn redo_writing(s: &mut Session) -> CmdResult {
+    let done = {
+        let c = s.compose.as_mut().ok_or_else(|| fail("no message is being written"))?;
+        let mut done = false;
+        loop {
+            match c.subject_edits.redo.pop() {
+                Some(SubjectStep::Body) => {
+                    if super::format::step_compose_body(c, true) {
+                        c.subject_edits.undo.push(SubjectStep::Body);
+                        c.dirty = true;
+                        done = true;
+                        break;
+                    }
+                }
+                Some(SubjectStep::Subject { before, after }) => {
+                    if c.subject != before {
+                        continue;
+                    }
+                    c.subject = after.clone();
+                    c.subject_edits.undo.push(SubjectStep::Subject { before, after });
+                    c.dirty = true;
+                    done = true;
+                    break;
+                }
+                None => {
+                    if super::format::step_compose_body(c, true) {
+                        c.subject_edits.undo.push(SubjectStep::Body);
+                        c.dirty = true;
+                        done = true;
+                    }
+                    break;
+                }
+            }
+        }
+        done
+    };
+    if !done {
+        return Err(fail("nothing to redo in the message"));
+    }
+    Ok(super::format::state(s))
 }
 
 fn attach(s: &mut Session, v: &Value) -> CmdResult {

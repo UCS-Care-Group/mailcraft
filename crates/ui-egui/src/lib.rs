@@ -292,6 +292,9 @@ pub mod software;
 pub mod spelling;
 #[cfg(test)]
 mod spelling_prefs_tests;
+mod spelling_subject;
+#[cfg(test)]
+mod spelling_subject_tests;
 mod subscribed;
 #[cfg(test)]
 mod subscribed_tests;

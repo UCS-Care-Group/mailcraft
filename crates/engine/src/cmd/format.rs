@@ -34,16 +34,8 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"from"?: number, "to"?: number, "forward"?: bool} (default: the selection, else the character before the caret, or after it with forward)"#)
             .when_writing(needs_doc),
-        CommandSpec::new("compose.undo", "Undo Typing", "Message", undo).pure().when_writing(|s| match s.doc() {
-            None => Some("no message is being written"),
-            Some((b, _)) if !b.can_undo() => Some("nothing to undo in the message"),
-            Some(_) => None,
-        }),
-        CommandSpec::new("compose.redo", "Redo Typing", "Message", redo).pure().when_writing(|s| match s.doc() {
-            None => Some("no message is being written"),
-            Some((b, _)) if !b.can_redo() => Some("nothing to redo in the message"),
-            Some(_) => None,
-        }),
+        CommandSpec::new("compose.undo", "Undo Typing", "Message", undo).pure().when_writing(undo_enabled),
+        CommandSpec::new("compose.redo", "Redo Typing", "Message", redo).pure().when_writing(redo_enabled),
         CommandSpec::new("format.bold", "Bold", "Message › Basic Text", bold).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("format.italic", "Italic", "Message › Basic Text", italic).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("format.underline", "Underline", "Message › Basic Text", underline).pure().params(RANGE).when_writing(needs_html),
@@ -163,12 +155,23 @@ fn select_range(body: &mut RichBody, v: &Value, reach: usize) -> Result<(), CmdE
 /// Run an edit of the text; the message (or signature) is changed when its text is.
 pub(super) fn edit<T>(s: &mut Session, v: &Value, f: impl FnOnce(&mut RichBody) -> Result<T, ModelError>) -> Result<T, CmdError> {
     let reach = reach(s);
-    let d = doc_mut(s)?;
-    select_range(d.body, v, reach)?;
-    let before = d.body.text().clone();
-    let out = f(d.body).map_err(model)?;
-    if *d.body.text() != before {
-        *d.dirty = true;
+    let (out, changed) = {
+        let d = doc_mut(s)?;
+        select_range(d.body, v, reach)?;
+        let before = d.body.text().clone();
+        let out = f(d.body).map_err(model)?;
+        let changed = *d.body.text() != before;
+        if changed {
+            *d.dirty = true;
+        }
+        (out, changed)
+    };
+    // A new step of the message clears Redo of a Subject replacement undone just before it.
+    if changed
+        && s.signature_edit.is_none()
+        && let Some(c) = s.compose.as_mut()
+    {
+        c.note_body_edit();
     }
     Ok(out)
 }
@@ -226,36 +229,73 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
     Ok(state(s))
 }
 
-fn undo(s: &mut Session, _: &Value) -> CmdResult {
-    if !step(s, false)? {
-        return Err(fail("nothing to undo in the message"));
+fn undo_enabled(s: &Session) -> Option<&'static str> {
+    if s.signature_edit.is_some() {
+        return match s.doc() {
+            None => Some("no message is being written"),
+            Some((body, _)) if !body.can_undo() => Some("nothing to undo in the message"),
+            Some(_) => None,
+        };
     }
-    Ok(state(s))
+    if s.compose.is_none() {
+        return Some("no message is being written");
+    }
+    if super::compose::writing_can_undo(s) { None } else { Some("nothing to undo in the message") }
+}
+
+fn redo_enabled(s: &Session) -> Option<&'static str> {
+    if s.signature_edit.is_some() {
+        return match s.doc() {
+            None => Some("no message is being written"),
+            Some((body, _)) if !body.can_redo() => Some("nothing to redo in the message"),
+            Some(_) => None,
+        };
+    }
+    if s.compose.is_none() {
+        return Some("no message is being written");
+    }
+    if super::compose::writing_can_redo(s) { None } else { Some("nothing to redo in the message") }
+}
+
+fn undo(s: &mut Session, _: &Value) -> CmdResult {
+    // A signature open in File › Signatures has its own text, and its own undo.
+    // The open message interleaves body steps with Subject replacements (`undo_writing`);
+    // a body step still puts a picture's width back.
+    if s.signature_edit.is_some() {
+        if !step_signature(s, false)? {
+            return Err(fail("nothing to undo in the message"));
+        }
+        return Ok(state(s));
+    }
+    super::compose::undo_writing(s)
 }
 
 fn redo(s: &mut Session, _: &Value) -> CmdResult {
-    if !step(s, true)? {
-        return Err(fail("nothing to redo in the message"));
+    if s.signature_edit.is_some() {
+        if !step_signature(s, true)? {
+            return Err(fail("nothing to redo in the message"));
+        }
+        return Ok(state(s));
     }
-    Ok(state(s))
+    super::compose::redo_writing(s)
 }
 
-/// One step back (or forward, `redo`) in the open text; a step of the message's can put a
-/// picture's width back (`compose.picture.set`). Whether there was one.
-fn step(s: &mut Session, redo: bool) -> Result<bool, CmdError> {
-    if s.signature_edit.is_none()
-        && let Some(c) = s.compose.as_mut()
-    {
-        let pictures = &mut c.pictures;
-        let swap = |mark| super::picture::swap_width(pictures, mark);
-        let done = if redo { c.body.redo_with(swap) } else { c.body.undo_with(swap) };
-        c.dirty |= done;
-        return Ok(done);
-    }
+/// One step back (or forward, `redo`) in a signature open in File › Signatures.
+fn step_signature(s: &mut Session, redo: bool) -> Result<bool, CmdError> {
     let d = doc_mut(s)?;
     let done = if redo { d.body.redo() } else { d.body.undo() };
     *d.dirty |= done;
     Ok(done)
+}
+
+/// One step of the message being written. A step can put a picture's width back
+/// (`compose.picture.set`). Whether there was one.
+pub(super) fn step_compose_body(c: &mut Compose, redo: bool) -> bool {
+    let pictures = &mut c.pictures;
+    let swap = |mark| super::picture::swap_width(pictures, mark);
+    let done = if redo { c.body.redo_with(swap) } else { c.body.undo_with(swap) };
+    c.dirty |= done;
+    done
 }
 
 fn bold(s: &mut Session, v: &Value) -> CmdResult {

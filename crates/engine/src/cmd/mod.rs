@@ -33,6 +33,8 @@ mod category_sweep_tests;
 mod category_tests;
 pub mod compose;
 #[cfg(test)]
+mod compose_subject_tests;
+#[cfg(test)]
 mod compose_trust_tests;
 #[cfg(test)]
 mod conversation_thread_tests;

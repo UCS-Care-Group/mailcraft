@@ -188,6 +188,17 @@ impl RichBody {
         !self.redo.is_empty()
     }
 
+    /// How many steps [`RichBody::undo`] can still take.
+    pub fn undo_len(&self) -> usize {
+        self.undo.len()
+    }
+
+    /// Drop what Redo would put back. A new edit of another part of the message (the Subject)
+    /// does this, as a new edit of the text itself does.
+    pub fn clear_redo(&mut self) {
+        self.redo.clear();
+    }
+
     /// Run an edit on a copy and keep it when it works, as one undo step (or as part of the last
     /// one, `typing`).
     fn edit(&mut self, typing: bool, f: impl FnOnce(&mut RichText, &mut Selection) -> Result<(), ModelError>) -> Result<(), ModelError> {

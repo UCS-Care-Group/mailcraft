@@ -15,6 +15,9 @@ use crate::MailApp;
 use crate::compose::editor;
 
 const REVIEW_PARAGRAPHS_PER_FRAME: usize = 8;
+/// How long the word under the caret stays unmarked after a character is typed, in the body and
+/// the Subject.
+pub(crate) const TYPING_PAUSE: f64 = 0.6;
 pub use mailcraft_spell::{BuiltIn as BundledChecker, EN_US_TAG, HostChecker, MAX_ISSUES};
 const MAX_SUGGESTIONS: usize = 6;
 const OFF: &str = "off";
@@ -208,6 +211,12 @@ fn within_edit(a: &str, b: &str, max: usize) -> bool {
     }
 }
 
+impl Issue {
+    pub(crate) fn at(span: Range<usize>, word: String) -> Self {
+        Self { span, word }
+    }
+}
+
 impl Suggestions {
     pub(crate) fn new(host: &dyn HostChecker, locale: &str, mut issue: Issue, start: usize, custom: &[String]) -> Self {
         let words = suggest_words(host, locale, &issue.word, custom);
@@ -217,6 +226,12 @@ impl Suggestions {
 
     pub(crate) fn word(&self) -> &str {
         &self.issue.word
+    }
+
+    /// Character offsets of the marked word in the text it was built for (the body, or the Subject
+    /// when `start` passed to [`Suggestions::new`] was 0).
+    pub(crate) fn place(&self) -> (usize, usize) {
+        (self.issue.span.start, self.issue.span.end)
     }
 
     pub(crate) fn show(&self, ui: &mut Ui, chosen: &mut Option<Choice>) -> bool {
@@ -738,6 +753,20 @@ pub(crate) fn command(app: &mut MailApp, id: &str, p: &Value) -> Option<Result<V
         "ui.dictionary.list" => Ok(json!({"words": app.ui.custom_dictionary})),
         _ => return None,
     })
+}
+
+/// The wavy underline under a misspelt word, in the body's line and the Subject's. `y` is the
+/// baseline the wave sits on; `left` and `right` are the word's edges.
+pub(crate) fn paint_squiggle(painter: &egui::Painter, left: f32, right: f32, y: f32, ink: egui::Color32) {
+    if left >= right {
+        return;
+    }
+    let path = std::iter::successors(Some(left), |x| (*x + 2.0 < right).then_some(*x + 2.0))
+        .chain(std::iter::once(right))
+        .enumerate()
+        .map(|(i, x)| egui::pos2(x, y + (i % 2) as f32))
+        .collect();
+    painter.add(egui::Shape::line(path, egui::Stroke::new(1.0, ink)));
 }
 
 /// Words typed into File › Options, separated by commas, spaces or new lines.
