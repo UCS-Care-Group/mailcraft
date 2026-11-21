@@ -410,6 +410,22 @@ fn without_a_word_the_dialog_sits_at_the_bottom_of_the_pane() {
 }
 
 #[test]
+fn a_window_smaller_than_the_dialog_or_a_broken_rect_never_panics() {
+    let tiny = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(200.0, 100.0));
+    let size = egui::vec2(640.0, 300.0);
+    let word = egui::Rect::from_min_max(egui::pos2(20.0, 40.0), egui::pos2(60.0, 60.0));
+    let pos = super::place(tiny, Some(word), Some(tiny), size);
+    assert!(pos.x.is_finite() && pos.y.is_finite(), "{pos:?}");
+    let pos = super::place(tiny, None, Some(tiny), size);
+    assert!(pos.x.is_finite() && pos.y.is_finite(), "{pos:?}");
+    let nan = egui::Rect::from_min_max(egui::pos2(f32::NAN, f32::NAN), egui::pos2(f32::NAN, f32::NAN));
+    let pos = super::place(nan, Some(nan), Some(nan), egui::vec2(f32::NAN, f32::NAN));
+    assert!(pos.x.is_finite() && pos.y.is_finite(), "{pos:?}");
+    let pos = super::place(tiny, Some(nan), Some(nan), size);
+    assert!(pos.x.is_finite() && pos.y.is_finite(), "{pos:?}");
+}
+
+#[test]
 fn suggestion_rows_are_whole_and_the_word_stays_visible() {
     let mut h = window(hosted());
     message(h.state_mut(), "Notes", "Please check teh spelling here.");

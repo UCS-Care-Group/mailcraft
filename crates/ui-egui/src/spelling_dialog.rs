@@ -683,10 +683,13 @@ pub(crate) fn positioned_window(
     open
 }
 
-/// `value` kept inside `[min, max]`. When the range is empty (the dialog is larger than the
-/// window), it stays at `min` rather than panicking.
+/// `value` kept inside `[min, max]`. `f32::clamp` panics on an empty range (the dialog is larger
+/// than the window) or a NaN bound; this stays at `min`, or at 0 when nothing is a number.
 fn clamp_in(value: f32, min: f32, max: f32) -> f32 {
-    if !value.is_finite() || max < min { min } else { value.clamp(min, max) }
+    if !min.is_finite() {
+        return 0.0;
+    }
+    if !value.is_finite() || !max.is_finite() || max < min { min } else { value.clamp(min, max) }
 }
 
 /// Top-left of a dialog `size` large. Under the word's line when that fits in `screen`, otherwise
@@ -696,7 +699,7 @@ pub(crate) fn place(screen: Rect, word: Option<Rect>, pane: Option<Rect>, size: 
     let clamp_y = |y: f32| clamp_in(y, screen.min.y + PLACE_GAP, (screen.max.y - size.y - PLACE_GAP).max(screen.min.y));
     let x_in = |pane: Rect| {
         let preferred = pane.center().x - size.x * 0.5;
-        preferred.clamp(pane.min.x, (pane.max.x - size.x).max(pane.min.x))
+        clamp_in(preferred, pane.min.x, (pane.max.x - size.x).max(pane.min.x))
     };
     if let Some(word) = word {
         let below = word.max.y + PLACE_GAP;
