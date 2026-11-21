@@ -1466,6 +1466,12 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr "Událost označená jako soukromá ukazuje jen, že jste zaneprázdněni. Nikdo pozvaný se nejmenuje."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "An attachment can't be copied here: save it with Save As instead."
+msgstr "Přílohu tu nelze zkopírovat: uložte ji místo toho pomocí Uložit jako."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
@@ -2058,8 +2064,8 @@ msgstr ""
 "Připojit\n"
 "soubor"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "Připojit soubor"
@@ -2081,6 +2087,12 @@ msgstr "Připojit kartu kontaktu"
 #, fuzzy
 msgid "Attach a file"
 msgstr "Připojit soubor"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "Připojit zkopírované soubory?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3654,6 +3666,12 @@ msgstr "Přispěvatelé si volí vlastní jména; viz docs/contributors.md."
 msgid "Conversations"
 msgstr "Konverzace"
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Copied {name}"
+msgstr "Zkopírováno: {name}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -3667,7 +3685,7 @@ msgid "Copies a short message with the address of Microsoft's page where an admi
 msgstr "Zkopíruje krátkou zprávu s adresou stránky Microsoftu, kde správce vaší organizace MailCraft schválí, jednou pro všechny. Nic se neodešle: vložte ji sami do e-mailu nebo chatu."
 
 #. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Kopírovat"
@@ -3681,6 +3699,12 @@ msgid ""
 msgstr ""
 "Kopírovat\n"
 "diagnostiku"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Copy Attachment"
+msgstr "Kopírovat přílohu"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -5586,6 +5610,12 @@ msgstr "Dialogy souborů zde nejsou k dispozici"
 #, fuzzy
 msgid "File:"
 msgstr "Soubor:"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Files can't be put on the clipboard here."
+msgstr "Soubory tu nelze umístit do schránky."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -11236,6 +11266,12 @@ msgstr "Jen když požádám"
 msgid "Only while MailCraft isn't the window in front, and only for the Inboxes of your own accounts."
 msgstr "Jen když MailCraft není okno v popředí, a jen pro Doručenou poštu vašich vlastních účtů."
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
+msgstr "Přílohu může zkopírovat jen vy, příkazem Kopírovat v její nabídce nebo zkratkou Ctrl+C."
+
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -13252,6 +13288,12 @@ msgid "Review certificate…"
 msgstr "Zkontrolovat certifikát…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "Před připojením souborů k této zprávě zkontrolujte jejich cesty."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Revocation not checked."
@@ -14047,6 +14089,12 @@ msgstr ""
 #, fuzzy
 msgid "Select the message before previewing its attachment."
 msgstr "Před náhledem přílohy vyberte zprávu."
+
+#. ribbon location
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Selection"
+msgstr "Výběr"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -25212,7 +25260,7 @@ msgstr[1] "{n} další byly vynechány: najednou nejvýše {mb} MB"
 msgstr[2] "{n} dalších bylo vynecháno: najednou nejvýše {mb} MB"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"

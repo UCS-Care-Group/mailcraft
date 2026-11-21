@@ -1224,6 +1224,11 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "An attachment can't be copied here: save it with Save As instead."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
 msgstr ""
@@ -1714,8 +1719,8 @@ msgid ""
 "File"
 msgstr ""
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 msgid "Attach File"
 msgstr ""
 
@@ -1732,6 +1737,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 msgid "Attach a file"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Attach copied files?"
 msgstr ""
 
 #. interface
@@ -3039,6 +3049,11 @@ msgstr ""
 msgid "Conversations"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "Copied {name}"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "Copied. Paste it into mail or chat for your administrator."
@@ -3050,7 +3065,7 @@ msgid "Copies a short message with the address of Microsoft's page where an admi
 msgstr ""
 
 #. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/view_source.rs
 msgid "Copy"
 msgstr ""
 
@@ -3059,6 +3074,11 @@ msgstr ""
 msgid ""
 "Copy\n"
 "Diagnostics"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Copy Attachment"
 msgstr ""
 
 #. command label, interface
@@ -4633,6 +4653,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "File:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Files can't be put on the clipboard here."
 msgstr ""
 
 #. android, interface
@@ -9306,6 +9331,11 @@ msgstr ""
 msgid "Only while MailCraft isn't the window in front, and only for the Inboxes of your own accounts."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
+msgstr ""
+
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 msgid "Open"
@@ -10970,6 +11000,11 @@ msgid "Review certificate…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Review the file paths before attaching them to this message."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Revocation not checked."
 msgstr ""
@@ -11625,6 +11660,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Select the message before previewing its attachment."
+msgstr ""
+
+#. ribbon location
+#: crates/engine/src/cmd/mail.rs
+msgid "Selection"
 msgstr ""
 
 #. android, command label, interface, ribbon
@@ -20861,7 +20901,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"
 msgstr[0] ""

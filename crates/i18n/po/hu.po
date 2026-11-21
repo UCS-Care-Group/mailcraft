@@ -1476,6 +1476,12 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr "Egy privát névvel jelölt találkozó csak azt mutatja, hogy elfoglalt vagy, és senki sem hív meg senkit, akit meghívnak."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "An attachment can't be copied here: save it with Save As instead."
+msgstr "A mellékletet itt nem lehet másolni: mentse el inkább a „Mentés” paranccsal."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
@@ -2065,8 +2071,8 @@ msgstr ""
 "Fájl\n"
 "csatolása"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "Fájl csatolása"
@@ -2088,6 +2094,12 @@ msgstr "Kapcsolattartó kártya csatlakoztatása"
 #, fuzzy
 msgid "Attach a file"
 msgstr "Fájl csatolása"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "Csatolja a másolt fájlokat?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3657,6 +3669,12 @@ msgstr "A hozzájárulók maguk választják meg a nevüket; lásd: dokumentáci
 msgid "Conversations"
 msgstr "Beszélgetések"
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Copied {name}"
+msgstr "{name} átmásolva"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -3670,7 +3688,7 @@ msgid "Copies a short message with the address of Microsoft's page where an admi
 msgstr "Kimásol egy rövid üzenetet annak a Microsoft-oldalnak a címével, ahol a rendszergazda az egész szervezet számára jóváhagyhatja a MailCraft használatát. A másolás nem küld üzenetet. A szöveget e-mailbe vagy csevegésbe illesztheti."
 
 #. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Másolás"
@@ -3684,6 +3702,12 @@ msgid ""
 msgstr ""
 "Diagnosztikai adatok\n"
 "másolása"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Copy Attachment"
+msgstr "Melléklet másolása"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -5573,6 +5597,12 @@ msgstr "Fájlablakok nem érhetők el itt"
 #, fuzzy
 msgid "File:"
 msgstr "Fájl:"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Files can't be put on the clipboard here."
+msgstr "Fájlokat itt nem lehet a vágólapra tenni."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -11214,6 +11244,12 @@ msgstr "Csak kérésre"
 msgid "Only while MailCraft isn't the window in front, and only for the Inboxes of your own accounts."
 msgstr "Csak akkor, amikor a MailCraft ablaka nincs előtérben, és csak a saját fiókok Beérkezett üzenetek mappáihoz."
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
+msgstr "Csak Ön másolhat mellékletet, a menüjének Másolás parancsával vagy a Ctrl+C-vel."
+
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -13226,6 +13262,12 @@ msgid "Review certificate…"
 msgstr "Áttekintési bizonyítvány…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "Mielőtt a fájlokat ehhez az üzenethez csatolja, ellenőrizze az elérési útjukat."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Revocation not checked."
@@ -14023,6 +14065,12 @@ msgstr "Válasszon ki valakit a részletek megtekintéséhez"
 #, fuzzy
 msgid "Select the message before previewing its attachment."
 msgstr "Válassza ki az üzenetet, mielőtt megtekintené a csatolását."
+
+#. ribbon location
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Selection"
+msgstr "Kijelölés"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -25086,7 +25134,7 @@ msgstr[0] "További {n} kimaradt: egyszerre legfeljebb {mb} MB adható hozzá"
 msgstr[1] "További {n} kimaradt: egyszerre legfeljebb {mb} MB adható hozzá"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"

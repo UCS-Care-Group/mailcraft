@@ -1471,6 +1471,12 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr "პირადად მონიშნული ჩანაწერი მხოლოდ იმას აჩვენებს, რომ დაკავებული ხართ. მოწვეულთა სახელები არ ჩანს."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "An attachment can't be copied here: save it with Save As instead."
+msgstr "აქ დანართის კოპირება შეუძლებელია. შესანახად გამოიყენეთ „შენახვა როგორც“."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
@@ -2058,8 +2064,8 @@ msgstr ""
 "ფაილის\n"
 "მიმაგრება"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "ფაილის მიმაგრება"
@@ -2081,6 +2087,12 @@ msgstr "საკონტაქტო ბარათის მიმაგრ�
 #, fuzzy
 msgid "Attach a file"
 msgstr "ფაილის მიმაგრება"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "მივამაგროთ დაკოპირებული ფაილები?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3647,6 +3659,12 @@ msgstr "მონაწილეები სახელებს თავა�
 msgid "Conversations"
 msgstr "მიმოწერები"
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Copied {name}"
+msgstr "დაკოპირდა {name}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -3660,7 +3678,7 @@ msgid "Copies a short message with the address of Microsoft's page where an admi
 msgstr "აკოპირებს მოკლე შეტყობინებას Microsoft-ის იმ გვერდის მისამართით, სადაც თქვენი ორგანიზაციის ადმინისტრატორი MailCraft-ს ერთხელ, ყველასთვის ამტკიცებს. არაფერი იგზავნება: თავად ჩასვით ის წერილში ან ჩატში."
 
 #. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "კოპირება"
@@ -3674,6 +3692,12 @@ msgid ""
 msgstr ""
 "დიაგნოსტიკის\n"
 "კოპირება"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Copy Attachment"
+msgstr "დანართის კოპირება"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -5568,6 +5592,12 @@ msgstr "ფაილის დიალოგები აქ მიუწვდ
 #, fuzzy
 msgid "File:"
 msgstr "ფაილი:"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Files can't be put on the clipboard here."
+msgstr "აქ ფაილების გაცვლის ბუფერში მოთავსება შეუძლებელია."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -11187,6 +11217,12 @@ msgstr "მხოლოდ ჩემი მოთხოვნით"
 msgid "Only while MailCraft isn't the window in front, and only for the Inboxes of your own accounts."
 msgstr "მხოლოდ მაშინ, როცა MailCraft წინა პლანზე არ არის, და მხოლოდ თქვენი საკუთარი ანგარიშების „შემოსულებისთვის“."
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
+msgstr "დანართის კოპირება მხოლოდ თქვენ შეგიძლიათ, მისი მენიუდან „კოპირების“ არჩევით ან Ctrl+C-ის დაჭერით."
+
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -13183,6 +13219,12 @@ msgid "Review certificate…"
 msgstr "სერტიფიკატის განხილვა…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "ამ წერილზე ფაილების მიმაგრებამდე გადაამოწმეთ მათი მდებარეობები."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Revocation not checked."
@@ -13974,6 +14016,12 @@ msgstr "დეტალების სანახავად მონიშ�
 #, fuzzy
 msgid "Select the message before previewing its attachment."
 msgstr "დანართის წინასწარ ნახვამდე მონიშნეთ წერილი."
+
+#. ribbon location
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Selection"
+msgstr "მონიშნული ელემენტები"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -25001,7 +25049,7 @@ msgstr[0] "კიდევ {n} გამოტოვებულია: ერ�
 msgstr[1] "კიდევ {n} გამოტოვებულია: ერთ ჯერზე მაქსიმუმ {mb} მბ"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"

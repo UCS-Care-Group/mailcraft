@@ -1475,6 +1475,12 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr "Termin oznaczony jako prywatny pokazuje jedynie, że jesteś zajęty. Nie podaje się nikogo, kto został gdziekolwiek zaproszony."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "An attachment can't be copied here: save it with Save As instead."
+msgstr "Załącznika nie można tu skopiować: zamiast tego zapisz go poleceniem Zapisz jako."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
@@ -2067,8 +2073,8 @@ msgstr ""
 "Dołącz\n"
 "plik"
 
-#. command label
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attach File"
 msgstr "Dołącz plik"
@@ -2090,6 +2096,12 @@ msgstr "Dołącz wizytówkę kontaktu"
 #, fuzzy
 msgid "Attach a file"
 msgstr "Załącz plik"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Attach copied files?"
+msgstr "Dołączyć skopiowane pliki?"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3664,6 +3676,12 @@ msgstr "Współtwórcy sami wybierają swoje nazwy; zobacz docs/contributors.md.
 msgid "Conversations"
 msgstr "Konwersacje"
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Copied {name}"
+msgstr "Skopiowano {name}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -3677,7 +3695,7 @@ msgid "Copies a short message with the address of Microsoft's page where an admi
 msgstr "Kopiuje krótką wiadomość z adresem strony Microsoft, na której administrator Twojej organizacji zatwierdza MailCraft, jednorazowo dla wszystkich. Nic nie jest wysyłane: wklej ją samodzielnie do wiadomości lub czatu."
 
 #. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Kopiuj"
@@ -3691,6 +3709,12 @@ msgid ""
 msgstr ""
 "Kopiuj\n"
 "diagnostykę"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Copy Attachment"
+msgstr "Kopiuj załącznik"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -5597,6 +5621,12 @@ msgstr "Okna dialogowe plików nie są tu dostępne"
 #, fuzzy
 msgid "File:"
 msgstr "Plik:"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Files can't be put on the clipboard here."
+msgstr "Plików nie można tu umieścić w schowku."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
@@ -11256,6 +11286,12 @@ msgstr "Tylko na moją prośbę"
 msgid "Only while MailCraft isn't the window in front, and only for the Inboxes of your own accounts."
 msgstr "Tylko gdy MailCraft nie jest oknem na wierzchu i tylko dla skrzynek odbiorczych Twoich własnych kont."
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
+msgstr "Tylko Ty możesz skopiować załącznik, poleceniem Kopiuj w jego menu lub skrótem Ctrl+C."
+
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -13274,6 +13310,12 @@ msgid "Review certificate…"
 msgstr "Przejrzyj certyfikat…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Review the file paths before attaching them to this message."
+msgstr "Sprawdź ścieżki plików przed dołączeniem ich do tej wiadomości."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Revocation not checked."
@@ -14073,6 +14115,12 @@ msgstr "Wybierz kogoś, aby zobaczyć szczegóły"
 #, fuzzy
 msgid "Select the message before previewing its attachment."
 msgstr "Wybierz wiadomość, zanim wyświetlisz podgląd jej załącznika."
+
+#. ribbon location
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Selection"
+msgstr "Zaznaczenie"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -25247,7 +25295,7 @@ msgstr[1] "Pominięto jeszcze {n}: najwyżej {mb} MB naraz"
 msgstr[2] "Pominięto jeszcze {n}: najwyżej {mb} MB naraz"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"

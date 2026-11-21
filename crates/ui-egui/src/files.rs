@@ -352,7 +352,8 @@ pub fn reads_of_pick(sizes: &[u64]) -> Vec<Option<crate::Unread>> {
 
 /// Attach each of `paths`, in the order the dialog lists them, to the message being written
 /// `asking` (#286), reading only what [`reads_of_pick`] allows by their sizes. Said once: how
-/// many went in, and why one didn't ([`attached_said`]).
+/// many went in, and why one didn't ([`attached_said`]). Files pasted into the message come here
+/// too (#807).
 pub(crate) fn attach_all(app: &mut MailApp, paths: &[String], asking: Option<u64>) -> Result<Value, String> {
     // A file whose size can't be read (gone since it was picked, or not the owner's to read)
     // is never read either: said with what went wrong, and the plan is of the files whose sizes
