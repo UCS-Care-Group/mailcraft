@@ -1214,7 +1214,9 @@ fn services(
         // Messages of an IMAP account fetched whole by their UID, those its mail to keep offline
         // left as their headers and preview (#653).
         imap_fetch: Some(Box::new(move |job: mailcraft_ui_egui::graph_fetch::ImapFetchJob| {
-            background(&imap_fetch_ctx, "message download", move || mailcraft_net::fetch_imap(&job.request, &job.secret, &job.cancel))
+            background(&imap_fetch_ctx, "message download", move || {
+                mailcraft_net::fetch_imap_in(&job.request, &job.secret, &job.cancel, job.language)
+            })
         })),
         // An Exchange server account (#252): read through Exchange Web Services, and its messages fetched whole.
         ews: Some(Box::new(move |job| ews_runner::run_mail(job, &ews_ctx))),

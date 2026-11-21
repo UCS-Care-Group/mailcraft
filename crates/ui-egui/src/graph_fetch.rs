@@ -50,6 +50,7 @@ pub use mailcraft_host::fetch::GraphFetchJob;
 /// messages its mail to keep offline left as their headers and preview.
 pub struct ImapFetchJob {
     pub request: ImapFetchRequest,
+    pub language: mailcraft_i18n::Lang,
     /// The password, or the access token of an account that signs in with OAuth: what its
     /// Send/Receive goes with. Never logged.
     pub secret: String,
@@ -255,7 +256,7 @@ impl MailApp {
             Way::Imap(secret) => {
                 let fetch = self.services.imap_fetch.as_ref()?;
                 let request = asked(messages, |m| imap_fetch::imap_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
-                Some(fetch(ImapFetchJob { request, secret, cancel }))
+                Some(fetch(ImapFetchJob { request, language: self.session.interface_language, secret, cancel }))
             }
         }
     }

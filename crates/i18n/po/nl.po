@@ -2600,6 +2600,12 @@ msgstr "Bellen"
 msgid "Can't be opened here. Save it to keep it."
 msgstr "Kan hier niet worden geopend. Sla het op om het te bewaren."
 
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "‘{folder}’ kan niet volledig worden geëxporteerd. Nog te downloaden berichten: {n}. Open ze zodra u online bent (of bewaar alle e-mail offline in de accountinstellingen) en exporteer opnieuw."
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -3687,7 +3693,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "Berichten in \"{name}\" konden niet worden verwijderd"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "Een bericht uit \"{name}\" kon niet worden gedownload"
@@ -3697,6 +3703,12 @@ msgstr "Een bericht uit \"{name}\" kon niet worden gedownload"
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "Een bericht uit \"{name}\" kon niet opnieuw worden gedownload"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "Het bericht kon niet worden gedownload"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3753,7 +3765,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "Berichten konden niet naar \"{name}\" worden verplaatst: de map staat niet meer op de server"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "\"{name}\" kon niet worden geopend"
@@ -3807,10 +3819,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "Kon de Gmail-categorieën van \"{name}\" niet lezen"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "De lijst met mappen kon niet worden gelezen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "De grootte van de berichten in ‘{name}’ kon niet worden gelezen"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -16807,6 +16825,14 @@ msgstr "De rapportservice werkt op dit moment niet. Probeer het later opnieuw, o
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Het antwoord van de rapportservice was er een die MailCraft niet begrijpt, dus het rapport is mogelijk aangekomen. Probeer het later opnieuw, of open het op GitHub."
 
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "De regel ‘{rule}’ kon {n} bericht niet verplaatsen: {why}"
+msgstr[1] "De regel ‘{rule}’ kon {n} berichten niet verplaatsen. Eerste reden: {why}"
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -24549,12 +24575,6 @@ msgid_plural "{n} notes"
 msgstr[0] "{n} notitie"
 msgstr[1] "{n} notities"
 
-#. what a command says
-#: crates/engine/src/cmd/file.rs
-#, fuzzy
-msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr "{n} van de berichten in “{folder}” zijn nog niet gedownload, dus de map kan niet volledig worden geëxporteerd: open ze zodra je online bent (of bewaar alle e-mail offline in de accountinstellingen) en exporteer dan opnieuw"
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -25094,6 +25114,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "{n} van de berichten in “{folder}” zijn nog niet gedownload, dus de map kan niet volledig worden geëxporteerd: open ze zodra je online bent (of bewaar alle e-mail offline in de accountinstellingen) en exporteer dan opnieuw"
 
 #, fuzzy
 #~ msgid "no Microsoft or Exchange server account keeps mail offline"

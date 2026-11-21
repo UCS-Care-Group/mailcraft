@@ -39,8 +39,10 @@ fn a_folder_with_previews_is_refused_with_how_many() {
     let mut s = session();
     let id = preview(&mut s);
     let folder = s.mailbox.message(id).unwrap().folder;
-    let e = s.run("file.exportFolder", &json!({"id": folder})).unwrap_err().to_string();
-    assert!(e.contains("1 of the messages") && e.contains("aren't downloaded yet"), "{e}");
+    let error = s.run("file.exportFolder", &json!({"id": folder})).unwrap_err();
+    assert!(error.to_string().contains("Messages still to download: 1"), "{error}");
+    let localized = error.in_lang(mailcraft_i18n::Lang::Pseudo);
+    assert!(localized.contains("Mésságés stíll tó dównlóád: 1"), "{localized}");
     // Downloaded, it goes.
     s.mailbox.message_mut(id).unwrap().unfetched = false;
     assert!(s.run("file.exportFolder", &json!({"id": folder})).is_ok());

@@ -2685,6 +2685,12 @@ msgstr "Zavolat"
 msgid "Can't be opened here. Save it to keep it."
 msgstr "Zde ho nelze otevřít. Chcete-li si ho ponechat, uložte ho."
 
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "Složku „{folder}“ nelze exportovat celou. Zprávy ke stažení: {n}. Otevřete je po připojení k internetu (nebo v nastavení účtu ponechte veškerou poštu offline) a export zopakujte."
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -3827,7 +3833,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "Ze složky „{name}“ se nepodařilo odstranit zprávy"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "Ze složky „{name}“ se nepodařilo stáhnout zprávu"
@@ -3837,6 +3843,12 @@ msgstr "Ze složky „{name}“ se nepodařilo stáhnout zprávu"
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "Ze složky „{name}“ se nepodařilo znovu stáhnout zprávu"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "Zprávu se nepodařilo stáhnout"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3893,7 +3905,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "Zprávy se nepodařilo přesunout do složky „{name}“: složka už na serveru není"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "„{name}“ se nepodařilo otevřít"
@@ -3947,10 +3959,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "Kategorie Gmailu pro „{name}“ se nepodařilo načíst"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "Seznam složek se nepodařilo načíst"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "Nepodařilo se zjistit velikosti zpráv ve složce „{name}“"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -17401,6 +17419,15 @@ msgstr "Služba hlášení právě nefunguje. Zkuste to později znovu, nebo ho 
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Odpověď služby hlášení nebyla taková, jakou MailCraft rozumí, takže hlášení možná dorazilo. Zkuste to později znovu, nebo ho otevřete na GitHubu."
 
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "Pravidlo „{rule}“ nemohlo přesunout {n} zprávu: {why}"
+msgstr[1] "Pravidlo „{rule}“ nemohlo přesunout {n} zprávy. První důvod: {why}"
+msgstr[2] "Pravidlo „{rule}“ nemohlo přesunout {n} zpráv. První důvod: {why}"
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -25304,12 +25331,6 @@ msgstr[0] "{n} poznámka"
 msgstr[1] "{n} poznámky"
 msgstr[2] "{n} poznámek"
 
-#. what a command says
-#: crates/engine/src/cmd/file.rs
-#, fuzzy
-msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr "Ve složce „{folder}“ ještě nejsou stažené zprávy (počet: {n}), takže ji nelze exportovat celou: otevřete je, až budete online (nebo v nastavení účtu ponechte všechnu poštu offline), a pak exportujte znovu"
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -25880,6 +25901,10 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "Ve složce „{folder}“ ještě nejsou stažené zprávy (počet: {n}), takže ji nelze exportovat celou: otevřete je, až budete online (nebo v nastavení účtu ponechte všechnu poštu offline), a pak exportujte znovu"
 
 #, fuzzy
 #~ msgid "no Microsoft or Exchange server account keeps mail offline"

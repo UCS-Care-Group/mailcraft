@@ -2236,6 +2236,11 @@ msgstr ""
 msgid "Can't be opened here. Save it to keep it."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Can't sign"
@@ -3182,13 +3187,18 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 msgid "Couldn't download a message from \"{name}\""
 msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 msgid "Couldn't download a message from \"{name}\" again"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+msgid "Couldn't download the message"
 msgstr ""
 
 #. interface
@@ -3237,7 +3247,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 msgid "Couldn't open \"{name}\""
 msgstr ""
 
@@ -3282,8 +3292,13 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 msgid "Couldn't read the list of folders"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+msgid "Couldn't read the sizes of the messages in \"{name}\""
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -14407,6 +14422,13 @@ msgstr ""
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
@@ -20934,11 +20956,6 @@ msgid "{n} note"
 msgid_plural "{n} notes"
 msgstr[0] ""
 msgstr[1] ""
-
-#. what a command says
-#: crates/engine/src/cmd/file.rs
-msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

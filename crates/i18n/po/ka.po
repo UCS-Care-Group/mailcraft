@@ -2680,6 +2680,12 @@ msgstr "დარეკვა"
 msgid "Can't be opened here. Save it to keep it."
 msgstr "აქ ვერ გაიხსნება. შეინახეთ, რომ დაიტოვოთ."
 
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "„{folder}“-ის სრულად ექსპორტი ვერ მოხერხდა. ჩამოსატვირთი შეტყობინებები: {n}. გახსენით ისინი ინტერნეტთან დაკავშირების შემდეგ (ან ანგარიშის პარამეტრებში აირჩიეთ მთელი ფოსტის ხაზგარეშე შენახვა) და კვლავ გაიტანეთ ექსპორტზე."
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -3820,7 +3826,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "საქაღალდიდან „{name}“ წერილები ვერ წაიშალა"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "საქაღალდიდან „{name}“ წერილი ვერ ჩამოიტვირთა"
@@ -3830,6 +3836,12 @@ msgstr "საქაღალდიდან „{name}“ წერილი ვ
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "საქაღალდიდან „{name}“ წერილი ხელახლა ვერ ჩამოიტვირთა"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "შეტყობინების ჩამოტვირთვა ვერ მოხერხდა"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3886,7 +3898,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "წერილები საქაღალდეში „{name}“ ვერ გადავიდა: საქაღალდე სერვერზე აღარ არის"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "„{name}“ ვერ გაიხსნა"
@@ -3940,10 +3952,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "Gmail-ის კატეგორიები ვერ წაიკითხა: „{name}“"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "საქაღალდეების სია ვერ წაიკითხა"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "„{name}“-ში შეტყობინებების ზომების წაკითხვა ვერ მოხერხდა"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -17305,6 +17323,14 @@ msgstr "მოხსენებების სერვისი ახლა 
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "მოხსენებების სერვისის პასუხი MailCraft-ისთვის გაუგებარია, ამიტომ მოხსენება შესაძლოა მივიდა. მოგვიანებით სცადეთ ან გახსენით GitHub-ზე."
 
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "წესმა „{rule}“ ვერ გადაიტანა {n} შეტყობინება: {why}"
+msgstr[1] "წესმა „{rule}“ ვერ გადაიტანა {n} შეტყობინება. პირველი მიზეზი: {why}"
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -25088,12 +25114,6 @@ msgid_plural "{n} notes"
 msgstr[0] "შენიშვნა: {n}"
 msgstr[1] "შენიშვნა: {n}"
 
-#. what a command says
-#: crates/engine/src/cmd/file.rs
-#, fuzzy
-msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr "„{folder}“ საქაღალდიდან {n} წერილი ჯერ არ ჩამოტვირთულა, ამიტომ საქაღალდის სრულად გატანა შეუძლებელია. გახსენით ისინი ინტერნეტთან დაკავშირების შემდეგ ან ანგარიშის პარამეტრებში აირჩიეთ მთელი ფოსტის კავშირის გარეშე შენახვა. შემდეგ კვლავ გაიტანეთ საქაღალდე."
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -25628,6 +25648,10 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "„{folder}“ საქაღალდიდან {n} წერილი ჯერ არ ჩამოტვირთულა, ამიტომ საქაღალდის სრულად გატანა შეუძლებელია. გახსენით ისინი ინტერნეტთან დაკავშირების შემდეგ ან ანგარიშის პარამეტრებში აირჩიეთ მთელი ფოსტის კავშირის გარეშე შენახვა. შემდეგ კვლავ გაიტანეთ საქაღალდე."
 
 #, fuzzy
 #~ msgid "no Microsoft or Exchange server account keeps mail offline"

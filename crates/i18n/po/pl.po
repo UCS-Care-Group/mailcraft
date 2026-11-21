@@ -2694,6 +2694,12 @@ msgstr "Zadzwoń"
 msgid "Can't be opened here. Save it to keep it."
 msgstr "Nie można go tu otworzyć. Zapisz go, aby go zachować."
 
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "Nie można wyeksportować całego folderu „{folder}”. Wiadomości do pobrania: {n}. Otwórz je po połączeniu z internetem (lub włącz przechowywanie całej poczty offline w ustawieniach konta), a następnie ponów eksport."
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -3837,7 +3843,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "Nie udało się usunąć wiadomości z „{name}”"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "Nie udało się pobrać wiadomości z „{name}”"
@@ -3847,6 +3853,12 @@ msgstr "Nie udało się pobrać wiadomości z „{name}”"
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "Nie udało się ponownie pobrać wiadomości z „{name}”"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "Nie udało się pobrać wiadomości"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3903,7 +3915,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "Nie udało się przenieść wiadomości do „{name}”: folderu nie ma już na serwerze"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "Nie udało się otworzyć „{name}”"
@@ -3957,10 +3969,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "Nie udało się odczytać kategorii Gmail dla „{name}”"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "Nie udało się odczytać listy folderów"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "Nie udało się odczytać rozmiarów wiadomości w folderze „{name}”"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -17429,6 +17447,15 @@ msgstr "Usługa zgłoszeń chwilowo nie działa. Spróbuj ponownie później lub
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Odpowiedź usługi zgłoszeń jest niezrozumiała dla programu MailCraft, więc zgłoszenie mogło dotrzeć. Spróbuj ponownie później lub otwórz ją w serwisie GitHub."
 
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "Reguła „{rule}” nie mogła przenieść {n} wiadomości: {why}"
+msgstr[1] "Reguła „{rule}” nie mogła przenieść {n} wiadomości. Pierwszy powód: {why}"
+msgstr[2] "Reguła „{rule}” nie mogła przenieść {n} wiadomości. Pierwszy powód: {why}"
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -25339,12 +25366,6 @@ msgstr[0] "{n} notatka"
 msgstr[1] "{n} notatki"
 msgstr[2] "{n} notatek"
 
-#. what a command says
-#: crates/engine/src/cmd/file.rs
-#, fuzzy
-msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr "„{folder}”: liczba niepobranych jeszcze wiadomości to {n}, więc folderu nie można wyeksportować w całości: otwórz je, gdy będziesz online (lub zachowaj całą pocztę offline w ustawieniach konta), a potem wyeksportuj ponownie"
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -25915,6 +25936,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Wiersze"
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "„{folder}”: liczba niepobranych jeszcze wiadomości to {n}, więc folderu nie można wyeksportować w całości: otwórz je, gdy będziesz online (lub zachowaj całą pocztę offline w ustawieniach konta), a potem wyeksportuj ponownie"
 
 #, fuzzy
 #~ msgid "no Microsoft or Exchange server account keeps mail offline"

@@ -5,10 +5,11 @@
 
 use std::sync::atomic::AtomicBool;
 
+use mailcraft_i18n::Lang;
 use mailcraft_model::sync::{ImapFetchKey, ImapFetchRequest};
 use mailcraft_model::{Account, AccountKind, Security, Server};
 
-use super::fetch_imap;
+use super::{fetch_imap, fetch_imap_in};
 use crate::fake::{Fake, FakeImap, FakeMailbox, FakeMessage, ImapWorld};
 
 const PASSWORD: &str = "hunter2";
@@ -161,6 +162,16 @@ fn a_connection_lost_while_the_folders_are_listed_is_offline_and_a_refused_list_
         assert!(result.fetched.is_empty());
         assert_eq!(result.offline, offline, "lost: {lost}");
     }
+}
+
+#[test]
+fn folder_list_errors_use_the_interface_language() {
+    let imap = server();
+    imap.world().refuse = vec!["LIST".into()];
+    let request = ImapFetchRequest { account: account(&imap), ids: vec![key("INBOX", 11, 4)], background: false };
+    let result = fetch_imap_in(&request, PASSWORD, &AtomicBool::new(false), Lang::Pseudo);
+    assert_eq!(result.errors.len(), 1);
+    assert!(result.errors[0].contains(Lang::Pseudo.t("Couldn't read the list of folders")), "{:?}", result.errors);
 }
 
 #[test]

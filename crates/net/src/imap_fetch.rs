@@ -18,10 +18,11 @@
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use mailcraft_i18n::{Lang, said};
 use mailcraft_model::sync::{GraphFetchResult, GraphFetched, ImapFetchKey, ImapFetchRequest};
 use mailcraft_proto::imap::uid_sets;
 
-use crate::sync::{MAX_MESSAGE, open_imap_with, shown};
+use crate::sync::{MAX_MESSAGE, because, open_imap_with, shown};
 use crate::transport::Patience;
 use crate::{NetError, kinds, scrub};
 
@@ -35,15 +36,20 @@ const MOST_BYTES: usize = 64 * 1024 * 1024;
 /// be had is said in the answer, and a server that couldn't be reached makes it
 /// [`offline`](GraphFetchResult::offline). Setting `cancel` stops it before the next message.
 pub fn fetch_imap(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool) -> GraphFetchResult {
+    fetch_imap_in(request, secret, cancel, Lang::English)
+}
+
+/// Fetch whole messages, saying any problems in the interface's language.
+pub fn fetch_imap_in(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, lang: Lang) -> GraphFetchResult {
     let mut out = GraphFetchResult { account: request.account.id, email: request.account.email.clone(), ..Default::default() };
-    fetch_into(request, secret, cancel, &mut out);
+    fetch_into(request, secret, cancel, lang, &mut out);
     for line in &mut out.errors {
         *line = scrub(line, secret);
     }
     out
 }
 
-fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out: &mut GraphFetchResult) {
+fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, lang: Lang, out: &mut GraphFetchResult) {
     // What is asked for, by mailbox, in the order asked; a name that isn't a key is nobody's.
     let mut by_mailbox: Vec<(String, Vec<ImapFetchKey>)> = Vec::new();
     for id in request.ids.iter().take(MOST) {
@@ -63,7 +69,7 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
         Ok(imap) => imap,
         Err(e) => {
             out.offline = e.is_unreachable();
-            out.errors.push(format!("Couldn't download the message: {}", e.without(secret)));
+            out.errors.push(because(said!("Couldn't download the message"), &e.without(secret)).in_lang(lang));
             return;
         }
     };
@@ -72,7 +78,7 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
         Err(e) => {
             let e = NetError::from(e);
             out.offline = e.is_unreachable();
-            out.errors.push(format!("Couldn't read the list of folders: {e}"));
+            out.errors.push(because(said!("Couldn't read the list of folders"), &e).in_lang(lang));
             return;
         }
     };
@@ -87,7 +93,7 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
             Ok(selected) => selected,
             Err(e) => {
                 let e = NetError::from(e);
-                out.errors.push(format!("Couldn't open \"{}\": {e}", shown(&remote)));
+                out.errors.push(because(said!("Couldn't open \"{name}\"", name = shown(&remote)), &e).in_lang(lang));
                 if e.is_fatal() {
                     out.offline = e.is_unreachable();
                     break;
@@ -106,7 +112,7 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
             // Not refused: nothing is known of these messages, and they are asked for again.
             Err(e) => {
                 let e = NetError::from(e);
-                out.errors.push(format!("Couldn't read the sizes of the messages in \"{}\": {e}", shown(&remote)));
+                out.errors.push(because(said!("Couldn't read the sizes of the messages in \"{name}\"", name = shown(&remote)), &e).in_lang(lang));
                 if e.is_fatal() {
                     out.offline = e.is_unreachable();
                     break;
@@ -150,7 +156,7 @@ fn fetch_into(request: &ImapFetchRequest, secret: &str, cancel: &AtomicBool, out
                 Ok(None) => out.missing.push(key.write()),
                 Err(e) => {
                     let e = NetError::from(e);
-                    out.errors.push(format!("Couldn't download a message from \"{}\": {e}", shown(&remote)));
+                    out.errors.push(because(said!("Couldn't download a message from \"{name}\"", name = shown(&remote)), &e).in_lang(lang));
                     if e.is_fatal() {
                         out.offline = e.is_unreachable();
                         break 'mailboxes;

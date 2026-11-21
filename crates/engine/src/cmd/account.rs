@@ -1538,10 +1538,10 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // A rule that couldn't move mail is told once, with how many messages it couldn't move: a
     // first download of old mail may be thousands.
     for (rule, count, why) in std::mem::take(&mut counts.refused) {
-        counts.notes.push(match count {
-            1 => format!("The rule \"{rule}\" couldn't move a message: {why}"),
-            n => format!("The rule \"{rule}\" couldn't move {n} messages; the first: {why}"),
-        });
+        let n = u64::try_from(count).unwrap_or(u64::MAX);
+        let text =
+            lang.tn(n, "The rule \"{rule}\" couldn't move {n} message: {why}", "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}");
+        counts.notes.push(mailcraft_i18n::fmt(text, &[("rule", &rule), ("n", &n.to_string()), ("why", &why)]));
     }
     result.errors.append(&mut counts.notes);
     if told {

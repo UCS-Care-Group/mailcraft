@@ -2688,6 +2688,12 @@ msgstr "拨打"
 msgid "Can't be opened here. Save it to keep it."
 msgstr "无法在此打开。请保存以保留它。"
 
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "无法完整导出“{folder}”。尚待下载的邮件：{n} 封。请在联网后打开这些邮件（或在账户设置中将所有邮件保留为离线邮件），然后重新导出。"
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -3831,7 +3837,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "无法从“{name}”中删除邮件"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "无法从“{name}”下载邮件"
@@ -3841,6 +3847,12 @@ msgstr "无法从“{name}”下载邮件"
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "无法再次从“{name}”下载邮件"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "无法下载邮件"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3897,7 +3909,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "无法将邮件移至“{name}”：该文件夹不再位于服务器上"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "无法打开“{name}”"
@@ -3951,10 +3963,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "无法读取 Gmail 的“{name}”类别"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "无法读取文件夹列表"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "无法读取“{name}”中的邮件大小"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -17366,6 +17384,13 @@ msgstr "报告服务暂时不可用。请稍后重试，或在 GitHub 上提交�
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "MailCraft 无法理解报告服务的回应，报告可能已经送达。请稍后重试，或在 GitHub 上提交。"
 
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "规则“{rule}”无法移动 {n} 封邮件。原因：{why}"
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -25078,12 +25103,6 @@ msgid "{n} note"
 msgid_plural "{n} notes"
 msgstr[0] "{n} 条便笺"
 
-#. what a command says
-#: crates/engine/src/cmd/file.rs
-#, fuzzy
-msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr "“{folder}”中有 {n} 封邮件尚未下载，因此无法完整导出：请联网后打开它们（或在账户设置中将所有邮件保留为离线），然后重新导出"
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -25588,6 +25607,10 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "“{folder}”中有 {n} 封邮件尚未下载，因此无法完整导出：请联网后打开它们（或在账户设置中将所有邮件保留为离线），然后重新导出"
 
 #, fuzzy
 #~ msgid "no Microsoft or Exchange server account keeps mail offline"

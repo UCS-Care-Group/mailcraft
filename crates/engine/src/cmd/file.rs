@@ -421,7 +421,7 @@ fn export_folder(s: &mut Session, v: &Value) -> CmdResult {
     let stubs = whole.iter().filter(|m| m.unfetched || m.incomplete).count();
     if stubs > 0 {
         return Err(failed!(
-            "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again",
+            "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again.",
             n = stubs,
             folder = folder.name.clone()
         ));

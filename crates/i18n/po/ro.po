@@ -2692,6 +2692,12 @@ msgstr "Apelează"
 msgid "Can't be opened here. Save it to keep it."
 msgstr "Nu poate fi deschis aici. Salvați-l pentru a-l păstra."
 
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "„{folder}” nu poate fi exportat integral. Mesaje rămase de descărcat: {n}. Deschideți-le când sunteți online (sau păstrați toată corespondența offline în setările contului), apoi exportați din nou."
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -3835,7 +3841,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "Nu s-au putut șterge mesajele din „{name}”"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "Nu s-a putut descărca un mesaj din „{name}”"
@@ -3845,6 +3851,12 @@ msgstr "Nu s-a putut descărca un mesaj din „{name}”"
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "Nu s-a putut descărca din nou un mesaj din „{name}”"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "Mesajul nu a putut fi descărcat"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3901,7 +3913,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "Nu s-au putut muta mesajele în „{name}”: dosarul nu mai este pe server"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "„{name}” nu a putut fi deschis"
@@ -3955,10 +3967,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "Nu s-au putut citi categoriile Gmail ale „{name}”"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "Lista de dosare nu a putut fi citită"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "Nu s-au putut citi dimensiunile mesajelor din „{name}”"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -17425,6 +17443,15 @@ msgstr "Serviciul de rapoarte nu funcționează acum. Încercați din nou mai t�
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Răspunsul serviciului de rapoarte nu este unul pe care MailCraft îl înțelege, deci raportul poate să fi ajuns. Încercați din nou mai târziu sau deschideți-l pe GitHub."
 
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "Regula „{rule}” nu a putut muta {n} mesaj: {why}"
+msgstr[1] "Regula „{rule}” nu a putut muta {n} mesaje. Primul motiv: {why}"
+msgstr[2] "Regula „{rule}” nu a putut muta {n} de mesaje. Primul motiv: {why}"
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -25332,12 +25359,6 @@ msgstr[0] "{n} notă"
 msgstr[1] "{n} note"
 msgstr[2] "{n} de note"
 
-#. what a command says
-#: crates/engine/src/cmd/file.rs
-#, fuzzy
-msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
-msgstr "{n} dintre mesajele din „{folder}” nu sunt încă descărcate, deci dosarul nu poate fi exportat integral: deschideți-le când sunteți online (sau păstrați tot e-mailul offline în setările contului), apoi exportați din nou"
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -25908,6 +25929,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Linii"
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "{n} dintre mesajele din „{folder}” nu sunt încă descărcate, deci dosarul nu poate fi exportat integral: deschideți-le când sunteți online (sau păstrați tot e-mailul offline în setările contului), apoi exportați din nou"
 
 #, fuzzy
 #~ msgid "no Microsoft or Exchange server account keeps mail offline"

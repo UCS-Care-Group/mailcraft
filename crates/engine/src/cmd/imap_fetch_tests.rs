@@ -305,7 +305,7 @@ fn a_rule_that_cant_move_a_preview_out_of_its_account_says_so_once() {
     let m = s.mailbox.messages.values().find(|m| m.subject == "Old 9").unwrap();
     assert_eq!(m.folder, s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap());
     let errors = said["errors"].as_array().unwrap();
-    assert!(errors.iter().any(|e| e.as_str().unwrap().contains("The rule \"To here\" couldn't move a message")), "{said}");
+    assert!(errors.iter().any(|e| e.as_str().unwrap().contains("The rule \"To here\" couldn't move 1 message")), "{said}");
 
     // Many at once (a first download of old mail): one line for the rule, with how many.
     let many: Vec<Message> = (10..40).map(start).collect();
@@ -314,7 +314,7 @@ fn a_rule_that_cant_move_a_preview_out_of_its_account_says_so_once() {
     let said = super::account::apply_sync(&mut s, result).unwrap();
     let lines: Vec<&str> = said["errors"].as_array().unwrap().iter().filter_map(|e| e.as_str()).filter(|e| e.contains("To here")).collect();
     assert_eq!(lines.len(), 1, "{lines:?}");
-    assert!(lines[0].contains("couldn't move 30 messages; the first:"), "{}", lines[0]);
+    assert!(lines[0].contains("couldn't move 30 messages. First reason:"), "{}", lines[0]);
 }
 
 #[test]
