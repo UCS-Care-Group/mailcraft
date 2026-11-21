@@ -21521,8 +21521,8 @@ msgstr "它包含两个同类条件，而服务器只会满足其中任意一个
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "这是无法显示的图像类型（SVG）"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "这是一个已损坏或无法显示的矢量图 (SVG)"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -25528,6 +25528,10 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "这是无法显示的图像类型（SVG）"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

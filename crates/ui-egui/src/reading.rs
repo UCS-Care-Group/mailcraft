@@ -53,6 +53,11 @@ mod sharing_tests;
 mod signature;
 #[cfg(test)]
 mod signature_tests;
+pub(crate) mod svg;
+#[cfg(test)]
+mod svg_tests;
+#[cfg(test)]
+mod svg_wide_stroke_tests;
 #[cfg(test)]
 mod tests;
 pub(crate) mod unsubscribe;

@@ -21454,8 +21454,8 @@ msgstr "ერთი სახის ორი პირობა აქვს �
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "ეს ისეთი სახის ნახატია, რომელიც არ ჩანს (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "ეს ნახატი (SVG) დაზიანებულია ან მისი ჩვენება შეუძლებელია"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -25568,6 +25568,10 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "ეს ისეთი სახის ნახატია, რომელიც არ ჩანს (SVG)"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

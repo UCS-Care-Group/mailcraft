@@ -21510,8 +21510,8 @@ msgstr "ha due condizioni dello stesso tipo, e il server accetterebbe l'una o l'
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "è un disegno di un tipo che non viene mostrato (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "è un disegno (SVG) danneggiato o che non può essere mostrato"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -25884,6 +25884,9 @@ msgstr "−Righe"
 #~ msgstr "Sfoglia questo PC…"
 
 #, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "è un disegno di un tipo che non viene mostrato (SVG)"
+
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
 #~ msgstr "{not_sending_yet}, e nessun altro account qui ha un server di posta tramite cui inviarlo."
 

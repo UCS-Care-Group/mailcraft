@@ -1276,7 +1276,8 @@ impl Builder {
         if data::is_data(&picture.src) && picture.data.is_none() {
             let (src, data) = data::picture(&picture.src, self.decode, &mut self.budget);
             picture.src = src;
-            picture.data = Some(data?);
+            // A drawing (#565) is shown as a picture of an `<img>` only, not behind a box (#601).
+            picture.data = Some(data.filter(|p| !data::looks_like_svg(&p.0))?);
         }
         Some(picture)
     }

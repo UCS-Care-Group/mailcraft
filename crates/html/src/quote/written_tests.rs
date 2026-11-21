@@ -159,3 +159,25 @@ proptest::proptest! {
         proptest::prop_assert!(handed.len() <= MAX_DATA_PICTURES);
     }
 }
+
+#[test]
+fn an_svg_drawing_is_shown_in_the_reading_pane_but_never_handed_over() {
+    // #565: the reading pane draws a drawing written into the message, but a reply hands over
+    // only the four kinds of pixels, whichever way the drawing is written.
+    let drawing = b"<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg' width='8' height='8'><rect width='8' height='8'/></svg>";
+    let escaped: String = drawing.iter().map(|b| format!("%{b:02X}")).collect();
+    for svg in [
+        format!("data:image/svg+xml;base64,{}", b64(drawing)),
+        format!("data:image/svg+xml;charset=utf-8;base64,{}", b64(drawing)),
+        format!("data:image/svg+xml,{escaped}"),
+        "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>".to_string(),
+    ] {
+        let (out, handed) = quoted(&format!("<p>Before</p><img src=\"{svg}\" alt=\"Chart\"><p>After</p>"));
+        assert_eq!(out, "<p>Before</p><p>After</p>", "{svg}");
+        assert!(handed.is_empty(), "{svg}");
+        // Next to a PNG, only the PNG goes.
+        let (out, handed) = quoted(&format!("<img src=\"{svg}\"><img src=\"{}\">", png()));
+        assert_eq!(out, "<img src=\"cid:p1@mailcraft.invalid\">", "{svg}");
+        assert_eq!((handed.len(), handed[0].0.as_str()), (1, "image/png"), "{svg}");
+    }
+}

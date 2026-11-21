@@ -21578,8 +21578,8 @@ msgstr "má dvě podmínky jednoho druhu a server by přijal kteroukoli z nich, 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "je to kresba druhu, který se nezobrazuje (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "jde o poškozenou kresbu (SVG) nebo ji nelze zobrazit"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -25942,6 +25942,9 @@ msgstr "−Řádky"
 #~ msgstr "Správce vaší organizace musí jednou schválit čtení kalendářů sdílených poštovních schránek: Soubor › Informace"
 
 #, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "je to kresba druhu, který se nezobrazuje (SVG)"
+
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
 #~ msgstr "Povolte MailCraftu měnit vaše automatické odpovědi na stránce, která se otevřela v prohlížeči…"
 

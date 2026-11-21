@@ -21438,8 +21438,8 @@ msgstr "elle a deux conditions du même type, et le serveur accepterait l'une ou
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "c'est un dessin d'un type qui n'est pas affiché (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "c'est un dessin (SVG) endommagé ou qui ne peut pas être affiché"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -25559,6 +25559,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Lignes"
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "c'est un dessin d'un type qui n'est pas affiché (SVG)"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

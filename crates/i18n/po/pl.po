@@ -21610,8 +21610,8 @@ msgstr "ma dwa warunki tego samego rodzaju, a serwer przyjąłby tylko jeden z n
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "to rysunek rodzaju, który nie jest wyświetlany (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "to rysunek (SVG), który jest uszkodzony lub nie może zostać wyświetlony"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -25977,6 +25977,9 @@ msgstr "−Wiersze"
 #~ msgstr "Administrator Twojej organizacji musi raz zatwierdzić odczytywanie kalendarzy udostępnionych skrzynek pocztowych: Plik › Informacje"
 
 #, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "to rysunek rodzaju, który nie jest wyświetlany (SVG)"
+
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
 #~ msgstr "Zezwól programowi MailCraft na zmianę Twoich odpowiedzi automatycznych na stronie otwartej w przeglądarce…"
 

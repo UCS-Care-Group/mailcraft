@@ -20915,8 +20915,8 @@ msgstr "hij heeft twee voorwaarden van dezelfde soort, en de server zou een van 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "het is een tekening van een soort die niet wordt weergegeven (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "het is een tekening (SVG) die beschadigd is of niet kan worden getoond"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -25034,6 +25034,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "het is een tekening van een soort die niet wordt weergegeven (SVG)"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"
