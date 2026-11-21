@@ -2472,14 +2472,20 @@ impl MailApp {
     /// engine's refusal, its template filled; any other text looked up whole), and, when the
     /// owner has just done it by hand, in a message box too, as Outlook does (#152).
     fn say_refused(&mut self, id: &str, e: &str) {
-        let said = match self.last_error.take() {
-            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
-            _ => tl!(e).to_string(),
-        };
+        let said = self.refusal_said(e);
         if self.by_hand && refusal_worth_a_box(id, e) {
             self.refused = Some(said.clone());
         }
         self.status(said);
+    }
+
+    /// The refusal `e` of the command just run, in the interface language (the engine's
+    /// refusal, its template filled; any other text looked up whole).
+    fn refusal_said(&mut self, e: &str) -> String {
+        match self.last_error.take() {
+            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
+            _ => tl!(e).to_string(),
+        }
     }
 
     /// Run a command for a script or an agent (control channel, MCP bridge): never asks first.
@@ -4924,15 +4930,26 @@ impl MailApp {
         }
     }
 
-    /// Open a file by path (the command line, a drop on the window, the system's Open With): a
-    /// mailbox opens, a message, calendar or contact file is imported, anything else is attached
-    /// to the message being written. A failure shows in the status bar.
+    /// Open a file by path (the command line, the system's Open With): a mailbox opens, a
+    /// message, calendar or contact file is imported, anything else is attached to the message
+    /// being written. A failure shows in the status bar. (A file let go over a window:
+    /// [`let_go`](Self::let_go).)
     pub fn open_path(&mut self, path: &str) {
         // Handed over while the mailbox opens: opened once it is.
         if opening::queue(self, path) {
             return;
         }
         files::dropped_path(self, path);
+    }
+
+    /// A file let go over a window ([`files::let_go`]): `writing` is the message being written
+    /// that window shows, if any; a picture goes into its text when it is in HTML.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn let_go(&mut self, path: &str, writing: Option<u64>) {
+        if opening::queue(self, path) {
+            return;
+        }
+        files::let_go(self, path, writing);
     }
 
     /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
@@ -5243,7 +5260,11 @@ impl MailApp {
             if signatures && self.session.signature_edit.is_some() {
                 signatures::add_picture(self, json!({"path": path}));
             } else {
-                self.open_path(&path);
+                // The message the main window writes: the reading pane's, or, where the windows
+                // are inside it, the one in front (those of the system take their own:
+                // `windows`). Asked for each file: a mailbox let go with them changes it.
+                let writing = if ctx.embed_viewports() { windows::compose_window::target(self) } else { windows::compose_window::pane_compose(self) };
+                self.let_go(&path, writing);
             }
         }
         self.by_hand = false;

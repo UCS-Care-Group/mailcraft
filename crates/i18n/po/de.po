@@ -22769,6 +22769,11 @@ msgid "{name} is a shared mailbox whose account is gone: remove it and add it ag
 msgstr "{name} ist ein freigegebenes Postfach, dessen Konto nicht mehr vorhanden ist: Entfernen Sie es und fügen Sie es erneut hinzu"
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{name} is being sent and received now. Use Stop."

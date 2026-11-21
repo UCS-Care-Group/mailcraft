@@ -24161,6 +24161,11 @@ msgid "{name} is a shared mailbox whose account is gone: remove it and add it ag
 msgstr "{name} საერთო საფოსტო ყუთია, რომლის ანგარიშიც აღარ არსებობს: წაშალეთ და ხელახლა დაამატეთ"
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{name} is being sent and received now. Use Stop."
