@@ -716,8 +716,9 @@ msgstr "Accentkleur"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Accent colour as hex"
-msgstr ""
+msgstr "Accentkleur als hex-code"
 
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
@@ -3913,8 +3914,9 @@ msgstr "Huidige weergave"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
 msgid "Custom color"
-msgstr ""
+msgstr "Aangepaste kleur"
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
@@ -11404,8 +11406,9 @@ msgstr "Afbeelding plakken"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Alleen tekst plakken"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -17167,8 +17170,9 @@ msgstr "De aanmelding is geweigerd."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
-msgstr ""
+msgstr "De handtekening kon niet worden opgeslagen: {why}. Sluit nogmaals om hem onopgeslagen te laten."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -21692,8 +21696,9 @@ msgstr "dat postvak is geopend in een ander MailCraft-venster; sluit het daar ee
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "that message is a draft: open it and send it"
-msgstr ""
+msgstr "dat bericht is een concept: open het en verzend het"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
