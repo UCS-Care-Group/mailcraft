@@ -202,6 +202,26 @@ fn preview_of(content: &str, html: bool) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(255).collect()
 }
 
+/// The properties behind `In-Reply-To` and `References` (`PidTagInReplyToId`,
+/// `PidTagInternetReferences`), which Graph writes into a message's MIME and keeps when it is sent
+/// (#1814).
+pub(super) const THREAD_PROPERTIES: [&str; 2] = ["String 0x1042", "String 0x1039"];
+
+/// The `In-Reply-To` and `References` lines of `m`'s MIME: what it answers as create-reply set it,
+/// else as the properties behind the two headers say.
+pub(super) fn thread_headers(m: &Message) -> String {
+    let property = |id: &str| m.extended.iter().find(|(have, _)| have.eq_ignore_ascii_case(id)).map(|(_, v)| v.as_str());
+    let [answers_id, chain_id] = THREAD_PROPERTIES;
+    let mut out = String::new();
+    if let Some(answers) = Some(m.in_reply_to.as_str()).filter(|v| !v.is_empty()).or_else(|| property(answers_id)) {
+        out.push_str(&format!("In-Reply-To: {answers}\r\n"));
+    }
+    if let Some(chain) = property(chain_id) {
+        out.push_str(&format!("References: {chain}\r\n"));
+    }
+    out
+}
+
 /// A draft's MIME, made of what it has.
 pub(super) fn mime_of(m: &Message) -> String {
     let date = mailcraft_time::DateTime::from_timestamp(m.received, 0);
@@ -216,16 +236,7 @@ pub(super) fn mime_of(m: &Message) -> String {
         head.push_str(&format!("Reply-To: {}\r\n", m.reply_to.join(", ")));
     }
     head.push_str(&format!("Subject: {}\r\nDate: {}\r\nMessage-ID: {}\r\n", m.subject, date.iso(), m.internet_id));
-    // What it answers: as create-reply set it, else as the extended properties behind the two
-    // headers say (`PidTagInReplyToId`, `PidTagInternetReferences`), as Graph writes them (#1814).
-    let property = |id: &str| m.extended.iter().find(|(have, _)| have.eq_ignore_ascii_case(id)).map(|(_, v)| v.as_str());
-    let answers = Some(m.in_reply_to.as_str()).filter(|v| !v.is_empty()).or_else(|| property("String 0x1042"));
-    if let Some(answers) = answers {
-        head.push_str(&format!("In-Reply-To: {answers}\r\n"));
-    }
-    if let Some(chain) = property("String 0x1039") {
-        head.push_str(&format!("References: {chain}\r\n"));
-    }
+    head.push_str(&thread_headers(m));
     head.push_str("MIME-Version: 1.0\r\n");
     let kind = if m.html { "text/html" } else { "text/plain" };
     let text = m.text();

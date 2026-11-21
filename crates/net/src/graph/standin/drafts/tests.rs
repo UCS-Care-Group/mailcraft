@@ -121,6 +121,13 @@ fn the_properties_behind_in_reply_to_and_references_are_headers_of_its_mime() {
     let (status, answer) = send(&server, "POST", &format!("/v1.0/me/messages/{id}/send"), None);
     assert_eq!(status, 202, "{answer}");
     assert_eq!(server.state().sent.last().map(|s| s.in_reply_to.clone()).as_deref(), Some("<agenda-2@example.org>"));
+    // The copy in Sent Items keeps them, as Microsoft 365's does.
+    let sent = server.state().well_known("sentitems");
+    let copy = server.state().mailbox.messages.iter().find(|(_, m)| m.folder == sent && m.subject == "Re: Agenda").map(|(id, _)| id.clone()).unwrap();
+    let (status, _, mime) = raw(&server, "GET", &format!("/v1.0/me/messages/{copy}/$value"), "", b"", "", true);
+    assert_eq!(status, 200);
+    assert!(mime.contains("\r\nIn-Reply-To: <agenda-2@example.org>\r\n"), "{mime}");
+    assert!(mime.contains("\r\nReferences: <agenda-1@example.org> <agenda-2@example.org>\r\n"), "{mime}");
 }
 
 #[test]

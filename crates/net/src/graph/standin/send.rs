@@ -44,7 +44,8 @@ impl State {
         let mailbox = self.whose().to_string();
         // As create-reply set it, or as a draft made by itself wrote it (`PidTagInReplyToId`, #1814).
         let in_reply_to = Some(m.in_reply_to.clone()).filter(|v| !v.is_empty()).unwrap_or_else(|| {
-            m.extended.iter().find(|(id, _)| id.eq_ignore_ascii_case("String 0x1042")).map(|(_, v)| v.clone()).unwrap_or_default()
+            let [answers, _] = super::drafts::THREAD_PROPERTIES;
+            m.extended.iter().find(|(id, _)| id.eq_ignore_ascii_case(answers)).map(|(_, v)| v.clone()).unwrap_or_default()
         });
         self.sent.push(Sent { subject: m.subject.clone(), to: m.to.clone(), how: how.into(), in_reply_to, mailbox });
         if m.to.is_empty() && m.cc.is_empty() && m.bcc.is_empty() {
@@ -52,7 +53,9 @@ impl State {
         }
         if save {
             m.folder = self.well_known("sentitems");
-            (m.draft, m.read, m.extended) = (false, true, Vec::new());
+            (m.draft, m.read) = (false, true);
+            // Of what was written with it, only what became its headers stays with the copy (#1814).
+            m.extended.retain(|(id, _)| super::drafts::THREAD_PROPERTIES.iter().any(|kept| id.eq_ignore_ascii_case(kept)));
             m.received = self.clock;
             self.mailbox.put(m);
         }

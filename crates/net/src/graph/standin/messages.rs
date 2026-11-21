@@ -203,12 +203,13 @@ impl Message {
         }
         let date = mailcraft_time::DateTime::from_timestamp(self.received, 0);
         format!(
-            "From: {}\r\nTo: {}\r\nSubject: {}\r\nDate: {}\r\nMessage-ID: {}\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{}\r\n",
+            "From: {}\r\nTo: {}\r\nSubject: {}\r\nDate: {}\r\nMessage-ID: {}\r\n{}MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{}\r\n",
             self.from,
             self.to.join(", "),
             self.subject,
             date.iso(),
             self.internet_id,
+            super::drafts::thread_headers(self),
             self.preview
         )
     }
