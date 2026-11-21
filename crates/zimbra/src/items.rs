@@ -178,7 +178,9 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
     let sent = json::number(m.get("sd")).map_or(arrived, |ms| i64::try_from(ms / 1000).unwrap_or(arrived));
     let server = ServerMessage {
         id,
-        folder: json::own_id(m.get("l"))?,
+        // A folder of another mailbox keeps its qualified id: the run's mail-folder set sorts
+        // the message out of this mailbox's pages instead of the read failing.
+        folder: json::own_id(m.get("l")).or_else(|| json::raw(m.get("l")).filter(|_| json::foreign_id(m.get("l"))))?,
         read: !has('u'),
         answered: has('r'),
         forwarded: has('w'),
