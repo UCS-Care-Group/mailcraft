@@ -16,10 +16,15 @@
 //! `compose.replaceSubject` in the Subject, each one step of `compose.undo`. Change All runs
 //! `edit.replace` (one undo step for the body, whole words only) and one `compose.set` for the
 //! Subject, which `compose.undo` does not take back.
+//!
+//! It sits under the line of the word when that line is on screen and there is room, otherwise
+//! over it, and at the bottom of the compose pane when the word has no screen position. The
+//! suggestion list is as tall as its rows (at most [`spelling::MAX_SUGGESTIONS`]), so a row is
+//! never cut off.
 
 use std::ops::Range;
 
-use egui::{Align2, Ui, vec2};
+use egui::{Align2, Pos2, Rect, Ui, Vec2, pos2, vec2};
 use mailcraft_model::rich::Paragraph;
 use serde_json::json;
 
@@ -30,6 +35,16 @@ use crate::theme::{Tokens, medium, regular, semibold};
 use crate::widgets::plain_button;
 
 pub(crate) const WIDTH: f32 = 640.0;
+
+/// One suggestion row. The list is this tall times the number of rows, and there is no scroll
+/// viewport, so the bottom row is never cut in half.
+const SUGGESTION_ROW: f32 = 24.0;
+
+/// Gap between the word's line and the dialog, and between the dialog and the window edge.
+const PLACE_GAP: f32 = 8.0;
+
+/// A centred dialog's stand-in height on the first frame, before it has been measured.
+const PLACE_FALLBACK_HEIGHT: f32 = 440.0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Place {
@@ -111,6 +126,21 @@ impl SpellingDialog {
 
     pub(crate) fn tied_to_compose(&self) -> bool {
         self.tied_to_compose
+    }
+
+    /// The body word on screen, when the current mistake is in the body and the editor has laid it out.
+    pub(crate) fn anchored_word(&self, app: &MailApp, ctx: &egui::Context) -> Option<Rect> {
+        let mistake = self.current.as_ref()?;
+        if mistake.place != Place::Body {
+            return None;
+        }
+        crate::compose::editor::spelling_selection_rect(app, ctx, mistake.from, mistake.to)
+    }
+
+    /// The compose body (or the signature being edited), where the dialog sits when the word is not on screen.
+    pub(crate) fn pane_rect(&self, app: &MailApp) -> Option<Rect> {
+        let kind = if app.session.signature_edit.is_some() { "signatureBody" } else { "composeBody" };
+        app.hit.rect(kind, 0)
     }
 
     /// The dialog's contents. `true` when it should close.
@@ -317,22 +347,27 @@ impl SpellingDialog {
                     resp.request_focus();
                 }
                 ui.label(tl!("Suggestions"));
+                // At most [`spelling::MAX_SUGGESTIONS`] rows, each as tall as it needs to be.
+                // No scroll viewport, so a row is never cut on the bottom edge.
                 egui::Frame::NONE.stroke(egui::Stroke::new(1.0, t.border)).corner_radius(4.0).inner_margin(4.0).show(ui, |ui| {
-                    egui::ScrollArea::vertical().id_salt("spelling-suggestions").max_height(132.0).auto_shrink([false, true]).show(ui, |ui| {
-                        if mistake.words.is_empty() {
-                            ui.label(egui::RichText::new(tl!("No suggestions")).color(t.text_dim));
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    if mistake.words.is_empty() {
+                        ui.add_sized(
+                            vec2(ui.available_width(), SUGGESTION_ROW),
+                            egui::Label::new(egui::RichText::new(tl!("No suggestions")).color(t.text_dim)),
+                        );
+                    }
+                    for (index, word) in mistake.words.iter().take(spelling::MAX_SUGGESTIONS).enumerate() {
+                        let resp =
+                            ui.add_sized(vec2(ui.available_width(), SUGGESTION_ROW), egui::Button::new(word).selected(self.replacement == *word));
+                        if resp.clicked() {
+                            self.replacement.clone_from(word);
                         }
-                        for (index, word) in mistake.words.iter().enumerate() {
-                            let resp = ui.selectable_label(self.replacement == *word, word);
-                            if resp.clicked() {
-                                self.replacement.clone_from(word);
-                            }
-                            if resp.double_clicked() {
-                                act = Some(Act::Change);
-                            }
-                            app.hit.add("spellingSuggestion", index as u64, resp.rect);
+                        if resp.double_clicked() {
+                            act = Some(Act::Change);
                         }
-                    });
+                        app.hit.add("spellingSuggestion", index as u64, resp.rect);
+                    }
                 });
                 if !self.note.is_empty() {
                     ui.label(egui::RichText::new(self.note.as_str()).color(t.red));
@@ -606,6 +641,65 @@ fn press(ui: &mut Ui, app: &mut MailApp, hit: &'static str, label: &str, primary
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
     app.hit.add(hit, 0, rect);
     resp.clicked()
+}
+
+/// The spelling dialog, placed so the word stays visible. Same chrome as [`crate::dialogs::window`].
+pub(crate) fn positioned_window(
+    ctx: &egui::Context,
+    title: &str,
+    width: f32,
+    word: Option<Rect>,
+    pane: Option<Rect>,
+    add: impl FnOnce(&mut Ui),
+) -> bool {
+    let mut open = true;
+    let id = egui::Id::unique("dialog");
+    ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
+    let screen = ctx.content_rect();
+    let size = ctx.memory(|m| m.area_rect(id)).map(|r| r.size()).unwrap_or(vec2(width, PLACE_FALLBACK_HEIGHT));
+    let pos = place(screen, word, pane, size);
+    egui::Window::new(egui::RichText::new(title).font(semibold(14.0)))
+        .id(id)
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .current_pos(pos)
+        .default_width(width)
+        .min_width(width)
+        .max_width(width)
+        .show(ctx, |ui| {
+            ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+            add(ui);
+        });
+    open
+}
+
+/// Top-left of a dialog `size` large. Under the word's line when that fits in `screen`, otherwise
+/// over it. Without a word, along the bottom of `pane` (or of the screen). Always clamped to `screen`.
+pub(crate) fn place(screen: Rect, word: Option<Rect>, pane: Option<Rect>, size: Vec2) -> Pos2 {
+    let clamp_x = |x: f32| x.clamp(screen.min.x + PLACE_GAP, (screen.max.x - size.x - PLACE_GAP).max(screen.min.x));
+    let clamp_y = |y: f32| y.clamp(screen.min.y + PLACE_GAP, (screen.max.y - size.y - PLACE_GAP).max(screen.min.y));
+    let x_in = |pane: Rect| {
+        let preferred = pane.center().x - size.x * 0.5;
+        preferred.clamp(pane.min.x, (pane.max.x - size.x).max(pane.min.x))
+    };
+    if let Some(word) = word {
+        let below = word.max.y + PLACE_GAP;
+        let above = word.min.y - PLACE_GAP - size.y;
+        let y = if below + size.y <= screen.max.y - PLACE_GAP {
+            below
+        } else if above >= screen.min.y + PLACE_GAP {
+            above
+        } else if screen.max.y - word.max.y >= word.min.y - screen.min.y {
+            below
+        } else {
+            above
+        };
+        pos2(clamp_x(pane.map(x_in).unwrap_or(word.min.x)), clamp_y(y))
+    } else {
+        let pane = pane.unwrap_or(screen);
+        pos2(clamp_x(x_in(pane)), clamp_y(pane.max.y - size.y - PLACE_GAP))
+    }
 }
 
 #[cfg(test)]

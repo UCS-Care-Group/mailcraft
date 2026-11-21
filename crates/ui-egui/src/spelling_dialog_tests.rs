@@ -35,7 +35,7 @@ impl HostChecker for Host {
             return Vec::new();
         }
         match word {
-            "teh" => vec!["the".to_string(), "tea".to_string()],
+            "teh" => ["the", "tea", "ten", "tech", "eh", "he"].into_iter().map(str::to_string).collect(),
             "misstake" => vec!["mistake".to_string()],
             _ => Vec::new(),
         }
@@ -375,4 +375,61 @@ fn spelling_off_or_missing_is_said_and_opens_nothing() {
 #[test]
 fn whole_word_replacement_keeps_teh_inside_another_word() {
     assert_eq!(super::replace_whole_words("teh Tehran tehee teh", "teh", "the"), "the Tehran tehee the");
+}
+
+#[test]
+fn the_dialog_sits_under_the_word_when_the_line_has_room_below() {
+    let screen = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1280.0, 860.0));
+    let word = egui::Rect::from_min_max(egui::pos2(400.0, 200.0), egui::pos2(460.0, 220.0));
+    let pane = egui::Rect::from_min_max(egui::pos2(280.0, 120.0), egui::pos2(1240.0, 820.0));
+    let size = egui::vec2(640.0, 300.0);
+    let pos = super::place(screen, Some(word), Some(pane), size);
+    assert!(pos.y >= word.max.y, "under the line: {pos:?}");
+    assert!(pos.y + size.y <= screen.max.y, "inside the window: {pos:?}");
+    assert!(pos.x >= screen.min.x && pos.x + size.x <= screen.max.x);
+}
+
+#[test]
+fn the_dialog_sits_over_the_word_when_the_line_is_near_the_bottom() {
+    let screen = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1280.0, 860.0));
+    let word = egui::Rect::from_min_max(egui::pos2(400.0, 780.0), egui::pos2(460.0, 800.0));
+    let size = egui::vec2(640.0, 300.0);
+    let pos = super::place(screen, Some(word), None, size);
+    assert!(pos.y + size.y <= word.min.y + 0.5, "over the line: {pos:?}");
+    assert!(pos.y >= screen.min.y);
+}
+
+#[test]
+fn without_a_word_the_dialog_sits_at_the_bottom_of_the_pane() {
+    let screen = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1280.0, 860.0));
+    let pane = egui::Rect::from_min_max(egui::pos2(300.0, 160.0), egui::pos2(1100.0, 800.0));
+    let size = egui::vec2(640.0, 280.0);
+    let pos = super::place(screen, None, Some(pane), size);
+    assert!((pos.y + size.y) - (pane.max.y - 8.0) < 1.0, "along the bottom of the pane: {pos:?}");
+    assert!(pos.y >= screen.min.y && pos.x >= pane.min.x);
+}
+
+#[test]
+fn suggestion_rows_are_whole_and_the_word_stays_visible() {
+    let mut h = window(hosted());
+    message(h.state_mut(), "Notes", "Please check teh spelling here.");
+    h.state_mut().run("review.spelling", json!({})).unwrap();
+    h.run_steps(8);
+    let mut rows = Vec::new();
+    for index in 0..6 {
+        let rect = h.state().hit.rect("spellingSuggestion", index).unwrap_or_else(|| panic!("suggestion {index}"));
+        rows.push(rect);
+    }
+    let height = rows[0].height();
+    assert!(height >= 20.0, "{height}");
+    for (index, rect) in rows.iter().enumerate().skip(1) {
+        assert!((rect.height() - height).abs() < 0.5, "row {index} height {}", rect.height());
+        let gap = rect.min.y - rows[index - 1].max.y;
+        assert!((-0.5..1.0).contains(&gap), "row {index} is cut or gapped: {gap}");
+    }
+    let mistake = spelling(h.state()).current.as_ref().expect("a body word");
+    let word = crate::compose::editor::spelling_selection_rect(h.state(), &h.ctx, mistake.from, mistake.to).expect("the word on screen");
+    let dialog = h.ctx.memory(|m| m.area_rect(egui::Id::unique("dialog"))).expect("the dialog");
+    let clear = dialog.min.y + 1.0 >= word.max.y || dialog.max.y <= word.min.y + 1.0;
+    assert!(clear, "word {word:?} dialog {dialog:?}");
 }

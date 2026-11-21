@@ -3139,7 +3139,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 close = true;
             } else {
                 let mut done = false;
-                let open = window(ctx, tl!("Spelling"), crate::spelling_dialog::WIDTH, |ui| done = dialog.show(app, ui));
+                let word = dialog.anchored_word(app, ctx);
+                let pane = dialog.pane_rect(app);
+                let open = crate::spelling_dialog::positioned_window(ctx, tl!("Spelling"), crate::spelling_dialog::WIDTH, word, pane, |ui| {
+                    done = dialog.show(app, ui);
+                });
                 close |= !open || done;
             }
             if close {

@@ -704,6 +704,21 @@ pub(crate) fn reveal_spelling(app: &MailApp, ctx: &egui::Context) {
     ctx.data_mut(|data| data.insert_temp(id(app).with("reveal-spelling"), true));
 }
 
+/// Where `[from, to)` sits on screen, from the layout painted this frame. `None` when that text
+/// is not on screen (a Subject word, or the body has not been drawn yet).
+pub(crate) fn spelling_selection_rect(app: &MailApp, ctx: &egui::Context, from: usize, to: usize) -> Option<Rect> {
+    if to <= from {
+        return None;
+    }
+    let which = if app.session.signature_edit.is_some() { Which::Signature } else { Which::Message };
+    let hit = if which == Which::Message { "composeBody" } else { "signatureBody" };
+    let body = app.hit.rect(hit, 0)?;
+    let kept = store(ctx, which.id(app));
+    let layout = kept.lock().unwrap_or_else(|e| e.into_inner());
+    let rect = layout.caret(from).union(layout.caret(to)).translate(body.min.to_vec2());
+    (rect.height() >= 1.0).then_some(rect)
+}
+
 /// How many paragraphs of the current message's body were laid out since the window opened, for tests.
 #[cfg(test)]
 pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {

@@ -19,7 +19,7 @@ pub(crate) const REVIEW_PARAGRAPHS_PER_FRAME: usize = 8;
 /// the Subject.
 pub(crate) const TYPING_PAUSE: f64 = 0.6;
 pub use mailcraft_spell::{BuiltIn as BundledChecker, EN_US_TAG, HostChecker, MAX_ISSUES};
-const MAX_SUGGESTIONS: usize = 6;
+pub(crate) const MAX_SUGGESTIONS: usize = 6;
 const OFF: &str = "off";
 
 pub type Host = Box<dyn HostChecker>;
