@@ -221,6 +221,9 @@ fn custom_accent_colours_meet_their_contrast() {
         Color32::from_rgb(0x80, 0x80, 0x80),
         Color32::from_rgb(0x12, 0x34, 0x56),
         Color32::from_rgb(0xAB, 0xCD, 0xEF),
+        // A reviewer found an unread sender in this one short on the shaded band in Dark High
+        // Contrast (#1657).
+        Color32::from_rgb(0xA3, 0xA3, 0xA3),
         super::DEFAULT_CUSTOM_COLOR,
     ];
     let mut x: u32 = 0x1234_5678;
@@ -274,13 +277,18 @@ fn the_shaded_band_stays_visible() {
 #[test]
 fn a_list_rows_text_reads_on_whatever_is_under_it() {
     let mut themes = every_theme();
+    // #A3A3A3 first, the one a reviewer found an unread sender short with on the shaded band in
+    // Dark High Contrast, then a sweep of 60 more.
+    let mut customs = vec![Color32::from_rgb(0xA3, 0xA3, 0xA3)];
     let mut x: u32 = 0x1234_5678;
     for _ in 0..60 {
         let mut next = || {
             x = x.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
             (x >> 24) as u8
         };
-        let c = Color32::from_rgb(next(), next(), next());
+        customs.push(Color32::from_rgb(next(), next(), next()));
+    }
+    for c in customs {
         let hex = super::hex_string(c);
         for high in [false, true] {
             themes.push((format!("custom {hex} light {high}"), Tokens::build_choice(false, Accent::Custom, Some(c), high), high));

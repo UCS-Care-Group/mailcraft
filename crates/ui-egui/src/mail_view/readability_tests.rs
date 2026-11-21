@@ -119,3 +119,27 @@ fn a_message_with_nothing_to_preview_sits_in_the_middle_of_its_row() {
         }
     }
 }
+
+#[test]
+fn what_sits_at_the_end_of_an_empty_row_moves_down_with_its_text() {
+    // Arranged by size, a message not downloaded yet shows its size at the end of its row; with
+    // nothing to preview it goes on the subject's line, which has moved down, not where the
+    // preview's first line would have been.
+    for lines in 1..=3 {
+        let mut app = app();
+        app.session.prefs.preview_lines = lines;
+        app.execute("view.sort", json!({"by": "size"})).unwrap();
+        let rows = app.session.rows();
+        let Some(empty) = rows.get(2).map(|r| r.id) else { panic!("too few rows") };
+        let Some(m) = app.session.mailbox.messages.get_mut(&empty) else { panic!("no message {empty}") };
+        let m = Arc::make_mut(m);
+        m.body.html = None;
+        m.body.text.clear();
+        m.not_downloaded = 4096;
+        let harness = window(app);
+        let hit = |name| harness.state().hit.rect(name, empty).unwrap_or_else(|| panic!("no {name} on {empty}"));
+        let (sender, size) = (hit("messageSender").center().y, hit("messageSize").center().y);
+        let subject = sender + SUBJECT_Y - SENDER_Y;
+        assert!((size - subject).abs() < 2.0, "{lines} lines: the size is at {size}, the subject at {subject}");
+    }
+}

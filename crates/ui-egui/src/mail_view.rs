@@ -718,7 +718,7 @@ const FOLDER_W: f32 = TEXT_RIGHT - TIME_RIGHT;
 /// Most of a message's Gmail labels a row of the list shows (#1153), and the widest one's tag.
 const LIST_LABELS: usize = 2;
 const LIST_LABEL_MAX: f32 = 80.0;
-/// How much of the preview's line a row's tags leave, at the least, from the text's left.
+/// How much of the line they are on a row's tags leave, at the least, from the text's left.
 const PREVIEW_KEPT: f32 = 60.0;
 
 /// The Gmail labels a row shows (#1153): the first [`LIST_LABELS`] of those shown, and how many
@@ -980,8 +980,8 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     // A message with nothing to preview (one not downloaded yet) has its two lines in the middle
     // of its row, not at the top with the preview's room left blank under them: that blank looked
     // like the gap between messages and put the next sender with this subject (#1657).
-    let lift = tightening(app.session.prefs.tight_spacing, one) / 2.0
-        - if said.as_ref().is_some_and(|s| s.trim().is_empty()) { empty_preview_drop(lines) } else { 0.0 };
+    let nothing_said = said.as_ref().is_some_and(|s| s.trim().is_empty());
+    let lift = tightening(app.session.prefs.tight_spacing, one) / 2.0 - if nothing_said { empty_preview_drop(lines) } else { 0.0 };
     let (line1, line2) = if one { (line1, line2) } else { (line1 - lift, line2 - lift) };
     // A conversation's row has an arrow between the read switch and the text (#503): a click opens
     // or closes it, as Right and Left do.
@@ -1239,11 +1239,13 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
 
     // The size; in a search of every mailbox the folder it is in; then category marks and the
     // size of a conversation: at the right of the preview's first line, under the time, before
-    // the time when no preview is shown, or before the marks in a single line.
+    // the time when no preview is shown or there is nothing to preview (so they move down with
+    // the subject, #1657), or before the marks in a single line.
     let preview_y = rect.min.y + PREVIEW_TOP + PREVIEW_PITCH / 2.0 + 0.5;
+    let tail_on_subject = lines == 0 || nothing_said;
     let (mut sx, tail_y) = if one {
         (x, line1)
-    } else if lines > 0 {
+    } else if !tail_on_subject {
         (time_end, preview_y)
     } else {
         (time_end - date_w - 8.0, line2)
@@ -1261,8 +1263,9 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
         sx = paint_result_folder(p, pos2(end, tail_y), &label, &t) - 6.0;
         app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(end, tail_y + 7.0)));
     }
-    // The labels' tags: planned above in a single line; under the time, in what is left down to
-    // a little of the preview's line (never over the picture at the row's left).
+    // The labels' tags: planned above in a single line; otherwise in what is left of their line
+    // (the preview's first, or the subject's) down to a little of it (never over the picture at
+    // the row's left).
     let after_folder = tail_after - shown_folder.map_or(0.0, |_| FOLDER_W + 6.0);
     let tags = if one { one_tags } else { plan_tags(p, &labels, labels_more, sx - after_folder - (left + PREVIEW_KEPT)) };
     if tags.more > 0 {
@@ -1290,7 +1293,7 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
         p.text(br.center(), Align2::CENTER_CENTER, n, regular(10.0), t.text_dim);
         sx -= w + 5.0;
     }
-    if lines == 0 {
+    if tail_on_subject {
         subject_end = subject_end.min(sx - 6.0);
     }
     let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
