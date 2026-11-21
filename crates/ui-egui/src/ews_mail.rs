@@ -71,6 +71,34 @@ impl MailApp {
         self.remembered("password", account)
     }
 
+    /// Reads the online archive `archive` from its server when it is opened, or one of its folders
+    /// is (#1818): once each this session, as Outlook reads it, in the background, and only with a
+    /// password at hand (nothing is asked for by itself). Its folder list and the folder on screen.
+    pub(crate) fn read_archive(&mut self, archive: Id) {
+        if self.syncing() || self.offline() || self.ews_secret(archive).is_none() {
+            return;
+        }
+        let on_screen = self.session.mailbox.folder(self.session.view.folder).filter(|f| f.account == archive).map_or(0, |f| f.id);
+        if !self.archive_reads.insert((archive, on_screen)) {
+            return;
+        }
+        if let Err(e) = self.start_ews_mail(archive, true, &json!({})) {
+            log::info!("ews: the online archive couldn't be read now: {e}");
+        }
+    }
+
+    /// Says once why the online archive of `account` isn't shown, when the automatic setup found it
+    /// kept in Exchange Online (#1818): it would need a Microsoft sign-in, and nothing is sent there.
+    fn tell_cloud_archive(&mut self, account: Id) {
+        let Some(server) = self.session.mailbox.account_mut(account).ok().and_then(|a| a.ews.as_mut()) else { return };
+        if !server.cloud_archive || server.cloud_archive_told {
+            return;
+        }
+        server.cloud_archive_told = true;
+        self.session.mailbox_changed();
+        self.status(tl!("This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown").to_string());
+    }
+
     /// The account whose password a job of `account` goes with: an online archive's owner's
     /// (#1818: it has none of its own), else its own.
     pub(crate) fn ews_credential_account(&self, account: Id) -> Id {
@@ -193,6 +221,7 @@ impl MailApp {
                 Ok(said) => {
                     // The folders the run could not read: File › Info names them until the next run.
                     if last {
+                        self.tell_cloud_archive(account);
                         let folders: Vec<String> = said["unreadableFolders"]
                             .as_array()
                             .map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect())

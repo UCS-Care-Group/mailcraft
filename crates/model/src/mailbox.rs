@@ -1745,7 +1745,7 @@ impl Mailbox {
 
     /// The accounts in the order the folder pane lists them: each account of its own, in the
     /// order the owner put them in ([`Mailbox::account_order`]; else as they were added),
-    /// followed by the shared mailboxes opened through it. A shared mailbox whose owner is gone
+    /// followed by its online archive and the shared mailboxes opened through it. A shared mailbox whose owner is gone
     /// comes last, as it is (it can't be read, and says so when it is).
     pub fn accounts_in_order(&self) -> Vec<&Account> {
         let mut shared: HashMap<Id, Vec<&Account>> = HashMap::new();
@@ -1759,12 +1759,14 @@ impl Mailbox {
         for (n, id) in self.account_order.iter().take(MAX_ACCOUNTS).enumerate() {
             place.entry(*id).or_insert(n);
         }
-        let mut own: Vec<&Account> = self.accounts.iter().filter(|a| !a.is_shared()).collect();
+        let mut own: Vec<&Account> = self.accounts.iter().filter(|a| !a.is_shared() && !a.is_archive()).collect();
         // (A stable sort: those not placed keep the order they were added in, after the others.)
         own.sort_by_key(|a| place.get(&a.id).copied().unwrap_or(usize::MAX));
         let mut out: Vec<&Account> = Vec::with_capacity(self.accounts.len());
         for a in own {
             out.push(a);
+            // (Its online archive right after it, as Outlook lists it, #1818.)
+            out.extend(self.archive_of(a.id).filter(|archive| self.archive_owner(archive.id).is_some()));
             out.extend(shared.get(&a.id).into_iter().flatten().filter(|s| self.owner_of(s.id).is_some()));
         }
         // (A shared mailbox whose owner is missing.)

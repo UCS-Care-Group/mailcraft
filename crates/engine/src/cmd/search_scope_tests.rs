@@ -137,3 +137,34 @@ fn view_search_refuses_a_scope_it_does_not_know() {
     run(s, "view.clearSearch", json!({}));
     assert_eq!(s.view.scope, crate::Scope::Folder);
 }
+
+/// An online archive (#1818) is a mailbox of its own: Current Mailbox in it searches it alone, in
+/// its owner's mailbox searches that alone, and All Mailboxes searches both.
+#[test]
+fn the_online_archive_is_searched_as_a_mailbox_of_its_own() {
+    let mut s = Session::empty();
+    let owner = id_of(&run(
+        &mut s,
+        "account.add",
+        json!({"email": "ada@corp.example", "kind": "exchange", "ews": {"url": "https://mail.corp.example/EWS/Exchange.asmx"}}),
+    ));
+    let archive = s.mailbox.add_archive(owner).unwrap();
+    let old = s.mailbox.add_folder(archive, None, "2019").unwrap();
+    let inbox = s.mailbox.folder_of_kind(owner, FolderKind::Inbox).unwrap();
+    for (folder, subject) in [(inbox, "report this year"), (old, "report 2019")] {
+        let m = Message {
+            folder,
+            account: s.mailbox.folder(folder).unwrap().account,
+            subject: subject.into(),
+            date: 1_790_000_000,
+            ..Default::default()
+        };
+        s.mailbox.add_message(m).unwrap();
+    }
+    run(&mut s, "folder.select", json!({"id": old}));
+    assert_eq!(found(&mut s, "report", "mailbox"), ["report 2019"]);
+    assert_eq!(found(&mut s, "report", "everywhere"), ["report 2019", "report this year"]);
+    run(&mut s, "view.search", json!({"query": ""}));
+    run(&mut s, "folder.select", json!({"id": inbox}));
+    assert_eq!(found(&mut s, "report", "mailbox"), ["report this year"]);
+}

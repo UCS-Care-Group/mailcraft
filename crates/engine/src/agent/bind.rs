@@ -120,6 +120,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "account.davOff"
         | "account.graphSwitch"
         | "account.addSharedMailbox"
+        | "account.archive.hide"
+        | "account.archive.show"
         | "account.removeSharedMailbox"
         | "account.setSenderAddresses"
         | "account.thinOffline"

@@ -809,3 +809,28 @@ fn a_saved_file_holds_nothing_of_the_archive() {
     assert!(!written.contains("Taxes 2019") && !written.contains("AH-1"));
     assert!(written.contains("archiveOf"));
 }
+
+#[test]
+fn a_hidden_archive_goes_and_stays_away_until_shown() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    // Named by the archive or by its owner, alike.
+    assert_eq!(s.run("account.archive.hide", &json!({"account": archive})).unwrap()["hidden"], account);
+    assert!(s.mailbox.archive_of(account).is_none());
+    assert!(s.mailbox.account(account).unwrap().ews.as_ref().unwrap().archive_hidden);
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_none(), "the server's yes doesn't bring a hidden one back");
+    assert_eq!(s.run("account.archive.show", &json!({"account": account})).unwrap()["shown"], account);
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some());
+}
+
+#[test]
+fn the_archive_commands_take_only_an_exchange_server_account() {
+    let (mut s, _) = session();
+    let local = s.run("account.add", &json!({"email": "ada@home.example", "kind": "local"})).unwrap()["id"].as_u64().unwrap();
+    assert!(s.run("account.archive.hide", &json!({"account": local})).is_err());
+    assert!(s.run("account.archive.show", &json!({})).is_err());
+    assert!(s.run("account.archive.show", &json!({"account": 9_999})).is_err());
+}

@@ -529,6 +529,10 @@ const ACCOUNTS: &[&str] = &[
     "account.graphSwitch",
     "account.addSharedMailbox",
     "account.removeSharedMailbox",
+    // An Exchange server account's online archive (#1818): whether it is shown and asked about,
+    // and so whether mail is read from it, is the owner's.
+    "account.archive.hide",
+    "account.archive.show",
     // Another person's calendar, opened by address (#70): it reaches that person's mailbox with
     // the owner's sign-in, and removing one removes what is kept of it here.
     "calendar.openShared",
@@ -3414,6 +3418,17 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("confirm the servers of the mailbox opened from a file, so that it connects to {}", to.join("; "))
         }
         "account.addSharedMailbox" => format!("open the shared mailbox {}", clip(st("address"), 80)),
+        // An Exchange server account's online archive (#1818), named by the account's address.
+        "account.archive.hide" | "account.archive.show" => {
+            let a = p::id(params, "account")
+                .and_then(|a| s.mailbox.account(a))
+                .map_or_else(|| "an account that isn't there".to_string(), |a| clip(&a.email, 80));
+            if id == "account.archive.hide" {
+                format!("hide the online archive of {a} from the folder pane, and stop reading it from the server")
+            } else {
+                format!("show the online archive of {a} again, reading it from the server")
+            }
+        }
         "account.setSenderAddresses" => {
             let a = p::id(params, "id")
                 .and_then(|a| s.mailbox.account(a))

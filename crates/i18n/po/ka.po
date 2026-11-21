@@ -6118,7 +6118,7 @@ msgstr ""
 "თვისებები"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "საქაღალდეების პანელი"
@@ -7047,6 +7047,11 @@ msgstr "დეტალების დამალვა"
 #, fuzzy
 msgid "Hide MailCraft"
 msgstr "MailCraft-ის დამალვა"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+msgid "Hide Online Archive"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8534,8 +8539,8 @@ msgstr "დავალებების ჩამოთვლა"
 msgid "List {n}"
 msgstr "სია {n}"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Loading…"
 msgstr "ჩატვირთვა…"
@@ -11528,6 +11533,11 @@ msgid "Online"
 msgstr "ონლაინ"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Online Archive – {address}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Online meeting"
@@ -13118,7 +13128,7 @@ msgid "Redo {what}"
 msgstr "ხელახლა შესრულება: {what}"
 
 #. interface
-#: crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Refresh"
 msgstr "განახლება"
@@ -15312,6 +15322,11 @@ msgstr "MailCraft-ის ჩვენება"
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Show Message"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "Show Online Archive"
 msgstr ""
 
 #. command label, interface
@@ -17889,6 +17904,11 @@ msgid "The one this build came with"
 msgstr "ის, რომელიც ამ ანაწყობს მოჰყვა"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+msgid "The online archive needs a connection to the server"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -19362,6 +19382,11 @@ msgstr "ეს საფოსტო ყუთი ფაილიდან გ�
 #, fuzzy
 msgid "This mailbox was opened from a file: confirm its servers first"
 msgstr "ეს საფოსტო ყუთი ფაილიდან გაიხსნა: ჯერ დაადასტურეთ მისი სერვერები"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs

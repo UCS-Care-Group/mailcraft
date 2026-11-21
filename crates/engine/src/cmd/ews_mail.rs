@@ -71,7 +71,48 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("sync.applyEwsFetch", "Apply Downloaded Exchange Messages", "Send / Receive", apply_fetch)
             .pure()
             .params(r#"{"result": GraphFetchResult} — takes in messages a host fetched whole from an Exchange server account."#),
+        CommandSpec::new("account.archive.hide", "Hide Online Archive", "Folder Pane", hide_archive)
+            .params(r#"{"account": number (the online archive, or the Exchange server account it belongs to)} — takes the account's online archive off the folder pane, and the server isn't asked about it again until account.archive.show; nothing of it was kept on this computer, and nothing on the server changes. Answers {"hidden": owner id}"#)
+            .when(available),
+        CommandSpec::new("account.archive.show", "Show Online Archive", "Folder Pane", show_archive)
+            .params(r#"{"account": number (an Exchange server account)} — shows the account's online archive again: the next Send/Receive asks the server, and adds it when there is one. Answers {"shown": owner id}"#)
+            .when(available),
     ]
+}
+
+/// The Exchange server account `v` names, or the one whose online archive it names (#1818).
+fn archive_holder(s: &Session, v: &Value) -> Result<Id, CmdError> {
+    let id = p::id(v, "account").ok_or_else(|| bad("`account` is required"))?;
+    let a = s.mailbox.account(id).ok_or_else(|| failed!("no account with id {id}", id))?;
+    let owner = if a.is_archive() { s.mailbox.archive_owner(id).map(|o| o.id) } else { Some(id) };
+    owner
+        .filter(|o| s.mailbox.account(*o).is_some_and(|o| o.kind == AccountKind::Exchange && o.ews.is_some()))
+        .ok_or_else(|| failed!("{name} isn't an Exchange server account", name = a.name))
+}
+
+fn hide_archive(s: &mut Session, v: &Value) -> CmdResult {
+    let owner = archive_holder(s, v)?;
+    if let Some(server) = s.mailbox.account_mut(owner).ok().and_then(|a| a.ews.as_mut()) {
+        server.archive_hidden = true;
+    }
+    if let Some(archive) = s.mailbox.archive_of(owner).map(|a| a.id) {
+        s.mailbox.remove_archive(archive).map_err(|e| fail(e.to_string()))?;
+    }
+    if s.mailbox.folder(s.view.folder).is_none() {
+        s.view.folder = s.mailbox.folder_of_kind(owner, FolderKind::Inbox).unwrap_or(0);
+        s.sel.messages.clear();
+    }
+    s.mailbox_changed();
+    Ok(json!({"hidden": owner}))
+}
+
+fn show_archive(s: &mut Session, v: &Value) -> CmdResult {
+    let owner = archive_holder(s, v)?;
+    if let Some(server) = s.mailbox.account_mut(owner).ok().and_then(|a| a.ews.as_mut()) {
+        (server.archive_hidden, server.archive_absent) = (false, 0);
+    }
+    s.mailbox_changed();
+    Ok(json!({"shown": owner}))
 }
 
 /// Why the commands are out of reach, when they are: no account is an Exchange server account.

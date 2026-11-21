@@ -441,6 +441,18 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
                 }
                 ui.separator();
             }
+            // An online archive (#1818): read again from its server, or hidden.
+            if app.session.mailbox.account(id).is_some_and(mailcraft_model::Account::is_archive) {
+                if ui.add(egui::Button::new(tl!("Refresh")).min_size(vec2(180.0, 0.0))).clicked() {
+                    let _ = app.execute("ui.sync", json!({"account": id}));
+                    ui.close();
+                }
+                if ui.add(egui::Button::new(tl!("Hide Online Archive")).min_size(vec2(180.0, 0.0))).clicked() {
+                    let _ = app.run("account.archive.hide", json!({"account": id}));
+                    ui.close();
+                }
+                return;
+            }
             if ui.add(egui::Button::new(tl!("Properties…")).min_size(vec2(180.0, 0.0))).clicked() {
                 let _ = app.run("folder.properties", json!({"account": id}));
                 ui.close();
@@ -457,7 +469,7 @@ pub(crate) struct AccountDrag(pub Id);
 /// The owner's own accounts, top to bottom: what a drag puts in another order. A shared mailbox
 /// goes with the account it is opened through.
 fn owners(mb: &Mailbox) -> Vec<Id> {
-    mb.accounts_in_order().into_iter().filter(|a| !a.is_shared()).map(|a| a.id).collect()
+    mb.accounts_in_order().into_iter().filter(|a| !a.is_shared() && !a.is_archive()).map(|a| a.id).collect()
 }
 
 /// What `account.move` is told to put `account` one place up (`up`) or down among the owner's
@@ -1150,6 +1162,15 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                 if !head(app, ui, *account, if name.is_empty() { tl!("Mailbox") } else { name }) {
                     continue;
                 }
+                // An online archive is read when it is opened (#1818): until its folders come, a
+                // line says so, or that it needs a connection; a folder of it opened is read then.
+                if app.session.mailbox.account(*account).is_some_and(mailcraft_model::Account::is_archive) {
+                    if rows.is_empty() {
+                        archive_note(app, ui, *account);
+                    } else if !app.offline() {
+                        app.read_archive(*account);
+                    }
+                }
                 for (f, depth, has_children) in rows {
                     // A Gmail account's Inbox has Gmail's categories under it, folded with it,
                     // unless they are tabs above its list.
@@ -1272,9 +1293,29 @@ pub(crate) fn result_folder_label(mb: &Mailbox, f: &Folder) -> String {
     }
 }
 
+/// The line under an online archive's heading while it has no folders here (#1818): it is read
+/// from its server when it is opened, as Outlook reads it, and offline it can't be. Opening it
+/// starts that read, once until it brings something.
+fn archive_note(app: &mut MailApp, ui: &mut Ui, archive: Id) {
+    let t = Tokens::get(ui.ctx());
+    let offline = app.offline();
+    let text = if offline { tl!("The online archive needs a connection to the server") } else { tl!("Loading…") };
+    ui.horizontal(|ui| {
+        ui.add_space(NAME_LEFT);
+        ui.label(egui::RichText::new(text).color(t.text_dim).size(12.0));
+    });
+    if !offline {
+        app.read_archive(archive);
+    }
+}
+
 /// What an account's heading in the folder pane says: its name, and for a shared mailbox
 /// Microsoft won't open for the owner, No access (#70; the mail already here stays readable).
 pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> String {
+    // An online archive is named as Outlook names it, in the interface's language (#1818).
+    if a.is_archive() {
+        return crate::i18n::fmt(tl!("Online Archive – {address}"), &[("address", a.email.trim())]);
+    }
     if app.shared_refused.contains_key(&a.id) { crate::i18n::fmt(tl!("{account} · No access"), &[("account", &a.name)]) } else { a.name.clone() }
 }
 
@@ -1319,3 +1360,7 @@ fn count_pill(ui: &Ui, t: &Tokens, r: Rect, count: Count, selected: bool) -> f32
     ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
     pill.min.x - 6.0
 }
+
+#[cfg(test)]
+#[path = "nav_archive_tests.rs"]
+mod archive_tests;

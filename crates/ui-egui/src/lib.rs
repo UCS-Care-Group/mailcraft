@@ -1788,6 +1788,9 @@ pub struct MailApp {
     /// mailbox…): shown as No access, and not read again by a Send/Receive that started by
     /// itself, only by one the owner asks for (#70).
     shared_refused: std::collections::HashMap<Id, mailcraft_model::sync::SharedRefusal>,
+    /// The online archives read this session, with the folder that was on screen (0: none of
+    /// theirs): each is read once when opened, and once for each of its folders opened (#1818).
+    archive_reads: std::collections::HashSet<(Id, Id)>,
     /// Shared mailboxes just added in Add Shared Mailbox whose Inbox hasn't been read yet: kept
     /// only once it has been, and removed again when it can't be (#70).
     shared_checking: std::collections::HashSet<Id>,
@@ -2093,6 +2096,7 @@ impl MailApp {
             subscribed: Default::default(),
             shared_calendar_tokens: Default::default(),
             shared_refused: Default::default(),
+            archive_reads: Default::default(),
             shared_checking: Default::default(),
             shared_check_next: None,
             mail_only_next: false,

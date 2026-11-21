@@ -69,3 +69,88 @@ fn a_server_without_an_archive_shows_none() {
     assert!(app.session.mailbox.archive_of(account).is_none());
     assert!(app.session.sync_status.starts_with("Up to date"), "the run went well: {}", app.session.sync_status);
 }
+
+/// A window whose account has an archive with the folder "2019" holding "Budget 2019" and
+/// "Taxes 2019", both read in. The account, the archive, and the server ids of the archive's
+/// "2019" and its Deleted Items.
+fn with_archive_read(server: &crate::ews_mail_flow::Server) -> (MailApp, Id, Id, String, String) {
+    let (old, deleted) = {
+        let mut state = server.standin.state();
+        state.deliver("inbox", "Kickoff", false);
+        state.add_archive(true);
+        let old = state.add_own_folder("", "2019", "archivemsgfolderroot");
+        state.deliver(&old, "Budget 2019", false);
+        state.deliver(&old, "Taxes 2019", false);
+        (old, state.folder_id("archivedeleteditems").unwrap())
+    };
+    let (mut app, account) = window(&server.url);
+    send_receive(&mut app, json!({"account": account, "password": PASSWORD}));
+    let archive = app.session.mailbox.archive_of(account).map(|a| a.id).unwrap();
+    send_receive(&mut app, json!({"account": archive}));
+    app.session.view.folder = app.session.mailbox.folder_by_server(archive, &old).unwrap();
+    send_receive(&mut app, json!({"account": archive}));
+    (app, account, archive, old, deleted)
+}
+
+fn find(app: &MailApp, account: Id, subject: &str) -> Id {
+    app.session.mailbox.messages.values().find(|m| m.account == account && m.subject == subject).map(|m| m.id).unwrap()
+}
+
+#[test]
+fn mail_in_the_archive_is_marked_flagged_and_deleted_on_the_server() {
+    let server = serve();
+    let (mut app, _, archive, old, deleted) = with_archive_read(&server);
+    let (budget, taxes) = (find(&app, archive, "Budget 2019"), find(&app, archive, "Taxes 2019"));
+    app.run("mail.markRead", json!({"ids": [budget]})).unwrap();
+    app.run("mail.flag", json!({"id": budget})).unwrap();
+    app.run("mail.delete", json!({"id": taxes})).unwrap();
+    send_receive(&mut app, json!({"account": archive}));
+    let state = server.standin.state();
+    let item = |subject: &str| state.items.iter().find(|i| i.subject == subject).unwrap();
+    assert!(item("Budget 2019").read && item("Budget 2019").flagged, "the changes reached the archive's item");
+    assert_eq!(item("Budget 2019").folder, old);
+    assert_eq!(item("Taxes 2019").folder, deleted, "deleted into the archive's own Deleted Items");
+    assert!(!item("Kickoff").read && !item("Kickoff").flagged, "the mailbox's mail is untouched");
+}
+
+#[test]
+fn a_folder_made_in_the_archive_is_made_on_the_server_there() {
+    let server = serve();
+    let (mut app, _, archive, _, _) = with_archive_read(&server);
+    app.run("folder.new", json!({"account": archive, "name": "Taxes", "parent": null})).unwrap();
+    send_receive(&mut app, json!({"account": archive}));
+    let state = server.standin.state();
+    let top = state.folder_id("archivemsgfolderroot").unwrap();
+    assert!(state.folders.iter().any(|f| f.name == "Taxes" && f.parent == top), "at the top of the archive");
+}
+
+#[test]
+fn mail_moves_from_the_mailbox_into_the_archive_and_back() {
+    let server = serve();
+    let (mut app, account, archive, old, _) = with_archive_read(&server);
+    let kickoff = find(&app, account, "Kickoff");
+    let year = app.session.mailbox.folder_by_server(archive, &old).unwrap();
+    app.run("mail.move", json!({"ids": [kickoff], "folder": year})).unwrap();
+    for _ in 0..3 {
+        send_receive(&mut app, json!({"account": account}));
+        send_receive(&mut app, json!({"account": archive}));
+    }
+    {
+        let state = server.standin.state();
+        let there: Vec<&str> = state.items.iter().filter(|i| i.subject == "Kickoff").map(|i| i.folder.as_str()).collect();
+        assert_eq!(there, [old.as_str()], "one copy, in the archive's folder on the server");
+    }
+    assert_eq!(app.session.mailbox.messages.values().filter(|m| m.subject == "Kickoff").count(), 1);
+    // And back to the Inbox.
+    let moved = find(&app, archive, "Kickoff");
+    let inbox = app.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
+    app.run("mail.move", json!({"ids": [moved], "folder": inbox})).unwrap();
+    for _ in 0..3 {
+        send_receive(&mut app, json!({"account": archive}));
+        send_receive(&mut app, json!({"account": account}));
+    }
+    let state = server.standin.state();
+    let home = state.folder_id("inbox").unwrap();
+    let there: Vec<&str> = state.items.iter().filter(|i| i.subject == "Kickoff").map(|i| i.folder.as_str()).collect();
+    assert_eq!(there, [home.as_str()]);
+}
