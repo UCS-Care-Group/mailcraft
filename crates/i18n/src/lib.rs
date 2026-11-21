@@ -519,6 +519,8 @@ mod tests {
         assert_eq!(Lang::from_pref("auto", Some("iw_IL.UTF-8")), expected_he);
         assert_eq!(Lang::from_pref("he", None), expected_he);
         assert_eq!(Lang::from_pref("iw", None), expected_he);
+        assert!(Lang::Hebrew.supported_on(false));
+        assert!(!Lang::Hebrew.supported_on(true));
     }
 
     #[test]
