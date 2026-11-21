@@ -57,6 +57,8 @@ fn shaded_rows_alternate_under_each_heading() {
     let rows = drawn(&mut harness);
     assert!(rows.len() >= 6, "enough rows to see the pattern: {}", rows.len());
     assert!(rows.iter().filter(|(row, _)| row.group.is_some()).count() >= 2, "more than one heading");
+    let banded = rows.iter().filter(|(row, _)| harness.state().hit.rect("messageShade", row.id).is_some()).count();
+    assert!(banded >= 2, "rows wear the band: {banded}");
     let mut nth = 0;
     for (row, _) in &rows {
         if row.group.is_some() {
