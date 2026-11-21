@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use mailcraft_model::{Security, Server};
+use mailcraft_model::{Account, Security, Server};
 use rustls::pki_types::ServerName;
 use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
@@ -364,8 +364,14 @@ fn connect_resolved<T>(
 /// owner chose to trust for it ([`Server::trusted`]) when the system doesn't trust it but it is in
 /// date and for the server's name (`crate::pinned`). With them comes the verifier, which says
 /// afterwards why a certificate was refused ([`with_certificate`]). Never "ignore errors": with
-/// no fingerprint the system alone decides.
-pub(crate) fn mail_tls(server: &Server) -> Result<(Arc<ClientConfig>, Arc<crate::pinned::Pinned>), NetError> {
+/// no fingerprint the system alone decides. An account that signs in on its provider's page
+/// takes no fingerprint: its token goes only to a server the system trusts.
+pub(crate) fn mail_tls(account: &Account, server: &Server) -> Result<(Arc<ClientConfig>, Arc<crate::pinned::Pinned>), NetError> {
+    if account.oauth.is_some() && !server.trusted.trim().is_empty() {
+        return Err(NetError::Config(said!(
+            "a trusted certificate isn't used for an account that signs in on its provider's page: only one the system trusts is"
+        )));
+    }
     let pin = match server.trusted.trim() {
         "" => None,
         fingerprint => Some(

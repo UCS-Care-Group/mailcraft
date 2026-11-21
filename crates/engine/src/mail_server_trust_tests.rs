@@ -89,3 +89,41 @@ fn the_mailbox_file_keeps_the_trust_and_a_server_without_one_is_written_as_befor
     assert_eq!(opened.mailbox.account(id).unwrap().incoming, s.mailbox.account(id).unwrap().incoming);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn an_agents_change_that_only_trusts_a_certificate_says_so_before_it_is_made() {
+    // The owner's approval names the certificate trusted, as an Exchange server account's does:
+    // an edit that changes nothing else is not "just a change of the account".
+    let mut s = Session::empty();
+    let id = s.run("account.add", &bridge(json!(""))).unwrap()["id"].as_u64().unwrap();
+    let mut pinned = bridge(json!(fingerprint()));
+    pinned["id"] = json!(id);
+    let asked = crate::agent::describe(&s, "account.edit", &pinned);
+    assert!(asked.contains("its servers change from"), "{asked}");
+    assert!(asked.contains("trusting the certificate AB:AB:AB"), "{asked}");
+    // Adding one names it too, and the server alone where none is trusted.
+    let added = crate::agent::describe(&s, "account.add", &bridge(json!(fingerprint())));
+    assert!(added.contains("imap 127.0.0.1:1143, trusting the certificate AB:AB:AB"), "{added}");
+    assert!(added.contains("smtp 127.0.0.1:1025") && !added.contains("1025, trusting"), "{added}");
+}
+
+#[test]
+fn an_account_that_signs_in_on_its_providers_page_trusts_no_certificate() {
+    // Its servers are the provider's own: a certificate the system doesn't trust there is
+    // somebody in between, who would be given the token.
+    let mut s = Session::empty();
+    let mut google = json!({
+        "email": "ada@gmail.example",
+        "auth": "oauth2",
+        "provider": "google",
+        "incoming": {"host": "imap.gmail.com", "trusted": fingerprint()},
+    });
+    let why = said(s.run("account.add", &google));
+    assert!(why.contains("signs in on its provider's page"), "{why}");
+    // Without one it is added; and an edit that would give it one is refused.
+    google["incoming"].as_object_mut().unwrap().remove("trusted");
+    let id = s.run("account.add", &google).unwrap()["id"].as_u64().unwrap();
+    let edit = json!({"id": id, "incoming": {"host": "imap.gmail.com", "trusted": fingerprint()}});
+    assert!(said(s.run("account.edit", &edit)).contains("signs in on its provider's page"));
+    assert_eq!(s.mailbox.account(id).unwrap().incoming.as_ref().map(|i| i.trusted.as_str()), Some(""));
+}

@@ -21183,6 +21183,11 @@ msgstr "签名图片须为 PNG、JPEG 或 GIF（许多邮件程序无法显示�
 msgid "a task needs a title"
 msgstr "任务必须有标题"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "a trusted certificate isn't used for an account that signs in on its provider's page: only one the system trusts is"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy

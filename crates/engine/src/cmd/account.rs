@@ -468,6 +468,18 @@ fn ews_server(v: &Value, before: Option<&EwsServer>) -> Result<EwsServer, CmdErr
     Ok(server)
 }
 
+/// A certificate trusted by its fingerprint is for a mail server the owner names, never for one
+/// an account signs in to on its provider's page (#1413): those are the provider's own servers,
+/// whose certificates the system trusts, and one it doesn't is somebody in between, who would be
+/// given the sign-in's token.
+fn check_trust(a: &Account) -> Result<(), CmdError> {
+    let pinned = [&a.incoming, &a.outgoing].into_iter().flatten().any(|server| !server.trusted.is_empty());
+    if a.oauth.is_some() && pinned {
+        return Err(bad("a trusted certificate isn't taken for an account that signs in on its provider's page"));
+    }
+    Ok(())
+}
+
 /// An account's address must be one, but for the account on this computer that has none and keeps
 /// it so (`before`: what an edited account was), which holds imported mail, when nothing else of it
 /// changes but its question before deleting a conversation (#503) or its colour (#893): it is no
@@ -512,10 +524,13 @@ pub(crate) fn edited(old: &Account, v: &Value) -> Option<Account> {
 /// that a question naming its servers names that too (Confirm Servers, an agent's
 /// `account.add` and `account.edit`, AU3-02).
 pub fn servers_text(a: &Account) -> String {
-    let one = |name: &str, s: &Option<Server>| match s {
-        Some(s) if s.port == 0 => Some(format!("{name} {}", s.host)),
-        Some(s) => Some(format!("{name} {}:{}", s.host, s.port)),
-        None => None,
+    // A certificate trusted by its fingerprint is named with its server (#1413), as an Exchange
+    // server account's is: an approval that changes only that says so.
+    let one = |name: &str, s: &Option<Server>| {
+        s.as_ref().map(|s| {
+            let at = if s.port == 0 { format!("{name} {}", s.host) } else { format!("{name} {}:{}", s.host, s.port) };
+            if s.trusted.is_empty() { at } else { format!("{at}, trusting the certificate {}", pin_text(&s.trusted)) }
+        })
     };
     if a.kind == AccountKind::Microsoft {
         return "Microsoft".to_string();
@@ -574,6 +589,7 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     let mut a = Account { keep_offline: mailcraft_model::KeepOffline::NEW_ACCOUNT, ..Default::default() };
     apply_fields(&mut a, v)?;
     check_address(&a, None)?;
+    check_trust(&a)?;
     if s.mailbox.accounts.iter().any(|x| x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
@@ -613,6 +629,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let named_by_address = before.named_by_address();
     apply_fields(&mut a, v)?;
     check_address(&a, Some(&before))?;
+    check_trust(&a)?;
     // An Exchange server account is the same: its ids are the server's.
     if (before.kind == AccountKind::Exchange) != (a.kind == AccountKind::Exchange) {
         return Err(fail("an account becomes an Exchange server account, or stops being one, only by being removed and added again"));

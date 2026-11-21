@@ -19899,6 +19899,11 @@ msgstr "Bilder einer Signatur sind PNG, JPEG oder GIF (viele E-Mail-Programme k√
 msgid "a task needs a title"
 msgstr "eine Aufgabe braucht einen Titel"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "a trusted certificate isn't used for an account that signs in on its provider's page: only one the system trusts is"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy

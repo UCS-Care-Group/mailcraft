@@ -510,7 +510,7 @@ pub(crate) fn open_imap_with<'a>(
         return Err(NetError::Config(said!("enter a password to sign in")));
     }
     // The system's check, and the one certificate the owner trusted for this server (#1413).
-    let (tls, verifier) = transport::mail_tls(server)?;
+    let (tls, verifier) = transport::mail_tls(account, server)?;
     let (mut stream, host) =
         transport::open_with(server, Service::Imap, patience, Some(tls.clone())).map_err(|e| transport::with_certificate(e, &verifier))?;
     stream.watch(cancel);

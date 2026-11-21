@@ -21190,6 +21190,11 @@ msgstr "az aláírás képei PNG, JPEG vagy GIF (sok levelezőprogram nem mutath
 msgid "a task needs a title"
 msgstr "a feladatnak címre van szüksége"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "a trusted certificate isn't used for an account that signs in on its provider's page: only one the system trusts is"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy

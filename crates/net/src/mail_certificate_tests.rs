@@ -153,3 +153,16 @@ fn a_fingerprint_that_is_no_fingerprint_is_refused_before_connecting() {
     assert!(matches!(error, NetError::Config(_)), "{error}");
     assert!(peer.world().log.is_empty(), "{:?}", peer.world().log);
 }
+
+#[test]
+fn an_account_that_signs_in_on_its_providers_page_never_connects_by_a_fingerprint() {
+    // Its token goes only to a server the system trusts: a fingerprint is refused before any
+    // connection, even one of exactly the certificate shown.
+    let (server, der) = bridge_certificate(year() - 1, year() + 10);
+    let peer = imap(server);
+    let oauth = Some(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Microsoft, ..Default::default() });
+    let account = Account { oauth, ..account(peer.port, &cert::fingerprint(&der)) };
+    let error = crate::sync::open_imap(&account, "an-invented-token").err();
+    assert!(matches!(error, Some(NetError::Config(_))), "{error:?}");
+    assert!(peer.world().log.is_empty(), "{:?}", peer.world().log);
+}

@@ -956,7 +956,9 @@ fn account_check_refusal(
     let outgoing = server == Some(MailServer::Outgoing);
     let host = if outgoing { account.outgoing.as_ref() } else { account.incoming.as_ref() }.map(|s| s.host.trim().to_string());
     match (error, host) {
-        (NetError::Certificate(problem), Some(host)) if server.is_some() && problem.can_be_trusted() => {
+        // Never for an account that signs in on its provider's page: its servers are the
+        // provider's own, and a certificate the system doesn't trust there is somebody in between.
+        (NetError::Certificate(problem), Some(host)) if server.is_some() && account.oauth.is_none() && problem.can_be_trusted() => {
             let changed = matches!(*problem, CertificateProblem::Changed(_));
             let info = problem.info().clone();
             AccountCheckRefusal::Certificate {

@@ -21099,6 +21099,11 @@ msgstr "les images d'une signature sont au format PNG, JPEG ou GIF (de nombreux 
 msgid "a task needs a title"
 msgstr "une tâche doit avoir un titre"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "a trusted certificate isn't used for an account that signs in on its provider's page: only one the system trusts is"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy

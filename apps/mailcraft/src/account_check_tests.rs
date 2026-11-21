@@ -54,3 +54,15 @@ fn a_certificate_nobody_may_trust_and_every_other_error_are_said_in_words() {
     let other = account_check_refusal(&bridge(), Some(MailServer::Incoming), NetError::SignInCancelled);
     assert_eq!(other, AccountCheckRefusal::Said(NetError::SignInCancelled.said()));
 }
+
+#[test]
+fn an_account_that_signs_in_on_its_providers_page_is_never_offered_a_certificate() {
+    // Its servers are the provider's own: a certificate the system doesn't trust there is said,
+    // never offered for trust.
+    let oauth = Some(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Google, ..Default::default() });
+    let account = Account { oauth, ..bridge() };
+    for problem in [CertificateProblem::NotTrusted(info()), CertificateProblem::Changed(info())] {
+        let said = account_check_refusal(&account, Some(MailServer::Incoming), NetError::Certificate(Box::new(problem)));
+        assert!(matches!(said, AccountCheckRefusal::Said(_)), "{said:?}");
+    }
+}
