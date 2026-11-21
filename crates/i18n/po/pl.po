@@ -721,6 +721,11 @@ msgstr "Akcent"
 msgid "Accent Colour"
 msgstr "Kolor akcentu"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4059,6 +4064,11 @@ msgstr "Bieżąca skrzynka pocztowa"
 msgid "Current View"
 msgstr "Bieżący widok"
 
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr ""
+
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -5799,7 +5809,7 @@ msgstr ""
 "folderu"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Okienko folderów"
@@ -9392,11 +9402,23 @@ msgstr "Przenieś w dół"
 msgid "Move Event"
 msgstr "Przenieś wydarzenie"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Przenieś ulubiony w górę lub w dół"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Przenieś folder"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Przenieś folder w górę lub w dół"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -11827,6 +11849,11 @@ msgid "Paste Picture"
 msgstr "Wklej obraz"
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+msgid "Paste Text Only"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste or write the signature's HTML"
@@ -12953,6 +12980,18 @@ msgstr "Zmień nazwę folderu…"
 #, fuzzy
 msgid "Rename Signature"
 msgstr "Zmień nazwę podpisu"
+
+#. name
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Renaming a category on the server"
+msgstr "Zmiana nazwy kategorii na serwerze"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr "Zmiana nazwy kategorii na serwerze: {done} z {total} wiadomości"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16649,6 +16688,24 @@ msgstr "Nie udało się odnotować wysłanych kategorii: {error}"
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "Nie udało się przywrócić kategorii „{name}”: lista kategorii jest pełna."
 
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] "Kategoria zmieniona w wydarzeniach na serwerze: {n}"
+msgstr[1] "Kategoria zmieniona w wydarzeniach na serwerze: {n}"
+msgstr[2] "Kategoria zmieniona w wydarzeniach na serwerze: {n}"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] "Kategoria zmieniona w wiadomościach na serwerze: {n}"
+msgstr[1] "Kategoria zmieniona w wiadomościach na serwerze: {n}"
+msgstr[2] "Kategoria zmieniona w wiadomościach na serwerze: {n}"
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
@@ -17731,6 +17788,11 @@ msgstr "Logowanie zostało anulowane."
 #, fuzzy
 msgid "The sign-in was declined."
 msgstr "Logowanie zostało odrzucone."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -20887,6 +20949,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "wersja robocza nie może mieć przypomnienia: najpierw ją wyślij lub użyj Do działania w samej wiadomości"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "ulubionego nie można umieścić przed nim samym"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "folderu nie można umieścić przed nim samym"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20897,6 +20971,12 @@ msgstr "folderu nie można przenieść do niego samego"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "folderu nie można przenieść do innego konta"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "folder umieszcza się wśród folderów obok niego: wskaż jeden z tym samym folderem nadrzędnym"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -22376,6 +22456,11 @@ msgstr "to nie jest hasło tego pliku .pst: nic nie zaimportowano"
 #, fuzzy
 msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "ta skrzynka pocztowa jest otwarta w innym oknie MailCraft; najpierw zamknij ją tam"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "that message is a draft: open it and send it"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24367,6 +24452,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} nie jest udostępnioną skrzynką pocztową: usuń go za pomocą account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} nie należy do ulubionych"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24437,6 +24528,12 @@ msgstr "{name} udostępnił(a) Ci kalendarz."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} udostępnił(a) Ci kalendarz. Znajduje się on na Twojej liście kalendarzy."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} zostaje na górze folderów konta"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

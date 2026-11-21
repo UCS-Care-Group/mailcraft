@@ -20,6 +20,13 @@ catalogue (a new text arrives with an empty translation, a text gone from the co
 prints how much of each language is translated. CI fails when the template is out of date, or when a
 translation loses or adds a `{placeholder}`.
 
+## New texts in a pull request
+
+A pull request that adds interface texts runs `cargo xtask i18n`, then gives each new entry a
+translation in every catalogue and marks it `#, fuzzy` (a draft awaiting review), so nobody sees
+English in the middle of their language. A machine or best-effort translation is fine; a native
+speaker removes the `#, fuzzy` later. An empty `msgstr` doesn't fail CI or block a review.
+
 ## Reviewing a preview language
 
 An entry marked `#, fuzzy` is a draft translation awaiting further review. To review one, read the text in the window and in the catalogue, correct the `msgstr`

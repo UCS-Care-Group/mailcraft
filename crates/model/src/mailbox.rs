@@ -16,6 +16,8 @@ mod bulk;
 mod followup;
 #[path = "mailbox_snooze.rs"]
 mod snooze;
+#[path = "category_sweep.rs"]
+mod sweep;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
@@ -148,6 +150,46 @@ pub struct Folder {
     /// It is never made on the server: one that complete listing doesn't have goes.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub awaiting_listing: bool,
+    /// Its place among the folders that share its parent, where the owner put it (#1514): kept
+    /// on this computer alone, never sent to a server. `None` until the owner first moves it or
+    /// one beside it, and in a file from before there was an order; such a folder comes after
+    /// those with a place, by name ([`sort_as_listed`]).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub place: Option<u32>,
+    /// Its place among the Favorites kept in MailCraft (#1514), as [`Folder::place`] is among its
+    /// siblings. `None` until the owner first moves a favourite, and once it stops being one.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub favorite_place: Option<u32>,
+    /// Its [`Folder::place`] before a move to another parent cleared it, until the server has
+    /// taken the move or refused it (#1514): a refused move puts it back where it was. A
+    /// file from before has none.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub place_before_move: Option<u32>,
+}
+
+const LEAD: [FolderKind; 4] = [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted];
+
+/// The rank of the folders that lead an account's top level in the folder pane, in the order
+/// they lead it: Inbox, Drafts, Sent Items and Deleted Items, which stay there (#1514); every
+/// other folder ranks after them.
+pub fn lead_rank(kind: FolderKind) -> usize {
+    LEAD.iter().position(|k| *k == kind).unwrap_or(LEAD.len())
+}
+
+/// Whether a folder keeps its place at the head of its account's list whatever the owner does
+/// (#1514): one of [`lead_rank`]'s at the top level.
+pub fn leads(f: &Folder) -> bool {
+    f.parent.is_none() && lead_rank(f.kind) < LEAD.len()
+}
+
+/// Put folders that share a parent (`top`: none, they are an account's top level) in the order
+/// the folder pane lists them: at the top level Inbox, Drafts, Sent Items and Deleted Items lead;
+/// every other folder, Archive, Junk Email and Outbox among them, follows in the order the owner
+/// put them in ([`Folder::place`], #1514), and those without a place after them by name without
+/// regard to case. Subfolders are so too, with nothing leading.
+pub fn sort_as_listed(list: &mut [&Folder], top: bool) {
+    // The id last: two folders of one name keep their places from frame to frame.
+    list.sort_by_cached_key(|f| (if top { lead_rank(f.kind) } else { 0 }, f.place.unwrap_or(u32::MAX), f.name.to_lowercase(), f.id));
 }
 
 /// Whether a list of category names has `name`.
@@ -284,6 +326,18 @@ fn is_false(b: &bool) -> bool {
 }
 
 impl Folder {
+    /// Put the folder under `parent`. Moved to another parent it goes last there: its place among
+    /// the old siblings means nothing among the new ones (#1514).
+    pub fn set_parent(&mut self, parent: Option<Id>) {
+        if self.parent != parent {
+            if self.place.is_some() {
+                self.place_before_move = self.place;
+            }
+            self.place = None;
+        }
+        self.parent = parent;
+    }
+
     /// It is one of its server's own folders ([`ServerFolder::well_known`]), which can't be
     /// renamed, moved or deleted. Only known once a listing has said so (#756): until the first
     /// run after the update, a folder of that kind is still taken for one the owner made.
@@ -1303,6 +1357,12 @@ pub struct Mailbox {
     /// there all the same.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_renames")]
     pub category_renames: BTreeMap<Id, BTreeMap<String, String>>,
+    /// The renames of each Microsoft account's categories that items on its server still wait
+    /// for (#851): mail and events that aren't kept on this computer, asked for there and given
+    /// the new name, before the old one is deleted from the server's list. In the file, so that
+    /// it goes on after MailCraft was closed.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_sweeps")]
+    pub category_sweeps: BTreeMap<Id, Vec<crate::remote::CategorySweep>>,
     /// The next id to be given when the first of [`Mailbox::account_categories`] was made: an
     /// account with a lower id was here while one list served them all, so
     /// [`Mailbox::categories`] may hold its server's names. One added since has none there.
@@ -1380,6 +1440,7 @@ impl Default for Mailbox {
             category_writes: std::collections::BTreeSet::new(),
             categories_found: BTreeMap::new(),
             category_renames: BTreeMap::new(),
+            category_sweeps: BTreeMap::new(),
             category_stamp: 0,
             own_lists_began: 0,
             zone: String::new(),
@@ -1425,6 +1486,16 @@ pub const FOLDERS_NOT_DELETED_YET: &str = "MailCraft doesn't delete a JMAP accou
 /// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607, #1074).
 pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again sends it";
 
+/// What a draft moved into an Outbox says instead ([`MOVED_INTO_OUTBOX`]): Send Again doesn't send
+/// a draft, for nobody has said its recipients are right; Send does, with its questions (#1747).
+pub const DRAFT_MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Open the draft and send it";
+
+/// Whether `held` says only that the message was moved into an Outbox ([`MOVED_INTO_OUTBOX`],
+/// [`DRAFT_MOVED_INTO_OUTBOX`]).
+pub fn held_for_moving_in(held: &str) -> bool {
+    held == MOVED_INTO_OUTBOX || held == DRAFT_MOVED_INTO_OUTBOX
+}
+
 /// Only what is queued with Send leaves through an IMAP account's Outbox (#607), and a message moved
 /// into a JMAP account's is held the same way (#1074, [`Mailbox::holds_what_is_moved_in`]): a message moved
 /// or copied there is held, as one a Microsoft account's server refused is, until Send Again. One
@@ -1438,9 +1509,9 @@ fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
     m.sent_here = false;
     if into_outbox {
         if m.held.is_empty() {
-            m.held = MOVED_INTO_OUTBOX.to_string();
+            m.held = if m.draft { DRAFT_MOVED_INTO_OUTBOX } else { MOVED_INTO_OUTBOX }.to_string();
         }
-    } else if m.held == MOVED_INTO_OUTBOX {
+    } else if held_for_moving_in(&m.held) {
         m.held.clear();
     }
 }
@@ -1581,6 +1652,7 @@ impl Mailbox {
         self.local_categories.retain(|account, _| !going.contains(account));
         self.category_writes.retain(|account| !going.contains(account));
         self.category_renames.retain(|account, _| !going.contains(account));
+        self.category_sweeps.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
         for task in self.tasks.values_mut().filter(|t| going.contains(&t.origin.account)) {
             let task = Arc::make_mut(task);
@@ -1864,13 +1936,64 @@ impl Mailbox {
         self.default_account().and_then(|a| self.folder_of_kind(a.id, FolderKind::Inbox)).or_else(|| self.folders.first().map(|f| f.id))
     }
 
-    /// Top-level folders of an account (`parent` `None`) or a folder's subfolders, standard
-    /// folders first in their usual order, then the others by name.
+    /// Top-level folders of an account (`parent` `None`) or a folder's subfolders, as the
+    /// folder pane lists them ([`sort_as_listed`], #1514): at the top level only Inbox, Drafts,
+    /// Sent Items and Deleted Items lead, in that order; every other folder follows in the
+    /// owner's places, those without one by name.
     pub fn children(&self, account: Id, parent: Option<Id>) -> Vec<&Folder> {
         let mut v: Vec<&Folder> = self.folders.iter().filter(|f| f.account == account && f.parent == parent).collect();
-        let rank = |f: &Folder| FolderKind::STANDARD.iter().position(|k| *k == f.kind).unwrap_or(usize::MAX);
-        v.sort_by(|a, b| rank(a).cmp(&rank(b)).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+        sort_as_listed(&mut v, parent.is_none());
         v
+    }
+
+    /// The folders that [`Mailbox::reorder_folder`] moves `id` among (#1514), it among them, as
+    /// the folder pane lists them: those that share its parent but the ones that lead
+    /// ([`leads`]). Empty for a folder that leads, or isn't here.
+    pub fn reorder_siblings(&self, id: Id) -> Vec<Id> {
+        let Some(f) = self.folder(id).filter(|f| !leads(f)) else { return Vec::new() };
+        let mut siblings: Vec<&Folder> = self.folders.iter().filter(|g| g.account == f.account && g.parent == f.parent && !leads(g)).collect();
+        sort_as_listed(&mut siblings, f.parent.is_none());
+        siblings.into_iter().map(|g| g.id).collect()
+    }
+
+    /// Put the folder `id` in another place among the folders that share its parent (#1514), as
+    /// dragging it there does: right before `before`, one of them, or last without one. Inbox,
+    /// Drafts, Sent Items and Deleted Items lead an account's top level and stay there
+    /// ([`leads`]): they aren't moved, nor named as `before`. Only [`Folder::place`] changes, of
+    /// each of the siblings, and nothing is sent to a server. Whether anything moved.
+    pub fn reorder_folder(&mut self, id: Id, before: Option<Id>) -> Result<bool, ModelError> {
+        let f = self.folder(id).ok_or(not_found("folder", id))?;
+        if leads(f) {
+            return Err(invalid(format!("{} stays at the top of its account's folders", f.name)));
+        }
+        let (account, parent) = (f.account, f.parent);
+        if let Some(before) = before {
+            if before == id {
+                return Err(invalid("a folder can't be put before itself"));
+            }
+            let b = self.folder(before).ok_or(not_found("folder", before))?;
+            if b.account != account || b.parent != parent {
+                return Err(invalid("a folder is put among the folders beside it: name one with the same parent"));
+            }
+            if leads(b) {
+                return Err(invalid(format!("{} stays at the top of its account's folders", b.name)));
+            }
+        }
+        let was = self.reorder_siblings(id);
+        let mut order: Vec<Id> = was.iter().copied().filter(|f| *f != id).collect();
+        let at = before.and_then(|b| order.iter().position(|f| *f == b)).unwrap_or(order.len());
+        order.insert(at, id);
+        if order == was {
+            return Ok(false);
+        }
+        let place: HashMap<Id, u32> = order.iter().enumerate().map(|(n, id)| (*id, u32::try_from(n).unwrap_or(u32::MAX))).collect();
+        for f in self.folders.iter_mut() {
+            if let Some(n) = place.get(&f.id) {
+                f.place = Some(*n);
+                f.place_before_move = None;
+            }
+        }
+        Ok(true)
     }
 
     /// The folder is an Outbox or lies under one: mail put there is sent by the next Send/Receive.
@@ -1973,7 +2096,7 @@ impl Mailbox {
         self.folders.retain(|f| !gone.contains(&f.id));
         for f in &mut self.folders {
             if f.parent.is_some_and(|p| gone.contains(&p)) {
-                f.parent = None;
+                f.set_parent(None);
             }
         }
         self.messages.retain(|_, m| !gone.contains(&m.folder));
@@ -2086,7 +2209,8 @@ impl Mailbox {
         if self.name_taken(f.account, parent, &f.name, Some(id)) {
             return Err(invalid(format!("a folder named \"{}\" already exists there", f.name)));
         }
-        self.folder_mut(id)?.parent = parent;
+        let f = self.folder_mut(id)?;
+        f.set_parent(parent);
         Ok(())
     }
 
@@ -2122,9 +2246,10 @@ impl Mailbox {
                     name = format!("{} ({n})", f.name);
                 }
                 let folder = self.folder_mut(id)?;
-                folder.parent = Some(d);
+                folder.set_parent(Some(d));
                 folder.name = name;
                 folder.favorite = false;
+                folder.favorite_place = None;
                 Ok(false)
             }
             _ => {
@@ -2668,7 +2793,7 @@ impl Mailbox {
             Some(format!("The text of \"{subject}\" couldn't be read on this computer, so it can't be {doing} to another mailbox"))
         } else if m.unfetched && !fetched_first {
             Some(not_downloaded_yet(&subject))
-        } else if m.draft || m.server_draft.is_some() || (!m.held.is_empty() && m.held != MOVED_INTO_OUTBOX) {
+        } else if m.draft || m.server_draft.is_some() || (!m.held.is_empty() && !held_for_moving_in(&m.held)) {
             Some(format!("The draft \"{subject}\" stays in its own mailbox: send it from there"))
         } else {
             None
@@ -3510,6 +3635,13 @@ impl Mailbox {
             let known =
                 self.synced_categories.get(&owner).and_then(|synced| synced.iter().find(|c| same_category(&c.name, from))).map(|c| c.name.clone());
             let earlier = self.category_renames.get_mut(&owner).and_then(|renames| renames.remove(&category_key(from)));
+            // What only the server has of it takes the new name there too (#851): what carries
+            // the name the server knows, and what an earlier rename was giving this one.
+            let given = self.category_sweeps.get(&owner).is_some_and(|sweeps| sweeps.iter().any(|s| same_category(&s.to, from)));
+            if known.is_some() || given {
+                let there = known.clone().unwrap_or_else(|| from.to_string());
+                self.note_category_sweep(owner, &there, &to);
+            }
             match earlier.or(known) {
                 Some(old) => {
                     self.category_renames.entry(owner).or_default().insert(category_key(&to), old);
@@ -3708,7 +3840,8 @@ impl Mailbox {
             // The items that carried it take their new names there first, as Outlook moves them.
             let names: Vec<&str> = deletes.iter().map(|d| d.name.as_str()).collect();
             let carried = self.carried_there(owner, &names);
-            changes.extend(deletes.into_iter().filter(|d| !carried.contains(&category_key(&d.name))));
+            // So does what only the server has of it, which is asked for there (#851).
+            changes.extend(deletes.into_iter().filter(|d| !carried.contains(&category_key(&d.name)) && !self.sweep_holds(owner, &d.name)));
         }
         changes.extend(creates);
         changes.extend(colors);
@@ -3921,6 +4054,7 @@ impl Mailbox {
         self.set_synced(owner, synced);
         self.tidy_local(owner);
         self.tidy_renames(owner);
+        self.tidy_sweeps(owner);
         (said, news)
     }
 
@@ -3966,6 +4100,7 @@ impl Mailbox {
         self.category_writes.remove(&owner);
         self.categories_found.remove(&owner);
         self.category_renames.remove(&owner);
+        self.category_sweeps.remove(&owner);
         let names: Vec<String> = self.categories_of(owner).iter().map(|c| c.name.clone()).collect();
         if names.is_empty() {
             self.local_categories.remove(&owner);
@@ -4120,6 +4255,7 @@ impl Mailbox {
         self.local_categories.retain(|account, _| own.contains(account));
         self.category_writes.retain(|account| keep.contains(account));
         self.category_renames.retain(|account, _| keep.contains(account));
+        self.category_sweeps.retain(|account, _| keep.contains(account));
         let unsettled: Vec<Id> = self.server_categories.keys().copied().filter(|id| !self.synced_categories.contains_key(id)).collect();
         for owner in unsettled {
             let names = self.server_categories.get(&owner).cloned().unwrap_or_default();
@@ -4452,6 +4588,9 @@ impl Mailbox {
                     if let Some(renames) = self.category_renames.remove(&old) {
                         self.category_renames.insert(a.id, renames);
                     }
+                    if let Some(sweeps) = self.category_sweeps.remove(&old) {
+                        self.category_sweeps.insert(a.id, sweeps);
+                    }
                 }
                 seen.insert(a.id);
                 fixed.push("an account id corrected".into());
@@ -4533,7 +4672,7 @@ impl Mailbox {
                 cur = grandparent;
             };
             if !ok {
-                f.parent = None;
+                f.set_parent(None);
                 fixed.push(format!("folder \"{}\" moved to the top level", f.name));
             }
             // A nested or duplicate standard folder is an ordinary one.

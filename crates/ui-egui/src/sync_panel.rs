@@ -1186,6 +1186,7 @@ mod tests {
         assert_eq!(row(running(SyncPhase::NewMail, "Inbox", 150, 500), 0).line(), "New mail: Inbox, 150 of 500");
         assert_eq!(row(running(SyncPhase::NewMail, "Inbox", 40, 0), 0).line(), "New mail: Inbox, 40");
         assert_eq!(row(running(SyncPhase::CalendarAndContacts, "", 0, 0), 0).line(), "Calendar and contacts");
+        assert_eq!(row(running(SyncPhase::Renaming, "", 340, 1_200), 0).line(), "Renaming a category on the server: 340 of 1200");
         assert_eq!(row(AccountRun { state: RunState::Running, ..Default::default() }, 0).line(), "Starting…");
         // (A count past its total is a full bar, not more.)
         assert_eq!(row(running(SyncPhase::NewMail, "Inbox", u32::MAX, 3), 0).fraction(), Some(1.0));

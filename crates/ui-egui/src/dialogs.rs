@@ -2344,6 +2344,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         app.dialog = Some(dialog);
         return;
     }
+    // Closed. The window that opened it does not keep the next dialog: one opened below, or by
+    // the main window in the rest of this frame, belongs to whoever opens it.
+    app.windows.dialog_for = None;
     // Command search hands over the command it picked.
     if let Some(Dialog::Commands { query: id, selected: usize::MAX }) = reopen {
         let id = match id.as_str() {
