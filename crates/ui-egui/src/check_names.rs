@@ -352,7 +352,13 @@ impl NameChoice {
 fn first_line(person: &Value, rtl: bool) -> String {
     let (name, email) = (person["name"].as_str().unwrap_or(""), person["email"].as_str().unwrap_or(""));
     if name.is_empty() {
-        email.to_string()
+        if rtl && !email.is_empty() {
+            // Keep a bare address left-to-right when there is no display name.
+            // This changes presentation only; the selected person JSON is unchanged.
+            format!("\u{2066}{email}\u{2069}")
+        } else {
+            email.to_string()
+        }
     } else if rtl && !email.is_empty() {
         // Keep <address@domain> together in its LTR order beside a Hebrew display name.
         // These isolates affect the painted label only, never the chosen recipient JSON.
@@ -410,7 +416,9 @@ mod hebrew_email_bidi_tests {
         // With no display name the bare address remains unchanged in both locales.
         let bare = json!({"name": "", "email": "dana@example.org"});
         assert_eq!(first_line(&bare, false), "dana@example.org");
-        assert_eq!(first_line(&bare, true), "dana@example.org");
+        assert_eq!(first_line(&bare, true), "\u{2066}dana@example.org\u{2069}");
+        let punctuated = json!({"name": "", "email": "dana+tag@sub.example.org"});
+        assert_eq!(first_line(&punctuated, true), "\u{2066}dana+tag@sub.example.org\u{2069}");
     }
 
     #[test]
