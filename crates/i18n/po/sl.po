@@ -721,6 +721,12 @@ msgstr "Poudarek"
 msgid "Accent Colour"
 msgstr "Barva poudarka"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Accent colour as hex"
+msgstr "Barva poudarka v šestnajstiškem zapisu"
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4061,6 +4067,12 @@ msgstr "Trenutni poštni predal"
 msgid "Current View"
 msgstr "Trenutni pogled"
 
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
+msgid "Custom color"
+msgstr "Barva po meri"
+
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -5810,7 +5822,7 @@ msgstr ""
 "mape"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Podokno map"
@@ -5869,7 +5881,9 @@ msgstr "Mapa…"
 msgid ""
 "Follow\n"
 "Up"
-msgstr "Spremljanje"
+msgstr ""
+"Nadaljnje\n"
+"ukrepanje"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
@@ -9409,11 +9423,23 @@ msgstr "Premakni navzdol"
 msgid "Move Event"
 msgstr "Premakni dogodek"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Premakni priljubljeno navzgor ali navzdol"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Premakni mapo"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Premakni mapo navzgor ali navzdol"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -11844,6 +11870,12 @@ msgid "Paste Picture"
 msgstr "Prilepi sliko"
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+#, fuzzy
+msgid "Paste Text Only"
+msgstr "Prilepi samo besedilo"
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste or write the signature's HTML"
@@ -12970,6 +13002,18 @@ msgstr "Preimenuj mapo…"
 #, fuzzy
 msgid "Rename Signature"
 msgstr "Preimenuj podpis"
+
+#. name
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Renaming a category on the server"
+msgstr "Preimenovanje kategorije na strežniku"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr "Preimenovanje kategorije na strežniku: {done} od {total} sporočil"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16671,6 +16715,26 @@ msgstr "Poslanih kategorij ni bilo mogoče zabeležiti: {error}"
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "Kategorije '{name}' ni bilo mogoče vrniti: seznam kategorij je poln."
 
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] "Kategorija je bila preimenovana pri {n} dogodku na strežniku."
+msgstr[1] "Kategorija je bila preimenovana pri {n} dogodkih na strežniku."
+msgstr[2] "Kategorija je bila preimenovana pri {n} dogodkih na strežniku."
+msgstr[3] "Kategorija je bila preimenovana pri {n} dogodkih na strežniku."
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] "Kategorija je bila preimenovana pri {n} sporočilu na strežniku."
+msgstr[1] "Kategorija je bila preimenovana pri {n} sporočilih na strežniku."
+msgstr[2] "Kategorija je bila preimenovana pri {n} sporočilih na strežniku."
+msgstr[3] "Kategorija je bila preimenovana pri {n} sporočilih na strežniku."
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
@@ -17754,6 +17818,12 @@ msgstr "Prijava je bila preklicana."
 #, fuzzy
 msgid "The sign-in was declined."
 msgstr "Prijava je bila zavrnjena."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr "Podpisa ni bilo mogoče shraniti: {why}. Zaprite znova, da ostane neshranjen."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -20920,6 +20990,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "osnutek ne more imeti opomnika: najprej ga pošljite ali v samem sporočilu uporabite Spremljanje"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "priljubljene ni mogoče postaviti pred samo sebe"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "mape ni mogoče postaviti pred samo sebe"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20930,6 +21012,12 @@ msgstr "mape ni mogoče premakniti vase"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "mape ni mogoče premakniti v drug račun"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "mapa se postavi med mape poleg nje: navedite eno z istim nadrejenim"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -22342,6 +22430,12 @@ msgstr "to ni geslo te datoteke .pst: nič ni bilo uvoženo"
 #, fuzzy
 msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "ta poštni predal je odprt v drugem oknu MailCraft; najprej ga tam zaprite"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
+msgid "that message is a draft: open it and send it"
+msgstr "to sporočilo je osnutek: odprite ga in ga pošljite"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24336,6 +24430,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} ni poštni predal v skupni rabi: odstranite ga z account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} ni med priljubljenimi"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24406,6 +24506,12 @@ msgstr "{name} je z vami delil(a) koledar."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} je z vami delil(a) koledar. Je na vašem seznamu koledarjev."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} ostane na vrhu map svojega računa"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
