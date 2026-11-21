@@ -12883,6 +12883,7 @@ msgstr "Geben Sie die Erinnerung an (`event` und `occurrence`) oder `all`"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Say which: `newMail`, `reminders` or `taskbar` (true or false)"
 msgstr "Geben Sie an, welche: `newMail`, `reminders` oder `taskbar` (true oder false)"
 
@@ -13877,6 +13878,7 @@ msgstr "Zeigt eine Benachrichtigung, wenn eine Kalender- oder Aufgabenerinnerung
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
+#, fuzzy
 msgid "Show a red dot on the taskbar icon when new mail arrives"
 msgstr "Roten Punkt am Taskleistensymbol zeigen, wenn neue Nachrichten ankommen"
 
@@ -17762,6 +17764,7 @@ msgstr "Diese Synchronisierung benötigt etwa {needed}. Auf diesem Telefon sind 
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
+#, fuzzy
 msgid "This system doesn't mark the taskbar icon."
 msgstr "Dieses System markiert das Taskleistensymbol nicht."
 
@@ -19527,6 +19530,7 @@ msgstr "`notice` ist installsItself oder didntStart"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "`taskbar` is true or false"
 msgstr "`taskbar` ist true oder false"
 
