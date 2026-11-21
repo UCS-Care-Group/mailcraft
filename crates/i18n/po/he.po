@@ -321,8 +321,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "A brand's name on another address."
-msgstr ""
+msgstr "שם של מותג בכתובת שונה."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -420,8 +421,9 @@ msgstr "קישור שהטקסט שלו מורכב בעיקר מתווים מוס
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "A made-up domain."
-msgstr ""
+msgstr "דומיין שנראה מומצא."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -1271,8 +1273,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "An address with no domain."
-msgstr ""
+msgstr "כתובת ללא דומיין."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -1322,8 +1325,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
 msgid "An unsubscribe is already on its way."
-msgstr ""
+msgstr "בקשת ביטול הרשמה כבר נשלחת."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1704,8 +1708,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Ask once more for the pictures that couldn't be downloaded."
-msgstr ""
+msgstr "בקש שוב את התמונות שלא ניתן היה להוריד."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -1746,8 +1751,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
 msgid "Asking your domain's DNS…"
-msgstr ""
+msgstr "בודק את ה־DNS של הדומיין שלך…"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -2692,8 +2698,9 @@ msgstr "בדיקת נמענים"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Check both servers before you connect."
-msgstr ""
+msgstr "יש לבדוק את שני השרתים לפני ההתחברות."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -2756,8 +2763,9 @@ msgstr "בודק את החשבון…"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Checking the address with Microsoft…"
-msgstr ""
+msgstr "בודק את הכתובת מול Microsoft…"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -3180,8 +3188,9 @@ msgstr "המשך בעריכה"
 
 #. interface
 #: crates/ui-egui/src/close_to_tray.rs
+#, fuzzy
 msgid "Continue in tray"
-msgstr ""
+msgstr "המשך פעולה באזור ההודעות"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt
@@ -3694,8 +3703,9 @@ msgstr "נדחה"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
 msgid "Declined on {when}"
-msgstr ""
+msgstr "נדחה בתאריך {when}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -3987,13 +3997,15 @@ msgstr "נחתם דיגיטלית ואומת"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed by {signer}, and verified."
-msgstr ""
+msgstr "נחתם דיגיטלית בידי {signer} ואומת."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed by {signer}, but the signer isn't verified."
-msgstr ""
+msgstr "נחתם דיגיטלית בידי {signer}, אך זהות החותם לא אומתה."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -5610,8 +5622,9 @@ msgstr "Gmail טרם החזיר מזהה להודעה הזאת. יש לבצע ת
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Gmail label: {label}"
-msgstr ""
+msgstr "תווית Gmail: {label}"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -5781,8 +5794,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Google sign-in needs Google's IMAP server"
-msgstr ""
+msgstr "כניסה באמצעות Google מחייבת שימוש בשרת ה־IMAP של Google"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -5850,8 +5864,9 @@ msgstr "שליחת תשובות אל"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Have replies sent to other addresses"
-msgstr ""
+msgstr "שליחת תשובות לכתובות אחרות"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6200,8 +6215,9 @@ msgstr "ייבוא מפתח OpenPGP"
 
 #. interface
 #: crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "Import an OpenPGP key (.asc)…"
-msgstr ""
+msgstr "ייבוא מפתח OpenPGP (.asc)…"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -6252,8 +6268,9 @@ msgstr "חשוב"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Imported"
-msgstr ""
+msgstr "יובא"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -6268,8 +6285,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Imported {what}"
-msgstr ""
+msgstr "יובא {what}"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -6370,13 +6388,15 @@ msgstr "בשורה עם הטקסט"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "In the Outbox: it is on its way"
-msgstr ""
+msgstr "בתיבת הדואר היוצא: ההודעה בדרך"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "In the Outbox: it waits for its time"
-msgstr ""
+msgstr "בתיבת הדואר היוצא: ממתין למועד השליחה"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -6580,8 +6600,9 @@ msgstr "הזמנת משתתפים"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
 msgid "Issued by"
-msgstr ""
+msgstr "הונפק בידי"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -6590,8 +6611,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
 msgid "Issued to"
-msgstr ""
+msgstr "הונפק עבור"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -6630,8 +6652,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
 msgid "It is not on your calendar."
-msgstr ""
+msgstr "האירוע אינו מופיע בלוח השנה שלך."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -6878,8 +6901,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
 msgid "Keep Waiting"
-msgstr ""
+msgstr "המשך להמתין"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7130,8 +7154,9 @@ msgstr "קישור"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Links"
-msgstr ""
+msgstr "קישורים"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -7223,8 +7248,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "Look for your certificates and keys again"
-msgstr ""
+msgstr "חפש שוב אישורים ומפתחות"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -7234,18 +7260,21 @@ msgstr "כתובת דומה ומטעה."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
 msgid "Looking at the server's certificate…"
-msgstr ""
+msgstr "בודק את אישור השרת…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
 msgid "Looking for this meeting on your calendar…"
-msgstr ""
+msgstr "מחפש פגישה זו בלוח השנה שלך…"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
 msgid "Looking for your Exchange server…"
-msgstr ""
+msgstr "מחפש את שרת Exchange שלך…"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
@@ -7266,8 +7295,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Looks like a brand."
-msgstr ""
+msgstr "נראה כמו מותג."
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -7621,8 +7651,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/close_to_tray.rs
+#, fuzzy
 msgid "MailCraft will keep running"
-msgstr ""
+msgstr "MailCraft ימשיך לפעול"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8101,8 +8132,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
+#, fuzzy
 msgid "Microsoft's server couldn't be reached. Click to try again."
-msgstr ""
+msgstr "לא ניתן להגיע לשרת של Microsoft. לחץ כדי לנסות שוב."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -8272,8 +8304,9 @@ msgstr "העברת הפגישות בלבד"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Move the message to a folder to open or save its attachments"
-msgstr ""
+msgstr "העבר את ההודעה לתיקייה כדי לפתוח או לשמור את הקבצים המצורפים"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
