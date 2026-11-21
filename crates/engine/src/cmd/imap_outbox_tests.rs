@@ -371,10 +371,13 @@ fn a_draft_that_went_from_the_outbox_is_filed_as_sent() {
         date: 100,
         read: true,
         draft: true,
+        // The pointer to the server's copy of the draft, which the filed message must not keep.
+        server_draft: Some(mailcraft_model::sync::ServerDraft { marker: "m".into(), ..Default::default() }),
         body: Body { text: "See you there.".into(), html: None },
         ..Default::default()
     };
     let id = s.mailbox.add_message(draft).unwrap();
+    assert!(s.mailbox.message(id).unwrap().server_draft.is_some(), "a draft the server has a copy of");
     assert_eq!(to_send(&s, a), vec![id], "it goes with the next run");
     sent_and_filed(&mut s, a, &[id]);
     let m = s.mailbox.message(id).unwrap();
