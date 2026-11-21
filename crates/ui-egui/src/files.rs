@@ -87,6 +87,8 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
             // Only the file's own name, cleaned: a message can name its attachment anything.
             mailcraft_engine::opening::save_name(&s.mailbox.message(id)?.attachments.get(index)?.name)
         }
+        // The name the picture would be saved as. A picture that isn't one opens no dialog.
+        "mail.savePicture" => mailcraft_engine::cmd::save_picture::offered_name(s, params).ok()?,
         _ => return None,
     })
 }

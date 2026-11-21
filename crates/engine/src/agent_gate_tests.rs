@@ -91,6 +91,7 @@ fn a_command_that_adds_a_send_oversteps() {
 fn the_selection_is_not_copied_for_agents() {
     assert_eq!(access("ui.copySelection"), Some(Access::Never));
     assert_eq!(access("ui.copyLinkAddress"), Some(Access::Never));
+    assert_eq!(access("ui.copyPicture"), Some(Access::Never));
 }
 
 #[test]

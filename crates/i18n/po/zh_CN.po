@@ -3718,6 +3718,11 @@ msgstr "复制链接地址"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+msgid "Copy Picture"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Copy Selected Text"
 msgstr "复制选定的文本"
@@ -8952,7 +8957,7 @@ msgid "Merged PRs"
 msgstr "已合并的 PR"
 
 #. android, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/save_picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "邮件"
@@ -13549,6 +13554,11 @@ msgid "Save Message File As"
 msgstr "邮件文件另存为"
 
 #. command label
+#: crates/engine/src/cmd/save_picture.rs
+msgid "Save Picture As…"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Save Signature"
@@ -16265,6 +16275,11 @@ msgstr "这不是该文件的密码。"
 msgid "That key is on the card already"
 msgstr "该密钥已在卡上"
 
+#. interface
+#: crates/ui-egui/src/reading/select.rs
+msgid "That picture can't be copied"
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -18204,6 +18219,11 @@ msgstr "此版本无法连接邮件服务器。请使用桌面应用添加 Excha
 #, fuzzy
 msgid "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
 msgstr "此版本无法连接到邮件服务器。请使用桌面应用,或通过“文件 › 导入”导入邮件。"
+
+#. interface
+#: crates/ui-egui/src/reading/select.rs
+msgid "This build can't copy a picture"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -22177,7 +22197,7 @@ msgid "select a conversation in conversation view first"
 msgstr "首先在对话视图中选择一个对话"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/save_picture.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "请先选择一封邮件"
@@ -22249,7 +22269,7 @@ msgid "that event doesn't repeat"
 msgstr "此日程不重复"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/engine/src/cmd/save_picture.rs crates/mobile/src/message.rs
 #, fuzzy
 msgid "that is not a picture that can be shown"
 msgstr "这不是可以显示的图片"
@@ -22739,6 +22759,11 @@ msgstr "该邮件没有要保存的附件"
 msgid "the message has no recipients"
 msgstr "此邮件没有收件人"
 
+#. what a command says
+#: crates/engine/src/cmd/save_picture.rs
+msgid "the message has no such picture"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/smtp.rs
 #, fuzzy
@@ -22782,10 +22807,15 @@ msgid "the picture could not be read"
 msgstr "无法读取图片"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/engine/src/cmd/save_picture.rs crates/mobile/src/message.rs
 #, fuzzy
 msgid "the picture is too large"
 msgstr "图片太大"
+
+#. what a command says
+#: crates/engine/src/cmd/save_picture.rs
+msgid "the picture isn't kept here, and nothing is downloaded"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/rich/find.rs

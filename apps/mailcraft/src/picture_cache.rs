@@ -620,6 +620,10 @@ impl mailcraft_ui_egui::PictureCache for Kept {
     fn clear(&self) -> Result<(), String> {
         self.0.clear()
     }
+
+    fn get(&self, url: &str) -> Option<Vec<u8>> {
+        self.0.get(url)
+    }
 }
 
 /// Download the picture at `url`, or take it from `cache` when it is kept there; what was

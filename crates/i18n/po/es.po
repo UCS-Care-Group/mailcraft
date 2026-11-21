@@ -3718,6 +3718,11 @@ msgstr "Copiar dirección del vínculo"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+msgid "Copy Picture"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Copy Selected Text"
 msgstr "Copiar texto seleccionado"
@@ -8960,7 +8965,7 @@ msgid "Merged PRs"
 msgstr "PR fusionados"
 
 #. android, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/save_picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Mensaje"
@@ -13557,6 +13562,11 @@ msgid "Save Message File As"
 msgstr "Guardar archivo de mensaje como"
 
 #. command label
+#: crates/engine/src/cmd/save_picture.rs
+msgid "Save Picture As…"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Save Signature"
@@ -16273,6 +16283,11 @@ msgstr "Esa no es la contraseña de este archivo."
 msgid "That key is on the card already"
 msgstr "Esa clave ya está en la tarjeta"
 
+#. interface
+#: crates/ui-egui/src/reading/select.rs
+msgid "That picture can't be copied"
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -18214,6 +18229,11 @@ msgstr "Esta compilación no puede conectarse a servidores de correo. Use la apl
 #, fuzzy
 msgid "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
 msgstr "Esta compilación no puede conectarse a servidores de correo. Usa la aplicación de escritorio o trae el correo con Archivo › Importar."
+
+#. interface
+#: crates/ui-egui/src/reading/select.rs
+msgid "This build can't copy a picture"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -22191,7 +22211,7 @@ msgid "select a conversation in conversation view first"
 msgstr "seleccione primero una conversación en la vista de conversaciones"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/save_picture.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "seleccione primero un mensaje"
@@ -22263,7 +22283,7 @@ msgid "that event doesn't repeat"
 msgstr "ese evento no se repite"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/engine/src/cmd/save_picture.rs crates/mobile/src/message.rs
 #, fuzzy
 msgid "that is not a picture that can be shown"
 msgstr "eso no es una imagen que se pueda mostrar"
@@ -22753,6 +22773,11 @@ msgstr "el mensaje no tiene archivos adjuntos que guardar"
 msgid "the message has no recipients"
 msgstr "el mensaje no tiene destinatarios"
 
+#. what a command says
+#: crates/engine/src/cmd/save_picture.rs
+msgid "the message has no such picture"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/smtp.rs
 #, fuzzy
@@ -22796,10 +22821,15 @@ msgid "the picture could not be read"
 msgstr "no se pudo leer la imagen"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/engine/src/cmd/save_picture.rs crates/mobile/src/message.rs
 #, fuzzy
 msgid "the picture is too large"
 msgstr "la imagen es demasiado grande"
+
+#. what a command says
+#: crates/engine/src/cmd/save_picture.rs
+msgid "the picture isn't kept here, and nothing is downloaded"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/rich/find.rs
