@@ -6,8 +6,8 @@
 //! (wgpu: WebGPU where available, WebGL2 otherwise). Build with `trunk build --release` from this
 //! directory (output in `dist/web`).
 //!
-//! Differences from the desktop app: no IMAP or SMTP (a browser can't open sockets), but JMAP
-//! accounts over `fetch` (`jmap.rs`), and no TCP control channel; the mailbox lives in the
+//! Differences from the desktop app: no IMAP or SMTP (a browser can't open sockets), JMAP
+//! accounts over `fetch` (`jmap.rs`) rather than sockets, and no TCP control channel; the mailbox lives in the
 //! browser's storage; Open, Import and Attach use the browser's file picker (bytes arrive through
 //! `Services::inbox`); Save and the exports download.
 //! URL flags: `?webgl` forces WebGL2; `?sample` starts from the sample mailbox; `?empty` from an

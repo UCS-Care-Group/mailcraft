@@ -165,6 +165,8 @@ pub(crate) struct Reply {
     pub(crate) challenges: Vec<String>,
     /// Its `X-EWS-Policy-Reason` header (why an organisation shuts Exchange Web Services).
     pub(crate) policy_reason: Option<String>,
+    /// Its `Content-Type` header (a JMAP answer must be JSON); none when it is too long to be one.
+    pub(crate) content_type: Option<String>,
     /// The compliance classes its `DAV` headers name (RFC 4918 §10.1): one entry for each, however
     /// the server wrote them (one header with a long list, or several).
     pub(crate) dav: Vec<String>,
@@ -177,6 +179,8 @@ pub(crate) struct Reply {
 /// or tidied; the whole head is bounded by [`MAX_HEAD`] in any case.
 const MAX_CHALLENGES: usize = 16;
 const MAX_CHALLENGE: usize = 24 * 1024;
+/// The longest `Content-Type` kept: a media type and a few parameters.
+const MAX_CONTENT_TYPE: usize = 256;
 /// The classes of a `DAV` header's value, cut at the commas outside `<…>` (a coded URL may hold one).
 fn dav_classes(value: &str) -> Vec<&str> {
     let mut classes = Vec::new();
@@ -672,6 +676,9 @@ struct Head {
     location: Option<String>,
     challenges: Vec<String>,
     policy_reason: Option<String>,
+    content_type: Option<String>,
+    /// A `Content-Type` was read, kept or not: only the first counts.
+    saw_content_type: bool,
     dav: Vec<String>,
     etag: Option<String>,
     content_range: Option<String>,
@@ -731,6 +738,7 @@ pub(crate) fn read_reply_kept<R: Read>(stream: &mut R, started: Instant, patienc
         location: head.location,
         challenges: head.challenges,
         policy_reason: head.policy_reason,
+        content_type: head.content_type,
         dav: head.dav,
         etag: head.etag,
     };
@@ -781,6 +789,13 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
             }
         } else if name.eq_ignore_ascii_case("x-ews-policy-reason") {
             head.policy_reason = Some(tidy(value).chars().take(MAX_REASON).collect());
+        } else if name.eq_ignore_ascii_case("content-type") {
+            // The first one counts, as a reader of media types takes it; one too long to be a media
+            // type is none at all (cut short, it could read as another), and so is the answer's:
+            // a second field after it is not taken in its place.
+            if !std::mem::replace(&mut head.saw_content_type, true) && value.len() <= MAX_CONTENT_TYPE {
+                head.content_type = Some(value.chars().filter(|c| !c.is_control()).collect());
+            }
         } else if name.eq_ignore_ascii_case("dav") {
             for class in dav_classes(value).into_iter().filter(|class| !class.is_empty() && class.len() <= MAX_DAV_VALUE) {
                 if head.dav.len() < MAX_DAV && !class.chars().any(char::is_control) {
@@ -838,6 +853,10 @@ fn read_chunks<R: Read>(reader: &mut Reader<'_, R>, max: usize) -> Result<Vec<u8
     }
     Err(too_long(max))
 }
+
+#[cfg(test)]
+#[path = "http_content_type_tests.rs"]
+mod content_type_tests;
 
 #[cfg(test)]
 mod tests {

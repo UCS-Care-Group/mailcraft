@@ -78,6 +78,7 @@ mod graphics;
 mod install;
 #[cfg(test)]
 mod jmap_mail_flow;
+mod jmap_runner;
 mod key_holders;
 mod launch;
 #[cfg(test)]
@@ -1105,6 +1106,7 @@ fn services(
     let approval_ctx = ctx.clone();
     let fetch_ctx = ctx.clone();
     let (ews_ctx, ews_fetch_ctx, ews_setup_ctx, ews_resolve_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone());
+    let (jmap_ctx, jmap_fetch_ctx) = (ctx.clone(), ctx.clone());
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
     let rules_ctx = ctx.clone();
@@ -1216,6 +1218,9 @@ fn services(
         ews_setup: Some(Box::new(move |job| ews_setup::run_setup(job, &ews_setup_ctx))),
         // Names looked up in its address list, on the owner's Check Names (#1262).
         ews_resolve: Some(Box::new(move |job| ews_runner::run_resolve(job, &ews_resolve_ctx))),
+        // A JMAP account (M6): read over HTTPS, and its messages fetched whole.
+        jmap: Some(Box::new(move |job| jmap_runner::run_mail(job, &jmap_ctx))),
+        jmap_fetch: Some(Box::new(move |job| jmap_runner::run_fetch(job, &jmap_fetch_ctx))),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
         graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
             background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))
