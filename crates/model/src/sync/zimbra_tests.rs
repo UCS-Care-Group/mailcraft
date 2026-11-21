@@ -73,7 +73,8 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
     assert_eq!(first.check(), Ok(()));
     assert!(first.server_answered());
     let mut whole = first.clone();
-    whole.absorb(ZimbraMailResult {
+    let (millis, requests, skipped) = (whole.timings.millis(), whole.timings.requests(), whole.timings.skipped);
+    let mut piece = ZimbraMailResult {
         account: 3,
         pages: vec![ZimbraMessagePage { messages: vec![message("262", "2")], last: true, ..Default::default() }],
         token: "4713".into(),
@@ -81,10 +82,14 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
         errors: vec!["two".into()],
         whole: true,
         ..Default::default()
-    });
+    };
+    piece.timings.add(crate::sync::SyncPhase::NewMail, 40, 2);
+    piece.timings.skipped = 1;
+    whole.absorb(piece);
     assert_eq!((whole.pages.len(), whole.errors.len(), whole.from.as_str(), whole.token.as_str()), (3, 2, "4711", "4713"));
     assert_eq!((whole.partial, whole.whole, whole.email.as_str(), whole.url.as_str()), (false, true, ME, URL));
     assert!(whole.listing.is_some());
+    assert_eq!((whole.timings.millis(), whole.timings.requests(), whole.timings.skipped), (millis + 40, requests + 2, skipped + 1));
 }
 
 #[test]

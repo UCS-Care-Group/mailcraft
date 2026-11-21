@@ -472,6 +472,7 @@ impl ZimbraMailResult {
         if !piece.untrusted.is_empty() {
             self.untrusted = piece.untrusted;
         }
+        self.timings.absorb(&piece.timings);
     }
 }
 
