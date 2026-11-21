@@ -6206,8 +6206,9 @@ msgstr "Antworten an andere Adressen senden lassen"
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
 msgid "Height"
-msgstr ""
+msgstr "Höhe"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -11141,6 +11142,12 @@ msgstr "Wählen Sie den letzten Tag aus"
 msgid "Picture"
 msgstr "Bild"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "Bildformat"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -11149,8 +11156,9 @@ msgstr "Bildlayout"
 
 #. command label
 #: crates/engine/src/cmd/picture.rs
+#, fuzzy
 msgid "Picture Size"
-msgstr ""
+msgstr "Bildgröße"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -11169,8 +11177,9 @@ msgstr "Bild neben dem Text"
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
 msgid "Picture size"
-msgstr ""
+msgstr "Bildgröße"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -12288,8 +12297,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
 msgid "Reset Size"
-msgstr ""
+msgstr "Größe zurücksetzen"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14012,8 +14022,9 @@ msgstr "Die Nachrichten dieser Unterhaltung anzeigen"
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
 msgid "Show the picture at its own size"
-msgstr ""
+msgstr "Das Bild in seiner eigenen Größe anzeigen"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -14383,8 +14394,8 @@ msgstr "Vereinfachtes Menüband"
 msgid "Single Line"
 msgstr "Eine Zeile"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Größe"
@@ -19811,8 +19822,9 @@ msgstr "Eine Signatur ist geöffnet: Fügen Sie ihre Bilder mit signature.pictur
 
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
+#, fuzzy
 msgid "a signature is open: size its pictures with signature.picture.set"
-msgstr ""
+msgstr "Eine Signatur ist geöffnet: Legen Sie die Größe ihrer Bilder mit signature.picture.set fest"
 
 #. what a command says
 #: crates/model/src/signature.rs
@@ -20551,8 +20563,9 @@ msgstr "kein Bild {id} in dieser Signatur"
 
 #. what a command says
 #: crates/engine/src/cmd/picture.rs
+#, fuzzy
 msgid "no picture {id} was put in this message"
-msgstr ""
+msgstr "in diese Nachricht wurde kein Bild {id} eingefügt"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs

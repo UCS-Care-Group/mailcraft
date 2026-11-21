@@ -9878,6 +9878,11 @@ msgstr ""
 msgid "Picture"
 msgstr ""
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Format"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Picture Layout"
@@ -12705,8 +12710,8 @@ msgstr ""
 msgid "Single Line"
 msgstr ""
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 msgid "Size"
 msgstr ""
 

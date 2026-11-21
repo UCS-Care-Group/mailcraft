@@ -31,10 +31,10 @@ pub fn specs() -> Vec<CommandSpec> {
                 r#"{"path": string (a PNG, JPEG, GIF or WebP file on this computer; never a web address) | "data": base64 (the picture's bytes), "file"?: string (its name, for `data`), "alt"?: string (what it shows, in words), "width"?: number (pixels; shown at most this wide), "at"?: number (a position in the text; default: the caret, over the selection)} — puts the picture in the text; a message in HTML sends it as part of the message, a plain-text one says `[picture]`. A picture wider than 1920 pixels, or over 5 MB, is made smaller to fit (an animated one is not: it is refused when over the cap); at most 5 MB each, 20 MB and 30 pictures together. Answers {"id", "bytes" (all the message's pictures), "heavy"}"#,
             )
             .when_writing(needs_picture),
-        CommandSpec::new("compose.picture.set", "Picture Size", "Insert › Illustrations", set)
+        CommandSpec::new("compose.picture.set", "Picture Size", "Picture Format › Size", set)
             .pure()
             .params(
-                r#"{"id": number (a picture in the message's text, as insert.picture answered), "width": number (pixels; more than 1920 is 1920) | null (its own width)} — the width the picture is shown and sent at, its height in proportion; one step of the message's undo (compose.undo). Answers {"id", "width"}"#,
+                r#"{"id": number (a picture in the message's text, as insert.picture answered), "width": number (pixels; more than 1920 is 1920) | null (its own width)} — the width the picture is shown and sent at, its height in proportion; one step of the message's undo (compose.undo). The width is the picture's, not the place's: where one picture stands twice in the text (a draft that names one cid: twice), both are sized. Answers {"id", "width"}"#,
             )
             .when_writing(needs_resize),
     ]
