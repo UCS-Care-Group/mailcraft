@@ -7,8 +7,10 @@
 //! single-character flags, prefix and suffix rules, compound patterns). It does not share
 //! code with another spell checker. Suggestions are scored by our own edit distance.
 //!
-//! Nothing here panics on hostile input: a bad file yields [`Error`], and [`en_us`]
-//! yields `None` if the embedded list cannot be read.
+//! Nothing here panics on hostile input. A `SET` other than UTF-8 yields [`Error`].
+//! Any other malformed line is skipped, so a dictionary of only broken entries still
+//! parses as an empty word list. [`en_us`] yields `None` when that parse returns
+//! [`Error`], and yields the dictionary when the embedded files parse.
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
