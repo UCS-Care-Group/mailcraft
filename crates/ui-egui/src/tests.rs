@@ -155,6 +155,11 @@ fn window_commands_validate() {
     a.services.system_locale = Some("ro-RO".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "ro");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Romanian);
+    // Hebrew is a preview; direct selection and Israeli system-locale selection work.
+    assert_eq!(a.execute("ui.language", json!({"language": "he"})).unwrap()["inForce"], "he");
+    a.services.system_locale = Some("he-IL".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "he");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Hebrew);
     // Polish too.
     a.services.system_locale = Some("pl-PL".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "pl");
