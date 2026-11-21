@@ -18,6 +18,8 @@
 //! and a lost one is not looked for in a pass it made (`MailApp::driven`). The macOS menu bar's
 //! Paste (Cmd+V there) is the owner's, and comes as a paste.
 
+use std::borrow::Cow;
+
 use egui::{Event, Key};
 
 use crate::MailApp;
@@ -142,12 +144,10 @@ fn on_the_network(path: &str) -> bool {
 /// them, its `file://` address or, where `os` takes bare names (Finder's on macOS), its name, and
 /// the files named are the ones that are attached. `None` when a line names no file.
 fn named_by(text: &str, files: &[String], os: Os) -> Option<Vec<String>> {
-    // (Slashes either way: a Windows path in an address has them forward.)
-    let slashed = |text: &str| text.replace('\\', "/");
     let names = |file: &str, line: &str, decoded: &str| {
-        let path = slashed(file);
-        let name = path.rsplit('/').next().unwrap_or(&path);
-        path == line || path == decoded || (os.takes_bare_names() && (name == line || name == decoded))
+        let path = clipboard_path(file, os);
+        let matches = |name: &str| name == line || name == decoded;
+        matches(path.as_ref()) || (os.takes_bare_names() && file.rsplit('/').next().is_some_and(matches))
     };
     // (A paste of more lines than files can name is no list of them.)
     let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).take(files.len().saturating_add(1)).collect();
@@ -159,7 +159,8 @@ fn named_by(text: &str, files: &[String], os: Os) -> Option<Vec<String>> {
     }
     let mut named = vec![false; files.len()];
     for line in lines {
-        let (line, decoded) = (slashed(line), slashed(&decoded_address(line)));
+        let decoded = decoded_address(line, os);
+        let (line, decoded) = (clipboard_path(line, os), clipboard_path(&decoded, os));
         // (Every file that goes by the name: two files of one name in different folders, both.)
         let mut found = false;
         for (i, f) in files.iter().enumerate() {
@@ -174,9 +175,14 @@ fn named_by(text: &str, files: &[String], os: Os) -> Option<Vec<String>> {
     Some(files.iter().zip(named).filter(|(_, named)| *named).map(|(f, _)| f.clone()).collect())
 }
 
+/// Windows uses either slash as a separator; elsewhere a backslash is part of the name.
+fn clipboard_path(path: &str, os: Os) -> Cow<'_, str> {
+    if os == Os::Windows && path.contains('\\') { Cow::Owned(path.replace('\\', "/")) } else { Cow::Borrowed(path) }
+}
+
 /// `line` with a `file://` address read as the path it names: the scheme and a local host taken
 /// off, `%20` and the like decoded. Any other line as it is.
-fn decoded_address(line: &str) -> String {
+fn decoded_address(line: &str, os: Os) -> String {
     let Some(rest) = line.strip_prefix("file://") else { return line.to_string() };
     let path = rest.strip_prefix("localhost").unwrap_or(rest);
     let mut bytes = Vec::with_capacity(path.len());
@@ -198,7 +204,7 @@ fn decoded_address(line: &str) -> String {
     let decoded = String::from_utf8_lossy(&bytes).into_owned();
     // A Windows path in an address: `/C:/Users/…`.
     match decoded.as_bytes() {
-        [b'/', drive, b':', ..] if drive.is_ascii_alphabetic() => decoded.get(1..).unwrap_or_default().to_string(),
+        [b'/', drive, b':', ..] if os == Os::Windows && drive.is_ascii_alphabetic() => decoded.get(1..).unwrap_or_default().to_string(),
         _ => decoded,
     }
 }

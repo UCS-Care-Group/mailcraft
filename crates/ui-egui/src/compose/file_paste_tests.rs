@@ -275,7 +275,7 @@ fn text_that_names_other_files_is_pasted_as_text_and_attaches_nothing() {
 
 #[test]
 fn what_a_file_manager_leaves_beside_the_files_is_told_by_what_it_names() {
-    let (report, notes) = ("/home/ada/My Files/report.pdf".to_string(), "C:\\Users\\ada\\notes.txt".to_string());
+    let (report, notes) = ("/home/ada/My Files/report.pdf".to_string(), "/home/ada/notes.txt".to_string());
     let files = vec![report.clone(), notes.clone()];
     let both = Some(files.clone());
     // Nothing (Explorer): all of them, on Windows only.
@@ -284,18 +284,16 @@ fn what_a_file_manager_leaves_beside_the_files_is_told_by_what_it_names() {
         assert_eq!(super::named_by(text, &files, Os::Mac), None, "{text:?}");
         assert_eq!(super::named_by(text, &files, Os::Other), None, "{text:?}");
     }
-    // Paths and addresses (spaces as %20, a local host, a drive): the ones named, on every system.
+    // Paths and addresses (spaces as %20, a local host): the ones named.
     for os in [Os::Windows, Os::Mac, Os::Other] {
-        for text in [
-            "/home/ada/My Files/report.pdf\r\nC:\\Users\\ada\\notes.txt\r\n",
-            "file:///home/ada/My%20Files/report.pdf\nfile:///C:/Users/ada/notes.txt",
-        ] {
+        for text in ["/home/ada/My Files/report.pdf\r\n/home/ada/notes.txt\r\n", "file:///home/ada/My%20Files/report.pdf\nfile:///home/ada/notes.txt"]
+        {
             assert_eq!(super::named_by(text, &files, os), both, "{os:?} {text:?}");
         }
         for (text, only) in [
             ("/home/ada/My Files/report.pdf", &report),
             ("file:///home/ada/My%20Files/report.pdf\nfile://localhost/home/ada/My%20Files/report.pdf", &report),
-            ("file:///C:/Users/ada/notes.txt", &notes),
+            ("file:///home/ada/notes.txt", &notes),
         ] {
             assert_eq!(super::named_by(text, &files, os), Some(vec![only.clone()]), "{os:?} {text:?}");
         }
@@ -324,26 +322,52 @@ fn what_a_file_manager_leaves_beside_the_files_is_told_by_what_it_names() {
     }
 }
 
+#[test]
+fn macos_matches_a_bare_name_with_a_literal_backslash() {
+    let file = r"/Users/Ada/notes\draft.txt".to_string();
+    let files = [file.clone()];
+    assert_eq!(super::named_by(r"notes\draft.txt", &files, Os::Mac), Some(vec![file]));
+    assert_eq!(super::named_by("draft.txt", &files, Os::Mac), None);
+}
+
+#[test]
+fn posix_paths_and_file_uris_keep_backslashes_in_the_name() {
+    let file = r"/home/ada/notes\draft.txt".to_string();
+    let files = [file.clone(), "/home/ada/notes/draft.txt".to_string(), "/C:/work/draft.txt".to_string()];
+    for os in [Os::Mac, Os::Other] {
+        for text in [file.as_str(), "file:///home/ada/notes%5Cdraft.txt"] {
+            assert_eq!(super::named_by(text, &files, os), Some(vec![file.clone()]));
+        }
+        assert_eq!(super::named_by("file:///home/ada/notes/draft.txt", &files, os), Some(vec![files[1].clone()]));
+        assert_eq!(super::named_by("file:///C:/work/draft.txt", &files, os), Some(vec![files[2].clone()]));
+    }
+    assert_eq!(super::named_by(r"notes\draft.txt", &files, Os::Other), None);
+}
+
+#[test]
+fn windows_paths_match_either_separator_and_drive_file_uris() {
+    let file = r"C:\My Files\notes.txt".to_string();
+    let files = [file.clone()];
+    for text in [file.as_str(), "C:/My Files/notes.txt", "file:///C:/My%20Files/notes.txt"] {
+        assert_eq!(super::named_by(text, &files, Os::Windows), Some(vec![file.clone()]));
+    }
+    assert_eq!(super::named_by("notes.txt", &files, Os::Windows), None);
+}
+
 /// A page's copy handler sets the text to a bare name and the `text/uri-list` to guessed paths of
 /// that name: the owner's one Ctrl+V must not attach whichever exist, off macOS (review of #871).
 #[test]
 fn a_bare_name_beside_a_list_of_guessed_paths_attaches_nothing_off_macos() {
-    let folder = Folder::new("guessed");
-    let (one, two) = (folder.0.join("a"), folder.0.join("b"));
-    std::fs::create_dir_all(&one).unwrap();
-    std::fs::create_dir_all(&two).unwrap();
-    let paths = [one.join("id_rsa"), two.join("id_rsa"), folder.0.join("gone").join("id_rsa")];
-    std::fs::write(&paths[0], b"k1").unwrap();
-    std::fs::write(&paths[1], b"k2").unwrap();
+    let paths = ["/home/ada/a/id_rsa", "/home/ada/b/id_rsa", "/home/ada/gone/id_rsa"];
     let board = Files::default();
     let h = writing(&board);
-    *board.0.borrow_mut() = paths.to_vec();
+    *board.0.borrow_mut() = paths.iter().map(PathBuf::from).collect();
     let message = super::super::Which::Message;
     for os in [Os::Windows, Os::Other] {
         assert_eq!(super::files_on(h.state(), message, "id_rsa", os), None, "{os:?}");
     }
     // Finder leaves the bare name: on macOS every listed file of that name.
-    let all: Vec<String> = paths.iter().map(|p| p.to_str().unwrap().to_string()).collect();
+    let all: Vec<String> = paths.iter().map(|p| p.to_string()).collect();
     assert_eq!(super::files_on(h.state(), message, "id_rsa", Os::Mac), Some(all));
 }
 
@@ -412,11 +436,10 @@ fn an_empty_paste_of_files_attaches_nothing_and_says_nothing_here() {
 /// `text/uri-list` listing paths it guessed, and one Ctrl+V would attach whichever exist.
 #[test]
 fn files_alone_are_attached_on_windows_only() {
-    let folder = Folder::new("alone");
     let board = Files::default();
     let h = writing(&board);
-    *board.0.borrow_mut() = vec![folder.file("photo.jpg", b"jpg")];
-    let path = folder.0.join("photo.jpg").to_str().unwrap().to_string();
+    let path = "/home/ada/photo.jpg".to_string();
+    *board.0.borrow_mut() = vec![PathBuf::from(&path)];
     let message = super::super::Which::Message;
     assert_eq!(super::files_on(h.state(), message, "", Os::Windows), Some(vec![path.clone()]));
     for os in [Os::Mac, Os::Other] {
