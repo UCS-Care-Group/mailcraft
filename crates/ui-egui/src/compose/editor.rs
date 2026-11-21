@@ -908,7 +908,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         // Both take pictures: a signature, and a message's text since #547.
         let takes = crate::text_menu::Takes::Pictures;
         let mut chosen = None;
-        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes, |ui| {
+        let (selected, plain) = now(app, which).map_or((false, false), |(sel, plain)| (!sel.is_empty(), plain));
+        crate::text_menu::body(&resp, selected, takes, plain, |ui| {
             st.spelling_menu.as_ref().is_some_and(|suggestions| suggestions.show(ui, &mut chosen))
         });
         if let Some(word) = chosen
