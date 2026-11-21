@@ -70,7 +70,6 @@ pub fn search(
         }
         let mut page = base.clone();
         page.errors.clear();
-        page.partial = at != last && hits < MAX_HITS;
         // `folder` is the decoded name kept here. The server is asked in modified UTF-7.
         let selected = match imap.select(&encode_utf7(folder), true) {
             Ok(selected) => selected,
