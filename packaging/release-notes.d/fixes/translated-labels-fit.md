@@ -1,0 +1,1 @@
+- The search box's scope button ("Current Folder ▾") and the Settings and Remove buttons on File ▸ Info's account cards grow to fit a longer translated label, instead of drawing it over the search text or wrapping it.

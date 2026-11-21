@@ -130,7 +130,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     // A dialog over the window takes the keys, Escape first.
     let free = crate::keys::takes_commands(app);
     // The scope menu is about mail folders, so People (which searches contacts) goes without it.
-    let scope_w = if mail_search { 104.0 } else { 0.0 };
+    let scope_w = if mail_search { scope_width(ui, rect.width()) } else { 0.0 };
     // Advanced Search's button, at the right of the text as in Outlook: Mail's alone.
     let in_mail = app.session.view.module == Module::Mail;
     let advanced_w = if in_mail { 28.0 } else { 0.0 };
@@ -277,7 +277,12 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     if sresp.hovered() {
         ui.painter().rect_filled(scope_rect, 4.0, t.hover);
     }
-    ui.painter().text(scope_rect.center(), Align2::CENTER_CENTER, format!("{label} ▾"), TypeRung::Caption.regular(), t.text_dim);
+    // Elided to the button when it is at its cap, with the whole name on hover.
+    let mut job = egui::text::LayoutJob::simple_singleline(format!("{label} ▾"), TypeRung::Caption.regular(), t.text_dim);
+    job.wrap = egui::text::TextWrapping::truncate_at_width(scope_rect.width() - 8.0);
+    let galley = ui.painter().layout_job(job);
+    let sresp = if galley.elided { sresp.on_hover_text(label) } else { sresp };
+    ui.painter().galley(scope_rect.center() - galley.size() / 2.0, galley, t.text_dim);
     egui::Popup::menu(&sresp).show(|ui| {
         for (scope, name, code) in scopes {
             if ui.selectable_label(scope == now, name).clicked() {
@@ -288,6 +293,16 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         }
     });
 }
+
+/// The scope button's width: the widest of the four names with its arrow in the caption font, so a
+/// longer language's name isn't drawn over the text; 104 at least, and at most two fifths of the
+/// search box, which keeps the rest for what is typed.
+pub(crate) fn scope_width(ui: &Ui, box_w: f32) -> f32 {
+    let font = TypeRung::Caption.regular();
+    let widest = scopes().iter().map(|(_, name, _)| ui.fonts_mut(|f| f.layout_no_wrap(format!("{name} ▾"), font.clone(), egui::Color32::WHITE).size().x)).fold(0.0, f32::max);
+    (widest + 16.0).clamp(SCOPE_MIN, (box_w * 0.4).max(SCOPE_MIN))
+}
+const SCOPE_MIN: f32 = 104.0;
 
 /// Where a search looks, by name and by `view.search`'s code (#493): this folder, it and its
 /// subfolders, its mailbox, or every mailbox.
