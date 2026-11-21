@@ -299,7 +299,10 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
 /// search box, which keeps the rest for what is typed.
 pub(crate) fn scope_width(ui: &Ui, box_w: f32) -> f32 {
     let font = TypeRung::Caption.regular();
-    let widest = scopes().iter().map(|(_, name, _)| ui.fonts_mut(|f| f.layout_no_wrap(format!("{name} ▾"), font.clone(), egui::Color32::WHITE).size().x)).fold(0.0, f32::max);
+    let widest = scopes()
+        .iter()
+        .map(|(_, name, _)| ui.fonts_mut(|f| f.layout_no_wrap(format!("{name} ▾"), font.clone(), egui::Color32::WHITE).size().x))
+        .fold(0.0, f32::max);
     (widest + 16.0).clamp(SCOPE_MIN, (box_w * 0.4).max(SCOPE_MIN))
 }
 const SCOPE_MIN: f32 = 104.0;

@@ -247,7 +247,9 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 let _ = app.run("account.removeSharedMailbox", json!({"id": a.id}));
             }
         } else if removable
-            && on_card(ui, remove_at, remove_w, egui::Button::new(tl!("Remove"))).on_hover_text(tl!("Remove this account and the mail kept for it here")).clicked()
+            && on_card(ui, remove_at, remove_w, egui::Button::new(tl!("Remove")))
+                .on_hover_text(tl!("Remove this account and the mail kept for it here"))
+                .clicked()
         {
             let _ = app.run("account.remove", json!({"id": a.id}));
         }
