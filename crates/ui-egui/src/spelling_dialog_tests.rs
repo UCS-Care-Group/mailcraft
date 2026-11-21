@@ -321,7 +321,7 @@ fn a_long_paragraph_is_named_when_the_check_finishes() {
     assert_eq!(word(h.state()), "teh");
     click_label(&mut h, "Change");
     assert!(spelling(h.state()).complete);
-    assert!(h.query_by_label("The spelling check is complete. A part of the message was too long to check.").is_some());
+    assert!(h.query_by_label("The spelling check is complete. Some of the message was not checked.").is_some());
 }
 
 #[test]
@@ -373,8 +373,80 @@ fn spelling_off_or_missing_is_said_and_opens_nothing() {
 }
 
 #[test]
-fn whole_word_replacement_keeps_teh_inside_another_word() {
-    assert_eq!(super::replace_whole_words("teh Tehran tehee teh", "teh", "the"), "the Tehran tehee the");
+fn the_walk_restarts_when_the_subject_changes_under_it() {
+    let mut app = hosted();
+    message(&mut app, "teh", "Hello");
+    let mut h = window(app);
+    h.state_mut().run("review.spelling", json!({})).unwrap();
+    h.run_steps(3);
+    assert_eq!(word(h.state()), "teh");
+    h.state_mut().execute("compose.set", json!({"subject": "See teh"})).unwrap();
+    h.run_steps(3);
+    click_label(&mut h, "Change");
+    assert_eq!(subject(h.state()), "See the");
+}
+
+#[test]
+fn change_all_fixes_prose_and_leaves_an_address() {
+    let mut app = hosted();
+    message(&mut app, "teh night teh@example.org", "Say teh to teh@example.org today");
+    let mut h = window(app);
+    h.state_mut().run("review.spelling", json!({})).unwrap();
+    h.run_steps(3);
+    assert_eq!(word(h.state()), "teh");
+    click_label(&mut h, "Change All");
+    assert_eq!(subject(h.state()), "the night teh@example.org");
+    assert_eq!(plain(h.state()), "Say the to teh@example.org today");
+    h.state_mut().execute("compose.undo", json!({})).unwrap();
+    assert_eq!(plain(h.state()), "Say teh to teh@example.org today");
+    assert_eq!(subject(h.state()), "the night teh@example.org");
+}
+
+// A full draft refuses the longer body and keeps the Subject, so a shorter retry starts from the original.
+#[test]
+fn change_all_leaves_the_subject_when_the_body_cannot_grow() {
+    let mut app = hosted();
+    let width = 4_000usize;
+    let line = format!("teh {}", "x".repeat(width - 4));
+    let count = mailcraft_model::rich::MAX_CHARS / (width + 1);
+    let mut body = String::new();
+    for i in 0..count {
+        if i > 0 {
+            body.push('\n');
+        }
+        body.push_str(&line);
+    }
+    let slack = mailcraft_model::rich::MAX_CHARS.saturating_sub(body.chars().count());
+    body.push_str(&"y".repeat(slack));
+    message(&mut app, "teh night", &body);
+    let before = plain(&app);
+    assert_eq!(before.chars().count(), mailcraft_model::rich::MAX_CHARS, "the draft is full");
+    let mistake = super::Mistake {
+        place: super::Place::Body,
+        from: 0,
+        to: 3,
+        word: "teh".to_string(),
+        nth: 0,
+        words: Vec::new(),
+        context: String::new(),
+        emphasis: 0..0,
+    };
+    let mut dialog = SpellingDialog::default();
+    dialog.change_all(&mut app, &mistake, "there", EN_US_TAG);
+    assert_eq!(subject(&app), "teh night", "a body that cannot grow leaves the Subject");
+    assert_eq!(plain(&app), before);
+    assert!(!dialog.note.is_empty(), "the refusal is shown");
+}
+
+#[test]
+fn replace_ranges_keeps_quotes_around_the_flagged_word() {
+    let quoted_span = 1..4;
+    let quoted = vec![quoted_span];
+    let next = super::replace_ranges("'teh'", &quoted, "teh", "the").expect("range");
+    assert_eq!(next, "'the'");
+    let short_span = 0..2;
+    let short = vec![short_span];
+    assert!(super::replace_ranges("teh", &short, "teh", "the").is_none());
 }
 
 #[test]
@@ -405,7 +477,7 @@ fn without_a_word_the_dialog_sits_at_the_bottom_of_the_pane() {
     let pane = egui::Rect::from_min_max(egui::pos2(300.0, 160.0), egui::pos2(1100.0, 800.0));
     let size = egui::vec2(640.0, 280.0);
     let pos = super::place(screen, None, Some(pane), size);
-    assert!((pos.y + size.y) - (pane.max.y - 8.0) < 1.0, "along the bottom of the pane: {pos:?}");
+    assert!(((pos.y + size.y) - (pane.max.y - 8.0)).abs() < 1.0, "along the bottom of the pane: {pos:?}");
     assert!(pos.y >= screen.min.y && pos.x >= pane.min.x);
 }
 

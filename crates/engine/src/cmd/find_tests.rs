@@ -230,6 +230,18 @@ fn what_is_looked_for_is_one_line_and_short() {
 }
 
 #[test]
+fn replace_spans_changes_only_those_places_and_undoes_in_one_step() {
+    let mut s = writing("see teh and teh@example.org");
+    let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "spans": [{"from": 4, "to": 7}]}));
+    assert_eq!(r["replaced"], 1);
+    assert_eq!(mine(&s), "see the and teh@example.org");
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(mine(&s), "see teh and teh@example.org");
+    assert!(s.run("edit.replace", &json!({"text": "teh", "with": "the", "spans": [{"from": 8, "to": 11}]})).is_err());
+    assert_eq!(mine(&s), "see teh and teh@example.org");
+}
+
+#[test]
 fn a_range_past_the_owners_text_is_kept_to_it() {
     let mut s = writing("abc");
     let len = compose(&s).body.text().len();

@@ -48,7 +48,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("edit.replace", "Replace", "Format Text › Editing", replace)
             .pure()
-            .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "wholeWord"?: bool, "all"?: bool} — puts `with` in place of the selection when it is the text, then selects the next place; wholeWord: only where the text is a whole word; all: in place of every one, as one step of the message's undo. Answers {"replaced", "found", "from", "to"}"#)
+            .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "wholeWord"?: bool, "all"?: bool, "spans"?: [{"from": number, "to": number}]} — puts `with` in place of the selection when it is the text, then selects the next place; wholeWord: only where the text is a whole word; all: in place of every one, as one step of the message's undo. spans: those places only, when each one is exactly `text`, as one undo step (at most 100000, in any order). Answers {"replaced", "found", "from", "to"}"#)
             .when_writing(needs_doc),
     ]
 }
@@ -362,9 +362,15 @@ fn find(s: &mut Session, v: &Value) -> CmdResult {
     select_next(s, &places, p::bool(v, "backward").unwrap_or(false))
 }
 
+/// Most places one `spans` list may name. A longer list is refused and changes nothing.
+const MAX_SPANS: usize = 100_000;
+
 fn replace(s: &mut Session, v: &Value) -> CmdResult {
     let text = find_text(v, "text", false)?;
     let with = find_text(v, "with", true)?;
+    if let Some(spans) = v.get("spans") {
+        return replace_spans(s, &text, &with, spans);
+    }
     let match_case = p::bool(v, "matchCase").unwrap_or(false);
     let whole_word = p::bool(v, "wholeWord").unwrap_or(false);
     let found = places(s, &text, match_case, whole_word);
@@ -386,6 +392,60 @@ fn replace(s: &mut Session, v: &Value) -> CmdResult {
         o.insert("replaced".into(), json!(usize::from(here.is_some())));
     }
     Ok(out)
+}
+
+/// Put `with` at each span, when that span is exactly `text`, as one undo step. A span that is
+/// not that text, or not a place in the text, changes nothing.
+fn replace_spans(s: &mut Session, text: &str, with: &str, spans: &Value) -> CmdResult {
+    let Some(list) = spans.as_array() else {
+        return Err(bad("`spans` is a list of {from, to}"));
+    };
+    if list.len() > MAX_SPANS {
+        return Err(bad(format!("`spans` has at most {MAX_SPANS} places")));
+    }
+    let Some((body, _)) = s.doc() else {
+        return Err(fail("no message is being written"));
+    };
+    let plain = body.plain();
+    let mut places = Vec::with_capacity(list.len());
+    for item in list {
+        let from = item.get("from").and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok());
+        let to = item.get("to").and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok());
+        let (Some(from), Some(to)) = (from, to) else {
+            return Err(bad("`spans` is a list of {from, to}"));
+        };
+        if from >= to {
+            return Err(bad("`spans` is a list of {from, to}"));
+        }
+        places.push((from, to));
+    }
+    places.sort_by_key(|place| place.0);
+    let mut last = 0usize;
+    for (from, to) in &places {
+        if *from < last {
+            return Err(fail("the text has changed at the place to replace"));
+        }
+        let Some(slice) = char_slice(&plain, *from, *to) else {
+            return Err(fail("the text has changed at the place to replace"));
+        };
+        if slice != text {
+            return Err(fail("the text has changed at the place to replace"));
+        }
+        last = *to;
+    }
+    if !places.is_empty() {
+        edit(s, &json!({}), |b| b.replace_places(&places, with))?;
+    }
+    Ok(json!({"replaced": places.len(), "found": false}))
+}
+
+/// Characters `from..to` of `text`, when both ends fall on character boundaries inside it.
+fn char_slice(text: &str, from: usize, to: usize) -> Option<String> {
+    if from >= to {
+        return None;
+    }
+    let slice: String = text.chars().skip(from).take(to.saturating_sub(from)).collect();
+    (slice.chars().count() == to.saturating_sub(from)).then_some(slice)
 }
 
 #[cfg(test)]

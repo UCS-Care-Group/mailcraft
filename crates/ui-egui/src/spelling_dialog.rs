@@ -13,9 +13,11 @@
 //! second), not by a character offset, so a later edit does not point it at a different word.
 //!
 //! The dialog only collects the replacement. Change runs `compose.replaceText` in the body or
-//! `compose.replaceSubject` in the Subject, each one step of `compose.undo`. Change All runs
-//! `edit.replace` (one undo step for the body, whole words only) and one `compose.set` for the
-//! Subject, which `compose.undo` does not take back.
+//! `compose.replaceSubject` in the Subject, each one step of `compose.undo`. Change All replaces
+//! every range the spelling check would flag for that word (addresses, links and an inserted
+//! signature stay), the body as one `edit.replace` step and the Subject as one `compose.set`,
+//! which `compose.undo` does not take back. The body is written first: if it cannot take the
+//! replacement, the Subject is left as it was.
 //!
 //! It sits under the line of the word when that line is on screen and there is room, otherwise
 //! over it, and at the bottom of the compose pane when the word has no screen position. The
@@ -103,6 +105,18 @@ pub struct SpellingDialog {
     filled: bool,
     /// Started while a message was being written: closing that message closes the dialog.
     tied_to_compose: bool,
+    /// Character offset of [`Step::Body`] in the plain text, so a later batch does not recount.
+    origin: usize,
+    /// What the open issue was scanned from. A change restarts the walk.
+    inputs: Option<ScanInputs>,
+}
+
+struct ScanInputs {
+    locale: String,
+    rev: u64,
+    signature: bool,
+    subject: String,
+    body: String,
 }
 
 impl SpellingDialog {
@@ -152,6 +166,9 @@ impl SpellingDialog {
             app.status(tl!("Spelling is off for this message"));
             return true;
         };
+        if self.current.is_some() && self.inputs_changed(app, &locale) {
+            self.restart();
+        }
         if self.current.is_none() && !self.complete && self.scan_some(app, &locale) {
             app.status(tl!("The spelling dictionary is unavailable"));
             return true;
@@ -192,6 +209,7 @@ impl SpellingDialog {
         for (index, origin, paragraph) in batch {
             let report = spelling::check_in(app, locale, &paragraph);
             self.step = Step::Body(index.saturating_add(1));
+            self.origin = origin.saturating_add(paragraph.chars()).saturating_add(1);
             if !report.available {
                 return true;
             }
@@ -220,16 +238,17 @@ impl SpellingDialog {
             self.complete = true;
             return (Vec::new(), true);
         }
-        let mut origin = 0usize;
+        if start == 0 {
+            self.origin = 0;
+        }
+        let mut origin = self.origin;
         let mut out = Vec::new();
-        for (index, paragraph) in paragraphs.iter().enumerate() {
-            if index >= start && out.len() < budget {
-                out.push((index, origin, paragraph.clone()));
-            }
-            origin = origin.saturating_add(paragraph.chars()).saturating_add(1);
-            if index >= start && out.len() >= budget {
+        for (index, paragraph) in paragraphs.iter().enumerate().skip(start) {
+            if out.len() >= budget {
                 break;
             }
+            out.push((index, origin, paragraph.clone()));
+            origin = origin.saturating_add(paragraph.chars()).saturating_add(1);
         }
         let end = out.last().is_none_or(|(index, _, _)| index.saturating_add(1) >= paragraphs.len());
         (out, end)
@@ -248,6 +267,7 @@ impl SpellingDialog {
                 Place::Body => app.session.doc().map(|(body, _)| body.plain()).unwrap_or_default(),
             };
             let (context, emphasis) = context_of(&source, from, to);
+            self.remember(app, locale);
             self.current = Some(Mistake {
                 place,
                 from,
@@ -284,6 +304,31 @@ impl SpellingDialog {
         self.revealed = false;
         self.filled = false;
         self.note.clear();
+        self.origin = 0;
+        self.inputs = None;
+    }
+
+    fn remember(&mut self, app: &MailApp, locale: &str) {
+        self.inputs = Some(ScanInputs {
+            locale: locale.to_string(),
+            rev: app.spelling_rev,
+            signature: app.session.signature_edit.is_some(),
+            subject: app.session.compose.as_ref().map(|compose| compose.subject.clone()).unwrap_or_default(),
+            body: app.session.doc().map(|(body, _)| body.plain()).unwrap_or_default(),
+        });
+    }
+
+    fn inputs_changed(&self, app: &MailApp, locale: &str) -> bool {
+        let Some(seen) = &self.inputs else { return false };
+        if seen.locale != locale || seen.rev != app.spelling_rev || seen.signature != app.session.signature_edit.is_some() {
+            return true;
+        }
+        let subject = app.session.compose.as_ref().map(|compose| compose.subject.as_str()).unwrap_or("");
+        if seen.subject != subject {
+            return true;
+        }
+        let body = app.session.doc().map(|(body, _)| body.plain()).unwrap_or_default();
+        seen.body != body
     }
 
     fn draw_checking(&self, ui: &mut Ui) -> bool {
@@ -299,7 +344,7 @@ impl SpellingDialog {
     fn draw_done(&self, ui: &mut Ui) -> bool {
         let t = Tokens::get(ui.ctx());
         let said = if self.partial {
-            tl!("The spelling check is complete. A part of the message was too long to check.")
+            tl!("The spelling check is complete. Some of the message was not checked.")
         } else {
             tl!("The spelling check is complete.")
         };
@@ -409,8 +454,8 @@ impl SpellingDialog {
             return true;
         }
         if let Some(act) = act {
-            self.perform(app, mistake, act);
             let locale = spelling::locale(app, ui.ctx()).unwrap_or_default();
+            self.perform(app, mistake, act, &locale);
             if !locale.is_empty() && self.current.is_none() && !self.complete && self.scan_some(app, &locale) {
                 app.status(tl!("The spelling dictionary is unavailable"));
                 return true;
@@ -419,7 +464,7 @@ impl SpellingDialog {
         false
     }
 
-    fn perform(&mut self, app: &mut MailApp, mistake: &Mistake, act: Act) {
+    fn perform(&mut self, app: &mut MailApp, mistake: &Mistake, act: Act, locale: &str) {
         match act {
             Act::Close => {}
             Act::IgnoreOnce => self.skip(mistake),
@@ -431,8 +476,8 @@ impl SpellingDialog {
                 Ok(_) => self.restart(),
                 Err(e) => self.note = e,
             },
-            Act::Change => self.change(app, mistake, false),
-            Act::ChangeAll => self.change(app, mistake, true),
+            Act::Change => self.change(app, mistake, false, locale),
+            Act::ChangeAll => self.change(app, mistake, true, locale),
         }
     }
 
@@ -441,7 +486,7 @@ impl SpellingDialog {
         self.restart();
     }
 
-    fn change(&mut self, app: &mut MailApp, mistake: &Mistake, all: bool) {
+    fn change(&mut self, app: &mut MailApp, mistake: &Mistake, all: bool, locale: &str) {
         let replacement = clean_replacement(&self.replacement);
         if replacement == mistake.word {
             if all {
@@ -452,7 +497,7 @@ impl SpellingDialog {
             return;
         }
         if all {
-            self.change_all(app, mistake, &replacement);
+            self.change_all(app, mistake, &replacement, locale);
             return;
         }
         match mistake.place {
@@ -471,27 +516,43 @@ impl SpellingDialog {
         }
     }
 
-    /// Every whole-word occurrence. The body is one `edit.replace` (one undo step). The Subject
-    /// is one `compose.set`, and only while the document is the message: a signature open for
-    /// editing is not that message. `edit.replace` uses the document's whole reach, which is the
-    /// signature itself when that is what is open, and the whole message (including its signature
-    /// block) otherwise.
-    fn change_all(&mut self, app: &mut MailApp, mistake: &Mistake, replacement: &str) {
-        if app.session.signature_edit.is_none()
-            && let Some(subject) = app.session.compose.as_ref().map(|c| c.subject.clone())
-        {
-            let next = replace_whole_words(&subject, &mistake.word, replacement);
-            if next != subject
-                && let Err(e) = app.execute("compose.set", json!({"subject": next}))
-            {
+    /// Every range the spelling check would flag for this word, in this letter case. The body is
+    /// one `edit.replace` (one undo step) of those ranges. The Subject is one `compose.set`, and
+    /// only while the document is the message: a signature open for editing is not that message.
+    /// The body is written first, so a body the replacement does not fit leaves the Subject.
+    fn change_all(&mut self, app: &mut MailApp, mistake: &Mistake, replacement: &str, locale: &str) {
+        let subject = if app.session.signature_edit.is_none() { app.session.compose.as_ref().map(|c| c.subject.clone()) } else { None };
+        let next_subject = match subject {
+            Some(subject) => match subject_replacement(app, locale, &subject, &mistake.word, replacement) {
+                Ok(next) => next,
+                Err(e) => {
+                    self.note = e;
+                    return;
+                }
+            },
+            None => None,
+        };
+        let places = match flagged_body(app, locale, &mistake.word) {
+            Ok(places) => places,
+            Err(e) => {
+                self.note = e;
+                return;
+            }
+        };
+        if !places.is_empty() {
+            let spans: Vec<serde_json::Value> = places.iter().map(|(from, to)| json!({"from": from, "to": to})).collect();
+            if let Err(e) = app.execute("edit.replace", json!({"text": mistake.word, "with": replacement, "spans": spans})) {
                 self.note = e;
                 return;
             }
         }
-        match app.execute("edit.replace", json!({"text": mistake.word, "with": replacement, "matchCase": true, "wholeWord": true, "all": true})) {
-            Ok(_) => self.restart(),
-            Err(e) => self.note = e,
+        if let Some(next) = next_subject
+            && let Err(e) = app.execute("compose.set", json!({"subject": next}))
+        {
+            self.note = e;
+            return;
         }
+        self.restart();
     }
 }
 
@@ -525,37 +586,71 @@ fn clean_replacement(text: &str) -> String {
     out
 }
 
-fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || matches!(c, '_' | '\'' | '\u{2019}')
+/// The Subject with every flagged `word` replaced, when it changed. `None` when nothing changed.
+/// An unavailable dictionary is an error and the text is not built.
+fn subject_replacement(app: &MailApp, locale: &str, subject: &str, word: &str, with: &str) -> Result<Option<String>, String> {
+    let report = plain_report(app, locale, subject);
+    if !report.available {
+        return Err(tl!("The spelling dictionary is unavailable").to_string());
+    }
+    let ranges: Vec<Range<usize>> = report.issues.iter().filter(|issue| issue.word == word).map(|issue| issue.span.clone()).collect();
+    match replace_ranges(subject, &ranges, word, with) {
+        Some(next) if next != subject => Ok(Some(next)),
+        _ => Ok(None),
+    }
 }
 
-/// `word` wherever it stands alone, in this letter case. Neighbours that are letters, digits,
-/// `_` or an apostrophe keep it, so `teh` inside `Tehran` stays.
-fn replace_whole_words(text: &str, word: &str, with: &str) -> String {
-    if word.is_empty() {
-        return text.to_string();
-    }
-    let chars: Vec<char> = text.chars().collect();
-    let needle: Vec<char> = word.chars().collect();
-    let n = needle.len();
-    let mut out = String::new();
-    let mut i = 0usize;
-    while i < chars.len() {
-        let end = i.saturating_add(n);
-        let matched = chars.get(i..end).is_some_and(|slice| slice == needle.as_slice());
-        let before_ok = i == 0 || chars.get(i.saturating_sub(1)).copied().is_some_and(|c| !is_word_char(c));
-        let after_ok = chars.get(end).copied().is_none_or(|c| !is_word_char(c));
-        if matched && before_ok && after_ok {
-            out.push_str(with);
-            i = end;
-        } else if let Some(c) = chars.get(i) {
-            out.push(*c);
-            i = i.saturating_add(1);
-        } else {
-            break;
+/// Character ranges in the open document (the signature being edited, or the message) where the
+/// spelling check flags `word`. A signature paragraph of a message is not among them.
+fn flagged_body(app: &MailApp, locale: &str, word: &str) -> Result<Vec<(usize, usize)>, String> {
+    let Some((body, _)) = app.session.doc() else {
+        return Ok(Vec::new());
+    };
+    let paragraphs = body.text().paragraphs();
+    let last = paragraphs.len().saturating_sub(1);
+    let mut origin = 0usize;
+    let mut places = Vec::new();
+    for (index, paragraph) in paragraphs.iter().enumerate() {
+        let report = spelling::check_in(app, locale, paragraph);
+        if !report.available {
+            return Err(tl!("The spelling dictionary is unavailable").to_string());
+        }
+        for issue in report.issues {
+            if issue.word == word {
+                places.push((origin.saturating_add(issue.span.start), origin.saturating_add(issue.span.end)));
+            }
+        }
+        origin = origin.saturating_add(paragraph.chars());
+        if index < last {
+            origin = origin.saturating_add(1);
         }
     }
-    out
+    Ok(places)
+}
+
+/// `word` at each character range, in order. Characters outside those ranges stay, so a quote
+/// around a flagged word stays. `None` when a range is not that word.
+fn replace_ranges(text: &str, ranges: &[Range<usize>], word: &str, with: &str) -> Option<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut spans: Vec<Range<usize>> = ranges.to_vec();
+    spans.sort_by_key(|range| range.start);
+    let mut out = String::new();
+    let mut i = 0usize;
+    for range in spans {
+        let slice = chars.get(range.start..range.end)?;
+        if range.start < i || slice.iter().collect::<String>() != word {
+            return None;
+        }
+        if let Some(before) = chars.get(i..range.start) {
+            out.extend(before.iter().copied());
+        }
+        out.push_str(with);
+        i = range.end;
+    }
+    if let Some(rest) = chars.get(i..) {
+        out.extend(rest.iter().copied());
+    }
+    Some(out)
 }
 
 /// The sentence (or line) around `[from, to)`, and where the word sits in that extract.
