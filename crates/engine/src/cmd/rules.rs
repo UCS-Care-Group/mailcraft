@@ -381,6 +381,21 @@ fn run_on_ids(s: &mut Session, folder: Id, ids: Vec<Id>, only: Option<Id>) -> us
         .count()
 }
 
+/// The folders [`run`] acts on. One named rule, with no folder and no `allInboxes`, stays on the
+/// folder in view: All Inboxes being the list on screen does not turn that into every Inbox.
+/// `allInboxes: true` together with an id is still every Inbox, and [`run`] refuses it.
+pub(crate) fn run_folders(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
+    let only = p::id_strict(v, "id")?;
+    if only.is_some() && p::id_strict(v, "folder")?.is_none() && p::opt_bool(v, "allInboxes")?.is_none() {
+        let folder = s.view.folder;
+        if s.mailbox.folder(folder).is_none() {
+            return Err(failed!("no folder with id {id}", id = folder));
+        }
+        return Ok(vec![folder]);
+    }
+    super::mail::folders_asked(s, v)
+}
+
 fn run(s: &mut Session, v: &Value) -> CmdResult {
     let only = p::id_strict(v, "id")?;
     if let Some(rule) = only
@@ -388,7 +403,7 @@ fn run(s: &mut Session, v: &Value) -> CmdResult {
     {
         return Err(failed!("no rule with id {id}", id = rule));
     }
-    let folders = super::mail::folders_asked(s, v)?;
+    let folders = run_folders(s, v)?;
     if only.is_some() && folders.len() != 1 {
         return Err(fail("a rule is run on one folder"));
     }

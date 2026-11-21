@@ -78,6 +78,41 @@ fn a_message_moved_into_a_later_inbox_is_ruled_once() {
     assert_ne!(s.mailbox.message(copy).unwrap().folder, second);
 }
 
+/// One named rule stays on the folder in view. All Inboxes being the list does not refuse it,
+/// and does not run it over every Inbox. Naming every Inbox as well is still refused.
+#[test]
+fn one_named_rule_stays_on_the_folder_in_view_while_all_inboxes_is_on() {
+    let mut s = session();
+    let first = s.mailbox.inboxes()[0];
+    let account = s.mailbox.folder(first).unwrap().account;
+    let one = s.mailbox.messages_in(first).next().unwrap().id;
+    s.mailbox.message_mut(one).unwrap().subject = "Relay".into();
+    s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}})).unwrap();
+    let second = s.mailbox.inboxes().into_iter().find(|id| *id != first).unwrap();
+    let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    let id = s
+        .run(
+            "rules.add",
+            &json!({
+                "name": "File",
+                "account": account,
+                "conditions": [{"type": "subjectContains", "value": "Relay"}],
+                "actions": [{"type": "moveTo", "value": archive}],
+            }),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    s.view.folder = second;
+    s.view.all_inboxes = true;
+    assert!(s.run("rules.run", &json!({"id": id, "allInboxes": true})).is_err());
+    assert_eq!(s.run("rules.run", &json!({"id": id})).unwrap()["matched"], 0);
+    assert_eq!(s.mailbox.message(one).unwrap().folder, first);
+    s.view.folder = first;
+    assert_eq!(s.run("rules.run", &json!({"id": id})).unwrap()["matched"], 1);
+    assert_eq!(s.mailbox.message(one).unwrap().folder, archive);
+}
+
 #[test]
 fn opening_every_inbox_closes_the_conversations() {
     let mut s = session();

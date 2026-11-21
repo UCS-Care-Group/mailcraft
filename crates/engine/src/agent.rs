@@ -1403,7 +1403,7 @@ fn one_account(r: &mailcraft_model::Rule) -> Option<Id> {
 /// folder named (the folder in view when none is).
 fn rules_run_folders(s: &Session, params: &Value) -> Option<Vec<Id>> {
     // The same folders `rules.run` runs on. `folder: 0` is not a folder there, so it is not one here.
-    crate::cmd::mail::folders_asked(s, params).ok()
+    crate::cmd::rules::run_folders(s, params).ok()
 }
 
 /// Whether the rules this command makes, switches on or runs put mail on another account's
