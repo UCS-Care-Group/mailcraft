@@ -1118,17 +1118,7 @@ fn view(app: &MailApp) -> Tab {
         let mut views = calendar_views(v.calendar, 1);
         // The List view's groups (#845).
         if v.calendar == CalView::List {
-            views.push(
-                Item::big_menu(
-                    "arrangeBy",
-                    "sort",
-                    "Arrange
-By",
-                    "Arrange By",
-                    Menu::ArrangeBy,
-                )
-                .at(1, 2),
-            );
+            views.push(Item::big_menu("arrangeBy", "sort", "Arrange\nBy", "Arrange By", Menu::ArrangeBy).at(1, 2));
         }
         tab.groups.splice(after_layout..after_layout, [g("Arrangement", views), g("Calendar", vec![scale, overlay, beside])]);
     }

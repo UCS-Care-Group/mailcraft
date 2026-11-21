@@ -4353,8 +4353,8 @@ msgstr "Supprimer sur la ligne d'une conversation demande d'abord quand plus d'u
 msgid "Delete this category"
 msgstr "Supprimer cette catégorie"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Delete this event?"
 msgstr "Supprimer cet événement ?"

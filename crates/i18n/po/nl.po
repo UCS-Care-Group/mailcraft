@@ -4206,8 +4206,8 @@ msgstr "Verwijderen op de rij van een gesprek dat meer dan één bericht bevat, 
 msgid "Delete this category"
 msgstr "Deze categorie verwijderen"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Delete this event?"
 msgstr "Deze afspraak verwijderen?"

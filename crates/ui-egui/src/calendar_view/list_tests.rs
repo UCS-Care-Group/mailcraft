@@ -160,6 +160,37 @@ fn switching_to_the_list_asks_nothing_about_the_day_that_was_selected() {
 }
 
 #[test]
+fn deleting_a_series_back_in_week_asks_which_part_to_delete() {
+    let mut rig = Rig::sample();
+    let standup = rig.event("Team stand-up").id;
+    let day = mailcraft_time::Date::new(2026, 10, 13).unwrap();
+    rig.run("view.week", json!({}));
+    rig.run("view.goToDate", json!({"date": day.iso()}));
+    rig.run("calendar.select", json!({"id": standup, "day": day.iso()}));
+    assert_eq!(rig.selected(), (Some(standup), Some(day)));
+
+    rig.chord(views_key(), Key::Num5);
+    assert_eq!(rig.selected(), (Some(standup), None));
+    // The selected series day was cancelled while the List was open.
+    rig.app.session.mailbox.event_mut(standup).unwrap().exceptions.push(day);
+    rig.chord(views_key(), Key::Num3);
+    assert_eq!(rig.app.session.view.calendar, CalView::Week);
+    rig.key(Key::Delete);
+
+    let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = rig.app.dialog.take() else {
+        panic!("expected a recurring deletion question");
+    };
+    assert_eq!(command, "calendar.delete");
+    assert_eq!(ask.title, "Delete Recurring Item");
+    let next = day.add_days(1);
+    assert_eq!(ask.with, json!({"id": standup, "scope": "occurrence", "occurrence": next.iso()}));
+    assert_eq!(ask.more.first().unwrap().1, json!({"id": standup, "scope": "series"}));
+    assert_eq!(rig.event("Team stand-up").exceptions, [day]);
+    crate::dialogs::go_ahead(&mut rig.app, &command, crate::dialogs::answered(&params, &ask.with, None));
+    assert_eq!(rig.event("Team stand-up").exceptions, [day, next]);
+}
+
+#[test]
 fn of_an_event_under_two_categories_the_row_clicked_is_the_one_selected() {
     let mut mailbox = mailcraft_model::Mailbox::with_local_account("Ada", "ada@example.org");
     mailbox.events.clear();

@@ -3627,8 +3627,8 @@ msgstr ""
 msgid "Delete this category"
 msgstr ""
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/dialogs.rs
 msgid "Delete this event?"
 msgstr ""
 

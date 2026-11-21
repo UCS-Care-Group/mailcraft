@@ -4364,8 +4364,8 @@ msgstr "Eliminare sulla riga di una conversazione chiede prima conferma quando e
 msgid "Delete this category"
 msgstr "Elimina questa categoria"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Delete this event?"
 msgstr "Eliminare questo evento?"

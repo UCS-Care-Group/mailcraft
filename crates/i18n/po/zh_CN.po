@@ -4369,8 +4369,8 @@ msgstr "删除包含多封邮件的会话时，将先征求确认。"
 msgid "Delete this category"
 msgstr "删除该类别"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Delete this event?"
 msgstr "删除此事件？"

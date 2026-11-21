@@ -4376,8 +4376,8 @@ msgstr "Usunięcie w wierszu konwersacji, która obejmuje więcej niż jedną wi
 msgid "Delete this category"
 msgstr "Usuń tę kategorię"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Delete this event?"
 msgstr "Usunąć to wydarzenie?"
