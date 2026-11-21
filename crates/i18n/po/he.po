@@ -126,13 +126,15 @@ msgstr "(ללא כותרת)"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "(as the signer says)"
-msgstr ""
+msgstr "(כפי שמציין החותם)"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
+#, fuzzy
 msgid "(no name)"
-msgstr ""
+msgstr "(ללא שם)"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -160,8 +162,9 @@ msgstr "(ללא)"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "(the server didn't confirm the sender)"
-msgstr ""
+msgstr "(השרת לא אימת את השולח)"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -280,8 +283,9 @@ msgstr "3 חודשים"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "3D Models"
-msgstr ""
+msgstr "מודלים תלת־ממדיים"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
@@ -365,8 +369,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "A date"
-msgstr ""
+msgstr "תאריך"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -1224,13 +1229,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
+#, fuzzy
 msgid "An Agent Is Asking"
-msgstr ""
+msgstr "סוכן מבקש אישור"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
 msgid "An Exchange server or IMAP?"
-msgstr ""
+msgstr "שרת Exchange או IMAP?"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1728,8 +1735,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
+#, fuzzy
 msgid "Asking the server when everybody is free…"
-msgstr ""
+msgstr "מברר בשרת מתי כולם פנויים…"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -1916,13 +1924,15 @@ msgstr "תשובות אוטומטיות"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic Replies - {address}"
-msgstr ""
+msgstr "תשובות אוטומטיות – {address}"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic Replies for {address}"
-msgstr ""
+msgstr "תשובות אוטומטיות עבור {address}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -1932,8 +1942,9 @@ msgstr "רשימות תבליטים ומספור אוטומטיות"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Automatic replies are being sent for {address}"
-msgstr ""
+msgstr "נשלחות תשובות אוטומטיות עבור {address}"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -2675,8 +2686,9 @@ msgstr "בדיקה כעת"
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Check Recipients"
-msgstr ""
+msgstr "בדיקת נמענים"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -2714,8 +2726,9 @@ msgstr "בדיקת הגדרות החשבון"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Check the recipients before this message goes:"
-msgstr ""
+msgstr "יש לבדוק את הנמענים לפני שליחת ההודעה:"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -2790,8 +2803,9 @@ msgstr "בחר קטגוריה"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Choose a date…"
-msgstr ""
+msgstr "בחירת תאריך…"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3580,8 +3594,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Dark theme"
-msgstr ""
+msgstr "ערכת נושא כהה"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt
@@ -3713,8 +3728,9 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Delayed until {when}"
-msgstr ""
+msgstr "נדחה עד {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
@@ -4062,13 +4078,15 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Do not deliver before a date and time"
-msgstr ""
+msgstr "אל תשלח לפני התאריך והשעה"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Do not deliver before:"
-msgstr ""
+msgstr "לא לשלוח לפני:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -4632,8 +4650,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
+#, fuzzy
 msgid "Enter a date and a time."
-msgstr ""
+msgstr "יש להזין תאריך ושעה."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -5050,8 +5069,9 @@ msgstr "מאתר את הגדרות החשבון…"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Fingerprint (SHA-256):"
-msgstr ""
+msgstr "טביעת אצבע (SHA-256):"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs crates/ui-egui/src/security.rs
@@ -5117,8 +5137,9 @@ msgstr "סמן בדגל למעקב"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Flag the message and remind me:"
-msgstr ""
+msgstr "סמן את ההודעה בדגל והזכר לי:"
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
@@ -5218,8 +5239,9 @@ msgstr "המשך טיפול"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "Follow up"
-msgstr ""
+msgstr "מעקב"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -5228,8 +5250,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Follow up. Due {date}"
-msgstr ""
+msgstr "למעקב. מועד יעד: {date}"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
@@ -5638,8 +5661,9 @@ msgstr "עבור אל"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "Go back to version {version}"
-msgstr ""
+msgstr "חזרה לגרסה {version}"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -5728,8 +5752,9 @@ msgstr "הכניסה באמצעות Google לא הושלמה"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Google sign-in didn't work"
-msgstr ""
+msgstr "הכניסה באמצעות Google נכשלה"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -5761,8 +5786,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Google sign-in was declined"
-msgstr ""
+msgstr "הכניסה באמצעות Google נדחתה"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -6156,13 +6182,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "Import a Public key…"
-msgstr ""
+msgstr "ייבוא מפתח ציבורי…"
 
 #. interface
 #: crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "Import a certificate (.p12)…"
-msgstr ""
+msgstr "ייבוא אישור (.p12)…"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -6801,8 +6829,9 @@ msgstr "אפשרויות דואר זבל"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Junk E-mail Options…"
-msgstr ""
+msgstr "אפשרויות דואר זבל…"
 
 #. name
 #: crates/model/src/mailbox.rs
@@ -7487,8 +7516,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "MailCraft is up to date ({version})."
-msgstr ""
+msgstr "MailCraft מעודכן ({version})."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -7621,13 +7651,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "MailCraft {version} is available"
-msgstr ""
+msgstr "גרסה {version} של MailCraft זמינה"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "MailCraft {version} is available and fixes a security problem"
-msgstr ""
+msgstr "גרסה {version} של MailCraft זמינה ומתקנת בעיית אבטחה"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -8080,8 +8112,9 @@ msgstr "שם אמצעי"
 
 #. interface
 #: crates/ui-egui/src/menubar.rs
+#, fuzzy
 msgid "Minimize"
-msgstr ""
+msgstr "מזער"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8135,13 +8168,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "More commands"
-msgstr ""
+msgstr "פקודות נוספות"
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
+#, fuzzy
 msgid "More results on the server"
-msgstr ""
+msgstr "תוצאות נוספות בשרת"
 
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
