@@ -78,6 +78,37 @@ fn a_message_moved_into_a_later_inbox_is_ruled_once() {
     assert_ne!(s.mailbox.message(copy).unwrap().folder, second);
 }
 
+/// A search of every mailbox is not the All Inboxes list. The ribbon's buttons, which name no
+/// folder, then act on the folder in view. Naming every Inbox still does.
+#[test]
+fn an_all_mailboxes_search_is_not_the_all_inboxes_list() {
+    let mut s = session();
+    let first = s.mailbox.inboxes()[0];
+    s.run("mail.markAllRead", &json!({"folder": first})).unwrap();
+    let one = s.mailbox.messages_in(first).next().unwrap().id;
+    s.run("mail.markUnread", &json!({"id": one})).unwrap();
+    s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}})).unwrap();
+    let second = s.mailbox.inboxes().into_iter().find(|id| *id != first).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [one], "folder": second})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.markUnread", &json!({"id": copy})).unwrap();
+    s.run("view.allInboxes", &json!({})).unwrap();
+    assert!(s.view.all_inboxes);
+    assert_eq!(s.view.folder, first);
+    s.view.search = "Relay".into();
+    s.view.scope = crate::Scope::Everywhere;
+
+    let asked = crate::cmd::mail::folders_asked(&s, &json!({})).unwrap();
+    assert_eq!(asked, vec![s.view.folder]);
+    assert_eq!(s.run("mail.markAllRead", &json!({})).unwrap()["changed"], 1);
+    assert!(s.mailbox.messages_in(first).all(|m| m.read));
+    assert!(s.mailbox.messages_in(second).any(|m| !m.read));
+    assert_eq!(crate::cmd::mail::folders_asked(&s, &json!({"allInboxes": true})).unwrap().len(), 2);
+
+    s.view.search.clear();
+    let back = crate::cmd::mail::folders_asked(&s, &json!({})).unwrap();
+    assert_eq!(back.len(), 2);
+}
+
 /// One named rule stays on the folder in view. All Inboxes being the list does not refuse it,
 /// and does not run it over every Inbox. Naming every Inbox as well is still refused.
 #[test]
