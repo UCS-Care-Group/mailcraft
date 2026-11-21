@@ -9,7 +9,8 @@
 
 /// What was last handed to the taskbar, and whether a failure was already said.
 pub struct Icons {
-    /// Whether the red dot is on the button.
+    /// Whether the red dot is on the button. Only Windows reads it back.
+    #[cfg(target_os = "windows")]
     dot: bool,
     #[cfg(target_os = "windows")]
     said_dot: bool,
@@ -31,6 +32,7 @@ pub struct Icons {
 impl Icons {
     pub fn new() -> Icons {
         Icons {
+            #[cfg(target_os = "windows")]
             dot: false,
             #[cfg(target_os = "windows")]
             said_dot: false,
@@ -48,14 +50,10 @@ impl Icons {
     /// taskbar button is not the window's to mark. A refusal is said once and tried again after
     /// a few seconds.
     pub fn apply(&mut self, count: u32, in_front: bool, words: &str) {
-        let want = count > 0;
         #[cfg(target_os = "windows")]
-        self.hand_dot(want, in_front, words);
+        self.hand_dot(count > 0, in_front, words);
         #[cfg(not(target_os = "windows"))]
-        {
-            let _ = (in_front, words);
-            self.dot = want;
-        }
+        let _ = (count, in_front, words);
     }
 }
 
@@ -163,17 +161,23 @@ impl Icons {
 fn load_icon() -> Result<winsafe::guard::DestroyIconGuard, String> {
     use std::io::Write;
     use winsafe::prelude::*;
+    /// Removes the icon file however the load ends, including a failed write.
+    struct RemoveFile(std::path::PathBuf);
+    impl Drop for RemoveFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
     let path = std::env::temp_dir().join(format!("mailcraft-dot-{}-{nanos}.ico", std::process::id()));
     let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).map_err(|e| e.to_string())?;
+    let remove = RemoveFile(path);
     file.write_all(&dot_icon()).map_err(|e| e.to_string())?;
     drop(file);
-    let text = path.to_str().ok_or_else(|| "the dot's icon couldn't be kept".to_string())?;
-    let icon = winsafe::HINSTANCE::NULL
+    let text = remove.0.to_str().ok_or_else(|| "the dot's icon couldn't be kept".to_string())?;
+    winsafe::HINSTANCE::NULL
         .LoadImageIcon(winsafe::IdOicStr::from_str(text), winsafe::SIZE { cx: 16, cy: 16 }, winsafe::co::LR::LOADFROMFILE)
-        .map_err(|e| e.to_string());
-    let _ = std::fs::remove_file(&path);
-    icon
+        .map_err(|e| e.to_string())
 }
 
 /// A 16×16 icon: a red dot on a clear square. The corner pixels are clear.
