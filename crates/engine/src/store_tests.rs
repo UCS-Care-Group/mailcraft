@@ -1046,7 +1046,7 @@ fn the_saver_writes_in_the_background_coalesces_and_flushes() {
     saver.submit(&path, &states[0], 6);
     until(|| lock(&saver.queue.jobs).writing.is_some());
     mb.message_mut(ids[0]).unwrap().read = true;
-    write_index(&mut gate, &path, &mb, &held.progress).unwrap();
+    write_index(&mut gate, &path, &mb, &[], &held.progress).unwrap();
     gate.newest = next_seq();
     drop(gate);
     saver.flush();
@@ -1358,7 +1358,7 @@ fn save_v2(path: &Path, mb: &Mailbox) {
     let mut hashes = HashMap::new();
     let (mut messages, mut blobs) = (serde_json::Map::new(), serde_json::Map::new());
     for (id, m) in &mb.messages {
-        let p = prepare(*id, m, &mut hashes).unwrap();
+        let p = prepare(*id, m, &mut hashes, None).unwrap();
         for (r, bytes) in p.parts.content(m) {
             let _ = make_dir(&dir);
             put(&dir, &r, bytes).unwrap();
@@ -1677,6 +1677,11 @@ fn what_a_command_reads_of_a_message_is_fetched_from_disk() {
     let made = s.run("calendar.fromMessage", &json!({"id": older})).unwrap();
     let event = made["id"].as_u64().or_else(|| made["event"].as_u64()).unwrap();
     assert_eq!(s.mailbox.event(event).unwrap().description, mb.message(older).unwrap().body.text);
+    // So does an appointment a message dropped on Calendar starts with (#873).
+    let dropped = s.run("mail.itemFromMessage", &json!({"id": older, "as": "appointment"})).unwrap();
+    let text = crate::cmd::item_from_message::text_of(mb.message(older).unwrap());
+    assert_eq!(dropped["description"].as_str(), Some(text.as_str()));
+    assert!(!text.is_empty());
     // A content file that has gone is said, never written as an empty file.
     fs::remove_file(blob_file(&path, &was.attachments[index].data)).unwrap();
     clear_cache();
@@ -1751,7 +1756,7 @@ fn every_content_name_in_a_damaged_file_is_found_wherever_it_falls() {
     // Not names: too short, upper case, not closed.
     bytes.extend_from_slice(format!("\"{}\" \"{}\" \"{}", &names[0].hex()[1..], names[1].hex().to_uppercase(), names[2].hex()).as_bytes());
     let mut found = HashSet::new();
-    names_in(&bytes[..], &mut found).unwrap();
+    names_in(&bytes[..], &mut found, &mut HashSet::new()).unwrap();
     assert_eq!(found, names.iter().copied().collect::<HashSet<_>>());
 }
 
@@ -2098,6 +2103,9 @@ mod hidden;
 
 #[path = "store_headers_tests.rs"]
 mod headers;
+
+#[path = "store_pack_tests.rs"]
+mod pack_tests;
 
 #[path = "store_original_tests.rs"]
 mod original;

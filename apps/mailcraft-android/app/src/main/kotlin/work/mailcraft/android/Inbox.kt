@@ -8,27 +8,6 @@ import kotlinx.coroutines.withContext
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 
-/** One line of the message list, as the screen draws it. */
-internal data class InboxRow(
-    val id: ULong,
-    val sender: String,
-    val subject: String,
-    val preview: String,
-    val unread: Boolean,
-    val whenSeconds: Long,
-)
-
-/** A folder's messages as the screen shows them: its name and count in the owner's language, and its rows. */
-internal data class InboxModel(val title: String, val count: String, val rows: List<InboxRow>)
-
-internal sealed interface InboxState {
-    data object Loading : InboxState
-
-    class Ready(val model: InboxModel) : InboxState
-
-    class Failed(val message: String) : InboxState
-}
-
 /** One folder as the drawer lists it; [depth] is how far down the folder tree it sits. */
 internal data class FolderItem(
     val id: ULong,
@@ -44,9 +23,6 @@ internal data class AccountItem(val id: ULong, val name: String, val email: Stri
 
 /** The accounts of the mailbox, and the folder the Mail tab opens on. */
 internal data class MailboxOutline(val accounts: List<AccountItem>, val inboxId: ULong?)
-
-/** The most rows the skeleton asks for at once. */
-private const val WINDOW = 100u
 
 /** How far down the folder tree the drawer goes; deeper folders sit at this depth. */
 internal const val MAX_FOLDER_DEPTH = 4
@@ -82,51 +58,25 @@ internal fun folderTree(folders: List<FolderItem>): List<FolderItem> {
 }
 
 /**
- * Opens the sample mailbox and lists its accounts and folders, read-only. The sample is the core's
- * own invented mailbox; no account is signed in and nothing is fetched.
+ * Lists the Microsoft accounts of the mailbox and their folders, read-only. The phone app has no
+ * other kind of account in v1: the mailbox's empty local one, which the core always has, is not shown.
  */
 internal suspend fun loadOutline(
     core: Core,
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ): MailboxOutline? = withContext(dispatcher) {
     try {
-        core.execute("file.new", """{"sample":true}""")
         val list = core.folders(0uL)
-        val accounts = list.accounts.map { account ->
+        val accounts = list.accounts.filter { it.kind == "microsoft" }.map { account ->
             val own = list.folders.filter { it.account == account.id }.map {
                 FolderItem(it.id, it.parent, it.name, it.kind, it.unread)
             }
-            AccountItem(account.id, account.displayName.ifBlank { account.name }, account.email, folderTree(own))
+            val name = account.displayName.ifBlank { account.name }.ifBlank { account.email }
+            AccountItem(account.id, name, account.email, folderTree(own))
         }
-        val inbox = list.folders.firstOrNull { it.kind == "inbox" }
+        val inbox = accounts.firstNotNullOfOrNull { account -> account.folders.firstOrNull { it.kind == "inbox" } }
         MailboxOutline(accounts, inbox?.id)
     } catch (_: CoreException) {
         null
-    }
-}
-
-/** A window of the messages of [folder], read-only. */
-internal suspend fun loadFolder(
-    core: Core,
-    folder: ULong,
-    name: String,
-    dispatcher: CoroutineDispatcher = Dispatchers.Default,
-): InboxState = withContext(dispatcher) {
-    try {
-        val window = core.messages(folder, "all", 0u, WINDOW)
-        val rows = window.rows.map {
-            InboxRow(
-                id = it.id,
-                sender = senderLabel(it.fromName, it.fromAddress),
-                subject = it.subject,
-                preview = it.preview,
-                unread = it.unread,
-                whenSeconds = it.`when`,
-            )
-        }
-        val count = core.tn(window.total.toULong(), "{n} message", "{n} messages")
-        InboxState.Ready(InboxModel(name, count, rows))
-    } catch (_: CoreException) {
-        InboxState.Failed(core.t("The mailbox could not be read."))
     }
 }

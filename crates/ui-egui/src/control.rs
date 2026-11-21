@@ -80,7 +80,8 @@ impl HitMap {
     }
 
     /// Record that the `kind` (`message`, `messageRead` for a row's read/unread switch, `folder`,
-    /// `event`, `contact`, `task`) with `id` is at `rect`.
+    /// `event`, `contact`, `task`; `module` for the module bar's icons, numbered from 0 as Mail,
+    /// Calendar, People, Tasks) with `id` is at `rect`.
     pub fn add(&mut self, kind: &'static str, id: u64, rect: egui::Rect) {
         // A list far longer than a screen can show isn't worth recording.
         if self.items.len() < 4000 {
@@ -92,6 +93,10 @@ impl HitMap {
     /// window); answers the one it was in before.
     pub(crate) fn scope(&mut self, window: u64) -> u64 {
         std::mem::replace(&mut self.scope, window)
+    }
+
+    pub(crate) fn window(&self) -> u64 {
+        self.scope
     }
 
     /// Where `kind` with `id` is: in the main window when it is there, else in a window of its own.

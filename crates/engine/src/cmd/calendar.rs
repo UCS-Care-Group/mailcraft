@@ -101,7 +101,8 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
 fn changing(s: &Session, v: &Value) -> Result<Event, CmdError> {
     let id = target(s, v)?;
     let e = s.mailbox.event(id).cloned().ok_or_else(|| fail("the event is gone"))?;
-    if kept_by(s, &e).is_some() {
+    // (A copy of a calendar on the web is read here, as one the account may only read is.)
+    if kept_by(s, &e).is_some() || s.mailbox.calendar(e.calendar).is_some_and(|c| c.is_subscribed()) {
         writable(s, e.calendar)?;
     }
     Ok(e)
@@ -125,7 +126,7 @@ pub(crate) fn served(s: &Session, calendar: Id) -> bool {
 
 /// The first calendar that is the mailbox's own.
 fn own_calendar(s: &Session) -> Id {
-    let own = s.mailbox.calendars.iter().find(|c| remote::keeper(&s.mailbox, &c.origin).is_none());
+    let own = s.mailbox.calendars.iter().find(|c| remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed());
     own.map_or(0, |c| c.id)
 }
 
@@ -204,7 +205,8 @@ fn comment(v: &Value) -> String {
 /// the main calendar of the account's server when a download has brought one, so that the event
 /// shows wherever the account is read; otherwise the first calendar of the mailbox's own.
 pub fn current_calendar(s: &Session) -> Id {
-    if s.mailbox.calendar(s.view.in_calendar).is_some() {
+    // (Never a copy of a calendar on the web: nothing new goes into it.)
+    if s.mailbox.calendar(s.view.in_calendar).is_some_and(|c| !c.is_subscribed()) {
         return s.view.in_calendar;
     }
     match remote::server_calendar(&s.mailbox) {
@@ -394,19 +396,21 @@ fn apply(s: &Session, e: &mut Event, v: &Value) -> Result<(), CmdError> {
     meeting::apply(e, v)
 }
 
+/// The next half hour after `now` (a new appointment's start, as Outlook's).
+pub(super) fn next_half_hour(now: DateTime) -> DateTime {
+    DateTime::at_midnight(now.date).add_minutes((i64::from(now.minutes_of_day()) / 30 + 1) * 30)
+}
+
 /// The start a new appointment gets: the next half hour today, or the start of the working day
 /// on another day in view.
 fn default_start(s: &Session) -> DateTime {
     let now = s.local_now();
-    if s.view.date == now.date {
-        let minutes = (i64::from(now.minutes_of_day()) / 30 + 1) * 30;
-        DateTime::at_midnight(now.date).add_minutes(minutes)
-    } else {
-        DateTime { hour: s.prefs.work_start.min(23), ..DateTime::at_midnight(s.view.date) }
-    }
+    if s.view.date == now.date { next_half_hour(now) } else { DateTime { hour: s.prefs.work_start.min(23), ..DateTime::at_midnight(s.view.date) } }
 }
 
-fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
+/// A new event as `calendar.new` or `calendar.newMeeting` with `v` has it, before the calendar
+/// it goes into is settled.
+fn drafted(s: &Session, v: &Value) -> Result<Event, CmdError> {
     let start = default_start(s);
     let mut e = Event { start, end: start.add_minutes(30), reminder_minutes: s.prefs.default_reminder, ..Default::default() };
     if p::bool(v, "allDay") == Some(true) {
@@ -416,6 +420,11 @@ fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
         e.show_as = ShowAs::Free;
     }
     apply(s, &mut e, v)?;
+    Ok(e)
+}
+
+fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
+    let mut e = drafted(s, v)?;
     if e.title.is_empty() {
         return Err(bad("`title` is required"));
     }
@@ -638,6 +647,46 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
     let people = before.attendees.len().max(e.attendees.len());
     let seen = remote::seen_by_others(&remote::changed_fields(&before, &e, &remote::offset_of(s)));
     (people > 0 && seen).then_some(Mail::Update(people))
+}
+
+/// What `calendar.new`, `calendar.newMeeting` or `calendar.edit` with `v` does to an event's
+/// categories, read as the commands read it, for the agent gate (#661): the account whose list
+/// they use (that of the calendar the event ends up in), the names given, the names it had and
+/// the account of the calendar it was in. `None` when it gives none, or names a calendar or an
+/// event the command would refuse.
+pub(crate) fn categories_given(s: &Session, id: &str, v: &Value) -> Option<(Id, Vec<String>, Vec<String>, Id)> {
+    let given = p::strings(v, "categories")?;
+    let account_of = |calendar: Id| s.mailbox.calendar(calendar).map_or(0, |c| c.origin.account);
+    match id {
+        "calendar.new" | "calendar.newMeeting" => {
+            // The calendar it goes into, as `create` finds it: a meeting kept on this computer
+            // (`send`: false) goes into one of this computer's, and one that says neither is
+            // refused.
+            let e = drafted(s, v).ok()?;
+            let calendar = if e.calendar == 0 { current_calendar(s) } else { e.calendar };
+            let people = served(s, calendar) && !e.attendees.is_empty();
+            let account = match p::bool(v, "send") {
+                Some(false) if people => 0,
+                None if people => return None,
+                _ => account_of(calendar),
+            };
+            Some((account, given, Vec::new(), account))
+        }
+        "calendar.edit" => {
+            let before = changing(s, v).ok()?;
+            let was = s.mailbox.event_account(&before);
+            // One day of a series stays in the series' calendar, whatever `calendar` says.
+            let calendar = match part(s, &before, v).ok()? {
+                Part::One(_) => before.calendar,
+                Part::Series => match p::id(v, "calendar") {
+                    Some(c) => s.mailbox.calendar(c)?.id,
+                    None => before.calendar,
+                },
+            };
+            Some((account_of(calendar), given, before.categories, was))
+        }
+        _ => None,
+    }
 }
 
 /// The categories `v` gives the event `before` becomes as `e` take the spelling of the list of
@@ -982,20 +1031,28 @@ fn private(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id, "private": private}))
 }
 
-fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+/// What a Categorize call does, as its params say: the event as it is before, the category, the
+/// account whose list the event uses, and whether it is put on. The agent gate reads them
+/// through this too (#661), so that the two never differ.
+pub(crate) fn categorizing(s: &Session, v: &Value) -> Result<(Event, String, Id, bool), CmdError> {
     let before = changing(s, v)?;
-    let id = before.id;
     let name = clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
     if kept_by(s, &before).is_some() {
         writable(s, before.calendar)?;
     }
-    let has = before.categories.iter().any(|c| c.eq_ignore_ascii_case(&name));
+    let has = before.categories.iter().any(|c| mailcraft_model::sync::same_category(c, &name));
     let on = p::bool(v, "value").unwrap_or(!has);
-    // The event takes the spelling of its calendar's account's list; a new name joins that list.
     let account = s.mailbox.event_account(&before);
+    Ok((before, name, account, on))
+}
+
+fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+    let (before, name, account, on) = categorizing(s, v)?;
+    let id = before.id;
+    // The event takes the spelling of its calendar's account's list; a new name joins that list.
     let spelling = super::category::spelled(s, account, &name, on)?;
     let e = s.mailbox.event_mut(id)?;
-    e.categories.retain(|c| !c.eq_ignore_ascii_case(&name));
+    e.categories.retain(|c| !mailcraft_model::sync::same_category(c, &name));
     if on {
         e.categories.push(spelling);
     }
@@ -1064,8 +1121,11 @@ fn remove_calendar(s: &mut Session, v: &Value) -> CmdResult {
     let Some(calendar) = s.mailbox.calendar(id) else { return Err(failed!("no calendar with id {id}", id)) };
     // A calendar that a server keeps would be back with the next download, its events with it.
     super::remote::changeable(&s.mailbox, &calendar.origin, "calendar")?;
+    if calendar.is_subscribed() {
+        return Err(fail("This calendar is a copy of one on the web. Unsubscribe from it to remove it."));
+    }
     // One calendar of the mailbox's own stays, for new events to go in.
-    let own = |c: &Calendar| super::remote::keeper(&s.mailbox, &c.origin).is_none();
+    let own = |c: &Calendar| super::remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed();
     if !s.mailbox.calendars.iter().any(|c| c.id != id && own(c)) {
         return Err(fail("the last calendar can't be deleted"));
     }
@@ -1086,12 +1146,17 @@ fn move_to_account(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("No account's server keeps a calendar here yet, so there is nowhere to move these to."));
     };
     writable(s, target)?;
-    let own = |s: &Session, calendar: Id| s.mailbox.calendar(calendar).is_some_and(|c| remote::keeper(&s.mailbox, &c.origin).is_none());
+    let own = |s: &Session, calendar: Id| {
+        s.mailbox.calendar(calendar).is_some_and(|c| remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed())
+    };
     let from: Vec<Id> = match p::id(v, "calendar") {
         Some(calendar) if own(s, calendar) => vec![calendar],
+        Some(calendar) if s.mailbox.calendar(calendar).is_some_and(Calendar::is_subscribed) => {
+            return Err(fail("That calendar is a copy of one on the web: it stays where it is."));
+        }
         Some(calendar) if s.mailbox.calendar(calendar).is_some() => return Err(fail("That calendar is kept by an account's server already.")),
         Some(calendar) => return Err(failed!("no calendar with id {id}", id = calendar)),
-        None => s.mailbox.calendars.iter().filter(|c| remote::keeper(&s.mailbox, &c.origin).is_none()).map(|c| c.id).collect(),
+        None => s.mailbox.calendars.iter().filter(|c| remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed()).map(|c| c.id).collect(),
     };
     let ids: Vec<Id> = s.mailbox.events.values().filter(|e| from.contains(&e.calendar)).map(|e| e.id).take(10_000).collect();
     let meetings = ids.iter().filter(|id| s.mailbox.event(**id).is_some_and(|e| !e.attendees.is_empty())).count();

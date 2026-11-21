@@ -188,13 +188,15 @@ impl MailApp {
             ));
         }
         self.passwords.clear();
+        self.dav_passwords.clear();
+        self.subscribed.forget_addresses();
         self.tokens.clear();
         self.graph_tokens.clear();
         if let Some(trouble) = self.services.secrets.as_ref().and_then(|store| store.take_trouble()) {
             report.failed.push((tl!("The system's credential store").to_string(), Why::Io(crate::store_trouble_notice(trouble))));
         }
         if !report.failed.is_empty() || !report.left.is_empty() {
-            self.dialog = Some(Dialog::Report { name: "dataRemoval", title: tl!("Remove MailCraft's Data").to_string(), lines: lines(&report) });
+            self.set_dialog(Some(Dialog::Report { name: "dataRemoval", title: tl!("Remove MailCraft's Data").to_string(), lines: lines(&report) }));
         }
         let said = |list: &[(String, Why)]| list.iter().map(line).collect::<Vec<_>>();
         Ok(json!({"removed": report.removed, "failed": said(&report.failed), "left": said(&report.left)}))

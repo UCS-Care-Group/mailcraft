@@ -60,10 +60,7 @@ impl<S: Read + Write> Imap<S> {
         match verdict.status {
             _ if cancelled => Err(ProtoError::Auth(said!("the server requested more than one PLAIN response"))),
             Status::Ok if !sent => Err(ProtoError::Protocol(said!("the server accepted a password that was not sent"))),
-            Status::Ok => {
-                self.authenticated = true;
-                Ok(())
-            }
+            Status::Ok => self.signed_in(&verdict),
             Status::No => Err(ProtoError::Auth(self.refusal(&verdict))),
             _ => Err(ProtoError::Rejected(self.refusal(&verdict))),
         }

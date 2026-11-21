@@ -30,6 +30,11 @@ pub fn parse_mbox(bytes: &[u8]) -> Vec<Message> {
     mbox_messages(bytes).collect()
 }
 
+/// How many messages an mbox file holds, without reading them ([`mailcraft_mime::count_mbox`]).
+pub fn count_mbox(bytes: &[u8]) -> usize {
+    mime::count_mbox(bytes)
+}
+
 /// The messages of an mbox file one at a time, so that a caller can stop early.
 pub fn mbox_messages(bytes: &[u8]) -> impl Iterator<Item = Message> + '_ {
     mime::mbox_messages(bytes).map(to_model)
@@ -79,6 +84,7 @@ pub fn to_model(m: mime::Message) -> Message {
         flag,
         importance,
         read_receipt,
+        reaction,
         categories,
         answered,
         draft,
@@ -118,6 +124,7 @@ pub fn to_model(m: mime::Message) -> Message {
             mime::Importance::High => Importance::High,
         },
         read_receipt,
+        reaction,
         categories,
         answered,
         draft,
@@ -171,6 +178,7 @@ pub fn from_model(m: &Message) -> mime::Message {
             Importance::High => mime::Importance::High,
         },
         read_receipt: m.read_receipt,
+        reaction: m.reaction,
         categories: m.categories.clone(),
         answered: m.answered,
         draft: m.draft,

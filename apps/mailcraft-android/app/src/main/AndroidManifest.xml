@@ -8,6 +8,23 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- New-mail notifications (Android 13 and later ask the owner, once an account exists). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Calendar and task reminders at their time while the app is closed: exact alarms, as a
+         calendar's (Android 13 and later grant USE_EXACT_ALARM at install; on Android 12 it is
+         SCHEDULE_EXACT_ALARM, which the owner may take away, and the alarm then comes within the
+         system's window). Exact alarms are for reminders only, never to check for mail. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+    <!-- A restart forgets every alarm: the reminders' are set again after it. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- The background Send/Receive never runs as a foreground service: WorkManager's is left out,
+         and the permission for it with it. -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
+        tools:node="remove" />
 
     <application
         android:name=".MailCraftApplication"
@@ -32,17 +49,75 @@
                 android:value="true" />
         </service>
 
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            tools:node="remove" />
+
+        <!-- The reminders' alarms, their Dismiss and Snooze, and the system's word that the phone
+             restarted, the app was updated or the clock, the zone or the right to exact alarms
+             changed (the alarms are set again then). Not exported: only the system and the
+             app's own alarms reach it. -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- A calendar file (.ics) another program opens with us goes into our own calendar:
+                 only a content address, only these types; the phone's own calendar is not used. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="text/calendar" />
+                <data android:mimeType="application/ics" />
+            </intent-filter>
+
+            <!-- mailto: links from any app start a message (RFC 6068: the core reads the link, and only the
+                 recipients, the subject and the body of it are used); nothing is sent by itself. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="mailto" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mailto" />
+            </intent-filter>
+
+            <!-- Share into a new message: text, a link, one file or several. What is shared is read under
+                 caps and its kind is taken from its bytes, never from what the sender says it is. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
         </activity>
 
         <!-- The provider's page sends the owner back to the app's own scheme (RFC 8252 7.1). The
-             scheme is the reverse of a domain the project owns; the path is checked in the app
+             scheme is the reverse of a domain the project owns and the host is the registered one
+             (Entra takes only the `//` form); the whole address is checked in the app
              and again by the Rust side, to the letter. Nothing else is registered for it. -->
         <activity
             android:name=".RedirectActivity"
@@ -53,7 +128,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="work.mailcraft.android" />
+                <data android:scheme="work.mailcraft.android" android:host="oauth2redirect" />
             </intent-filter>
         </activity>
 

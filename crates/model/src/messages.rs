@@ -460,8 +460,14 @@ impl IntoIterator for Messages {
 /// message is copied at a time.
 impl Serialize for Messages {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.collect_map(self.iter().map(|(id, m)| (id, Whole(m))))
+        serializer.collect_map(self.iter().map(|(id, m)| (id, as_written(m))))
     }
+}
+
+/// One message in the same compatible form as a whole mailbox: header blocks are joined into
+/// `headers` and removed header placeholders are omitted, without changing the source message.
+pub fn as_written(message: &Message) -> impl Serialize + '_ {
+    Whole(message)
 }
 
 /// A message as [`Messages`] writes it.
