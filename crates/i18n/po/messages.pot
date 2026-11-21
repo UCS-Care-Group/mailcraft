@@ -13262,6 +13262,11 @@ msgstr ""
 msgid "Spelling"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/writing_tools.rs
+msgid "Spelling & Grammar"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/spelling.rs
 msgid "Spelling is unavailable on this platform"
@@ -19368,6 +19373,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "the calendar \"{calendar}\" on this computer"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/writing_tools.rs
+msgid "the built-in dictionary is unavailable"
 msgstr ""
 
 #. what a command says

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Insert › Date & Time and Review › Word Count in the message being written (#507).
+//! Insert › Date & Time and Review › Word Count in the message being written (#507), and
+//! Review › Spelling & Grammar with the built-in dictionary (#1797).
 
 use mailcraft_i18n::Lang;
 use mailcraft_model::RichText;
@@ -221,4 +222,171 @@ fn review_spelling_finds_a_misspelt_word_with_no_os_dictionary() {
     assert_eq!(issues[1]["word"], "teh");
     assert_eq!((issues[1]["from"].as_u64(), issues[1]["to"].as_u64()), (Some(6), Some(9)));
     assert!(issues[1]["suggestions"].as_array().unwrap().contains(&json!("the")));
+}
+
+fn words_of(r: &Value) -> Vec<&str> {
+    r["issues"].as_array().unwrap().iter().map(|issue| issue["word"].as_str().unwrap()).collect()
+}
+
+fn issue<'a>(r: &'a Value, word: &str) -> &'a Value {
+    r["issues"].as_array().unwrap().iter().find(|issue| issue["word"] == word).unwrap_or_else(|| panic!("no {word} in {r}"))
+}
+
+#[test]
+fn spelling_is_bound_to_f7_alone() {
+    let s = session();
+    assert_eq!(s.registry.get("review.spelling").map(|c| c.shortcut), Some("F7"));
+    let bound: Vec<&str> = s.registry.all().iter().filter(|c| c.shortcut.split(" / ").any(|k| k == "F7")).map(|c| c.id).collect();
+    assert_eq!(bound, ["review.spelling"]);
+}
+
+#[test]
+fn spelling_needs_a_message_being_written() {
+    let mut s = session();
+    let e = s.run("review.spelling", &json!({})).unwrap_err().to_string();
+    assert!(e.contains("no message is being written"), "{e}");
+    assert!((s.registry.get("review.spelling").unwrap().enabled)(&s).is_some());
+}
+
+#[test]
+fn spelling_accepts_only_the_built_in_language() {
+    let mut s = writing("I saw teh cat");
+    for lang in ["en-US", "en-us", "EN-US", "en-US-x-builtin", "EN-us-x-builtin"] {
+        let r = run(&mut s, "review.spelling", json!({"language": lang}));
+        assert_eq!(r["language"], "en-US", "{lang}");
+        assert_eq!(r["dictionary"], "built-in");
+        assert_eq!(r["version"], mailcraft_spell::EN_US_VERSION);
+        assert_eq!(words_of(&r), ["teh"]);
+    }
+    for lang in [json!("fr-FR"), json!("en"), json!("en-GB"), json!(""), json!(1), json!(true)] {
+        let e = s.run("review.spelling", &json!({"language": lang})).unwrap_err().to_string();
+        assert!(e.contains("only en-US"), "{lang}: {e}");
+        assert_eq!(body(&s), "I saw teh cat");
+    }
+}
+
+#[test]
+fn spelling_can_leave_the_subject_out() {
+    let mut s = writing("I saw teh cat");
+    run(&mut s, "compose.set", json!({"subject": "Lunch tomorow"}));
+    let r = run(&mut s, "review.spelling", json!({"includeSubject": false}));
+    assert_eq!(r["partial"], false);
+    assert!(r["issues"].as_array().unwrap().iter().all(|issue| issue["location"] == "body"), "{r}");
+    assert_eq!(words_of(&r), ["teh"]);
+    let e = s.run("review.spelling", &json!({"includeSubject": "no"})).unwrap_err().to_string();
+    assert!(e.contains("includeSubject"), "{e}");
+}
+
+#[test]
+fn custom_words_are_accepted_and_may_be_suggested() {
+    let mut s = writing("teh tehh");
+    assert!(words_of(&run(&mut s, "review.spelling", json!({}))).contains(&"teh"));
+    let r = run(&mut s, "review.spelling", json!({"customWords": ["teh"]}));
+    assert!(!words_of(&r).contains(&"teh"), "{r}");
+    let near = issue(&r, "tehh");
+    assert!(near["suggestions"].as_array().unwrap().contains(&json!("teh")), "{near}");
+    assert!(near["suggestions"].as_array().unwrap().len() <= 6);
+}
+
+#[test]
+fn ignored_words_are_not_reported() {
+    let mut s = writing("I saw teh cat");
+    run(&mut s, "compose.set", json!({"subject": "Lunch tomorow"}));
+    let r = run(&mut s, "review.spelling", json!({"ignore": ["teh"]}));
+    assert_eq!(words_of(&r), ["tomorow"]);
+    assert_eq!(r["issues"][0]["location"], "subject");
+}
+
+#[test]
+fn custom_word_lists_skip_bad_entries_and_refuse_the_wrong_shape() {
+    let mut s = writing("I saw teh cat");
+    let long = "a".repeat(crate::spelling::MAX_WORD_CHARS + 1);
+    let r = run(&mut s, "review.spelling", json!({"customWords": ["teh", "two words", "", "bad!", long], "ignore": ["   ", "has space"]}));
+    assert!(words_of(&r).is_empty(), "{r}");
+    for params in [json!({"customWords": "teh"}), json!({"customWords": ["teh", 1]}), json!({"ignore": {"word": "teh"}}), json!({"ignore": [true]})] {
+        let e = s.run("review.spelling", &params).unwrap_err().to_string();
+        assert!(e.contains("list of words"), "{params}: {e}");
+    }
+    let too_many = Value::Array(vec![json!("a"); crate::spelling::MAX_CUSTOM_WORDS + 1]);
+    for key in ["customWords", "ignore"] {
+        let e = s.run("review.spelling", &json!({key: too_many.clone()})).unwrap_err().to_string();
+        assert!(e.contains("10000"), "{key}: {e}");
+    }
+    assert_eq!(body(&s), "I saw teh cat");
+}
+
+#[test]
+fn a_body_range_selects_the_reported_word() {
+    let text = "Hello there\n\nCafé — naïve teh";
+    let mut s = writing(text);
+    let before = body(&s);
+    let r = run(&mut s, "review.spelling", json!({}));
+    assert_eq!(r["partial"], false);
+    let teh = issue(&r, "teh");
+    assert_eq!(teh["location"], "body");
+    let from = teh["from"].as_u64().unwrap();
+    let to = teh["to"].as_u64().unwrap();
+    assert!(before.chars().take(from as usize).any(|c| !c.is_ascii()), "non-ASCII before the typo: {before}");
+    assert!(from > "Hello there".chars().count() as u64, "the typo is not in the first paragraph");
+    let selected = run(&mut s, "compose.select", json!({"from": from, "to": to}));
+    assert_eq!((selected["from"].as_u64(), selected["to"].as_u64()), (Some(from), Some(to)));
+    let plain = body(&s);
+    let got: String = plain.chars().skip(from as usize).take((to - from) as usize).collect();
+    assert_eq!(got, "teh");
+    assert_eq!(plain, before);
+}
+
+#[test]
+fn a_link_a_url_and_an_email_are_not_reported() {
+    let mut s = writing("Click teh now, mail ada@example.org or https://teh.example/x today");
+    run(&mut s, "compose.link", json!({"from": 6, "to": 9, "url": "https://example.org/teh"}));
+    let r = run(&mut s, "review.spelling", json!({}));
+    for word in words_of(&r) {
+        assert_ne!(word, "teh", "{r}");
+        assert!(
+            !word.contains('@') && !word.contains('/') && !word.eq_ignore_ascii_case("https") && !word.eq_ignore_ascii_case("example"),
+            "{word} in {r}"
+        );
+    }
+}
+
+#[test]
+fn more_than_256_typos_is_a_partial_report() {
+    let mut s = writing(&"teh ".repeat(mailcraft_spell::MAX_ISSUES + 1));
+    let r = run(&mut s, "review.spelling", json!({}));
+    assert_eq!(r["partial"], true);
+    let issues = r["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), mailcraft_spell::MAX_ISSUES);
+    assert!(issues.iter().all(|issue| issue["word"] == "teh" && issue["suggestions"].as_array().unwrap().len() <= 6));
+}
+
+#[test]
+fn a_paragraph_over_8_kb_is_partial() {
+    let mut s = writing(&format!("teh\n{}", "a".repeat(crate::spelling::MAX_PARAGRAPH_BYTES + 1)));
+    let r = run(&mut s, "review.spelling", json!({}));
+    assert_eq!(r["partial"], true);
+    assert_eq!(words_of(&r), ["teh"]);
+    assert_eq!(r["issues"][0]["location"], "body");
+}
+
+#[test]
+fn a_signature_being_edited_is_checked_without_the_message_subject() {
+    let mut s = writing("Hello there");
+    run(&mut s, "compose.set", json!({"subject": "Lunch tomorow"}));
+    run(&mut s, "signature.set", json!({"name": "Proof", "text": "Best teh"}));
+    run(&mut s, "signature.open", json!({"name": "Proof"}));
+    assert!(s.compose.is_some() && s.signature_edit.is_some());
+    let r = run(&mut s, "review.spelling", json!({"includeSubject": true}));
+    assert!(r["issues"].as_array().unwrap().iter().all(|issue| issue["location"] == "body"), "{r}");
+    assert_eq!(words_of(&r), ["teh"]);
+    let teh = issue(&r, "teh");
+    let (from, to) = (teh["from"].as_u64().unwrap(), teh["to"].as_u64().unwrap());
+    run(&mut s, "compose.select", json!({"from": from, "to": to}));
+    let plain = s.doc().unwrap().0.plain();
+    let got: String = plain.chars().skip(from as usize).take((to - from) as usize).collect();
+    assert_eq!(got, "teh");
+    run(&mut s, "signature.close", json!({"discard": true}));
+    let r = run(&mut s, "review.spelling", json!({}));
+    assert_eq!(words_of(&r), ["tomorow"]);
+    assert_eq!(r["issues"][0]["location"], "subject");
 }
