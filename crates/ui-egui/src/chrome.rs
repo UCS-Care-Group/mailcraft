@@ -484,6 +484,23 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                             st(ui, &note, t.text_dim);
                         }
                     }
+                    // The List view has every item of the calendars shown, a series once (#845).
+                    Module::Calendar if app.session.view.calendar == mailcraft_engine::CalView::List => {
+                        // (From what the list keeps, not worked out again here.)
+                        let listing = crate::calendar_view::list::listed(ui.ctx(), &app.session).listing.clone();
+                        let count = listing.items;
+                        // Past the most the list holds, it says so rather than leave them out unsaid.
+                        let said = if listing.left_out > 0 {
+                            let left = listing.left_out;
+                            crate::i18n::fmt(
+                                &tln!(count, "{n} item, {left} more not listed", "{n} items, {left} more not listed"),
+                                &[("left", &left.to_string())],
+                            )
+                        } else {
+                            tln!(count, "{n} item", "{n} items")
+                        };
+                        st(ui, &said, t.text_dim);
+                    }
                     Module::Calendar => {
                         let (from, to) = mailcraft_engine::cmd::view::calendar_range(&app.session);
                         let count = mailcraft_engine::cmd::calendar::occurrences(&app.session, from, to).len();
