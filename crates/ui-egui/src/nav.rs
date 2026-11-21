@@ -783,6 +783,21 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     });
 }
 
+/// A saved search names the folder in view, and its folder is still there.
+fn saved_search_exact(fav: &SearchFavorite, query: &str, scope: &str, folder: Id) -> bool {
+    !query.is_empty() && fav.query == query && fav.scope == scope && fav.folder != 0 && fav.folder == folder
+}
+
+/// Whether this saved search is the row that is on. The one for the folder in view wins. A search
+/// whose folder is gone (`folder` 0) is on only when none names that folder, so the two are not
+/// both marked.
+fn saved_search_on(fav: &SearchFavorite, query: &str, scope: &str, folder: Id, exact: bool) -> bool {
+    if query.is_empty() || fav.query != query || fav.scope != scope {
+        return false;
+    }
+    if exact { fav.folder == folder } else { fav.folder == 0 || fav.folder == folder }
+}
+
 /// A search saved from Advanced Search, at the top of Favorites. Clicking it runs that search.
 fn search_favorite_row(app: &mut MailApp, ui: &mut Ui, fav: &SearchFavorite, selected: bool) {
     let t = Tokens::get(ui.ctx());
@@ -1130,11 +1145,13 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             let among_favorites = !folded.contains(&FAVORITES) && favorites.iter().any(|f| f.id == current);
             let in_a_list = lists.iter().any(|(_, _, rows)| rows.iter().any(|(f, _, _)| f.id == current));
             // A saved search is the row that is on when the query, the scope and the folder are
-            // its own. The account's list still marks that folder. The copy under Favorites does
-            // not, so the same folder is not marked twice.
+            // its own. One whose folder was removed is folder 0 and matches only when no saved
+            // search names the folder in view, so the two are not both marked. The account's list
+            // still marks that folder. The copy under Favorites does not, so the same folder is
+            // not marked twice.
             let view_folder = app.session.view.folder;
-            let same = |fav: &SearchFavorite| fav.query == view_query && fav.scope == view_scope && (fav.folder == 0 || fav.folder == view_folder);
-            let search_on = !view_query.is_empty() && saved.iter().any(&same);
+            let exact = saved.iter().any(|fav| saved_search_exact(fav, &view_query, view_scope, view_folder));
+            let search_on = saved.iter().any(|fav| saved_search_on(fav, &view_query, view_scope, view_folder, exact));
             let favorite_selected = !search_on && among_favorites && !(in_a_list && picked_in_list(ui));
             // The owner's own accounts are dragged up or down by their headings (#702), when there
             // are two at least; a shared mailbox goes with its account.
@@ -1156,7 +1173,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                     favorites_note(app, ui, *account, note);
                 }
                 for fav in &saved {
-                    let on = search_on && same(fav);
+                    let on = saved_search_on(fav, &view_query, view_scope, view_folder, exact);
                     search_favorite_row(app, ui, fav, on);
                 }
                 for f in &favorites {
@@ -1306,6 +1323,10 @@ pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> Strin
 #[cfg(test)]
 #[path = "nav_tests.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+#[path = "nav_saved_on_tests.rs"]
+mod saved_on_tests;
 
 #[cfg(test)]
 #[path = "nav_drop_tests.rs"]
