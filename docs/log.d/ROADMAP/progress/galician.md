@@ -1,1 +1,0 @@
-| 2026-11-21 | Galician as a preview language: every interface text translated and marked fuzzy for native-speaker review, Galego (vista previa) in File › Options, Automatic following gl-ES, dates day first with 24-hour clock and Monday first, two plural forms; after beta item 15 and gap 14 name twelve preview languages |

@@ -379,25 +379,25 @@ msgstr "Aínda non se puido enviar un cambio do calendario; se volverá a intent
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
-msgstr "Se rechazó un cambio non calendario dun caixa de correo compartida: esta conta non pode editarlo. Se reintenta unha vez e despois se deshace."
+msgstr "Rexeitouse un cambio no calendario dunha caixa de correo compartida: esta conta non pode editalo. Volverase probar unha vez máis e logo desfacerase."
 
 #. interface
 #: crates/ui-egui/src/symbol.rs
 #, fuzzy
 msgid "A code point written U+2192 or 2192, or a decimal number after #."
-msgstr "Un punto de código escrito como Ou+2192 ou 2192, ou un número decimal tras #."
+msgstr "Un punto de código escrito como U+2192 ou 2192, ou un número decimal tras #."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
-msgstr "O calendario dun compañero, por seu enderezo, con seu conta profesional ou educativa. Se guarda só en este equipo"
+msgstr "O calendario dun colega, polo seu enderezo, coa súa conta profesional ou educativa. Só se garda neste equipo"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A contact's card keeps at most 32 certificates and keys"
-msgstr "A tarjeta dun contacto guarda como máximo 32 certificados e claves"
+msgstr "A tarxeta dun contacto garda como máximo 32 certificados e chaves"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -6551,7 +6551,7 @@ msgstr "Grafito"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
-msgstr "Se consulta a Gravatar pola imaxe do remitente e se le indica un hash de seu enderezo; se non, se consulta a favicon.im e despois a Google polo icono de seu sitio web e se les indica o dominio do remitente. Isto indica a eses servicios de quién ve usted as imaxes. Só para as persoas que conoce (seus contactos e a quenes ha escrito) e o correo cuyas imaxes descarga, nunca para Correo lixo, e a imaxe dun remitente só cando seu servidor de correo confirma que o correo é seu."
+msgstr "Consúltase a Gravatar pola imaxe do remitente e indícaselle un hash do seu enderezo; doutro xeito, consúltase a favicon.im e logo a Google pola icona do seu sitio web e indícaselles o dominio do remitente. Isto indica a eses servizos de quen ve vostede as imaxes. Só para as persoas que coñece (os seus contactos e a quen teña escrito) e o correo de cuxas imaxes descargue, nunca para Correo lixo, e a imaxe dun remitente só cando o seu servidor de correo confirme que o correo é seu."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -10935,19 +10935,19 @@ msgstr "Máis antiguo"
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Oldest on top"
-msgstr "Máis antiguos arriba"
+msgstr "Máis antigos arriba"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On"
-msgstr "O día"
+msgstr "Activado"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
-msgstr "En Wayland, reinicie MailCraft tras activar esta opción. Se requieren un servidor X11/XWayland accesible e unha bandeja do sistema."
+msgstr "En Wayland, reinicie MailCraft tras activar esta opción. Requírense un servidor X11/XWayland accesible e unha área de notificación do sistema."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
