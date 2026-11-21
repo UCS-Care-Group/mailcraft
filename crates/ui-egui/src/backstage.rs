@@ -184,11 +184,11 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         ui.painter().rect(r, 6.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         crate::widgets::avatar(ui, pos2(r.min.x + 30.0, r.center().y), 17.0, &a.address());
         let title = if a.email.is_empty() { tl!("Local mailbox").to_string() } else { a.address().full() };
-        // The text runs up to the buttons at the right: Settings, and Remove (a shared mailbox has
-        // Remove alone). The only account can be removed too, leaving an empty mailbox (#313); the
-        // empty mailbox's own placeholder can't.
-        let removable = app.session.mailbox.placeholder() != Some(a.id);
-        let buttons = if a.is_shared() { 1 } else { usize::from(!a.email.is_empty()) + usize::from(removable) };
+        // The text runs up to the buttons at the right: Settings, and Remove. The only account can
+        // be removed too, leaving an empty mailbox (#313); the empty mailbox's own placeholder
+        // can't. (A shared mailbox has both: its settings are its name and colour, #1385.)
+        let removable = a.is_shared() || app.session.mailbox.placeholder() != Some(a.id);
+        let buttons = usize::from(!a.email.is_empty()) + usize::from(removable);
         let text_w = r.width() - 70.0 - 82.0 * buttons as f32;
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), text_w, &title, semibold(13.0), t.text);
         let detail = account_detail(app, a);
@@ -217,14 +217,15 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         };
         let settings_at = if removable { 168.0 } else { 86.0 };
         // (An account kept in step through Graph has no servers to change, #312.)
-        let settings_tip = if a.kind == AccountKind::Microsoft {
+        let settings_tip = if a.is_shared() {
+            // (Its sign-in is its owner's, #70: only its name and colour are its own, #1385.)
+            tl!("Change the name the folder pane shows for this shared mailbox, and its colour")
+        } else if a.kind == AccountKind::Microsoft {
             tl!("Change this account's name, sign-in and mail to keep offline")
         } else {
             tl!("Change this account's name, servers and sign-in")
         };
-        // (A shared mailbox has no settings of its own: its owner's sign-in reads it, #70.)
-        if !a.email.is_empty() && !a.is_shared() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked()
-        {
+        if !a.email.is_empty() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked() {
             let _ = app.run("ui.dialog", json!({"name": "account", "id": a.id}));
         }
         if a.is_shared() {
@@ -239,20 +240,14 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         {
             let _ = app.run("account.remove", json!({"id": a.id}));
         }
-        // Whether the owner's permission for a shared mailbox's calendars was given, with a way to
-        // ask again (#70).
+        // Whether the owner's permission for a shared mailbox's calendars was given (#70); Ask
+        // again is on the line of the account it is opened through.
         if a.is_shared()
-            && let Some((line, again)) = app.shared_calendar_line(a.id)
+            && let Some(line) = app.shared_calendar_line(a.id)
         {
             ui.horizontal(|ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
-                let tip = tl!(
-                    "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-                );
-                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
-                    app.ask_shared_calendars_again(a.id);
-                }
             });
             ui.add_space(4.0);
         }
@@ -260,41 +255,31 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if a.kind == AccountKind::Exchange {
             crate::ews_setup::info_rows(app, ui, t, a);
         }
-        // Where keeping the tasks in step with Microsoft To Do stands, with a way to ask again (#248).
-        if let Some((line, again)) = app.tasks_line(a.id) {
+        // Where keeping the to-dos, the rules, the automatic replies and the categories in step
+        // with Outlook stands, in one line, with a way to turn it on (#661); what each stands at
+        // is its tip.
+        if let Some((line, details, again)) = app.sync_line(a.id) {
             ui.horizontal(|ui| {
                 ui.add_space(36.0);
-                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
-                let tip = tl!(
-                    "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
-                );
+                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim)).on_hover_text(&details);
+                let tip = app.sync_tip(a.id);
                 if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
-                    app.ask_tasks_again(a.id);
+                    app.ask_sync_again(a.id);
                 }
             });
-            if let Some((line, _)) = app.local_tasks_line().filter(|_| app.tasks_working_first() == Some(a.id)) {
-                ui.horizontal(|ui| {
-                    ui.add_space(36.0);
-                    ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
-                    let tip = tl!("Choose whether these tasks are sent to a Microsoft account's To Do. Nothing is sent unless you say so.");
-                    if ui.link(tl!("Send to To Do…")).on_hover_text(tip).clicked() {
-                        app.ui.backstage = false;
-                        app.offer_local_tasks();
-                    }
-                });
-            }
             ui.add_space(4.0);
         }
-        // Where keeping rules on the server stands, with a way to ask again (#566).
-        if let Some((line, again)) = app.rules_line(a.id) {
+        // To-dos that exist only here, with the way to send them to To Do (#248).
+        if app.tasks_line(a.id).is_some()
+            && let Some((line, _)) = app.local_tasks_line().filter(|_| app.tasks_working_first() == Some(a.id))
+        {
             ui.horizontal(|ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
-                let tip = tl!(
-                    "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
-                );
-                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
-                    app.ask_rules_again(a.id);
+                let tip = tl!("Choose whether these tasks are sent to a Microsoft account's To Do. Nothing is sent unless you say so.");
+                if ui.link(tl!("Send to To Do…")).on_hover_text(tip).clicked() {
+                    app.ui.backstage = false;
+                    app.offer_local_tasks();
                 }
             });
             ui.add_space(4.0);
@@ -307,22 +292,27 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
                 match again {
                     Some(crate::auto_replies::Again::SignIn) => {
-                        let tip = tl!(
-                            "Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
-                        );
+                        let tip = tl!("Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile.");
                         if ui.link(tl!("Sign In Again")).on_hover_text(tip).clicked() {
                             let _ = app.run("ui.automaticRepliesSignIn", json!({"account": a.id}));
                         }
                     }
-                    Some(crate::auto_replies::Again::Ask) => {
-                        let tip = tl!(
-                            "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
-                        );
-                        if ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
-                            app.auto_replies_ask_again(a.id);
-                        }
-                    }
                     None => {}
+                }
+            });
+            ui.add_space(4.0);
+        }
+        // Messages that failed to download in several runs and were left out, with a way to try
+        // them again (#1581).
+        if let Some(line) = app.left_out_line(a.id) {
+            ui.horizontal(|ui| {
+                ui.add_space(36.0);
+                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+                let tip = tl!(
+                    "Ask for these messages again at the next Send / Receive. The mail on the server is untouched, and nothing is lost if they fail again."
+                );
+                if ui.link(tl!("Try again")).on_hover_text(tip).clicked() {
+                    app.retry_left_out(a.id);
                 }
             });
             ui.add_space(4.0);
@@ -384,6 +374,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             app.status(e);
         }
     }
+    subscribed_calendars(app, ui, t);
     section(ui, tl!("Mailbox"), t);
     if let Ok(v) = app.session.run("file.info", &json!({})) {
         let n = |k: &str| v.get(k).and_then(serde_json::Value::as_u64).unwrap_or(0);
@@ -412,6 +403,114 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     // Everything MailCraft keeps here, gone (#177).
     crate::data_removal::section(app, ui, t);
+}
+
+/// The calendars subscribed to (#209): where each is read from, how it is doing, and what the
+/// owner may do about it. The address itself is never shown: it may hold a secret.
+fn subscribed_calendars(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
+    let rows: Vec<(mailcraft_model::Id, String, mailcraft_model::subscription::Subscription)> = app
+        .session
+        .mailbox
+        .calendars
+        .iter()
+        .filter_map(|c| c.subscription.clone().map(|sub| (c.id, c.name.clone(), sub)))
+        .take(mailcraft_model::subscription::MAX_SUBSCRIBED)
+        .collect();
+    section(ui, tl!("Subscribed calendars"), t);
+    if rows.is_empty() {
+        ui.label(
+            egui::RichText::new(tl!(
+                "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
+            ))
+            .font(regular(11.5))
+            .color(t.text_dim),
+        );
+    }
+    let can_update = app.services.subscription.is_some();
+    for (id, name, sub) in rows {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&name).font(semibold(13.0)).color(t.text));
+            ui.label(egui::RichText::new(&sub.host).font(regular(11.5)).color(t.text_dim));
+        });
+        let needs_address = app.subscription_needs_address(id);
+        let (line, bad) = if needs_address {
+            (
+                tl!("Its address wasn't kept (it may hold a secret): enter it again to update this calendar. What it held is shown meanwhile.")
+                    .to_string(),
+                true,
+            )
+        } else if let Some(failure) = sub.failed() {
+            (crate::i18n::fmt(tl!("Couldn't update: {why}. What it held stays."), &[("why", &failure.message())]), true)
+        } else if sub.checked <= 0 {
+            (tl!("Not read yet.").to_string(), false)
+        } else {
+            let when = crate::dates::list_label(sub.checked, app.session.now(), app.session.offset_at(sub.checked), app.session.prefs.twelve_hour);
+            let held = tln!(sub.events, "{n} event", "{n} events");
+            (crate::i18n::fmt(tl!("Updated {when} · {held}"), &[("when", &when), ("held", &held)]), false)
+        };
+        ui.label(egui::RichText::new(line).font(regular(11.5)).color(if bad { t.red } else { t.text_dim }));
+        if sub.capped {
+            // (Said, not dropped silently: the limits are in the engine.)
+            ui.label(
+                egui::RichText::new(crate::i18n::fmt(
+                    tl!("The file has more events than are kept ({one} a calendar, {all} in all): the rest are left out."),
+                    &[
+                        ("one", &mailcraft_model::subscription::MAX_EVENTS.to_string()),
+                        ("all", &mailcraft_model::subscription::MAX_EVENTS_TOTAL.to_string()),
+                    ],
+                ))
+                .font(regular(11.5))
+                .color(t.red),
+            );
+        }
+        ui.horizontal(|ui| {
+            let mut chosen = sub.interval();
+            egui::ComboBox::from_id_salt(("subscription-interval", id)).selected_text(crate::subscribed::interval_words(chosen)).show_ui(ui, |ui| {
+                for minutes in crate::subscribed::INTERVALS {
+                    ui.selectable_value(&mut chosen, minutes, crate::subscribed::interval_words(minutes));
+                }
+            });
+            if chosen != sub.interval() {
+                let _ = app.run("calendar.subscriptionSettings", json!({"id": id, "intervalMinutes": chosen}));
+            }
+            if can_update && !needs_address && ui.link(tl!("Update Now")).clicked() {
+                let _ = app.run("calendar.refreshSubscribed", json!({"id": id}));
+            }
+            if ui.link(tl!("Unsubscribe")).clicked() {
+                let _ = app.run("calendar.unsubscribe", json!({"id": id}));
+            }
+        });
+        if needs_address {
+            let mut again = app.subscribed.again.take().filter(|(calendar, ..)| *calendar == id).unwrap_or((id, String::new(), String::new()));
+            let mut submit = false;
+            ui.horizontal(|ui| {
+                let field =
+                    egui::TextEdit::singleline(&mut again.1).password(true).hint_text(tl!("The address of the calendar")).desired_width(280.0);
+                crate::text_menu::field(ui.add(field));
+                submit = ui.button(tl!("Use This Address")).clicked();
+            });
+            if submit {
+                match app.execute("calendar.subscriptionSettings", json!({"id": id, "address": again.1.trim()})) {
+                    Ok(_) => again = (id, String::new(), String::new()),
+                    Err(e) => again.2 = e,
+                }
+            }
+            if !again.2.is_empty() {
+                ui.label(egui::RichText::new(&again.2).font(regular(11.5)).color(t.red));
+            }
+            app.subscribed.again = Some(again);
+        }
+        ui.add_space(6.0);
+    }
+    if tile(
+        ui,
+        "calendar",
+        tl!("Subscribe to Internet Calendar"),
+        tl!("Keep a calendar from the web up to date here: its address ends in .ics or starts with webcal://"),
+        t,
+    ) {
+        let _ = app.run("ui.dialog", json!({"name": "subscribe"}));
+    }
 }
 
 /// "Download messages in full" for a Microsoft account: everything, or up to a size (larger ones
@@ -518,31 +617,40 @@ fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
     });
 }
 
-/// The accent choices: four named swatches, the one in use marked with a ring and a tick, each
-/// reachable and pressable from the keyboard.
+/// The accent choices: five swatches — four named and one of the owner's own colour, which opens a
+/// picker under it — the one in use marked with a ring and a tick, each reachable and pressable
+/// from the keyboard.
 fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let cur = app.ui.accent;
-    for a in crate::theme::Accent::ALL {
+    let custom = app.ui.custom_accent;
+    for (i, a) in crate::theme::Accent::ALL.into_iter().enumerate() {
         let name = match a {
             crate::theme::Accent::Blue => tl!("Blue"),
             crate::theme::Accent::Teal => tl!("Teal"),
             crate::theme::Accent::Violet => tl!("Violet"),
             crate::theme::Accent::Graphite => tl!("Graphite"),
+            crate::theme::Accent::Custom => tl!("Custom color"),
         };
-        let ink = a.ink(t.dark, app.ui.high_contrast);
+        let ink = a.ink(t.dark, app.ui.high_contrast, custom);
+        // The swatch of a custom colour shows the colour itself, not the shade the theme fits it to.
+        let disc_color = if a == crate::theme::Accent::Custom { app.ui.custom_accent_color() } else { ink.accent };
+        // The tick reads on the disc: the ink of a preset is made for its accent, while a custom
+        // colour as chosen gets black or white, whichever stands out more on it.
+        let tick_color = if a == crate::theme::Accent::Custom { crate::theme::black_or_white_on(disc_color) } else { ink.on_accent };
         let w = ui.fonts_mut(|f| f.layout_no_wrap(name.to_string(), regular(12.5), t.text).size().x) + 40.0;
         let (r, resp) = ui.allocate_exact_size(vec2(w, 24.0), Sense::click());
+        app.hit.add("optionAccent", i as u64, r);
         resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, true, a == cur, name));
         let on = a == cur;
         if on || resp.hovered() {
             ui.painter().rect_filled(r, 4.0, if on { t.checked } else { t.hover });
         }
         let disc = pos2(r.min.x + 14.0, r.center().y);
-        ui.painter().circle_filled(disc, 7.0, ink.accent);
+        ui.painter().circle_filled(disc, 7.0, disc_color);
         if on {
             ui.painter().circle_stroke(disc, 9.5, Stroke::new(1.5, t.text));
             let tick = [disc + vec2(-3.5, 0.0), disc + vec2(-1.0, 3.0), disc + vec2(3.5, -3.0)];
-            ui.painter().add(egui::Shape::line(tick.to_vec(), Stroke::new(1.8, ink.on_accent)));
+            ui.painter().add(egui::Shape::line(tick.to_vec(), Stroke::new(1.8, tick_color)));
         }
         ui.painter().text(pos2(r.min.x + 28.0, r.center().y), Align2::LEFT_CENTER, name, regular(12.5), t.text);
         if resp.has_focus() {
@@ -550,6 +658,64 @@ fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         }
         if resp.clicked() {
             let _ = app.run("ui.accent", json!({"accent": a.code()}));
+        }
+        // The owner's own colour opens a picker under the swatch, to change it while it is in use.
+        if a == crate::theme::Accent::Custom {
+            let popup_id = egui::Popup::default_response_id(&resp);
+            // A command can set another accent while the picker is open (the control channel, MCP),
+            // which no click closes it with: close it when Custom is no longer the accent.
+            if app.ui.accent != crate::theme::Accent::Custom && egui::Popup::is_id_open(ui.ctx(), popup_id) {
+                egui::Popup::close_id(ui.ctx(), popup_id);
+            }
+            let pid = ui.scope_id().with("accent-custom-picker");
+            let hex_id = pid.with("hex");
+            let sync_id = pid.with("sync");
+            let current = app.ui.custom_accent_color();
+            let shown = egui::Popup::from_toggle_button_response(&resp)
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                .accessible_name(tl!("Custom color"))
+                .show(|ui| {
+                    ui.set_min_width(240.0);
+                    // The working copy starts from the saved colour, and follows it when it changes
+                    // from outside while the picker is open (`sync` is the saved colour it reflects).
+                    let stale = ui.ctx().data_mut(|d| d.get_temp::<egui::Color32>(sync_id)).is_none_or(|s| s != current);
+                    let mut color = if stale { current } else { ui.ctx().data_mut(|d| d.get_temp::<egui::Color32>(pid)).unwrap_or(current) };
+                    let mut changed = egui::widgets::color_picker::color_picker_color32(ui, &mut color, egui::widgets::color_picker::Alpha::Opaque);
+                    // A hex field of our own, for a colour pasted in: applied once it parses. An
+                    // incomplete edit is kept while the saved colour has not changed.
+                    let mut text = if stale {
+                        crate::theme::hex_string(current)
+                    } else {
+                        ui.ctx().data_mut(|d| d.get_temp::<String>(hex_id)).unwrap_or_else(|| crate::theme::hex_string(color))
+                    };
+                    if changed {
+                        text = crate::theme::hex_string(color);
+                    }
+                    let hex = ui.add(egui::TextEdit::singleline(&mut text).desired_width(90.0).hint_text("#RRGGBB"));
+                    hex.widget_info(|| egui::WidgetInfo::labeled(egui::Role::TextInput, true, tl!("Accent colour as hex")));
+                    if hex.changed()
+                        && let Some(c) = crate::theme::parse_hex_color(&text)
+                    {
+                        color = c;
+                        changed = true;
+                    }
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(pid, color);
+                        d.insert_temp(hex_id, text);
+                        d.insert_temp(sync_id, if changed { color } else { current });
+                    });
+                    if changed {
+                        let _ = app.run("ui.accent", json!({"accent": "custom", "color": crate::theme::hex_string(color)}));
+                    }
+                });
+            if shown.is_none() {
+                // Closed: drop the working copy, so the next open starts from the saved colour.
+                ui.ctx().data_mut(|d| {
+                    d.remove::<egui::Color32>(pid);
+                    d.remove::<String>(hex_id);
+                    d.remove::<egui::Color32>(sync_id);
+                });
+            }
         }
     }
 }
@@ -580,6 +746,27 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    // The greys of the dark theme (#1384): neutral, or tinted blue as before #1242.
+    let mut dark_style = egui::Rect::NOTHING;
+    row(ui, tl!("Dark theme"), |ui| {
+        let cur = app.ui.dark_style;
+        let combo = egui::ComboBox::from_id_salt("opt_dark_style").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
+            for s in crate::theme::DarkStyle::ALL {
+                if ui.selectable_label(s == cur, tl!(s.label())).clicked() {
+                    let _ = app.run("ui.darkStyle", json!({"value": s.code()}));
+                }
+            }
+        });
+        let shown = tl!(cur.label()).to_string();
+        combo.response.widget_info(|| {
+            let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Dark theme"));
+            info.current_text_value = Some(shown.clone());
+            info
+        });
+        dark_style = combo.response.rect;
+        combo.response.on_hover_text(tl!("The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."));
+    });
+    app.hit.add("optionDarkStyle", 0, dark_style);
     let mut animations = egui::Rect::NOTHING;
     row(ui, tl!("Animations"), |ui| {
         let cur = app.ui.animations;
@@ -653,6 +840,25 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let _ = app.run("file.options", params);
     };
     section(ui, tl!("Mail"), t);
+    ui.label(tl!("Swipe horizontally over a message to run its chosen action. On Windows, a horizontal mouse wheel can also trigger it."));
+    for (direction, label, current) in
+        [("left", tl!("Swipe to the left"), app.ui.swipe_left), ("right", tl!("Swipe to the right"), app.ui.swipe_right)]
+    {
+        row(ui, label, |ui| {
+            let combo = egui::ComboBox::from_id_salt(("opt_swipe", direction)).selected_text(current.label()).show_ui(ui, |ui| {
+                for action in crate::swipe::Action::ALL {
+                    if ui.selectable_label(action == current, action.label()).clicked() {
+                        let _ = app.run("ui.swipeAction", json!({"direction": direction, "action": action.code()}));
+                    }
+                }
+            });
+            combo.response.widget_info(|| {
+                let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, label);
+                info.current_text_value = Some(current.label().to_string());
+                info
+            });
+        });
+    }
     let mut mark = prefs.mark_read_on_open;
     if ui.checkbox(&mut mark, tl!("Mark a message as read when it is opened in the reading pane")).changed() {
         set(app, json!({"markReadOnOpen": mark}));
@@ -701,6 +907,21 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             .response
             .on_hover_text(tl!("For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."));
     });
+    // Undo Send (#950): how long a message waits in the Outbox after Send, so that it can still be taken back.
+    row(ui, tl!("Wait before sending"), |ui| {
+        let wait = |n: u8| if n == 0 { tl!("Off").to_string() } else { tln!(u64::from(n), "{n} second", "{n} seconds") };
+        egui::ComboBox::from_id_salt("opt_wait_before_sending")
+            .selected_text(wait(prefs.undo_send()))
+            .show_ui(ui, |ui| {
+                for n in mailcraft_engine::Prefs::UNDO_SEND_CHOICES {
+                    if ui.selectable_label(n == prefs.undo_send(), wait(n)).clicked() {
+                        let _ = app.run("sync.waitBeforeSending", json!({"seconds": n}));
+                    }
+                }
+            })
+            .response
+            .on_hover_text(tl!("After Send, a message waits in the Outbox for this long and shows Undo. Off sends it with the next Send/Receive."));
+    });
     // (Whose Favorites the folder pane shows, for an account that signs in with Microsoft.)
     crate::favorites_sync::options(app, ui, t);
     // Where the system can show them (not in the browser).
@@ -711,6 +932,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     section(ui, tl!("Pictures in mail"), t);
     crate::reading::remote::options(app, ui, t);
     crate::sender_images::options(app, ui, t);
+    crate::reading::attachment_pictures::options(app, ui);
     crate::attachment_preview::options(app, ui);
     section(ui, tl!("Accounts"), t);
     let mut remember = app.ui.remember_sign_in;

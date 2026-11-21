@@ -37,6 +37,15 @@ pub const WORKING: &[&str] = &[
     // A mailing list, whose name a member's name may carry (`sender_warnings`).
     "List-Id",
     "List-Post",
+    // Mail a program wrote (RFC 3834) or that goes out in bulk, which a reaction is not sent to
+    // (`react`).
+    "Auto-Submitted",
+    "Precedence",
+    // How a list says it is left (`unsubscribe`), and the signatures that say whether those
+    // lines are the list's own (RFC 8058, 4).
+    "List-Unsubscribe",
+    "List-Unsubscribe-Post",
+    "DKIM-Signature",
     // A request for a read receipt, which an answer never makes.
     "Disposition-Notification-To",
     // What a .pst file's item said of who sent it and how sensitive it is.

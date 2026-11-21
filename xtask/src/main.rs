@@ -4,8 +4,10 @@
 //!
 //! Pure Rust (std + serde_json). `cargo` and `git` are invoked through `std::process::Command`.
 
+mod affected;
 mod assets;
 mod docs_log;
+mod doctests;
 mod i18n;
 mod i18n_kotlin;
 mod ico;
@@ -13,12 +15,14 @@ mod icon;
 mod layers;
 mod mobile;
 mod parity;
+mod play_upload;
 mod release_key;
 mod release_notes;
 mod spdx;
 mod stats;
 mod test_files;
 mod version;
+mod version_code;
 mod wasm_clock;
 mod workflows;
 
@@ -29,6 +33,9 @@ const USAGE: &str = "\
 usage: cargo xtask <command>
 
 commands:
+  affected [--event <name>] [--base <rev>] [--full-ci]
+                  the tests a pull request's CI runs: the changed packages and what depends on them,
+                  as a nextest filter, or the whole suite (and why); CI passes it to `ci` as XTASK_TEST_FILTER
   assets          check that every icon/image/font/asset is attributed in ATTRIBUTION.md
   spdx [--fix]    check that every Rust file starts with its SPDX copyright and licence lines
   test-files      tests live in files of their own: no new inline `#[cfg(test)] mod … { }` (CONTRIBUTING.md)
@@ -39,17 +46,21 @@ commands:
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   wasm-clock      no std clock or sleep (they panic there) in code the browser build runs (#1337)
   deny            cargo deny check (advisories, licences, bans, sources; see deny.toml)
-  ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, workflows, layers, wasm, wasm-clock, deny,
-                  i18n --check, release-notes and docs-log (the fragments join)
-                  (stops at first failure)
+  ci              the cheap checks first (fmt --check, assets, spdx, test-files, workflows, layers, wasm-clock,
+                  i18n --check, release-notes, docs-log), then clippy -D warnings, test, wasm, deny
+                  (stops at first failure; XTASK_CI_ONLY=a,b runs only those steps, XTASK_CI_SKIP=a,b skips them)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
-  i18n [--check]  gather the interface's English into crates/i18n/po/messages.pot and merge it into
+  i18n [--check] [--lenient]
+                  gather the interface's English into crates/i18n/po/messages.pot and merge it into
                   each language's .po (coverage per language); --check changes nothing, fails if out of date
+                  (only reports it with --lenient, and in CI's merge queue and on main)
   parity          recompute the Outlook feature-parity summary in docs/parity-checklist.md
   ico <out.ico> <in.png>...
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
   icon            render the app icon (assets/app-icon/source/mailcraft.svg) in every size into assets/app-icon
   version [...]   show or set the workspace version
+  version-code [X.Y.Z[-rc.N]]
+                  the Android version code of that version (default: the workspace's)
   release-notes [--write]
                   print the release notes with the fragments in packaging/release-notes.d/ joined in;
                   --write (before tagging) joins them into packaging/release-notes.md and removes them
@@ -60,12 +71,16 @@ commands:
                   make the two release keys (in use, spare): private keys into <dir>, public keys printed
   release-key sign <file>
                   sign <file> into <file>.sig with the key in MAILCRAFT_RELEASE_KEY (base64 PKCS#8)
+  play-upload <file.aab>
+                  the AAB to Google Play's internal track as a draft, with the service account's JSON
+                  key in PLAY_SERVICE_ACCOUNT_JSON (the release workflow; docs/releasing.md)
 ";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let rest: Vec<&str> = args.iter().skip(1).map(String::as_str).collect();
     let result = match args.first().map(String::as_str) {
+        Some("affected") => metadata().and_then(|m| affected::run(&root(), &m, &rest)),
         Some("assets") => assets::run(&root()),
         Some("spdx") => spdx::run(&root(), rest.contains(&"--fix")),
         Some("test-files") => test_files::run(&root()),
@@ -78,13 +93,15 @@ fn main() -> ExitCode {
         Some("ci") => cmd_ci(),
         Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
         Some("parity") => parity::run(&root()),
-        Some("i18n") => i18n::run(&root(), rest.contains(&"--check")),
+        Some("i18n") => i18n::run(&root(), rest.contains(&"--check"), i18n::lenient(rest.contains(&"--lenient"), event().as_deref())),
         Some("ico") => ico::run(&rest),
         Some("icon") => icon::run(&root()),
         Some("version") => version::run(&root(), &rest),
+        Some("version-code") => version_code::run(&root(), &rest),
         Some("release-notes") => release_notes::run(&root(), rest.contains(&"--write")),
         Some("docs-log") => docs_log::run(&root(), &rest),
         Some("release-key") => release_key::run(&rest),
+        Some("play-upload") => play_upload::run(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())
@@ -100,6 +117,11 @@ fn main() -> ExitCode {
     }
 }
 
+/// The GitHub Actions event this runs for (`pull_request`, `merge_group`, `push`), when in CI.
+fn event() -> Option<String> {
+    std::env::var("GITHUB_EVENT_NAME").ok()
+}
+
 /// Workspace root (parent of the xtask crate).
 pub fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("xtask has a parent dir").to_path_buf()
@@ -108,10 +130,37 @@ pub fn root() -> PathBuf {
 /// `cargo`, run from the workspace root. Every command xtask runs on the workspace passes
 /// `--locked`, so what CI checks (and cargo-deny audits) is the committed `Cargo.lock`, not a fresh
 /// resolution; a stale lock is an error, not something that is quietly rewritten.
+///
+/// What `cargo run` set for xtask itself (its package's name, version, folder and so on) is taken
+/// out: a build script that reads one of them (ring's reads `CARGO_MANIFEST_DIR`) would otherwise
+/// see it change and rebuild, with its dependents, at every step. Cargo's own settings
+/// (`CARGO_HOME`, `CARGO_TARGET_DIR`, `CARGO_BUILD_*`, `CARGO_NET_*`, `RUSTFLAGS`…) are kept.
 pub fn cargo() -> Command {
     let mut c = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
     c.current_dir(root());
+    for (key, _) in std::env::vars_os() {
+        if key.to_str().is_some_and(set_by_cargo_run) {
+            c.env_remove(key);
+        }
+    }
     c
+}
+
+/// Whether `key` is one of the variables `cargo run` sets for the program it runs (and a build
+/// script for its crate), rather than a setting of the caller's.
+pub fn set_by_cargo_run(key: &str) -> bool {
+    key.starts_with("CARGO_PKG_")
+        || matches!(
+            key,
+            "CARGO_MANIFEST_DIR"
+                | "CARGO_MANIFEST_PATH"
+                | "CARGO_MANIFEST_LINKS"
+                | "CARGO_CRATE_NAME"
+                | "CARGO_BIN_NAME"
+                | "CARGO_PRIMARY_PACKAGE"
+                | "CARGO_RUSTC_CURRENT_DIR"
+                | "OUT_DIR"
+        )
 }
 
 fn run(mut cmd: Command, what: &str) -> Result<(), String> {
@@ -214,8 +263,12 @@ fn cmd_deny() -> Result<(), String> {
 }
 
 /// The workspace's tests. With cargo-nextest installed (CI installs it) the test binaries run side
-/// by side rather than one after another, and the doc-tests, which nextest doesn't run, follow;
-/// without it, `cargo test` runs the lot.
+/// by side rather than one after another; without it, `cargo test` runs the lot.
+///
+/// `XTASK_TEST_FILTER` (CI sets it on a pull request from `cargo xtask affected`) runs only the
+/// tests it selects, a nextest filter such as `rdeps(=mailcraft-model)`; empty or unset, all of
+/// them. nextest doesn't run doc-tests, and the workspace has none: `cargo test --doc` runs only
+/// when one appears (`doctests.rs`), so a new one is never silently skipped.
 fn cmd_test() -> Result<(), String> {
     let nextest = cargo().args(["nextest", "--version"]).output().map(|o| o.status.success()).unwrap_or(false);
     if !nextest {
@@ -223,9 +276,24 @@ fn cmd_test() -> Result<(), String> {
         c.args(["test", "--locked", "--workspace"]);
         return run(c, "cargo test --locked --workspace");
     }
+    let filter = std::env::var("XTASK_TEST_FILTER").unwrap_or_default();
+    let filter = filter.trim();
     let mut c = cargo();
     c.args(["nextest", "run", "--locked", "--workspace", "--no-fail-fast"]);
-    run(c, "cargo nextest run --locked --workspace --no-fail-fast")?;
+    if filter.is_empty() {
+        eprintln!("test: every test (no XTASK_TEST_FILTER)");
+        run(c, "cargo nextest run --locked --workspace --no-fail-fast")?;
+    } else {
+        eprintln!("test: the tests XTASK_TEST_FILTER selects: {filter}");
+        c.args(["--no-tests=warn", "-E", filter]);
+        run(c, &format!("cargo nextest run --locked --workspace --no-fail-fast --no-tests=warn -E '{filter}'"))?;
+    }
+    let doctests = doctests::find(&root());
+    if doctests.is_empty() {
+        eprintln!("test: no doc-tests in the workspace, `cargo test --doc` skipped");
+        return Ok(());
+    }
+    eprintln!("test: doc-tests found ({}), running them", doctests.join(", "));
     let mut c = cargo();
     c.args(["test", "--locked", "--workspace", "--doc"]);
     run(c, "cargo test --locked --workspace --doc")
@@ -233,6 +301,9 @@ fn cmd_test() -> Result<(), String> {
 
 fn cmd_ci() -> Result<(), String> {
     type Step = (&'static str, Box<dyn Fn() -> Result<(), String>>);
+    // The cheap checks first (seconds together, no build of the workspace), so that a stale
+    // catalogue or a fragment that won't join fails at once and not after the tests. CI's `quick`
+    // job runs just these (`XTASK_CI_ONLY`).
     let steps: Vec<Step> = vec![
         (
             "fmt",
@@ -242,6 +313,15 @@ fn cmd_ci() -> Result<(), String> {
                 run(c, "cargo fmt --all -- --check")
             }),
         ),
+        ("assets", Box::new(|| assets::run(&root()))),
+        ("spdx", Box::new(|| spdx::run(&root(), false))),
+        ("test-files", Box::new(|| test_files::run(&root()))),
+        ("workflows", Box::new(|| workflows::run(&root()))),
+        ("layers", Box::new(cmd_layers)),
+        ("wasm-clock", Box::new(|| metadata().and_then(|m| wasm_clock::run(&root(), &m)))),
+        ("i18n", Box::new(|| i18n::run(&root(), true, i18n::lenient(false, event().as_deref())))),
+        ("release-notes", Box::new(|| release_notes::check(&root()))),
+        ("docs-log", Box::new(|| docs_log::check(&root()))),
         (
             "clippy",
             Box::new(|| {
@@ -251,24 +331,24 @@ fn cmd_ci() -> Result<(), String> {
             }),
         ),
         ("test", Box::new(cmd_test)),
-        ("assets", Box::new(|| assets::run(&root()))),
-        ("spdx", Box::new(|| spdx::run(&root(), false))),
-        ("test-files", Box::new(|| test_files::run(&root()))),
-        ("workflows", Box::new(|| workflows::run(&root()))),
-        ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
-        ("wasm-clock", Box::new(|| metadata().and_then(|m| wasm_clock::run(&root(), &m)))),
         ("deny", Box::new(cmd_deny)),
-        ("i18n", Box::new(|| i18n::run(&root(), true))),
-        ("release-notes", Box::new(|| release_notes::check(&root()))),
-        ("docs-log", Box::new(|| docs_log::check(&root()))),
     ];
     // `XTASK_CI_SKIP=clippy,wasm`: steps another runner covers (CI runs them on Linux only).
     let skip = std::env::var("XTASK_CI_SKIP").unwrap_or_default();
     let skipped: Vec<&str> = skip.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
-    let steps: Vec<Step> = steps.into_iter().filter(|(name, _)| !skipped.contains(name)).collect();
+    // `XTASK_CI_ONLY=fmt,spdx`: only those steps (CI's `quick` job).
+    let only = std::env::var("XTASK_CI_ONLY").unwrap_or_default();
+    let only: Vec<&str> = only.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+    if let Some(unknown) = only.iter().chain(&skipped).find(|n| !steps.iter().any(|(s, _)| s == *n)) {
+        return Err(format!("ci: no step `{unknown}` (XTASK_CI_ONLY / XTASK_CI_SKIP)"));
+    }
+    let steps: Vec<Step> = steps.into_iter().filter(|(name, _)| !skipped.contains(name) && (only.is_empty() || only.contains(name))).collect();
     if !skipped.is_empty() {
         eprintln!("ci: skipping {} (XTASK_CI_SKIP)", skipped.join(", "));
+    }
+    if !only.is_empty() {
+        eprintln!("ci: only {} (XTASK_CI_ONLY)", only.join(", "));
     }
     let mut done = Vec::new();
     for (name, f) in &steps {
@@ -289,3 +369,7 @@ fn cmd_ci() -> Result<(), String> {
     println!("\nCI summary: all {} steps passed ({})", done.len(), done.join(", "));
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "main_tests.rs"]
+mod tests;

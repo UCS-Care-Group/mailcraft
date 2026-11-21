@@ -19,6 +19,8 @@ mailcraft-engine = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-html = { workspace = true }
 mailcraft-host = { workspace = true }
+mailcraft-link = { workspace = true }
+mailcraft-mime = { workspace = true }
 mailcraft-i18n = { workspace = true }
 mailcraft-names = { workspace = true }
 mailcraft-net = { workspace = true }
@@ -35,6 +37,14 @@ uniffi = { version = "=0.32.2", default-features = false }
 jni = "0.22.4"
 rustls-platform-verifier = { workspace = true }
 
+[features]
+# The phone's end-to-end run (MB3.15): the Graph stand-in is built in, and the core sends every
+# call to Graph and to the sign-in's token endpoint to it on the device's loopback address
+# (`e2e.rs`). Only the Android app's emulator run asks for it (Gradle's `mailcraft.e2e`), and
+# that build refuses to make a release app; no other build has it.
+e2e = ["mailcraft-net/stand-in"]
+
 [dev-dependencies]
 mailcraft-engine = { workspace = true, features = ["test-support"] }
+mailcraft-charset = { workspace = true }
 

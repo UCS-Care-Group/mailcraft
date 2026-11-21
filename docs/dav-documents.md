@@ -1,6 +1,6 @@
 # DAV model and documents
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-02 · **Change:** patch
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-15 · **Change:** minor
 
 **Status:** foundation only.
 
@@ -68,7 +68,7 @@ server. They exercise preservation, conservative refusals, namespace separation,
 and failed propstats, hostile XML and the size/depth/count budgets.
 
 The pure `mailcraft-dav` crate is at layer 3 and builds for WebAssembly. Cargo-fuzz targets
-`dav_xml` and `dav_document` exercise both readers; CI runs them when `crates/dav` changes.
+`dav_xml` and `dav_document` exercise both readers, `dav_answers` the typed multistatus answers, addresses and statuses, and `dav_discovery` the discovery state machine fed hostile answers (it checks that a password goes only to a host that challenged for it, and never to a Microsoft or Google host); CI runs them when `crates/dav` changes.
 Structured property tests also mutate valid cards and events (folds, stray CRs, quotes and
 missing END lines).
 
@@ -82,6 +82,8 @@ Protocol sources: [WebDAV, RFC 4918](https://www.rfc-editor.org/rfc/rfc4918),
 
 | Date | Change |
 |---|---|
+| 2026-11-15 | #209 D3: the `dav_discovery` fuzz target for the discovery state machine |
+| 2026-11-15 | #209 D2: the `dav_answers` fuzz target for the typed answers, addresses and statuses |
 | 2026-11-02 | Validate changed recurrence UNTIL against the effective surviving DTSTART |
 | 2026-11-02 | Refuse lossy alarm and alias edits; strengthen unsafe-edit assertions |
 | 2026-11-01 | Timing and recurrence changes refuse a lossy writer baseline |
