@@ -10,7 +10,7 @@ use super::{fetch_message, search};
 use crate::fake::{Fake, FakeMailbox, FakeMessage, ImapWorld};
 use mailcraft_proto::imap::encode_utf7;
 
-fn none_known() -> HashMap<String, HashSet<u32>> {
+fn none_known() -> HashMap<String, (u32, HashSet<u32>)> {
     HashMap::new()
 }
 
@@ -108,10 +108,15 @@ fn a_word_outside_ascii_is_sent_as_utf_8_and_a_known_uid_is_not_counted() {
     let sent = log.iter().any(|line| line.contains("CHARSET") && line.contains("UTF-8"));
     assert!(sent, "the word went with CHARSET UTF-8: {log:?}");
     let mut known = none_known();
-    known.insert("INBOX".into(), HashSet::from([9]));
+    known.insert("INBOX".into(), (11, HashSet::from([9])));
     pages.clear();
     search(&account, "hunter2", 9, &["INBOX".into()], "älter", &known, |page| pages.push(page));
     assert_eq!(pages[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), ["imap:11:2"]);
+    let mut renumbered = none_known();
+    renumbered.insert("INBOX".into(), (99, HashSet::from([9, 2])));
+    pages.clear();
+    search(&account, "hunter2", 9, &["INBOX".into()], "älter", &renumbered, |page| pages.push(page));
+    assert_eq!(pages[0].messages.len(), 2, "the folder was renumbered: the old UIDs name other messages");
 }
 
 fn account_on(port: u16) -> Account {
@@ -209,7 +214,7 @@ fn the_newest_uids_are_kept_when_the_answer_is_longer_than_the_cap() {
         ..Default::default()
     });
     let mut known = none_known();
-    known.insert("INBOX".into(), (1..=1000).collect());
+    known.insert("INBOX".into(), (11, (1..=1000).collect()));
     let mut pages = Vec::new();
     search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "x", &known, |page| pages.push(page));
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);

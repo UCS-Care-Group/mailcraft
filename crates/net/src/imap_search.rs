@@ -29,17 +29,19 @@ const MAX_WORDS: usize = 6;
 const MAX_CHECKED: usize = 200;
 
 /// Search `folders` of `account` (names as the server knows them) for `query`. `known` is the
-/// UIDs already on this computer whose body is here, by folder name: they are not counted toward
-/// the hit limit. A message whose body is not here is not among them, so a match that lives only
-/// in that body is not missed. Each call of `on_page` is one folder's hits, or the failure; the
-/// last call has `partial` false.
+/// UIDs already on this computer whose body is here, by folder name, with that folder's
+/// UIDVALIDITY (0 when it was not known). They are not counted toward the hit limit, and only
+/// while that validity is still the server's: after a folder is renumbered the old UIDs name
+/// other messages. A message whose body is not here is not among them, so a match that lives
+/// only in that body is not missed. Each call of `on_page` is one folder's hits, or the
+/// failure; the last call has `partial` false.
 pub fn search(
     account: &Account,
     secret: &str,
     ticket: u64,
     folders: &[String],
     query: &str,
-    known: &HashMap<String, HashSet<u32>>,
+    known: &HashMap<String, (u32, HashSet<u32>)>,
     mut on_page: impl FnMut(GraphSearchResult),
 ) {
     let mut base = GraphSearchResult { account: account.id, email: account.email.clone(), ticket, ..Default::default() };
@@ -110,7 +112,9 @@ pub fn search(
         let mut uids = uids;
         // A higher UID is the newer message. The limit then keeps the newest, not the oldest.
         uids.sort_unstable_by(|a, b| b.cmp(a));
-        let held = known.get(folder.as_str());
+        // A UID names a message only while the folder's UIDVALIDITY is the one it was read under.
+        // Validity 0 was not known here, so those UIDs stay skipped.
+        let held = known.get(folder.as_str()).filter(|(validity, _)| *validity == 0 || *validity == selected.uid_validity).map(|(_, uids)| uids);
         let mut stopped = false;
         // A message larger than a synchronisation will fetch cannot be checked for a word that
         // lives in its body. It is left out, and the page says the search was cut short.

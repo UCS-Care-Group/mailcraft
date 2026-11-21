@@ -101,10 +101,11 @@ pub struct ImapSearchJob {
     pub ticket: u64,
     pub folders: Vec<String>,
     pub query: String,
-    /// UIDs already on this computer whose body is here, by the folder's name on the server. They
-    /// are not counted toward the hit limit, so a synced Inbox does not use the limit up. A
-    /// message whose body is not here is left out, so a match in that body is not missed.
-    pub known: HashMap<String, HashSet<u32>>,
+    /// UIDs already on this computer whose body is here, by the folder's name on the server, with
+    /// that folder's UIDVALIDITY (0 when it was not known). They are not counted toward the hit
+    /// limit, so a synced Inbox does not use the limit up, and only while that validity is still
+    /// the server's. A message whose body is not here is left out, so a match in that body is not missed.
+    pub known: HashMap<String, (u32, HashSet<u32>)>,
 }
 
 /// One IMAP message to fetch whole. The secret is never written out and never shown.
@@ -374,11 +375,11 @@ impl MailApp {
 }
 
 /// UIDs already on this computer in the folders the search asks, so they are not counted as hits.
-fn known_uids(session: &mailcraft_engine::Session, account: Id, folders: &[String]) -> HashMap<String, HashSet<u32>> {
+fn known_uids(session: &mailcraft_engine::Session, account: Id, folders: &[String]) -> HashMap<String, (u32, HashSet<u32>)> {
     let wanted: HashSet<&str> = folders.iter().map(String::as_str).collect();
-    let mut known: HashMap<String, HashSet<u32>> = HashMap::new();
+    let mut known: HashMap<String, (u32, HashSet<u32>)> = HashMap::new();
     for message in session.mailbox.messages.values().filter(|m| m.account == account && m.uid != 0) {
-        let Some(name) = session.mailbox.folder(message.folder).map(|f| f.remote.as_str()).filter(|name| wanted.contains(name)) else {
+        let Some(folder) = session.mailbox.folder(message.folder).filter(|folder| wanted.contains(folder.remote.as_str())) else {
             continue;
         };
         // A message whose body is not here is not skipped: a match that lives only there would
@@ -386,7 +387,8 @@ fn known_uids(session: &mailcraft_engine::Session, account: Id, folders: &[Strin
         if message.unfetched {
             continue;
         }
-        known.entry(name.to_string()).or_default().insert(message.uid);
+        let validity = folder.uid_validity;
+        known.entry(folder.remote.clone()).or_insert_with(|| (validity, HashSet::new())).1.insert(message.uid);
     }
     known
 }
