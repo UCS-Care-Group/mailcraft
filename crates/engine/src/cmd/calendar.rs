@@ -1242,7 +1242,12 @@ fn show_calendar(s: &mut Session, v: &Value) -> CmdResult {
     let value = p::bool(v, "value");
     let c = s.mailbox.calendars.iter_mut().find(|c| c.id == id).ok_or_else(|| failed!("no calendar with id {id}", id))?;
     c.visible = value.unwrap_or(!c.visible);
-    Ok(json!({"id": id, "visible": c.visible}))
+    let visible = c.visible;
+    if !visible && s.sel.event.and_then(|event| s.mailbox.event(event)).is_some_and(|event| event.calendar == id) {
+        s.sel.event = None;
+        s.sel.event_day = None;
+    }
+    Ok(json!({"id": id, "visible": visible}))
 }
 
 /// How much a way of showing time counts when two overlap: the stronger one is what shows.

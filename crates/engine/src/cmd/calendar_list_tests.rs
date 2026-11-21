@@ -87,6 +87,25 @@ fn a_series_is_one_row_under_its_first_start_and_its_rule() {
 }
 
 #[test]
+fn hiding_a_calendar_clears_its_selection_before_delete_can_act() {
+    let mut s = session(vec![event("Keep this", "", at(2026, 10, 20, 8), None, &[])]);
+    let event = s.mailbox.events.values().next().unwrap();
+    let (id, calendar) = (event.id, event.calendar);
+    let other = run(&mut s, "calendar.addCalendar", json!({"name": "Other"}))["id"].as_u64().unwrap();
+    run(&mut s, "calendar.select", json!({"id": id}));
+    let day = s.sel.event_day;
+    assert!(day.is_some());
+
+    run(&mut s, "calendar.showCalendar", json!({"id": other, "value": false}));
+    assert_eq!((s.sel.event, s.sel.event_day), (Some(id), day));
+
+    run(&mut s, "calendar.showCalendar", json!({"id": calendar, "value": false}));
+    assert_eq!((s.sel.event, s.sel.event_day), (None, None));
+    assert!(s.run("calendar.delete", &json!({})).is_err());
+    assert!(s.mailbox.event(id).is_some());
+}
+
+#[test]
 fn a_heading_sorts_and_a_second_click_turns_it_round_with_empty_cells_last() {
     let mut s = session(vec![
         event("beta", "Hall", at(2026, 10, 1, 9), None, &[]),
