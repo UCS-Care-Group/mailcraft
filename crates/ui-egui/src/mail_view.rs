@@ -580,6 +580,11 @@ fn without_opened(rows: &[Row], opened: &HashSet<Id>) -> Arc<Vec<Row>> {
     Arc::new(out)
 }
 
+/// How many server hits [`server_rows`] draws for `local`, for the result count.
+pub(crate) fn server_rows_shown(app: &MailApp, local: &std::collections::HashSet<Id>) -> usize {
+    server_rows::shown(app, local)
+}
+
 fn list(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
@@ -588,8 +593,13 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     crate::gmail_tabs::row(app, ui);
     let opened = server_opened(app);
     let rows = rows_for(app, &opened);
-    let on_server = if mailcraft_engine::cmd::search_server::is_current(&app.session) { app.session.server_search.results.len() } else { 0 };
-    let still = app.server_searching.busy();
+    let searching = !app.session.view.search.trim().is_empty();
+    let local: std::collections::HashSet<Id> =
+        if searching { rows.iter().flat_map(|r| r.members.iter().copied()).collect() } else { Default::default() };
+    // Hits the list draws, not every one the server returned: a downloaded or deleted one is not a row.
+    let on_server = server_rows_shown(app, &local);
+    // An older search still running after the query changed is not this search.
+    let still = crate::server_search::searching_this_query(app);
     search_bar(app, ui, mailcraft_engine::list::listed(&rows) + on_server, still);
     // A search the server is also answering says nothing about what is only half downloaded:
     // that mail is in the same list when the server finds it.
@@ -635,9 +645,6 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let row_h = if one_line { ONE_LINE_H } else { server_h };
     let row_h = row_h - tightening(app.session.prefs.tight_spacing, one_line);
     // Below the local results of a search: More results on the server, and what came (R6.2).
-    let searching = !app.session.view.search.trim().is_empty();
-    let local: std::collections::HashSet<Id> =
-        if searching { rows.iter().flat_map(|r| r.members.iter().copied()).collect() } else { Default::default() };
     let below = if searching { server_rows::height(app, &local, server_h) } else { 0.0 };
     let overlay = app.overlay_scroll_bars;
     let lane_w = lane_width(app);
@@ -779,7 +786,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                     t.group_label,
                 );
                 // While a search is still asking the servers: one spinner, beside the first heading in view.
-                if app.server_searching.busy() && !marked_busy {
+                if still && !marked_busy {
                     marked_busy = true;
                     let x = (gr.min.x + 16.0 + w + 16.0).min(gr.max.x - 18.0);
                     crate::software::spinner_at(ui, Rect::from_center_size(pos2(x, gr.center().y), vec2(14.0, 14.0)), Some(t.group_label));

@@ -78,6 +78,12 @@ fn lines(app: &MailApp, local: &HashSet<Id>) -> Vec<Line> {
     out
 }
 
+/// How many server hits the list draws. One that has since arrived in the list, or that was
+/// opened and then deleted, is not among them, so the result count does not say it twice.
+pub(super) fn shown(app: &MailApp, local: &HashSet<Id>) -> usize {
+    lines(app, local).iter().filter(|line| matches!(line, Line::Result(_))).count()
+}
+
 /// How tall what is below the local results is.
 pub(super) fn height(app: &MailApp, local: &HashSet<Id>, row_h: f32) -> f32 {
     lines(app, local).iter().map(|l| l.height(row_h)).sum()

@@ -133,6 +133,12 @@ impl std::fmt::Debug for ImapSearchJob {
     }
 }
 
+/// A search of the query now in view is still out. One left running after the query changed is
+/// not: its answer carries the old ticket and is dropped.
+pub(crate) fn searching_this_query(app: &MailApp) -> bool {
+    app.server_searching.busy() && mailcraft_engine::cmd::search_server::is_current(&app.session)
+}
+
 /// The list says what it could not search here. It stays quiet while a server search is running,
 /// and after one that brought matches back: that mail is in the same list.
 pub(crate) fn warn_about_local(link: Link, still: bool, hits: usize) -> bool {
@@ -469,9 +475,47 @@ mod tests {
         app.run("view.search", json!({"query": "budget", "scope": "everywhere"})).unwrap();
         app.run("ui.moreResultsOnServer", json!({})).unwrap();
         assert_eq!(app.server_link(), Link::Searching);
+        assert!(searching_this_query(&app));
         app.run("view.search", json!({"query": "other", "scope": "everywhere"})).unwrap();
         assert_eq!(app.server_link(), Link::Ask);
+        assert!(!searching_this_query(&app), "the old search is not the query in view");
         assert_eq!(jobs.lock().unwrap().len(), 1, "the old search is still out");
+    }
+
+    #[test]
+    fn a_downloaded_or_deleted_server_hit_is_not_counted() {
+        let (mut app, account, _, _) = window(true);
+        app.run("view.search", json!({"query": "budget", "scope": "everywhere"})).unwrap();
+        let _ = mailcraft_engine::cmd::search_server::current(&mut app.session);
+        for mailbox in &mut app.session.server_search.mailboxes {
+            mailbox.asked = true;
+        }
+        let inbox = app.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let here = app
+            .session
+            .mailbox
+            .add_message(mailcraft_model::Message { account, folder: inbox, uid: 7, subject: "Budget here".into(), date: NOW, ..Default::default() })
+            .unwrap();
+        let hit = |id: &str| mailcraft_engine::cmd::search_server::ServerResult {
+            account,
+            folder: inbox,
+            found: GraphMessage {
+                server: ServerMessage { id: id.into(), folder: "in".into(), ..Default::default() },
+                subject: "Budget".into(),
+                received: NOW,
+                sent: NOW,
+                ..Default::default()
+            },
+            opened: None,
+        };
+        app.session.server_search.results.push(hit("imap:1:7"));
+        app.session.server_search.results.push(hit("imap:1:8"));
+        let mut gone = hit("imap:1:9");
+        gone.opened = Some(here.saturating_add(1_000));
+        app.session.server_search.results.push(gone);
+        let local = std::collections::HashSet::from([here]);
+        assert_eq!(app.session.server_search.results.len(), 3);
+        assert_eq!(crate::mail_view::server_rows_shown(&app, &local), 1);
     }
 
     #[test]
