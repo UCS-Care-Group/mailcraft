@@ -244,6 +244,14 @@ fn is_owners(s: &Session, email: &str) -> bool {
     s.mailbox.accounts.iter().any(|a| a.sends_as(email))
 }
 
+/// Whether `email` is an address the account `account` sends from: its own, its sender
+/// addresses, and those of the shared mailboxes opened through it (mail sent as one is kept in
+/// the sender's own Sent Items). Mail in it from another of the owner's accounts is mail it
+/// received (#1727).
+fn sent_from(s: &Session, account: Id, email: &str) -> bool {
+    s.mailbox.accounts.iter().any(|a| (a.id == account || a.shared_of == Some(account)) && a.sends_as(email))
+}
+
 /// An address for an error message: short, and without control characters.
 fn shown_address(text: &str) -> String {
     text.trim().chars().filter(|ch| !ch.is_control()).take(80).collect()
@@ -530,6 +538,9 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         _ => reply_source(s, v)?,
     };
     let is_mine = |a: &Address| is_owners(s, &a.email);
+    // From the address the original was sent to (#797).
+    let from = reply_from(s, &m);
+    let is_from = |a: &Address| s.mailbox.account(m.account).is_some_and(|acc| acc.from_address(&from).same_mailbox(a));
     let (to, cc) = match mode {
         ComposeMode::Forward => (Vec::new(), Vec::new()),
         _ => {
@@ -547,11 +558,17 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
                 add(&mut to, &[], a);
             }
             if to.is_empty() {
-                // A reply to a message I sent goes to the people I sent it to; else to the
-                // sender, also when Reply-To names nobody but the owner.
-                let fallback: &[Address] = if is_mine(&m.from) && !m.to.is_empty() { &m.to } else { std::slice::from_ref(&m.from) };
-                for a in fallback {
-                    add(&mut to, &[], a);
+                // A reply to a message sent from this account goes to the people it was sent to,
+                // less the address the reply is from; else to the sender, also when Reply-To
+                // names nobody but the owner, and when it came from another of his accounts
+                // (#1727).
+                let others: Vec<&Address> = m.to.iter().filter(|a| !is_from(a)).collect();
+                if sent_from(s, m.account, &m.from.email) && !others.is_empty() {
+                    for a in others {
+                        add(&mut to, &[], a);
+                    }
+                } else {
+                    add(&mut to, &[], &m.from);
                 }
             }
             let mut cc = Vec::new();
@@ -583,8 +600,6 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         _ => None,
     };
     let body = if quoting && quote.is_none() { quoted(s, &m) } else { String::new() };
-    // From the address the original was sent to (#797).
-    let from = reply_from(s, &m);
     let sig = chosen_signature(s, m.account, &from, None, true);
     // A line to write on, a blank one, then the signature above the original.
     let body = if sig.is_some() { format!("\n{}", body.strip_prefix('\n').unwrap_or(&body)) } else { body };
