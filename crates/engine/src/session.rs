@@ -375,6 +375,14 @@ impl Default for ViewState {
     }
 }
 
+impl ViewState {
+    /// The list on screen is All Inboxes. A search of every mailbox that asks for something is
+    /// another list. Text with no words in it is not a search: the list is still every Inbox.
+    pub fn shows_all_inboxes(&self) -> bool {
+        self.all_inboxes && !(self.scope == Scope::Everywhere && !mailcraft_model::search::Query::parse(&self.search).is_empty())
+    }
+}
+
 /// What the message list draws selected (#503): what Delete and Move take, by the rows that show
 /// it ([`Session::drawn`]).
 #[derive(Debug, Default)]

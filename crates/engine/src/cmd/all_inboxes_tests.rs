@@ -130,6 +130,12 @@ fn an_all_mailboxes_search_is_not_the_all_inboxes_list() {
     s.view.search.clear();
     let back = crate::cmd::mail::folders_asked(&s, &json!({})).unwrap();
     assert_eq!(back.len(), 2);
+
+    // Spaces ask for nothing, so the list is still every Inbox, not the folder that was open before.
+    s.view.search = "   ".into();
+    s.view.scope = crate::Scope::Everywhere;
+    assert!(s.view.shows_all_inboxes());
+    assert_eq!(crate::cmd::mail::folders_asked(&s, &json!({})).unwrap().len(), 2);
 }
 
 /// One named rule stays on the folder in view. All Inboxes being the list does not refuse it,

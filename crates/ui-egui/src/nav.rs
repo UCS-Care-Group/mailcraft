@@ -1147,10 +1147,10 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             let in_a_list = lists.iter().any(|(_, _, rows)| rows.iter().any(|(f, _, _)| f.id == current));
             let inboxes = app.session.mailbox.inboxes();
             let show_all = app.ui.all_inboxes && inboxes.len() >= 2;
-            let everywhere = !app.session.view.search.is_empty() && app.session.view.scope == mailcraft_engine::Scope::Everywhere;
             // The combined list, not the row. A command can open it while the option that shows
             // the row is off; a folder such as Sent must not stay highlighted under that list.
-            let all_on = app.session.view.all_inboxes && !everywhere;
+            // Text with no words in it is not a search of every mailbox.
+            let all_on = app.session.view.shows_all_inboxes();
             let favorite_selected = !all_on && among_favorites && !(in_a_list && picked_in_list(ui));
             // The owner's own accounts are dragged up or down by their headings (#702), when there
             // are two at least; a shared mailbox goes with its account.

@@ -5020,12 +5020,7 @@ impl MailApp {
         let account =
             self.session.mailbox.folder(self.session.view.folder).and_then(|f| self.session.mailbox.account(f.account)).map(|a| a.name.clone());
         match self.session.view.module {
-            Module::Mail
-                if self.session.view.all_inboxes
-                    && (self.session.view.search.is_empty() || self.session.view.scope != mailcraft_engine::Scope::Everywhere) =>
-            {
-                tl!("All Inboxes").to_string()
-            }
+            Module::Mail if self.session.view.shows_all_inboxes() => tl!("All Inboxes").to_string(),
             Module::Mail => {
                 let folder = self.session.mailbox.folder(self.session.view.folder).map_or(tl!("Mail"), crate::nav::folder_name);
                 match account.filter(|a| !a.is_empty()) {

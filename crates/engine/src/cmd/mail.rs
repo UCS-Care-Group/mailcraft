@@ -873,8 +873,9 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
 /// The folders `mail.markAllRead` and `rules.run` act on: every Inbox, or the one folder named
 /// (the folder in view when none is). While All Inboxes is the list on screen and the call names
 /// neither a folder nor `allInboxes`, the ribbon's buttons act on those Inboxes, not on
-/// `view.folder`, which is still the folder that was open before. A search of every mailbox is
-/// a different list: the folder pane marks no All Inboxes row then, and neither does this.
+/// `view.folder`, which is still the folder that was open before. A search of every mailbox that
+/// asks for something is a different list: the folder pane marks no All Inboxes row then, and
+/// neither does this. Text with no words in it is not such a search.
 /// A named folder is read strictly (#1449): an id as text, `null`, `0` or a fraction is refused,
 /// never taken to mean the folder in view. A folder named together with `allInboxes: true`
 /// is refused: the call must not quietly act on every Inbox instead of the folder it named.
@@ -887,9 +888,7 @@ pub(crate) fn folders_asked(s: &Session, v: &Value) -> Result<Vec<Id>, crate::Cm
         }
         return inboxes_of(s);
     }
-    // The same test the folder pane uses: a non-empty search of every mailbox is not that list.
-    let everywhere = !s.view.search.is_empty() && s.view.scope == crate::Scope::Everywhere;
-    if named.is_none() && every.is_none() && s.view.all_inboxes && !everywhere {
+    if named.is_none() && every.is_none() && s.view.shows_all_inboxes() {
         return inboxes_of(s);
     }
     let folder = named.unwrap_or(s.view.folder);
