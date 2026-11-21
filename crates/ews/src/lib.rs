@@ -133,7 +133,7 @@ mod threads_tests;
 mod up_tests;
 
 pub use auth::{AuthError, Scheme};
-pub use autodiscover::{Autodiscover, Consent, ConsentReason, Discovered, Failure, Outcome, SrvName, Step};
+pub use autodiscover::{ArchiveMailbox, Autodiscover, Consent, ConsentReason, Discovered, Failure, Outcome, SrvName, Step};
 pub use basic::CredentialError;
 pub use changes::{DeleteMode, ItemUpdate};
 pub use client::Client;

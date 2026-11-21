@@ -7,7 +7,7 @@ use proptest::prelude::*;
 
 use super::*;
 use crate::standin::block_on;
-use crate::standin_autodiscover::{AutodiscoverStandIn, BASIC, Route, error_answer, redirect_addr, redirect_url, settings};
+use crate::standin_autodiscover::{AutodiscoverStandIn, BASIC, Route, error_answer, redirect_addr, redirect_url, settings, settings_with};
 
 const INTERNAL: &str = "https://exch01.corp.example.org/EWS/Exchange.asmx";
 const EXTERNAL: &str = "https://mail.example.org/EWS/Exchange.asmx";
@@ -592,7 +592,11 @@ fn addresses_that_are_not_https_are_not_taken() {
         "",
     ] {
         let account = format!("<Action>settings</Action>{}", protocol("EXCH", &format!("<EwsUrl>{}</EwsUrl>", xml::escape(bad))));
-        assert_eq!(read_answer(&answer_of(&account)), Answer::Settings(Discovered { external: None, internal: None, server: None }), "{bad:?}");
+        assert_eq!(
+            read_answer(&answer_of(&account)),
+            Answer::Settings(Discovered { external: None, internal: None, server: None, archive: None }),
+            "{bad:?}"
+        );
     }
     let long = format!("https://mail.example.org/{}", "a".repeat(3_000));
     let account = format!("<Action>settings</Action>{}", protocol("EXCH", &format!("<EwsUrl>{long}</EwsUrl>")));
@@ -1186,4 +1190,132 @@ fn the_alias_s_host_is_asked_after_as_many_srv_targets_as_are_taken() {
         .route("autodiscover.hoster.example", good());
     let (outcome, _) = aliased(&alone, &[], &["autodiscover.hoster.example"], &[true, true]);
     assert!(matches!(outcome, Outcome::Found(_)), "{outcome:?}");
+}
+
+// ---- the personal archive (#1818) ----
+
+fn alternative(kind: &str, inside: &str) -> String {
+    format!("<AlternativeMailbox><Type>{kind}</Type>{inside}</AlternativeMailbox>")
+}
+
+fn with_archive(inside: &str) -> Discovered {
+    let account = format!(
+        "<Action>settings</Action>{}{}",
+        protocol("EXCH", &format!("<EwsUrl>{INTERNAL}</EwsUrl><Server>exch01.corp.example.org</Server>")),
+        alternative("Archive", inside)
+    );
+    let Answer::Settings(found) = read_answer(&answer_of(&account)) else { panic!() };
+    found
+}
+
+#[test]
+fn an_answer_that_names_an_archive_gives_its_name_and_address() {
+    let found = with_archive(
+        "<DisplayName>Online Archive - Ada Lovelace</DisplayName><LegacyDN>/o=Example/ou=Exchange/cn=Recipients/cn=ada/guid=0f1e</LegacyDN>\
+         <Server>exch02.corp.example.org</Server><SmtpAddress>Ada.Archive@Corp.Example.ORG</SmtpAddress>",
+    );
+    let archive = found.archive().unwrap();
+    assert_eq!(archive.display_name(), "Online Archive - Ada Lovelace");
+    assert_eq!(archive.address(), Some("Ada.Archive@corp.example.org"));
+    assert!(!archive.in_exchange_online());
+    // The mailbox's own addresses are as they were: the archive's server is no place to go.
+    assert_eq!(found.urls(), [INTERNAL]);
+    assert_eq!(found.server(), Some("exch01.corp.example.org"));
+    // Debug says only what is there.
+    let debug = format!("{found:?}");
+    assert!(!debug.contains("Ada") && !debug.contains("example"), "{debug}");
+}
+
+#[test]
+fn an_archive_with_nothing_more_said_is_still_an_archive() {
+    let found = with_archive("");
+    let archive = found.archive().unwrap();
+    assert!(archive.display_name().is_empty() && archive.address().is_none() && !archive.in_exchange_online());
+}
+
+#[test]
+fn only_an_archive_is_taken_and_only_the_first() {
+    let account = format!(
+        "<Action>settings</Action>{}{}{}{}",
+        protocol("EXCH", &format!("<EwsUrl>{INTERNAL}</EwsUrl>")),
+        alternative("Delegate", "<DisplayName>Team mailbox</DisplayName>"),
+        alternative("archive", "<DisplayName>First</DisplayName>"),
+        alternative("Archive", "<DisplayName>Second</DisplayName>"),
+    );
+    let Answer::Settings(found) = read_answer(&answer_of(&account)) else { panic!() };
+    assert_eq!(found.archive().unwrap().display_name(), "First");
+    let account = format!(
+        "<Action>settings</Action>{}{}",
+        protocol("EXCH", &format!("<EwsUrl>{INTERNAL}</EwsUrl>")),
+        alternative("Delegate", "<DisplayName>Team mailbox</DisplayName>")
+    );
+    let Answer::Settings(found) = read_answer(&answer_of(&account)) else { panic!() };
+    assert!(found.archive().is_none(), "a shared mailbox is no archive");
+}
+
+#[test]
+fn what_an_answer_says_of_the_archive_is_checked() {
+    let long = "A".repeat(5_000);
+    let found = with_archive(&format!("<DisplayName>  Ar\u{7}chive {long}  </DisplayName><SmtpAddress>not an address</SmtpAddress>"));
+    let archive = found.archive().unwrap();
+    assert!(archive.display_name().starts_with("Archive AAA") && archive.display_name().chars().count() <= 256);
+    assert!(archive.address().is_none());
+    for bad in [
+        "@example.org",
+        "ada@",
+        "ada@@example.org",
+        "ada@exa mple.org",
+        "a@b",
+        &format!("{long}@example.org"),
+        "ada@example.org\u{a0}x",
+        "ada\u{2028}x@example.org",
+    ] {
+        let found = with_archive(&format!("<SmtpAddress>{}</SmtpAddress>", xml::escape(bad)));
+        assert!(found.archive().unwrap().address().is_none(), "{bad:?}");
+    }
+}
+
+#[test]
+fn an_archive_in_exchange_online_is_said_so_and_the_mailbox_is_still_found() {
+    for inside in [
+        "<SmtpAddress>ada@contoso.mail.onmicrosoft.com</SmtpAddress>",
+        "<Server>outlook.office365.com</Server>",
+        "<Server>AM0PR01MB1234.eurprd01.prod.outlook.com.</Server>",
+    ] {
+        let found = with_archive(inside);
+        assert!(found.archive().unwrap().in_exchange_online(), "{inside}");
+        assert_eq!(found.urls(), [INTERNAL], "the mailbox itself is on the organisation's server");
+    }
+    // A whole search: the mailbox is found, and nothing goes to Microsoft.
+    let document = settings_with(
+        INTERNAL,
+        EXTERNAL,
+        "exch01.corp.example.org",
+        &alternative(
+            "Archive",
+            "<DisplayName>Online Archive</DisplayName><SmtpAddress>ada@contoso.mail.onmicrosoft.com</SmtpAddress><Server>outlook.office365.com</Server>",
+        ),
+    );
+    let standin = AutodiscoverStandIn::new().route("example.org", Route::Document(document));
+    let run = go(&standin, None, &[]);
+    assert!(found(&run).archive().unwrap().in_exchange_online());
+    assert_eq!(standin.hosts_asked(), ["example.org"]);
+    only_to(&standin, &[]);
+}
+
+#[test]
+fn an_archive_on_another_server_of_the_organisation_sends_nothing_there() {
+    let document = settings_with(
+        INTERNAL,
+        EXTERNAL,
+        "exch01.corp.example.org",
+        &alternative("Archive", "<DisplayName>Online Archive</DisplayName><Server>archive.example.net</Server>"),
+    );
+    let standin = AutodiscoverStandIn::new().route("example.org", Route::Document(document));
+    let run = go(&standin, None, &[]);
+    let found = found(&run);
+    assert!(found.archive().is_some() && !found.archive().unwrap().in_exchange_online());
+    assert!(run.asked.is_empty(), "the archive's server is never asked about: nothing goes there");
+    assert!(!found.urls().iter().any(|url| url.contains("example.net")));
+    only_to(&standin, &[]);
 }
