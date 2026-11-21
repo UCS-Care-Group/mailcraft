@@ -195,8 +195,8 @@ pub struct Contact {
     pub imported_from: String,
     /// An agent made the contact or gave it an address, and the owner has not edited it since
     /// (#891): its addresses are not trusted for pictures, as the owner's own contacts are. Set by
-    /// the engine after an agent's command, cleared by the owner's `people.edit`; never set by a
-    /// command's params, never written to a vCard.
+    /// the engine after an agent's command and carried into a merge if any input has it. Only
+    /// the owner's `people.edit` clears it. A command's params cannot set it and vCards omit it.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub by_agent: bool,
     /// Set for a contact that an account's server keeps: it is a copy of the server's, and what

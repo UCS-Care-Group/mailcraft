@@ -2619,7 +2619,8 @@ pub(crate) fn overstep(before: &Mailbox, after: &Mailbox, allow: &[Class]) -> Op
 /// (#891), as the agent's ([`mailcraft_model::Contact::by_agent`]): "Download pictures in mail
 /// from people in my contacts" doesn't trust them until the owner edits them. Whatever path the
 /// command took there (`people.new`, `people.edit`, `people.fromMessage`, a vCard or .pst import,
-/// a merge); checked by [`Session::run`](crate::Session::run) for agents.
+/// a merge). A merge also preserves any existing mark, even when the owner runs it.
+/// [`Session::run`](crate::Session::run) checks what agents do.
 pub(crate) fn mark_agent_contacts(before: &Mailbox, after: &mut Mailbox) {
     let same = |a: &str, b: &str| a.trim().eq_ignore_ascii_case(b.trim());
     let marked: Vec<Id> = after

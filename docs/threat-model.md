@@ -79,10 +79,12 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   agent made or gave an address to: `people.new`, `people.edit`, `people.fromMessage` and a vCard
   or .pst import are safe for agents, so the engine marks what they add (`Contact::by_agent`,
   `agent::mark_agent_contacts`, whatever the command, `file.open` with `data` included, and a
-  server's update of a contact keeps it; never set by a command's params) and only the owner's
-  `people.edit` clears it, which is the owner's word for an address the agent gave one of their
-  own contacts too, until then none of that contact's addresses counts, and the contact's card in
-  People says so; the addresses are read once into a set, made again when the mailbox changes), holds only for a message
+  server's update of a contact keeps it. Command parameters cannot set it). A merge keeps the
+  mark if any input contact has it.
+  Only the owner's `people.edit` clears the mark. Until then none of the merged contact's
+  addresses count, and the contact's card in People says so. Contacts saved before the mark was
+  introduced load unmarked. Contacts brought in by an owner's import, including a PST Recipient
+  Cache, count as ordinary contacts. Contact addresses are cached until the mailbox changes), holds only for a message
   whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
   signature of that domain, **and was written by the account's own server**

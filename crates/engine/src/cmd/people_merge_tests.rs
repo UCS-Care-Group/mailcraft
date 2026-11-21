@@ -163,6 +163,22 @@ fn refuses_what_it_cant_do_and_changes_nothing() {
 }
 
 #[test]
+fn merging_preserves_agent_mark_until_the_owner_edits() {
+    for keep_agent in [false, true] {
+        let mut s = Session::empty();
+        let owner = add(&mut s, person("Ada", "Lovelace", "ada@example.org", ""));
+        let agent = add(&mut s, Contact { by_agent: true, ..person("Ada", "", "ada.work@example.org", "") });
+        let (keep, other) = if keep_agent { (agent, owner) } else { (owner, agent) };
+        s.run("people.merge", &json!({"keep": keep, "others": [other]})).unwrap();
+        let merged = s.mailbox.contact(keep).unwrap();
+        assert_eq!(merged.emails.len(), 2);
+        assert!(merged.by_agent, "the owner has not confirmed either address by editing");
+        s.run("people.edit", &json!({"id": keep, "first": "Augusta"})).unwrap();
+        assert!(!s.mailbox.contact(keep).unwrap().by_agent, "an owner's edit confirms the contact");
+    }
+}
+
+#[test]
 fn a_contact_a_server_keeps_is_not_merged_and_says_why() {
     let mut s = Session::empty();
     let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
