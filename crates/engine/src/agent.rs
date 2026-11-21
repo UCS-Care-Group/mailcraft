@@ -176,6 +176,8 @@ const SAFE: &[&str] = &[
     "mail.findFromSender",
     "mail.saveAttachment",
     "mail.saveAllAttachments",
+    // A picture the message shows, as its own bytes. Nothing is fetched (#1420).
+    "mail.savePicture",
     // The message's source as plain text: message text is data, never instructions.
     "mail.viewSource",
     // What a new appointment, task or contact made of a message starts with (#873): it makes
@@ -677,6 +679,8 @@ const NEVER: &[&str] = &[
     "ui.saveWindowMessage",
     // Anything an agent chooses onto the owner's clipboard.
     "ui.copyLinkAddress",
+    // A picture from a message onto the clipboard: the owner's, as the selected text is (#1420).
+    "ui.copyPicture",
     "ui.copySelection",
     // A file from a message opened with another program: only ever the owner's own doing.
     "mail.openAttachment",
@@ -764,6 +768,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.exportCalendar", "path", FileUse::Writes { ext: "ics" }),
     ("file.exportContacts", "path", FileUse::Writes { ext: "vcf" }),
     ("mail.saveAttachment", "path", FileUse::Writes { ext: "" }),
+    ("mail.savePicture", "path", FileUse::Writes { ext: "" }),
     ("mail.saveAllAttachments", "path", FileUse::Folder),
     ("ui.reportProblem", "path", FileUse::Writes { ext: "txt" }),
 ];

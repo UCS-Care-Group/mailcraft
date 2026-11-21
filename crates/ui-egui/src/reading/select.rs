@@ -553,6 +553,8 @@ pub struct PlaceState {
     header: Vec<HeaderField>,
     /// The link that was under the pointer when the body's menu was asked for.
     menu_link: Option<Arc<str>>,
+    /// The picture that was under the pointer then, when one was shown there (#1420).
+    menu_picture: Option<MenuPicture>,
     /// A copy was asked for of a selection that reaches the end of a message that was still
     /// being laid out: it is made when the layout is whole.
     copy_when_laid: bool,
@@ -585,6 +587,7 @@ impl PlaceState {
             extending: false,
             header: Vec::new(),
             menu_link: None,
+            menu_picture: None,
             copy_when_laid: false,
             seen: None,
             mine: false,
@@ -643,6 +646,18 @@ impl PlaceState {
 
     pub(super) fn set_menu_link(&mut self, link: Option<Arc<str>>) {
         self.menu_link = link;
+    }
+
+    pub(super) fn message(&self) -> Id {
+        self.message
+    }
+
+    pub(super) fn menu_picture(&self) -> Option<MenuPicture> {
+        self.menu_picture.clone()
+    }
+
+    pub(super) fn set_menu_picture(&mut self, picture: Option<MenuPicture>) {
+        self.menu_picture = picture;
     }
 
     /// The message that is shown has no body to select in: nothing of it is selected, and no
@@ -863,12 +878,27 @@ impl Gesture {
     }
 }
 
-/// What a menu or a key asks for; it is done through a command, once nothing is borrowed.
+/// A picture the body's menu was asked for on: what is shown, named the way the commands name it.
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct MenuPicture {
+    pub message: Id,
+    pub src: Arc<str>,
+    /// A picture on the web: its bytes are already here, and go with the command. A part or a
+    /// picture written into the message is read from the message, so these are not sent.
+    pub remote: bool,
+    pub bytes: Arc<Vec<u8>>,
+    /// The pane the message was read in, so `data:<n>` is the picture that is shown.
+    pub width: u16,
+    pub dark: bool,
+}
+
+/// What a menu or a key asks for; it is done through a command, once nothing is borrowed.
 pub(super) enum Action {
     Copy,
     SelectAll,
     CopyLink(Arc<str>),
+    SavePicture(MenuPicture),
+    CopyPicture(MenuPicture),
 }
 
 /// `place` as a command's parameters.
@@ -886,7 +916,38 @@ pub(super) fn act(app: &mut MailApp, place: Place, action: Action) {
         Action::Copy => app.run("ui.copySelection", params(place)),
         Action::SelectAll => app.run("ui.selectAllInMessage", params(place)),
         Action::CopyLink(url) => app.run("ui.copyLinkAddress", json!({"url": &*url})),
+        Action::SavePicture(picture) => app.run("mail.savePicture", picture_params(&picture)),
+        Action::CopyPicture(picture) => app.run("ui.copyPicture", picture_params(&picture)),
     };
+}
+
+/// What the commands take for a picture the menu was asked for on.
+fn picture_params(picture: &MenuPicture) -> Value {
+    let mut params = json!({"id": picture.message, "src": picture.src, "width": picture.width, "dark": picture.dark});
+    if picture.remote
+        && let Some(map) = params.as_object_mut()
+    {
+        map.insert("cached".into(), Value::String(mailcraft_engine::cmd::base64_encode(&picture.bytes)));
+    }
+    params
+}
+
+/// The picture under `pos` (in the window), when one is shown there. The last one painted wins.
+pub(super) fn menu_picture(laid: &Laid, origin: Vec2, pos: Pos2, message: Id) -> Option<MenuPicture> {
+    let (width, dark) = laid.media();
+    let mut found = None;
+    for item in &laid.items {
+        if !item.rect.translate(origin).contains(pos) {
+            continue;
+        }
+        if let ItemKind::Picture(picture) = &item.kind
+            && let Some(src) = picture.src.clone()
+        {
+            let remote = super::images::is_remote(&src);
+            found = Some(MenuPicture { message, src, remote, bytes: picture.data.clone(), width, dark });
+        }
+    }
+    found
 }
 
 /// A message is about to be shown at `place`. What was selected there in another message is
@@ -1000,8 +1061,8 @@ impl Marks {
 }
 
 /// The items of a text's menu: Copy, and for the body Select All and, on a link, Copy Link
-/// Address. What was chosen.
-pub(super) fn menu(ui: &mut Ui, can_copy: bool, body: bool, link: Option<&Arc<str>>) -> Option<Action> {
+/// Address. On a picture that is shown, Save Picture As and Copy Picture (#1420). What was chosen.
+pub(super) fn menu(ui: &mut Ui, can_copy: bool, body: bool, link: Option<&Arc<str>>, picture: Option<&MenuPicture>) -> Option<Action> {
     let item = |ui: &mut Ui, enabled: bool, label: &str, key: &str| crate::text_menu::menu_item(ui, enabled, label, key).clicked();
     let mut chosen = None;
     if item(ui, can_copy, "Copy", "Mod+C") {
@@ -1010,11 +1071,23 @@ pub(super) fn menu(ui: &mut Ui, can_copy: bool, body: bool, link: Option<&Arc<st
     if body && item(ui, true, "Select All", "Mod+A") {
         chosen = Some(Action::SelectAll);
     }
-    if let Some(url) = link {
+    if link.is_some() || picture.is_some() {
         ui.separator();
-        if item(ui, true, "Copy Link Address", "") {
-            chosen = Some(Action::CopyLink(url.clone()));
-        }
+    }
+    if let Some(url) = link
+        && item(ui, true, "Copy Link Address", "")
+    {
+        chosen = Some(Action::CopyLink(url.clone()));
+    }
+    if let Some(picture) = picture
+        && item(ui, true, "Save Picture As…", "")
+    {
+        chosen = Some(Action::SavePicture(picture.clone()));
+    }
+    if let Some(picture) = picture
+        && item(ui, true, "Copy Picture", "")
+    {
+        chosen = Some(Action::CopyPicture(picture.clone()));
     }
     if chosen.is_some() {
         ui.close();
@@ -1102,7 +1175,7 @@ pub(super) fn header(app: &mut MailApp, ui: &Ui, place: Place, mut fields: Field
             ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
         }
         field.response.context_menu(|ui| {
-            if let Some(chosen) = menu(ui, selected.is_some(), false, None) {
+            if let Some(chosen) = menu(ui, selected.is_some(), false, None, None) {
                 action = Some(chosen);
             }
         });
@@ -1120,6 +1193,7 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
         "ui.copySelection" => copy(app, p),
         "ui.selectAllInMessage" => select_all(app, p),
         "ui.copyLinkAddress" => copy_link(app, p),
+        "ui.copyPicture" => copy_picture(app, p),
         _ => return None,
     })
 }
@@ -1250,6 +1324,39 @@ fn copy_link(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let ctx = app.ctx.clone().ok_or_else(|| tl!("No message is being read there").to_string())?;
     ctx.copy_text(url.to_string());
     Ok(json!({"chars": url.chars().count()}))
+}
+
+/// Copy a picture the message shows onto the clipboard, as its own bytes. Nothing is fetched.
+fn copy_picture(app: &mut MailApp, p: &Value) -> Result<Value, String> {
+    let (name, bytes) = mailcraft_engine::cmd::save_picture::load(&app.session, p).map_err(|e| e.to_string())?;
+    let Some(board) = app.services.clipboard.as_ref() else {
+        return Err(tl!("This build can't copy a picture").to_string());
+    };
+    if let Err(e) = board.put_image(&bytes) {
+        log::warn!("the clipboard took no picture: {e}");
+        return Err(tl!("That picture can't be copied").to_string());
+    }
+    Ok(json!({"name": name, "bytes": bytes.len()}))
+}
+
+/// A picture on the web whose bytes were not handed in: the ones already kept on disk, when the
+/// host has them. Nothing is downloaded.
+pub(crate) fn with_kept_picture(app: &MailApp, id: &str, mut params: Value) -> Value {
+    if id != "mail.savePicture" && id != "ui.copyPicture" {
+        return params;
+    }
+    let Some(src) = params.get("src").and_then(Value::as_str) else { return params };
+    if !super::images::is_remote(src) || params.get("cached").and_then(Value::as_str).is_some_and(|text| !text.is_empty()) {
+        return params;
+    }
+    let Some(bytes) = app.services.picture_cache.as_ref().and_then(|kept| kept.get(src)) else { return params };
+    if bytes.len() > super::images::MAX_PICTURE_BYTES {
+        return params;
+    }
+    if let Some(map) = params.as_object_mut() {
+        map.insert("cached".into(), Value::String(mailcraft_engine::cmd::base64_encode(&bytes)));
+    }
+    params
 }
 
 /// What is selected in the messages on screen, for `ui.inspect`: where, in which of its texts,

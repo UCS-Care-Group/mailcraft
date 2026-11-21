@@ -130,6 +130,16 @@ impl RichClipboard for Board {
         png(image.width, image.height, &image.bytes)
     }
 
+    fn put_image(&self, bytes: &[u8]) -> Result<(), String> {
+        let (width, height, pixels) = pixels(bytes)?;
+        let image = arboard::ImageData { width, height, bytes: std::borrow::Cow::Owned(pixels) };
+        let r = self.with(|b| b.set_image(image));
+        if let Err(e) = &r {
+            log::warn!("the clipboard took no picture: {e}");
+        }
+        r
+    }
+
     fn has_image(&self) -> bool {
         // Winit says from the types on offer, without a read; when it can't, read as before.
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
@@ -166,6 +176,47 @@ fn fragment(html: &str) -> &str {
     html.find('<').and_then(|i| html.get(i..)).unwrap_or_default()
 }
 
+/// The picture's pixels, RGBA, for the system clipboard. A side longer than the clipboard takes
+/// is scaled down; the file a Save writes stays the original bytes.
+fn pixels(bytes: &[u8]) -> Result<(usize, usize, Vec<u8>), String> {
+    if bytes.is_empty() || bytes.len() > 24 * 1024 * 1024 {
+        return Err("that is not a picture that can be shown".into());
+    }
+    let rgba = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| rgba_of(bytes)))
+        .ok()
+        .flatten()
+        .ok_or_else(|| "that is not a picture that can be shown".to_string())?;
+    let width = usize::try_from(rgba.width()).map_err(|_| "that is not a picture that can be shown".to_string())?;
+    let height = usize::try_from(rgba.height()).map_err(|_| "that is not a picture that can be shown".to_string())?;
+    if width == 0 || height == 0 {
+        return Err("that is not a picture that can be shown".into());
+    }
+    Ok((width, height, rgba.into_raw()))
+}
+
+/// Decode a PNG, JPEG, GIF or WebP. `None` for anything else, or for one over the caps.
+fn rgba_of(bytes: &[u8]) -> Option<image::RgbaImage> {
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?;
+    if !matches!(reader.format()?, image::ImageFormat::Png | image::ImageFormat::Jpeg | image::ImageFormat::Gif | image::ImageFormat::WebP) {
+        return None;
+    }
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(16_384);
+    limits.max_image_height = Some(16_384);
+    limits.max_alloc = Some(320 * 1024 * 1024);
+    reader.limits(limits);
+    let rgba = reader.decode().ok()?.into_rgba8();
+    let max = u32::try_from(mailcraft_ui_egui::MAX_PICTURE_SIDE).unwrap_or(4096);
+    if rgba.width() <= max && rgba.height() <= max {
+        return Some(rgba);
+    }
+    let (w, h) = (f64::from(rgba.width().max(1)), f64::from(rgba.height().max(1)));
+    let scale = (f64::from(max) / w).min(f64::from(max) / h);
+    let width = (w * scale).round().max(1.0) as u32;
+    let height = (h * scale).round().max(1.0) as u32;
+    Some(image::imageops::thumbnail(&rgba, width, height))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,6 +229,13 @@ mod tests {
         assert_eq!(super::png(2, 2, &[0; 8]), None);
         assert_eq!(super::png(0, 0, &[]), None);
         assert_eq!(super::png(MAX_SIDE + 1, 1, &[0; 4 * (MAX_SIDE + 1)]), None);
+        let mut png_bytes = Vec::new();
+        image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(2, 1, image::Rgba([255, 0, 0, 255])))
+            .write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
+            .unwrap();
+        let (w, h, rgba) = pixels(&png_bytes).unwrap();
+        assert_eq!((w, h, rgba.as_slice()), (2, 1, [255, 0, 0, 255, 255, 0, 0, 255].as_slice()));
+        assert!(pixels(b"<html></html>").is_err());
     }
 
     #[test]

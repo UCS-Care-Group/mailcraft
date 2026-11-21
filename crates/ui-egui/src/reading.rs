@@ -18,6 +18,7 @@
 //! that every frame ([`view`]).
 //!
 //! The text of a message can be selected and copied, in its body and in its header ([`select`]).
+//! A picture that is shown can be saved or copied from the same menu; nothing is fetched for it.
 //!
 //! A message that carries a meeting (an invitation, an update, a cancellation, somebody's
 //! answer) says so in a bar between its header and its body, with the ways to answer it
@@ -60,6 +61,8 @@ mod view;
 mod warnings;
 #[cfg(test)]
 mod warnings_tests;
+
+pub(crate) use select::with_kept_picture;
 
 use std::sync::Arc;
 
