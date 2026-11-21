@@ -65,7 +65,10 @@ pub fn by_id(base: &str, token: &Secret, ids: &[String]) -> Result<HttpRequest, 
 /// `is:anywhere` leaves out — and its `mail.NO_SUCH_MSG` is the server's own word that it is gone.
 /// `max` keeps the answer to the headers it is read for, not the whole body inlined.
 pub fn probe(base: &str, token: &Secret, id: &str) -> Result<HttpRequest, Error> {
-    let id: String = id.chars().filter(|c| c.is_ascii_digit()).collect();
+    // Never clean an id into another's: a bad one is refused, as the readers refuse theirs.
+    if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(Error::NoSuchItem);
+    }
     soap::request(base, "GetMsgRequest", soap::MAIL, json!({"m": {"id": id, "max": 51200}}), Some(token))
 }
 
