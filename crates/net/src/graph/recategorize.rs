@@ -18,7 +18,10 @@
 //!   whole of it, and a run can take minutes: a category the item was given on the server since
 //!   the lists were read stays (a change of a message's categories reads them just before it
 //!   writes them too, `mail/up.rs`). No `If-Match` is sent: "Update message" and "Update event"
-//!   name no such header. An item that no longer carries the old name is not written. One
+//!   name no such header. An item that no longer carries the old name is not written. A
+//!   change is asked once: one that gets no answer, or is put off by a busy server, is not sent
+//!   again with the list it was built from, but left for a later run, which reads the item anew. Nothing is
+//!   written after the owner stopped the run, the reads of a batch being under way or not. One
 //!   request at a time from a server that takes no batch, none of them after the owner stopped the run. At most [`MAX_RENAMED_ITEMS`] a run.
 //! - **What comes back** ([`CategoryRenamed`]): `done` once the lists were read to their ends and
 //!   every item was answered for good (or a run's fill was listed and none of it could be
@@ -350,9 +353,12 @@ pub(super) fn rename(
             (later, out.stopped) = (true, true);
             break;
         }
-        let answers = if single { Err(None) } else { batch(graph, items, chunk, &rename) };
+        let answers = if single { Err(None) } else { batch(graph, items, chunk, &rename, &stopped) };
         let answers = match answers {
-            Ok(answers) => answers,
+            Ok((answers, cut)) => {
+                out.stopped |= cut;
+                answers
+            }
             // A server that takes no batch: one at a time from here on.
             Err(None) => {
                 single = true;
@@ -477,7 +483,15 @@ fn batch_of(graph: &Graph<'_>, kind: Kind, requests: Vec<Value>, slots: usize) -
 /// The changes of one chunk, in two `$batch`es: each item's categories as the server has them
 /// now, then the change of each that still carries the old name. `Err(None)`: the server takes
 /// no batch; `Err(Some(said))`: what became of all of them at once.
-fn batch(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRename) -> Result<Vec<Said>, Option<Said>> {
+/// Nothing is written once the owner stopped the run (`stopped`, looked at between the two): what
+/// was to be written waits for a later run, and the second of the pair says so.
+fn batch(
+    graph: &Graph<'_>,
+    items: &Items,
+    chunk: &[Item],
+    rename: &CategoryRename,
+    stopped: &dyn Fn() -> bool,
+) -> Result<(Vec<Said>, bool), Option<Said>> {
     let query = read_query();
     let reads: Vec<Value> = chunk
         .iter()
@@ -510,9 +524,20 @@ fn batch(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRena
         }
     }
     if writes.is_empty() {
-        return Ok(said);
+        return Ok((said, false));
     }
-    match batch_of(graph, Kind::Same, writes, chunk.len()) {
+    // (Stopped while the items were read: none is written. What the reads said of the others stands.)
+    if stopped() {
+        for n in written {
+            if let Some(slot) = said.get_mut(n) {
+                *slot = Said::Later;
+            }
+        }
+        return Ok((said, true));
+    }
+    // (Asked once, never again by itself: a change that got no answer, or was put off, may have
+    // been made, and the list it writes is as old as its read. A later run reads the item again.)
+    match batch_of(graph, Kind::Once, writes, chunk.len()) {
         Ok(came) => {
             // (Only for what was asked: an answer for one that wasn't written says nothing of it.)
             for n in written {
@@ -533,7 +558,7 @@ fn batch(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &CategoryRena
             }
         }
     }
-    Ok(said)
+    Ok((said, false))
 }
 
 /// The same, one request each: the read, then the change. Nothing more is asked once the owner
@@ -567,7 +592,8 @@ fn one_by_one(graph: &Graph<'_>, items: &Items, chunk: &[Item], rename: &Categor
             Ok(categories) => {
                 let body = json!({"categories": categories}).to_string();
                 let headers = [("Content-Type", "application/json")];
-                match graph.call(Kind::Same, &graph.url(&path), "PATCH", &headers, Some(&body), WRITE_TIMEOUT, MAX_WRITTEN) {
+                // (Asked once, as in a batch: a later run reads the item again before it writes it.)
+                match graph.call(Kind::Once, &graph.url(&path), "PATCH", &headers, Some(&body), WRITE_TIMEOUT, MAX_WRITTEN) {
                     Ok(reply) => said_of(reply.status, wait_of(reply.retry_after.as_deref(), now())),
                     Err(e) if e.is_refused_sign_in() => Said::SignIn,
                     Err(NetError::Busy { retry_after, .. }) => Said::Busy(retry_after),
