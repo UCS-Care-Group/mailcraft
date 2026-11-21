@@ -677,6 +677,8 @@ struct Head {
     challenges: Vec<String>,
     policy_reason: Option<String>,
     content_type: Option<String>,
+    /// A `Content-Type` was read, kept or not: only the first counts.
+    saw_content_type: bool,
     dav: Vec<String>,
     etag: Option<String>,
     content_range: Option<String>,
@@ -789,8 +791,9 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
             head.policy_reason = Some(tidy(value).chars().take(MAX_REASON).collect());
         } else if name.eq_ignore_ascii_case("content-type") {
             // The first one counts, as a reader of media types takes it; one too long to be a media
-            // type is none at all (cut short, it could read as another).
-            if head.content_type.is_none() && value.len() <= MAX_CONTENT_TYPE {
+            // type is none at all (cut short, it could read as another), and so is the answer's:
+            // a second field after it is not taken in its place.
+            if !std::mem::replace(&mut head.saw_content_type, true) && value.len() <= MAX_CONTENT_TYPE {
                 head.content_type = Some(value.chars().filter(|c| !c.is_control()).collect());
             }
         } else if name.eq_ignore_ascii_case("dav") {
@@ -850,6 +853,10 @@ fn read_chunks<R: Read>(reader: &mut Reader<'_, R>, max: usize) -> Result<Vec<u8
     }
     Err(too_long(max))
 }
+
+#[cfg(test)]
+#[path = "http_content_type_tests.rs"]
+mod content_type_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1137,21 +1144,6 @@ mod tests {
         // Everyone else still has their own limit.
         assert!(matches!(ask(16 * 1024 * 1024), Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().contains("longer than 16384 KB")));
         assert!(matches!(ask(MAX_BODY), Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().contains("longer than 64 KB")));
-    }
-
-    #[test]
-    fn the_content_type_is_kept() {
-        let reply = |headers: &str| {
-            let answer = format!("HTTP/1.1 200 OK\r\n{headers}Content-Length: 2\r\n\r\n{{}}");
-            read_reply(&mut answer.as_bytes(), Instant::now(), SOON, MAX_BODY).unwrap().content_type
-        };
-        assert_eq!(reply("Content-Type: application/json; charset=utf-8\r\n").as_deref(), Some("application/json; charset=utf-8"));
-        assert_eq!(reply("content-type:application/json\r\n").as_deref(), Some("application/json"));
-        assert_eq!(reply("X-Other: 1\r\n"), None);
-        // The first one counts.
-        assert_eq!(reply("Content-Type: application/json\r\nContent-Type: text/html\r\n").as_deref(), Some("application/json"));
-        // One too long to be a media type is none, not a cut one that could read as another.
-        assert_eq!(reply(&format!("Content-Type: application/json{}\r\n", "x".repeat(300))), None);
     }
 
     #[test]

@@ -409,12 +409,12 @@ pub struct Services {
     /// ([`auto_replies`]): a token of its own, then Graph's mailbox settings. Absent in the
     /// browser: File › Info then has no Automatic Replies.
     pub graph_auto_replies: Option<Box<dyn Fn(auto_replies::AutoRepliesJob) -> Receiver<auto_replies::AutoRepliesResult>>>,
-    /// A host that reaches JMAP servers (over `fetch` in the browser): read an account kept in step
-    /// over JMAP (M6) as the job says, as a task of its own: connect to the account's server with
-    /// the job's secret, read what the request asks for (`mailcraft_jmap::sync_mail`) and hand the
-    /// run back through the channel in pieces as it goes (`JmapMailResult::partial` on all but the
-    /// last), waking the UI for each. Absent where no host does (the desktop app has no runner for
-    /// it yet): a JMAP account then has no Send/Receive ([`jmap_mail`]).
+    /// A host that reaches JMAP servers (over `fetch` in the browser, over HTTPS on a thread of its
+    /// own on the desktop): run an account kept in step over JMAP (M6) as the job says: connect to
+    /// the account's server with the job's secret, take up, send and read what the request asks for
+    /// (`mailcraft_jmap::sync_mail`) and hand the run back through the channel in pieces as it goes
+    /// (`JmapMailResult::partial` on all but the last), waking the UI for each. Absent where no
+    /// host does: a JMAP account then has no Send/Receive ([`jmap_mail`]).
     pub jmap: Option<Box<dyn Fn(jmap_mail::JmapJob) -> Receiver<mailcraft_model::sync::JmapMailResult>>>,
     /// The same host: fetch messages of a JMAP account whole, as `graph_fetch` does for a Microsoft
     /// account (`mailcraft_jmap::fetch::fetch_messages`).
@@ -3367,6 +3367,10 @@ impl MailApp {
             return;
         }
         let Some(account) = self.session.mailbox.account(account) else { return };
+        // (A JMAP account's secret is held in memory alone, M6: whatever asks, it is never kept.)
+        if account.kind == mailcraft_model::AccountKind::Jmap {
+            return;
+        }
         let key = Self::secret_key(kind, account);
         let Some(store) = &self.services.secrets else { return };
         match store.set(&key, secret) {

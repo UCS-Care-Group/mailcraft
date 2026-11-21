@@ -343,6 +343,58 @@ fn the_old_name_never_moves_to_a_jmap_account() {
     assert!(a.ui.remembered_keys.iter().all(|key| !key.contains("jmap")), "{:?}", a.ui.remembered_keys);
 }
 
+/// A password an earlier version moved under a JMAP account's name is removed from the store at
+/// the next read, unread, and the account still has none remembered.
+#[test]
+fn a_secret_filed_under_a_jmap_account_s_name_is_removed() {
+    let store = Store::default();
+    let server = mailcraft_model::JmapServer { session: "https://jmap.mail.example/jmap/session".into(), bearer: false };
+    let jmap = Account { id: 7001, kind: AccountKind::Jmap, email: OWNER.into(), name: OWNER.into(), jmap: Some(server), ..Default::default() };
+    store.set(&MailApp::secret_key("password", &jmap), SECRET).unwrap();
+    let other = imap(7002, "zoe@mail.example", "mail.example");
+    store.set(&MailApp::secret_key("password", &other), "kept").unwrap();
+    let mut mb = mailcraft_engine::sample::mailbox(NOW, 0);
+    mb.accounts.extend([jmap, other]);
+    let mut a = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    a.autosave = false;
+    a.ui.remember_sign_in = true;
+    a.ui.sign_ins_bound = true;
+    a.services.secrets = Some(Arc::new(store.clone()));
+    a.drop_secrets_if_replaced();
+    a.execute("ui.confirmServers", json!({})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
+    assert_eq!(a.remembered("password", 7001), None);
+    assert_eq!(a.remembered("password", 7002).as_deref(), Some("kept"), "another account's is left alone");
+    let jmap_key = MailApp::secret_key("password", a.session.mailbox.account(7001).unwrap());
+    assert!(!store.keys().contains(&jmap_key), "{:?}", store.keys());
+}
+
+/// The password typed for a JMAP account goes into memory for the session and nowhere else: a
+/// Send/Receive with it writes nothing to the store, even with sign-ins remembered, and even
+/// asked to remember it directly.
+#[test]
+fn a_typed_jmap_secret_is_never_written_to_the_store() {
+    let store = Store::default();
+    let server = mailcraft_model::JmapServer { session: "https://jmap.mail.example/jmap/session".into(), bearer: false };
+    let jmap = Account { id: 7001, kind: AccountKind::Jmap, email: OWNER.into(), name: OWNER.into(), jmap: Some(server), ..Default::default() };
+    let mut mb = mailcraft_engine::sample::mailbox(NOW, 0);
+    mb.accounts.push(jmap);
+    let mut a = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    a.autosave = false;
+    a.ui.remember_sign_in = true;
+    a.ui.sign_ins_bound = true;
+    a.services.secrets = Some(Arc::new(store.clone()));
+    a.services.jmap = Some(Box::new(|_job| mpsc::channel().1));
+    a.drop_secrets_if_replaced();
+    a.execute("ui.confirmServers", json!({})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
+    let _ = a.execute("ui.sync", json!({"account": 7001, "password": SECRET}));
+    assert_eq!(a.jmap_secret(7001).as_deref(), Some(SECRET), "held for the session");
+    a.remember("password", 7001, SECRET);
+    assert!(store.keys().is_empty(), "{:?}", store.keys());
+    assert!(a.ui.remembered_keys.is_empty(), "{:?}", a.ui.remembered_keys);
+}
+
 /// A shared mailbox with its owner's address keeps no secret of its own: it doesn't hold the
 /// owner's mailbox back.
 #[test]

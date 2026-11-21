@@ -43,7 +43,11 @@ struct Ask {
 }
 
 /// The reading itself; runs on a thread of its own, and may wait on the store for a long time.
-fn read(store: &dyn SecretStore, asks: Vec<Ask>, migrated: bool) -> SecretRead {
+/// `forget`: keys under which nothing is to be kept, removed unread first.
+fn read(store: &dyn SecretStore, asks: Vec<Ask>, forget: Vec<String>, migrated: bool) -> SecretRead {
+    for key in forget {
+        store.delete(&key);
+    }
     let (mut answers, mut moved) = (Vec::new(), Vec::new());
     for Ask { key, old } in asks {
         if let Some(old) = old
@@ -97,6 +101,16 @@ impl MailApp {
                 })
             })
             .collect();
+        // What an earlier version filed under a JMAP account's names (a password moved there from
+        // its old name, before the filter above) is removed unread, so that none of it stays.
+        let forget: Vec<String> = self
+            .session
+            .mailbox
+            .accounts
+            .iter()
+            .filter(|a| a.kind == mailcraft_model::AccountKind::Jmap)
+            .flat_map(|a| ["password", "refresh"].map(|kind| Self::secret_key(kind, a)))
+            .collect();
         // The addresses of the calendars subscribed to, which may hold a secret (#209): kept like a password.
         let subscribed = self
             .session
@@ -108,7 +122,7 @@ impl MailApp {
         asks.extend(subscribed.map(|(id, sub)| Ask { key: sub.secret_name(id), old: None }));
         let (send, receive) = mpsc::channel();
         let job = std::thread::Builder::new().name("secret-read".into()).spawn(move || {
-            let _ = send.send(read(&*store, asks, migrate));
+            let _ = send.send(read(&*store, asks, forget, migrate));
         });
         match job {
             Ok(_) => self.secret_read = Some((self.session.openings(), receive)),

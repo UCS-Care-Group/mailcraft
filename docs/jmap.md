@@ -1,6 +1,6 @@
 # JMAP accounts
 
-> **Last reviewed:** 2026-10-28 · **Last updated:** 2026-11-20 · **Change:** minor
+> **Last reviewed:** 2026-10-28 · **Last updated:** 2026-11-14 · **Change:** minor
 
 A JMAP account is one whose server speaks JMAP (RFC 8620 and RFC 8621) over HTTPS. MailCraft reads
 such an account in the desktop app and in the browser build, takes what you change in its mail up

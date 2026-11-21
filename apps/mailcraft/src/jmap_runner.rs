@@ -224,6 +224,9 @@ fn stopped(request: &JmapMailRequest) -> JmapMailResult {
 }
 
 /// Fetches messages of a JMAP account whole on a thread of its own.
+///
+/// (A fetch's flag is its own: the window makes one for each fetch and only ever sets it, never
+/// back, so a stop pressed while a request is on its way is heard before the next one.)
 pub(crate) fn run_fetch(job: JmapFetchJob, wake: &egui::Context) -> Receiver<GraphFetchResult> {
     let (tx, rx) = std::sync::mpsc::channel();
     let wake = wake.clone();

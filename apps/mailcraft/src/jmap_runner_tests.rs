@@ -214,6 +214,69 @@ fn plain_http_goes_only_to_this_computer() {
     assert!(!pieces[0].whole && !pieces[0].errors.is_empty(), "refused before anything was sent");
 }
 
+/// A loopback server that answers every request with `answer` and closes: its port, and how many
+/// connections it took.
+fn fixed(answer: String) -> (u16, Arc<AtomicUsize>) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let taken = Arc::new(AtomicUsize::new(0));
+    let counted = taken.clone();
+    std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            counted.fetch_add(1, Ordering::Relaxed);
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut line = String::new();
+            while reader.read_line(&mut line).is_ok_and(|n| n > 0) && line != "\r\n" {
+                line.clear();
+            }
+            let _ = stream.write_all(answer.as_bytes());
+        }
+    });
+    (port, taken)
+}
+
+/// Another server on this computer (another port, so another origin) that nobody should reach.
+fn elsewhere() -> (u16, Arc<AtomicUsize>) {
+    fixed("HTTP/1.1 500 Nobody\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into())
+}
+
+#[test]
+fn a_session_redirected_to_another_server_is_not_followed() {
+    let (other, reached) = elsewhere();
+    let (port, _) =
+        fixed(format!("HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:{other}/jmap/session\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"));
+    let session = format!("http://127.0.0.1:{port}/jmap/session");
+    let pieces = run(&run_request(&session, "ada@example.org", true), TOKEN, &Arc::new(AtomicBool::new(false)));
+    let last = pieces.last().unwrap();
+    assert!(!last.partial && !last.whole && !last.errors.is_empty(), "{last:?}");
+    assert!(!last.errors.iter().any(|line| line.contains(TOKEN)));
+    assert_eq!(reached.load(Ordering::Relaxed), 0, "the other server is never reached, the credential with it");
+}
+
+#[test]
+fn a_session_naming_another_server_for_its_api_sends_it_nothing() {
+    let (other, reached) = elsewhere();
+    // The stand-in's own session, its API moved to the other server.
+    let mine = StandIn::new().answer("GET", SESSION, &[("Authorization", &format!("Bearer {TOKEN}"))], b"").unwrap();
+    let mut session: serde_json::Value = serde_json::from_slice(mine.body()).unwrap();
+    session["apiUrl"] = format!("http://127.0.0.1:{other}/jmap/api/").into();
+    let body = session.to_string();
+    let (port, _) =
+        fixed(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()));
+    let session = format!("http://127.0.0.1:{port}/jmap/session");
+    let pieces = run(&run_request(&session, "ada@example.org", true), TOKEN, &Arc::new(AtomicBool::new(false)));
+    let last = pieces.last().unwrap();
+    assert!(!last.partial && !last.whole && !last.errors.is_empty(), "{last:?}");
+    assert!(!last.errors.iter().any(|line| line.contains(TOKEN)));
+    assert_eq!(reached.load(Ordering::Relaxed), 0, "nothing goes to an API on another server");
+    // Nor does a fetch.
+    let request =
+        JmapFetchRequest { account: ACCOUNT, email: "ada@example.org".into(), session, bearer: true, ids: vec!["E1".into()], ..Default::default() };
+    let _ = run_fetch_with(&request, TOKEN, &Stop::new(Arc::new(AtomicBool::new(false))));
+    assert_eq!(reached.load(Ordering::Relaxed), 0);
+}
+
 #[test]
 fn messages_are_fetched_whole_over_http() {
     let (server, ids) = filled();
