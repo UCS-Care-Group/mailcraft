@@ -3,6 +3,8 @@
 //! The view: which module is in front, how the message list is sorted and filtered, the search,
 //! the calendar's range, the panes.
 
+use std::collections::HashSet;
+
 use mailcraft_model::search::Suggestion;
 use mailcraft_model::{AccountChoice, Address};
 use serde_json::{Value, json};
@@ -100,7 +102,12 @@ fn tasks(s: &mut Session, _: &Value) -> CmdResult {
 }
 
 fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {
+    let was = s.view.reading_pane;
     s.view.reading_pane = parse_enum::<Pane>(p::req_str(v, "value")?).ok_or_else(|| bad("`value` is right, bottom or off"))?;
+    // Turned on, it shows the message selected: read, as a click on it would be (#1734).
+    if was == Pane::Off {
+        super::mail::mark_opened(s, false);
+    }
     Ok(json!({"value": s.view.reading_pane}))
 }
 
@@ -168,12 +175,12 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
 
 /// What the search box offers for the word being typed in `query`, the cursor at byte `cursor`
 /// (#308): keywords, the mailbox's categories, what `is:` and `has:` take, and after `from:`, `to:`
-/// and `cc:` the people a new message's recipients are suggested from
-/// ([`compose::suggest`](super::compose::suggest)): the contacts and the mail on this computer,
-/// nothing asked of a server; then, while the list has room, the owner's own addresses, which a new
-/// message leaves out (`from:` one finds what was sent from it, `to:` what came to it). The
-/// window's list and `view.searchSuggestions` both ask this. With nothing typed, the searches run
-/// lately (`view.recentSearches`).
+/// and `cc:` the people a new message's recipients are suggested from, apart from the owner's own
+/// addresses ([`compose::suggest_excluding_own`](super::compose::suggest_excluding_own)): the
+/// contacts and the mail on this computer, nothing asked of a server. The owner's own addresses,
+/// and each account's sender addresses, come after everyone else, once each (`from:` one finds
+/// what was sent from it, `to:` what came to it). The window's list and `view.searchSuggestions`
+/// both ask this. With nothing typed, the searches run lately (`view.recentSearches`).
 pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Suggestion> {
     // An empty box offers the searches run lately, to run again.
     if query.trim().is_empty() {
@@ -181,13 +188,31 @@ pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Sugges
         return recent.map(|q| Suggestion { label: q.to_string(), range: 0..query.len(), text: q.to_string(), color: None, address: None }).collect();
     }
     mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.every_category(), |typed| {
-        let mut people: Vec<Address> = super::compose::suggest(s, typed, 20).into_iter().map(|who| Address::new(who.name, who.email)).collect();
+        let mut people: Vec<Address> =
+            super::compose::suggest_excluding_own(s, typed, 20).into_iter().map(|who| Address::new(who.name, who.email)).collect();
         if let Some(typed) = super::compose::Typed::new(typed) {
-            let own = s.mailbox.accounts.iter().filter(|a| typed.fits(&a.display_name, &a.email));
-            people.extend(own.map(|a| Address::new(a.display_name.as_str(), a.email.as_str())));
+            let mut seen: HashSet<String> = people.iter().map(|p| p.email.to_lowercase()).collect();
+            for account in &s.mailbox.accounts {
+                push_own(&mut people, &mut seen, &typed, &account.display_name, &account.email);
+                for sender in account.sender_addresses() {
+                    push_own(&mut people, &mut seen, &typed, &sender.display_name, &sender.email);
+                }
+            }
         }
         people
     })
+}
+
+/// The owner's own address at the end of a search suggestion list, once, when the typed word fits.
+fn push_own(people: &mut Vec<Address>, seen: &mut HashSet<String>, typed: &super::compose::Typed, name: &str, email: &str) {
+    let email = email.trim();
+    if email.is_empty() || !typed.fits(name.trim(), email) {
+        return;
+    }
+    if !seen.insert(email.to_lowercase()) {
+        return;
+    }
+    people.push(Address::new(name.trim(), email));
 }
 
 fn search_suggestions_command(s: &mut Session, v: &Value) -> CmdResult {

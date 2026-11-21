@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
+use std::collections::{HashMap, HashSet};
+
 use mailcraft_mime_model::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, DraftKind, DraftOf, DraftState, MAX_CHECK_NAMES, MAX_RESOLVE_PEOPLE, ServerDraft};
 use mailcraft_model::{
     AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, FollowUp, Id, Importance, MAX_FOLLOW_UP_AHEAD, Message, NOT_DOWNLOADED,
-    NOT_DOWNLOADED_NOTE, RichBody, Signature, format_list,
+    NOT_DOWNLOADED_NOTE, RichBody, Signature, format_list, is_valid_email,
 };
 use serde_json::{Value, json};
 
@@ -74,7 +76,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_compose),
         CommandSpec::new("compose.suggest", "Suggest Recipients", "Message › Names", suggest_command)
             .pure()
-            .params(r#"{"query": string, "limit"?: 1-20} — answers who the start of a name or address could be: contacts first, then people mail was exchanged with, the latest first"#),
+            .params(r#"{"query": string, "limit"?: 1-20} — answers who the start of a name or address could be, those written to most often first (Sent Items and the Outbox; an incoming From is not a send), then favourites and other contacts before anyone only seen in mail. The owner's own addresses are included. Junk E-mail and Drafts are left out, and a date after now counts as now"#),
         CommandSpec::new("compose.replyTo", "Direct Replies To", "Options › More Options", reply_to)
             .pure()
             .params(r#"{"value": string} — the addresses replies to the message being written go to (its `Reply-To` line), separated by `;` or `,`, at most 20; "" sends replies to the sender again. Each must be an e-mail address"#)
@@ -1838,72 +1840,505 @@ impl Typed {
     }
 }
 
-/// Who `query` (the start of a name, of a word in it, or of an address) could be: contacts first,
-/// then the people mail was exchanged with, the latest first, matched as [`Typed::fits`] says. The
-/// owner's own addresses and addresses that don't look like one are left out. One pass over the
-/// mailbox, so it can run on every key press.
+/// Who `query` (the start of a name, of a word in it, or of an address) could be, matched as
+/// [`Typed::fits`] says. Ranked by how often mail in Sent Items or the Outbox was addressed to
+/// them, then by the latest of those, then favourites and other contacts before anyone only seen
+/// in mail that arrived, then by the latest message, then by name. The owner's own addresses are
+/// included, on that same footing ([`suggest_excluding_own`] leaves them out before the list is
+/// cut). Junk E-mail and Drafts are not a source, a date after now counts as now, and an incoming
+/// `From` is never counted as a send. One pass over the messages, so it can run on every key press.
 pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
+    rank_suggestions(s, query, limit, true)
+}
+
+/// [`suggest`], without the owner's own addresses (each account's address and the sender
+/// addresses it sends from). They are dropped before the list is cut to `limit`, so they take
+/// none of its places.
+pub(crate) fn suggest_excluding_own(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
+    rank_suggestions(s, query, limit, false)
+}
+
+/// Addresses kept while suggesting. The candidate list and the send tally each stop here. A
+/// mailbox file can name a fresh address on every message; past this, a new one is dropped and
+/// one already kept is still updated.
+pub(crate) const MAX_SUGGEST_TRACKED: usize = 32_768;
+
+/// Where a candidate's display name came from. A higher one stands, when it is not empty.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum NameFrom {
+    None,
+    Mail,
+    Account,
+    Contact,
+}
+
+/// A contact's address, so a message can mark the same mailbox as a contact without fitting it again.
+struct ContactFact {
+    name: String,
+    favorite: bool,
+    /// [`Typed::fits`] on this name and address, worked out once while seeding.
+    fits: bool,
+}
+
+/// One address that might be suggested, and how often mail went to it.
+struct Candidate {
+    name: String,
+    email: String,
+    name_from: NameFrom,
+    /// The mail name kept was on a message in Sent Items or the Outbox, and when.
+    mail_written: bool,
+    mail_date: i64,
+    contact: bool,
+    favorite: bool,
+    sends: u32,
+    last_sent: Option<i64>,
+    last_seen: Option<i64>,
+    /// Sent-message generation that last counted a send, so To and Cc of one message count once.
+    stamp: u64,
+}
+
+impl Candidate {
+    fn new(email: &str) -> Candidate {
+        Candidate {
+            name: String::new(),
+            email: email.trim().to_string(),
+            name_from: NameFrom::None,
+            mail_written: false,
+            mail_date: 0,
+            contact: false,
+            favorite: false,
+            sends: 0,
+            last_sent: None,
+            last_seen: None,
+            stamp: 0,
+        }
+    }
+}
+
+fn own_keys(s: &Session) -> HashSet<String> {
+    let mut own = HashSet::new();
+    for account in &s.mailbox.accounts {
+        let email = account.email.trim().to_lowercase();
+        if !email.is_empty() {
+            own.insert(email);
+        }
+        for sender in account.sender_addresses() {
+            let email = sender.email.trim().to_lowercase();
+            if !email.is_empty() {
+                own.insert(email);
+            }
+        }
+    }
+    own
+}
+
+/// The address, when the map has room for a new one. One already there is always returned.
+fn touch<'a>(people: &'a mut HashMap<String, Candidate>, key: &str, email: &str) -> Option<&'a mut Candidate> {
+    if people.contains_key(key) {
+        return people.get_mut(key);
+    }
+    if people.len() >= MAX_SUGGEST_TRACKED {
+        return None;
+    }
+    people.insert(key.to_string(), Candidate::new(email));
+    people.get_mut(key)
+}
+
+/// A non-empty name from a higher source wins. Among names taken from mail, a non-empty one wins,
+/// and then the one from the latest message that was sent, as `(written, date)`.
+fn offer_name(person: &mut Candidate, name: &str, from: NameFrom, written: bool, date: i64) {
+    let name = name.trim();
+    if from > person.name_from {
+        if name.is_empty() {
+            return;
+        }
+        person.name = name.to_string();
+        person.name_from = from;
+        person.mail_written = written;
+        person.mail_date = date;
+        return;
+    }
+    if from != person.name_from {
+        return;
+    }
+    if from != NameFrom::Mail {
+        if person.name.is_empty() && !name.is_empty() {
+            person.name = name.to_string();
+        }
+        return;
+    }
+    let better = match (!name.is_empty(), !person.name.is_empty()) {
+        (true, false) => true,
+        (false, true) => false,
+        _ => (written, date) >= (person.mail_written, person.mail_date),
+    };
+    if better {
+        person.name = name.to_string();
+        person.mail_written = written;
+        person.mail_date = date;
+    }
+}
+
+fn rank_suggestions(s: &Session, query: &str, limit: usize, include_own: bool) -> Vec<Suggestion> {
     let Some(typed) = Typed::new(query) else { return Vec::new() };
     let limit = limit.clamp(1, 20);
-    let fits = |name: &str, email: &str| typed.fits(name, email);
-    let own: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.trim().to_lowercase()).filter(|e| !e.is_empty()).collect();
-    let mut seen: std::collections::HashSet<String> = own.into_iter().collect();
-    let mut out: Vec<Suggestion> = Vec::new();
-    let mut people: Vec<&std::sync::Arc<mailcraft_model::Contact>> = s.mailbox.contacts.values().collect();
-    people.sort_by_cached_key(|c| (!c.favorite, c.name().to_lowercase()));
-    for c in people {
+    let (facts, account_names, mut people) = seed_candidates(s, &typed);
+    read_messages(s, &typed, &facts, &account_names, &mut people);
+    let own = if include_own { HashSet::new() } else { own_keys(s) };
+    let mut ranked: Vec<Ranked> = Vec::new();
+    for (key, person) in people {
+        if !include_own && own.contains(&key) {
+            continue;
+        }
+        let tier = match (person.contact, person.favorite) {
+            (true, true) => 2,
+            (true, false) => 1,
+            (false, _) => 0,
+        };
+        ranked.push(Ranked {
+            suggestion: Suggestion { name: person.name.clone(), email: person.email.clone(), contact: person.contact },
+            sends: person.sends,
+            last_sent: if person.sends == 0 { None } else { person.last_sent },
+            tier,
+            last_seen: person.last_seen,
+            name_key: person.name.to_lowercase(),
+            email_key: person.email.to_lowercase(),
+        });
+    }
+    ranked.sort_by(|a, b| {
+        b.sends
+            .cmp(&a.sends)
+            .then(b.last_sent.cmp(&a.last_sent))
+            .then(b.tier.cmp(&a.tier))
+            .then(b.last_seen.cmp(&a.last_seen))
+            .then_with(|| a.name_key.cmp(&b.name_key))
+            .then_with(|| a.email_key.cmp(&b.email_key))
+    });
+    ranked.truncate(limit);
+    ranked.into_iter().map(|r| r.suggestion).collect()
+}
+
+struct Ranked {
+    suggestion: Suggestion,
+    sends: u32,
+    last_sent: Option<i64>,
+    tier: u8,
+    last_seen: Option<i64>,
+    name_key: String,
+    email_key: String,
+}
+
+fn seed_candidates(s: &Session, typed: &Typed) -> (HashMap<String, ContactFact>, HashMap<String, String>, HashMap<String, Candidate>) {
+    let mut contacts: Vec<&mailcraft_model::Contact> = s.mailbox.contacts.values().map(std::sync::Arc::as_ref).collect();
+    contacts.sort_by_cached_key(|c| (!c.favorite, c.name().to_lowercase()));
+    let mut facts: HashMap<String, ContactFact> = HashMap::new();
+    let mut account_names: HashMap<String, String> = HashMap::new();
+    let mut people: HashMap<String, Candidate> = HashMap::new();
+    for c in contacts {
         let name = c.name();
         for e in &c.emails {
             let email = e.value.trim();
-            if mailcraft_model::Address::new("", email).is_valid() && fits(&name, email) && seen.insert(email.to_lowercase()) {
-                out.push(Suggestion { name: name.clone(), email: email.to_string(), contact: true });
+            if !is_valid_email(email) {
+                continue;
+            }
+            let fits = typed.fits(&name, email);
+            let key = email.to_lowercase();
+            if let Some(fact) = facts.get_mut(&key) {
+                fact.favorite |= c.favorite;
+                fact.fits |= fits;
+                if fact.name.is_empty() && !name.is_empty() {
+                    fact.name.clone_from(&name);
+                }
+            } else if facts.len() < MAX_SUGGEST_TRACKED {
+                facts.insert(key.clone(), ContactFact { name: name.clone(), favorite: c.favorite, fits });
+            }
+            if !fits {
+                continue;
+            }
+            let Some(person) = touch(&mut people, &key, email) else { continue };
+            let (favorite, fact_name) = match facts.get(&key) {
+                Some(fact) => (fact.favorite, fact.name.as_str()),
+                None => (c.favorite, name.as_str()),
+            };
+            person.contact = true;
+            person.favorite |= favorite;
+            offer_name(person, fact_name, NameFrom::Contact, false, 0);
+        }
+    }
+    for account in &s.mailbox.accounts {
+        remember_account_name(&mut account_names, &account.email, &account.display_name);
+        seed_account(&mut people, &facts, typed, &account.display_name, &account.email);
+        for sender in account.sender_addresses() {
+            remember_account_name(&mut account_names, &sender.email, &sender.display_name);
+            seed_account(&mut people, &facts, typed, &sender.display_name, &sender.email);
+        }
+    }
+    (facts, account_names, people)
+}
+
+/// A non-empty account or sender display name. Kept when the query does not fit it: a message may.
+fn remember_account_name(names: &mut HashMap<String, String>, email: &str, name: &str) {
+    let email = email.trim();
+    let name = name.trim();
+    if name.is_empty() || !is_valid_email(email) {
+        return;
+    }
+    let key = email.to_lowercase();
+    if names.contains_key(&key) || names.len() >= MAX_SUGGEST_TRACKED {
+        return;
+    }
+    names.insert(key, name.to_string());
+}
+
+fn seed_account(people: &mut HashMap<String, Candidate>, facts: &HashMap<String, ContactFact>, typed: &Typed, name: &str, email: &str) {
+    let email = email.trim();
+    let name = name.trim();
+    if !is_valid_email(email) || !typed.fits(name, email) {
+        return;
+    }
+    let key = email.to_lowercase();
+    let Some(person) = touch(people, &key, email) else { return };
+    if let Some(fact) = facts.get(&key) {
+        let favorite = fact.favorite;
+        let fact_name = fact.name.as_str();
+        person.contact = true;
+        person.favorite |= favorite;
+        if person.name_from < NameFrom::Contact {
+            offer_name(person, fact_name, NameFrom::Contact, false, 0);
+        }
+    }
+    offer_name(person, name, NameFrom::Account, false, 0);
+}
+
+/// Sends to an address the query did not fit, merged into candidates afterwards. A bare
+/// `To:` in Sent Items still counts for a contact matched by name.
+struct Tally {
+    sends: u32,
+    last_sent: i64,
+    /// The message generation that last counted this address, so To and Cc of one message count once.
+    stamp: u64,
+}
+
+/// Whether this name and address fit and, when they do not, the latest message they were on. That
+/// date is given to the address once every message is read, so it reaches a candidate that another
+/// name matched, before or after.
+struct Pair {
+    fits: bool,
+    last: Option<i64>,
+}
+
+fn read_messages(
+    s: &Session,
+    typed: &Typed,
+    facts: &HashMap<String, ContactFact>,
+    account_names: &HashMap<String, String>,
+    people: &mut HashMap<String, Candidate>,
+) {
+    let (junk, drafts, outgoing) = folder_sets(s);
+    let now = s.now();
+    let mut matched: HashMap<(&str, &str), Pair> = HashMap::new();
+    let mut tally: HashMap<String, Tally> = HashMap::new();
+    // `From` on Sent Items or the Outbox is not a send: incoming mail chooses it, and a message
+    // the owner sent already has its copy there.
+    let mut generation = 0u64;
+    for m in s.mailbox.messages.values() {
+        if m.draft || junk.contains(&m.folder) || drafts.contains(&m.folder) {
+            continue;
+        }
+        let date = m.date.min(now);
+        if outgoing.contains(&m.folder) {
+            generation = generation.saturating_add(1);
+            for a in m.to.iter().chain(&m.cc).chain(&m.bcc) {
+                see_address(people, facts, account_names, typed, &mut matched, &mut tally, a.name.trim(), a.email.trim(), true, generation, date);
+            }
+        } else {
+            for a in std::iter::once(&m.from).chain(&m.to).chain(&m.cc) {
+                see_address(people, facts, account_names, typed, &mut matched, &mut tally, a.name.trim(), a.email.trim(), false, generation, date);
             }
         }
     }
-    if out.len() < limit {
-        // Whoever wrote, or was written to: each address once, as it was last seen.
-        // A sender writes the date, the From line and the folder rules put mail in Junk E-mail:
-        // mail there is not a source, a date after now counts as now, and an address the owner
-        // has written to (Sent Items) ranks above one that only wrote.
-        let (junk, sent): (Vec<Id>, Vec<Id>) = {
-            let ids = |keep: &dyn Fn(&mailcraft_model::Folder) -> bool| s.mailbox.folders.iter().filter(|f| keep(f)).map(|f| f.id).collect();
-            (ids(&|f| s.mailbox.in_junk(f.id)), ids(&|f| f.kind == FolderKind::Sent))
-        };
-        let now = s.now();
-        let mut recent: std::collections::HashMap<String, (bool, i64, &mailcraft_model::Address)> = std::collections::HashMap::new();
-        // A name and an address are matched once, however many messages carry them.
-        let mut matched: std::collections::HashMap<(&str, &str), bool> = std::collections::HashMap::new();
-        for m in s.mailbox.messages.values().filter(|m| !junk.contains(&m.folder)) {
-            let written = sent.contains(&m.folder);
-            let date = m.date.min(now);
-            let people: Vec<(&mailcraft_model::Address, bool)> = if written {
-                m.to.iter().chain(&m.cc).chain(&m.bcc).map(|a| (a, true)).collect()
-            } else {
-                std::iter::once(&m.from).chain(&m.to).chain(&m.cc).map(|a| (a, false)).collect()
-            };
-            for (a, to) in people {
-                if !*matched.entry((a.name.as_str(), a.email.as_str())).or_insert_with(|| fits(&a.name, &a.email)) {
-                    continue;
-                }
-                let key = a.email.trim().to_lowercase();
-                if !seen.contains(&key) && a.is_valid() {
-                    let known = recent.entry(key).or_insert((to, date, a));
-                    if (to, date) >= (known.0, known.1) {
-                        *known = (to || known.0, date, a);
+    for (key, person) in people.iter_mut() {
+        let Some(sent) = tally.get(key) else { continue };
+        person.sends = person.sends.saturating_add(sent.sends);
+        person.last_sent = Some(person.last_sent.map_or(sent.last_sent, |was| was.max(sent.last_sent)));
+        person.last_seen = Some(person.last_seen.map_or(sent.last_sent, |was| was.max(sent.last_sent)));
+    }
+    for (&(_, email), pair) in &matched {
+        let Some(date) = pair.last else { continue };
+        if !is_valid_email(email) {
+            continue;
+        }
+        with_lower(email, |key| {
+            if let Some(person) = people.get_mut(key) {
+                see_last(person, date);
+            }
+        });
+    }
+}
+
+fn folder_sets(s: &Session) -> (HashSet<Id>, HashSet<Id>, HashSet<Id>) {
+    let mut junk = HashSet::new();
+    let mut drafts = HashSet::new();
+    let mut outgoing = HashSet::new();
+    for folder in &s.mailbox.folders {
+        if s.mailbox.in_junk(folder.id) {
+            junk.insert(folder.id);
+        }
+        match folder.kind {
+            FolderKind::Drafts => {
+                drafts.insert(folder.id);
+            }
+            FolderKind::Sent | FolderKind::Outbox => {
+                outgoing.insert(folder.id);
+            }
+            _ => {}
+        }
+    }
+    (junk, drafts, outgoing)
+}
+
+/// Whether the pair fits, and whether it is kept in `matched`, where a miss is dated with `date`.
+fn recall<'a>(matched: &mut HashMap<(&'a str, &'a str), Pair>, typed: &Typed, name: &'a str, email: &'a str, date: i64) -> (bool, bool) {
+    if let Some(pair) = matched.get_mut(&(name, email)) {
+        if !pair.fits {
+            pair.last = Some(pair.last.map_or(date, |was| was.max(date)));
+        }
+        return (pair.fits, true);
+    }
+    let fits = typed.fits(name, email);
+    if matched.len() < MAX_SUGGEST_TRACKED {
+        matched.insert((name, email), Pair { fits, last: (!fits).then_some(date) });
+        return (fits, true);
+    }
+    (fits, false)
+}
+
+/// `email` in lower case, on the stack when it is ASCII and not over [`mailcraft_model::MAX_ADDRESS`].
+fn with_lower(email: &str, mut f: impl FnMut(&str)) {
+    if email.is_ascii() && email.len() <= mailcraft_model::MAX_ADDRESS {
+        let mut buf = [0u8; mailcraft_model::MAX_ADDRESS];
+        for (slot, b) in buf.iter_mut().zip(email.bytes()) {
+            *slot = b.to_ascii_lowercase();
+        }
+        if let Some(key) = buf.get(..email.len()).and_then(|b| std::str::from_utf8(b).ok()) {
+            f(key);
+            return;
+        }
+    }
+    let owned = email.to_lowercase();
+    f(&owned);
+}
+
+fn tally_send(tally: &mut HashMap<String, Tally>, key: &str, generation: u64, date: i64) {
+    if let Some(sent) = tally.get_mut(key) {
+        if sent.stamp == generation {
+            return;
+        }
+        sent.stamp = generation;
+        sent.sends = sent.sends.saturating_add(1);
+        if date > sent.last_sent {
+            sent.last_sent = date;
+        }
+        return;
+    }
+    if tally.len() >= MAX_SUGGEST_TRACKED {
+        return;
+    }
+    tally.insert(key.to_string(), Tally { sends: 1, last_sent: date, stamp: generation });
+}
+
+/// One send on a candidate. `generation` starts at 1, so a stamp of 0 has not counted one.
+fn count_send(person: &mut Candidate, generation: u64, date: i64) {
+    if person.stamp == generation {
+        return;
+    }
+    person.stamp = generation;
+    person.sends = person.sends.saturating_add(1);
+    person.last_sent = Some(person.last_sent.map_or(date, |was| was.max(date)));
+}
+
+fn see_last(person: &mut Candidate, date: i64) {
+    person.last_seen = Some(person.last_seen.map_or(date, |was| was.max(date)));
+}
+
+fn see_address<'a>(
+    people: &mut HashMap<String, Candidate>,
+    facts: &HashMap<String, ContactFact>,
+    account_names: &HashMap<String, String>,
+    typed: &Typed,
+    matched: &mut HashMap<(&'a str, &'a str), Pair>,
+    tally: &mut HashMap<String, Tally>,
+    name: &'a str,
+    email: &'a str,
+    sent: bool,
+    generation: u64,
+    date: i64,
+) {
+    let name = name.trim();
+    let email = email.trim();
+    let (fits, kept) = recall(matched, typed, name, email, date);
+    if !fits && !sent && (kept || people.is_empty()) {
+        return;
+    }
+    if !is_valid_email(email) {
+        return;
+    }
+    with_lower(email, |key| {
+        if fits {
+            note_fit(people, facts, account_names, key, name, email, sent, date);
+            if sent {
+                let tallied = tally.get(key).is_some_and(|row| row.stamp == generation);
+                if let Some(person) = people.get_mut(key) {
+                    if tallied {
+                        person.stamp = generation;
+                    } else {
+                        count_send(person, generation, date);
                     }
                 }
             }
+        } else {
+            if sent && !people.get(key).is_some_and(|person| person.stamp == generation) {
+                tally_send(tally, key, generation, date);
+            }
+            if !kept && let Some(person) = people.get_mut(key) {
+                see_last(person, date);
+            }
         }
-        let mut recent: Vec<(bool, i64, &mailcraft_model::Address)> = recent.into_values().collect();
-        recent.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)).then_with(|| a.2.email.cmp(&b.2.email)));
-        out.extend(recent.into_iter().map(|(_, _, a)| Suggestion {
-            name: a.name.trim().to_string(),
-            email: a.email.trim().to_string(),
-            contact: false,
-        }));
+    });
+}
+
+fn note_fit(
+    people: &mut HashMap<String, Candidate>,
+    facts: &HashMap<String, ContactFact>,
+    account_names: &HashMap<String, String>,
+    key: &str,
+    name: &str,
+    email: &str,
+    written: bool,
+    date: i64,
+) {
+    let Some(person) = touch(people, key, email) else { return };
+    if person.name_from < NameFrom::Contact {
+        if let Some(fact) = facts.get(key) {
+            person.contact = true;
+            person.favorite |= fact.favorite;
+            if !fact.name.is_empty() {
+                offer_name(person, &fact.name, NameFrom::Contact, false, 0);
+            }
+        }
+    } else if !person.contact
+        && let Some(fact) = facts.get(key)
+    {
+        person.contact = true;
+        person.favorite |= fact.favorite;
     }
-    out.truncate(limit);
-    out
+    if person.name_from < NameFrom::Account
+        && let Some(account_name) = account_names.get(key)
+    {
+        offer_name(person, account_name, NameFrom::Account, false, 0);
+    }
+    offer_name(person, name, NameFrom::Mail, written, date);
+    see_last(person, date);
 }
 
 fn suggest_command(s: &mut Session, v: &Value) -> CmdResult {

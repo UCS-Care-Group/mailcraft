@@ -90,6 +90,8 @@ pub fn graph_mail_request(s: &Session, account: Id) -> Result<GraphMailRequest, 
         threads: super::thread_ids::to_ask(&s.mailbox, account),
         // A phone lists only its window's mail (MB3.16); a computer everything.
         since: s.mailbox.listed_since(account, s.now()),
+        // A category renamed here, for the mail that isn't kept here (#851).
+        rename: s.mailbox.mail_rename(account),
     })
 }
 
@@ -452,6 +454,23 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     s.graph_index = index;
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
+    // A renamed category, given to the mail that isn't kept here (#851): what is done no longer
+    // holds the old name's deletion, and what the server wouldn't change is said.
+    let mut renamed = false;
+    // How many messages it reached in all, the runs before with this one, once it is done.
+    let mut renamed_in_all = 0u32;
+    if let Some(came) = &result.renamed {
+        let mut came = came.clone();
+        came.tidy();
+        if came.done {
+            renamed_in_all = s.mailbox.renamed_before(account, true, &came).saturating_add(came.changed);
+        }
+        let before = s.mailbox.category_sweeps.get(&account).cloned();
+        if let Some(line) = s.mailbox.take_renamed(account, true, &came) {
+            errors.push(line);
+        }
+        renamed = s.mailbox.category_sweeps.get(&account) != before.as_ref();
+    }
     // A rule moved new mail out of the account (#567). An undo of a step from before goes back to
     // a mailbox that never had it, and keeps only the Microsoft accounts' mail as it is now: once
     // the server's copy is removed, the mail would be gone for good. Until an undo leaves alone
@@ -471,7 +490,7 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // A shared mailbox is named as its server names it, once its Sent Items say so (#70).
     let named = s.mailbox.name_shared_from_sent(account);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || named || threaded {
+    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || named || threaded || renamed {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.
@@ -481,6 +500,10 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // Send/Receive Progress: where the run is, what it brought, what went wrong.
     let step = match (&result.progress, &result.listing, result.sent.is_empty()) {
+        // A renamed category on its way to the mail that isn't kept here (#851).
+        _ if let Some(renaming) = result.renaming.filter(|_| result.partial) => {
+            Some((SyncPhase::Renaming, String::new(), renaming.done.min(renaming.total), renaming.total))
+        }
         (Some(progress), ..) => {
             let name = s.mailbox.folder_by_server(account, &progress.folder).and_then(|f| s.mailbox.folder(f)).map(|f| f.name.as_str());
             let phase = if result.inbox_pass { SyncPhase::Inbox } else { SyncPhase::NewMail };
@@ -519,7 +542,13 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     match (&result.progress, result.partial) {
         // Under way: how far it has got.
         (Some(progress), true) => s.sync_status = graph_down::progress_words(&s.mailbox, account, progress, s.interface_language),
-        (_, true) => {}
+        (_, true) => {
+            if let Some(renaming) = result.renaming {
+                let (done, total) = (renaming.done.min(renaming.total).to_string(), renaming.total.to_string());
+                let template = s.interface_language.t("Renaming a category on the server: {done} of {total} messages");
+                s.sync_status = mailcraft_i18n::fmt(template, &[("done", &done), ("total", &total)]);
+            }
+        }
         (_, false) => {
             let t = s.local_now();
             // What the server refused in this run, said once, ahead of anything else.
@@ -529,6 +558,15 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
                 refused.join(" ")
             } else if result.stopped && errors.is_empty() {
                 lang.t("Stopped; carries on from here next time").to_string()
+            } else if errors.is_empty()
+                && let Some(n) = Some(renamed_in_all).filter(|n| *n > 0)
+            {
+                let template = lang.tn(
+                    u64::from(n),
+                    "The category was renamed on {n} message on the server",
+                    "The category was renamed on {n} messages on the server",
+                );
+                mailcraft_i18n::fmt(template, &[("n", &n.to_string())])
             } else if errors.is_empty() {
                 (if summary == "Up to date" { lang.t("Up to date") } else { lang.t("Folders up to date") }).to_string()
             } else {
@@ -633,7 +671,10 @@ pub(super) fn change_done(
             let server = f.server.as_mut().filter(|server| server.id == there.id)?;
             match change {
                 FolderChange::Rename { .. } => server.name = there.name.clone(),
-                _ => server.parent = there.parent.clone(),
+                _ => {
+                    server.parent = there.parent.clone();
+                    f.place_before_move = None;
+                }
             }
             taken.pushed += 1;
             None
@@ -667,7 +708,9 @@ pub(super) fn change_done(
                     format!("Couldn't rename the folder \"{was}\" on the server: {why}")
                 }
                 _ => {
-                    f.parent = back;
+                    f.set_parent(back);
+                    // (Back in its old place too, #1514.)
+                    f.place = f.place_before_move.take().or(f.place);
                     format!("Couldn't move the folder \"{was}\" on the server: {why}")
                 }
             };
@@ -842,7 +885,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         f.name = name.to_string();
     }
     if !moved_here && can_go {
-        f.parent = parent_here;
+        f.set_parent(parent_here);
     }
     if f.kind == FolderKind::Custom && there.kind != FolderKind::Custom {
         f.kind = there.kind;
