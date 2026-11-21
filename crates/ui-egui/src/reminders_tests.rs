@@ -139,3 +139,39 @@ fn a_window_on_screen_closes_without_being_minimized() {
     assert!(main_pass(&ctx, &mut app, &mut time).is_none());
     assert!(!app.reminders.asked_for);
 }
+
+/// A reminder of an item that repeats, opened and dismissed, leaves its occurrence selected; a
+/// message opened after it opens, and nothing asks about the reminder's series (#1152). Nor does
+/// a new appointment's window, or a draft's.
+#[test]
+fn a_message_opened_after_a_reminder_opens_without_asking_about_the_series() {
+    let mut app = app();
+    let daily =
+        json!({"title": "Daily sync", "start": "2026-10-12T16:10", "end": "2026-10-12T16:30", "recurrence": {"freq": "daily"}, "reminder": 15});
+    let daily = app.execute("calendar.new", daily).unwrap()["id"].as_u64().unwrap();
+    refresh(&mut app);
+    let due = app.reminders.showing.iter().find(|r| r.event == daily).cloned().expect("the series' reminder is due");
+    // Opened from the Reminders window, its form closed, and the reminder dismissed.
+    open(&mut app, daily, due.start);
+    assert_eq!(app.session.sel.event, Some(daily));
+    if let Some(window) = app.windows.of_event(daily) {
+        app.execute("ui.closeWindow", json!({"window": window})).unwrap();
+    }
+    app.dialog = None;
+    app.execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    assert!(app.reminders.showing.is_empty());
+    assert_eq!(app.session.sel.event, Some(daily), "the occurrence is still the selected one");
+
+    // Back in the mail, a message is opened.
+    app.execute("view.mail", json!({})).unwrap();
+    let message = *app.session.mailbox.messages.keys().next().expect("the sample has mail");
+    for params in [json!({"message": message}), json!({"new": "appointment"})] {
+        assert!(crate::dialogs::confirmation(&app, "ui.openWindow", &params).is_none(), "nothing asked for {params}");
+    }
+    app.run("ui.openWindow", json!({"message": message})).unwrap();
+    assert!(app.dialog.is_none(), "no question about the series: {:?}", app.dialog.as_ref().map(|d| d.name()));
+    assert!(app.windows.of_message(message).is_some(), "the message opened");
+    assert!(app.windows.of_event(daily).is_none(), "the reminder's item didn't open again");
+    // The appointment itself is still asked about, as it is from the calendar.
+    assert!(crate::dialogs::confirmation(&app, "ui.openWindow", &json!({"event": daily})).is_some());
+}

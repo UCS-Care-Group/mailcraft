@@ -13,9 +13,10 @@ pub struct Icons {
     dot: bool,
     #[cfg(target_os = "windows")]
     said_dot: bool,
-    /// The main window, learned while it is in front (`GetForegroundWindow` then is that window).
-    /// The dot is only ever put on this handle, and taken off it: a compose or reminder window
-    /// is another window of this process, and searching for one would mark the wrong button.
+    /// The main window. Learned while it is in front, and, before it ever has been, found among
+    /// this process's own top-level windows, so mail that arrives first still gets a dot. A
+    /// compose or reminder window is another window of this process; only a window with no owner
+    /// is kept, and the dot is only ever put on that handle.
     #[cfg(target_os = "windows")]
     main: Option<winsafe::HWND>,
     /// The icon, built once. winsafe 0.0.29 has no `CreateIconIndirect`, so the bytes are loaded
@@ -72,13 +73,37 @@ fn note(said: &mut bool, err: &str) {
 const RETRY: std::time::Duration = std::time::Duration::from_secs(3);
 
 #[cfg(target_os = "windows")]
+fn ours(hwnd: &winsafe::HWND) -> bool {
+    let (_, owner) = hwnd.GetWindowThreadProcessId();
+    owner == std::process::id()
+}
+
+/// A window another of this process owns (a compose or reminder window) is not the main one.
+#[cfg(target_os = "windows")]
+fn unowned(hwnd: &winsafe::HWND) -> bool {
+    hwnd.GetWindow(winsafe::co::GW::OWNER).is_err()
+}
+
+#[cfg(target_os = "windows")]
 impl Icons {
     fn remember_main(&mut self) {
         let Some(hwnd) = winsafe::HWND::GetForegroundWindow() else { return };
-        let (_, owner) = hwnd.GetWindowThreadProcessId();
-        if owner == std::process::id() {
+        if ours(&hwnd) && unowned(&hwnd) {
             self.main = Some(hwnd);
         }
+    }
+
+    /// A top-level window of this process that nobody owns: the main window, even when it has
+    /// never been in front.
+    fn find_main() -> Option<winsafe::HWND> {
+        let mut found = None;
+        let _ = winsafe::EnumWindows(|hwnd| {
+            if found.is_none() && ours(&hwnd) && unowned(&hwnd) && hwnd.IsWindowVisible() {
+                found = Some(hwnd);
+            }
+            found.is_none()
+        });
+        found
     }
 
     fn hand_dot(&mut self, want: bool, in_front: bool, words: &str) {
@@ -90,6 +115,9 @@ impl Icons {
         }
         if self.retry_at.is_some_and(|at| std::time::Instant::now() < at) {
             return;
+        }
+        if self.main.is_none() {
+            self.main = Self::find_main();
         }
         let Some(hwnd) = self.main.take().filter(|hwnd| hwnd.IsWindow()) else { return };
         match self.set_overlay(&hwnd, want, words) {
@@ -181,8 +209,10 @@ fn dot_icon() -> Vec<u8> {
     for y in (0..SIDE).rev() {
         let mut row = [0u8; 4];
         for x in 0..SIDE {
-            if !dot_pixel(x, y) {
-                row[x / 8] |= 1 << (7 - (x % 8));
+            if !dot_pixel(x, y)
+                && let Some(cell) = row.get_mut(x / 8)
+            {
+                *cell |= 1 << (7 - (x % 8));
             }
         }
         bytes.extend_from_slice(&row);

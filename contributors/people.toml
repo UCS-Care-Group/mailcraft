@@ -21,6 +21,9 @@ display_name = "David Despres"
 [people.dylanmtaylor]
 sync_github_name = true
 
+[people.derdualeraum-Regensburg]
+sync_github_name = true
+
 [people.benandez]
 real_name = "Martin Ball"
 display_name = "Martin Ball"
@@ -59,3 +62,9 @@ display_name = "Mauro Mazzieri"
 
 [people.HarleyInfinite]
 display_name = "Harley"
+
+[people.cyberdawid]
+sync_github_name = true
+
+[people.denix666]
+real_name = "Denis Salmanovich"

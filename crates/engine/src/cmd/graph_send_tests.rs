@@ -49,7 +49,7 @@ fn what_the_server_delivered_into_the_outbox_is_never_sent() {
     let theirs = queued(&mut s, account, outbox, "Theirs", delivered());
     // A mailbox as 0.8.0 left it: both are in the Outbox, and only the owner's goes.
     assert_eq!(subjects(&s, account), ["Mine"]);
-    assert_eq!(waiting(&s.mailbox, account), 1);
+    assert_eq!(waiting(&s, account), 1);
 
     // The listing now has the server's Outbox as a folder like another: the bond is let go, what
     // the server delivered is forgotten here (it comes down into that folder), what the owner

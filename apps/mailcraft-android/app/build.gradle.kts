@@ -17,9 +17,16 @@ plugins {
     alias(libs.plugins.paparazzi)
 }
 
-val appVersion = "0.12.0"
+val appVersion = (findProperty("versionName") as String?) ?: "0.12.0"
 val repoRoot: File = rootProject.projectDir.resolve("../..").canonicalFile
-val rustJniLibs = layout.buildDirectory.dir("rustJniLibs")
+
+// The end-to-end run on an emulator (MB3.15; `-Pmailcraft.e2e=true`): the Rust library is built
+// with its `e2e` feature, which sends the sign-in and Graph to the stand-in on the device's
+// loopback address, for the emulator's x86_64 alone and into a folder of its own. Such a build
+// never makes a release app (refused below), and without the property nothing of it is built.
+val e2e: Boolean = providers.gradleProperty("mailcraft.e2e").map { it.toBoolean() }.getOrElse(false)
+val rustJniLibs = layout.buildDirectory.dir(if (e2e) "rustJniLibsE2e" else "rustJniLibs")
+val rustAbis = if (e2e) listOf("x86_64") else listOf("arm64-v8a", "x86_64")
 
 android {
     namespace = "work.mailcraft.android"
@@ -30,10 +37,15 @@ android {
         applicationId = "work.mailcraft.android"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
+        // The release workflow passes both (-PversionCode, -PversionName) from the tag's version;
+        // a local build keeps these.
+        versionCode = (findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
         versionName = appVersion
         resValue("string", "app_version", appVersion)
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // The end-to-end test runs only against a build that has the stand-in seam; else it is skipped.
+        testInstrumentationRunnerArguments["e2e"] = e2e.toString()
     }
 
     buildTypes {
@@ -83,7 +95,7 @@ detekt {
     allRules = false
     config.setFrom(rootProject.file("config/detekt/detekt.yml"))
     // Generated bindings are not ours to lint; the app's own sources are.
-    source.setFrom("src/main/kotlin", "src/test/kotlin")
+    source.setFrom("src/main/kotlin", "src/test/kotlin", "src/androidTest/kotlin")
     parallel = true
 }
 
@@ -98,8 +110,23 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation("${libs.jna.get()}@aar")
     implementation(libs.platform.verifier)
+    implementation(libs.androidx.work.runtime)
 
     testImplementation(libs.junit)
+
+    // The end-to-end run on an emulator (`connectedDebugAndroidTest`); never in the app.
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.junit)
+}
+
+// A build with the stand-in seam is for the emulator run alone: it never makes a release app.
+gradle.taskGraph.whenReady {
+    if (e2e && allTasks.any { it.project == project && it.name.contains("Release") }) {
+        throw GradleException("-Pmailcraft.e2e=true builds the stand-in seam into the Rust library; it can't make a release app")
+    }
 }
 
 // ---- The Rust library and its Kotlin bindings ------------------------------------------------
@@ -122,20 +149,21 @@ val checkVerifierVersion by tasks.registering {
 
 val cargoNdkBuild by tasks.registering(Exec::class) {
     group = "rust"
-    description = "Builds mailcraft-mobile for Android's arm64-v8a and x86_64 with cargo-ndk."
+    description = "Builds mailcraft-mobile for Android's arm64-v8a and x86_64 with cargo-ndk (x86_64 with the stand-in seam for the e2e run)."
     dependsOn(checkVerifierVersion)
     workingDir = repoRoot
     val sdk = android.sdkDirectory
     val ndk = sdk.resolve("ndk").resolve(android.ndkVersion)
     doFirst { environment("ANDROID_NDK_HOME", ndk.path) }
     commandLine(
-        "cargo", "ndk",
-        "-t", "arm64-v8a", "-t", "x86_64",
-        "--platform", "29",
-        "-o", rustJniLibs.get().asFile.path,
-        "build", "--release", "--locked", "-p", "mailcraft-mobile",
+        listOf("cargo", "ndk") + rustAbis.flatMap { listOf("-t", it) } + listOf(
+            "--platform", "29",
+            "-o", rustJniLibs.get().asFile.path,
+            "build", "--release", "--locked", "-p", "mailcraft-mobile",
+        ) + (if (e2e) listOf("--features", "e2e") else emptyList()),
     )
     inputs.files(repoRoot.resolve("Cargo.lock"))
+    inputs.property("e2e", e2e)
     outputs.dir(rustJniLibs)
     // Cargo decides what is out of date.
     outputs.upToDateWhen { false }
@@ -167,7 +195,7 @@ val uniffiBindgen by tasks.registering(UniffiBindgen::class) {
     group = "rust"
     description = "Generates the Kotlin bindings from the library's own metadata (UniFFI, pinned)."
     dependsOn(cargoNdkBuild)
-    library.set(rustJniLibs.map { it.file("arm64-v8a/libmailcraft_mobile.so") })
+    library.set(rustJniLibs.map { it.file("${rustAbis.first()}/libmailcraft_mobile.so") })
     outputDir.set(layout.buildDirectory.dir("generated/uniffi/kotlin"))
 }
 

@@ -155,6 +155,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     }
     let panel = app.advanced_search.is_some();
     let hint = match app.session.view.module {
+        Module::People if app.address_book_shown().is_some() => tl!("Search the address list"),
         Module::People => tl!("Search people"),
         // Calendar and Tasks have no search of their own yet: what is typed looks in the mail.
         Module::Calendar | Module::Tasks => tl!("Search mail"),
@@ -214,7 +215,11 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     }
     if resp.changed() {
         let text = app.search_text.clone();
-        let _ = app.execute(if mail_search { "view.search" } else { "people.search" }, json!({"query": text}));
+        if mail_search {
+            let _ = app.execute("view.search", json!({"query": text}));
+        } else {
+            app.type_people_search(&text);
+        }
     }
     // Escape is the box's while it has the keyboard and nothing is over it, the list under it
     // either (#406), so nothing drawn after it does something with the same key (a selection in
@@ -345,7 +350,9 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
                 ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
                 // MailCraft's mark, then the Quick Access Toolbar: Send/Receive, Undo, Redo.
                 let (mark, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
-                icons::app_mark(ui.painter(), mark);
+                if let Some(icon) = title_icon(ui.ctx()) {
+                    ui.painter().image(icon.id(), mark, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+                }
                 ui.add_space(8.0);
                 let sync_tip = if app.syncing() { tl!("Sending and receiving…") } else { tl!("Send/Receive All Folders") };
                 qat_button(ui, app, "sync", sync_tip, "ui.sync");
@@ -472,11 +479,19 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         if picked > 1 {
                             st(ui, &tln!(picked, "{n} selected", "{n} selected"), t.text_dim);
                         }
+                        // Delayed mail waiting in an Outbox (#950): when the next goes, or that it went late.
+                        if let Some(note) = crate::send_later::status_text(app, ui.ctx()) {
+                            st(ui, &note, t.text_dim);
+                        }
                     }
                     Module::Calendar => {
                         let (from, to) = mailcraft_engine::cmd::view::calendar_range(&app.session);
                         let count = mailcraft_engine::cmd::calendar::occurrences(&app.session, from, to).len();
                         st(ui, &tln!(count, "{n} event in view", "{n} events in view"), t.text_dim);
+                    }
+                    Module::People if app.address_book_shown().is_some() => {
+                        let found = app.address_book.as_ref().map_or(0, |b| b.people.len());
+                        st(ui, &tln!(found, "{n} found in the address list", "{n} found in the address list"), t.text_dim);
                     }
                     Module::People => {
                         let shown = crate::people_view::shown_total(app, ui.ctx());
@@ -501,9 +516,9 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     if app.session.view.module == Module::Mail {
                         let pane = app.session.view.reading_pane;
                         for (icon, value, on, tip) in [
-                            ("list", "off", pane == Pane::Off, "Reading pane off"),
-                            ("previewLines", "bottom", pane == Pane::Bottom, "Reading pane at the bottom"),
-                            ("readingPane", "right", pane == Pane::Right, "Reading pane on the right"),
+                            ("list", "off", pane == Pane::Off, tl_later!("Reading pane off")),
+                            ("previewLines", "bottom", pane == Pane::Bottom, tl_later!("Reading pane at the bottom")),
+                            ("readingPane", "right", pane == Pane::Right, tl_later!("Reading pane on the right")),
                         ] {
                             let (r, resp) = ui.allocate_exact_size(vec2(22.0, 20.0), Sense::click());
                             if on {
@@ -707,6 +722,24 @@ pub fn pane_title(ui: &mut Ui, title: &str, detail: &str) {
             t.text_dim,
         );
     }
+}
+
+/// The app icon itself, the same picture the system shows for MailCraft, for the title bar: made
+/// once and kept in the context. `None` when it can't be read (the title bar then shows no mark).
+fn title_icon(ctx: &egui::Context) -> Option<egui::TextureHandle> {
+    /// The 64 px icon every build ships (`assets/app-icon`, attributed in `ATTRIBUTION.md`).
+    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/io.github.billsecond.mailcraft.png");
+    let id = egui::Id::unique("mailcraft-title-icon");
+    if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return Some(texture);
+    }
+    let rgba = image::load_from_memory_with_format(PNG, image::ImageFormat::Png).ok()?.into_rgba8();
+    let size = [usize::try_from(rgba.width()).ok()?, usize::try_from(rgba.height()).ok()?];
+    // Drawn at 22 points: mipmaps keep it smooth at 100 % as well as on a sharper screen.
+    let options = egui::TextureOptions { mipmap_mode: Some(egui::TextureFilter::Linear), ..egui::TextureOptions::LINEAR };
+    let texture = ctx.load_texture("mailcraft-title-icon", egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()), options);
+    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
+    Some(texture)
 }
 
 #[cfg(test)]

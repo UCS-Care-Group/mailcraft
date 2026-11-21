@@ -309,7 +309,11 @@ fn a_draft_quoted_in_any_shipped_language_reopens_with_its_quote() {
         (Lang::Italian, "-----Messaggio originale-----", "Da: "),
         (Lang::Dutch, "-----Oorspronkelijk bericht-----", "Van: "),
         (Lang::Romanian, "-----Mesaj original-----", "De la: "),
+        (Lang::Polish, "-----Oryginalna wiadomość-----", "Od: "),
+        (Lang::Czech, "-----Původní zpráva-----", "Od: "),
+        (Lang::Hungarian, "-----Eredeti üzenet-----", "Feladó: "),
         (Lang::ChineseSimplified, "-----原始邮件-----", "来自： "),
+        (Lang::Georgian, "-----თავდაპირველი წერილი-----", "ვისგან: "),
     ];
     for (lang, marker, from) in markers {
         let mut s = session();

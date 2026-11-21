@@ -1246,3 +1246,65 @@ fn exchange_stamps_saved_before_781_vouch_for_nothing() {
     assert!(vouched(&mb));
     assert!(vouched(&from_json(&saved(&mb), usize::MAX).unwrap()));
 }
+
+#[test]
+fn the_default_calendar_and_the_one_orphans_go_to_are_never_a_subscribed_one() {
+    use crate::subscription::Subscription;
+    let mut mb = Mailbox::default();
+    mb.calendars.clear();
+    let feed = mb.alloc_id();
+    let subscription = Some(Subscription { host: "cal.example.org".into(), ..Default::default() });
+    mb.calendars.push(Calendar { id: feed, name: "Fixtures".into(), subscription, ..Default::default() });
+    assert_eq!(mb.default_calendar(), None);
+    // An event with no calendar of its own known makes one of the mailbox's own.
+    let id = mb.add_event(Event { title: "Dentist".into(), calendar: 9_999, ..Default::default() }).unwrap();
+    let home = mb.event(id).unwrap().calendar;
+    assert_ne!(home, feed);
+    assert!(mb.calendar(home).is_some_and(|c| !c.is_subscribed()));
+    // And so does the repair of an orphan.
+    let mut mb = Mailbox::default();
+    mb.calendars.clear();
+    let feed = mb.alloc_id();
+    let subscription = Some(Subscription { host: "cal.example.org".into(), ..Default::default() });
+    mb.calendars.push(Calendar { id: feed, name: "Fixtures".into(), subscription, ..Default::default() });
+    let orphan = mb.alloc_id();
+    mb.events.insert(orphan, std::sync::Arc::new(Event { id: orphan, title: "Lost".into(), calendar: 9_999, ..Default::default() }));
+    mb.repair();
+    let home = mb.event(orphan).unwrap().calendar;
+    assert!(mb.calendar(home).is_some_and(|c| !c.is_subscribed()), "orphans are not put into a copy of a web calendar");
+}
+
+#[test]
+fn a_known_organisation_is_not_made_personal_by_an_outlook_com_looking_address() {
+    use crate::{Directory, OAuth};
+    let by = |directory, tenant: &str, email: &str| OAuth { directory, tenant: tenant.into(), ..OAuth::default() }.is_personal(email);
+    assert!(!by(Directory::Organisation, "", "ada@live.ab.cd"));
+    assert!(!by(Directory::Unknown, "contoso.onmicrosoft.com", "ada@outlook.com"));
+    assert!(by(Directory::Unknown, "", "ada@outlook.com"));
+    assert!(by(Directory::Personal, "", "ada@example.org"));
+    assert!(by(Directory::Unknown, "consumers", "ada@example.org"));
+}
+
+#[test]
+fn repair_cuts_what_a_folder_says_of_failed_downloads() {
+    let mut mb = Mailbox::default();
+    mb.accounts.push(Account { id: 1, ..Default::default() });
+    mb.folders.push(Folder {
+        id: 5,
+        account: 1,
+        failing: (1..=crate::sync::MAX_FAILING as u32 + 50).map(|uid| (uid, 1)).collect(),
+        ..Default::default()
+    });
+    assert!(mb.repair().iter().any(|line| line.contains("failed to download")));
+    assert_eq!(mb.folders[0].failing.len(), crate::sync::MAX_FAILING);
+}
+
+#[test]
+fn left_out_counts_the_messages_given_up_on_for_one_account() {
+    let mut mb = Mailbox::default();
+    let given_up = crate::sync::MAX_TRIES;
+    mb.folders.push(Folder { id: 5, account: 1, failing: [(1, given_up), (2, 1), (3, given_up)].into(), ..Default::default() });
+    mb.folders.push(Folder { id: 6, account: 1, failing: [(4, given_up), (5, 0)].into(), ..Default::default() });
+    mb.folders.push(Folder { id: 7, account: 2, failing: [(1, given_up)].into(), ..Default::default() });
+    assert_eq!((mb.left_out(1), mb.left_out(2), mb.left_out(3)), (3, 1, 0));
+}

@@ -765,3 +765,20 @@ fn what_the_list_keeps_of_the_rows_drawn_selected_follows_every_change_of_the_se
     w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
     check(&mut w, "the conversation's row again");
 }
+
+#[test]
+fn opened_in_a_window_with_the_pane_off_it_is_read_and_the_selection_stays() {
+    // #1734: the newest message's own row, opened in a window with the reading pane off.
+    let (mut w, newer, _, _) = release_checklist();
+    let a = w.state_mut();
+    a.execute("view.readingPane", json!({"value": "off"})).unwrap();
+    a.execute("mail.expandConversation", json!({"id": newer})).unwrap();
+    a.execute("mail.markUnread", json!({"ids": [newer]})).unwrap();
+    a.execute("mail.select", json!({"id": newer, "copy": 1})).unwrap();
+    assert!(!a.session.mailbox.message(newer).unwrap().read);
+    let (whole, focus) = (a.session.sel.whole.clone(), a.session.sel.focus_row);
+    a.run("ui.openWindow", json!({"message": newer})).unwrap();
+    let s = &w.state().session;
+    assert!(s.mailbox.message(newer).unwrap().read);
+    assert_eq!((s.sel.whole.clone(), s.sel.focus_row), (whole, focus));
+}

@@ -57,3 +57,32 @@ fn no_colour_emoji_face_leaves_the_families_alone() {
     assert!(!system.has_emoji());
     assert_eq!(font_definitions_with(&system).families, font_definitions_with(&SystemFont::none()).families);
 }
+
+/// The six emoji of a reaction (#1544), as the picker draws them (`drawn`: the heart without its
+/// variation selector, which no font of the window has a glyph for): none is an empty box.
+#[test]
+fn the_six_reactions_are_drawn() {
+    let fonts = font_definitions_with(&SystemFont::none());
+    let ctx = egui::Context::default();
+    ctx.set_fonts(fonts);
+    ctx.run_ui(egui::RawInput::default(), |_| {}).drop_without_applying_deltas();
+    let id = FontId::new(22.0, FontFamily::Proportional);
+    for (emoji, name) in mailcraft_engine::cmd::react::REACTIONS {
+        assert!(ctx.fonts_mut(|f| f.has_glyphs(&id, crate::reading::react::drawn(emoji))), "{name} {emoji} has no glyph");
+    }
+}
+
+/// The heart as it is sent has a variation selector no font of the window has a glyph for, which is
+/// why the picker draws it without (`reading::react::drawn`).
+#[test]
+fn the_heart_as_sent_has_a_character_no_font_draws() {
+    let ctx = egui::Context::default();
+    ctx.set_fonts(font_definitions_with(&SystemFont::none()));
+    ctx.run_ui(egui::RawInput::default(), |_| {}).drop_without_applying_deltas();
+    let id = FontId::new(22.0, FontFamily::Proportional);
+    let (heart, _) = mailcraft_engine::cmd::react::REACTIONS[1];
+    assert!(heart.ends_with('\u{FE0F}'));
+    assert!(!ctx.fonts_mut(|f| f.has_glyphs(&id, heart)));
+    assert_eq!(crate::reading::react::drawn(heart), "\u{2764}");
+    assert_eq!(crate::reading::react::drawn("\u{1F44D}"), "\u{1F44D}");
+}
