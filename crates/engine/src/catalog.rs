@@ -73,6 +73,7 @@ Home|Respond|Reply All|mail.replyAll
 Home|Respond|Forward|mail.forward
 Home|Respond|Reply with Meeting|calendar.fromMessage
 Home|Respond|Forward as Attachment|mail.forwardAsAttachment
+Home|Respond|React|mail.react
 Home|Respond|Reply with IM|mail.replyIm
 Home|Action Shortcuts|Move to Folder Action Shortcut|mail.move
 Home|Action Shortcuts|Reply and Delete|mail.replyAndDelete
@@ -267,6 +268,7 @@ Calendar|Arrange|Schedule View|view.schedule
 Calendar|Manage Calendars|Add Calendar|calendar.addCalendar
 Calendar|Manage Calendars|Delete Calendar|calendar.removeCalendar
 Calendar|Manage Calendars|Open Calendar|calendar.openShared
+Calendar|Manage Calendars|Internet Calendars|calendar.subscribe
 Calendar|Manage Calendars|Show Calendar|calendar.showCalendar
 Calendar|Manage Calendars|Calendar Groups|calendar.groups
 Calendar|Manage Calendars|Overlay Mode|view.overlay

@@ -8,7 +8,11 @@ use egui::{Align2, Color32, CornerRadius, FontData, FontDefinitions, FontFamily,
 use mailcraft_model::rich::Font;
 
 mod accent;
-pub use accent::{Accent, AccentInk, lenient_bool};
+mod blue;
+pub use accent::{
+    Accent, AccentInk, DEFAULT_CUSTOM_COLOR, black_or_white_on, color_option, hex_string, lenient_bool, parse_color_value, parse_hex_color,
+};
+pub use blue::DarkStyle;
 
 /// MailCraft's own colour, the teal of its icon (and its darker ink for text on light
 /// backgrounds). The interface itself is neutral greys with a blue accent: see [`Tokens`].
@@ -517,9 +521,13 @@ impl Palette {
         Palette { light: Tokens::light(), dark: Tokens::dark() }
     }
 
-    /// The built-in look in `accent`, with high contrast on or off.
-    pub fn for_choice(accent: Accent, high_contrast: bool) -> Palette {
-        Palette { light: Tokens::build(false, accent, high_contrast), dark: Tokens::build(true, accent, high_contrast) }
+    /// The built-in look in `accent` — with `custom` as the colour when it is a custom one — with
+    /// high contrast on or off, its dark half in `style`.
+    pub fn for_choice(accent: Accent, custom: Option<Color32>, high_contrast: bool, style: DarkStyle) -> Palette {
+        Palette {
+            light: Tokens::build_choice(false, accent, custom, high_contrast),
+            dark: Tokens::build_dark_choice(style, accent, custom, high_contrast),
+        }
     }
 
     fn slot() -> egui::Id {
@@ -536,13 +544,17 @@ impl Palette {
 pub struct ThemeChoice {
     pub appearance: Appearance,
     pub accent: Accent,
+    /// The colour of a custom accent; None until the owner picks one (the default is used then).
+    pub custom: Option<Color32>,
     pub high_contrast: bool,
+    /// The greys of the dark theme (#1384).
+    pub dark_style: DarkStyle,
 }
 
 impl ThemeChoice {
     /// The palette this choice shows.
     pub fn palette(&self) -> Palette {
-        Palette::for_choice(self.accent, self.high_contrast)
+        Palette::for_choice(self.accent, self.custom, self.high_contrast, self.dark_style)
     }
 }
 
@@ -692,6 +704,8 @@ pub fn face_files(font: Font, bold: bool) -> &'static [&'static str] {
         (Font::Arial, true) => &["arialbd.ttf", "arial bold.ttf", "liberationsans-bold.ttf", "arimo-bold.ttf"],
         (Font::Calibri, false) => &["calibri.ttf", "carlito-regular.ttf"],
         (Font::Calibri, true) => &["calibrib.ttf", "carlito-bold.ttf"],
+        (Font::CourierNew, false) => &["cour.ttf", "courier new.ttf", "liberationmono-regular.ttf", "cousine-regular.ttf"],
+        (Font::CourierNew, true) => &["courbd.ttf", "courier new bold.ttf", "liberationmono-bold.ttf", "cousine-bold.ttf"],
         (Font::Georgia, false) => &["georgia.ttf", "gelasio-regular.ttf", "gelasio.ttf"],
         (Font::Georgia, true) => &["georgiab.ttf", "georgia bold.ttf", "gelasio-bold.ttf"],
         (Font::Verdana, false) => &["verdana.ttf", "dejavusans.ttf"],
@@ -1181,10 +1195,12 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
                 (false, _) => (regular_face, format!("Doc{}", font.label())),
             };
             fonts.font_data.insert(name.clone(), data.clone());
+            // A fixed-width face has JetBrains Mono behind it, so a glyph it lacks keeps the columns (#969).
+            let mono = font.is_fixed_width().then_some("Mono");
             let chain = if bold_face {
-                chain(&[Some(&name), bold, semibold, Some("InterSemiBold"), regular, Some("Inter")])
+                chain(&[Some(&name), mono, bold, semibold, Some("InterSemiBold"), regular, Some("Inter")])
             } else {
-                chain(&[Some(&name), regular, Some("Inter")])
+                chain(&[Some(&name), mono, regular, Some("Inter")])
             };
             fonts.families.insert(document_family(font, bold_face), chain);
         }
@@ -1694,6 +1710,10 @@ mod tests {
             ("it", include_str!("../../i18n/po/it.po")),
             ("nl", include_str!("../../i18n/po/nl.po")),
             ("ro", include_str!("../../i18n/po/ro.po")),
+            ("pl", include_str!("../../i18n/po/pl.po")),
+            ("cs", include_str!("../../i18n/po/cs.po")),
+            // Not ka.po: no bundled font has Georgian. It is drawn by the system's Georgian face
+            // (`GEORGIAN_FACES`) or, in the browser, the face the page fetches (theme_font_tests.rs).
         ];
         let mut chars = BTreeSet::new();
         for (code, text) in catalogues {

@@ -115,7 +115,9 @@ impl Known {
             }
             let addresses: Vec<String> = chunk
                 .values()
-                .filter(|m| self.outgoing.contains(&m.folder))
+                // A draft moved into the Outbox has gone to nobody: its recipients aren't known
+                // for it, or Send would let a lookalike in it go unasked (#1747).
+                .filter(|m| self.outgoing.contains(&m.folder) && !m.draft)
                 .flat_map(|m| m.to.iter().chain(&m.cc).chain(&m.bcc))
                 .map(|a| a.email.trim().to_lowercase())
                 .collect();
@@ -303,6 +305,16 @@ impl Session {
         let known = checks.known.contains(address);
         self.sender_checks = checks;
         known
+    }
+
+    /// What the warnings are measured against, brought up to date with the mailbox: the send
+    /// warnings (#509) use the same known correspondents as the sender warnings.
+    pub(crate) fn known_facts(&mut self) -> Arc<Facts> {
+        let mut checks = std::mem::take(&mut self.sender_checks);
+        checks.known.update(self);
+        let facts = checks.facts();
+        self.sender_checks = checks;
+        facts
     }
 
     /// The sender warnings of `m` (`mailcraft_model::sender_warnings`): with its links looked at

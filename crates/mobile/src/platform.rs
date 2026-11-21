@@ -69,7 +69,7 @@ pub trait SecretStore: Send + Sync {
 ///
 /// Every method returns a `Result`: UniFFI turns a native exception into a panic in Rust for a
 /// method that has no error to carry it in, and the core never panics. A method that fails is
-/// given a safe stand-in by [`Native`] (no store, an unknown network, the system clock, no offset).
+/// given a safe stand-in by [`Native`] (no store, an unknown network, the system clock, no offset, no zone name).
 #[uniffi::export(with_foreign)]
 pub trait Platform: Send + Sync {
     /// The credential store, when there is one.
@@ -84,10 +84,18 @@ pub trait Platform: Send + Sync {
     fn schedule_reminder(&self, at: i64, notification: NotificationRecord) -> Result<(), HostError>;
     /// Open an attachment with the system's program for its kind; `name` is already made safe.
     fn open_file(&self, name: String, bytes: Vec<u8>) -> Result<(), HostError>;
+    /// Show a web address or a telephone number the owner followed in a message: the browser, or
+    /// the dialer (which only shows the number). The core has checked it already.
+    fn open_link(&self, url: String) -> Result<(), HostError>;
     /// Now, in seconds since 1970 (UTC).
     fn now(&self) -> Result<i64, HostError>;
     /// Minutes east of UTC of the owner's time zone at `at`, daylight saving included.
     fn utc_offset_minutes(&self, at: i64) -> Result<i32, HostError>;
+    /// The owner's time zone by its IANA name (`Europe/Berlin`: Android's `TimeZone.getDefault().id`,
+    /// iOS's `TimeZone.current.identifier`). The core uses it as the calendar's zone when it knows
+    /// the name, so that a mailbox stamped with a named zone is rebased correctly; a name that is
+    /// missing or unknown leaves [`Platform::utc_offset_minutes`] in charge.
+    fn time_zone_name(&self) -> Result<String, HostError>;
     /// The most bytes of mail content the system lets the app keep in memory; `None` when it
     /// doesn't say.
     fn memory_budget(&self) -> Result<Option<u64>, HostError>;
@@ -121,7 +129,15 @@ impl HostSecretStore for NativeSecrets {
     }
 
     fn delete(&self, key: &str) {
-        let _ = self.inner.delete(key.to_string());
+        let _ = self.remove(key);
+    }
+
+    fn read(&self, key: &str) -> Result<Option<String>, SecretError> {
+        self.inner.get(key.to_string()).map_err(SecretError::from)
+    }
+
+    fn remove(&self, key: &str) -> Result<(), SecretError> {
+        self.inner.delete(key.to_string()).map_err(SecretError::from)
     }
 
     fn take_trouble(&self) -> Option<StoreTrouble> {
@@ -168,6 +184,10 @@ impl mailcraft_host::Platform for Native {
 
     fn open_file(&self, name: &str, bytes: &[u8]) -> Result<(), mailcraft_host::PlatformError> {
         self.inner.open_file(name.to_string(), bytes.to_vec()).map_err(Into::into)
+    }
+
+    fn open_link(&self, url: &str) -> Result<(), mailcraft_host::PlatformError> {
+        self.inner.open_link(url.to_string()).map_err(Into::into)
     }
 
     fn now(&self) -> mailcraft_time::Timestamp {

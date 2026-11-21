@@ -176,7 +176,7 @@ pub fn jmap_fetch_request(s: &Session, account: Id, message: Option<Id>, most: u
                 .ok_or_else(|| failed!("no message with id {id} in {name}", id, name = a.name))?;
             m.server
                 .as_ref()
-                .filter(|server| graph_down::still_to_fetch(&s.mailbox, m) && jmap_down::is_id(&server.id))
+                .filter(|server| (graph_down::still_to_fetch(&s.mailbox, m) || s.asked_for_save(id)) && jmap_down::is_id(&server.id))
                 .map(|server| vec![server.id.clone()])
                 .unwrap_or_default()
         }
@@ -287,7 +287,8 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
     // What was sent: gone from the Outbox, or held there with what happened.
     let mut sent = 0;
     for done in &result.sent {
-        if super::graph_send::send_done(&mut s.mailbox, account, done, s.interface_language, &mut refused) {
+        let sent_at = s.now();
+        if super::graph_send::send_done_at(&mut s.mailbox, account, done, s.interface_language, &mut refused, Some(sent_at)) {
             sent += usize::from(matches!(done.outcome, SendOutcome::Sent));
             taken.updated += 1;
             s.graph_index = Default::default();

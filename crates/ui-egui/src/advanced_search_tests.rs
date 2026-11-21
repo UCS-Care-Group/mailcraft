@@ -610,3 +610,13 @@ fn saving_waits_until_a_filter_is_set() {
     w.run_steps(2);
     assert!(!w.get_by_label(tl!("Save as a favorite")).accesskit_node().is_disabled());
 }
+
+/// A category typed in other letters is the one on the list, in any alphabet (#788): the list
+/// offers it once, not a second time as typed.
+#[test]
+fn a_typed_category_in_other_letters_is_the_listed_one() {
+    let names = vec!["Ärger".to_string(), "Red".to_string()];
+    assert_eq!(listed(&names, "ärger"), Some(&names[0]));
+    assert_eq!(listed(&names, "red"), Some(&names[1]));
+    assert_eq!(listed(&names, "Ärgerlich"), None);
+}
