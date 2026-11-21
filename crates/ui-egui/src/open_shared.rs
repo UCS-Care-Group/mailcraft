@@ -148,7 +148,7 @@ impl MailApp {
         );
         let ask = Question::new(tl!("Calendar Listed Twice"), text, tl!("Hide the Copy"), json!({"hide": true}))
             .or(tl!("Keep Both"), json!({"hide": false}));
-        self.dialog = Some(Dialog::Confirm { command: "calendar.hideListedCopy".to_string(), params: json!({"address": address}), ask });
+        self.set_dialog(Some(Dialog::Confirm { command: "calendar.hideListedCopy".to_string(), params: json!({"address": address}), ask }));
     }
 
     /// The server lists the calendar of the person at `address` too: offer, once, to remove the
@@ -161,7 +161,7 @@ impl MailApp {
             &[("name", name)],
         );
         let ask = Question::new(tl!("Calendar Listed Twice"), text, tl!("Remove"), Value::Null);
-        self.dialog = Some(Dialog::Confirm { command: "calendar.removeShared".to_string(), params: json!({"address": address}), ask });
+        self.set_dialog(Some(Dialog::Confirm { command: "calendar.removeShared".to_string(), params: json!({"address": address}), ask }));
     }
 
     /// A calendar job found that the sign-in doesn't cover reading other people's calendars: when

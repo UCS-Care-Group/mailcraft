@@ -70,6 +70,20 @@ fn took(s: &mut Session, account: Id, sent: &[CategoryChange]) {
         .collect();
     let result = CategoriesUploaded { account, email: "a@example.org".into(), outcomes, ..Default::default() };
     s.run("sync.applyCategoryChanges", &json!({"result": result})).unwrap();
+    // (And nothing that only the server has carries a renamed category's old name, #851: what
+    // holds a deletion in these tests is what is kept here. `category_sweep_tests` has the rest.)
+    swept(s, account);
+}
+
+/// The server has given what isn't kept here the new name of every rename it has the new name
+/// of (#851): its mail and its events, both answered as done.
+fn swept(s: &mut Session, account: Id) {
+    for mail in [true, false] {
+        while let Some(next) = if mail { s.mailbox.mail_rename(account) } else { s.mailbox.events_rename(account) } {
+            let came = mailcraft_model::remote::CategoryRenamed { from: next.from, to: next.to, done: true, ..Default::default() };
+            s.mailbox.take_renamed(account, mail, &came);
+        }
+    }
 }
 
 fn answer(s: &mut Session, account: Id, kind: CategoryChangeKind, name: &str, color: Rgb, result: CategoryResult) -> serde_json::Value {
@@ -503,6 +517,8 @@ fn a_rename_deletes_the_old_name_only_once_the_server_has_the_new_one() {
     assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "New", GREEN)]);
     // An answer lost: the next read shows the server made it, and only then the old one goes.
     read(&mut s, a, vec![tag("Red category", RED), tag("Old", GREEN), tag("New", GREEN)]);
+    // (Once what only the server has of it is done, #851.)
+    swept(&mut s, a);
     assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Old", GREEN)]);
 
     // The server won't make it: the old name stays there, and comes back here.
@@ -2130,8 +2146,13 @@ fn an_undo_of_a_rename_whose_older_event_change_went_tells_the_server_the_old_na
     s.run("edit.undo", &json!({})).unwrap();
     assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"]);
     assert_eq!(event_told(&s, a, e), (vec!["New".to_string()], Some(vec!["Old".to_string()]), None), "the server has the title already");
+    // (What only the server has of it is done, #851: what holds the deletion here is the event's own change.)
+    swept(&mut s, a);
+    assert!(!s.mailbox.sweep_holds(a, "New"));
     assert!(!changes(&mut s, a).iter().any(|c| c.kind == CategoryChangeKind::Delete && c.name == "New"), "deleted while the event there has it");
     event_answer(&mut s, a);
+    // (Once what only the server has of it is done, #851.)
+    swept(&mut s, a);
     assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "New", GREEN)]);
 }
 
@@ -2151,6 +2172,9 @@ fn an_undo_of_a_rename_whose_event_change_was_on_its_way_and_lost_tells_the_old_
     let lost = EventOutcome { op: op.clone(), result: EventResult::Failed, error: "connection lost".into(), ..Default::default() };
     let uploaded = EventsUploaded { account: a, email: "a@example.org".into(), outcomes: vec![lost], ..Default::default() };
     remote::apply_event_outcomes(&mut s, &uploaded).unwrap();
+    // (What only the server has of it is done, #851: what holds the deletion here is the event's own change.)
+    swept(&mut s, a);
+    assert!(!s.mailbox.sweep_holds(a, "New"));
     assert!(!changes(&mut s, a).iter().any(|c| c.kind == CategoryChangeKind::Delete && c.name == "New"), "deleted while the event there may have it");
     s.mailbox.event_changes.iter_mut().for_each(|c| c.retry_at = 0);
     assert_eq!(event_told(&s, a, e), (vec!["New".to_string()], Some(vec!["Old".to_string()]), Some("Moved".to_string())));
@@ -2188,9 +2212,14 @@ fn an_undo_of_a_rename_whose_own_event_change_was_on_its_way_tells_the_old_name_
         if result == EventResult::Gone {
             assert!(s.mailbox.event(e).is_none());
             assert!(s.mailbox.event_changes.is_empty(), "{:?}", s.mailbox.event_changes);
+            // (Once what only the server has of it is done, #851.)
+            swept(&mut s, a);
             assert_eq!(deletes(&mut s, a), ["New"]);
             continue;
         }
+        // (What only the server has of it is done, #851: what holds the deletion here is the event's own change.)
+        swept(&mut s, a);
+        assert!(!s.mailbox.sweep_holds(a, "New"));
         assert!(
             !changes(&mut s, a).iter().any(|c| c.kind == CategoryChangeKind::Delete && c.name == "New"),
             "{result:?}: deleted while the event there may have it"
@@ -2201,6 +2230,8 @@ fn an_undo_of_a_rename_whose_own_event_change_was_on_its_way_tells_the_old_name_
         event_answer(&mut s, a);
         assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"], "{result:?}");
         assert!(s.mailbox.event_changes.is_empty(), "{result:?}: {:?}", s.mailbox.event_changes);
+        // (Once what only the server has of it is done, #851.)
+        swept(&mut s, a);
         assert_eq!(deletes(&mut s, a), ["New"], "{result:?}");
     }
 }
@@ -2237,6 +2268,8 @@ fn an_undo_of_a_rename_whose_event_change_on_its_way_is_refused_keeps_the_old_na
         assert_eq!(event.categories, ["Old"], "older {older}, {result:?}");
         assert_eq!(event.title, "Meeting", "older {older}, {result:?}");
         assert!(s.mailbox.event_changes.is_empty(), "older {older}, {result:?}: {:?}", s.mailbox.event_changes);
+        // (Once what only the server has of it is done, #851.)
+        swept(&mut s, a);
         assert_eq!(deletes(&mut s, a), ["New"], "older {older}, {result:?}");
     }
 }
