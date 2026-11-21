@@ -2028,6 +2028,12 @@ msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Można subskrybować co najwyżej {n} kalendarzy: najpierw zrezygnuj z subskrypcji jednego z nich."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "Naraz można wysłać najwyżej {n} próśb pocztą."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "At start time"
@@ -10525,6 +10531,12 @@ msgid "None"
 msgstr "Brak"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "None of these messages can be unsubscribed from here."
+msgstr "Z żadnej z tych wiadomości nie można się stąd wypisać."
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "None of those messages is in this mailbox any more."
@@ -14103,6 +14115,12 @@ msgstr "Wybierz kogoś, aby zobaczyć szczegóły"
 #, fuzzy
 msgid "Select the message before previewing its attachment."
 msgstr "Wybierz wiadomość, zanim wyświetlisz podgląd jej załącznika."
+
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Zaznacz najwyżej {n} wiadomości, z których chcesz się wypisać."
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -19633,6 +19651,27 @@ msgstr "Zrezygnuj z subskrypcji kalendarza"
 msgid "Unsubscribe from Internet Calendar"
 msgstr "Zrezygnuj z subskrypcji kalendarza internetowego"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Wypisz się z ich list"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Wypisz się z zaznaczonych wiadomości"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Wypisz się z {n} listy."
+msgstr[1] "Wypisz się z {n} list."
+msgstr[2] "Wypisz się z {n} list."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -19644,6 +19683,12 @@ msgstr "Zrezygnuj z subskrypcji na stronie listy w przeglądarce."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Zrezygnowano z subskrypcji."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Wypisywanie: {click} jednym kliknięciem, {mail} pocztą, {pages} do zrobienia na własnej stronie, {left} pominięto."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -23601,6 +23646,12 @@ msgstr "kategorie tego konta nie są synchronizowane z serwerem"
 msgid "this account's categories aren't kept in step with its server"
 msgstr "kategorie tego konta nie są synchronizowane z jego serwerem"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "ta wersja nie potrafi wypisać jednym kliknięciem"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -24655,6 +24706,15 @@ msgstr[0] "Liczba treści lub załączników, których brakuje w folderze zawart
 msgstr[1] "Liczba treści lub załączników, których brakuje w folderze zawartości skrzynki pocztowej lub które są uszkodzone: {n}."
 msgstr[2] "Liczba treści lub załączników, których brakuje w folderze zawartości skrzynki pocztowej lub które są uszkodzone: {n}."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} wiadomością z Twojego konta przez Skrzynkę nadawczą:"
+msgstr[1] "{n} wiadomością każda z Twojego konta przez Skrzynkę nadawczą:"
+msgstr[2] "{n} wiadomością każda z Twojego konta przez Skrzynkę nadawczą:"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -24921,6 +24981,15 @@ msgid_plural "{n} hours before"
 msgstr[0] "{n} godzina przed"
 msgstr[1] "{n} godziny przed"
 msgstr[2] "{n} godzin przed"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} jednym kliknięciem: jej serwer dostaje tylko podany adres, nic więcej."
+msgstr[1] "{n} jednym kliknięciem: serwer każdej listy dostaje tylko podany adres, nic więcej, po kolei."
+msgstr[2] "{n} jednym kliknięciem: serwer każdej listy dostaje tylko podany adres, nic więcej, po kolei."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -25261,6 +25330,15 @@ msgstr[0] "{n} minuta przed"
 msgstr[1] "{n} minuty przed"
 msgstr[2] "{n} minut przed"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "Jeszcze {n} pocztą nie zostanie teraz wysłana: zaznacz mniej wiadomości, aby ją zobaczyć."
+msgstr[1] "Jeszcze {n} pocztą nie zostaną teraz wysłane: zaznacz mniej wiadomości, aby je zobaczyć."
+msgstr[2] "Jeszcze {n} pocztą nie zostanie teraz wysłanych: zaznacz mniej wiadomości, aby je zobaczyć."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 #, fuzzy
@@ -25538,6 +25616,15 @@ msgstr[1] "Zaznaczono: {n}"
 msgstr[2] "Zaznaczono: {n}"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} nadawca jest pominięty: poczta, za którą Twój serwer nie ręczy, w Wiadomościach-śmieciach, z ostrzeżeniem o nadawcy lub bez informacji, jak się wypisać."
+msgstr[1] "{n} nadawców jest pominiętych: poczta, za którą Twój serwer nie ręczy, w Wiadomościach-śmieciach, z ostrzeżeniem o nadawcy lub bez informacji, jak się wypisać."
+msgstr[2] "{n} nadawców jest pominiętych: poczta, za którą Twój serwer nie ręczy, w Wiadomościach-śmieciach, z ostrzeżeniem o nadawcy lub bez informacji, jak się wypisać."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} stays on this computer"
@@ -25626,6 +25713,15 @@ msgid_plural "{n} unread on the server"
 msgstr[0] "Nieprzeczytane na serwerze: {n}"
 msgstr[1] "Nieprzeczytane na serwerze: {n}"
 msgstr[2] "Nieprzeczytane na serwerze: {n}"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} wypisuje na własnej stronie: otwórz jej wiadomość, aby to zrobić."
+msgstr[1] "{n} wypisują na własnej stronie: otwórz każdą z tych wiadomości, aby to zrobić."
+msgstr[2] "{n} wypisuje na własnej stronie: otwórz każdą z tych wiadomości, aby to zrobić."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -25903,6 +25999,12 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nie została znaleziona na serwerze, więc nie można jej przekazać dalej jako załącznika"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "• to {to}, subject “{subject}”"
+msgstr "• do {to}, temat „{subject}”"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
