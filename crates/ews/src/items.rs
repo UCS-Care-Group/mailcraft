@@ -53,10 +53,19 @@ pub enum Shape {
     /// The recipients and the categories alone: for a server that doesn't know the preview and the
     /// flag (it answers `ErrorInvalidPropertyRequest`, or a schema fault), which are then left out.
     Lean,
-    /// The categories alone: for a server that won't give the recipients in `SyncFolderItems`
-    /// (Exchange 2007 and 2010 answer `ErrorInvalidPropertyForOperation`, #1349). The recipients
-    /// are then asked with `GetItem` ([`GetItemRecipients`]), where Microsoft documents them.
+    /// The categories alone, over the `Default` base shape: for a server that won't give the
+    /// recipients in `SyncFolderItems` (Exchange 2007 and 2010 answer
+    /// `ErrorInvalidPropertyForOperation`, #1349). The recipients are then asked with `GetItem`
+    /// ([`GetItemRecipients`]), where Microsoft documents them.
     Bare,
+    /// The `IdOnly` base shape, with the subject, the attachment flag, the categories and what a
+    /// list shows the default shape to lack ([`LISTED`]) asked by name: for a server that hangs
+    /// whole messages on every item of the changes whatever else is asked (Kerio Connect's
+    /// servlet, #964 — which measures to answer this shape with the asked properties alone). The
+    /// list comes light; the bodies come later as they always do, and the preview with them.
+    /// It asks neither preview nor flag: a folder's sparse `Update` says nothing about a flag,
+    /// which is the exposure the [`Self::Bare`] shape has always carried on such servers.
+    Ids,
 }
 
 /// The request `SyncFolderItems` of one folder.
@@ -117,14 +126,20 @@ impl SyncFolderItems {
     pub fn element(&self) -> Element {
         let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
         let mut extra = LISTED.iter().fold(Element::new("t:AdditionalProperties"), |all, name| all.child(uri(name)));
-        if self.shape != Shape::Bare {
+        if self.shape == Shape::Ids {
+            // (Over the `IdOnly` base nothing comes by itself: the subject and the attachment flag
+            // are named with the rest.)
+            extra = extra.child(uri("item:Subject")).child(uri("item:HasAttachments"));
+        }
+        if self.shape == Shape::Full || self.shape == Shape::Lean {
             extra = extra.child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
         }
         extra = extra.child(uri("item:Categories"));
         if self.shape == Shape::Full {
             extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
         }
-        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("Default")).child(extra);
+        let base = if self.shape == Shape::Ids { "IdOnly" } else { "Default" };
+        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text(base)).child(extra);
         let folder = Element::new("m:SyncFolderId").child(Element::new("t:FolderId").attr("Id", &self.folder));
         let mut operation = Element::new("m:SyncFolderItems").child(shape).child(folder);
         if !self.state.is_empty() {

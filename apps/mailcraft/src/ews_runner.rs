@@ -366,6 +366,9 @@ impl Transport {
             }
             NetError::Tls { .. } => TransportError::Tls,
             NetError::Connect { .. } => TransportError::Unreachable,
+            // (An answer heavier than the request allowed: the transport knows and says so,
+            // and the run can ask lighter — it is not a server that can't be reached (#1783).)
+            error if mailcraft_net::http::is_too_long(&error) => TransportError::BodyTooLarge,
             _ => TransportError::Other,
         }
     }

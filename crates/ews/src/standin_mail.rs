@@ -387,6 +387,33 @@ impl State {
             xml.push_str(&people("From", std::slice::from_ref(&item.from)));
             xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId><t:IsRead>{}</t:IsRead>", escape(&item.message_id), item.read));
         }
+        if shape == "IdOnly" && wants("item:Subject") {
+            // (Over the `IdOnly` base nothing comes by itself: what is asked is what is given.)
+            xml.push_str(&format!("<t:Subject>{}</t:Subject>", escape(&item.subject)));
+        }
+        if shape == "IdOnly" && wants("item:HasAttachments") {
+            xml.push_str(&format!("<t:HasAttachments>{}</t:HasAttachments>", item.attachments));
+        }
+        // (Over `IdOnly` the named properties are given as the real servers give them: the ones
+        // the `Default` branch sends by right come only when they are asked.)
+        if shape == "IdOnly" && wants("item:DateTimeReceived") {
+            xml.push_str(&format!("<t:DateTimeReceived>{}</t:DateTimeReceived>", item.received));
+        }
+        if shape == "IdOnly" && wants("item:DateTimeSent") {
+            xml.push_str(&format!("<t:DateTimeSent>{}</t:DateTimeSent>", item.sent));
+        }
+        if shape == "IdOnly" && wants("item:Size") {
+            xml.push_str(&format!("<t:Size>{}</t:Size>", item.mime.len()));
+        }
+        if shape == "IdOnly" && wants("item:Importance") {
+            xml.push_str(&format!("<t:Importance>{}</t:Importance>", item.importance));
+        }
+        if shape == "IdOnly" && wants("message:From") {
+            xml.push_str(&people("From", std::slice::from_ref(&item.from)));
+        }
+        if shape == "IdOnly" && wants("message:InternetMessageId") {
+            xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId>", escape(&item.message_id)));
+        }
         if wants("message:ToRecipients") {
             xml.push_str(&people("ToRecipients", &item.to));
         }
@@ -423,6 +450,19 @@ impl State {
         }
         xml.push_str(&format!("</t:{element}>"));
         xml
+    }
+
+    /// The item as `SyncFolderItems` gives it: as `message_xml`, but a server that sends whole
+    /// messages with the changes (Kerio Connect, #964) hangs their MIME on every item — save
+    /// when the base shape asked is `IdOnly`, which it answers with the properties alone.
+    fn sync_item_xml(&self, item: &Item, base: &str, extra: &[String]) -> String {
+        let xml = self.message_xml(item, base, extra);
+        if self.sends_mime_with_changes == 0 || base == "IdOnly" {
+            return xml;
+        }
+        let mime = "x".repeat(self.sends_mime_with_changes);
+        let end = xml.rfind("</t:").unwrap_or(xml.len());
+        format!("{}<t:MimeContent Encoding=\"base64\">{mime}</t:MimeContent>{}", &xml[..end], &xml[end..])
     }
 
     /// `ItemShape` of `SyncFolderItems`/`GetItem`: the base shape, whether the MIME content is
@@ -567,6 +607,13 @@ impl State {
         let parts = Check::children(operation, MESSAGES, &["ItemShape", "SyncFolderId", "SyncState", "Ignore", "MaxChangesReturned", "SyncScope"])?;
         let shape = Check::required(operation, parts.first().copied().flatten(), "ItemShape")?;
         let (base, _, extra) = Self::item_shape(shape, false)?;
+        if base == "IdOnly" && self.refuses_ids {
+            return Ok((
+                200,
+                "ErrorInvalidPropertyForOperation".into(),
+                response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyForOperation")),
+            ));
+        }
         let folder = self.sync_folder(Check::required(operation, parts.get(1).copied().flatten(), "SyncFolderId")?)?;
         let max = Check::required(operation, parts.get(4).copied().flatten(), "MaxChangesReturned")?;
         Check::is(max, MESSAGES, "MaxChangesReturned", &[])?;
@@ -632,7 +679,7 @@ impl State {
             From::Listing { done, rev } => {
                 let page: Vec<&&Item> = in_folder.iter().skip(done).take(max).collect();
                 for item in &page {
-                    changes.push_str(&format!("<t:Create>{}</t:Create>", self.message_xml(item, &base, &extra)));
+                    changes.push_str(&format!("<t:Create>{}</t:Create>", self.sync_item_xml(item, &base, &extra)));
                 }
                 let reached = done.saturating_add(page.len());
                 if reached >= in_folder.len() {
@@ -658,10 +705,10 @@ impl State {
                             item.read
                         )),
                         (ItemChange::Create, Some(item)) => {
-                            changes.push_str(&format!("<t:Create>{}</t:Create>", self.message_xml(item, &base, &extra)))
+                            changes.push_str(&format!("<t:Create>{}</t:Create>", self.sync_item_xml(item, &base, &extra)))
                         }
                         (ItemChange::Update, Some(item)) => {
-                            changes.push_str(&format!("<t:Update>{}</t:Update>", self.message_xml(item, &base, &extra)))
+                            changes.push_str(&format!("<t:Update>{}</t:Update>", self.sync_item_xml(item, &base, &extra)))
                         }
                         _ => {}
                     }

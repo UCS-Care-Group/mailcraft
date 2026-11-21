@@ -214,7 +214,7 @@ impl<E: HttpExchange> Run<'_, E> {
                 }
                 Ok(Some(ChangeOutcome::Refused { why: why(&code) }))
             }
-            Err(Asked::Bad | Asked::Unreadable) => {
+            Err(Asked::Bad | Asked::Unreadable | Asked::TooLarge) => {
                 self.reread_folders |= matches!(change, FolderChange::Delete { .. });
                 Ok(Some(ChangeOutcome::Refused { why: "the server's answer couldn't be used".to_owned() }))
             }
@@ -693,7 +693,7 @@ fn settle(error: Asked) -> Result<Option<MessageOutcome>, Asked> {
     match error {
         Asked::Code(ResponseCode::ItemNotFound) => Ok(Some(MessageOutcome::Gone)),
         Asked::Code(code) => Ok(Some(MessageOutcome::Refused { status: refused_status(&code) })),
-        Asked::Bad | Asked::Unreadable => Ok(Some(MessageOutcome::Refused { status: 400 })),
+        Asked::Bad | Asked::Unreadable | Asked::TooLarge => Ok(Some(MessageOutcome::Refused { status: 400 })),
         Asked::Lost => Ok(None),
         stop @ Asked::Stop(_) => Err(stop),
     }
