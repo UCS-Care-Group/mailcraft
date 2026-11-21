@@ -184,6 +184,29 @@ pub struct Windows {
     out: Vec<(u64, Option<u64>)>,
     /// A window of the system drew the dialog this frame, over itself: the main window doesn't.
     pub(crate) dialog_shown: bool,
+    /// The message being written whose window opened the dialog that is open (Insert Link, Word
+    /// Count…): it comes up over that window, not over the main one behind it. Only
+    /// [`dialog_compose`] reads it, and these rules keep it right:
+    /// - It belongs to one dialog. A new dialog (or none) goes in through [`MailApp::set_dialog`],
+    ///   which clears it and bumps [`Windows::dialog_gen`]. `MailApp::dialog` is written directly
+    ///   only to put back the dialog just taken out (to draw it, or to set a form aside while an
+    ///   agent's command runs), and that dialog keeps its owner.
+    /// - Only [`Windows::claim_dialog`] sets it, for the window that opened the dialog: a compose
+    ///   window whose contents opened or replaced one this frame ([`compose_window::contents`]),
+    ///   one whose dialog, drawn over it, opened another in its place ([`show_native`]), and the
+    ///   form an agent's command set aside, put back over its window (`agent_gate`).
+    /// - It is cleared when the dialog closes: answered ([`crate::dialogs::show`]), given up with
+    ///   the mailbox it was for (`jobs`), or found gone at the start of a frame ([`show`]).
+    /// - The owner is only where the dialog is drawn: the window draws it and sets
+    ///   [`Windows::dialog_shown`], and when that window has closed, nobody does and the main
+    ///   window draws it ([`MailApp::ui`]).
+    pub(crate) dialog_for: Option<u64>,
+    /// [`Windows::dialog_gen`] at the time [`Windows::dialog_for`] was set: an owner noted before
+    /// the dialog was last replaced doesn't count, even where it wasn't cleared.
+    pub(crate) dialog_owner_gen: u64,
+    /// Bumped each time the open dialog is replaced ([`MailApp::set_dialog`]), so a compose window
+    /// also sees a dialog it opened in place of one already open.
+    pub(crate) dialog_gen: u64,
     /// The monitors connected now, in the system's pixels, as the host listed them this frame for a window
     /// about to open ([`MailApp::set_monitors`]); `None` when it didn't.
     pub(crate) monitors: Option<Vec<window_places::Monitor>>,
@@ -226,6 +249,12 @@ impl Windows {
 
     pub fn is_empty(&self) -> bool {
         self.open.is_empty()
+    }
+
+    /// The dialog now open was opened by the window of the message being written `compose`.
+    pub(crate) fn claim_dialog(&mut self, compose: u64) {
+        self.dialog_for = Some(compose);
+        self.dialog_owner_gen = self.dialog_gen;
     }
 
     /// The window that shows `message`, by its number.
@@ -934,6 +963,9 @@ pub(crate) fn refocus_command(app: &MailApp, id: u64) -> Option<(egui::ViewportI
 /// before the main window's shortcuts: where the windows are inside the main one, the keys of
 /// the active one (Escape closes it) are not also the main window's.
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
+    if app.dialog.is_none() {
+        app.windows.dialog_for = None;
+    }
     crate::reading::tick(app, ctx);
     note_focus(app, ctx);
     // The message being written in the window that has the keyboard is the current one (#286).
@@ -1283,24 +1315,41 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
             let waits = !app.asking.is_empty() || window.what.form().is_some_and(Form::waiting);
             crate::keys::gate(&ctx, waits);
         }
-        // A dialog about the message written here (Check Names' choice) comes up over this
-        // window, not over the main one behind it, and has its keys.
-        let dialog_here =
-            !inside && window.what.compose().is_some() && app.dialog.as_ref().and_then(crate::dialogs::Dialog::compose) == window.what.compose();
-        let wish = if dialog_here { Keys::default() } else { keys_of(&ctx, window, ui.layer_id()) };
+        // A dialog about the message written here (Check Names' choice, or one its ribbon or keys
+        // opened: Insert Link, Word Count…) comes up over this window, not over the main one
+        // behind it, and has its keys.
+        let dialog_here = |app: &MailApp, window: &Open| !inside && window.what.compose().is_some() && dialog_compose(app) == window.what.compose();
+        let wish = if dialog_here(app, window) { Keys::default() } else { keys_of(&ctx, window, ui.layer_id()) };
         if !inside {
             place_native(app, &ctx, window, kind);
         }
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
             close |= frame(app, ui, window, wish, closing, !inside);
         });
-        if dialog_here {
+        // (Again: what was done in it this frame may have opened one.)
+        if dialog_here(app, window) {
             crate::dialogs::show(app, &ctx);
+            // A dialog this one opened in its place stays over this window. One the main window
+            // opens later in the frame is not this one: it replaced the dialog after this ran.
+            if app.dialog.is_some()
+                && let Some(compose) = window.what.compose()
+            {
+                app.windows.claim_dialog(compose);
+            } else {
+                app.windows.dialog_for = None;
+            }
             app.windows.dialog_shown = true;
         }
         crate::text_menu::finish(&ctx, menus);
     });
     close
+}
+
+/// The message being written whose own window the open dialog comes up over, when it isn't the
+/// main window's: the one it is about (Check Names' choice), else the one whose window opened it.
+pub(crate) fn dialog_compose(app: &MailApp) -> Option<u64> {
+    let owned = app.windows.dialog_for.filter(|_| app.windows.dialog_owner_gen == app.windows.dialog_gen);
+    app.dialog.as_ref().and_then(|d| d.compose().or(owned))
 }
 
 /// The Edit menu's input ([`MailApp::edit_keys`]) when this window has the keyboard: the main
@@ -3021,6 +3070,10 @@ mod window_identity_tests;
 #[cfg(test)]
 #[path = "window_places_show_tests.rs"]
 mod window_places_show_tests;
+
+#[cfg(test)]
+#[path = "window_dialog_tests.rs"]
+mod window_dialog_tests;
 
 #[path = "compose_window.rs"]
 pub(crate) mod compose_window;

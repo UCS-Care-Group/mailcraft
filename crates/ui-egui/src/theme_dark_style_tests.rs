@@ -66,15 +66,15 @@ fn the_window_shows_the_style_in_dark_only_with_the_accent_and_high_contrast() {
     assert_ne!(blue.canvas, neutral.canvas);
     // Blue-tinted: more blue than red in the window's grey.
     assert!(blue.canvas.b() > blue.canvas.r());
-    assert_eq!(blue.accent, Accent::Blue.ink_on_blue(false).accent);
+    assert_eq!(blue.accent, Accent::Blue.ink_on_blue(false, None).accent);
 
     // The accent and high contrast apply to it as to the neutral greys.
     a.execute("ui.accent", json!({"accent": "teal"})).unwrap();
     a.execute("ui.highContrast", json!({"on": true})).unwrap();
     let strong = shown(&mut a, &ctx);
     assert!(strong.high_contrast && strong.dark);
-    assert_eq!(strong.accent, Accent::Teal.ink_on_blue(true).accent);
-    assert_eq!(strong.selection, Accent::Teal.ink_on_blue(true).selection);
+    assert_eq!(strong.accent, Accent::Teal.ink_on_blue(true, None).accent);
+    assert_eq!(strong.selection, Accent::Teal.ink_on_blue(true, None).selection);
     assert!(strong.canvas.b() > strong.canvas.r());
     assert_ne!(strong.canvas, Tokens::build(true, Accent::Teal, true).canvas);
 

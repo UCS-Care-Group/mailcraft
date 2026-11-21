@@ -625,6 +625,11 @@ msgstr ""
 msgid "Accent Colour"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 msgid "Accept"
@@ -3409,6 +3414,11 @@ msgstr ""
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 msgid "Current View"
+msgstr ""
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
 msgstr ""
 
 #. command label, name
@@ -9904,6 +9914,11 @@ msgid "Paste Picture"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+msgid "Paste Text Only"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Paste or write the signature's HTML"
 msgstr ""
@@ -10849,6 +10864,16 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Rename Signature"
+msgstr ""
+
+#. name
+#: crates/model/src/sync/progress.rs
+msgid "Renaming a category on the server"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+msgid "Renaming a category on the server: {done} of {total} messages"
 msgstr ""
 
 #. interface
@@ -13941,6 +13966,20 @@ msgstr ""
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The certificate is for another address than the sender's."
@@ -14846,6 +14885,11 @@ msgstr ""
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "The sign-in was declined."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
 msgstr ""
 
 #. interface
@@ -18691,6 +18735,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src
 msgid "that mailbox is open in another MailCraft window; close it there first"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "that message is a draft: open it and send it"
 msgstr ""
 
 #. what a command says

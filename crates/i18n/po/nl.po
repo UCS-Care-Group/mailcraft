@@ -744,6 +744,11 @@ msgstr "Accent"
 msgid "Accent Colour"
 msgstr "Accentkleur"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 msgid "Accept"
@@ -3959,6 +3964,11 @@ msgstr "Huidig postvak"
 #: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 msgid "Current View"
 msgstr "Huidige weergave"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr ""
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
@@ -11531,6 +11541,11 @@ msgid "Paste Picture"
 msgstr "Afbeelding plakken"
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+msgid "Paste Text Only"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste or write the signature's HTML"
@@ -12632,6 +12647,18 @@ msgstr "Map hernoemen…"
 #: crates/engine/src/cmd/signature.rs
 msgid "Rename Signature"
 msgstr "Handtekening hernoemen"
+
+#. name
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Renaming a category on the server"
+msgstr "Categorie wordt hernoemd op de server"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr "Categorie wordt hernoemd op de server: {done} van {total} berichten"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16254,6 +16281,22 @@ msgstr "De verzonden categorieën konden niet worden vastgelegd: {error}"
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "De categorie ‘{name}’ kon niet worden teruggezet: de lijst met categorieën is vol."
 
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] "Categorie hernoemd bij afspraken op de server: {n}"
+msgstr[1] "Categorie hernoemd bij afspraken op de server: {n}"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] "Categorie hernoemd bij berichten op de server: {n}"
+msgstr[1] "Categorie hernoemd bij berichten op de server: {n}"
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
@@ -17337,6 +17380,11 @@ msgstr "De aanmelding is geannuleerd."
 #, fuzzy
 msgid "The sign-in was declined."
 msgstr "De aanmelding is geweigerd."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -21911,6 +21959,11 @@ msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "dat postvak is geopend in een ander MailCraft-venster; sluit het daar eerst"
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "that message is a draft: open it and send it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "that message is a draft: open it to send it"
@@ -25763,16 +25816,4 @@ msgstr "−Regels"
 #, fuzzy
 #~ msgid "Scheduling Assistant"
 #~ msgstr "Planningassistent"
-
-#, fuzzy
-#~ msgid "Click to preview {name}; double-click to open it"
-#~ msgstr "Klik om {name} te bekijken; dubbelklik om het te openen"
-
-#, fuzzy
-#~ msgid "Double-click to open {name}; right-click to save it"
-#~ msgstr "Dubbelklik om {name} te openen; klik met de rechtermuisknop om het op te slaan"
-
-#, fuzzy
-#~ msgid "Header contains"
-#~ msgstr "Koptekst bevat"
 
