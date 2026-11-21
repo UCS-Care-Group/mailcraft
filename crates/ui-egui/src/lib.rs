@@ -5028,6 +5028,7 @@ impl MailApp {
 
     /// A file let go over a window ([`files::let_go`]): `writing` is the message being written
     /// that window shows, if any; a picture goes into its text when it is in HTML.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn let_go(&mut self, path: &str, writing: Option<u64>) {
         if opening::queue(self, path) {
             return;
@@ -5336,10 +5337,6 @@ impl MailApp {
         if std::mem::replace(&mut self.signatures_shown, signatures) && !signatures {
             self.leave_signature();
         }
-        // The message the main window writes: the reading pane's, or, where the windows are
-        // inside it, the one in front. (Those of the system take their own: `windows`.)
-        #[cfg(not(target_arch = "wasm32"))]
-        let writing = if ctx.embed_viewports() { windows::compose_window::target(self) } else { windows::compose_window::pane_compose(self) };
         #[cfg(not(target_arch = "wasm32"))]
         for f in ctx.input(|i| i.raw.dropped_files.clone()) {
             // A file let go over the window is the owner's doing.
@@ -5349,6 +5346,10 @@ impl MailApp {
             if signatures && self.session.signature_edit.is_some() {
                 signatures::add_picture(self, json!({"path": path}));
             } else {
+                // The message the main window writes: the reading pane's, or, where the windows
+                // are inside it, the one in front (those of the system take their own:
+                // `windows`). Asked for each file: a mailbox let go with them changes it.
+                let writing = if ctx.embed_viewports() { windows::compose_window::target(self) } else { windows::compose_window::pane_compose(self) };
                 self.let_go(&path, writing);
             }
         }

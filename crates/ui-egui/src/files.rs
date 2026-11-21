@@ -482,6 +482,20 @@ fn on_message(mut params: Value, asking: Option<u64>) -> Value {
     params
 }
 
+/// A picture let go over the message being written `asking`, put in its text; one the text can't
+/// take (a file that is no picture after all, an animated one over the cap, one past the
+/// message's thirty pictures or 20 MB) is attached instead, so that a file let go over a message
+/// never goes nowhere. `picture` and `attachment` are the two commands' params for the file `name`.
+fn in_text_or_attached(app: &mut MailApp, name: &str, picture: Value, attachment: Value, asking: Option<u64>) -> Result<Value, String> {
+    let why = match app.execute("insert.picture", on_message(picture, asking)) {
+        Ok(r) => return Ok(r),
+        Err(e) => app.refusal_said(&e),
+    };
+    let r = app.run("compose.attach", on_message(attachment, asking))?;
+    app.status(crate::i18n::fmt(tl!("{name} is attached: it can't go in the text ({why})"), &[("name", name), ("why", &why)]));
+    Ok(r)
+}
+
 fn opened_path(app: &mut MailApp, purpose: &str, path: &str, asking: Option<u64>) -> Result<Value, String> {
     // A key file (#30): read here, at most a key file's size, and handed on as bytes, never as a
     // path a command opens.
@@ -551,7 +565,10 @@ pub(crate) fn dropped_path(app: &mut MailApp, path: &str) {
 /// A file let go over a window: the one showing the message being written `writing`, or one
 /// with none. That message takes it whether or not its window has the keyboard (a file dragged
 /// from the desktop leaves the keyboard where it was).
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn let_go(app: &mut MailApp, path: &str, writing: Option<u64>) {
+    // (A mailbox let go with it, before it, may have closed that message.)
+    let writing = writing.filter(|c| app.session.composing_by_id(*c).is_some());
     landed(app, path, writing, true);
 }
 
@@ -580,6 +597,12 @@ fn landed(app: &mut MailApp, path: &str, writing: Option<u64>, let_go: bool) {
     // double-clicked, #1401) is asked about first: how many messages, and where they go.
     if purpose == "import" && is_mail_file(&path) {
         wait_to_ask(app, path);
+        return;
+    }
+    if purpose == "bodyPicture" {
+        if in_text_or_attached(app, &file_name(&path), json!({"path": path}), json!({"path": path}), writing).is_ok() {
+            app.ui.backstage = false;
+        }
         return;
     }
     let _ = opened_path(app, purpose, &path, writing);
@@ -807,6 +830,7 @@ pub(crate) fn drain_inbox(app: &mut MailApp) {
 
 /// One file that arrived: opened, brought in, attached or put in the body, as it was picked for.
 fn delivered_one(app: &mut MailApp, d: crate::Delivered) {
+    let dropped = d.asked.is_none();
     let (purpose, asking) = d.asked.unwrap_or_else(|| {
         let writing = crate::windows::compose_window::target(app);
         (purpose_of(app, &d.name, writing, true).to_string(), writing)
@@ -829,6 +853,7 @@ fn delivered_one(app: &mut MailApp, d: crate::Delivered) {
     let r = match purpose.as_str() {
         "mailbox" => app.run("file.open", json!({"name": name, "data": data})),
         "attach" => app.run("compose.attach", on_message(json!({"name": name, "data": data}), asking)),
+        "bodyPicture" if dropped => in_text_or_attached(app, &name, json!({"file": name, "data": data}), json!({"name": name, "data": data}), asking),
         "bodyPicture" => app.run("insert.picture", on_message(json!({"file": name, "data": data}), asking)),
         _ => app.run("file.import", json!({"name": name, "data": data})),
     };
