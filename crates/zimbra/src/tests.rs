@@ -265,6 +265,33 @@ fn an_id_the_search_quietly_leaves_out_is_asked_for_by_name() {
 }
 
 #[test]
+fn a_delta_item_in_another_mailboxs_folder_is_passed_over_not_wedged_on() {
+    let server = StandIn::new();
+    let shared = server.deliver(2, "Shared mount's", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    // The delta names the id; the batch search skips the hit's foreign `l`, so the probe asks
+    // for it by name — and its answer carries the same foreign `l`. Refusing it there ended the
+    // run on the same delta page for ever; kept as the other mailbox's id, the mail-folder set
+    // sorts it out of this mailbox and the token moves on.
+    server.change(shared, |m| m.flags = "u".into());
+    let shared = shared.to_string();
+    let named = shared.clone();
+    let foreign = move |body: &mut serde_json::Value| {
+        for pointer in ["/Body/SearchResponse/m", "/Body/GetMsgResponse/m"] {
+            if let Some(messages) = body.pointer_mut(pointer).and_then(serde_json::Value::as_array_mut) {
+                for message in messages.iter_mut().filter(|m| m["id"] == named) {
+                    message["l"] = serde_json::json!("x:2");
+                }
+            }
+        }
+    };
+    let all = whole(&collect(&Edited { server, edit: Box::new(foreign) }, &token));
+    assert_eq!(all.errors, Vec::<String>::new());
+    assert!(all.whole && !all.token.is_empty());
+    assert!(all.pages.iter().any(|p| p.removed.contains(&shared.to_string())));
+}
+
+#[test]
 fn folders_made_between_delta_pages_are_each_listed_and_kept() {
     let server = StandIn::new();
     let token = whole(&run(&server, &request(""), PASSWORD)).token;
