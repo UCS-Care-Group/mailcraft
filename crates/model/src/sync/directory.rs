@@ -223,6 +223,11 @@ pub struct EwsResolveResult {
     /// downloaded, and the list held stays.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub address_list_unchanged: bool,
+    /// The download failed for a reason the server's own answer gives, which a minute doesn't
+    /// change (it publishes no address book for the account, or its file is too large or can't
+    /// be read): it is tried again a day later, not a minute later.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub address_list_lasting: bool,
 }
 
 /// The whole address list of an Exchange server account, as its Offline Address Book has it
@@ -259,6 +264,7 @@ impl std::fmt::Debug for EwsResolveResult {
             .field("auth_refused", &self.auth_refused)
             .field("address_list", &self.address_list)
             .field("address_list_unchanged", &self.address_list_unchanged)
+            .field("address_list_lasting", &self.address_list_lasting)
             .finish()
     }
 }

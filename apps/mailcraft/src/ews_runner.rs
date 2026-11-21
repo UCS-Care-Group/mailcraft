@@ -665,9 +665,19 @@ fn run_address_list(request: &EwsResolveRequest, password: &str, cancel: &Arc<At
             let why = said.split_once(": ").map_or(said.as_str(), |(_, why)| why);
             out.error = Some(format!("{LINE}: {why}"));
         }
-        Err(OabError::NotPublished) => out.error = Some(format!("{LINE}: the server publishes none for this account")),
-        Err(OabError::TooLarge) => out.error = Some(format!("{LINE}: it is larger than MailCraft downloads")),
-        Err(OabError::File(_)) => out.error = Some(format!("{LINE}: the file the server sent can't be read")),
+        // (The server's own answer: asked again a day later, not a minute later.)
+        Err(OabError::NotPublished) => {
+            out.error = Some(format!("{LINE}: the server publishes none for this account"));
+            out.address_list_lasting = true;
+        }
+        Err(OabError::TooLarge) => {
+            out.error = Some(format!("{LINE}: it is larger than MailCraft downloads"));
+            out.address_list_lasting = true;
+        }
+        Err(OabError::File(_)) => {
+            out.error = Some(format!("{LINE}: the file the server sent can't be read"));
+            out.address_list_lasting = true;
+        }
         // Nobody waits for it: the mailbox was closed or replaced meanwhile.
         Err(OabError::Cancelled) => {}
     }

@@ -96,6 +96,7 @@ fn window_downloading(hold: bool, list: Option<Vec<DirectoryPerson>>, endless: b
                 },
                 None => EwsResolveResult {
                     error: Some("Couldn't download the organisation's address book: the server publishes none".into()),
+                    address_list_lasting: true,
                     ..Default::default()
                 },
             };
@@ -549,7 +550,8 @@ fn while_the_list_downloads_what_is_typed_is_searched_on_the_server() {
     assert_eq!(downloads(&asked), 1, "the download is not asked for again meanwhile");
 }
 
-/// A day later it is downloaded again; a download that failed is tried again a minute later.
+/// A day later it is downloaded again; when the server publishes none, that is asked again a day
+/// later too, while a download that failed otherwise is tried again a minute later (below).
 #[test]
 fn the_list_is_downloaded_again_a_day_later() {
     let (mut app, _, asked) = window_with(false, Some(organisation()));
@@ -573,7 +575,11 @@ fn the_list_is_downloaded_again_a_day_later() {
     assert!(app.address_lists[0].error.as_deref().is_some_and(|e| e.contains("publishes none")));
     app.poll_address_book(&ctx);
     assert_eq!(downloads(&asked), 1);
+    // The server's own answer that it publishes none: not asked again a minute later, but a day.
     app.address_lists[0].at_ms -= RETRY_MS;
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 1);
+    app.address_lists[0].at_ms -= REFRESH_MS;
     app.poll_address_book(&ctx);
     assert_eq!(downloads(&asked), 2);
 }

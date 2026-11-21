@@ -42,7 +42,8 @@ pub const MIN_CHARS: usize = 2;
 pub const PAUSE_MS: f64 = 400.0;
 /// How old a downloaded address list may get before it is downloaded again, in milliseconds.
 pub const REFRESH_MS: f64 = 24.0 * 3600.0 * 1000.0;
-/// How long after a download that failed one is tried again, in milliseconds.
+/// How long after a download that failed one is tried again, in milliseconds; after one the
+/// server's own answer stopped (none published, a file too large or unreadable), [`REFRESH_MS`].
 pub const RETRY_MS: f64 = 60.0 * 1000.0;
 const ROW_H: f32 = 52.0;
 const CARD_W: f32 = 720.0;
@@ -59,6 +60,9 @@ pub(crate) struct HeldList {
     keys: Vec<String>,
     /// Why the last download failed.
     pub(crate) error: Option<String>,
+    /// It failed for a reason the server's answer gives, which a minute doesn't change: it is
+    /// tried again a day later.
+    lasting: bool,
     pending: Option<Pending>,
     /// When the list came, or the last download was tried.
     at_ms: f64,
@@ -264,6 +268,7 @@ impl MailApp {
             }
             held.pending = None;
             held.at_ms = now;
+            held.lasting = result.address_list_lasting;
             if result.address_list_unchanged && held.list.is_some() {
                 // The server's is the one held: it stays, and is asked about again a day later.
                 held.error = None;
@@ -289,6 +294,7 @@ impl MailApp {
             None => true,
             Some(h) if h.pending.is_some() => false,
             Some(h) if h.list.is_some() && h.error.is_none() => now - h.at_ms >= REFRESH_MS,
+            Some(h) if h.lasting => now - h.at_ms >= REFRESH_MS,
             Some(h) => now - h.at_ms >= RETRY_MS,
         };
         if !due {
@@ -310,6 +316,7 @@ impl MailApp {
                 list: None,
                 keys: Vec::new(),
                 error: None,
+                lasting: false,
                 pending: None,
                 at_ms: now,
                 version: 0,
