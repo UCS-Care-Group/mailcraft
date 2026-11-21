@@ -157,47 +157,159 @@ fn is_combining_mark(c: char) -> bool {
 }
 
 /// The places `text` is in the owner's text. `whole_word` keeps a place only when it is a whole
-/// word ([`whole_word_only`]).
+/// word. The search without it is one pass of `RichText::find`, which reports places that do not
+/// overlap; with it, a place that is not a whole word is put aside and the search goes on from the
+/// next character, so a later place that overlaps it can still be a whole word. Places that are
+/// kept still do not overlap.
 fn places(s: &Session, text: &str, match_case: bool, whole_word: bool) -> Vec<Place> {
     let Some((body, _)) = s.doc() else { return Vec::new() };
-    let found = body.text().find(text, match_case, 0, reach(s));
-    if whole_word { whole_word_only(&body.plain(), &found) } else { found }
+    let end = reach(s);
+    let found = body.text().find(text, match_case, 0, end);
+    if whole_word { whole_word_places(&body.plain(), text, match_case, end, &found) } else { found }
 }
 
-/// Places whose neighbours in `text` (character offsets, as [`Place`]) are not part of the same
-/// word. A combining mark after the place keeps it inside the word, as does a word character
-/// with only marks between it and the place, and a place that itself starts on a mark.
-fn whole_word_only(text: &str, places: &[Place]) -> Vec<Place> {
-    let mut kept = Vec::with_capacity(places.len());
-    let mut chars = text.chars();
-    let mut at = 0usize;
-    // The last character before `at` that is not a combining mark.
-    let mut base = None;
-    for &(start, end) in places {
-        while at < start {
-            if let Some(c) = chars.next()
-                && !is_combining_mark(c)
-            {
-                base = Some(c);
+/// `c` as [`mailcraft_model::RichText::find`] compares it when letter case does not count.
+fn fold_char(c: char) -> char {
+    let mut lower = c.to_lowercase();
+    match (lower.next(), lower.next()) {
+        (Some(folded), None) => folded,
+        _ => c,
+    }
+}
+
+/// The owner's text, indexed by character so a place can be judged from anywhere in it.
+struct Scanned<'a> {
+    text: &'a str,
+    /// Byte offset of character `i`, and one past the last character indexed.
+    byte: Vec<usize>,
+}
+
+impl<'a> Scanned<'a> {
+    /// The first `end` characters of `text` (or the whole of it, when it is shorter).
+    fn new(text: &'a str, end: usize) -> Self {
+        let mut byte = Vec::new();
+        let mut n = 0usize;
+        let mut last = 0usize;
+        for (at, c) in text.char_indices() {
+            if n >= end {
+                break;
+            }
+            byte.push(at);
+            n = n.saturating_add(1);
+            last = at.saturating_add(c.len_utf8());
+        }
+        byte.push(last);
+        Scanned { text, byte }
+    }
+
+    fn char_at(&self, i: usize) -> Option<char> {
+        let from = *self.byte.get(i)?;
+        let to = *self.byte.get(i.saturating_add(1))?;
+        self.text.get(from..to)?.chars().next()
+    }
+
+    fn slice(&self, start: usize, end: usize) -> Option<&'a str> {
+        let from = *self.byte.get(start)?;
+        let to = *self.byte.get(end)?;
+        self.text.get(from..to)
+    }
+
+    /// `needle` stands at `start`, within one paragraph, compared as Find compares it.
+    fn matches_at(&self, start: usize, needle: &str, needle_len: usize, match_case: bool) -> bool {
+        let Some(hay) = self.slice(start, start.saturating_add(needle_len)) else { return false };
+        if hay.contains('\n') {
+            return false;
+        }
+        if match_case { hay == needle } else { hay.chars().map(fold_char).eq(needle.chars().map(fold_char)) }
+    }
+
+    /// The character before `start` and the character after `end` are not part of the same word.
+    /// A combining mark after the place keeps it inside the word, as does a word character with
+    /// only marks between it and the place, and a place that itself starts on a mark.
+    fn is_whole_word(&self, start: usize, end: usize) -> bool {
+        if start >= end {
+            return false;
+        }
+        let Some(first) = self.char_at(start) else { return false };
+        if is_combining_mark(first) {
+            return false;
+        }
+        let mut i = start;
+        while i > 0 {
+            let Some(c) = self.char_at(i.saturating_sub(1)) else { break };
+            if !is_combining_mark(c) {
+                if is_word_char(c) {
+                    return false;
+                }
+                break;
+            }
+            i = i.saturating_sub(1);
+        }
+        !self.char_at(end).is_some_and(|c| is_word_char(c) || is_combining_mark(c))
+    }
+
+    /// The next place `needle` starts at after `start` and before `stop` (so it overlaps
+    /// `[start, stop)`), within `end`.
+    fn next_overlap(&self, start: usize, stop: usize, needle: &str, needle_len: usize, match_case: bool, end: usize) -> Option<usize> {
+        let mut at = start.saturating_add(1);
+        let mut steps = 0usize;
+        while at < stop && at.saturating_add(needle_len) <= end && steps < needle_len {
+            steps = steps.saturating_add(1);
+            if self.matches_at(at, needle, needle_len, match_case) {
+                return Some(at);
             }
             at = at.saturating_add(1);
         }
-        let before = !base.is_some_and(is_word_char);
-        let mut first = None;
-        while at < end {
-            if let Some(c) = chars.next() {
-                if first.is_none() {
-                    first = Some(c);
-                }
-                if !is_combining_mark(c) {
-                    base = Some(c);
-                }
+        None
+    }
+}
+
+/// [`places`] with `whole_word`: `disjoint` is what Find reports (places that do not overlap).
+/// A place that is not a whole word does not hide one that overlaps it.
+fn whole_word_places(text: &str, needle: &str, match_case: bool, end: usize, disjoint: &[Place]) -> Vec<Place> {
+    let needle_len = needle.chars().count();
+    if needle_len == 0 || needle_len > MAX_FIND {
+        return Vec::new();
+    }
+    let scanned = Scanned::new(text, end);
+    let mut kept = Vec::new();
+    let mut resume = 0usize;
+    let mut di = 0usize;
+    let mut forced: Option<usize> = None;
+    // Each pass starts later than the last. `end` is the owner's text, so this is bounded by it;
+    // skipping a place Find already reported takes a step too.
+    let limit = end.saturating_mul(2);
+    let mut guard = 0usize;
+    while resume < end && guard < limit {
+        guard = guard.saturating_add(1);
+        let (start, stop, check) = if let Some(start) = forced.take() {
+            (start, start.saturating_add(needle_len), true)
+        } else {
+            while di < disjoint.len() && disjoint[di].0 < resume {
+                di = di.saturating_add(1);
             }
-            at = at.saturating_add(1);
+            if di >= disjoint.len() {
+                break;
+            }
+            let (start, stop) = disjoint[di];
+            di = di.saturating_add(1);
+            (start, stop, false)
+        };
+        if start < resume || stop <= start || stop > end {
+            continue;
         }
-        let after = !chars.as_str().chars().next().is_some_and(|c| is_word_char(c) || is_combining_mark(c));
-        if before && after && !first.is_some_and(is_combining_mark) {
-            kept.push((start, end));
+        if check && !scanned.matches_at(start, needle, needle_len, match_case) {
+            resume = start.saturating_add(1);
+            continue;
+        }
+        resume = start.saturating_add(1);
+        if scanned.is_whole_word(start, stop) {
+            kept.push((start, stop));
+            resume = stop;
+        } else if let Some(next) = scanned.next_overlap(start, stop, needle, needle_len, match_case, end)
+            && next >= resume
+        {
+            forced = Some(next);
         }
     }
     kept

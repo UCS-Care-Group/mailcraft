@@ -179,6 +179,25 @@ fn whole_word_keeps_a_combining_mark_with_its_letter() {
 }
 
 #[test]
+fn whole_word_finds_an_overlapping_place_the_earlier_one_hid() {
+    // `xa a a`: Find's disjoint matches report only (1, 4), which sits inside `xa`.
+    // (3, 6) overlaps it and is a whole word.
+    let mut s = writing("xa a a");
+    let r = run(&mut s, "edit.find", json!({"text": "a a", "wholeWord": true}));
+    assert_eq!((r["found"].as_bool(), r["from"].as_u64(), r["to"].as_u64(), r["count"].as_u64()), (Some(true), Some(3), Some(6), Some(1)));
+    let r = run(&mut s, "edit.replace", json!({"text": "a a", "with": "b b", "all": true, "wholeWord": true}));
+    assert_eq!(r["replaced"], 1);
+    assert_eq!(mine(&s), "xa b b");
+    // Without whole word, that earlier disjoint place is the one that is found and replaced.
+    let mut s = writing("xa a a");
+    let r = run(&mut s, "edit.find", json!({"text": "a a"}));
+    assert_eq!((r["from"].as_u64(), r["to"].as_u64(), r["count"].as_u64()), (Some(1), Some(4), Some(1)));
+    let r = run(&mut s, "edit.replace", json!({"text": "a a", "with": "b b", "all": true}));
+    assert_eq!(r["replaced"], 1);
+    assert_eq!(mine(&s), "xb b a");
+}
+
+#[test]
 fn whole_word_off_still_replaces_inside_a_word() {
     let mut s = writing(TEH);
     let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "all": true}));
