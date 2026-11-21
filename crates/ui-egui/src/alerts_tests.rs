@@ -15,7 +15,7 @@ use crate::{MailApp, Services};
 #[derive(Clone, Default)]
 struct Recorder {
     shown: Arc<Mutex<Vec<DesktopAlert>>>,
-    clicks: Arc<Mutex<Vec<u64>>>,
+    clicks: Arc<Mutex<Vec<Click>>>,
     trouble: Option<AlertTrouble>,
 }
 
@@ -27,7 +27,7 @@ impl AlertHost for Recorder {
     fn trouble(&self) -> Option<AlertTrouble> {
         self.trouble
     }
-    fn clicked(&self) -> Vec<u64> {
+    fn clicked(&self) -> Vec<Click> {
         std::mem::take(&mut *self.clicks.lock().unwrap())
     }
 }
@@ -233,13 +233,38 @@ fn a_click_brings_the_message_up_and_nothing_else_opens_anything() {
     let alert = recorder.shown.lock().unwrap()[0].clone();
     let Opens::Message { message, .. } = alert.opens else { panic!("{alert:?}") };
     // A key the window never handed out is nobody's.
-    recorder.clicks.lock().unwrap().extend([alert.key + 100, 0]);
+    recorder.clicks.lock().unwrap().extend([click(alert.key + 100), click(0)]);
     frame(&mut app, &ctx, false);
     assert_ne!(app.session.sel.focus(), Some(message));
-    recorder.clicks.lock().unwrap().push(alert.key);
+    recorder.clicks.lock().unwrap().push(click(alert.key));
     frame(&mut app, &ctx, false);
     assert_eq!(app.session.view.folder, inbox);
     assert_eq!(app.session.sel.focus(), Some(message));
+}
+
+fn click(key: u64) -> Click {
+    Click { key, token: None }
+}
+
+#[test]
+fn the_token_a_click_came_with_is_handed_to_the_host_once() {
+    let (mut app, recorder, account, inbox) = window();
+    let ctx = egui::Context::default();
+    run(&mut app, &ctx, false, account, inbox, &[(2, "Rowan Pike", "Lunch?")]);
+    let key = recorder.shown.lock().unwrap()[0].key;
+    let token = "gnome-shell/MailCraft/2741-5-host_TIME812";
+    recorder.clicks.lock().unwrap().push(Click { key, token: Some(token.into()) });
+    frame(&mut app, &ctx, false);
+    assert_eq!(take_activation(&mut app).as_deref(), Some(token));
+    assert_eq!(take_activation(&mut app), None, "once");
+    // A click without one: nothing to hand on (the window asks for the focus, as before).
+    recorder.clicks.lock().unwrap().push(click(key));
+    frame(&mut app, &ctx, false);
+    assert_eq!(take_activation(&mut app), None);
+    // A key the window never handed out opens nothing, so brings nothing in front either.
+    recorder.clicks.lock().unwrap().push(Click { key: key + 100, token: Some(token.into()) });
+    frame(&mut app, &ctx, false);
+    assert_eq!(take_activation(&mut app), None);
 }
 
 #[test]
