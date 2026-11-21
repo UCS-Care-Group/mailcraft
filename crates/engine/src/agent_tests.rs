@@ -206,6 +206,28 @@ fn the_account_question_names_a_local_mailbox_and_the_only_account() {
 }
 
 #[test]
+fn running_rules_with_all_inboxes_on_asks_before_filing_onto_another_server() {
+    let mut s = sample();
+    let here = s.mailbox.default_account().unwrap().id;
+    let inbox = s.mailbox.folder_of_kind(here, FolderKind::Inbox).unwrap();
+    let other =
+        s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let there = s.mailbox.folder_of_kind(other, FolderKind::Archive).unwrap();
+    s.run("rules.add", &json!({"name": "File", "account": here, "conditions": [{"type": "fromContains", "value": "x"}], "actions": [{"type": "moveTo", "value": there}]})).unwrap();
+    s.view.folder = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    s.view.all_inboxes = true;
+    assert!(matches!(classify(&s, "rules.run", &json!({})), Access::Owner(Class::Send)));
+    assert!(
+        !matches!(classify(&s, "rules.run", &json!({"allInboxes": true, "folder": 0})), Access::Owner(Class::Send)),
+        "a folder of 0 is refused beside allInboxes too"
+    );
+    assert!(!matches!(classify(&s, "rules.run", &json!({"folder": 0})), Access::Owner(Class::Send)), "a folder of 0 is refused");
+    assert!(!matches!(classify(&s, "rules.run", &json!({"folder": null})), Access::Owner(Class::Send)), "a folder of null is refused");
+    assert!(!matches!(classify(&s, "rules.run", &json!({"folder": s.view.folder})), Access::Owner(Class::Send)));
+    assert_eq!(inbox, s.mailbox.folder_of_kind(here, FolderKind::Inbox).unwrap());
+}
+
+#[test]
 fn the_sender_addresses_question_names_the_names_and_the_replacement() {
     let mut s = Session::empty();
     let id = s

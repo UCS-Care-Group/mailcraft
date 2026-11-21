@@ -54,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.markUnread", "Mark as Unread", "Home › Tags", mark_unread).key("Mod+U").params(IDS).selection(needs_message),
         CommandSpec::new("mail.toggleRead", "Unread/ Read", "Home › Tags", toggle_read).params(IDS).selection(needs_message),
         CommandSpec::new("mail.markAllRead", "Mark All as Read", "Folder › Clean Up", mark_all_read)
-            .params(r#"{"folder"?: number} — a folder that is there, read strictly: an id as text, `null`, `0` or a fraction is refused rather than taken for the folder in view (default: the folder in view). Answers {"folder", "changed"}"#),
+            .params(r#"{"folder"?: number, "allInboxes"?: bool} — a folder that is there, read strictly: an id as text, `null`, `0` or a fraction is refused rather than taken for the folder in view (default: the folder in view; while All Inboxes is the list on screen and neither is named, every Inbox of the owner's own accounts). {"allInboxes": true} is those Inboxes, and naming a folder as well is refused. Answers {"folder", "folders", "changed"}: "folder" is the first acted on, "folders" is every one"#),
         CommandSpec::new("mail.flag", "Follow Up", "Home › Tags", flag)
             .key("Insert")
             .params(r#"{"due"?: "YYYY-MM-DD", "ids"?: [number]}"#)
@@ -688,6 +688,11 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     let query: String = p::str(v, "query").unwrap_or("").chars().filter(|c| !c.is_control()).take(2000).collect();
     let (view, sel) = (s.view.clone(), s.sel.clone());
     s.view.folder = folder;
+    // The folder asked for, not every Inbox: the flag is only for the list in view, which this
+    // call puts back when it is done.
+    if v.get("folder").is_some_and(|f| !f.is_null()) {
+        s.view.all_inboxes = false;
+    }
     s.view.module = crate::Module::Mail;
     s.view.search = query;
     s.view.scope = crate::Scope::Folder;
@@ -865,18 +870,50 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
     each(s, v, |m| m.read = any_unread)
 }
 
-fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
-    // An id, read strictly (#1449): an id as text or `null` is refused, never taken to mean the
-    // folder in view, which would mark all of another folder's mail read without a word.
-    let folder = p::id_strict(v, "folder")?.unwrap_or(s.view.folder);
+/// The folders `mail.markAllRead` and `rules.run` act on: every Inbox, or the one folder named
+/// (the folder in view when none is). While All Inboxes is the list on screen and the call names
+/// neither a folder nor `allInboxes`, the ribbon's buttons act on those Inboxes, not on
+/// `view.folder`, which is still the folder that was open before. A search of every mailbox that
+/// asks for something is a different list: the folder pane marks no All Inboxes row then, and
+/// neither does this. Text with no words in it is not such a search.
+/// A named folder is read strictly (#1449): an id as text, `null`, `0` or a fraction is refused,
+/// never taken to mean the folder in view. A folder named together with `allInboxes: true`
+/// is refused: the call must not quietly act on every Inbox instead of the folder it named.
+pub(crate) fn folders_asked(s: &Session, v: &Value) -> Result<Vec<Id>, crate::CmdError> {
+    let named = p::id_strict(v, "folder")?;
+    let every = p::opt_bool(v, "allInboxes")?;
+    if every == Some(true) {
+        if named.is_some() {
+            return Err(fail("a folder and allInboxes are not both named"));
+        }
+        return inboxes_of(s);
+    }
+    if named.is_none() && every.is_none() && s.view.shows_all_inboxes() {
+        return inboxes_of(s);
+    }
+    let folder = named.unwrap_or(s.view.folder);
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }
-    let ids: Vec<Id> = s.mailbox.messages_in(folder).filter(|m| !m.read).map(|m| m.id).collect();
+    Ok(vec![folder])
+}
+
+fn inboxes_of(s: &Session) -> Result<Vec<Id>, crate::CmdError> {
+    let ids = s.mailbox.inboxes();
+    if ids.is_empty() {
+        return Err(fail("there is no Inbox"));
+    }
+    Ok(ids)
+}
+
+fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
+    let folders = folders_asked(s, v)?;
+    let ids: Vec<Id> = folders.iter().flat_map(|folder| s.mailbox.messages_in(*folder).filter(|m| !m.read).map(|m| m.id)).collect();
     for id in &ids {
         s.mailbox.message_mut(*id)?.read = true;
     }
-    Ok(json!({"folder": folder, "changed": ids.len()}))
+    let folder = folders.first().copied().unwrap_or(s.view.folder);
+    Ok(json!({"folder": folder, "folders": folders, "changed": ids.len()}))
 }
 
 fn flag(s: &mut Session, v: &Value) -> CmdResult {

@@ -1214,6 +1214,21 @@ msgstr "Všechny kategorie"
 msgid "All Categories…"
 msgstr "Všechny kategorie…"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+msgid "All Inboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "All Inboxes and their subfolders"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "All Inboxes needs two mailboxes"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -1260,6 +1275,11 @@ msgstr "Všechny"
 #, fuzzy
 msgid "All the conditions must hold"
 msgstr "Musí platit všechny podmínky"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "All your mailboxes"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/forms.rs
@@ -6687,6 +6707,11 @@ msgstr "Nápověda"
 msgid "Hide"
 msgstr "Skrýt"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Hide All Inboxes"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
@@ -11058,6 +11083,11 @@ msgid "One of a series: {rule}"
 msgstr "Součást řady: {rule}"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "One row above Favorites then lists every Inbox together, with the unread count."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "One that is there already (the same title at the same time) is not made a second time: the copy on this computer goes."
@@ -14697,6 +14727,16 @@ msgid ""
 msgstr ""
 "Zobrazit\n"
 "školení"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show All Inboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Show All Inboxes when there are two mailboxes or more"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -20924,6 +20964,11 @@ msgid "a favourite can't be put before itself"
 msgstr "oblíbenou položku nelze umístit před sebe samu"
 
 #. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "a folder and allInboxes are not both named"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't be put before itself"
@@ -21048,6 +21093,11 @@ msgstr "pravidlo nemůže přesunout poštu do složky Pošta k odeslání: odes
 #, fuzzy
 msgid "a rule is for an account's own mail, not a shared mailbox's"
 msgstr "pravidlo je pro vlastní poštu účtu, ne pro sdílenou poštovní schránku"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "a rule is run on one folder"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23364,6 +23414,11 @@ msgstr "podpisů je příliš mnoho"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "podpis s názvem „{to}“ už existuje"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "there is no Inbox"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs

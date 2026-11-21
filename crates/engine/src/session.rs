@@ -280,6 +280,8 @@ pub struct ViewState {
     pub module: Module,
     /// The mail folder in view.
     pub folder: Id,
+    /// The list shows every account's Inbox together (All Inboxes), rather than `folder` alone.
+    pub all_inboxes: bool,
     pub sort: SortBy,
     /// Newest (largest, Z) first.
     pub sort_descending: bool,
@@ -343,6 +345,7 @@ impl Default for ViewState {
         ViewState {
             module: Module::Mail,
             folder: 0,
+            all_inboxes: false,
             sort: SortBy::Date,
             sort_descending: true,
             conversations: false,
@@ -369,6 +372,14 @@ impl Default for ViewState {
             people_account: AccountChoice::All,
             people_book: None,
         }
+    }
+}
+
+impl ViewState {
+    /// The list on screen is All Inboxes. A search of every mailbox that asks for something is
+    /// another list. Text with no words in it is not a search: the list is still every Inbox.
+    pub fn shows_all_inboxes(&self) -> bool {
+        self.all_inboxes && !(self.scope == Scope::Everywhere && !mailcraft_model::search::Query::parse(&self.search).is_empty())
     }
 }
 
@@ -450,6 +461,8 @@ pub(crate) struct ListOf {
     /// The Gmail category it shows, if any (#911).
     gmail: Option<(Id, mailcraft_model::GmailCategory)>,
     search: Option<(mailcraft_model::search::Query, Scope)>,
+    /// Every Inbox together, above Favorites. Another list from the one folder in view.
+    all_inboxes: bool,
     /// The day, the first day of the week and the zone, for a search with dates in it:
     /// `received:today` is other messages tomorrow (#329).
     when: Option<String>,
@@ -462,7 +475,7 @@ impl ListOf {
         let query = mailcraft_model::search::Query::parse(&view.search);
         let when = query.has_dates().then(when);
         let search = (!query.is_empty()).then_some((query, view.scope));
-        ListOf { folder: view.folder, filter: view.filter, gmail: view.gmail, search, when }
+        ListOf { folder: view.folder, filter: view.filter, gmail: view.gmail, search, all_inboxes: view.all_inboxes, when }
     }
 }
 
@@ -1759,6 +1772,7 @@ impl Session {
     pub(crate) fn show_whole_folder(&mut self) {
         self.view.filter = Filter::All;
         self.view.gmail = None;
+        self.view.all_inboxes = false;
         self.clear_search();
     }
 
@@ -3166,6 +3180,11 @@ impl Session {
     pub fn normalize(&mut self) {
         if self.mailbox.folder(self.view.folder).is_none() {
             self.view.folder = self.mailbox.inbox().unwrap_or(0);
+        }
+        // All Inboxes needs two of the owner's own. One mailbox, or only a shared one beside it,
+        // is a single Inbox: the list and the title go back to that folder.
+        if self.mailbox.inboxes().len() < 2 {
+            self.view.all_inboxes = false;
         }
         self.select_in_view();
         let mb = &self.mailbox;

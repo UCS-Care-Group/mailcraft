@@ -1223,6 +1223,21 @@ msgstr "Minden kategória"
 msgid "All Categories…"
 msgstr "Összes kategória…"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+msgid "All Inboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "All Inboxes and their subfolders"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "All Inboxes needs two mailboxes"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -1270,6 +1285,11 @@ msgstr "Mindet."
 #, fuzzy
 msgid "All the conditions must hold"
 msgstr "Minden feltételnek teljesülnie kell"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "All your mailboxes"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/forms.rs
@@ -6666,6 +6686,11 @@ msgstr "Súgó"
 msgid "Hide"
 msgstr "Elrejtőzve"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Hide All Inboxes"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
@@ -11035,6 +11060,11 @@ msgid "One of a series: {rule}"
 msgstr "Sorozat egyik előfordulása: {rule}"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "One row above Favorites then lists every Inbox together, with the unread count."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "One that is there already (the same title at the same time) is not made a second time: the copy on this computer goes."
@@ -14667,6 +14697,16 @@ msgid ""
 "Show\n"
 "Training"
 msgstr "Képzés megjelenítése"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show All Inboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Show All Inboxes when there are two mailboxes or more"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -20878,6 +20918,11 @@ msgid "a favourite can't be put before itself"
 msgstr "egy kedvenc nem tehető saját maga elé"
 
 #. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "a folder and allInboxes are not both named"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't be put before itself"
@@ -21002,6 +21047,11 @@ msgstr "Egy szabály nem tudja átvinni a postát egy Outbox-ba: az elküldené.
 #, fuzzy
 msgid "a rule is for an account's own mail, not a shared mailbox's"
 msgstr "A szabály a saját postafiókra vonatkozik, nem pedig a megosztott postafiókra."
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "a rule is run on one folder"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23316,6 +23366,11 @@ msgstr "Túl sok az aláírás."
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "Van már egy \"{to}\" nevű aláírás."
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "there is no Inbox"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
