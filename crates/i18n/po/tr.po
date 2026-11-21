@@ -724,6 +724,12 @@ msgstr "Vurgu"
 msgid "Accent Colour"
 msgstr "Vurgu Rengi"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Accent colour as hex"
+msgstr "Onaltılık (hex) olarak vurgu rengi"
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4060,6 +4066,12 @@ msgstr "Geçerli Posta Kutusu"
 msgid "Current View"
 msgstr "Geçerli Görünüm"
 
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
+msgid "Custom color"
+msgstr "Özel renk"
+
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -5791,7 +5803,7 @@ msgstr ""
 "Özellikleri"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Klasör Bölmesi"
@@ -9376,11 +9388,23 @@ msgstr "Aşağı Taşı"
 msgid "Move Event"
 msgstr "Etkinliği Taşı"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "Favoriyi Yukarı veya Aşağı Taşı"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Klasörü Taşı"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "Klasörü Yukarı veya Aşağı Taşı"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -11811,6 +11835,12 @@ msgid "Paste Picture"
 msgstr "Resim Yapıştır"
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+#, fuzzy
+msgid "Paste Text Only"
+msgstr "Yalnızca Metni Yapıştır"
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste or write the signature's HTML"
@@ -12937,6 +12967,18 @@ msgstr "Klasörü Yeniden Adlandır…"
 #, fuzzy
 msgid "Rename Signature"
 msgstr "İmzayı Yeniden Adlandır"
+
+#. name
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Renaming a category on the server"
+msgstr "Sunucuda bir kategori yeniden adlandırılıyor"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr "Sunucuda bir kategori yeniden adlandırılıyor: {done} / {total} ileti"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16630,6 +16672,22 @@ msgstr "Gönderilen kategoriler kaydedilemedi: {error}"
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "'{name}' kategorisi geri konulamadı: kategori listesi dolu."
 
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] "Kategori sunucuda {n} etkinlikte yeniden adlandırıldı"
+msgstr[1] "Kategori sunucuda {n} etkinlikte yeniden adlandırıldı"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] "Kategori sunucuda {n} iletide yeniden adlandırıldı"
+msgstr[1] "Kategori sunucuda {n} iletide yeniden adlandırıldı"
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
@@ -17711,6 +17769,12 @@ msgstr "Oturum açma iptal edildi."
 #, fuzzy
 msgid "The sign-in was declined."
 msgstr "Oturum açma reddedildi."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr "İmza kaydedilemedi: {why}. Kaydetmeden çıkmak için yeniden kapatın."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -20855,6 +20919,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "taslağa anımsatıcı eklenemez: önce gönderin ya da iletinin kendi içinde Takip Et özelliğini kullanın"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "bir favori kendisinden önceye yerleştirilemez"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "bir klasör kendisinden önceye yerleştirilemez"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20865,6 +20941,12 @@ msgstr "bir klasör kendi içine taşınamaz"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "bir klasör başka bir hesaba taşınamaz"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "bir klasör yanındaki klasörlerin arasına yerleştirilir: aynı üst klasöre sahip bir klasör belirtin"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -22271,6 +22353,12 @@ msgstr "bu, bu .pst dosyasının parolası değil: hiçbir şey içe aktarılmad
 #, fuzzy
 msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "bu posta kutusu başka bir MailCraft penceresinde açık; önce oradan kapatın"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
+msgid "that message is a draft: open it and send it"
+msgstr "bu ileti bir taslak: açıp gönderin"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24261,6 +24349,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} bir paylaşılan posta kutusu değil: account.remove ile kaldırın"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} Favoriler arasında değil"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24331,6 +24425,12 @@ msgstr "{name} sizinle bir takvim paylaştı."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} sizinle bir takvim paylaştı. Takvim listenizde yer alıyor."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} hesabın klasörlerinin en üstünde kalır"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
