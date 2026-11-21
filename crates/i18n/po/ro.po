@@ -9419,7 +9419,7 @@ msgstr "Mutare eveniment"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Favorite Up or Down"
-msgstr ""
+msgstr "Mută favoritul în sus sau în jos"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
@@ -9430,7 +9430,7 @@ msgstr "Mutare dosar"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Folder Up or Down"
-msgstr ""
+msgstr "Mută dosarul în sus sau în jos"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -12996,12 +12996,12 @@ msgstr "Redenumire semnătură"
 #. name
 #: crates/model/src/sync/progress.rs
 msgid "Renaming a category on the server"
-msgstr ""
+msgstr "Redenumirea unei categorii pe server"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Renaming a category on the server: {done} of {total} messages"
-msgstr ""
+msgstr "Redenumirea unei categorii pe server: {done} din {total} mesaje"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -21003,12 +21003,12 @@ msgstr "O ciornă nu poate avea memento: trimite-o mai întâi sau folosește Ur
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "a favourite can't be put before itself"
-msgstr ""
+msgstr "un favorit nu poate fi pus înaintea lui însuși"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't be put before itself"
-msgstr ""
+msgstr "un dosar nu poate fi pus înaintea lui însuși"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21025,7 +21025,7 @@ msgstr "un dosar nu se poate muta în alt cont"
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder is put among the folders beside it: name one with the same parent"
-msgstr ""
+msgstr "un dosar se pune printre dosarele de lângă el: numiți unul cu același dosar părinte"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -24459,7 +24459,7 @@ msgstr "{name} nu este o cutie poștală partajată: eliminați-o cu account.rem
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} isn't among the Favorites"
-msgstr ""
+msgstr "{name} nu se află printre favorite"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
@@ -24536,7 +24536,7 @@ msgstr "{name} v-a partajat un calendar. Este în lista dvs. de calendare."
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} stays at the top of its account's folders"
-msgstr ""
+msgstr "{name} rămâne în partea de sus a folderelor contului"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

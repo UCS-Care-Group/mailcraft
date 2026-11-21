@@ -9363,7 +9363,7 @@ msgstr "ღონისძიების გადატანა"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Favorite Up or Down"
-msgstr ""
+msgstr "რჩეულის ზემოთ ან ქვემოთ გადატანა"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
@@ -9374,7 +9374,7 @@ msgstr "საქაღალდის გადატანა"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Folder Up or Down"
-msgstr ""
+msgstr "საქაღალდის ზემოთ ან ქვემოთ გადატანა"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -12911,12 +12911,12 @@ msgstr "ხელმოწერის სახელის შეცვლა"
 #. name
 #: crates/model/src/sync/progress.rs
 msgid "Renaming a category on the server"
-msgstr ""
+msgstr "კატეგორიის გადარქმევა სერვერზე"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Renaming a category on the server: {done} of {total} messages"
-msgstr ""
+msgstr "კატეგორიის გადარქმევა სერვერზე: {done} / {total} შეტყობინება"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -20860,12 +20860,12 @@ msgstr "მონახაზს შეხსენება ვერ ექნ
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "a favourite can't be put before itself"
-msgstr ""
+msgstr "რჩეულს საკუთარი თავის წინ ვერ დადებთ"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't be put before itself"
-msgstr ""
+msgstr "საქაღალდეს საკუთარი თავის წინ ვერ დადებთ"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -20882,7 +20882,7 @@ msgstr "საქაღალდე სხვა ანგარიშში ვ
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder is put among the folders beside it: name one with the same parent"
-msgstr ""
+msgstr "საქაღალდე მის გვერდით მყოფ საქაღალდეებს შორის თავსდება: მიუთითეთ იგივე მშობლის მქონე"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -24301,7 +24301,7 @@ msgstr "{name} საერთო საფოსტო ყუთი არ ა�
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} isn't among the Favorites"
-msgstr ""
+msgstr "{name} რჩეულებში არ არის"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
@@ -24378,7 +24378,7 @@ msgstr "{name} გიზიარებთ კალენდარს. ის �
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} stays at the top of its account's folders"
-msgstr ""
+msgstr "{name} ანგარიშის საქაღალდეების თავში რჩება"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

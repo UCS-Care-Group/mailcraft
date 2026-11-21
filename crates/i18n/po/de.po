@@ -667,7 +667,7 @@ msgstr "Akzentfarbe"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Accent colour as hex"
-msgstr ""
+msgstr "Akzentfarbe als Hex"
 
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
@@ -3861,7 +3861,7 @@ msgstr "Aktuelle Ansicht"
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
 msgid "Custom color"
-msgstr ""
+msgstr "Eigene Farbe"
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
@@ -8800,7 +8800,7 @@ msgstr "Ereignis verschieben"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Favorite Up or Down"
-msgstr ""
+msgstr "Favoriten nach oben oder unten verschieben"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
@@ -8811,7 +8811,7 @@ msgstr "Ordner verschieben"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Folder Up or Down"
-msgstr ""
+msgstr "Ordner nach oben oder unten verschieben"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -12127,12 +12127,12 @@ msgstr "Signatur umbenennen"
 #. name
 #: crates/model/src/sync/progress.rs
 msgid "Renaming a category on the server"
-msgstr ""
+msgstr "Kategorie wird auf dem Server umbenannt"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Renaming a category on the server: {done} of {total} messages"
-msgstr ""
+msgstr "Kategorie wird auf dem Server umbenannt: {done} von {total} Nachrichten"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -19651,12 +19651,12 @@ msgstr "Ein Entwurf kann keine Erinnerung haben: erst senden oder in der Nachric
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "a favourite can't be put before itself"
-msgstr ""
+msgstr "ein Favorit kann nicht vor sich selbst gesetzt werden"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't be put before itself"
-msgstr ""
+msgstr "ein Ordner kann nicht vor sich selbst gesetzt werden"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -19673,7 +19673,7 @@ msgstr "ein Ordner kann nicht in ein anderes Konto verschoben werden"
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder is put among the folders beside it: name one with the same parent"
-msgstr ""
+msgstr "ein Ordner wird unter die Ordner neben ihm eingereiht: einen mit demselben übergeordneten Ordner nennen"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -22906,7 +22906,7 @@ msgstr "{name} ist kein freigegebenes Postfach: Entfernen Sie es mit account.rem
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} isn't among the Favorites"
-msgstr ""
+msgstr "{name} gehört nicht zu den Favoriten"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
@@ -22976,7 +22976,7 @@ msgstr "{name} hat einen Kalender für Sie freigegeben. Er befindet sich in Ihre
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} stays at the top of its account's folders"
-msgstr ""
+msgstr "{name} bleibt oben in den Ordnern des Kontos"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

@@ -9407,7 +9407,7 @@ msgstr "Přesunout událost"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Favorite Up or Down"
-msgstr ""
+msgstr "Přesunout oblíbenou položku nahoru nebo dolů"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
@@ -9418,7 +9418,7 @@ msgstr "Přesunout složku"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Folder Up or Down"
-msgstr ""
+msgstr "Přesunout složku nahoru nebo dolů"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -12978,12 +12978,12 @@ msgstr "Přejmenovat podpis"
 #. name
 #: crates/model/src/sync/progress.rs
 msgid "Renaming a category on the server"
-msgstr ""
+msgstr "Přejmenování kategorie na serveru"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Renaming a category on the server: {done} of {total} messages"
-msgstr ""
+msgstr "Přejmenování kategorie na serveru: {done} z {total} zpráv"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -20978,12 +20978,12 @@ msgstr "koncept nemůže mít připomenutí: nejprve ho odešlete, nebo použijt
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "a favourite can't be put before itself"
-msgstr ""
+msgstr "oblíbenou položku nelze umístit před sebe samu"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't be put before itself"
-msgstr ""
+msgstr "složku nelze umístit před sebe samu"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21000,7 +21000,7 @@ msgstr "složku nelze přesunout do jiného účtu"
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder is put among the folders beside it: name one with the same parent"
-msgstr ""
+msgstr "složka se řadí mezi složky vedle ní: uveďte jednu se stejnou nadřazenou složkou"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -24434,7 +24434,7 @@ msgstr "{name} není sdílená poštovní schránka: odeberte ji pomocí account
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} isn't among the Favorites"
-msgstr ""
+msgstr "{name} není mezi oblíbenými"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
@@ -24511,7 +24511,7 @@ msgstr "{name} s vámi sdílí kalendář. Je ve vašem seznamu kalendářů."
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} stays at the top of its account's folders"
-msgstr ""
+msgstr "{name} zůstává nahoře ve složkách účtu"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

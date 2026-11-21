@@ -9423,7 +9423,7 @@ msgstr "Przenieś wydarzenie"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Favorite Up or Down"
-msgstr ""
+msgstr "Przenieś ulubiony w górę lub w dół"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
@@ -9434,7 +9434,7 @@ msgstr "Przenieś folder"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Folder Up or Down"
-msgstr ""
+msgstr "Przenieś folder w górę lub w dół"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -13000,12 +13000,12 @@ msgstr "Zmień nazwę podpisu"
 #. name
 #: crates/model/src/sync/progress.rs
 msgid "Renaming a category on the server"
-msgstr ""
+msgstr "Zmiana nazwy kategorii na serwerze"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Renaming a category on the server: {done} of {total} messages"
-msgstr ""
+msgstr "Zmiana nazwy kategorii na serwerze: {done} z {total} wiadomości"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -21009,12 +21009,12 @@ msgstr "wersja robocza nie może mieć przypomnienia: najpierw ją wyślij lub u
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "a favourite can't be put before itself"
-msgstr ""
+msgstr "ulubionego nie można umieścić przed nim samym"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't be put before itself"
-msgstr ""
+msgstr "folderu nie można umieścić przed nim samym"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21031,7 +21031,7 @@ msgstr "folderu nie można przenieść do innego konta"
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder is put among the folders beside it: name one with the same parent"
-msgstr ""
+msgstr "folder umieszcza się wśród folderów obok niego: wskaż jeden z tym samym folderem nadrzędnym"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -24466,7 +24466,7 @@ msgstr "{name} nie jest udostępnioną skrzynką pocztową: usuń go za pomocą 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} isn't among the Favorites"
-msgstr ""
+msgstr "{name} nie należy do ulubionych"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
@@ -24543,7 +24543,7 @@ msgstr "{name} udostępnił(a) Ci kalendarz. Znajduje się on na Twojej liście 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} stays at the top of its account's folders"
-msgstr ""
+msgstr "{name} zostaje na górze folderów konta"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

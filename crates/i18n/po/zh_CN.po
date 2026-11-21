@@ -9382,7 +9382,7 @@ msgstr "移动事件"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Favorite Up or Down"
-msgstr ""
+msgstr "上移或下移收藏夹"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
@@ -9393,7 +9393,7 @@ msgstr "移动文件夹"
 #. command label
 #: crates/engine/src/cmd/folder.rs
 msgid "Move Folder Up or Down"
-msgstr ""
+msgstr "上移或下移文件夹"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -12955,12 +12955,12 @@ msgstr "重命名签名"
 #. name
 #: crates/model/src/sync/progress.rs
 msgid "Renaming a category on the server"
-msgstr ""
+msgstr "正在服务器上重命名类别"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Renaming a category on the server: {done} of {total} messages"
-msgstr ""
+msgstr "正在服务器上重命名类别：{done}/{total} 封邮件"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -20926,12 +20926,12 @@ msgstr "草稿不能设置提醒：请先发送，或在邮件本身中使用“
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "a favourite can't be put before itself"
-msgstr ""
+msgstr "收藏项不能放在它自己之前"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't be put before itself"
-msgstr ""
+msgstr "文件夹不能放在它自己之前"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -20948,7 +20948,7 @@ msgstr "文件夹不能移至其他账户"
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder is put among the folders beside it: name one with the same parent"
-msgstr ""
+msgstr "文件夹只能在同级文件夹之间排序：请指定一个具有相同上级的文件夹"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -24373,7 +24373,7 @@ msgstr "{name} 不是共享邮箱：使用 account.remove 将其删除"
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} isn't among the Favorites"
-msgstr ""
+msgstr "{name} 不在收藏夹中"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
@@ -24450,7 +24450,7 @@ msgstr "{name} 与您共享了日历。该日历已出现在您的日历列表�
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "{name} stays at the top of its account's folders"
-msgstr ""
+msgstr "{name} 保持在账户文件夹的顶部"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
