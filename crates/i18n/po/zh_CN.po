@@ -5914,6 +5914,11 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr "对于使用 Microsoft 登录的账户：按 Outlook 中的顺序显示“收藏夹”下的文件夹。它们从服务器读取，不会更改服务器上的内容。未开启时，显示在 MailCraft 中标记的收藏夹。"
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "For mail that arrived in every Inbox since the main window was last in front. Not Junk, and not mail that was already here. Looking at the main window clears it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "For now, nothing of shared mailboxes is read or sent: {error}"
@@ -9832,7 +9837,7 @@ msgid "New items go to the calendar that is picked here"
 msgstr "新建项目将保存到此处选择的日历中"
 
 #. android, interface, name, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "New mail"
 msgstr "新邮件"
@@ -13743,9 +13748,8 @@ msgstr "请指定提醒（`event` 和 `occurrence`），或 `all`"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Say which: `newMail`, `reminders` (true or false)"
-msgstr "请指定项目：`newMail`、`reminders`（true 或 false）"
+msgid "Say which: `newMail`, `reminders` or `taskbar` (true or false)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -14782,6 +14786,11 @@ msgstr "新邮件到达时显示桌面通知"
 #, fuzzy
 msgid "Show a notification when a calendar or task reminder falls due, even when the app is closed. Off, none is shown; the reminders themselves stay in the calendar and in Tasks."
 msgstr "日历或任务提醒到期时显示通知，即使应用已关闭。关闭后不显示通知；提醒仍保留在日历和任务中。"
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "Show a red dot on the taskbar icon when new mail arrives"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18915,6 +18924,11 @@ msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft
 msgstr "此次同步大约需要 {needed}。此手机有 {free} 可用空间，MailCraft 还会留出一些空间让手机正常运行。仍然同步吗？"
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "This system doesn't mark the taskbar icon."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
@@ -20780,6 +20794,11 @@ msgstr "`newMail` 和 `reminders` 为 true 或 false"
 #, fuzzy
 msgid "`notice` is installsItself or didntStart"
 msgstr "`notice` 为 installsItself 或 didntStart"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`taskbar` is true or false"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -25528,6 +25547,10 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Say which: `newMail`, `reminders` (true or false)"
+#~ msgstr "请指定项目：`newMail`、`reminders`（true 或 false）"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

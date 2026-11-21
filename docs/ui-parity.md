@@ -93,6 +93,7 @@ icon brings the window back too. On Linux and FreeBSD, enabling the option takes
 a restart on Wayland: MailCraft chooses X11/XWayland only with the option on and a reachable X11
 server, because winit 0.30 cannot hide a native Wayland window. Otherwise the usual backend
 selection is kept; on native Wayland the close button exits normally.
+On Windows the taskbar icon can show a red dot when new mail has arrived in every Inbox since the main window was last in front (not Junk, not a first download, not mail that was already there; looking at the main window clears it). A popped-out message does not count as looking. File › Options › Desktop alerts has the checkbox; with it off, the icon is left as it is.
 A small red circle at the top left of the tray icon indicates unread mail in the Inboxes of
 the owner’s own server accounts, following the account and folder scope of new-mail alerts.
 It clears when the last unread Inbox message is read or removed; reopening the window alone

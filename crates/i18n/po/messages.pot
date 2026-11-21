@@ -4914,6 +4914,11 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "For mail that arrived in every Inbox since the main window was last in front. Not Junk, and not mail that was already here. Looking at the main window clears it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/server_sync.rs
 msgid "For now, nothing of shared mailboxes is read or sent: {error}"
 msgstr ""
@@ -8155,7 +8160,7 @@ msgid "New items go to the calendar that is picked here"
 msgstr ""
 
 #. android, interface, name, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 msgid "New mail"
 msgstr ""
 
@@ -11395,7 +11400,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-msgid "Say which: `newMail`, `reminders` (true or false)"
+msgid "Say which: `newMail`, `reminders` or `taskbar` (true or false)"
 msgstr ""
 
 #. interface
@@ -12254,6 +12259,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 msgid "Show a notification when a calendar or task reminder falls due, even when the app is closed. Off, none is shown; the reminders themselves stay in the calendar and in Tasks."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "Show a red dot on the taskbar icon when new mail arrives"
 msgstr ""
 
 #. interface
@@ -15707,6 +15717,11 @@ msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "This system doesn't mark the taskbar icon."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr ""
@@ -17242,6 +17257,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "`notice` is installsItself or didntStart"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`taskbar` is true or false"
 msgstr ""
 
 #. interface

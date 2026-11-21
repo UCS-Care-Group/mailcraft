@@ -5939,6 +5939,11 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr "Dla konta logującego się przez Microsoft: foldery z Ulubionych w Outlooku, w tej samej kolejności. Są odczytywane z serwera i nigdy tam nie zmieniane. Bez tego wyświetlane są ulubione oznaczone w MailCraft."
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "For mail that arrived in every Inbox since the main window was last in front. Not Junk, and not mail that was already here. Looking at the main window clears it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "For now, nothing of shared mailboxes is read or sent: {error}"
@@ -9873,7 +9878,7 @@ msgid "New items go to the calendar that is picked here"
 msgstr "Nowe elementy trafiają do kalendarza wybranego tutaj"
 
 #. android, interface, name, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "New mail"
 msgstr "Nowa poczta"
@@ -13792,9 +13797,8 @@ msgstr "Wskaż przypomnienie (`event` i `occurrence`) lub `all`"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Say which: `newMail`, `reminders` (true or false)"
-msgstr "Wskaż, które: `newMail`, `reminders` (true lub false)"
+msgid "Say which: `newMail`, `reminders` or `taskbar` (true or false)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -14837,6 +14841,11 @@ msgstr "Pokazuj alert na pulpicie po nadejściu nowej poczty"
 #, fuzzy
 msgid "Show a notification when a calendar or task reminder falls due, even when the app is closed. Off, none is shown; the reminders themselves stay in the calendar and in Tasks."
 msgstr "Pokazuj powiadomienie, gdy nadejdzie czas przypomnienia z kalendarza lub zadania, także gdy aplikacja jest zamknięta. Gdy wyłączone, żadne nie jest pokazywane; same przypomnienia pozostają w kalendarzu i w Zadaniach."
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "Show a red dot on the taskbar icon when new mail arrives"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18992,6 +19001,11 @@ msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft
 msgstr "Ta synchronizacja potrzebuje około {needed}. Ten telefon ma wolne {free}, a MailCraft zostawia trochę miejsca, aby telefon mógł dalej działać. Synchronizować mimo to?"
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "This system doesn't mark the taskbar icon."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
@@ -20863,6 +20877,11 @@ msgstr "`newMail` i `reminders` to true lub false"
 #, fuzzy
 msgid "`notice` is installsItself or didntStart"
 msgstr "`notice` to installsItself lub didntStart"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`taskbar` is true or false"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -25855,6 +25874,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Wiersze"
+
+#, fuzzy
+#~ msgid "Say which: `newMail`, `reminders` (true or false)"
+#~ msgstr "Wskaż, które: `newMail`, `reminders` (true lub false)"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

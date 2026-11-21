@@ -5571,6 +5571,12 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr "Für ein Konto mit Microsoft-Anmeldung: die Ordner, die Sie in Outlook unter Favoriten haben, in derselben Reihenfolge. Sie werden vom Server gelesen und dort nie geändert. Ohne dies werden die Favoriten angezeigt, die Sie in MailCraft markieren."
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgid "For mail that arrived in every Inbox since the main window was last in front. Not Junk, and not mail that was already here. Looking at the main window clears it."
+msgstr "Für Nachrichten, die in allen Posteingängen angekommen sind, seit das Hauptfenster zuletzt vorn war. Nicht Junk, und nicht Nachrichten, die schon da waren. Ein Blick auf das Hauptfenster löscht ihn."
+
+#. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "For now, nothing of shared mailboxes is read or sent: {error}"
@@ -9221,7 +9227,7 @@ msgid "New items go to the calendar that is picked here"
 msgstr "Neue Elemente kommen in den hier gewählten Kalender"
 
 #. android, interface, name, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 msgid "New mail"
 msgstr "Neue E-Mails"
 
@@ -12879,8 +12885,8 @@ msgstr "Geben Sie die Erinnerung an (`event` und `occurrence`) oder `all`"
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
-msgid "Say which: `newMail`, `reminders` (true or false)"
-msgstr "Geben Sie an, welche: `newMail`, `reminders` (true oder false)"
+msgid "Say which: `newMail`, `reminders` or `taskbar` (true or false)"
+msgstr "Geben Sie an, welche: `newMail`, `reminders` oder `taskbar` (true oder false)"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -13870,6 +13876,12 @@ msgstr "Desktopbenachrichtigung bei neuen E-Mails anzeigen"
 #, fuzzy
 msgid "Show a notification when a calendar or task reminder falls due, even when the app is closed. Off, none is shown; the reminders themselves stay in the calendar and in Tasks."
 msgstr "Zeigt eine Benachrichtigung, wenn eine Kalender- oder Aufgabenerinnerung fällig wird, auch wenn die App geschlossen ist. Aus: keine Benachrichtigung; die Erinnerungen bleiben im Kalender und in den Aufgaben."
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgid "Show a red dot on the taskbar icon when new mail arrives"
+msgstr "Roten Punkt am Taskleistensymbol zeigen, wenn neue Nachrichten ankommen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17752,6 +17764,12 @@ msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft
 msgstr "Diese Synchronisierung benötigt etwa {needed}. Auf diesem Telefon sind {free} frei, und MailCraft lässt etwas Platz, damit das Telefon weiterarbeiten kann. Trotzdem synchronisieren?"
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgid "This system doesn't mark the taskbar icon."
+msgstr "Dieses System markiert das Taskleistensymbol nicht."
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr "Auf diesem System gibt es keinen Speicherort für S/MIME-Zertifikate mit privatem Schlüssel, den MailCraft kennt."
@@ -19510,6 +19528,12 @@ msgstr "`newMail` und `reminders` sind true oder false"
 #, fuzzy
 msgid "`notice` is installsItself or didntStart"
 msgstr "`notice` ist installsItself oder didntStart"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "`taskbar` is true or false"
+msgstr "`taskbar` ist true oder false"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -24101,6 +24125,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Zeilen"
+
+#, fuzzy
+#~ msgid "Say which: `newMail`, `reminders` (true or false)"
+#~ msgstr "Geben Sie an, welche: `newMail`, `reminders` (true oder false)"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"
