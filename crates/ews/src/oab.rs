@@ -284,20 +284,25 @@ impl From<Error> for OabError {
 
 /// Downloads and reads the account's address list from its own server: the three requests of the
 /// module, over `exchange`. Once `cancel` is set, the request on its way finishes and nothing
-/// after it is asked or read.
+/// after it is asked or read. When the table of contents names the generation `held` (the list
+/// held already), the file is not downloaded and `None` comes back.
 pub async fn fetch<E: HttpExchange>(
     exchange: &E,
     ews_url: &str,
     email: &str,
     authorization: &Secret,
     cancel: &AtomicBool,
-) -> Result<EwsAddressList, OabError> {
+    held: Option<u32>,
+) -> Result<Option<EwsAddressList>, OabError> {
     let go_on = || if cancel.load(Ordering::Relaxed) { Err(OabError::Cancelled) } else { Ok(()) };
     let answer = exchange.exchange(&autodiscover_request(ews_url, email, authorization)?).await.map_err(Error::from)?;
     let url = oab_url(judged(&answer, MAX_ANSWER)?, ews_url)?.ok_or(OabError::NotPublished)?;
     go_on()?;
     let manifest = exchange.exchange(&get(&format!("{url}oab.xml"), authorization, MAX_MANIFEST)?).await.map_err(Error::from)?;
     let full = full_file(judged(&manifest, MAX_MANIFEST)?)?.ok_or(OabError::NotPublished)?;
+    if held == Some(full.sequence) {
+        return Ok(None);
+    }
     if full.size > MAX_FILE {
         return Err(OabError::TooLarge);
     }
@@ -305,7 +310,7 @@ pub async fn fetch<E: HttpExchange>(
     let file = exchange.exchange(&get(&format!("{url}{}", full.name), authorization, MAX_FILE)?).await.map_err(Error::from)?;
     go_on()?;
     let list = address_list(judged(&file, MAX_FILE)?).map_err(OabError::File)?;
-    Ok(list)
+    Ok(Some(list))
 }
 
 #[cfg(test)]

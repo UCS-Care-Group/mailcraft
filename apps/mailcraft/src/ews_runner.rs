@@ -655,8 +655,10 @@ fn run_address_list(request: &EwsResolveRequest, password: &str, cancel: &Arc<At
         }
     };
     let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));
-    match crate::block_on::block_on(mailcraft_ews::oab::fetch(&transport, &request.url, &request.email, &secret, cancel)) {
-        Ok(list) => out.address_list = Some(list),
+    match crate::block_on::block_on(mailcraft_ews::oab::fetch(&transport, &request.url, &request.email, &secret, cancel, request.address_list_held)) {
+        Ok(Some(list)) => out.address_list = Some(list),
+        // The server publishes the generation held: nothing was downloaded.
+        Ok(None) => out.address_list_unchanged = true,
         Err(OabError::Ews(error)) => {
             out.auth_refused = matches!(error, mailcraft_ews::Error::Unauthorized) && transport.auth_problem().is_none();
             let said = resolve_words(&error, transport.problem().as_ref(), transport.auth_problem());

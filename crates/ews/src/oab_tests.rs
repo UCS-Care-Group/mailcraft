@@ -47,7 +47,7 @@ fn operations(standin: &StandIn) -> Vec<String> {
 #[test]
 fn the_whole_list_comes_from_the_accounts_own_server_in_three_reads() {
     let standin = organisation();
-    let list = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false))).unwrap().unwrap();
+    let list = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false), None)).unwrap().unwrap().unwrap();
     assert_eq!(list.sequence, 7);
     assert_eq!(list.name, "\\Global Address List");
     assert!(!list.more);
@@ -82,7 +82,7 @@ fn a_file_that_unpacks_past_the_cap_is_refused_from_its_header() {
 #[test]
 fn once_nobody_waits_for_the_list_nothing_more_is_asked() {
     let standin = organisation();
-    let result = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(true))).unwrap();
+    let result = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(true), None)).unwrap();
     assert!(matches!(result, Err(OabError::Cancelled)), "{result:?}");
     assert_eq!(operations(&standin), ["Autodiscover"], "the request on its way finishes, and nothing after it is asked");
 }
@@ -98,7 +98,10 @@ fn an_answer_longer_than_its_cap_is_refused_whatever_the_transport_read() {
 fn an_address_book_published_elsewhere_is_not_asked_for() {
     let standin = organisation();
     standin.state().oab.elsewhere = Some("https://elsewhere.example".into());
-    assert!(matches!(block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false))).unwrap(), Err(OabError::NotPublished)));
+    assert!(matches!(
+        block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false), None)).unwrap(),
+        Err(OabError::NotPublished)
+    ));
     assert_eq!(operations(&standin), ["Autodiscover"]);
 }
 
@@ -106,13 +109,16 @@ fn an_address_book_published_elsewhere_is_not_asked_for() {
 fn a_server_that_publishes_none_says_so() {
     let standin = organisation();
     standin.state().oab.published = false;
-    assert!(matches!(block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false))).unwrap(), Err(OabError::NotPublished)));
+    assert!(matches!(
+        block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false), None)).unwrap(),
+        Err(OabError::NotPublished)
+    ));
 }
 
 #[test]
 fn a_password_turned_down_is_said() {
     let standin = organisation();
-    let result = block_on(fetch(&standin, URL, ME, &Secret::new("Basic d3Jvbmc6d3Jvbmc="), &AtomicBool::new(false))).unwrap();
+    let result = block_on(fetch(&standin, URL, ME, &Secret::new("Basic d3Jvbmc6d3Jvbmc="), &AtomicBool::new(false), None)).unwrap();
     assert!(matches!(result, Err(OabError::Ews(Error::Unauthorized))), "{result:?}");
 }
 
@@ -184,7 +190,7 @@ fn certificates_come_with_whoever_has_them() {
     let standin = organisation();
     standin.state().directory[0].certificates =
         (vec![signed_data(), b"not one".to_vec()], vec![alice.clone(), authority, vec![0x30, 0x03, 0x02, 0x01, 0x01]]);
-    let list = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false))).unwrap().unwrap();
+    let list = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false), None)).unwrap().unwrap().unwrap();
     let ada = list.people.iter().find(|p| p.email == "ada.lovelace@example.org").unwrap();
     let held: Vec<Vec<u8>> = ada.certificates.iter().map(|c| c.to_vec()).collect();
     assert_eq!(held, [alice]);
@@ -213,4 +219,17 @@ fn a_list_past_its_caps_is_cut_and_says_so() {
     assert_eq!(one.people.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["Ada Lovelace"]);
     // A header past the cap still refuses the file: it is not an entry to stop before.
     assert_eq!(address_list_within(&file, 100, MAX_VALUES, 1).err(), Some(mailcraft_oab::Error::Cap(mailcraft_oab::Cap::KeptBytes)));
+}
+
+/// The generation held already is not downloaded again: the table of contents is read, and the
+/// file only when the server publishes another.
+#[test]
+fn the_generation_held_is_not_downloaded_again() {
+    let standin = organisation();
+    let same = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false), Some(7))).unwrap().unwrap();
+    assert!(same.is_none());
+    assert_eq!(operations(&standin), ["Autodiscover", "oab.xml"]);
+    let other = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION), &AtomicBool::new(false), Some(6))).unwrap().unwrap();
+    assert_eq!(other.map(|list| list.sequence), Some(7));
+    assert_eq!(operations(&standin), ["Autodiscover", "oab.xml", "Autodiscover", "oab.xml", "OAB file"]);
 }

@@ -578,6 +578,44 @@ fn the_list_is_downloaded_again_a_day_later() {
     assert_eq!(downloads(&asked), 2);
 }
 
+/// A day later the server is asked whether its list has changed: the generation held goes with
+/// the request, and when it is the server's, the list held stays and nothing is downloaded.
+#[test]
+fn an_unchanged_list_is_kept_without_downloading_it_again() {
+    let (mut app, _, _) = window_with(false, Some(organisation()));
+    let held: Arc<Mutex<Vec<Option<u32>>>> = Arc::default();
+    let log = held.clone();
+    let people = organisation();
+    app.services.ews_resolve = Some(Box::new(move |job| {
+        log.lock().unwrap().push(job.request.address_list_held);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let result = if job.request.address_list_held == Some(3) {
+            EwsResolveResult { address_list_unchanged: true, ..Default::default() }
+        } else {
+            let list =
+                EwsAddressList { name: "Address list".into(), sequence: 3, people: people.iter().cloned().map(Arc::new).collect(), more: false };
+            EwsResolveResult { address_list: Some(list), ..Default::default() }
+        };
+        tx.send(result).unwrap();
+        rx
+    }));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    let version = app.address_lists[0].version;
+    app.address_lists[0].at_ms -= REFRESH_MS + 1000.0;
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(*held.lock().unwrap(), [None, Some(3)]);
+    assert_eq!(names(&app).len(), 4);
+    assert!(app.address_lists[0].error.is_none());
+    assert_eq!(app.address_lists[0].version, version, "the list held is the one kept");
+    // It is asked about again a day after that, not at once.
+    app.poll_address_book(&ctx);
+    assert_eq!(held.lock().unwrap().len(), 2);
+}
+
 /// A refresh that fails after a list has come is tried again a minute later, and the list held is
 /// listed meanwhile.
 #[test]

@@ -264,6 +264,11 @@ impl MailApp {
             }
             held.pending = None;
             held.at_ms = now;
+            if result.address_list_unchanged && held.list.is_some() {
+                // The server's is the one held: it stays, and is asked about again a day later.
+                held.error = None;
+                continue;
+            }
             match result.address_list {
                 Some(mut list) => {
                     list.people =
@@ -289,7 +294,11 @@ impl MailApp {
         if !due {
             return;
         }
+        // The generation held goes with the request, so that the file is downloaded again only
+        // when the server has written another.
+        let have = self.address_lists.iter().find(|h| h.account == account).and_then(|h| h.list.as_ref()).map(|list| list.sequence);
         let started = ews_address_list_request(&self.session, account)
+            .map(|request| EwsResolveRequest { address_list_held: have, ..request })
             .map_err(|e| tl!(&e.to_string()).to_string())
             .and_then(|r| self.start_job(r, "").map_err(|(error, _)| error));
         if !self.address_lists.iter().any(|h| h.account == account) {

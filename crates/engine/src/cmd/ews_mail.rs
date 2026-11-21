@@ -267,6 +267,7 @@ pub fn ews_resolve_request_for(s: &Session, account: Id, texts: &[String]) -> Re
         trusted: server.trusted.clone(),
         texts: asked,
         address_list: false,
+        address_list_held: None,
     })
 }
 

@@ -166,6 +166,10 @@ pub struct EwsResolveRequest {
     /// downloaded from its own server, and no name is looked up.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub address_list: bool,
+    /// The generation of the whole list held already ([`EwsAddressList::sequence`]): the file
+    /// is downloaded only when the server publishes another.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address_list_held: Option<u32>,
 }
 
 /// Counts only: no address, and no name looked up.
@@ -176,6 +180,7 @@ impl std::fmt::Debug for EwsResolveRequest {
             .field("trusted", &!self.trusted.is_empty())
             .field("texts", &self.texts.len())
             .field("address_list", &self.address_list)
+            .field("address_list_held", &self.address_list_held)
             .finish()
     }
 }
@@ -214,6 +219,10 @@ pub struct EwsResolveResult {
     /// The whole address list, when it was asked for and could be had.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address_list: Option<EwsAddressList>,
+    /// The server publishes the generation held already (`address_list_held`): nothing was
+    /// downloaded, and the list held stays.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub address_list_unchanged: bool,
 }
 
 /// The whole address list of an Exchange server account, as its Offline Address Book has it
@@ -249,6 +258,7 @@ impl std::fmt::Debug for EwsResolveResult {
             .field("error", &self.error.is_some())
             .field("auth_refused", &self.auth_refused)
             .field("address_list", &self.address_list)
+            .field("address_list_unchanged", &self.address_list_unchanged)
             .finish()
     }
 }

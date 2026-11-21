@@ -375,15 +375,16 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   person for a name; the owner sees the address before the message goes.
 - **An Offline Address Book is a server's file, read as hostile** (#1393). People's Address Book
   downloads an Exchange server account's whole address list when it is first shown in a run (and
-  again a day later): Autodiscover at the host of the account's own Exchange Web Services address
+  a day later, when its table of contents names a newer generation than the one held): Autodiscover at the host of the account's own Exchange Web Services address
   for `OABUrl`, which is taken only when it names that same host (so the sign-in goes nowhere
   else), `oab.xml` there (at most 2 MB, read by the hostile XML reader, a file name of letters,
   digits, `.`, `-` and `_` alone), and the full file of version 4, at most 16 MB, unpacked to at most 256 MB with at most 128 MB of its values kept while it is read
   (each value counting 48 bytes more for what it costs in memory, so that millions of empty ones
   are held too; at most 6.4 million values, 32 for each person of the 200,000 kept; a schema that
   lists a property twice is refused; a list that reaches one of these caps, or has more than
-  200,000 entries, is read up to there and no further, and the Address Book says that the list
-  goes on (`Limits::keep_first`); `crates/ews/src/oab.rs`; each answer is held to its cap there too, whatever the transport
+  200,000 entries, is read up to there and no further (`Limits::keep_first`), and the Address Book
+  doesn't list it as the whole: names are looked up on the server as without one;
+  `crates/ews/src/oab.rs`; each answer is held to its cap there too, whatever the transport
   read, and a download nobody waits for any more asks nothing after the request on its way). The
   file is unpacked and read by `mailcraft-oab`, written from
   [MS-OXOAB] and [MS-PATCH]: no panics, no indexing or unchecked arithmetic, every block's CRC
