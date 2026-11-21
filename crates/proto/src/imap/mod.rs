@@ -612,6 +612,18 @@ pub fn searchable(text: &str) -> bool {
     !text.is_empty() && text.len() <= MAX_QUOTED && text.bytes().all(|b| matches!(b, b' '..=b'~'))
 }
 
+/// Whether a search key may carry `text`: not empty, within [`MAX_QUOTED`], and no control
+/// character. Letters outside ASCII are allowed; [`search_verb`] then names UTF-8.
+fn search_text(text: &str) -> bool {
+    !text.is_empty() && text.len() <= MAX_QUOTED && !text.chars().any(char::is_control)
+}
+
+/// `UID SEARCH`, with `CHARSET UTF-8` when any of `texts` is not ASCII. Without the charset a
+/// server reads the keys as US-ASCII and answers BAD for anything else.
+fn search_verb(texts: &[&str]) -> &'static str {
+    if texts.iter().any(|text| !text.is_ascii()) { "UID SEARCH CHARSET UTF-8 UNDELETED" } else { "UID SEARCH UNDELETED" }
+}
+
 /// UIDs as message sets for commands (`4,7:9,12`), each with the UIDs it names: sorted, each UID
 /// once, consecutive numbers as ranges, and no set longer than one command should carry. A
 /// range only ever spans numbers that were asked for.
@@ -1061,8 +1073,49 @@ impl<S: Read + Write> Imap<S> {
         if !searchable(text) {
             return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));
         }
-        let mut found = BTreeSet::new();
         let command = Command::new("UID SEARCH UNDELETED HEADER").arg(field).string(text.as_bytes());
+        self.take_search(command)
+    }
+
+    /// UID SEARCH UNDELETED with one key per clause (`FROM`, `TO`, `CC`, `SUBJECT`, `BODY`,
+    /// `TEXT`, or `HEADER` and a field name), keeping the highest UIDs when the answer names more
+    /// than [`MAX_FOUND`]: a later UID is the newer message, and the caller hears that the answer
+    /// was cut (`true`). A word that is not ASCII is sent as UTF-8 (`CHARSET UTF-8`), which a
+    /// server that requires a charset otherwise refuses. The words stay out of the log.
+    pub fn uid_search_clauses_newest(&mut self, clauses: &[(&str, Option<&str>, &str)]) -> Result<(Vec<u32>, bool), ProtoError> {
+        if clauses.is_empty() || clauses.len() > 8 {
+            return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));
+        }
+        let mut command = Command::new(search_verb(&clauses.iter().map(|(_, _, text)| *text).collect::<Vec<_>>()));
+        for (key, header, text) in clauses {
+            if !search_text(text) {
+                return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));
+            }
+            match *key {
+                "TEXT" | "FROM" | "TO" | "CC" | "SUBJECT" | "BODY" => command = command.arg(key).string(text.as_bytes()),
+                "HEADER" => {
+                    let field = header.unwrap_or("");
+                    if field.is_empty() || !field.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+                        return Err(ProtoError::Protocol(said!("\"{field}\" is not the name of a header field", field = tidy(field))));
+                    }
+                    command = command.arg("HEADER").arg(field).string(text.as_bytes());
+                }
+                _ => return Err(ProtoError::Protocol(said!("the text can't be looked for on the server"))),
+            }
+        }
+        self.take_newest(command.shown_as("UID SEARCH"))
+    }
+
+    /// UID SEARCH UNDELETED: every message of the open mailbox that is not marked deleted, at
+    /// most [`MAX_FOUND`] of the highest UIDs. Used when a restriction cannot be asked of the
+    /// server and has to be checked on what comes back. `true` when the answer was cut.
+    pub fn uid_search_undeleted(&mut self) -> Result<(Vec<u32>, bool), ProtoError> {
+        self.take_newest(Command::new("UID SEARCH UNDELETED").shown_as("UID SEARCH"))
+    }
+
+    /// The UIDs a `UID SEARCH` answer names, at most [`MAX_FOUND`], in UID order.
+    fn take_search(&mut self, command: Command<'_>) -> Result<Vec<u32>, ProtoError> {
+        let mut found = BTreeSet::new();
         self.run(command, &mut |values| {
             if values.first().and_then(Value::atom).is_some_and(|word| word.eq_ignore_ascii_case("SEARCH")) {
                 let uids = values.iter().skip(1).filter_map(Value::atom).filter_map(|n| n.parse::<u32>().ok()).filter(|uid| *uid != 0);
@@ -1075,6 +1128,32 @@ impl<S: Read + Write> Imap<S> {
             }
         })?;
         Ok(found.into_iter().collect())
+    }
+
+    /// The highest UIDs a `UID SEARCH` answer names, at most [`MAX_FOUND`]. `true` when the answer
+    /// named more than that, so a newer UID was not dropped for an older one.
+    fn take_newest(&mut self, command: Command<'_>) -> Result<(Vec<u32>, bool), ProtoError> {
+        let mut found = BTreeSet::new();
+        let mut truncated = false;
+        self.run(command, &mut |values| {
+            if values.first().and_then(Value::atom).is_some_and(|word| word.eq_ignore_ascii_case("SEARCH")) {
+                let uids = values.iter().skip(1).filter_map(Value::atom).filter_map(|n| n.parse::<u32>().ok()).filter(|uid| *uid != 0);
+                for uid in uids {
+                    if found.len() >= MAX_FOUND {
+                        truncated = true;
+                        if let Some(&smallest) = found.iter().next()
+                            && uid > smallest
+                        {
+                            found.remove(&smallest);
+                            found.insert(uid);
+                        }
+                    } else {
+                        found.insert(uid);
+                    }
+                }
+            }
+        })?;
+        Ok((found.into_iter().collect(), truncated))
     }
 
     /// UID SEARCH UID <set> UNDELETED X-GM-RAW "<query>": the messages of the open mailbox, among
@@ -1098,7 +1177,7 @@ impl<S: Read + Write> Imap<S> {
         }
         let mut found = BTreeSet::new();
         // Messages marked as deleted aren't shown, so they aren't asked about either.
-        let command = Command::new("UID SEARCH UID").arg(set).arg("UNDELETED X-GM-RAW").string(query.as_bytes());
+        let command = Command::new("UID SEARCH UID").arg(set).arg("UNDELETED X-GM-RAW").string(query.as_bytes()).shown_as("UID SEARCH X-GM-RAW");
         (self.skip_long, self.skipped) = (true, false);
         let answer = self.run(command, &mut |values| {
             if values.first().and_then(Value::atom).is_some_and(|word| word.eq_ignore_ascii_case("SEARCH")) {
