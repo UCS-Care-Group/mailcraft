@@ -169,6 +169,11 @@ pub(crate) fn apply_case(kind: CaseKind, suggestion: &str) -> String {
     match kind {
         CaseKind::AllCaps => suggestion.chars().flat_map(|c| c.to_uppercase()).collect(),
         CaseKind::Title => {
+            // `McDonald` and `NASA` are already the dictionary spelling. Forcing
+            // them to `Mcdonald` or `Nasa` makes `case_ok` reject the suggestion.
+            if suggestion.chars().skip(1).any(|c| c.is_uppercase()) {
+                return suggestion.to_string();
+            }
             let mut chars = suggestion.chars();
             let Some(first) = chars.next() else {
                 return String::new();
@@ -192,24 +197,40 @@ pub(crate) fn restore_accents(input: &str, suggestion: &str) -> String {
         return suggestion.to_string();
     }
     let marks = accent_marks(input);
+    let sug: Vec<char> = suggestion.chars().collect();
     let mut i = 0usize;
+    let mut s = 0usize;
     let mut out = String::with_capacity(suggestion.len());
-    for sc in suggestion.chars() {
-        let mut found = None;
+    while s < sug.len() {
+        let Some(sc) = sug.get(s).copied() else { break };
+        let mut chosen = None;
         let end = (i + 4).min(marks.len());
         for j in i..end {
             let Some(mark) = marks.get(j) else { break };
-            if base_eq(mark.base, sc) {
-                found = Some(j);
-                break;
+            if !base_eq(mark.base, sc) {
+                continue;
             }
+            // `æ` folds to `ae`. Restoring on the `a` alone writes `æ` and then
+            // the suggestion's `e` again (`encyclopæedia`). Take the ligature
+            // only when the whole expansion is present.
+            if let Some(rep) = fold_char(mark.source).filter(|rep| rep.chars().nth(1).is_some()) {
+                if expansion_matches(&marks, j, &sug, s, rep) {
+                    let n = rep.chars().count();
+                    chosen = Some((j, n, mark.source));
+                    break;
+                }
+                continue;
+            }
+            chosen = Some((j, 1, mark.source));
+            break;
         }
-        if let Some(j) = found {
-            let source = marks.get(j).map(|m| m.source).unwrap_or(sc);
+        if let Some((j, n, source)) = chosen {
             out.push(match_case(sc, source));
-            i = j.saturating_add(1);
+            s = s.saturating_add(n);
+            i = j.saturating_add(n);
         } else {
             out.push(sc);
+            s = s.saturating_add(1);
         }
     }
     out
@@ -235,6 +256,21 @@ fn accent_marks(input: &str) -> Vec<Mark> {
         }
     }
     marks
+}
+
+fn expansion_matches(marks: &[Mark], mark_at: usize, sug: &[char], sug_at: usize, rep: &str) -> bool {
+    let mut mi = mark_at;
+    let mut si = sug_at;
+    for expected in rep.chars() {
+        let Some(mark) = marks.get(mi) else { return false };
+        let Some(&sc) = sug.get(si) else { return false };
+        if !base_eq(mark.base, expected) || !base_eq(expected, sc) {
+            return false;
+        }
+        mi = mi.saturating_add(1);
+        si = si.saturating_add(1);
+    }
+    true
 }
 
 fn base_eq(base: char, suggestion: char) -> bool {

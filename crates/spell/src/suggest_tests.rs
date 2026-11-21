@@ -64,6 +64,36 @@ fn no_short_piece(word: &str) -> bool {
 }
 
 #[test]
+fn title_case_keeps_a_candidate_with_internal_capitals() {
+    let mcdonald = Dictionary::parse("SET UTF-8\nREP 1\nREP mcdonld McDonald\n", "1\nMcDonald\n").expect("parse");
+    let got = mcdonald.suggest("Mcdonld", &[]);
+    assert!(got.iter().any(|word| word == "McDonald"), "{got:?}");
+    assert!(got.iter().all(|word| mcdonald.is_correct(word)), "{got:?}");
+
+    let nasa = Dictionary::parse("SET UTF-8\nTRY esa\n", "1\nNASA\n").expect("parse");
+    let got = nasa.suggest("Nass", &[]);
+    assert!(got.iter().any(|word| word == "NASA"), "{got:?}");
+    assert!(got.iter().all(|word| nasa.is_correct(word)), "{got:?}");
+
+    let plain = Dictionary::parse("SET UTF-8\nTRY ht\n", "1\nthe\n").expect("parse");
+    let got = plain.suggest("Teh", &[]);
+    assert!(got.iter().any(|word| word == "The"), "{got:?}");
+    assert!(got.iter().all(|word| plain.is_correct(word)), "{got:?}");
+}
+
+#[test]
+fn ligature_restore_consumes_its_whole_expansion() {
+    assert_eq!(crate::fold::restore_accents("encyclopædai", "encyclopaedia"), "encyclopædia");
+    assert_eq!(crate::fold::fold_accents("encyclopædia"), "encyclopaedia");
+    assert_eq!(crate::fold::restore_accents("café", "cafe"), "café");
+
+    let dict = Dictionary::parse("SET UTF-8\n", "1\nencyclopaedia\n").expect("parse");
+    let got = dict.suggest("encyclopædai", &[]);
+    assert!(got.iter().any(|word| word == "encyclopædia"), "{got:?}");
+    assert!(got.iter().all(|word| dict.is_correct(word)), "{got:?}");
+}
+
+#[test]
 fn suggestion_case_and_accents() {
     let upper = dict().suggest("TEH", &[]);
     assert!(upper.iter().any(|word| word == "THE"), "{upper:?}");

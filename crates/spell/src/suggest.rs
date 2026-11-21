@@ -49,7 +49,8 @@ impl Dictionary {
     /// Up to six spellings for `word`. `extra` words (the owner's own list) are candidates too.
     ///
     /// Words longer than 64 characters yield nothing: the search is bounded.
-    /// A stem marked `NOSUGGEST` is never offered. The suggestion follows the capitals of `word`.
+    /// A stem marked `NOSUGGEST` is never offered. The suggestion follows the capitals of `word`,
+    /// and a candidate that already has an internal capital keeps that spelling.
     pub fn suggest(&self, word: &str, extra: &[&str]) -> Vec<String> {
         let mut count = 0usize;
         for _ in word.chars() {
