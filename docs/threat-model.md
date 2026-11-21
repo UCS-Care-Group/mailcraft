@@ -373,6 +373,33 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   as a command's params (`compose.checkNames` `found`), puts a name in only when exactly one
   person matches it, and asks the owner to choose among several. A server can offer a wrong
   person for a name; the owner sees the address before the message goes.
+- **An Offline Address Book is a server's file, read as hostile** (#1393). People's Address Book
+  downloads an Exchange server account's whole address list when it is first shown in a run (and
+  again a day later): Autodiscover at the host of the account's own Exchange Web Services address
+  for `OABUrl`, which is taken only when it names that same host (so the sign-in goes nowhere
+  else), `oab.xml` there (at most 2 MB, read by the hostile XML reader, a file name of letters,
+  digits, `.`, `-` and `_` alone), and the full file of version 4, at most 16 MB, unpacked to at most 256 MB with at most 128 MB of its values kept while it is read
+  (each value counting 48 bytes more for what it costs in memory, so that millions of empty ones
+  are held too; at most 6.4 million values, 32 for each person of the 200,000 kept; a schema that
+  lists a property twice is refused; a list that reaches one of these caps, or has more than
+  200,000 entries, is read up to there and no further, and the Address Book says that the list
+  goes on (`Limits::keep_first`); `crates/ews/src/oab.rs`; each answer is held to its cap there too, whatever the transport
+  read, and a download nobody waits for any more asks nothing after the request on its way). The
+  file is unpacked and read by `mailcraft-oab`, written from
+  [MS-OXOAB] and [MS-PATCH]: no panics, no indexing or unchecked arithmetic, every block's CRC
+  and the file's checked, every size checked against the bytes there are and against caps before
+  anything is allocated (each value of a multi-valued property counted against the cap on
+  values), a match never before the start or across a block or a chunk, every chunk, the last
+  too, ending where its size says; its own
+  property tests and fuzz target. Of each entry only what `DirectoryPerson::checked` keeps for a
+  look-up is kept (at most 200,000 people), in memory while the program runs and never written,
+  with the entry's own S/MIME certificates (`PidTagAddressBookX509Certificate`, and those inside
+  the CMS SignedData of `PidTagUserX509Certificate`, read by the S/MIME crate's strict SignedData
+  reader, at most 1 MB and 16 certificates, nothing in it checked): an authority's and what the
+  certificate reader can't read are left out, at most eight of at most 16 KB each, each once,
+  64 MB for the whole list, never in what an agent is given and never trusted for being there. The card reads them with the same certificate reader as a contact's card; Add to
+  Contacts puts on the contact's card only those `keys.import` would take (for mail, not an
+  authority's).
 - A compromised server can still read and change the mail it holds. That is the server's job, not
   something a client can prevent; end-to-end encryption would be (see Known limits).
 

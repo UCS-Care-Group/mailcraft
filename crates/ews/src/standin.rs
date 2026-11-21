@@ -226,8 +226,11 @@ pub struct State {
     pub omits_recipients: bool,
     /// The versions every request asked for, in order.
     pub versions: Vec<String>,
-    /// The organisation's address list, for `ResolveNames` (#1262).
+    /// The organisation's address list, for `ResolveNames` (#1262) and its Offline Address Book
+    /// (#1393).
     pub directory: Vec<crate::standin_directory::Person>,
+    /// How the Offline Address Book is published ([`crate::standin_oab`]).
+    pub oab: crate::standin_oab::Publishing,
 }
 
 impl Default for State {
@@ -303,6 +306,7 @@ impl Default for State {
             omits_recipients: false,
             versions: Vec::new(),
             directory: Vec::new(),
+            oab: crate::standin_oab::Publishing::default(),
         }
     }
 }
@@ -577,6 +581,9 @@ impl State {
         } else if !authorized {
             asked.status = 401;
             HttpResponse::new(401, Vec::new())
+        } else if let Some((operation, response)) = self.offline_address_book(request) {
+            (asked.operation, asked.status) = (operation.to_owned(), response.status());
+            response
         } else if let Some(status) = self.refused_name(request) {
             asked.status = status;
             HttpResponse::new(status, Vec::new())

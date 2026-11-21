@@ -76,9 +76,10 @@ pub mod items;
 pub mod ntlm;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
-pub mod reply;
+pub mod oab;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+pub mod reply;
 pub mod resolve;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
@@ -102,6 +103,8 @@ pub mod standin_directory;
 pub mod standin_mail;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin_ntlm;
+#[cfg(any(test, feature = "stand-in"))]
+pub mod standin_oab;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin_write;
 

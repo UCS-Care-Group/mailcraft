@@ -266,7 +266,14 @@ pub fn ews_resolve_request_for(s: &Session, account: Id, texts: &[String]) -> Re
         username: server.username.clone(),
         trusted: server.trusted.clone(),
         texts: asked,
+        address_list: false,
     })
+}
+
+/// What the host is to download the whole address list of `account` with (#1393): its Offline
+/// Address Book, from its own server.
+pub fn ews_address_list_request(s: &Session, account: Id) -> Result<EwsResolveRequest, CmdError> {
+    Ok(EwsResolveRequest { address_list: true, ..ews_resolve_request_for(s, account, &[])? })
 }
 
 fn fetch_request(s: &mut Session, v: &Value) -> CmdResult {
