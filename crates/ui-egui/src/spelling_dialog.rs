@@ -358,8 +358,17 @@ impl SpellingDialog {
                         );
                     }
                     for (index, word) in mistake.words.iter().take(spelling::MAX_SUGGESTIONS).enumerate() {
-                        let resp =
-                            ui.add_sized(vec2(ui.available_width(), SUGGESTION_ROW), egui::Button::new(word).selected(self.replacement == *word));
+                        let width = ui.available_width();
+                        // `selectable` draws a frame only on the chosen row. A row is exactly one
+                        // line tall, and the left-to-right layout keeps the word at its left.
+                        let resp = ui
+                            .allocate_ui_with_layout(
+                                vec2(width, SUGGESTION_ROW),
+                                // `left_to_right` centres along its row; the word belongs at the left.
+                                egui::Layout::left_to_right(egui::Align::Center).with_main_align(egui::Align::LEFT),
+                                |ui| ui.add(egui::Button::selectable(self.replacement == *word, word.as_str()).min_size(vec2(width, SUGGESTION_ROW))),
+                            )
+                            .inner;
                         if resp.clicked() {
                             self.replacement.clone_from(word);
                         }
@@ -674,11 +683,17 @@ pub(crate) fn positioned_window(
     open
 }
 
+/// `value` kept inside `[min, max]`. When the range is empty (the dialog is larger than the
+/// window), it stays at `min` rather than panicking.
+fn clamp_in(value: f32, min: f32, max: f32) -> f32 {
+    if !value.is_finite() || max < min { min } else { value.clamp(min, max) }
+}
+
 /// Top-left of a dialog `size` large. Under the word's line when that fits in `screen`, otherwise
 /// over it. Without a word, along the bottom of `pane` (or of the screen). Always clamped to `screen`.
 pub(crate) fn place(screen: Rect, word: Option<Rect>, pane: Option<Rect>, size: Vec2) -> Pos2 {
-    let clamp_x = |x: f32| x.clamp(screen.min.x + PLACE_GAP, (screen.max.x - size.x - PLACE_GAP).max(screen.min.x));
-    let clamp_y = |y: f32| y.clamp(screen.min.y + PLACE_GAP, (screen.max.y - size.y - PLACE_GAP).max(screen.min.y));
+    let clamp_x = |x: f32| clamp_in(x, screen.min.x + PLACE_GAP, (screen.max.x - size.x - PLACE_GAP).max(screen.min.x));
+    let clamp_y = |y: f32| clamp_in(y, screen.min.y + PLACE_GAP, (screen.max.y - size.y - PLACE_GAP).max(screen.min.y));
     let x_in = |pane: Rect| {
         let preferred = pane.center().x - size.x * 0.5;
         preferred.clamp(pane.min.x, (pane.max.x - size.x).max(pane.min.x))
