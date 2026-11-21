@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::messages::Messages;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
-    Action, Answers, Calendar, Condition, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, MAX_PATTERN_CONDITIONS,
-    Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex, count_pattern_conditions, clean_name,
+    Action, Answers, Calendar, Condition, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, MAX_PATTERN_CONDITIONS, Message, ModelError, Rgb,
+    Rule, Signature, Task, ThreadIndex, clean_name, count_pattern_conditions,
 };
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
@@ -3659,35 +3659,37 @@ impl Mailbox {
         }
 
         if pattern_count <= MAX_PATTERN_CONDITIONS {
-            return 0;
-        }
-
-        // We need to remove pattern conditions. Strategy: iterate rules and uncompile
-        // pattern conditions until we're under the limit. Keep non-pattern conditions.
-        let mut removed = 0;
-        let mut remaining = pattern_count;
-
-        for rule in &mut self.rules {
-            // Collect indices of pattern conditions that need to be removed
-            let mut to_remove = Vec::new();
-            for (i, c) in rule.conditions.iter().enumerate() {
-                if matches!(c, Condition::SubjectMatches(_) | Condition::BodyMatches(_)) {
-                    if remaining > MAX_PATTERN_CONDITIONS {
-                        to_remove.push(i);
-                        remaining -= 1;
-                        removed += 1;
+            // All patterns are within budget - compile them all
+            for rule in &mut self.rules {
+                for cond in &mut rule.conditions {
+                    if let Condition::SubjectMatches(p) | Condition::BodyMatches(p) = cond {
+                        p.ensure_compiled();
                     }
                 }
             }
+            return 0;
+        }
 
-            // Remove pattern conditions from the end to avoid index shifting issues
-            for i in to_remove.into_iter().rev() {
-                rule.conditions.remove(i);
-            }
+        // We need to reduce pattern conditions to stay within budget.
+        // Strategy: keep the first MAX_PATTERN_CONDITIONS patterns compiled,
+        // uncompile the rest.
+        let mut removed = 0;
+        let mut compiled_kept = 0;
+        let target_compiled = MAX_PATTERN_CONDITIONS;
 
-            // Stop once we've removed enough
-            if remaining <= MAX_PATTERN_CONDITIONS {
-                break;
+        for rule in &mut self.rules {
+            for cond in &mut rule.conditions {
+                if let Condition::SubjectMatches(p) | Condition::BodyMatches(p) = cond {
+                    if compiled_kept < target_compiled {
+                        // Keep this pattern compiled (compile if not already)
+                        p.ensure_compiled();
+                        compiled_kept += 1;
+                    } else {
+                        // Over budget - uncompile this pattern
+                        p.uncompile();
+                        removed += 1;
+                    }
+                }
             }
         }
 

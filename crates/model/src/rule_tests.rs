@@ -125,10 +125,13 @@ fn pattern_round_trip_preserves_matcher() {
 
     // Serialize and deserialize
     let json = serde_json::to_string(&original).unwrap();
-    let deserialized: Pattern = serde_json::from_str(&json).unwrap();
+    let mut deserialized: Pattern = serde_json::from_str(&json).unwrap();
 
     // The text should be preserved
     assert_eq!(deserialized.as_str(), pattern_str);
+
+    // Ensure the pattern is compiled (this is done by Mailbox::repair())
+    assert!(deserialized.ensure_compiled());
 
     // The matcher should still work
     assert!(deserialized.is_match("Your INVOICE"));
@@ -196,7 +199,7 @@ fn load_mailbox_with_too_many_patterns() {
     // Create a mailbox with 150 rules, each having a pattern condition
     // This exceeds the MAX_PATTERN_CONDITIONS limit of 100
     let mut mailbox = Mailbox::default();
-    
+
     // Add 150 rules with pattern conditions
     for i in 0..150 {
         let pattern = Pattern::new(format!(r"pattern{}", i)).unwrap();
@@ -209,10 +212,10 @@ fn load_mailbox_with_too_many_patterns() {
             ..Default::default()
         });
     }
-    
+
     // Verify all 150 rules were created
     assert_eq!(mailbox.rules.len(), 150);
-    
+
     // Before repair, all patterns should be compiled
     let mut pattern_count_before = 0;
     for rule in &mailbox.rules {
@@ -224,38 +227,51 @@ fn load_mailbox_with_too_many_patterns() {
         }
     }
     assert_eq!(pattern_count_before, 150);
-    
+
     // Repair should enforce the pattern budget
     let fixed = mailbox.repair();
-    
-    // Verify we have at most MAX_PATTERN_CONDITIONS pattern conditions
+
+    // After repair, all pattern conditions should still exist (not removed from rules)
+    // but excess ones should be uncompiled so they match nothing
     let mut pattern_count_after = 0;
+    let mut compiled_after = 0;
     for rule in &mailbox.rules {
         for cond in &rule.conditions {
             if let Condition::SubjectMatches(p) = cond {
                 pattern_count_after += 1;
-                // The pattern should either be compiled (kept) or uncompiled (removed)
-                // If it's uncompiled, it will match nothing
+                if p.is_compiled() {
+                    compiled_after += 1;
+                }
             }
         }
     }
-    assert!(pattern_count_after <= MAX_PATTERN_CONDITIONS, "After repair: {} patterns, limit is {}", pattern_count_after, MAX_PATTERN_CONDITIONS);
-    
+    // All pattern conditions should still exist (not removed)
+    assert_eq!(pattern_count_after, 150, "Pattern conditions should not be removed from rules");
+    // Only MAX_PATTERN_CONDITIONS should be compiled
+    assert_eq!(compiled_after, MAX_PATTERN_CONDITIONS, "Only {} patterns should be compiled", MAX_PATTERN_CONDITIONS);
+    // Uncompiled patterns should match nothing
+    for rule in &mailbox.rules {
+        for cond in &rule.conditions {
+            match cond {
+                Condition::SubjectMatches(p) if !p.is_compiled() => {
+                    assert!(!p.is_match("any text"), "Uncompiled pattern should match nothing");
+                }
+                _ => {}
+            }
+        }
+    }
+
     // Verify the fix message was added
     assert!(fixed.iter().any(|msg| msg.contains("pattern conditions cut")), "Fixed: {:?}", fixed);
-    
+
     // Verify that uncompiled patterns match nothing
     for rule in &mailbox.rules {
         for cond in &rule.conditions {
-            if let Condition::SubjectMatches(p) = cond {
-                let test_msg = Message {
-                    subject: "any text".into(),
-                    ..Default::default()
-                };
-                // If pattern is not compiled, it matches nothing
-                if !p.is_compiled() {
+            match cond {
+                Condition::SubjectMatches(p) if !p.is_compiled() => {
                     assert!(!p.is_match("any text"), "Uncompiled pattern should match nothing");
                 }
+                _ => {}
             }
         }
     }
@@ -277,16 +293,15 @@ fn pattern_budget_works_across_multiple_mailboxes() {
             ..Default::default()
         });
     }
-    
-    // Repair should limit mailbox1 to 100 pattern conditions
+
+    // Repair should compile up to 100 patterns (excess uncompiled)
     let _ = mailbox1.repair();
-    
-    let pattern_count1 = mailbox1.rules.iter()
-        .map(|r| count_pattern_conditions(&r.conditions))
-        .sum::<usize>();
-    
-    assert!(pattern_count1 <= MAX_PATTERN_CONDITIONS, "Mailbox1: {} patterns exceeds limit", pattern_count1);
-    
+
+    let pattern_count1 = mailbox1.rules.iter().map(|r| count_pattern_conditions(&r.conditions)).sum::<usize>();
+
+    // All 120 pattern conditions should still exist (not removed from rules)
+    assert_eq!(pattern_count1, 120, "Mailbox1: pattern conditions should not be removed");
+
     // Create second mailbox with 80 patterns (under limit)
     let mut mailbox2 = Mailbox::default();
     for i in 0..80 {
@@ -300,57 +315,43 @@ fn pattern_budget_works_across_multiple_mailboxes() {
             ..Default::default()
         });
     }
-    
+
     // Repair should keep all 80 patterns (under limit)
     let _ = mailbox2.repair();
-    
-    let pattern_count2 = mailbox2.rules.iter()
-        .map(|r| count_pattern_conditions(&r.conditions))
-        .sum::<usize>();
-    
+
+    let pattern_count2 = mailbox2.rules.iter().map(|r| count_pattern_conditions(&r.conditions)).sum::<usize>();
+
     assert_eq!(pattern_count2, 80, "Mailbox2 should keep all 80 patterns");
-    
+
     // Verify each mailbox has its own budget (not shared)
-    assert!(pattern_count1 <= 100);
-    assert_eq!(pattern_count2, 80);
+    // Mailbox1 has 120 patterns but only 100 are compiled; excess are uncompiled
+    assert_eq!(pattern_count1, 120, "Mailbox1 pattern conditions should not be removed");
+    assert_eq!(pattern_count2, 80, "Mailbox2 pattern conditions should not be removed");
 }
 
 #[test]
 fn body_pattern_caps_text_to_max_length() {
     // Create a pattern that looks for text at a specific position
     let pattern = Pattern::new(r"ZZZ".to_string()).unwrap();
-    
+
     // Body with "ZZZ" at position 5000 (within cap)
     let short_body = "a".repeat(4997) + "ZZZ";
-    let m = Message {
-        body: Body { text: short_body, html: None },
-        ..Default::default()
-    };
+    let m = Message { body: Body { text: short_body, html: None }, ..Default::default() };
     assert!(Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern should match within cap");
-    
+
     // Body with "ZZZ" at position 15000 (beyond cap)
     let long_body = "a".repeat(15000);
-    let m = Message {
-        body: Body { text: long_body, html: None },
-        ..Default::default()
-    };
+    let m = Message { body: Body { text: long_body, html: None }, ..Default::default() };
     assert!(!Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern beyond cap should not match");
-    
+
     // Body with "ZZZ" at position 5000 within a 15000 char body (the first 10000 chars)
     let mixed_body = "a".repeat(5000) + "ZZZ" + &"b".repeat(9999);
-    let m = Message {
-        body: Body { text: mixed_body, html: None },
-        ..Default::default()
-    };
+    let m = Message { body: Body { text: mixed_body, html: None }, ..Default::default() };
     assert!(Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern in first 10000 chars should match");
-    
+
     // Verify hidden text is also capped
     let hidden_with_zzz = "a".repeat(5000) + "ZZZ" + &"c".repeat(5000);
-    let m = Message {
-        body: Body { text: "short body".to_string(), html: None },
-        hidden_text: hidden_with_zzz,
-        ..Default::default()
-    };
+    let m = Message { body: Body { text: "short body".to_string(), html: None }, hidden_text: hidden_with_zzz, ..Default::default() };
     assert!(Condition::BodyMatches(pattern).matches(&m), "Hidden text within cap should match");
 }
 
@@ -358,20 +359,166 @@ fn body_pattern_caps_text_to_max_length() {
 fn body_pattern_handles_multibyte_chars() {
     // Use multibyte characters and verify truncation at character boundary
     let pattern = Pattern::new("中".to_string()).unwrap();
-    
+
     // Create body with 10000+ characters, ending with "中"
     let multi = "中".repeat(10_001);
     let multi_clone = multi.clone();
-    let m = Message {
-        body: Body { text: multi, html: None },
-        ..Default::default()
-    };
-    
+    let m = Message { body: Body { text: multi, html: None }, ..Default::default() };
+
     // Pattern should match because first 10000 chars include "中"
     assert!(Condition::BodyMatches(pattern).matches(&m), "Multibyte pattern should match");
-    
+
     // Verify the cap is at character count, not byte count
     // Each "中" is 3 bytes, so 10000 chars = 30000 bytes
     let capped = crate::rule::cap_body_text(&multi_clone);
     assert_eq!(capped.chars().count(), MAX_BODY_PATTERN_CHARS, "Should cap at 10000 characters");
+}
+
+#[test]
+fn hostile_mailbox_loading_does_not_compile_patterns() {
+    // Create a hostile mailbox with many patterns that would be expensive to compile
+    // This simulates a file that might be sent to the program for opening
+
+    // Create 150 patterns (exceeds MAX_PATTERN_CONDITIONS of 100)
+    let mut mailbox = Mailbox::default();
+    for i in 0..150 {
+        // Use a valid pattern string (under MAX_PATTERN_LENGTH of 200 chars)
+        let pattern = Pattern::uncompiled(format!("pattern{}", i));
+
+        mailbox.rules.push(Rule {
+            id: i as Id,
+            name: format!("Rule {}", i),
+            enabled: true,
+            conditions: vec![Condition::SubjectMatches(pattern)],
+            actions: vec![Action::MarkRead],
+            ..Default::default()
+        });
+    }
+
+    // Before repair, patterns should NOT be compiled (they were just deserialized)
+    let mut compiled_before = 0;
+    for rule in &mailbox.rules {
+        for cond in &rule.conditions {
+            match cond {
+                Condition::SubjectMatches(p) if p.is_compiled() => {
+                    compiled_before += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+    assert_eq!(compiled_before, 0, "No patterns should be compiled before repair()");
+
+    // Repair should enforce the pattern budget
+    let fixed = mailbox.repair();
+
+    // Verify all 150 pattern conditions still exist (not removed from rules)
+    let mut pattern_count_after = 0;
+    let mut compiled_after = 0;
+    for rule in &mailbox.rules {
+        for cond in &rule.conditions {
+            if let Condition::SubjectMatches(p) = cond {
+                pattern_count_after += 1;
+                if p.is_compiled() {
+                    compiled_after += 1;
+                }
+            }
+        }
+    }
+
+    // All pattern conditions should still exist (not removed)
+    assert_eq!(pattern_count_after, 150, "Pattern conditions should not be removed from rules");
+    // Only MAX_PATTERN_CONDITIONS should be compiled (excess are uncompiled)
+    assert_eq!(compiled_after, MAX_PATTERN_CONDITIONS, "Only {} patterns should be compiled", MAX_PATTERN_CONDITIONS);
+    // Uncompiled patterns should match nothing
+    for rule in &mailbox.rules {
+        for cond in &rule.conditions {
+            match cond {
+                Condition::SubjectMatches(p) if !p.is_compiled() => {
+                    assert!(!p.is_match("any text"), "Uncompiled pattern should match nothing");
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Verify the fix message was added
+    assert!(fixed.iter().any(|msg| msg.contains("pattern conditions cut")), "Fixed: {:?}", fixed);
+}
+
+#[test]
+fn two_condition_rule_preserved_when_over_budget() {
+    // Test that a rule with two pattern conditions keeps both conditions when over budget,
+    // but only the first is compiled (second is uncompiled and matches nothing)
+    // We add rules such that the first 100 patterns get compiled, and the 101st+ get uncompiled
+
+    let mut mailbox = Mailbox::default();
+
+    // Add 99 rules with one pattern each (these will be the first 99 compiled)
+    for i in 0..99 {
+        mailbox.rules.push(Rule {
+            id: i + 1,
+            name: format!("Rule {}", i),
+            enabled: true,
+            conditions: vec![Condition::SubjectMatches(Pattern::uncompiled(format!("pattern{}", i)))],
+            actions: vec![Action::MarkRead],
+            ..Default::default()
+        });
+    }
+
+    // Add a rule with two pattern conditions (patterns 100 and 101)
+    // Pattern 100 will be compiled, pattern 101 will be uncompiled
+    mailbox.rules.push(Rule {
+        id: 100,
+        name: "Two condition rule".to_string(),
+        enabled: true,
+        conditions: vec![
+            Condition::SubjectMatches(Pattern::uncompiled("invoice".to_string())), // 100th - compiled
+            Condition::BodyMatches(Pattern::uncompiled("urgent".to_string())),     // 101st - uncompiled
+        ],
+        actions: vec![Action::MarkRead],
+        ..Default::default()
+    });
+
+    // Before repair: all 101 pattern conditions should be uncompiled
+    let mut compiled_before = 0;
+    for rule in &mailbox.rules {
+        for cond in &rule.conditions {
+            match cond {
+                Condition::SubjectMatches(p) | Condition::BodyMatches(p) if p.is_compiled() => {
+                    compiled_before += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+    assert_eq!(compiled_before, 0, "No patterns should be compiled before repair");
+
+    // Repair
+    let fixed = mailbox.repair();
+
+    // The rule with two conditions should still have both conditions
+    let two_cond_rule = mailbox.rules.iter().find(|r| r.id == 100).expect("Rule 100 should exist");
+    let pattern_conditions: Vec<_> = two_cond_rule
+        .conditions
+        .iter()
+        .filter_map(|c| match c {
+            Condition::SubjectMatches(_) | Condition::BodyMatches(_) => Some(()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(pattern_conditions.len(), 2, "Both pattern conditions should still exist in the rule");
+
+    // First pattern should be compiled (it's the 100th), second should be uncompiled (101st)
+    let mut cond_iter = two_cond_rule.conditions.iter();
+    if let Some(Condition::SubjectMatches(p1)) = cond_iter.next() {
+        assert!(p1.is_compiled(), "First pattern (100th) should be compiled");
+    }
+    if let Some(Condition::BodyMatches(p2)) = cond_iter.next() {
+        assert!(!p2.is_compiled(), "Second pattern (101st) should be uncompiled");
+        assert!(!p2.is_match("any text"), "Uncompiled pattern should match nothing");
+    }
+
+    // Verify fix message was added
+    assert!(fixed.iter().any(|msg| msg.contains("pattern conditions cut")), "Fixed: {:?}", fixed);
 }

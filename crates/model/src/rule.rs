@@ -43,11 +43,7 @@ pub fn cap_body_text(text: &str) -> String {
         return text.to_string();
     }
     // Find the byte position of the Nth character
-    let end_byte = text
-        .char_indices()
-        .nth(MAX_BODY_PATTERN_CHARS)
-        .map(|(idx, _)| idx)
-        .unwrap_or(text.len());
+    let end_byte = text.char_indices().nth(MAX_BODY_PATTERN_CHARS).map(|(idx, _)| idx).unwrap_or(text.len());
     text[..end_byte].to_string()
 }
 
@@ -71,17 +67,26 @@ pub fn count_pattern_conditions(conditions: &[Condition]) -> usize {
     conditions.iter().filter(|c| matches!(c, Condition::SubjectMatches(_) | Condition::BodyMatches(_))).count()
 }
 
-/// A regex pattern that has been compiled and is ready to match.
+/// A regex pattern that may or may not be compiled.
+/// The compiled regex is created lazily during repair, after the pattern budget is enforced.
 #[derive(Clone, Debug)]
 pub struct Pattern {
     /// The original pattern string, kept untrimmed for accurate error messages.
     pattern: String,
     /// The compiled regex, cached so it doesn't need to be recompiled for every message.
+    /// This is None immediately after deserialization and is compiled during repair().
     regex: Option<Arc<regex::Regex>>,
 }
 
 impl Pattern {
+    /// Create a pattern from a string without compiling (for deserialization).
+    /// The pattern will be compiled during Mailbox::repair() if needed.
+    pub fn uncompiled(pattern: String) -> Pattern {
+        Pattern { pattern, regex: None }
+    }
+
     /// Try to compile a pattern, refusing if it's too long or invalid.
+    /// This is used when creating new patterns (e.g., from the UI).
     pub fn new(pattern: String) -> Option<Pattern> {
         // Count characters, not bytes
         if pattern.chars().count() > MAX_PATTERN_LENGTH {
@@ -100,9 +105,31 @@ impl Pattern {
         regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(2 << 20).build().is_ok()
     }
 
+    /// Compile the pattern if it hasn't been already.
+    /// Returns true if compilation succeeded, false if the pattern is too long or invalid.
+    pub fn ensure_compiled(&mut self) -> bool {
+        if self.regex.is_some() {
+            return true;
+        }
+        // Count characters, not bytes
+        if self.pattern.chars().count() > MAX_PATTERN_LENGTH {
+            return false;
+        }
+        match regex::RegexBuilder::new(&self.pattern).case_insensitive(true).size_limit(2 << 20).build() {
+            Ok(rx) => {
+                self.regex = Some(Arc::new(rx));
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
     /// Match the pattern against text.
     pub fn is_match(&self, text: &str) -> bool {
-        self.regex.as_ref().is_some_and(|r| r.is_match(text))
+        match &self.regex {
+            Some(r) => r.is_match(text),
+            None => false,
+        }
     }
 
     /// Get the pattern string.
@@ -144,9 +171,9 @@ impl<'de> Deserialize<'de> for Pattern {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        // Try to recompile the pattern; if it fails, keep the text but no regex (matches nothing).
-        let regex = Pattern::new(s.clone()).and_then(|p| p.regex);
-        Ok(Pattern { pattern: s, regex })
+        // Store the pattern string without compiling.
+        // Compilation happens during Mailbox::repair() after the budget is enforced.
+        Ok(Pattern::uncompiled(s))
     }
 }
 
