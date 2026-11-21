@@ -106,7 +106,7 @@ was measured.
 | `MaxChangesReturned` | Honoured | Asking for 5 answers 5 (answering fewer than asked is normal, Exchange too) |
 | `ItemShape` | Doesn't | Every `SyncFolderItems` answer whose base shape isn't `IdOnly` carries each item's full `MimeContent` — 32 items came as 47 MB, without the body being asked for. `IdOnly` answers correctly |
 | First download | Worked | Its pages were light enough to read |
-| Every run after the first | Stalled (fixed in #1783) | The next page outweighed the 16 MiB any answer is read at, was dropped, and the folder's state could never move past it: one problem every send/receive and no new mail, ever. Such pages are now asked for fewer changes at a time until the server's answers fit (#1783) |
+| Every run after the first | Stalled (fixed in #1783) | The next page outweighed the 16 MiB any answer is read at, was dropped, and the folder's state could never move past it: one problem every send/receive and no new mail, ever. Such pages are now asked for fewer changes at a time until the server's answers fit — and where an item itself outweighs the limit, the folder costs one problem and no loop (#1783) |
 
 ## Not yet tried
 

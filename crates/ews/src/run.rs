@@ -163,12 +163,29 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     pub(crate) needs_change_key: bool,
     /// The recipients of some messages couldn't be had with `GetItem`: said once a run.
     pub(crate) recipients_unsaid: bool,
-    /// How many changes one page of a folder asks for: [`PAGE`] until a server answers a page
-    /// heavier than this program reads, and half as many every time it does — measured to be
-    /// honoured by servers that pick their own page size, Kerio Connect among them (#964).
+    /// How many changes one page of the folder being read asks for: [`PAGE`] when each folder
+    /// starts, halved each time a page is refused for its weight, back to [`PAGE`] when the
+    /// folder takes up the light shape — measured to be honoured by servers that pick their own
+    /// page size, Kerio Connect among them (#964).
     pub(crate) page: u32,
     /// The pages were shrunk this run: said once, with no folder named.
     pub(crate) page_said: bool,
+    /// The light base shape was taken up somewhere this run: said once, with no folder named.
+    pub(crate) ids_said: bool,
+    /// The folder being read asks with the light base shape: its own lesson, forgotten when the
+    /// next folder starts, since the weight a page carries is this folder's (`shape` — what the
+    /// server's schema takes — is the run's, and learned for good).
+    pub(crate) ids: bool,
+    /// The light shape was refused as a shape: said once, with no folder named.
+    pub(crate) ids_refused_said: bool,
+    /// The server refuses the light asking outright: no folder tries it again this run, and the
+    /// oversized pages fall back to halving in the schema shape, which still fits eventually
+    /// once the items are big rather than the page (#1784, the re-review's 1 MB-item world).
+    pub(crate) ids_refused: bool,
+    /// The light asking still names the flag. It goes false for the run the first time an ids
+    /// page that asked the flag is refused: a server may take `IdOnly` and only balk at the
+    /// flag on top of it, and the flag is worth losing before the whole light asking is (#1784).
+    pub(crate) ids_flag: bool,
 }
 
 impl<'a, E: HttpExchange> Run<'a, E> {
@@ -187,6 +204,11 @@ impl<'a, E: HttpExchange> Run<'a, E> {
             recipients_unsaid: false,
             page: PAGE,
             page_said: false,
+            ids_said: false,
+            ids: false,
+            ids_refused_said: false,
+            ids_refused: false,
+            ids_flag: true,
         }
     }
 }
@@ -665,13 +687,28 @@ impl<E: HttpExchange> Run<'_, E> {
     ) -> Result<bool, Asked> {
         let (mut state, mut afresh, mut lost) = (state.to_owned(), state.is_empty(), false);
         let mut read = 0u32;
+        // (Each folder asks with the usual page again: what is heavy is this folder's, and a
+        // shrunk page or a light shape carried into the light folders only costs them what they
+        // never earned (#1784, the review and the re-review).)
+        self.page = PAGE;
+        self.ids = false;
+        // How many pages this folder has had refused for their weight, one after the other.
+        let mut heavy = 0u8;
+        // The page size this folder had when the light asking was taken up: if that asking is
+        // refused, halving resumes below it — the sizes above it are what taught the lesson.
+        let mut below_page = PAGE;
         // (A server older than Exchange 2013 is asked for what its schema has from the start, #1349.)
-        if self.shape != Shape::Bare && !self.client.version().has_preview() {
+        if matches!(self.shape, Shape::Full | Shape::Lean) && !self.client.version().has_preview() {
             self.shape = Shape::Bare;
             log::info!("ews mail: the server is older than Exchange 2013; the recipients are asked message by message");
         }
         for _ in 0..MAX_PAGES {
-            let op = SyncFolderItems::new(folder, &state, self.page, self.shape);
+            let op = SyncFolderItems::new(
+                folder,
+                &state,
+                self.page,
+                if self.ids { Shape::Ids { flag: self.shape == Shape::Full && self.ids_flag } } else { self.shape },
+            );
             let page = match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(page) => {
                     if page.read_unsaid > 0 && !self.read_unsaid {
@@ -686,36 +723,98 @@ impl<E: HttpExchange> Run<'_, E> {
                     log::info!("ews mail: the server no longer knows a folder's sync state; reading the folder afresh");
                     continue;
                 }
+                // (A schema fault on a page that was asked as ids is a refusal of the ids asking
+                // itself: it says nothing about what the schema shape would answer, and taking
+                // it as a schema lesson would punish every folder after this one (#1784, the
+                // re-reviews). The folder goes back to the schema shape and resumes halving
+                // below the page that taught the size lesson — which fits where the items are
+                // big but not huge (at ~1 MB an item, pages of a dozen read fine). The refusal
+                // is the run's: no later folder tries the refused asking again.)
+                Err(Asked::Code(
+                    ResponseCode::InvalidPropertyRequest | ResponseCode::InvalidPropertyForOperation | ResponseCode::SchemaValidation,
+                )) if self.ids => {
+                    // (It may be the flag the page asked on top of `IdOnly` that was refused,
+                    // not the light asking itself: ask it once more without the flag, and
+                    // learn for the run that this server wants the list without it (#1784).)
+                    if self.shape == Shape::Full && self.ids_flag {
+                        self.ids_flag = false;
+                        continue;
+                    }
+                    if !self.ids_refused_said {
+                        self.ids_refused_said = true;
+                        log::info!("ews mail: the server won't take the list with the properties alone; asking with fewer changes instead");
+                    }
+                    self.ids = false;
+                    self.ids_refused = true;
+                    // (Half of the size that taught the size lesson — the sizes above it were
+                    // already refused, and re-asking them only re-pays them.)
+                    self.page = (below_page / 2).max(MIN_PAGE);
+                    continue;
+                }
                 // (A schema fault is read as a missing property only from a server older than Exchange
                 // 2013: a newer one's has another cause, and isn't hidden by asking for less.)
                 Err(Asked::Code(code @ (ResponseCode::InvalidPropertyRequest | ResponseCode::SchemaValidation)))
                     if self.shape == Shape::Full && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
                 {
                     self.shape = Shape::Lean;
+                    heavy = 0;
                     log::info!("ews mail: the server lacks the preview or the flag; asking for the rest");
                     continue;
                 }
                 Err(Asked::Code(code @ (ResponseCode::InvalidPropertyForOperation | ResponseCode::SchemaValidation)))
-                    if self.shape != Shape::Bare && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
+                    if matches!(self.shape, Shape::Full | Shape::Lean)
+                        && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
                 {
                     self.shape = Shape::Bare;
+                    heavy = 0;
                     log::info!("ews mail: the server won't list the recipients with the changes; they are asked message by message");
                     continue;
                 }
-                // (A server that answers the page with more than any answer this program reads —
-                // Kerio Connect's servlet among them, which sends whole messages when only the
-                // list was asked for (#964)) — is asked for fewer changes at a time, and stays
-                // asked that way for the rest of the run.)
-                Err(Asked::TooLarge) if self.page > MIN_PAGE => {
-                    self.page = (self.page / 2).max(MIN_PAGE);
-                    if !self.page_said {
-                        self.page_said = true;
-                        log::info!("ews mail: the server's answers are too big to read; asking for fewer changes at a time");
+                // (A server that answers the page heavier than any answer this program reads —
+                // Kerio Connect's servlet among them, which hangs whole messages on the changes
+                // when only the list was asked for (#964)): the first time is asked with fewer
+                // changes at a time; a second refusal says the weight is in the items and not in
+                // their number, and this folder then asks its list over the light base shape,
+                // from the usual page again, headers being light (#1784). A folder still
+                // outweighed there costs its one problem, as any answer that can't be read.)
+                Err(Asked::TooLarge) => {
+                    if self.ids {
+                        // (Half as many again, from the fresh page: headers being few and light,
+                        // a folder still outweighed at the last is the folder's one problem.)
+                        if self.page > MIN_PAGE {
+                            self.page = (self.page / 2).max(MIN_PAGE);
+                        } else {
+                            return Err(Asked::TooLarge);
+                        }
+                    } else {
+                        heavy = heavy.saturating_add(1);
+                        if heavy == 1 && self.page > MIN_PAGE {
+                            self.page = (self.page / 2).max(MIN_PAGE);
+                            if !self.page_said {
+                                self.page_said = true;
+                                log::info!("ews mail: the server's answers are too big to read; asking for fewer changes at a time");
+                            }
+                        } else if !self.ids_refused {
+                            self.ids = true;
+                            below_page = self.page;
+                            self.page = PAGE;
+                            if !self.ids_said {
+                                self.ids_said = true;
+                                log::info!("ews mail: whole messages come with the changes; the list is asked with the properties alone");
+                            }
+                        } else if self.page > MIN_PAGE {
+                            // (The light asking is refused by this server: halving goes on past
+                            // where the ids lesson would have taken over.)
+                            self.page = (self.page / 2).max(MIN_PAGE);
+                        } else {
+                            return Err(Asked::TooLarge);
+                        }
                     }
                     continue;
                 }
                 Err(other) => return Err(other),
             };
+            heavy = 0;
             read = read.saturating_add(u32::try_from(page.messages.len()).unwrap_or(u32::MAX));
             let mut messages = page.messages;
             self.recipients(&mut messages).await?;

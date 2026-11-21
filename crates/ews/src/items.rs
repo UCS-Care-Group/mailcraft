@@ -53,10 +53,26 @@ pub enum Shape {
     /// The recipients and the categories alone: for a server that doesn't know the preview and the
     /// flag (it answers `ErrorInvalidPropertyRequest`, or a schema fault), which are then left out.
     Lean,
-    /// The categories alone: for a server that won't give the recipients in `SyncFolderItems`
-    /// (Exchange 2007 and 2010 answer `ErrorInvalidPropertyForOperation`, #1349). The recipients
-    /// are then asked with `GetItem` ([`GetItemRecipients`]), where Microsoft documents them.
+    /// The categories alone, over the `Default` base shape: for a server that won't give the
+    /// recipients in `SyncFolderItems` (Exchange 2007 and 2010 answer
+    /// `ErrorInvalidPropertyForOperation`, #1349). The recipients are then asked with `GetItem`
+    /// ([`GetItemRecipients`]), where Microsoft documents them.
     Bare,
+    /// The `IdOnly` base shape, with the subject, the attachment flag, the categories, the read
+    /// and draft state and what a list shows the default shape to lack ([`LISTED`]) asked by
+    /// name: for a server that hangs whole messages on every item of the changes whatever else is
+    /// asked (Kerio Connect's servlet, #964 — which measures to answer this shape with the asked
+    /// properties alone). The list comes light; the bodies come later as they always do, and the
+    /// preview with them. The read state is asked even here: an answer that omits it parses as
+    /// unread, and an `Update` so parsed turns read messages unread on the way in (#1784).
+    /// `flag` says whether the run's schema shape asks the flag: when it does (`Full`), an ids
+    /// page asks `item:Flag` too, so a sparse `Update` under ids says what the flag is rather
+    /// than nothing; a leaner run's server is one that doesn't know the flag, and asking it
+    /// there would only be refused.
+    Ids {
+        /// The run's schema shape asked the flag, so this ids page asks it as well.
+        flag: bool,
+    },
 }
 
 /// The request `SyncFolderItems` of one folder.
@@ -117,14 +133,25 @@ impl SyncFolderItems {
     pub fn element(&self) -> Element {
         let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
         let mut extra = LISTED.iter().fold(Element::new("t:AdditionalProperties"), |all, name| all.child(uri(name)));
-        if self.shape != Shape::Bare {
+        if let Shape::Ids { flag } = self.shape {
+            // (Over the `IdOnly` base nothing comes by itself: the subject, the attachment flag
+            // and the read and draft state are named with the rest. The read state above all:
+            // an answer without it parses as unread, and an `Update` so parsed turns read
+            // messages unread on the way in (#1784, benandez's repro).)
+            extra = extra.child(uri("item:Subject")).child(uri("item:HasAttachments")).child(uri("message:IsRead")).child(uri("message:IsDraft"));
+            if flag {
+                extra = extra.child(uri("item:Flag"));
+            }
+        }
+        if self.shape == Shape::Full || self.shape == Shape::Lean {
             extra = extra.child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
         }
         extra = extra.child(uri("item:Categories"));
         if self.shape == Shape::Full {
             extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
         }
-        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("Default")).child(extra);
+        let base = if matches!(self.shape, Shape::Ids { .. }) { "IdOnly" } else { "Default" };
+        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text(base)).child(extra);
         let folder = Element::new("m:SyncFolderId").child(Element::new("t:FolderId").attr("Id", &self.folder));
         let mut operation = Element::new("m:SyncFolderItems").child(shape).child(folder);
         if !self.state.is_empty() {
