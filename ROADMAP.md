@@ -77,7 +77,7 @@ How far each side of MailCraft has come against Outlook (estimated, [how](#metho
 | File formats | 60% |
 | Performance at scale (200,000 messages) | 80% |
 | Platforms and signed builds | 60% |
-| Languages (one complete, eleven previews) | 20% |
+| Languages (one complete, twelve previews) | 20% |
 | Privacy and safety by default | 100% |
 | Agent control | 100% |
 
@@ -202,7 +202,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 13. Answering read receipts, unsubscribing from a selection or many senders at once (one message has Unsubscribe, #1207) (gap 17); the attached messages and rich text inside `winmail.dat` (its files are read).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
 15. Grammar checking and spell checking on the remaining platforms (gap 7); further review of the French, German, Spanish, Italian, Dutch,
-    Romanian, Hungarian, Polish, Czech, Russian, Simplified Chinese and Georgian previews, more languages, right-to-left layout (gap 14). Partly done: the eleven ship as previews.
+    Romanian, Hungarian, Polish, Czech, Russian, Simplified Chinese and Georgian previews, more languages, right-to-left layout (gap 14). Partly done: the twelve ship as previews.
 16. With several accounts, combined folders (All Inboxes, Sent, Drafts, Archive, Trash) ([#625](https://github.com/UCS-Care-Group/mailcraft/issues/625)); attachments dragged out of a message into other programs ([#626](https://github.com/UCS-Care-Group/mailcraft/issues/626)), and on macOS looked at with Quick Look ([#627](https://github.com/UCS-Care-Group/mailcraft/issues/627)).
 17. Colour schemes of the owner's own: a whole palette (light, dark and high contrast) read from a file and chosen by name, checked so that text stays readable. Today there are four accents and high contrast, chosen in File › Options (gap 17).
 
