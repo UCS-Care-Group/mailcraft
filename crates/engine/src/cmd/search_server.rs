@@ -290,9 +290,8 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
             mb.folders.iter().map(|f| f.id).filter(|id| !under.contains(id)).collect()
         }
     };
-    // What this mailbox has here already: shown once, among the local results.
-    let here: HashSet<&str> =
-        mb.messages.values().filter(|m| m.account == account).filter_map(|m| m.server.as_ref().map(|s| s.id.as_str())).collect();
+    // Server hits already taken in for this account. A local copy hides a Microsoft hit only when
+    // that copy is one the search already shows, the same rule as an IMAP uid below.
     let held: HashSet<&str> = s.server_search.results.iter().filter(|r| r.account == account).map(|r| r.found.server.id.as_str()).collect();
     let query = s.search_query();
     let local = query.for_server().local;
@@ -314,6 +313,7 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
         // An IMAP uid is only unique inside its folder. The same number in Archive is another
         // message than INBOX's. A Microsoft id is the server's own, unique in the mailbox.
         let uid = imap_uid(&found.server.id);
+        let shows = |m: &Message| query.is_empty() || query.matches_in(m, |at| s.offset_at(at));
         let already = match uid {
             Some(uid) => {
                 // A local copy hides the hit only when it is the same message (the folder's
@@ -322,7 +322,6 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
                 // so the server's copy of it stays.
                 let validity = imap_validity(&found.server.id);
                 let epoch = validity.is_none_or(|v| mb.folder(folder).is_none_or(|f| f.uid_validity == 0 || f.uid_validity == v));
-                let shows = |m: &Message| query.is_empty() || query.matches_in(m, |at| s.offset_at(at));
                 let here = epoch && mb.messages.values().any(|m| m.account == account && m.folder == folder && m.uid == uid && shows(m));
                 let held = s.server_search.results.iter().any(|r| {
                     r.account == account
@@ -336,7 +335,11 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
                 };
                 here || held || !seen.insert(key)
             }
-            None => here.contains(id) || held.contains(id) || !seen.insert(id.to_string()),
+            None => {
+                let listed =
+                    mb.messages.values().any(|m| m.account == account && m.server.as_ref().is_some_and(|server| server.id == id) && shows(m));
+                listed || held.contains(id) || !seen.insert(id.to_string())
+            }
         };
         if already {
             continue;

@@ -493,3 +493,45 @@ fn an_unfetched_message_stays_when_only_its_body_matches() {
     assert_eq!(subjects(&s), ["Hello"], "the same epoch is already listed; another UIDVALIDITY is another message");
     assert_eq!(s.server_search.results[0].found.server.id, "imap:99:7");
 }
+
+/// A Microsoft id is the server's own. A local copy that does not match the search does not hide
+/// the hit; one that does is the message already listed.
+#[test]
+fn a_microsoft_hit_stays_when_the_local_copy_does_not_match() {
+    use mailcraft_model::{Address, Message};
+    let (mut s, _, owner, _) = session();
+    let inbox = s.mailbox.folder_of_kind(owner, FolderKind::Inbox).unwrap();
+    let id = s
+        .mailbox
+        .add_message(Message {
+            account: owner,
+            folder: inbox,
+            subject: "Hello".into(),
+            from: Address::new("Bo", "bo@example.org"),
+            date: 100,
+            unfetched: true,
+            server: Some(ServerMessage { id: "AAMk-1".into(), folder: "in".into(), ..Default::default() }),
+            ..Default::default()
+        })
+        .unwrap();
+    s.view.folder = inbox;
+    search(&mut s, "budget", "folder");
+    let request = asked(&mut s).into_iter().find(|r| r.account == owner).unwrap();
+    let hit = GraphMessage {
+        server: ServerMessage { id: "AAMk-1".into(), folder: "in".into(), read: true, ..Default::default() },
+        subject: "Hello".into(),
+        preview: "the budget is in the body".into(),
+        received: NOW,
+        sent: NOW,
+        ..Default::default()
+    };
+    answer(&mut s, &request, vec![hit.clone()], "");
+    assert_eq!(subjects(&s), ["Hello"], "the headers here do not match, so the server's copy stays");
+
+    s.mailbox.message_mut(id).unwrap().body.text = "the budget is in the body".into();
+    s.mailbox.message_mut(id).unwrap().unfetched = false;
+    search(&mut s, "body", "folder");
+    let request = asked(&mut s).into_iter().find(|r| r.account == owner).unwrap();
+    answer(&mut s, &request, vec![hit], "");
+    assert!(subjects(&s).is_empty(), "the local copy matches, so it is shown once");
+}
