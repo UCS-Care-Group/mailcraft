@@ -1352,6 +1352,20 @@ fn push_events_at(base: &str, token: &str, upload: &EventsUpload, options: &Even
         }
     }
     log::debug!("calendar: {} of {} changes answered", uploaded.outcomes.len(), upload.ops.len());
+    // Then a renamed category, for the events that aren't kept here (#851): once every change was
+    // answered, in the owner's own calendars alone (never a shared mailbox's, nor a calendar
+    // opened by address).
+    let answered = uploaded.outcomes.len() >= upload.ops.len().min(MAX_EVENT_OPS) && !uploaded.token_refused;
+    if let Some(rename) = upload.rename.as_ref().filter(|_| answered && !graph.shared()) {
+        let mut lists = vec!["/v1.0/me/calendar/events".to_string()];
+        let own = rename.calendars.iter().map(|id| mailcraft_model::remote::clean_key(id));
+        for id in own.filter(|id| !id.is_empty() && people::address_of(id).is_none()).take(mailcraft_model::remote::MAX_RENAMED_CALENDARS) {
+            lists.push(format!("{CALENDARS}/{}/events", http::encode(&id)));
+        }
+        let came = recategorize::rename(&graph, &recategorize::Items { lists, item: "/me/events/".into() }, rename, None, &mut |_, _| {});
+        uploaded.token_refused = came.token_refused;
+        uploaded.renamed = Some(came.renamed);
+    }
     uploaded
 }
 
@@ -2262,6 +2276,8 @@ pub use rules::{MAX_FOLDER_LOOKUPS, push_rules, rules};
 mod categories;
 pub use categories::push_categories;
 
+mod recategorize;
+
 mod settings;
 pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
 
@@ -2288,6 +2304,8 @@ mod auto_replies_tests;
 mod categories_tests;
 #[cfg(test)]
 mod people_tests;
+#[cfg(test)]
+mod recategorize_tests;
 #[cfg(test)]
 mod rules_tests;
 #[cfg(test)]

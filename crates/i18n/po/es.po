@@ -720,6 +720,11 @@ msgstr "Énfasis"
 msgid "Accent Colour"
 msgstr "Color de énfasis"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4064,6 +4069,11 @@ msgstr "Buzón actual"
 msgid "Current View"
 msgstr "Vista actual"
 
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr ""
+
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -5801,7 +5811,7 @@ msgstr ""
 "de carpeta"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Panel de carpetas"
@@ -9376,11 +9386,21 @@ msgstr "Bajar"
 msgid "Move Event"
 msgstr "Mover evento"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+msgid "Move Favorite Up or Down"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "Mover carpeta"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+msgid "Move Folder Up or Down"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -11811,6 +11831,11 @@ msgid "Paste Picture"
 msgstr "Pegar imagen"
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+msgid "Paste Text Only"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste or write the signature's HTML"
@@ -12934,6 +12959,16 @@ msgstr "Cambiar nombre de carpeta…"
 #, fuzzy
 msgid "Rename Signature"
 msgstr "Cambiar nombre de firma"
+
+#. name
+#: crates/model/src/sync/progress.rs
+msgid "Renaming a category on the server"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16624,6 +16659,20 @@ msgstr "No se pudieron anotar las categorías enviadas: {error}"
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "No se pudo restablecer la categoría «{name}»: la lista de categorías está llena."
 
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
@@ -17704,6 +17753,11 @@ msgstr "Se canceló el inicio de sesión."
 #, fuzzy
 msgid "The sign-in was declined."
 msgstr "Se rechazó el inicio de sesión."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -20691,6 +20745,11 @@ msgstr "Las cuentas de Zimbra se están probando: inicia MailCraft con MAILCRAFT
 msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -20877,6 +20936,16 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "Un borrador no puede tener un recordatorio: envíalo primero o usa Seguimiento en el propio mensaje"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "a favourite can't be put before itself"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a folder can't be put before itself"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20887,6 +20956,11 @@ msgstr "una carpeta no se puede mover dentro de sí misma"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "una carpeta no se puede mover a otra cuenta"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -22302,6 +22376,11 @@ msgstr "esa no es la contraseña de este archivo .pst: no se importó nada"
 #, fuzzy
 msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "ese buzón está abierto en otra ventana de MailCraft; ciérrelo primero allí"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "that message is a draft: open it and send it"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24307,6 +24386,11 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} no es un buzón compartido: quítelo con account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "{name} isn't among the Favorites"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24377,6 +24461,11 @@ msgstr "{name} compartió un calendario con usted."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} compartió un calendario con usted. Está en su lista de calendarios."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "{name} stays at the top of its account's folders"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

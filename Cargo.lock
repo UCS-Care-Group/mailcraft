@@ -3583,7 +3583,6 @@ dependencies = [
 name = "mailcraft-zimbra"
 version = "0.14.0"
 dependencies = [
- "log",
  "mailcraft-ews",
  "mailcraft-model",
  "proptest",

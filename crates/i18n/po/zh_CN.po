@@ -721,6 +721,11 @@ msgstr "强调色"
 msgid "Accent Colour"
 msgstr "强调色"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -1706,7 +1711,7 @@ msgstr "应用通过 Microsoft Graph 发送/接收的结果"
 #: crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Apply Send/Receive with Zimbra"
-msgstr " Zimbra /"
+msgstr "应用通过 Zimbra 发送/接收的结果"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -4065,6 +4070,11 @@ msgstr "当前邮箱"
 msgid "Current View"
 msgstr "当前视图"
 
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr ""
+
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -4757,7 +4767,7 @@ msgstr "自动下载邮件中的图片"
 #: crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Download Zimbra Messages in Full"
-msgstr " Zimbra "
+msgstr "下载完整的 Zimbra 邮件"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5794,7 +5804,7 @@ msgstr ""
 "属性"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "文件夹窗格"
@@ -9369,11 +9379,21 @@ msgstr "下移"
 msgid "Move Event"
 msgstr "移动事件"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+msgid "Move Favorite Up or Down"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "移动文件夹"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+msgid "Move Folder Up or Down"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -11802,6 +11822,11 @@ msgid "Paste Picture"
 msgstr "粘贴图片"
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+msgid "Paste Text Only"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste or write the signature's HTML"
@@ -12926,6 +12951,16 @@ msgstr "重命名文件夹…"
 #, fuzzy
 msgid "Rename Signature"
 msgstr "重命名签名"
+
+#. name
+#: crates/model/src/sync/progress.rs
+msgid "Renaming a category on the server"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -14341,7 +14376,7 @@ msgstr "使用 Microsoft Graph 发送/接收"
 #: crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Send/Receive with Zimbra"
-msgstr " Zimbra /"
+msgstr "使用 Zimbra 发送/接收"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -16616,6 +16651,18 @@ msgstr "无法记录已发送的类别：{error}"
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "无法还原类别“{name}”：类别列表已满。"
 
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] ""
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
@@ -17696,6 +17743,11 @@ msgstr "登录已取消。"
 #, fuzzy
 msgid "The sign-in was declined."
 msgstr "登录被拒绝。"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -20680,6 +20732,11 @@ msgstr "Zimbra 账户正在测试中：使用 MAILCRAFT_ZIMBRA=1 启动 MailCraf
 msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -20867,6 +20924,16 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "草稿不能设置提醒：请先发送，或在邮件本身中使用“跟进”"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "a favourite can't be put before itself"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a folder can't be put before itself"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20877,6 +20944,11 @@ msgstr "文件夹不能移入自身"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "文件夹不能移至其他账户"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -22290,6 +22362,11 @@ msgstr "这不是该 .pst 文件的密码：未导入任何内容"
 #, fuzzy
 msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "此邮箱已在另一个 MailCraft 窗口中打开；请先在该窗口中关闭"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "that message is a draft: open it and send it"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24294,6 +24371,11 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} 不是共享邮箱：使用 account.remove 将其删除"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "{name} isn't among the Favorites"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24364,6 +24446,11 @@ msgstr "{name} 与您共享了日历。"
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} 与您共享了日历。该日历已出现在您的日历列表中。"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "{name} stays at the top of its account's folders"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
