@@ -718,7 +718,8 @@ impl Core {
         .await
     }
 
-    /// Who the start of a name or an address could be: contacts first, then people mail went to or came from.
+    /// Who the start of a name or an address could be: the people written to most often first, then
+    /// contacts before anyone only seen in mail. The owner's own addresses are included.
     pub async fn suggest_recipients(&self, query: String, limit: u32) -> Result<Vec<SuggestionRecord>, CoreError> {
         let query = text::clip(&query, MAX_SUGGEST_QUERY);
         self.call(move |s| {

@@ -44,6 +44,8 @@ pub(crate) mod react;
 #[cfg(test)]
 mod react_tests;
 pub(crate) mod remote;
+#[cfg(test)]
+mod scroll_keys_tests;
 mod select;
 mod sharing;
 #[cfg(test)]
@@ -69,7 +71,7 @@ use serde_json::json;
 pub(crate) use invitation::{list_marks, options as invitation_options, question as invitation_question};
 pub use remote::{Access, RemotePictures};
 pub use select::Selections;
-pub(crate) use select::{inspect as selection_inspect, select_all_params};
+pub(crate) use select::{inspect as selection_inspect, scroll_of, select_all_params};
 pub(crate) use signature::row_seal as signature_seal;
 pub(crate) use view::char_at;
 pub(crate) use warnings::row_mark as warning_mark;
@@ -138,6 +140,7 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
                 egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
                     view::show(app, ui, m, place, access);
                 });
+                keyed_scroll(app, ui, place);
             });
         });
     });
@@ -259,7 +262,8 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
                 ui.spacing_mut().item_spacing.x = 6.0;
                 ui.label(egui::RichText::new(tl!("Held:")).font(crate::theme::regular(12.0)).strong().color(t.text));
                 ui.label(egui::RichText::new(m.held.as_str()).font(crate::theme::regular(12.0)).color(t.text_dim));
-                if ui.button(tl!("Send Again")).clicked() {
+                // A draft is sent with Send, from its own bar (#1747).
+                if !m.draft && ui.button(tl!("Send Again")).clicked() {
                     let _ = app.run("mail.sendAgain", serde_json::json!({"id": id}));
                 }
             });
@@ -275,10 +279,30 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
                 egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
                     view::show(app, ui, m, place, access);
                 });
+                keyed_scroll(app, ui, place);
             });
         });
     });
     select::settle(app, ui, place);
+}
+
+/// How far an arrow key scrolls a message's body (#1739): about two lines of its text.
+const LINE_SCROLL: f32 = 40.0;
+
+/// Scroll the body laid out in `ui` (the inside of its scroll area, after the body) as the key
+/// waiting for `place` says (#1739). The scroll area keeps it within the body.
+fn keyed_scroll(app: &mut MailApp, ui: &mut Ui, place: Place) {
+    let Some(scroll) = app.text_selection.take_scroll(place) else { return };
+    let page = (ui.clip_rect().height() - LINE_SCROLL).max(LINE_SCROLL);
+    let whole = ui.min_rect().height();
+    // A positive delta brings what is above or to the left into view.
+    let delta = match scroll {
+        select::Scroll::Line { down, across } => vec2(-f32::from(across) * LINE_SCROLL, -f32::from(down) * LINE_SCROLL),
+        select::Scroll::Page(down) => vec2(0.0, -f32::from(down) * page),
+        select::Scroll::Top => vec2(0.0, whole),
+        select::Scroll::End => vec2(0.0, -whole),
+    };
+    ui.scroll_with_delta_animation(delta, egui::style::ScrollAnimation::none());
 }
 
 /// What the reading pane says of a message of which only the headers and a preview are here.

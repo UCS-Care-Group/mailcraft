@@ -181,3 +181,50 @@ fn a_resize_through_assistive_technology_is_saved_and_comes_back() {
     let again = window(900.0, Some(&saved(&harness)));
     assert!((list(&again).height() - shown).abs() < 0.5, "{:?} {shown}", list(&again));
 }
+
+#[test]
+fn visiting_an_empty_folder_preserves_the_list_height_and_allows_resizing() {
+    let mut harness = window(900.0, None);
+    let inbox = harness.state().session.view.folder;
+    drag(&mut harness, vec2(0.0, 100.0), 4);
+    let before = list(&harness).height();
+    let kept = harness.state().ui.list_height;
+    let mailbox = &harness.state().session.mailbox;
+    let empty = mailbox.folders.iter().find(|f| f.kind == mailcraft_model::FolderKind::Outbox).unwrap().id;
+    harness.state_mut().execute("folder.select", json!({"id": empty})).unwrap();
+    harness.run_steps(4);
+    assert!(harness.state_mut().session.rows().is_empty());
+    assert!((list(&harness).height() - before).abs() < 0.5, "{:?} {before}", list(&harness));
+    assert_eq!(harness.state().ui.list_height, kept);
+
+    drag(&mut harness, vec2(0.0, 60.0), 4);
+    let resized = list(&harness).height();
+    assert!((resized - before - 60.0).abs() < 2.0, "{before} {resized}");
+    assert!((harness.state().ui.list_height - resized).abs() < 0.5);
+
+    let mut again = window(900.0, Some(&saved(&harness)));
+    again.state_mut().execute("folder.select", json!({"id": empty})).unwrap();
+    again.run_steps(4);
+    assert_eq!(again.state().session.view.folder, empty);
+    assert!((list(&again).height() - resized).abs() < 0.5);
+
+    harness.state_mut().execute("folder.select", json!({"id": inbox})).unwrap();
+    harness.run_steps(4);
+    assert!(!harness.state_mut().session.rows().is_empty());
+    assert!((list(&harness).height() - resized).abs() < 0.5, "{:?} {resized}", list(&harness));
+}
+
+#[test]
+fn an_empty_search_does_not_shrink_the_list() {
+    let mut harness = window(900.0, None);
+    drag(&mut harness, vec2(0.0, 100.0), 4);
+    let before = list(&harness).height();
+    harness.state_mut().execute("view.search", json!({"query": "subject:nonexistent-empty-list-regression"})).unwrap();
+    harness.run_steps(4);
+    assert!(harness.state_mut().session.rows().is_empty());
+    assert!((list(&harness).height() - before).abs() < 0.5, "{:?} {before}", list(&harness));
+    harness.state_mut().execute("view.clearSearch", json!({})).unwrap();
+    harness.run_steps(4);
+    assert!(!harness.state_mut().session.rows().is_empty());
+    assert!((list(&harness).height() - before).abs() < 0.5);
+}
