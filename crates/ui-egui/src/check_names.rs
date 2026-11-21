@@ -359,6 +359,10 @@ fn first_line(person: &Value, rtl: bool) -> String {
         } else {
             email.to_string()
         }
+    } else if rtl && email.is_empty() {
+        // Directory entries can have a display name without an email address.
+        // Do not paint misleading empty angle brackets in the Hebrew candidate row.
+        name.to_string()
     } else if rtl && !email.is_empty() {
         // Keep <address@domain> together in its LTR order beside a Hebrew display name.
         // These isolates affect the painted label only, never the chosen recipient JSON.
@@ -449,6 +453,10 @@ mod hebrew_email_bidi_tests {
         let person = json!({"name": "Dana", "email": "dana@example.org"});
         assert_eq!(first_line(&person, false), "Dana <dana@example.org>");
         let empty = json!({"name": "דנה", "email": ""});
-        assert_eq!(first_line(&empty, true), "דנה <>");
+        assert_eq!(first_line(&empty, true), "דנה");
+        let missing_email = json!({"name": "דנה"});
+        assert_eq!(first_line(&missing_email, true), "דנה");
+        assert_eq!(first_line(&missing_email, false), "דנה <>");
+        assert_eq!(first_line(&empty, false), "דנה <>");
     }
 }
