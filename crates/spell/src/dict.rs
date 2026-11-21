@@ -127,8 +127,14 @@ impl Dictionary {
         if lower.chars().count() > MAX_WORD {
             return;
         }
+        // Queries are accent-folded before lookup (`café` → `cafe`). Index the
+        // same key, and keep `stem.text` as the spelling that was written in the file.
+        let key = to_lower(&fold_accents(&lower));
+        if key.chars().count() > MAX_WORD {
+            return;
+        }
         let mut found = None;
-        if let Some(ids) = self.by_lower.get(&lower) {
+        if let Some(ids) = self.by_lower.get(&key) {
             for &id in ids {
                 if self.stems.get(id as usize).is_some_and(|stem| stem.text == word) {
                     found = Some(id);
@@ -141,7 +147,7 @@ impl Dictionary {
             self.merge_flags(id, &cleaned);
             return;
         }
-        if self.by_lower.get(&lower).is_some_and(|ids| ids.len() >= 16) {
+        if self.by_lower.get(&key).is_some_and(|ids| ids.len() >= 16) {
             return;
         }
         let flag_off = u32::try_from(self.flag_arena.len()).unwrap_or(u32::MAX);
@@ -156,7 +162,7 @@ impl Dictionary {
             return;
         }
         self.stems.push(Stem { text: word.to_string(), flag_off, flag_len, len });
-        self.by_lower.entry(lower).or_default().push(id);
+        self.by_lower.entry(key).or_default().push(id);
     }
 
     fn merge_flags(&mut self, id: u32, extra: &str) {
@@ -295,7 +301,9 @@ impl Dictionary {
             return self.judge_token(original.as_ref(), folded.as_ref(), lower.as_ref());
         }
         let whole = self.judge_token(original.as_ref(), folded.as_ref(), lower.as_ref());
-        if whole.1 {
+        // A recognised hyphenated entry keeps its own flags. Splitting `cat-dog/!`
+        // would see `cat` and `dog` and offer a word the list marked NOSUGGEST.
+        if whole.0 {
             return whole;
         }
         let mut any = false;

@@ -53,6 +53,30 @@ fn set_other_than_utf8_is_an_error() {
 }
 
 #[test]
+fn nosuggest_hyphen_is_not_offered_through_its_parts() {
+    let dict = Dictionary::parse("SET UTF-8\nNOSUGGEST !\nREP 1\nREP cat-dgo cat-dog\n", "3\ncat-dog/!\ncat\ndog\n").expect("parse");
+    assert!(dict.is_correct("cat-dog"));
+    assert!(!dict.suggestable("cat-dog"));
+    let got = dict.suggest("cat-dgo", &[]);
+    assert!(got.iter().all(|word| !word.eq_ignore_ascii_case("cat-dog")), "{got:?}");
+
+    let open = Dictionary::parse("SET UTF-8\n", "2\ncat\ndog\n").expect("parse");
+    assert!(open.is_correct("cat-dog"));
+    assert!(open.suggestable("cat-dog"));
+}
+
+#[test]
+fn accented_stem_matches_its_own_spelling() {
+    let accented = Dictionary::parse("SET UTF-8\n", "1\ncafé\n").expect("parse");
+    assert!(accented.is_correct("café"));
+    assert!(!accented.is_correct("cafe"));
+    let ascii = Dictionary::parse("SET UTF-8\n", "1\ncafe\n").expect("parse");
+    assert!(ascii.is_correct("cafe"));
+    assert!(ascii.is_correct("café"));
+    assert!(ascii.is_correct("Café"));
+}
+
+#[test]
 fn malformed_lines_are_skipped() {
     let dict = Dictionary::parse("SET UTF-8\nNOT A REAL DIRECTIVE\nSFX\nPFX A Y\n", "\n\nhello\n/\n").expect("parse");
     assert!(dict.is_correct("hello"));
