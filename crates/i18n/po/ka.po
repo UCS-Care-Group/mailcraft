@@ -2446,6 +2446,16 @@ msgstr "ტექსტი"
 msgid "Body contains"
 msgstr "ტექსტი შეიცავს"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body starts with"
+msgstr ""
+
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6123,6 +6133,11 @@ msgstr "„ვისგან“ შეიცავს"
 #, fuzzy
 msgid "From outside your organisation."
 msgstr "თქვენი ორგანიზაციის გარედან."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "From starts with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -12477,6 +12492,11 @@ msgstr "ბოლო დროის ფოსტა ინახება ა�
 msgid "Recipient's address contains"
 msgstr "მიმღების მისამართი შეიცავს"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Recipient's address starts with"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -12530,6 +12550,11 @@ msgstr "განახლება"
 #, fuzzy
 msgid "Refresh Your Certificates and Keys"
 msgstr "თქვენი სერტიფიკატებისა და გასაღებების განახლება"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Regular expression (case-insensitive)"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14334,6 +14359,11 @@ msgid "Sender's address contains"
 msgstr "გამგზავნის მისამართი შეიცავს"
 
 #. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender's address starts with"
+msgstr ""
+
+#. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Sending"
@@ -14418,6 +14448,11 @@ msgstr "იგზავნება ისე, როგორც დაწე�
 #, fuzzy
 msgid "Sent to"
 msgstr "ვის გაეგზავნა"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sent to addresses that start with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -15624,6 +15659,16 @@ msgstr "თემა"
 #, fuzzy
 msgid "Subject contains"
 msgstr "თემა შეიცავს"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject starts with"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -20944,6 +20989,16 @@ msgstr "სერვერზე გასაგზავნად მომლ�
 #, fuzzy
 msgid "a sender address has no e-mail address"
 msgstr "გამგზავნის მისამართს ელფოსტის მისამართი არ აქვს"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules have no starts-with condition"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules read no pattern"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs

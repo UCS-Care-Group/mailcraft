@@ -2373,8 +2373,19 @@ msgstr "Berichttekst"
 msgid "Body contains"
 msgstr "Hoofdtekst bevat"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body starts with"
+msgstr ""
+
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Bold"
 msgstr "Vet"
 
@@ -5885,6 +5896,11 @@ msgstr "Van bevat"
 #, fuzzy
 msgid "From outside your organisation."
 msgstr "Van buiten uw organisatie."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "From starts with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -12089,6 +12105,11 @@ msgstr "Recente e-mail wordt op deze telefoon bewaard en oudere e-mail blijft op
 msgid "Recipient's address contains"
 msgstr "Adres van de ontvanger bevat"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Recipient's address starts with"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -12139,6 +12160,11 @@ msgstr "Vernieuwen"
 #, fuzzy
 msgid "Refresh Your Certificates and Keys"
 msgstr "Uw certificaten en sleutels vernieuwen"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Regular expression (case-insensitive)"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13869,6 +13895,11 @@ msgid "Sender's address contains"
 msgstr "Adres van de afzender bevat"
 
 #. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender's address starts with"
+msgstr ""
+
+#. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Sending"
@@ -13953,6 +13984,11 @@ msgstr "Verzonden zoals geschreven, zonder iets dat wordt uitgevoerd of u volgt.
 #, fuzzy
 msgid "Sent to"
 msgstr "Verzonden aan"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sent to addresses that start with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -15139,6 +15175,16 @@ msgstr "Onderwerp"
 #, fuzzy
 msgid "Subject contains"
 msgstr "Onderwerp bevat"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject starts with"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -20406,6 +20452,16 @@ msgstr "een regel die nog naar de server moet, komt na de regels die er al staan
 #, fuzzy
 msgid "a sender address has no e-mail address"
 msgstr "een afzenderadres bevat geen e-mailadres"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules have no starts-with condition"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules read no pattern"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs

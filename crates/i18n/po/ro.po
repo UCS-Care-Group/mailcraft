@@ -2458,6 +2458,16 @@ msgstr "Corp"
 msgid "Body contains"
 msgstr "Corpul conține"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body starts with"
+msgstr ""
+
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6153,6 +6163,11 @@ msgstr "De la conține"
 #, fuzzy
 msgid "From outside your organisation."
 msgstr "Din afara organizației dvs."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "From starts with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -12555,6 +12570,11 @@ msgstr "E-mailurile recente sunt păstrate pe acest telefon, iar cele mai vechi 
 msgid "Recipient's address contains"
 msgstr "Adresa destinatarului conține"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Recipient's address starts with"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -12608,6 +12628,11 @@ msgstr "Reîmprospătare"
 #, fuzzy
 msgid "Refresh Your Certificates and Keys"
 msgstr "Reîmprospătare certificate și chei"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Regular expression (case-insensitive)"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14430,6 +14455,11 @@ msgid "Sender's address contains"
 msgstr "Adresa expeditorului conține"
 
 #. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender's address starts with"
+msgstr ""
+
+#. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Sending"
@@ -14515,6 +14545,11 @@ msgstr "Trimisă așa cum este scrisă, fără nimic care rulează sau urmăreș
 #, fuzzy
 msgid "Sent to"
 msgstr "Trimis către"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sent to addresses that start with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -15735,6 +15770,16 @@ msgstr "Subiect"
 #, fuzzy
 msgid "Subject contains"
 msgstr "Subiectul conține"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject starts with"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -21091,6 +21136,16 @@ msgstr "o regulă care așteaptă să ajungă pe server vine după cele de acolo
 #, fuzzy
 msgid "a sender address has no e-mail address"
 msgstr "o adresă de expeditor nu conține o adresă de e-mail"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules have no starts-with condition"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules read no pattern"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs

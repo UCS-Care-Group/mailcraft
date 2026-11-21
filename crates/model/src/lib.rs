@@ -101,7 +101,10 @@ pub use offline::{KeepOffline, OfflineWindow};
 pub use outlook_colors::preset_category_color;
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
-pub use rule::{Action, Condition, Keep, MAX_RULE_GONE, Rule, RuleGone, ServerRule};
+pub use rule::{
+    Action, Condition, Keep, MAX_BODY_PATTERN_CHARS, MAX_PATTERN_CONDITIONS, MAX_PATTERN_LENGTH, MAX_RULE_GONE, MAX_TEXT_LENGTH, Pattern, Rule,
+    RuleGone, ServerRule, clean_condition_text, count_pattern_conditions, regex_is_ok,
+};
 pub use senders::{MAX_SENDER_ADDRESSES, SenderAddress, SenderProblem, clean_sender_addresses};
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
@@ -157,6 +160,12 @@ pub(crate) fn is_zero_id(id: &Id) -> bool {
 /// Case-insensitive "contains", for search and rules.
 pub fn contains_ci(haystack: &str, needle: &str) -> bool {
     needle.is_empty() || haystack.to_lowercase().contains(&needle.to_lowercase())
+}
+
+/// Case-insensitive "starts with", for rules. An empty needle starts nothing: unlike
+/// [`contains_ci`], it has no "match everything" reading.
+pub fn starts_with_ci(haystack: &str, needle: &str) -> bool {
+    !needle.is_empty() && haystack.to_lowercase().starts_with(&needle.to_lowercase())
 }
 
 /// Bytes as base64 text in JSON.
@@ -261,6 +270,9 @@ mod tests {
         assert_eq!(clean_name(&"x".repeat(500)).map(|s| s.len()), Some(MAX_NAME));
         assert!(contains_ci("Quarterly REPORT", "report"));
         assert!(!contains_ci("Quarterly", "report"));
+        assert!(starts_with_ci("INVOICE 2026", "inv"));
+        assert!(!starts_with_ci("INVOICE 2026", "voice"));
+        assert!(!starts_with_ci("INVOICE 2026", ""));
     }
 }
 #[cfg(test)]

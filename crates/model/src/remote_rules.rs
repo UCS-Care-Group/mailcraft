@@ -86,9 +86,13 @@ impl RemoteRule {
                 Condition::ToContains(t) => Condition::ToContains(words(&t)),
                 Condition::SubjectContains(t) => Condition::SubjectContains(words(&t)),
                 Condition::BodyContains(t) => Condition::BodyContains(words(&t)),
+                Condition::FromStartsWith(t) => Condition::FromStartsWith(words(&t)),
+                Condition::ToStartsWith(t) => Condition::ToStartsWith(words(&t)),
+                Condition::SubjectStartsWith(t) => Condition::SubjectStartsWith(words(&t)),
+                Condition::BodyStartsWith(t) => Condition::BodyStartsWith(words(&t)),
                 other => other,
             };
-            let empty = matches!(&tidied, Condition::FromContains(t) | Condition::ToContains(t) | Condition::SubjectContains(t) | Condition::BodyContains(t) if t.is_empty());
+            let empty = matches!(&tidied, Condition::FromContains(t) | Condition::ToContains(t) | Condition::SubjectContains(t) | Condition::BodyContains(t) | Condition::FromStartsWith(t) | Condition::ToStartsWith(t) | Condition::SubjectStartsWith(t) | Condition::BodyStartsWith(t) if t.is_empty());
             if !empty {
                 conditions.push(tidied);
             }

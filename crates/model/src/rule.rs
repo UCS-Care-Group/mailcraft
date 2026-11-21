@@ -16,7 +16,166 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Id, Importance, Message, contains_ci};
+use std::sync::Arc;
+
+use crate::{Id, Importance, Message, contains_ci, starts_with_ci};
+
+/// Maximum length of a regex pattern that can be used in a rule (counted in characters, not bytes).
+pub const MAX_PATTERN_LENGTH: usize = 200;
+
+/// Maximum length of text for contains/starts-with conditions (counted in characters).
+pub const MAX_TEXT_LENGTH: usize = 200;
+
+/// Maximum total regex pattern conditions in a mailbox.
+/// This limits the number of regex patterns to prevent memory exhaustion.
+/// Each pattern is individually limited to 2MB via regex::RegexBuilder::size_limit.
+pub const MAX_PATTERN_CONDITIONS: usize = 100;
+
+/// Maximum body text length that a regex pattern can match against (counted in characters).
+/// This prevents performance issues with very large bodies.
+pub const MAX_BODY_PATTERN_CHARS: usize = 10_000;
+
+/// Cap body text at MAX_BODY_PATTERN_CHARS characters for regex matching.
+/// Truncates at character boundary (not byte boundary).
+pub fn cap_body_text(text: &str) -> String {
+    let char_count = text.chars().count();
+    if char_count <= MAX_BODY_PATTERN_CHARS {
+        return text.to_string();
+    }
+    // Find the byte position of the Nth character
+    let end_byte = text.char_indices().nth(MAX_BODY_PATTERN_CHARS).map(|(idx, _)| idx).unwrap_or(text.len());
+    text[..end_byte].to_string()
+}
+
+/// Clean text for a condition: trim whitespace, cap at MAX_TEXT_LENGTH (characters, not bytes).
+pub fn clean_condition_text(text: &str) -> String {
+    let trimmed = text.trim();
+    // Count characters, not bytes
+    let char_count = trimmed.chars().count();
+    if char_count > MAX_TEXT_LENGTH {
+        // Take only the first MAX_TEXT_LENGTH characters
+        let end_byte = trimmed.char_indices().nth(MAX_TEXT_LENGTH).map(|(idx, _)| idx).unwrap_or(trimmed.len());
+        trimmed[..end_byte].to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Count the regex pattern conditions in a slice of conditions.
+/// This counts both SubjectMatches and BodyMatches conditions.
+pub fn count_pattern_conditions(conditions: &[Condition]) -> usize {
+    conditions.iter().filter(|c| matches!(c, Condition::SubjectMatches(_) | Condition::BodyMatches(_))).count()
+}
+
+/// A regex pattern that may or may not be compiled.
+/// The compiled regex is created lazily during repair, after the pattern budget is enforced.
+#[derive(Clone, Debug)]
+pub struct Pattern {
+    /// The original pattern string, kept untrimmed for accurate error messages.
+    pattern: String,
+    /// The compiled regex, cached so it doesn't need to be recompiled for every message.
+    /// This is None immediately after deserialization and is compiled during repair().
+    regex: Option<Arc<regex::Regex>>,
+}
+
+impl Pattern {
+    /// Create a pattern from a string without compiling (for deserialization).
+    /// The pattern will be compiled during Mailbox::repair() if needed.
+    pub fn uncompiled(pattern: String) -> Pattern {
+        Pattern { pattern, regex: None }
+    }
+
+    /// Try to compile a pattern, refusing if it's too long or invalid.
+    /// This is used when creating new patterns (e.g., from the UI).
+    pub fn new(pattern: String) -> Option<Pattern> {
+        // Count characters, not bytes
+        if pattern.chars().count() > MAX_PATTERN_LENGTH {
+            return None;
+        }
+        let regex = regex::RegexBuilder::new(&pattern).case_insensitive(true).size_limit(2 << 20).build().ok()?;
+        Some(Pattern { pattern, regex: Some(Arc::new(regex)) })
+    }
+
+    /// Check if the pattern is valid (can be compiled) and not too long.
+    pub fn is_valid(pattern: &str) -> bool {
+        // Count characters, not bytes
+        if pattern.chars().count() > MAX_PATTERN_LENGTH {
+            return false;
+        }
+        regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(2 << 20).build().is_ok()
+    }
+
+    /// Compile the pattern if it hasn't been already.
+    /// Returns true if compilation succeeded, false if the pattern is too long or invalid.
+    pub fn ensure_compiled(&mut self) -> bool {
+        if self.regex.is_some() {
+            return true;
+        }
+        // Count characters, not bytes
+        if self.pattern.chars().count() > MAX_PATTERN_LENGTH {
+            return false;
+        }
+        match regex::RegexBuilder::new(&self.pattern).case_insensitive(true).size_limit(2 << 20).build() {
+            Ok(rx) => {
+                self.regex = Some(Arc::new(rx));
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Match the pattern against text.
+    pub fn is_match(&self, text: &str) -> bool {
+        match &self.regex {
+            Some(r) => r.is_match(text),
+            None => false,
+        }
+    }
+
+    /// Get the pattern string.
+    pub fn as_str(&self) -> &str {
+        &self.pattern
+    }
+
+    /// Check if this pattern has been compiled (has a regex matcher).
+    pub fn is_compiled(&self) -> bool {
+        self.regex.is_some()
+    }
+
+    /// Remove the compiled regex, making this pattern match nothing.
+    pub fn uncompile(&mut self) {
+        self.regex = None;
+    }
+}
+
+impl PartialEq for Pattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.pattern == other.pattern
+    }
+}
+
+impl Eq for Pattern {}
+
+impl Serialize for Pattern {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.pattern)
+    }
+}
+
+impl<'de> Deserialize<'de> for Pattern {
+    fn deserialize<D>(deserializer: D) -> Result<Pattern, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        // Store the pattern string without compiling.
+        // Compilation happens during Mailbox::repair() after the budget is enforced.
+        Ok(Pattern::uncompiled(s))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type", content = "value")]
@@ -29,6 +188,22 @@ pub enum Condition {
     ToContains(String),
     SubjectContains(String),
     BodyContains(String),
+    /// The sender's name or address starts with the text (a rule kept on a Microsoft account's
+    /// server: the address alone, as the server reads it).
+    FromStartsWith(String),
+    /// Any To/Cc recipient's name or address starts with the text (a rule kept on a Microsoft
+    /// account's server: the addresses alone).
+    ToStartsWith(String),
+    /// The subject starts with the text.
+    SubjectStartsWith(String),
+    /// The body starts with the text.
+    BodyStartsWith(String),
+    /// The subject is read as a regular expression (case-insensitive) and matches somewhere.
+    /// A rule with a regex condition is kept on this computer: a server has no such rule.
+    SubjectMatches(Pattern),
+    /// The body is read as a regular expression (case-insensitive) and matches somewhere.
+    /// A rule with a regex condition is kept on this computer: a server has no such rule.
+    BodyMatches(Pattern),
     HasAttachment,
     Importance(Importance),
 }
@@ -48,6 +223,28 @@ impl Condition {
             Condition::ToContains(t) => m.to.iter().chain(&m.cc).any(|a| person(a, t)),
             Condition::SubjectContains(t) => contains_ci(&m.subject, t),
             Condition::BodyContains(t) => contains_ci(&m.body.text, t) || contains_ci(&m.hidden_text, t),
+            Condition::FromStartsWith(t) => {
+                let email_match = person(&m.from, t) && starts_with_ci(&m.from.email, t);
+                let name_match = !addresses_only && starts_with_ci(&m.from.name, t);
+                email_match || name_match
+            }
+            Condition::ToStartsWith(t) => m.to.iter().chain(&m.cc).any(|a| {
+                let email_match = person(a, t) && starts_with_ci(&a.email, t);
+                let name_match = !addresses_only && starts_with_ci(&a.name, t);
+                email_match || name_match
+            }),
+            Condition::SubjectStartsWith(t) => starts_with_ci(&m.subject, t),
+            Condition::BodyStartsWith(t) => starts_with_ci(&m.body.text, t) || starts_with_ci(&m.hidden_text, t),
+            // A pattern the owner wrote is the rule's, not the message's: a message with a bad
+            // pattern in its text does nothing here (the pattern is what it is, or is not).
+            Condition::SubjectMatches(p) => p.is_match(&m.subject),
+            // Body text is capped to prevent performance issues with very large bodies.
+            // Only the first MAX_BODY_PATTERN_CHARS characters are checked.
+            Condition::BodyMatches(p) => {
+                let capped_body = cap_body_text(&m.body.text);
+                let capped_hidden = cap_body_text(&m.hidden_text);
+                p.is_match(&capped_body) || p.is_match(&capped_hidden)
+            }
             Condition::HasAttachment => m.has_attachments(),
             Condition::Importance(i) => m.importance == *i,
         }
@@ -67,8 +264,32 @@ impl Condition {
             Condition::ToContains(t) => format!("sent to \"{t}\""),
             Condition::SubjectContains(t) => format!("subject contains \"{t}\""),
             Condition::BodyContains(t) => format!("body contains \"{t}\""),
+            Condition::FromStartsWith(t) if addresses_only => format!("sender's address starts with \"{t}\""),
+            Condition::ToStartsWith(t) if addresses_only => format!("recipient's address starts with \"{t}\""),
+            Condition::FromStartsWith(t) => format!("from starts with \"{t}\""),
+            Condition::ToStartsWith(t) => format!("sent to addresses that start with \"{t}\""),
+            Condition::SubjectStartsWith(t) => format!("subject starts with \"{t}\""),
+            Condition::BodyStartsWith(t) => format!("body starts with \"{t}\""),
+            Condition::SubjectMatches(_) => "the subject matches a pattern".into(),
+            Condition::BodyMatches(_) => "the body matches a pattern".into(),
             Condition::HasAttachment => "has an attachment".into(),
             Condition::Importance(i) => format!("importance is {}", i.code()),
+        }
+    }
+
+    /// Get the pattern from a SubjectMatches condition, if this is one.
+    pub fn as_subject_matches(&self) -> Option<&Pattern> {
+        match self {
+            Condition::SubjectMatches(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// Get the pattern from a BodyMatches condition, if this is one.
+    pub fn as_body_matches(&self) -> Option<&Pattern> {
+        match self {
+            Condition::BodyMatches(p) => Some(p),
+            _ => None,
         }
     }
 }
@@ -84,6 +305,12 @@ pub enum Action {
     SetImportance(Importance),
     /// Move to Deleted Items.
     Delete,
+}
+
+/// Whether `pattern` reads as a regular expression (and so would match): what the rule window
+/// checks before Add, so that a pattern that would never match is not made.
+pub fn regex_is_ok(pattern: &str) -> bool {
+    Pattern::is_valid(pattern)
 }
 
 impl Action {

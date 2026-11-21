@@ -66,8 +66,39 @@ fn a_new_rule_is_spelled_out_for_the_command() {
     assert_eq!(
         describe(&s.mailbox, rule),
         "When from contains \"billing\" and sent to \"accounts@\" and subject contains \"invoice\" and body contains \"amount due\" and has an attachment: \
-         move it to Receipts, categorize it as \"Green category\", flag it, mark it as read, set importance to low"
+            move it to Receipts, categorize it as \"Green category\", flag it, mark it as read, set importance to low"
     );
+    // The "starts with" operator, for each kind it looks at.
+    f.conds = vec![
+        Cond { kind: When::From, op: Op::StartsWith, text: "news@".into(), ..Default::default() },
+        Cond { kind: When::To, op: Op::StartsWith, text: "me@".into(), ..Default::default() },
+        Cond { kind: When::Subject, op: Op::StartsWith, text: "invoice".into(), ..Default::default() },
+        Cond { kind: When::Body, op: Op::StartsWith, text: "amount due".into(), ..Default::default() },
+    ];
+    assert_eq!(
+        f.command().1["conditions"],
+        json!([
+            {"type": "fromStartsWith", "value": "news@"}, {"type": "toStartsWith", "value": "me@"},
+            {"type": "subjectStartsWith", "value": "invoice"}, {"type": "bodyStartsWith", "value": "amount due"},
+        ])
+    );
+    // The "matches" operator, for a subject's or a body's alone.
+    f.conds = vec![
+        Cond { kind: When::Subject, op: Op::Matches, text: "invoice #2[0-9]{4}".into(), ..Default::default() },
+        Cond { kind: When::Body, op: Op::Matches, text: "amount due|total due".into(), ..Default::default() },
+    ];
+    assert!(f.ready());
+    assert_eq!(
+        f.command().1["conditions"],
+        json!([
+            {"type": "subjectMatches", "value": "invoice #2[0-9]{4}"},
+            {"type": "bodyMatches", "value": "amount due|total due"},
+        ])
+    );
+    // A pattern a reader doesn't take is not ready.
+    f.conds = vec![Cond { kind: When::Subject, op: Op::Matches, text: "(unbalanced".into(), ..Default::default() }];
+    assert!(!f.ready());
+    f.conds = vec![Cond { kind: When::Subject, op: Op::Matches, text: "invoice #2[0-9]{4}".into(), ..Default::default() }];
     // The other kinds.
     f.conds = vec![Cond { kind: When::Importance, ..Default::default() }];
     f.acts = vec![Act { kind: Do::Delete, ..f.fresh_action() }];

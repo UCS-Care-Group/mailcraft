@@ -2460,6 +2460,16 @@ msgstr "Treść"
 msgid "Body contains"
 msgstr "Treść zawiera"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body starts with"
+msgstr ""
+
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6157,6 +6167,11 @@ msgstr "Od zawiera"
 #, fuzzy
 msgid "From outside your organisation."
 msgstr "Spoza Twojej organizacji."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "From starts with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -12559,6 +12574,11 @@ msgstr "Ostatnia poczta jest przechowywana na tym telefonie, a starsza pozostaje
 msgid "Recipient's address contains"
 msgstr "Adres odbiorcy zawiera"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Recipient's address starts with"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -12612,6 +12632,11 @@ msgstr "Odśwież"
 #, fuzzy
 msgid "Refresh Your Certificates and Keys"
 msgstr "Odśwież certyfikaty i klucze"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Regular expression (case-insensitive)"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14434,6 +14459,11 @@ msgid "Sender's address contains"
 msgstr "Adres nadawcy zawiera"
 
 #. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender's address starts with"
+msgstr ""
+
+#. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Sending"
@@ -14519,6 +14549,11 @@ msgstr "Wysyłany tak, jak napisano, bez niczego, co się uruchamia lub śledzi.
 #, fuzzy
 msgid "Sent to"
 msgstr "Wysłano do"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sent to addresses that start with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -15739,6 +15774,16 @@ msgstr "Temat"
 #, fuzzy
 msgid "Subject contains"
 msgstr "Temat zawiera"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject starts with"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -21097,6 +21142,16 @@ msgstr "reguła czekająca na wysłanie na serwer trafia za te, które już tam 
 #, fuzzy
 msgid "a sender address has no e-mail address"
 msgstr "adres nadawcy nie zawiera adresu e-mail"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules have no starts-with condition"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules read no pattern"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs

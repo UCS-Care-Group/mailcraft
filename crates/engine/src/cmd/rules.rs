@@ -15,12 +15,12 @@ use serde_json::{Value, json};
 use super::{bad, fail, needs_message};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
-use mailcraft_model::MAX_RULES;
+use mailcraft_model::{MAX_PATTERN_CONDITIONS, MAX_RULES};
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("rules.add", "Create Rule", "Home › Move", add).params(
-            r#"{"name": string, "conditions": [{"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains", "value": string} | {"type": "hasAttachment"} | {"type": "importance", "value": "high"|"normal"|"low"}], "actions": [{"type": "moveTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"}], "stop"?: bool, "account"?: number (whose arriving mail it is for; without it, every account's, and kept on this computer), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
+            r#"{"name": string, "conditions": [{"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains", "value": string} | {"type": "fromStartsWith"|"toStartsWith"|"subjectStartsWith"|"bodyStartsWith", "value": string (kept on this computer: a server's rules have no starts-with)} | {"type": "subjectMatches"|"bodyMatches", "value": regular expression, case-insensitive (kept on this computer: a server reads no pattern)} | {"type": "hasAttachment"} | {"type": "importance", "value": "high"|"normal"|"low"}], "actions": [{"type": "moveTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"}], "stop"?: bool, "account"?: number (whose arriving mail it is for; without it, every account's, and kept on this computer), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
         ),
         CommandSpec::new("rules.remove", "Delete Rule", "Home › Move", remove).params(r#"{"id": number} — a rule its server has is deleted there too"#),
         CommandSpec::new("rules.enable", "Enable Rule", "Home › Move", enable).params(r#"{"id": number, "value"?: bool (default: toggle)}"#),
@@ -64,6 +64,11 @@ pub enum NotOnServer {
     /// A Microsoft account kept in step by IMAP: its rules on the server are reached through
     /// Microsoft Graph.
     NotInStep,
+    /// It reads the subject or the body as a regular expression; a server's rules have no such.
+    Pattern,
+    /// It looks for a word at the start of the sender, a recipient, the subject or the body;
+    /// Graph's rules have no starts-with condition.
+    StartsWith,
 }
 
 impl NotOnServer {
@@ -80,6 +85,8 @@ impl NotOnServer {
             NotOnServer::TwoImportances => "it sets more than one importance",
             NotOnServer::Names => "it looks for a name, and the server looks at addresses only",
             NotOnServer::NotInStep => "MailCraft reaches this account's rules on the server once it switches to Microsoft Graph",
+            NotOnServer::Pattern => "a server's rules read no pattern",
+            NotOnServer::StartsWith => "a server's rules have no starts-with condition",
         }
     }
 }
@@ -93,6 +100,14 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
     let kind = |c: &Condition| std::mem::discriminant(c);
     if rule.conditions.iter().enumerate().any(|(i, c)| rule.conditions.iter().skip(i + 1).any(|d| kind(c) == kind(d))) {
         return Some(NotOnServer::TwoOfAKind);
+    }
+    if rule.conditions.iter().any(|c| matches!(c, Condition::SubjectMatches(_) | Condition::BodyMatches(_))) {
+        return Some(NotOnServer::Pattern);
+    }
+    if rule.conditions.iter().any(|c| {
+        matches!(c, Condition::FromStartsWith(_) | Condition::ToStartsWith(_) | Condition::SubjectStartsWith(_) | Condition::BodyStartsWith(_))
+    }) {
+        return Some(NotOnServer::StartsWith);
     }
     if rule.conditions.iter().any(|c| matches!(c, Condition::FromContains(t) | Condition::ToContains(t) if !in_an_address(t))) {
         return Some(NotOnServer::Names);
@@ -153,17 +168,43 @@ pub fn kept(mb: &Mailbox, r: &Rule) -> (&'static str, Option<String>) {
     }
 }
 
-fn text(v: &Value) -> Result<String, CmdError> {
-    let t: String = p::str(v, "value").unwrap_or("").trim().chars().take(200).collect();
-    if t.is_empty() { Err(bad("a condition needs a `value`")) } else { Ok(t) }
+fn text(v: &Value, kind: &str) -> Result<String, CmdError> {
+    let t: String = p::str(v, "value").unwrap_or("").to_string();
+    let trimmed = t.trim();
+    if trimmed.is_empty() {
+        Err(bad("a condition needs a non-empty value"))
+    } else if kind != "matches" {
+        // Check character count, not byte count
+        let char_count = trimmed.chars().count();
+        if char_count > mailcraft_model::MAX_TEXT_LENGTH {
+            Err(bad(format!("the value is too long (max {} characters)", mailcraft_model::MAX_TEXT_LENGTH)))
+        } else {
+            Ok(trimmed.to_string())
+        }
+    } else {
+        Ok(t)
+    }
 }
 
 fn condition(v: &Value) -> Result<Condition, CmdError> {
+    // A pattern that doesn't compile or is too long would match nothing, and the rule would never
+    // act on a message, so it is refused where the rule is made: the window's own check doesn't
+    // run for a direct call. The same bounded compile the matcher uses.
+    let pattern = |which: &str| {
+        let value = text(v, "matches")?;
+        mailcraft_model::Pattern::new(value).ok_or_else(|| bad(format!("the {which} pattern is too long or not a regular expression")))
+    };
     Ok(match p::req_str(v, "type")? {
-        "fromContains" => Condition::FromContains(text(v)?),
-        "toContains" => Condition::ToContains(text(v)?),
-        "subjectContains" => Condition::SubjectContains(text(v)?),
-        "bodyContains" => Condition::BodyContains(text(v)?),
+        "fromContains" => Condition::FromContains(text(v, "contains")?),
+        "toContains" => Condition::ToContains(text(v, "contains")?),
+        "subjectContains" => Condition::SubjectContains(text(v, "contains")?),
+        "bodyContains" => Condition::BodyContains(text(v, "contains")?),
+        "fromStartsWith" => Condition::FromStartsWith(text(v, "startsWith")?),
+        "toStartsWith" => Condition::ToStartsWith(text(v, "startsWith")?),
+        "subjectStartsWith" => Condition::SubjectStartsWith(text(v, "startsWith")?),
+        "bodyStartsWith" => Condition::BodyStartsWith(text(v, "startsWith")?),
+        "subjectMatches" => Condition::SubjectMatches(pattern("subject")?),
+        "bodyMatches" => Condition::BodyMatches(pattern("body")?),
         "hasAttachment" => Condition::HasAttachment,
         "importance" => {
             Condition::Importance(Importance::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("importance is low, normal or high"))?)
@@ -277,11 +318,19 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.rules.len() >= MAX_RULES {
         return Err(fail("there are too many rules"));
     }
+    // Count existing pattern conditions
+    let existing_pattern_conditions =
+        s.mailbox.rules.iter().flat_map(|r| &r.conditions).filter(|c| matches!(c, Condition::SubjectMatches(_) | Condition::BodyMatches(_))).count();
+    let new_pattern_conditions = rule.conditions.iter().filter(|c| matches!(c, Condition::SubjectMatches(_) | Condition::BodyMatches(_))).count();
+    if existing_pattern_conditions + new_pattern_conditions > MAX_PATTERN_CONDITIONS {
+        return Err(fail(format!("too many pattern conditions per mailbox (max {})", MAX_PATTERN_CONDITIONS)));
+    }
+    // Each pattern is limited to 2MB via regex::RegexBuilder::size_limit in Pattern::new
     let id = s.mailbox.alloc_id();
     rule.id = id;
     let keep = if rule.keep == Keep::Server { "server" } else { "here" };
     s.mailbox.rules.push(rule);
-    Ok(json!({"id": id, "keep": keep}))
+    Ok(json!({ "id": id, "keep": keep }))
 }
 
 fn changeable(s: &Session, id: Id) -> Result<usize, CmdError> {
@@ -360,7 +409,10 @@ fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
     // A rule that reads the body reads it whole: one kept on disk is brought in first (one that
     // can't be read says so in its place, and is matched as that).
     let reads_bodies = s.mailbox.rules.iter().any(|r| {
-        r.enabled && r.is_for(account) && only.is_none_or(|o| o == r.id) && r.conditions.iter().any(|c| matches!(c, Condition::BodyContains(_)))
+        r.enabled
+            && r.is_for(account)
+            && only.is_none_or(|o| o == r.id)
+            && r.conditions.iter().any(|c| matches!(c, Condition::BodyContains(_) | Condition::BodyStartsWith(_) | Condition::BodyMatches(_)))
     });
     ids.into_iter()
         .filter(|id| {

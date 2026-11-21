@@ -2454,6 +2454,16 @@ msgstr "正文"
 msgid "Body contains"
 msgstr "正文包含"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body starts with"
+msgstr ""
+
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6128,6 +6138,11 @@ msgstr "发件人包含"
 #, fuzzy
 msgid "From outside your organisation."
 msgstr "来自组织外部。"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "From starts with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -12514,6 +12529,11 @@ msgstr "最近的邮件保存在这部手机上，较早的邮件保留在邮件
 msgid "Recipient's address contains"
 msgstr "收件人地址包含"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Recipient's address starts with"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -12567,6 +12587,11 @@ msgstr "刷新"
 #, fuzzy
 msgid "Refresh Your Certificates and Keys"
 msgstr "刷新您的证书和密钥"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Regular expression (case-insensitive)"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14383,6 +14408,11 @@ msgid "Sender's address contains"
 msgstr "发件人地址包含"
 
 #. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender's address starts with"
+msgstr ""
+
+#. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Sending"
@@ -14466,6 +14496,11 @@ msgstr "按原样发送，不包含可运行内容或跟踪内容。图片来自
 #, fuzzy
 msgid "Sent to"
 msgstr "发送至"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sent to addresses that start with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -15682,6 +15717,16 @@ msgstr "主题"
 #, fuzzy
 msgid "Subject contains"
 msgstr "主题包含"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject starts with"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -21014,6 +21059,16 @@ msgstr "等待发送到服务器的规则将排在服务器现有规则之后；
 #, fuzzy
 msgid "a sender address has no e-mail address"
 msgstr "某个发件人地址没有电子邮件地址"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules have no starts-with condition"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules read no pattern"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs

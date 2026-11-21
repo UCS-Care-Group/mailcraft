@@ -2457,6 +2457,16 @@ msgstr "Üzenettörzs"
 msgid "Body contains"
 msgstr "Az üzenettörzs tartalmazza"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body starts with"
+msgstr ""
+
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6127,6 +6137,11 @@ msgstr "A feladó mező tartalmazza"
 #, fuzzy
 msgid "From outside your organisation."
 msgstr "A szervezeteden kívülről."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "From starts with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -12515,6 +12530,11 @@ msgstr "A friss levelek ezen a telefonon maradnak, a régebbiek a levelezőszerv
 msgid "Recipient's address contains"
 msgstr "A címzett címe tartalmazza"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Recipient's address starts with"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -12568,6 +12588,11 @@ msgstr "Frissítés"
 #, fuzzy
 msgid "Refresh Your Certificates and Keys"
 msgstr "Frissítse fel tanúsítványait és kulcsait"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Regular expression (case-insensitive)"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14381,6 +14406,11 @@ msgid "Sender's address contains"
 msgstr "A feladó címe tartalmazza"
 
 #. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender's address starts with"
+msgstr ""
+
+#. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Sending"
@@ -14465,6 +14495,11 @@ msgstr "A képek a webcímükről származnak, és a címzettek programjai dönt
 #, fuzzy
 msgid "Sent to"
 msgstr "Elküldve"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sent to addresses that start with"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -15683,6 +15718,16 @@ msgstr "Tárgy"
 #, fuzzy
 msgid "Subject contains"
 msgstr "A tárgy tartalmazza"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject starts with"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -21020,6 +21065,16 @@ msgstr "A szerverre váró szabály azok után megy, amit ott kell megtenni; a s
 #, fuzzy
 msgid "a sender address has no e-mail address"
 msgstr "egy feladócímhez nem tartozik e-mail-cím"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules have no starts-with condition"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules read no pattern"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs

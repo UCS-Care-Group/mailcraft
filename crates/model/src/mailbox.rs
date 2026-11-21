@@ -20,8 +20,8 @@ mod snooze;
 mod sweep;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
-    Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
-    ThreadIndex, clean_name,
+    Action, Answers, Calendar, Condition, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, MAX_PATTERN_CONDITIONS, Message,
+    ModelError, Rgb, Rule, Signature, Task, ThreadIndex, clean_name, count_pattern_conditions,
 };
 #[cfg(test)]
 pub(crate) use bulk::MOVE_EACH_CALLS;
@@ -4416,6 +4416,9 @@ impl Mailbox {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
         }
+        // Enforce the pattern condition budget: count pattern conditions and truncate rules
+        // so we don't exceed MAX_PATTERN_CONDITIONS (100).
+        self.fix_pattern_memory(&mut fixed);
         if self.repair_follow_ups_pending() {
             fixed.push("reminders waiting for a sent copy cut".to_string());
         }
@@ -4835,6 +4838,60 @@ impl Mailbox {
         }
         self.next_id = self.next_id.max(1);
         fixed
+    }
+
+    /// Check and fix regex patterns in rules to stay within the memory budget.
+    /// Truncates rules so that SubjectMatches and BodyMatches conditions total at most
+    /// MAX_PATTERN_CONDITIONS (100). Rules with pattern conditions beyond the limit have
+    /// their patterns uncompiled (set to match nothing).
+    /// Returns the number of pattern conditions removed.
+    pub fn fix_pattern_memory(&mut self, fixed: &mut Vec<String>) -> usize {
+        // Count pattern conditions in all rules
+        let mut pattern_count = 0;
+        for rule in &self.rules {
+            pattern_count += count_pattern_conditions(&rule.conditions);
+        }
+
+        if pattern_count <= MAX_PATTERN_CONDITIONS {
+            // All patterns are within budget - compile them all
+            for rule in &mut self.rules {
+                for cond in &mut rule.conditions {
+                    if let Condition::SubjectMatches(p) | Condition::BodyMatches(p) = cond {
+                        p.ensure_compiled();
+                    }
+                }
+            }
+            return 0;
+        }
+
+        // We need to reduce pattern conditions to stay within budget.
+        // Strategy: keep the first MAX_PATTERN_CONDITIONS patterns compiled,
+        // uncompile the rest.
+        let mut removed = 0;
+        let mut compiled_kept = 0;
+        let target_compiled = MAX_PATTERN_CONDITIONS;
+
+        for rule in &mut self.rules {
+            for cond in &mut rule.conditions {
+                if let Condition::SubjectMatches(p) | Condition::BodyMatches(p) = cond {
+                    if compiled_kept < target_compiled {
+                        // Keep this pattern compiled (compile if not already)
+                        p.ensure_compiled();
+                        compiled_kept += 1;
+                    } else {
+                        // Over budget - uncompile this pattern
+                        p.uncompile();
+                        removed += 1;
+                    }
+                }
+            }
+        }
+
+        if removed > 0 {
+            fixed.push(format!("pattern conditions cut from rules to stay within {MAX_PATTERN_CONDITIONS} limit"));
+        }
+
+        removed
     }
 
     /// Keep of [`Mailbox::pending`] only what could have been noted here, and no more than
