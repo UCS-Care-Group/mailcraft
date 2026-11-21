@@ -68,3 +68,8 @@ sync_github_name = true
 
 [people.denix666]
 real_name = "Denis Salmanovich"
+
+[people.B1NAR10]
+real_name = "Alberto Xosé Méndez Taboada"
+sync_github_name = true
+
