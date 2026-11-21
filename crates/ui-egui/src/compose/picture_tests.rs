@@ -426,6 +426,8 @@ fn every_corner_sizes_the_picture_from_the_one_opposite() {
     drag(&mut h, at, egui::vec2(20.0, 5.0));
     assert_eq!(width(&h), Some(150));
     assert_eq!(plain(&h), OBJECT.to_string(), "dragging a corner selects no text and moves nothing");
+    let s = sel(&h);
+    assert_eq!((s.start(), s.end()), (0, 1), "the picture is still what is selected");
     // One step of the message's undo for each drag.
     key_with(&mut h, Modifiers::COMMAND, Key::Z);
     assert_eq!(width(&h), Some(170));
@@ -596,4 +598,38 @@ fn a_corner_dragged_with_the_secondary_button_sizes_nothing() {
     h.event(button(from + egui::vec2(40.0, 0.0), false));
     h.run_steps(3);
     assert_eq!(width(&h), None);
+}
+
+#[test]
+fn a_drag_ended_by_shift_escape_is_let_go_of() {
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    type_in(&mut h, "ab");
+    key(&mut h, Key::ArrowLeft);
+    *board.0.borrow_mut() = (Some(png(40)), None);
+    paste(&mut h);
+    key_with(&mut h, Modifiers::SHIFT, Key::ArrowLeft);
+    h.run_steps(2);
+    let from = corner(&h, "pictureCornerTopRight");
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    for n in 1..=4 {
+        h.event(Event::PointerMoved(from + egui::vec2(10.0 * n as f32, 0.0)));
+        h.step();
+    }
+    // egui ends the drag on Escape with Shift too; the window's keys don't take that one.
+    key_with(&mut h, Modifiers::SHIFT, Key::Escape);
+    h.event(button(from + egui::vec2(40.0, 0.0), false));
+    h.run_steps(3);
+    assert_eq!(width(&h), None, "nothing is set");
+    // Nothing is left of the drag: a click places the caret, and Escape is the body's as ever.
+    let body = h.state().hit.rect("composeBody", 0).expect("the body");
+    click(&mut h, body.min + egui::vec2(2.0, 8.0));
+    assert_eq!(sel(&h).head, 0, "a click places the caret");
+    key(&mut h, Key::Escape);
+    h.run_steps(2);
+    assert!(!super::editor::has_focus(&h.ctx), "Escape lets the body go");
 }

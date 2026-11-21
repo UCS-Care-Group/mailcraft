@@ -855,9 +855,12 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 st.resizing = Some(Resizing { id: pid, corner: i, width: w.clamp(8.0, most), cancelled: false });
             }
             // (A drag given up stays until the button comes up, below.)
-            if handle.drag_stopped_by(primary)
+            // A drag that ends however it ends (egui ends one on Escape with Shift, too) is let go
+            // of; only the primary button coming up sets the width.
+            if handle.drag_stopped()
                 && st.resizing.is_some_and(|z| !z.cancelled && z.corner == i)
                 && let Some(z) = st.resizing.take()
+                && handle.drag_stopped_by(primary)
                 && (z.width.round() - r.width().round()).abs() >= 1.0
             {
                 let command = if which == Which::Signature { "signature.picture.set" } else { "compose.picture.set" };
@@ -875,7 +878,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         }
     }
     // A drag given up by Escape is the button's until it comes up: it neither sizes nor selects.
-    if st.resizing.is_some_and(|z| z.cancelled) && !ui.input(|i| i.pointer.primary_down()) {
+    // None is left once the button is up, whatever ended it.
+    if st.resizing.is_some() && !ui.input(|i| i.pointer.primary_down()) {
         st.resizing = None;
     }
     // (Said once the drag is known to go on: an Escape in the pass after it ended is the window's.)
