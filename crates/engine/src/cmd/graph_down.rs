@@ -655,18 +655,22 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     let keeps_header = mb.message(here).is_some_and(|m| mb.keeps_header_as_it_came(m.account));
     let m = mb.message_mut(here).ok()?;
     // Check again asked for the bytes it came as alone (#30), or a move asked the copy it came
-    // from for them: nothing else of it changes.
+    // from for them: nothing else of it changes. Unless the server has had another version of it
+    // since ([`Message::stale`], #566): what came is then taken whole, as any fetch's answer is,
+    // and not left the old version with no fetch to come.
     if std::mem::take(&mut m.original_wanted) {
         m.original_asked |= !brought;
         if no_room > 0 {
             m.original_no_room = no_room;
         }
-        // (A copy that brings none, one put on the server from its parts, takes nothing away.)
-        if !m.parts_removed && read.original.is_some() {
-            m.original = read.original;
+        if !m.stale {
+            // (A copy that brings none, one put on the server from its parts, takes nothing away.)
+            if !m.parts_removed && read.original.is_some() {
+                m.original = read.original;
+            }
+            (m.unfetched, m.attachments_on_server) = (false, false);
+            return Some(here);
         }
-        (m.unfetched, m.attachments_on_server) = (false, false);
-        return Some(here);
     }
     // What a listing left out of its recipients and subject comes with it whole, but for one of
     // them the download doesn't give, which stays as the listing said (#566).
