@@ -720,6 +720,12 @@ msgstr "צבע הדגשה"
 msgid "Accent Colour"
 msgstr "צבע הדגשה"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Accent colour as hex"
+msgstr "צבע הדגשה כערך הקסדצימלי"
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2159,7 +2165,7 @@ msgid "AutoArchive"
 msgstr "העברה אוטומטית לארכיון"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "אוטומטי"
@@ -3130,6 +3136,12 @@ msgstr "בדוק אם קיימים עדכונים"
 msgid "Check for new versions"
 msgstr "בדיקת גרסאות חדשות"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "בדיקת איות באמצעות מילון מקומי"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -4049,6 +4061,12 @@ msgstr "תיבת הדואר הנוכחית"
 #, fuzzy
 msgid "Current View"
 msgstr "תצוגה נוכחית"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
+msgid "Custom color"
+msgstr "צבע מותאם אישית"
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
@@ -5635,6 +5653,12 @@ msgid "Find a Time"
 msgstr "חיפוש מועד"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "חפש את שגיאת האיות הבאה"
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Find what"
@@ -5775,7 +5799,7 @@ msgstr ""
 "תיקייה"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "חלונית תיקיות"
@@ -9360,11 +9384,23 @@ msgstr "העברה למטה"
 msgid "Move Event"
 msgstr "העברת אירוע"
 
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Favorite Up or Down"
+msgstr "הזז מועדף למעלה או למטה"
+
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move Folder"
 msgstr "העברת תיקייה"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Move Folder Up or Down"
+msgstr "הזז תיקייה למעלה או למטה"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -10345,6 +10381,24 @@ msgid "No signatures yet"
 msgstr "עדיין אין חתימות"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors found"
+msgstr "לא נמצאו שגיאות איות"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling errors in the part checked"
+msgstr "לא נמצאו שגיאות איות בחלק שנבדק"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "No spelling suggestions"
+msgstr "אין הצעות איות"
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
@@ -10861,7 +10915,7 @@ msgid "October"
 msgstr "אוקטובר"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "כבוי"
@@ -12927,6 +12981,12 @@ msgstr "החלף"
 #, fuzzy
 msgid "Replace All"
 msgstr "החלף הכול"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Replace Text at Position"
+msgstr "החלף טקסט במיקום"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15411,8 +15471,26 @@ msgstr "נפח אחסון מרבי לדואר"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
-msgid "Spelling & Grammar"
-msgstr "איות ודקדוק"
+msgid "Spelling"
+msgstr "איות"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling is unavailable on this platform"
+msgstr "בדיקת איות אינה זמינה בפלטפורמה זו"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling language"
+msgstr "שפת איות"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Spelling suggestions"
+msgstr "הצעות איות"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17655,6 +17733,12 @@ msgid "The sign-in was declined."
 msgstr "הכניסה נדחתה."
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr "לא ניתן היה לשמור את החתימה: {why}. סגור שוב כדי להשאיר אותה ללא שמירה."
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "The signature is then sent as the simpler text shown here, not as it was designed"
@@ -17701,6 +17785,12 @@ msgstr "השטח שהתיקייה ותיקיות המשנה שלה תופסות 
 #, fuzzy
 msgid "The space the folder's own messages take on this computer"
 msgstr "השטח שהודעות התיקייה עצמה תופסות במחשב זה"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "מילון האיות אינו זמין"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20793,6 +20883,18 @@ msgid "a draft can't have a reminder: send it first, or use Follow Up in the mes
 msgstr "לטיוטה לא יכולה להיות תזכורת: שלח אותה תחילה, או השתמש ב״המשך טיפול״ בהודעה עצמה"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "לא ניתן להציב מועדף לפני עצמו"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "לא ניתן להציב תיקייה לפני עצמה"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"
@@ -20803,6 +20905,12 @@ msgstr "תיקייה אינה יכולה לעבור לתוך עצמה"
 #, fuzzy
 msgid "a folder can't move to another account"
 msgstr "תיקייה אינה יכולה לעבור לחשבון אחר"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "תיקייה ממוקמת בין התיקיות שלצדה: ציין תיקייה בעלת אותו הורה"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21199,6 +21307,12 @@ msgstr "הזן שם משתמש כדי להיכנס"
 #, fuzzy
 msgid "everybody at @{domain}"
 msgstr "כולם ב־@{domain}"
+
+#. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "expected and replacement must be on one line"
+msgstr "הטקסט המצופה וההחלפה חייבים להיות בשורה אחת"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -23117,6 +23231,12 @@ msgid "the text has a character that can't be sent"
 msgstr "הטקסט מכיל תו שלא ניתן לשלוח"
 
 #. what a command says
+#: crates/model/src/rich/body.rs
+#, fuzzy
+msgid "the text has changed at the place to replace"
+msgstr "הטקסט השתנה במקום ההחלפה"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
@@ -24187,6 +24307,12 @@ msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} אינה תיבת דואר משותפת: הסר אותה באמצעות account.remove"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} אינה נמצאת בין המועדפים"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
@@ -24257,6 +24383,12 @@ msgstr "{name} שיתף איתך לוח שנה."
 #, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
 msgstr "{name} שיתף איתך לוח שנה. הוא מופיע ברשימת לוחות השנה שלך."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} נשארת בראש תיקיות החשבון שלה"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -25535,4 +25667,8 @@ msgstr "−בינארי"
 #, fuzzy
 msgid "−Lines"
 msgstr "−שורות"
+
+#, fuzzy
+#~ msgid "Spelling & Grammar"
+#~ msgstr "איות ודקדוק"
 
