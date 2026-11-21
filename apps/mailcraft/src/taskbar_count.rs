@@ -27,6 +27,10 @@ pub struct Icons {
     /// When a failed call may be tried again. A broken shell is not asked on every frame.
     #[cfg(target_os = "windows")]
     retry_at: Option<std::time::Instant>,
+    /// When the same overlay is sent again. The shell drops it when it recreates the taskbar
+    /// button, and the window is not told, so a dot that is already on is put back now and then.
+    #[cfg(target_os = "windows")]
+    reassert_at: Option<std::time::Instant>,
 }
 
 impl Icons {
@@ -42,6 +46,8 @@ impl Icons {
             icon: None,
             #[cfg(target_os = "windows")]
             retry_at: None,
+            #[cfg(target_os = "windows")]
+            reassert_at: None,
         }
     }
 
@@ -69,6 +75,29 @@ fn note(said: &mut bool, err: &str) {
 /// How long a failed call waits before the shell is asked again.
 #[cfg(target_os = "windows")]
 const RETRY: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// How long a dot that is already on stays before it is sent again. The shell forgets an overlay
+/// when Explorer restarts; one call a half-minute puts it back, and a change of the dot does not
+/// wait for that.
+#[cfg(target_os = "windows")]
+const REASSERT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Whether the overlay is sent. A failed call waits out `retry_at` even when the dot should
+/// change. The same dot is sent again only once `reassert_at` is due; a different dot is sent
+/// at once.
+#[cfg(any(test, target_os = "windows"))]
+fn send_overlay(
+    dot: bool,
+    want: bool,
+    now: std::time::Instant,
+    retry_at: Option<std::time::Instant>,
+    reassert_at: Option<std::time::Instant>,
+) -> bool {
+    if retry_at.is_some_and(|at| now < at) {
+        return false;
+    }
+    if dot == want { reassert_at.is_some_and(|at| now >= at) } else { true }
+}
 
 #[cfg(target_os = "windows")]
 fn ours(hwnd: &winsafe::HWND) -> bool {
@@ -108,10 +137,8 @@ impl Icons {
         if in_front {
             self.remember_main();
         }
-        if self.dot == want && self.retry_at.is_none() {
-            return;
-        }
-        if self.retry_at.is_some_and(|at| std::time::Instant::now() < at) {
+        let now = std::time::Instant::now();
+        if !send_overlay(self.dot, want, now, self.retry_at, self.reassert_at) {
             return;
         }
         if self.main.is_none() {
@@ -123,6 +150,7 @@ impl Icons {
                 self.main = Some(hwnd);
                 self.dot = want;
                 self.retry_at = None;
+                self.reassert_at = Some(now + REASSERT);
             }
             Err(e) => {
                 self.main = Some(hwnd);
@@ -232,6 +260,6 @@ fn dot_pixel(x: usize, y: usize) -> bool {
     dx * dx + dy * dy <= 16
 }
 
-#[cfg(all(test, target_os = "windows"))]
+#[cfg(test)]
 #[path = "taskbar_count_tests.rs"]
 mod taskbar_count_tests;
