@@ -21282,7 +21282,7 @@ msgstr "le texte recherché et son remplacement doivent tenir sur une seule lign
 #, fuzzy
 msgctxt "folder"
 msgid "Archive"
-msgstr "Archives"
+msgstr "Archiver"
 
 #. folder name
 #: crates/model/src/mailbox.rs

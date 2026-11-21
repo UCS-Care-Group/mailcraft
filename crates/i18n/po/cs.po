@@ -21421,7 +21421,7 @@ msgstr "hledaný i náhradní text musí být na jednom řádku"
 #, fuzzy
 msgctxt "folder"
 msgid "Archive"
-msgstr "Archiv"
+msgstr "Archivovat"
 
 #. folder name
 #: crates/model/src/mailbox.rs

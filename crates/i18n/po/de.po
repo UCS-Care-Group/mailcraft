@@ -20068,7 +20068,7 @@ msgstr "Suchtext und Ersatztext müssen auf einer Zeile stehen"
 #, fuzzy
 msgctxt "folder"
 msgid "Archive"
-msgstr "Archiv"
+msgstr "Archivieren"
 
 #. folder name
 #: crates/model/src/mailbox.rs

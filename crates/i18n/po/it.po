@@ -21354,7 +21354,7 @@ msgstr "il testo da cercare e quello sostitutivo devono essere su una sola riga"
 #, fuzzy
 msgctxt "folder"
 msgid "Archive"
-msgstr "Archivio"
+msgstr "Archivia"
 
 #. folder name
 #: crates/model/src/mailbox.rs

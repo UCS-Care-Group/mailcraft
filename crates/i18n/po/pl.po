@@ -21453,7 +21453,7 @@ msgstr "szukany i zastępujący tekst muszą być w jednym wierszu"
 #, fuzzy
 msgctxt "folder"
 msgid "Archive"
-msgstr "Archiwum"
+msgstr "Archiwizuj"
 
 #. folder name
 #: crates/model/src/mailbox.rs
