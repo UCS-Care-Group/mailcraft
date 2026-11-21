@@ -214,7 +214,7 @@ mod tests {
             }
             _ => panic!("no question"),
         }
-        app.dialog = None;
+        app.set_dialog(None);
         assert_eq!(app.session.mailbox.keep_offline_of(account), KeepOffline::Week1, "Cancel");
         // Said yes: the window is shorter, and what is outside goes at the next frame.
         app.run("ui.keepOffline", json!({"account": account, "keepOffline": "3d", "confirmed": true})).unwrap();

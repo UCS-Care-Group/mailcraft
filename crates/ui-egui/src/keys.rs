@@ -782,6 +782,17 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         if list && moving {
             continue;
         }
+        // In a message the pointer last went down in, the keys that move scroll it instead of
+        // moving in the message list (#1739).
+        if moving
+            && !typing
+            && let Some(scroll) = crate::reading::scroll_of(key, modifiers)
+            && let Some(place) = app.text_selection.scroll_target(ctx.viewport_id(), crate::reading::images::frame(ctx))
+        {
+            app.text_selection.scroll(place, scroll);
+            ctx.request_repaint();
+            continue;
+        }
         let Some(name) = key_name(key) else { continue };
         let function = name.len() > 1 && name.starts_with('F') && name[1..].chars().all(|c| c.is_ascii_digit());
         if typing {
