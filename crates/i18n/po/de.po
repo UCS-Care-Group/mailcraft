@@ -11450,8 +11450,9 @@ msgstr "Bild aus Zwischenablage einfügen"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Nur Text einfügen"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs

@@ -11793,8 +11793,9 @@ msgstr "Afbeelding plakken"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Alleen tekst plakken"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
