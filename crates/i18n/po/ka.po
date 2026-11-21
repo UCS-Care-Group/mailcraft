@@ -1155,7 +1155,7 @@ msgstr "მისამართები ; ნიშნით გამოყ�
 #: crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "Addresses your mail server lets this account send from with the same sign-in, such as aliases. Replies are sent from the address a message came to."
-msgstr "მისამართები, საიდანაც თქვენი ფოსტის სერვერი ამ ანგარიშს იმავე შესვლით გაგზავნის უფლებას აძლევს, მაგალითად, ალიასები. პასუხები იგზავნება იმ მისამართიდან, რომელზეც წერილი მოვიდა."
+msgstr "მისამართები, საიდანაც თქვენი ფოსტის სერვერი ამ ანგარიშს იმავე შესვლით გაგზავნის უფლებას აძლევს, მაგალითად, ფსევდონიმები. პასუხები იგზავნება იმ მისამართიდან, რომელზეც წერილი მოვიდა."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -9401,7 +9401,7 @@ msgstr "ღონისძიების გადატანა"
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "Move Favorite Up or Down"
-msgstr "რჩეულის ზემოთ ან ქვემოთ გადატანა"
+msgstr "რჩეულის აწევა ან ჩამოწევა"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
@@ -9413,7 +9413,7 @@ msgstr "საქაღალდის გადატანა"
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "Move Folder Up or Down"
-msgstr "საქაღალდის ზემოთ ან ქვემოთ გადატანა"
+msgstr "საქაღალდის აწევა ან ჩამოწევა"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -10409,7 +10409,7 @@ msgstr "შემოწმებულ ნაწილში მართლწ�
 #: crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "No spelling suggestions"
-msgstr "მართლწერის ვარიანტები არ არის"
+msgstr "მართლწერის შეთავაზებები არ არის"
 
 #. interface
 #: crates/ui-egui/src/keep_offline.rs
@@ -13005,13 +13005,13 @@ msgstr "ხელმოწერის სახელის შეცვლა"
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Renaming a category on the server"
-msgstr "კატეგორიის გადარქმევა სერვერზე"
+msgstr "კატეგორიის სახელის შეცვლა სერვერზე"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "Renaming a category on the server: {done} of {total} messages"
-msgstr "კატეგორიის გადარქმევა სერვერზე: {done} / {total} შეტყობინება"
+msgstr "კატეგორიის სახელის შეცვლა სერვერზე: {done} / {total} წერილი"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -13179,7 +13179,7 @@ msgstr ""
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
 msgid "Reset Size"
-msgstr "ზომის აღდგენა"
+msgstr "ზომის ჩამოყრა"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -15011,7 +15011,7 @@ msgstr "ამ მიმოწერის წერილების ჩვე
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
 msgid "Show the picture at its own size"
-msgstr "სურათის საკუთარი ზომით ჩვენება"
+msgstr "სურათის ჩვენება რეალური ზომით"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -15579,7 +15579,7 @@ msgstr "მართლწერის ენა"
 #: crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Spelling suggestions"
-msgstr "მართლწერის ვარიანტები"
+msgstr "მართლწერის შეთავაზებები"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16744,16 +16744,16 @@ msgstr "კატეგორია „{name}“ ვერ აღდგა: კ�
 #, fuzzy
 msgid "The category was renamed on {n} event on the server"
 msgid_plural "The category was renamed on {n} events on the server"
-msgstr[0] "კატეგორია გადაერქვა სერვერის ღონისძიებებზე: {n}"
-msgstr[1] "კატეგორია გადაერქვა სერვერის ღონისძიებებზე: {n}"
+msgstr[0] "სერვერზე კატეგორიის სახელი შეიცვალა {n} ღონისძიებაში"
+msgstr[1] "სერვერზე კატეგორიის სახელი შეიცვალა {n} ღონისძიებაში"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "The category was renamed on {n} message on the server"
 msgid_plural "The category was renamed on {n} messages on the server"
-msgstr[0] "კატეგორია გადაერქვა სერვერის შეტყობინებებზე: {n}"
-msgstr[1] "კატეგორია გადაერქვა სერვერის შეტყობინებებზე: {n}"
+msgstr[0] "სერვერზე კატეგორიის სახელი შეიცვალა {n} წერილში"
+msgstr[1] "სერვერზე კატეგორიის სახელი შეიცვალა {n} წერილში"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -17307,7 +17307,7 @@ msgstr "სახელი, რომელსაც დაინახავე
 #: crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "The name recipients see; your own when empty"
-msgstr "სახელი, რომელსაც მიმღებები ხედავენ; ცარიელის შემთხვევაში თქვენი საკუთარი"
+msgstr "სახელი, რომელსაც მიმღებები ხედავენ; თუ ცარიელია, თქვენი სახელი"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18621,7 +18621,7 @@ msgstr "ამ ელემენტს შეუნახავი ცვლი
 #: crates/engine/src/cmd/calendar_extra.rs
 #, fuzzy
 msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
-msgstr "ამ ელემენტს მიმაგრებული აქვს ფაილები, რომლებსაც მხოლოდ სერვერი ინახავს და რომლებიც ასლს არ ექნებოდა: აქედან მისი კოპირება შეუძლებელია."
+msgstr "ამ ელემენტს აქვს დანართები, რომლებსაც მხოლოდ სერვერი ინახავს და ასლს ისინი არ ექნებოდა: აქედან მისი კოპირება შეუძლებელია."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -19663,7 +19663,7 @@ msgstr "გამოწერა გაუქმდა."
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
-msgstr "გამოწერის გაუქმება: {click} ერთი დაწკაპუნებით, {mail} წერილით, {pages} მათ საკუთარ გვერდზე გასაკეთებელი, {left} გამოტოვებული."
+msgstr "გამოწერის გაუქმება: {click} ერთი დაწკაპებით, {mail} წერილით, {pages} მათ საკუთარ გვერდზე გასაკეთებელი, {left} გამოტოვებული."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -20969,7 +20969,7 @@ msgstr "JMAP ანგარიშის სერვერისა და მ�
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
 msgid "a Microsoft or Exchange account sends from other addresses only as its server allows, which MailCraft doesn't ask for yet"
-msgstr "Microsoft-ის ან Exchange-ის ანგარიში სხვა მისამართებიდან მხოლოდ მაშინ აგზავნის, როცა მისი სერვერი ამის საშუალებას იძლევა, და MailCraft ამას ჯერ არ ითხოვს"
+msgstr "Microsoft-ის ან Exchange-ის ანგარიში სხვა მისამართებიდან მხოლოდ სერვერის ნებართვით აგზავნის, რომელსაც MailCraft ჯერ არ ითხოვს"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -21017,13 +21017,13 @@ msgstr "მონახაზს შეხსენება ვერ ექნ
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "a favourite can't be put before itself"
-msgstr "რჩეულს საკუთარი თავის წინ ვერ დადებთ"
+msgstr "რჩეულს საკუთარი თავის წინ ვერ მოათავსებთ"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't be put before itself"
-msgstr "საქაღალდეს საკუთარი თავის წინ ვერ დადებთ"
+msgstr "საქაღალდეს საკუთარი თავის წინ ვერ მოათავსებთ"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21041,7 +21041,7 @@ msgstr "საქაღალდე სხვა ანგარიშში ვ
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder is put among the folders beside it: name one with the same parent"
-msgstr "საქაღალდე მის გვერდით მყოფ საქაღალდეებს შორის თავსდება: მიუთითეთ იგივე მშობლის მქონე"
+msgstr "საქაღალდე თავის გვერდით მყოფ საქაღალდეებს შორის თავსდება: მიუთითეთ იმავე მშობელ საქაღალდეში მყოფი"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -21449,7 +21449,7 @@ msgstr "ყველა დომენიდან @{domain}"
 #: crates/model/src/rich/body.rs
 #, fuzzy
 msgid "expected and replacement must be on one line"
-msgstr "მოსალოდნელი და ჩამნაცვლებელი ტექსტი ერთ ხაზზე უნდა იყოს"
+msgstr "მოსალოდნელი და ჩამნაცვლებელი ტექსტი ერთ სტრიქონზე უნდა იყოს"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -22021,7 +22021,7 @@ msgstr "ამ ხელმოწერაში სურათი {id} არ 
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
 msgid "no picture {id} was put in this message"
-msgstr "ამ შეტყობინებაში სურათი {id} არ ჩასმულა"
+msgstr "ამ წერილში სურათი {id} არ ჩასმულა"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23623,7 +23623,7 @@ msgstr "ამ ანგარიშის კატეგორიები თ
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "this build can't unsubscribe in one click"
-msgstr "ამ ვერსიას ერთი დაწკაპუნებით გამოწერის გაუქმება არ შეუძლია"
+msgstr "MailCraft-ის ეს ვერსია ერთი დაწკაპებით გამოწერის გაუქმებას ვერ ახერხებს"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -24033,7 +24033,7 @@ msgstr "{address} უკვე დაყენებულია"
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "{address} is no longer one of this account's sender addresses: choose another From"
-msgstr "{address} ამ ანგარიშის გამგზავნის მისამართი აღარ არის: აირჩიეთ სხვა „გამგზავნი“"
+msgstr "{address} ამ ანგარიშის გამგზავნის მისამართი აღარ არის: აირჩიეთ სხვა „ვისგან“"
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -24675,7 +24675,7 @@ msgstr[1] "საფოსტო ყუთის შიგთავსის ს
 msgid "{n} by a message from your account through your Outbox:"
 msgid_plural "{n} by a message each from your account through your Outbox:"
 msgstr[0] "{n} თქვენი ანგარიშიდან წერილით, გასაგზავნების გავლით:"
-msgstr[1] "{n} თითოეული თქვენი ანგარიშიდან წერილით, გასაგზავნების გავლით:"
+msgstr[1] "{n} თითო წერილით თქვენი ანგარიშიდან, გასაგზავნების გავლით:"
 
 #. what a command says
 #: crates/model/src/message.rs
@@ -24920,8 +24920,8 @@ msgstr[1] "{n} საათით ადრე"
 #, fuzzy
 msgid "{n} in one click: its server is sent the address it gave, nothing else."
 msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
-msgstr[0] "{n} ერთი დაწკაპუნებით: მის სერვერს ეგზავნება მხოლოდ მის მიერ მითითებული მისამართი, სხვა არაფერი."
-msgstr[1] "{n} ერთი დაწკაპუნებით: თითოეული სიის სერვერს ეგზავნება მხოლოდ მის მიერ მითითებული მისამართი, სხვა არაფერი, სათითაოდ."
+msgstr[0] "{n} ერთი დაწკაპებით: სიის სერვერს ეგზავნება მხოლოდ მისივე მითითებული მისამართი, სხვა არაფერი."
+msgstr[1] "{n} ერთი დაწკაპებით: თითოეული სიის სერვერს ეგზავნება მხოლოდ მისივე მითითებული მისამართი, სხვა არაფერი, სათითაოდ."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -25486,8 +25486,8 @@ msgstr[1] "მონიშნული: {n}"
 #, fuzzy
 msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
 msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
-msgstr[0] "{n} გამგზავნი გამოტოვებულია: ფოსტა, რომელზეც თქვენი სერვერი არ იძლევა გარანტიას, რომელიც არასასურველ ფოსტაშია, რომლის გამგზავნზეც გაფრთხილებაა, ან რომელიც არ ამბობს როგორ."
-msgstr[1] "{n} გამგზავნი გამოტოვებულია: ფოსტა, რომელზეც თქვენი სერვერი არ იძლევა გარანტიას, რომელიც არასასურველ ფოსტაშია, რომლის გამგზავნზეც გაფრთხილებაა, ან რომელიც არ ამბობს როგორ."
+msgstr[0] "{n} გამგზავნი გამოტოვებულია: ფოსტა, რომელზეც თქვენი სერვერი არ იძლევა გარანტიას, რომელიც არასასურველ ფოსტაშია, რომლის გამგზავნზეც გაფრთხილებაა, ან რომელშიც არ წერია, როგორ გაუქმდეს გამოწერა."
+msgstr[1] "{n} გამგზავნი გამოტოვებულია: ფოსტა, რომელზეც თქვენი სერვერი არ იძლევა გარანტიას, რომელიც არასასურველ ფოსტაშია, რომლის გამგზავნზეც გაფრთხილებაა, ან რომელშიც არ წერია, როგორ გაუქმდეს გამოწერა."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -25575,7 +25575,7 @@ msgstr[1] "სერვერზე წაუკითხავი: {n}"
 msgid "{n} unsubscribes on its own page: open its message to do it there."
 msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
 msgstr[0] "{n} გამოწერას საკუთარ გვერდზე აუქმებს: ამისთვის გახსენით მისი წერილი."
-msgstr[1] "{n} გამოწერას საკუთარ გვერდზე აუქმებს: ამისთვის გახსენით თითოეული ეს წერილი."
+msgstr[1] "{n} გამოწერას საკუთარ გვერდზე აუქმებს: ამისთვის გახსენით თითოეული მათგანის წერილი."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
