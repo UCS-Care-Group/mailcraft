@@ -624,7 +624,7 @@ fn zimbra_shown(a: &Account) -> Option<Value> {
 /// Whether `v` asks for a Zimbra account or names a Zimbra server: what is refused while the
 /// switch for testing them is off.
 fn asks_for_zimbra(v: &Value) -> bool {
-    v.get("zimbra").is_some() || p::str(v, "kind").is_some_and(|k| k.trim().eq_ignore_ascii_case("zimbra"))
+    v.get("zimbra").is_some_and(|z| !z.is_null()) || p::str(v, "kind").is_some_and(|k| k.trim().eq_ignore_ascii_case("zimbra"))
 }
 
 fn add(s: &mut Session, v: &Value) -> CmdResult {

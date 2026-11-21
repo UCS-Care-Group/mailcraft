@@ -108,7 +108,9 @@ fn outside(s: &Session, account: Option<Id>) -> Vec<Id> {
 }
 
 fn can_thin(s: &Session, account: Id) -> bool {
-    s.zimbra || s.mailbox.account(account).is_none_or(|a| !a.kind.needs_switch())
+    // A kind behind a switch is never thinned in this stage: `sync.zimbraFetchRequest` is not
+    // built yet, so a body its window dropped could not be fetched back.
+    s.mailbox.account(account).is_none_or(|a| !a.kind.needs_switch())
 }
 
 /// [`outside`], of `window`.

@@ -78,6 +78,18 @@ fn a_result_for_another_zimbra_server_is_refused() {
 }
 
 #[test]
+fn a_null_zimbra_field_is_not_asking_for_a_zimbra_account() {
+    // account.list emits "zimbra": null for every other kind; sending that shape back edits the
+    // account, switch off or not, since it asks for nothing of Zimbra's.
+    let mut s = Session::empty();
+    let imap = s.run("account.add", &json!({"email":"bob@example.org","incoming":{"host":"imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    s.run("account.edit", &json!({"id": imap, "zimbra": null, "displayName": "Bob"})).unwrap();
+    // A non-null zimbra still asks for one and is refused while the switch is off.
+    assert!(said(s.run("account.edit", &json!({"id": imap, "zimbra": {"url": URL}}))).contains(SWITCHED_OFF));
+    assert!(said(s.run("account.add", &json!({"email":"ada@example.org","kind":"imap","zimbra":{"url":URL}}))).contains(SWITCHED_OFF));
+}
+
+#[test]
 fn missing_settings_keep_the_id_scheme_but_refuse_sync_requests() {
     let mut s = switched_on();
     let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();

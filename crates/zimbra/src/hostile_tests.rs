@@ -6,7 +6,7 @@ use proptest::prelude::*;
 use serde_json::{Value, json};
 
 use crate::error::{Error, Fault};
-use crate::http::HttpResponse;
+use crate::http::{HttpResponse, Secret};
 use crate::{auth, delta, fetch, folders, items};
 
 fn answer(status: u16, body: &Value) -> HttpResponse {
@@ -131,6 +131,16 @@ fn oversized_message_text_does_not_wedge_a_sync_page() {
             assert!(result.check().is_ok(), "{field} must not make a successfully read page unusable");
         }
     }
+}
+
+#[test]
+fn a_probe_refuses_an_id_that_is_not_digits() {
+    // Cleaning must never make a value pass for another id: "2 5 7" is not "257".
+    let token = Secret::new("t");
+    for id in ["25x7", "2 5 7", " 257", "257\n", "", "٢٥٧"] {
+        assert!(items::probe("https://zimbra.example.org", &token, id).is_err(), "{id}");
+    }
+    assert!(items::probe("https://zimbra.example.org", &token, "257").is_ok());
 }
 
 #[test]
