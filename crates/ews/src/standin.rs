@@ -60,6 +60,7 @@ const DISTINGUISHED: &[&str] = &[
     "recoverableitemsroot",
     "archiveroot",
     "archivemsgfolderroot",
+    "archivedeleteditems",
     "archiveinbox",
     "syncissues",
     "conflicts",

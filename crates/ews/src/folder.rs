@@ -6,7 +6,7 @@
 
 use crate::error::Error;
 use crate::reply::Reply;
-use crate::soap::{Element, TYPES};
+use crate::soap::{Element, TYPES, Version};
 use crate::xml::Node;
 
 /// The longest folder id kept: real ones are about 150 characters.
@@ -43,6 +43,15 @@ pub enum DistinguishedFolder {
     LocalFailures,
     /// Server Failures (`serverfailures`), in Sync Issues.
     ServerFailures,
+    /// The top of the personal archive (`archiveroot`), Exchange 2010 SP1 and later.
+    ArchiveRoot,
+    /// The top of the archive's mail folders (`archivemsgfolderroot`), Exchange 2010 SP1 and later.
+    ArchiveMessageRoot,
+    /// The archive's Deleted Items (`archivedeleteditems`), Exchange 2010 SP1 and later.
+    ArchiveDeletedItems,
+    /// The archive's Inbox (`archiveinbox`): a later schema's name, which an older server doesn't
+    /// know, so it is only ever asked for in a request of its own.
+    ArchiveInbox,
 }
 
 impl DistinguishedFolder {
@@ -62,6 +71,51 @@ impl DistinguishedFolder {
             Self::Conflicts => "conflicts",
             Self::LocalFailures => "localfailures",
             Self::ServerFailures => "serverfailures",
+            Self::ArchiveRoot => "archiveroot",
+            Self::ArchiveMessageRoot => "archivemsgfolderroot",
+            Self::ArchiveDeletedItems => "archivedeleteditems",
+            Self::ArchiveInbox => "archiveinbox",
+        }
+    }
+}
+
+/// Which of an account's two stores a request is about: the mailbox itself, or its personal
+/// archive (the "online archive", #1818). The same user, the same server and the same address
+/// reach both; only the folder at the top of the mail differs. Folder and item ids are the
+/// server's either way, so a request that names one by id needs no store.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Store {
+    /// The mailbox.
+    #[default]
+    Primary,
+    /// The mailbox's personal archive.
+    Archive,
+}
+
+impl Store {
+    /// The folder at the top of its mail: what its folder list is read from, and where a folder
+    /// made or moved "to the top" goes.
+    pub fn message_root(self) -> DistinguishedFolder {
+        match self {
+            Self::Primary => DistinguishedFolder::MessageRoot,
+            Self::Archive => DistinguishedFolder::ArchiveMessageRoot,
+        }
+    }
+
+    /// Its Deleted Items.
+    pub fn deleted_items(self) -> DistinguishedFolder {
+        match self {
+            Self::Primary => DistinguishedFolder::DeletedItems,
+            Self::Archive => DistinguishedFolder::ArchiveDeletedItems,
+        }
+    }
+
+    /// The oldest version of the schema that has it: a request about the archive asks for this
+    /// or a later one ([`crate::Client`] never asks for less than [`Version::FALLBACK`]).
+    pub fn since(self) -> Version {
+        match self {
+            Self::Primary => Version::Exchange2007,
+            Self::Archive => Version::Exchange2010Sp1,
         }
     }
 }

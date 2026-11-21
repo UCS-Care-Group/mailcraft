@@ -3,7 +3,8 @@
 //! `SyncFolderHierarchy` ([MS-OXWSSYNC]): the folders of the mailbox, and what changed in them
 //! since the sync state the server gave last time.
 //!
-//! The mail folders lie under `msgfolderroot`; that is what is synchronised. The first read
+//! The mail folders lie under `msgfolderroot` (in the archive, `archivemsgfolderroot`); that is
+//! what is synchronised. The first read
 //! (no state) brings every folder as a `Create`; later reads bring the `Create`, `Update` and
 //! `Delete` of the folders that changed. A folder that is not a mail folder (a calendar, contacts,
 //! tasks, notes: its `FolderClass` is not `IPF.Note`) is skipped and counted: it is not this
@@ -13,7 +14,7 @@ use mailcraft_model::FolderKind;
 use mailcraft_model::sync::GraphFolder;
 
 use crate::error::Error;
-use crate::folder::{FolderId, valid_id};
+use crate::folder::{FolderId, Store, valid_id};
 use crate::reply::Reply;
 use crate::soap::{Element, MESSAGES, TYPES};
 use crate::xml::Node;
@@ -27,12 +28,13 @@ pub(crate) const MAX_NAME: usize = 255;
 #[derive(Clone, PartialEq, Eq)]
 pub struct SyncFolderHierarchy {
     state: String,
+    store: Store,
 }
 
 impl std::fmt::Debug for SyncFolderHierarchy {
     /// Whether there is a state; the state is the server's.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SyncFolderHierarchy").field("state", &!self.state.is_empty()).finish()
+        f.debug_struct("SyncFolderHierarchy").field("state", &!self.state.is_empty()).field("store", &self.store).finish()
     }
 }
 
@@ -72,7 +74,15 @@ impl std::fmt::Debug for HierarchyPage {
 impl SyncFolderHierarchy {
     /// Reads from `state` (the server's; empty to begin).
     pub fn new(state: &str) -> Self {
-        Self { state: state.to_owned() }
+        Self { state: state.to_owned(), store: Store::Primary }
+    }
+
+    /// The folders of `store` instead (the mailbox's, unless told): its own top of the mail, and
+    /// a state of its own.
+    #[must_use]
+    pub fn in_store(mut self, store: Store) -> Self {
+        self.store = store;
+        self
     }
 
     /// The operation as the schema has it: `FolderShape`, `SyncFolderId`, `SyncState`.
@@ -84,7 +94,7 @@ impl SyncFolderHierarchy {
         let shape = Element::new("m:FolderShape")
             .child(Element::new("t:BaseShape").text("Default"))
             .child(Element::new("t:AdditionalProperties").child(field("folder:FolderClass")).child(field("folder:ParentFolderId")));
-        let root = Element::new("m:SyncFolderId").child(Element::new("t:DistinguishedFolderId").attr("Id", "msgfolderroot"));
+        let root = Element::new("m:SyncFolderId").child(Element::new("t:DistinguishedFolderId").attr("Id", self.store.message_root().as_str()));
         let mut operation = Element::new("m:SyncFolderHierarchy").child(shape).child(root);
         if !self.state.is_empty() {
             operation = operation.child(Element::new("m:SyncState").text(&self.state));

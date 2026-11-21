@@ -15,7 +15,7 @@ use mailcraft_model::sync::FlagUp;
 use mailcraft_model::{Address, FlagStatus, Importance};
 
 use crate::error::Error;
-use crate::folder::valid_id;
+use crate::folder::{Store, valid_id};
 use crate::reply::Reply;
 use crate::soap::{Element, MESSAGES, TYPES};
 use crate::xml::Node;
@@ -372,11 +372,11 @@ fn first_folder_id(node: &Node) -> Option<String> {
     folder.child_in(TYPES, "FolderId")?.attribute("Id").filter(|id| valid_id(id)).map(str::to_owned)
 }
 
-/// Where a folder is made or moved to: the top of the mail, or a folder by id.
-fn folder_target(name: &str, parent: &str) -> Element {
+/// Where a folder is made or moved to: the top of `store`'s mail, or a folder by id.
+fn folder_target(name: &str, parent: &str, store: Store) -> Element {
     let holder = Element::new(name);
     if parent.is_empty() {
-        holder.child(Element::new("t:DistinguishedFolderId").attr("Id", "msgfolderroot"))
+        holder.child(Element::new("t:DistinguishedFolderId").attr("Id", store.message_root().as_str()))
     } else {
         holder.child(id_element("t:FolderId", parent, None))
     }
@@ -387,6 +387,7 @@ fn folder_target(name: &str, parent: &str) -> Element {
 pub struct CreateFolder {
     parent: String,
     name: String,
+    store: Store,
 }
 
 impl std::fmt::Debug for CreateFolder {
@@ -398,7 +399,14 @@ impl std::fmt::Debug for CreateFolder {
 impl CreateFolder {
     /// Makes a folder called `name` under `parent` (a server id; empty: the top of the mail).
     pub fn new(parent: &str, name: &str) -> Self {
-        Self { parent: parent.to_owned(), name: name.to_owned() }
+        Self { parent: parent.to_owned(), name: name.to_owned(), store: Store::Primary }
+    }
+
+    /// With an empty parent meaning the top of `store`'s mail (the mailbox's, unless told).
+    #[must_use]
+    pub fn in_store(mut self, store: Store) -> Self {
+        self.store = store;
+        self
     }
 
     /// The operation: `ParentFolderId` and `Folders`.
@@ -406,7 +414,9 @@ impl CreateFolder {
         let folder = Element::new("t:Folder")
             .child(Element::new("t:FolderClass").text("IPF.Note"))
             .child(Element::new("t:DisplayName").text(&line(&self.name)));
-        Element::new("m:CreateFolder").child(folder_target("m:ParentFolderId", &self.parent)).child(Element::new("m:Folders").child(folder))
+        Element::new("m:CreateFolder")
+            .child(folder_target("m:ParentFolderId", &self.parent, self.store))
+            .child(Element::new("m:Folders").child(folder))
     }
 
     /// The new folder's id.
@@ -458,6 +468,7 @@ impl RenameFolder {
 pub struct MoveFolder {
     id: String,
     to: String,
+    store: Store,
 }
 
 impl std::fmt::Debug for MoveFolder {
@@ -469,12 +480,19 @@ impl std::fmt::Debug for MoveFolder {
 impl MoveFolder {
     /// Moves folder `id` under `to` (a server id; empty: the top of the mail).
     pub fn new(id: &str, to: &str) -> Self {
-        Self { id: id.to_owned(), to: to.to_owned() }
+        Self { id: id.to_owned(), to: to.to_owned(), store: Store::Primary }
+    }
+
+    /// With an empty `to` meaning the top of `store`'s mail (the mailbox's, unless told).
+    #[must_use]
+    pub fn in_store(mut self, store: Store) -> Self {
+        self.store = store;
+        self
     }
 
     /// The operation: `ToFolderId` and `FolderIds`.
     pub fn element(&self) -> Element {
-        Element::new("m:MoveFolder").child(folder_target("m:ToFolderId", &self.to)).child(Element::new("m:FolderIds").child(id_element(
+        Element::new("m:MoveFolder").child(folder_target("m:ToFolderId", &self.to, self.store)).child(Element::new("m:FolderIds").child(id_element(
             "t:FolderId",
             &self.id,
             None,

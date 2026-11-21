@@ -29,7 +29,9 @@
 //! - [`hierarchy`], [`items`], [`run`]: mail down (#252, E6): `SyncFolderHierarchy`,
 //!   `SyncFolderItems` (headers and a preview first) and `GetItem` with the MIME content, each a
 //!   request and a reader of its answer; and [`sync_mail`] and [`fetch_messages`], which run them
-//!   over an [`HttpExchange`] and hand the run back in pieces.
+//!   over an [`HttpExchange`] and hand the run back in pieces. A [`Store`] says whether the
+//!   folders are the mailbox's or its personal archive's (#1818); [`probe_archive`] asks whether
+//!   there is an archive.
 //!
 //! Everything a server sends is hostile: nothing indexes into what came over the wire, and a
 //! server's ids stay behind types whose `Debug` shows nothing ([`FolderId`], [`Secret`]).
@@ -106,6 +108,8 @@ pub mod standin_ntlm;
 pub mod standin_write;
 
 #[cfg(test)]
+mod archive_tests;
+#[cfg(test)]
 mod delete_check_tests;
 #[cfg(test)]
 mod exchange2010_tests;
@@ -135,12 +139,12 @@ pub use changes::{DeleteMode, ItemUpdate};
 pub use client::Client;
 pub use compose::Unsendable;
 pub use error::{Error, PolicyReason, ResponseClass, ResponseCode};
-pub use folder::{DistinguishedFolder, FolderId, FolderInfo, GetFolder};
+pub use folder::{DistinguishedFolder, FolderId, FolderInfo, GetFolder, Store};
 pub use hierarchy::{HierarchyPage, SyncFolderHierarchy};
 pub use http::{EndpointError, HttpExchange, HttpRequest, HttpResponse, Method, Secret, TransportError};
 pub use items::{GetItemMime, GetItemRecipients, ItemsPage, Recipients, Shape, SyncFolderItems};
 pub use ntlm::{Credentials as NtlmCredentials, NtlmError};
 pub use reply::{Message, Reply};
 pub use resolve::{Candidate, RecipientKind, ResolveNames, Resolved};
-pub use run::{failed_run, fetch_messages, sync_mail};
+pub use run::{ArchiveProbe, failed_run, fetch_messages, probe_archive, sync_mail};
 pub use soap::{Element, Version};
