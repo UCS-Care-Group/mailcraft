@@ -313,7 +313,7 @@ impl NameChoice {
                     ui.painter().rect_filled(rect, 4.0, t.hover);
                 }
                 paint_candidate_line(ui.painter(), rect, rect.min.y + 11.0, &first_line(person, rtl), regular(13.0), t.text, rtl);
-                paint_candidate_line(ui.painter(), rect, rect.min.y + 27.0, &second_line(person), regular(11.0), t.text_dim, rtl);
+                paint_candidate_line(ui.painter(), rect, rect.min.y + 27.0, &second_line(person, rtl), regular(11.0), t.text_dim, rtl);
                 if r.clicked() {
                     self.selected = index;
                 }
@@ -367,7 +367,7 @@ fn first_line(person: &Value, rtl: bool) -> String {
 
 /// What tells them apart: the job title, department and company, what kind of recipient it is
 /// when it isn't a person, and where it was found.
-fn second_line(person: &Value) -> String {
+fn second_line(person: &Value, rtl: bool) -> String {
     let mut parts: Vec<String> = ["title", "department", "company"].iter().filter_map(|key| person[*key].as_str()).map(str::to_string).collect();
     match person["kind"].as_str() {
         Some("list") => parts.push(tl!("Distribution list").to_string()),
@@ -380,7 +380,15 @@ fn second_line(person: &Value) -> String {
         Some("contacts") => tl!("Contacts").to_string(),
         _ => tl!("Address list").to_string(),
     });
-    parts.join(" · ")
+    // In Hebrew, make every descriptive field a separate bidi unit. Latin job titles,
+    // departments and company names can contain punctuation and parentheses: without
+    // isolation, those marks may attach to neighboring Hebrew fields or separators.
+    // Preserve the previous English/LTR output byte-for-byte.
+    if rtl {
+        parts.into_iter().map(|part| format!("\u{2068}{part}\u{2069}")).collect::<Vec<_>>().join(" · ")
+    } else {
+        parts.join(" · ")
+    }
 }
 
 /// What the status line says while names are looked up.
@@ -411,6 +419,26 @@ mod hebrew_email_bidi_tests {
         let bare = json!({"name": "", "email": "dana@example.org"});
         assert_eq!(first_line(&bare, false), "dana@example.org");
         assert_eq!(first_line(&bare, true), "dana@example.org");
+    }
+
+    #[test]
+    fn check_names_hebrew_secondary_details_isolate_mixed_script_fields() {
+        let person = json!({
+            "title": "מנהלת",
+            "department": "DevOps (EMEA)",
+            "company": "Acme GmbH",
+            "from": "contacts",
+        });
+        let original = person.clone();
+        let english = second_line(&person, false);
+        let hebrew = second_line(&person, true);
+        assert!(english.starts_with("מנהלת · DevOps (EMEA) · Acme GmbH · "));
+        assert!(hebrew.contains("\u{2068}DevOps (EMEA)\u{2069}"));
+        assert!(hebrew.contains("\u{2068}Acme GmbH\u{2069}"));
+        assert_eq!(hebrew.matches('\u{2068}').count(), 4);
+        assert_eq!(hebrew.matches('\u{2069}').count(), 4);
+        assert_eq!(hebrew.replace('\u{2068}', "").replace('\u{2069}', ""), english);
+        assert_eq!(person, original, "presentation must not mutate recipient metadata");
     }
 
     #[test]
