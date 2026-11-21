@@ -34,7 +34,9 @@ fn every_inbox_is_one_list_and_mark_all_read_covers_them() {
     let shown: HashSet<_> = s.rows().iter().map(|r| s.mailbox.message(r.id).unwrap().folder).collect();
     assert!(shown.contains(&first) && shown.contains(&second), "{shown:?}");
 
-    assert_eq!(s.run("mail.markAllRead", &json!({"allInboxes": true})).unwrap()["changed"], 2);
+    let marked = s.run("mail.markAllRead", &json!({"allInboxes": true})).unwrap();
+    assert_eq!(marked["changed"], 2);
+    assert_eq!(marked["folders"].as_array().map(|ids| ids.len()), Some(2));
     assert!(s.mailbox.messages_in(first).all(|m| m.read));
     assert!(s.mailbox.messages_in(second).all(|m| m.read));
     assert!(s.run("rules.run", &json!({"allInboxes": true})).unwrap()["matched"].as_u64().is_some());

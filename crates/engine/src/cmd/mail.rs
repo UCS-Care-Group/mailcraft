@@ -54,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.markUnread", "Mark as Unread", "Home › Tags", mark_unread).key("Mod+U").params(IDS).selection(needs_message),
         CommandSpec::new("mail.toggleRead", "Unread/ Read", "Home › Tags", toggle_read).params(IDS).selection(needs_message),
         CommandSpec::new("mail.markAllRead", "Mark All as Read", "Folder › Clean Up", mark_all_read)
-            .params(r#"{"folder"?: number, "allInboxes"?: bool} — a folder that is there, read strictly: an id as text, `null`, `0` or a fraction is refused rather than taken for the folder in view (default: the folder in view; while All Inboxes is the list on screen and neither is named, every Inbox of the owner's own accounts). {"allInboxes": true} is those Inboxes, and naming a folder as well is refused. Answers {"folder", "changed"}"#),
+            .params(r#"{"folder"?: number, "allInboxes"?: bool} — a folder that is there, read strictly: an id as text, `null`, `0` or a fraction is refused rather than taken for the folder in view (default: the folder in view; while All Inboxes is the list on screen and neither is named, every Inbox of the owner's own accounts). {"allInboxes": true} is those Inboxes, and naming a folder as well is refused. Answers {"folder", "folders", "changed"}: "folder" is the first acted on, "folders" is every one"#),
         CommandSpec::new("mail.flag", "Follow Up", "Home › Tags", flag)
             .key("Insert")
             .params(r#"{"due"?: "YYYY-MM-DD", "ids"?: [number]}"#)
@@ -913,7 +913,7 @@ fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
         s.mailbox.message_mut(*id)?.read = true;
     }
     let folder = folders.first().copied().unwrap_or(s.view.folder);
-    Ok(json!({"folder": folder, "changed": ids.len()}))
+    Ok(json!({"folder": folder, "folders": folders, "changed": ids.len()}))
 }
 
 fn flag(s: &mut Session, v: &Value) -> CmdResult {

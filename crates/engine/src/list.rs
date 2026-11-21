@@ -208,6 +208,11 @@ fn view_folders(s: &Session) -> (bool, HashSet<Id>) {
     // All Mailboxes stays every mailbox.
     if s.view.all_inboxes {
         let inboxes = mb.inboxes();
+        // Text with no words in it is not a search, whatever scope was left behind: the list is
+        // the Inboxes, the same answer `ViewState::shows_all_inboxes` gives the commands.
+        if !inboxes.is_empty() && Query::parse(&s.view.search).is_empty() {
+            return (false, inboxes.into_iter().collect());
+        }
         if !inboxes.is_empty() {
             match scope {
                 Scope::Folder => return (false, inboxes.into_iter().collect()),
