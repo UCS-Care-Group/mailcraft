@@ -331,6 +331,18 @@ pub use settings_notice::SettingsUnread;
 pub use subscribed::{SubscriptionDone, SubscriptionJob};
 pub use unconfirmed::ConfirmedMailbox;
 
+/// Why the host's check of an account's mail servers ([`Services::test_account`]) came to nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AccountCheckRefusal {
+    /// A sentence the owner can act on.
+    Said(mailcraft_i18n::Text),
+    /// A server showed a certificate the system doesn't trust, and the owner may trust that one
+    /// certificate for the server (#1413): in date, for the server's name. `outgoing` says it was
+    /// the outgoing server's; `certificate.url` holds the server's host. Nothing was sent over
+    /// that connection.
+    Certificate { outgoing: bool, certificate: Box<ews_setup::EwsCertificate> },
+}
+
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
 #[derive(Default)]
 pub struct Services {
@@ -457,8 +469,9 @@ pub struct Services {
     pub lookup_autodiscover: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
-    /// the account is added.
-    pub test_account: Option<Box<dyn Fn(mailcraft_model::Account, String) -> Receiver<Result<(), mailcraft_i18n::Text>>>>,
+    /// the account is added. A server's certificate the system doesn't trust, and the owner may,
+    /// comes back as the question to ask (#1413).
+    pub test_account: Option<Box<dyn Fn(mailcraft_model::Account, String) -> Receiver<Result<(), AccountCheckRefusal>>>>,
     /// Desktop: the operating system's credential store (Windows Credential Manager, the macOS
     /// keychain, the Secret Service on Linux and FreeBSD), where a password or a refresh token is
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or

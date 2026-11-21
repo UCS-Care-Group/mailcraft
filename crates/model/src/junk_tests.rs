@@ -206,7 +206,7 @@ fn a_safe_senders_address_takes_mail_out_of_junk_only_when_its_server_finds_no_f
     let mut mb = Mailbox::with_local_account("Avery Quinn", "avery@lumen.example");
     let account = mb.accounts[0].id;
     mb.accounts[0].kind = AccountKind::Imap;
-    mb.accounts[0].incoming = Some(Server { host: "imap.lumen.example".into(), port: 993, security: Security::Tls });
+    mb.accounts[0].incoming = Some(Server { host: "imap.lumen.example".into(), port: 993, security: Security::Tls, ..Default::default() });
     let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let junk = mb.folder_of_kind(account, FolderKind::Junk).unwrap();
     mb.junk_lists_mut(account).add(JunkList::Safe, "friend@bank.example");

@@ -509,7 +509,10 @@ pub(crate) fn open_imap_with<'a>(
     if account.oauth.is_none() && secret.is_empty() {
         return Err(NetError::Config(said!("enter a password to sign in")));
     }
-    let (mut stream, host) = transport::open(server, Service::Imap, patience)?;
+    // The system's check, and the one certificate the owner trusted for this server (#1413).
+    let (tls, verifier) = transport::mail_tls(server)?;
+    let (mut stream, host) =
+        transport::open_with(server, Service::Imap, patience, Some(tls.clone())).map_err(|e| transport::with_certificate(e, &verifier))?;
     stream.watch(cancel);
     let mut imap = Imap::connect(stream)?;
     if server.security == Security::StartTls {
@@ -518,7 +521,7 @@ pub(crate) fn open_imap_with<'a>(
             return Err(NetError::Tls { host, reason: said!("the server doesn't offer STARTTLS") });
         }
         let plain = imap.starttls()?;
-        imap = Imap::resume(transport::upgrade(plain, &host)?);
+        imap = Imap::resume(transport::upgrade(plain, &host, Some(tls)).map_err(|e| transport::with_certificate(e, &verifier))?);
     }
     if imap.is_authenticated() {
         return Ok(imap);
@@ -1719,7 +1722,7 @@ mod tests {
     #[test]
     fn what_a_servers_name_says_of_it() {
         let named = |host: &str| {
-            let incoming = Some(mailcraft_model::Server { host: host.into(), port: 993, security: Security::Tls });
+            let incoming = Some(mailcraft_model::Server { host: host.into(), port: 993, security: Security::Tls, ..Default::default() });
             Host::of(&Account { incoming, ..Default::default() })
         };
         // Microsoft's and Google's keep what is sent through them; Microsoft's are Exchange.

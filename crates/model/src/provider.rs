@@ -28,7 +28,7 @@ const APP_PASSWORD: &str = "This provider wants an app password (made in the acc
 const MICROSOFT: &str = "Microsoft accounts sign in on Microsoft's own page; no password is typed here.";
 
 fn server(host: &str, port: u16, security: Security) -> Server {
-    Server { host: host.to_string(), port, security }
+    Server { host: host.to_string(), port, security, ..Default::default() }
 }
 
 fn with_password(service: &'static str, imap: &str, smtp: (&str, u16, Security), note: &'static str) -> Preset {

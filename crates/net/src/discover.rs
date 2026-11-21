@@ -137,7 +137,10 @@ fn srv(endpoints: &[&str], domain: &str, services: &[(&str, Security)]) -> Optio
             Ok(targets) => {
                 // (A port of 0 is no port to connect to.)
                 if let Some(target) = targets.into_iter().find(|target| target.port != 0) {
-                    return Some(FoundServer { server: Server { host: target.host, port: target.port, security: *security }, via: Via::Srv });
+                    return Some(FoundServer {
+                        server: Server { host: target.host, port: target.port, security: *security, ..Default::default() },
+                        via: Via::Srv,
+                    });
                 }
             }
             Err(e) => log::debug!("the {service} record couldn't be looked up: {e}"),

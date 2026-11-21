@@ -67,7 +67,7 @@ fn account_at(port: u16) -> Account {
     Account {
         email: "noor@lumen.example".into(),
         username: "noor".into(),
-        incoming: Some(Server { host: "127.0.0.1".into(), port, security: Security::None }),
+        incoming: Some(Server { host: "127.0.0.1".into(), port, security: Security::None, ..Default::default() }),
         ..Default::default()
     }
 }

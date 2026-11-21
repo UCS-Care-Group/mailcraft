@@ -76,7 +76,7 @@ fn smtp_world() -> SmtpWorld {
 
 fn account(imap: Option<&FakeImap>, smtp: Option<&FakeSmtp>) -> Account {
     fn server<W>(fake: &Fake<W>) -> Server {
-        Server { host: "127.0.0.1".into(), port: fake.port, security: Security::None }
+        Server { host: "127.0.0.1".into(), port: fake.port, security: Security::None, ..Default::default() }
     }
     Account {
         id: 7,
@@ -398,8 +398,8 @@ fn oauth_named_mail_servers_reach_the_transport_security_check() {
     ] {
         let mut account = oauth_account(None, None);
         account.oauth.as_mut().unwrap().provider = provider;
-        account.incoming = Some(Server { host: incoming.into(), port: 0, security: Security::None });
-        account.outgoing = Some(Server { host: outgoing.into(), port: 0, security: Security::None });
+        account.incoming = Some(Server { host: incoming.into(), port: 0, security: Security::None, ..Default::default() });
+        account.outgoing = Some(Server { host: outgoing.into(), port: 0, security: Security::None, ..Default::default() });
         for error in [test_account(&account, TOKEN).unwrap_err(), send(&account, TOKEN, &hello()).unwrap_err()] {
             assert!(matches!(&error, NetError::Config(why) if why.to_string().contains("is set to use no encryption")), "{provider:?}: {error:?}");
             assert!(!format!("{error} {error:?}").contains(TOKEN));
@@ -424,8 +424,8 @@ fn oauth_destinations_cannot_cross_providers_or_protocols() {
         account.oauth.as_mut().unwrap().provider = provider;
         // Even a broken destination guard would stop at the encryption check without reaching
         // a real server; the provider-specific error proves the guard ran first on each path.
-        account.incoming = Some(Server { host: incoming.into(), port: 0, security: Security::None });
-        account.outgoing = Some(Server { host: outgoing.into(), port: 0, security: Security::None });
+        account.incoming = Some(Server { host: incoming.into(), port: 0, security: Security::None, ..Default::default() });
+        account.outgoing = Some(Server { host: outgoing.into(), port: 0, security: Security::None, ..Default::default() });
         let expected = match provider {
             OAuthProvider::Google => "Google OAuth access tokens may only be sent",
             OAuthProvider::Microsoft => "a Microsoft sign-in is only used",
@@ -461,8 +461,8 @@ fn google_access_tokens_never_go_to_untrusted_imap_or_smtp_servers() {
 fn a_microsoft_token_goes_only_to_microsoft_servers() {
     // AU2-V8: a mailbox file can name any server for an account; the token stays home.
     let account = Account {
-        incoming: Some(Server { host: "imap.elsewhere.example".into(), port: 993, security: Security::Tls }),
-        outgoing: Some(Server { host: "smtp.elsewhere.example".into(), port: 465, security: Security::Tls }),
+        incoming: Some(Server { host: "imap.elsewhere.example".into(), port: 993, security: Security::Tls, ..Default::default() }),
+        outgoing: Some(Server { host: "smtp.elsewhere.example".into(), port: 465, security: Security::Tls, ..Default::default() }),
         ..oauth_account(None, None)
     };
     for error in [test_account(&account, TOKEN).unwrap_err(), send(&account, TOKEN, &hello()).unwrap_err()] {
@@ -603,8 +603,8 @@ fn accounts_are_tested_on_both_servers() {
 #[test]
 fn no_password_goes_out_unencrypted_to_another_machine() {
     let mut elsewhere = account(None, None);
-    elsewhere.incoming = Some(Server { host: "mail.example.org".into(), port: 0, security: Security::None });
-    elsewhere.outgoing = Some(Server { host: "192.0.2.25".into(), port: 0, security: Security::None });
+    elsewhere.incoming = Some(Server { host: "mail.example.org".into(), port: 0, security: Security::None, ..Default::default() });
+    elsewhere.outgoing = Some(Server { host: "192.0.2.25".into(), port: 0, security: Security::None, ..Default::default() });
     let message = Message { id: 3, to: vec![Address::new("Bob", "bob@example.org")], subject: "Hello".into(), ..Default::default() };
 
     let started = std::time::Instant::now();
@@ -1000,7 +1000,7 @@ fn a_server_that_is_not_there_is_an_error_line() {
     let refused = (0..5).any(|_| {
         let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
         let mut nowhere = account(None, None);
-        nowhere.incoming = Some(Server { host: "127.0.0.1".into(), port, security: Security::None });
+        nowhere.incoming = Some(Server { host: "127.0.0.1".into(), port, security: Security::None, ..Default::default() });
         let result = sync(&request(nowhere.clone(), local_folders()));
         result.errors.len() == 1
             && result.errors[0].starts_with("Couldn't check for new mail: couldn't reach 127.0.0.1: ")

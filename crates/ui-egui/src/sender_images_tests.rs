@@ -26,7 +26,7 @@ fn window(answer: impl Fn(&str) -> Result<Vec<u8>, String> + 'static) -> (MailAp
     // An account on a mail server, which vouches for every sender (a remembered domain needs it).
     mailbox.accounts[0].kind = mailcraft_model::AccountKind::Imap;
     mailbox.accounts[0].incoming =
-        Some(mailcraft_model::Server { host: "imap.example.org".into(), port: 993, security: mailcraft_model::Security::Tls });
+        Some(mailcraft_model::Server { host: "imap.example.org".into(), port: 993, security: mailcraft_model::Security::Tls, ..Default::default() });
     let account = mailbox.accounts[0].id;
     let [inbox, sent, junk] = [FolderKind::Inbox, FolderKind::Sent, FolderKind::Junk].map(|kind| mailbox.folder_of_kind(account, kind).unwrap());
     mailbox.add_contact(Contact { display_name: "Ada".into(), emails: vec![Labeled::new("work", " Ada@Example.org ")], ..Default::default() });

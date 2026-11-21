@@ -14,7 +14,7 @@ fn account() -> Account {
     Account {
         kind: AccountKind::Imap,
         email: "avery@lumen.example".into(),
-        incoming: Some(Server { host: "imap.lumen.example".into(), port: 993, security: Security::Tls }),
+        incoming: Some(Server { host: "imap.lumen.example".into(), port: 993, security: Security::Tls, ..Default::default() }),
         ..Account::default()
     }
 }

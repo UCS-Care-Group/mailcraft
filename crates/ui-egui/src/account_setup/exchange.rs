@@ -824,49 +824,7 @@ impl AccountSetup {
         };
         let host = EwsServer { url: certificate.url.clone(), ..Default::default() }.host().map(str::to_string).unwrap_or_default();
         let host = shown(&host, 120);
-        page(ui, &t, |ui| {
-            heading(ui, if certificate.changed { tl!("The server's certificate has changed") } else { tl!("Trust this server's certificate?") }, &t);
-            let says = if certificate.changed {
-                tl!(
-                    "The certificate the server at {host} shows is not the one you trusted for this account, and this computer doesn't trust it. Trust it only if your administrator has changed it."
-                )
-            } else {
-                tl!(
-                    "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
-                )
-            };
-            note(ui, &fmt(says, &[("host", &host)]), t.text);
-            ui.add_space(4.0);
-            let row = |ui: &mut Ui, label: &str, value: &str, mono: bool| {
-                caption(ui, label, &t);
-                let text = RichText::new(value).color(t.text);
-                ui.label(if mono { text.monospace() } else { text });
-            };
-            row(ui, tl!("Issued to"), &shown(&certificate.subject, 160), false);
-            row(ui, tl!("Issued by"), &shown(&certificate.issuer, 160), false);
-            row(
-                ui,
-                tl!("Valid"),
-                &fmt(tl!("from {from} to {to}"), &[("from", &day_of(certificate.not_before)), ("to", &day_of(certificate.not_after))]),
-                false,
-            );
-            row(ui, tl!("SHA-256 fingerprint"), &grouped(&certificate.fingerprint), true);
-            ui.add_space(6.0);
-            ui.checkbox(&mut self.exchange.ticked, tl!("Trust this certificate for this account"));
-            note(
-                ui,
-                tl!("Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."),
-                t.text_dim,
-            );
-        });
-        problem(ui, &self.error);
-        let ready = self.exchange.ticked;
-        let (mut go, mut back) = (false, false);
-        strip(ui, self.page, |ui| {
-            go = button(ui, tl!("Continue"), true, ready).clicked();
-            back = button(ui, tl!("Back"), false, true).clicked();
-        });
-        if back { Some(Action::Back) } else { (ready && (go || pass.submit)).then_some(Action::Go) }
+        certificate_question(ui, pass, self.page, &host, &certificate, &mut self.exchange.ticked, &self.error)
     }
 
     /// The mailbox is in Microsoft 365: it is a Microsoft account.
@@ -904,4 +862,62 @@ impl AccountSetup {
         }
         note(ui, tl!("To use another server or user name, remove the account and add it again."), t.text_dim);
     }
+}
+
+/// The page that asks whether to trust a certificate the system doesn't: an Exchange server's, or
+/// a mail server's (#1413). What the certificate is, and the box that trusts that one certificate
+/// for this account; Continue only with it ticked. `host` is the server's, as it is shown.
+pub(super) fn certificate_question(
+    ui: &mut Ui,
+    pass: &Pass,
+    at: Page,
+    host: &str,
+    certificate: &EwsCertificate,
+    ticked: &mut bool,
+    error: &str,
+) -> Option<Action> {
+    let t = pass.t;
+    page(ui, &t, |ui| {
+        heading(ui, if certificate.changed { tl!("The server's certificate has changed") } else { tl!("Trust this server's certificate?") }, &t);
+        let says = if certificate.changed {
+            tl!(
+                "The certificate the server at {host} shows is not the one you trusted for this account, and this computer doesn't trust it. Trust it only if your administrator has changed it."
+            )
+        } else {
+            tl!(
+                "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
+            )
+        };
+        note(ui, &fmt(says, &[("host", host)]), t.text);
+        ui.add_space(4.0);
+        let row = |ui: &mut Ui, label: &str, value: &str, mono: bool| {
+            caption(ui, label, &t);
+            let text = RichText::new(value).color(t.text);
+            ui.label(if mono { text.monospace() } else { text });
+        };
+        row(ui, tl!("Issued to"), &shown(&certificate.subject, 160), false);
+        row(ui, tl!("Issued by"), &shown(&certificate.issuer, 160), false);
+        row(
+            ui,
+            tl!("Valid"),
+            &fmt(tl!("from {from} to {to}"), &[("from", &day_of(certificate.not_before)), ("to", &day_of(certificate.not_after))]),
+            false,
+        );
+        row(ui, tl!("SHA-256 fingerprint"), &grouped(&certificate.fingerprint), true);
+        ui.add_space(6.0);
+        ui.checkbox(ticked, tl!("Trust this certificate for this account"));
+        note(
+            ui,
+            tl!("Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."),
+            t.text_dim,
+        );
+    });
+    problem(ui, error);
+    let ready = *ticked;
+    let (mut go, mut back) = (false, false);
+    strip(ui, at, |ui| {
+        go = button(ui, tl!("Continue"), true, ready).clicked();
+        back = button(ui, tl!("Back"), false, true).clicked();
+    });
+    if back { Some(Action::Back) } else { (ready && (go || pass.submit)).then_some(Action::Go) }
 }

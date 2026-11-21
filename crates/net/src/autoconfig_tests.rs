@@ -54,7 +54,7 @@ const DOCUMENT: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 "#;
 
 fn server(host: &str, port: u16, security: Security) -> Option<Server> {
-    Some(Server { host: host.into(), port, security })
+    Some(Server { host: host.into(), port, security, ..Default::default() })
 }
 
 fn document(incoming: &[&str], outgoing: &[&str]) -> String {

@@ -319,7 +319,8 @@ fn imap_after_the_question_takes_the_servers_the_domain_s_own_records_name() {
     let mut a = app(false);
     checks(&mut a, None);
     // The domain names an Autodiscover host and, in its RFC 6186 records, its IMAP and SMTP servers.
-    let server = |host: &str, port, security| Some(FoundServer { server: Server { host: host.into(), port, security }, via: Via::Srv });
+    let server =
+        |host: &str, port, security| Some(FoundServer { server: Server { host: host.into(), port, security, ..Default::default() }, via: Via::Srv });
     let discovered = Discovered {
         exchangers: vec![HOSTED_MX.into()],
         incoming: server("imap.lumen.example", 993, Security::Tls),

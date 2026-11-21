@@ -397,6 +397,11 @@ pub struct Server {
     pub host: String,
     pub port: u16,
     pub security: Security,
+    /// The SHA-256 fingerprint (64 hexadecimal digits) of the one certificate the owner chose to
+    /// trust for this server although the system doesn't; empty when none is (#1413). Never an
+    /// "ignore errors" switch: any other certificate the system doesn't trust is refused.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub trusted: String,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -11,7 +11,7 @@ use mailcraft_model::provider::{FoundServer, Via};
 use super::*;
 
 fn found(host: &str, port: u16, security: Security, via: Via) -> Option<FoundServer> {
-    Some(FoundServer { server: Server { host: host.into(), port, security }, via })
+    Some(FoundServer { server: Server { host: host.into(), port, security, ..Default::default() }, via })
 }
 
 /// The wizard on the password page for an address at `lumen.example`, whose records found these.

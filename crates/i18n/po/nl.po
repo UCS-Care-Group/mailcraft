@@ -17084,6 +17084,11 @@ msgid "The server's certificate"
 msgstr "Het certificaat van de server"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The server's certificate couldn't be read"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's certificate has changed"
@@ -22728,6 +22733,11 @@ msgstr "de tekst van „{subject}” kan op deze computer niet worden gelezen, d
 #, fuzzy
 msgid "the top level"
 msgstr "het bovenste niveau"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the trusted certificate's fingerprint isn't a SHA-256 fingerprint"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs

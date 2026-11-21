@@ -22,8 +22,8 @@ fn settings_for(incoming: Server, outgoing: Option<Server>) -> (Harness<'static,
 
 #[test]
 fn an_outgoing_relay_needs_no_sign_in_when_the_owner_says_so() {
-    let incoming = Server { host: "imap.lumen.example".into(), port: 0, security: Security::Tls };
-    let relay = Server { host: "relay.lumen.example".into(), port: 25, security: Security::StartTls };
+    let incoming = Server { host: "imap.lumen.example".into(), port: 0, security: Security::Tls, ..Default::default() };
+    let relay = Server { host: "relay.lumen.example".into(), port: 25, security: Security::StartTls, ..Default::default() };
     let (mut h, id) = settings_for(incoming, Some(relay));
     h.run();
     let tick = "My outgoing server needs no sign-in";
@@ -45,8 +45,8 @@ fn an_outgoing_relay_needs_no_sign_in_when_the_owner_says_so() {
 fn a_new_account_on_a_relay_is_added_with_it_and_one_signing_in_on_a_providers_page_never_is() {
     let mut w = AccountSetup::blank(Page::Password);
     w.email = "noor@lumen.example".into();
-    w.incoming = ServerFields { host: "imap.lumen.example".into(), port: String::new(), security: Security::Tls };
-    w.outgoing = ServerFields { host: "relay.lumen.example".into(), port: "25".into(), security: Security::StartTls };
+    w.incoming = ServerFields { host: "imap.lumen.example".into(), port: String::new(), security: Security::Tls, ..Default::default() };
+    w.outgoing = ServerFields { host: "relay.lumen.example".into(), port: "25".into(), security: Security::StartTls, ..Default::default() };
     w.outgoing_without_sign_in = true;
     let (_, params) = w.add_command("").unwrap();
     assert_eq!(params["outgoingWithoutSignIn"], true);
@@ -91,8 +91,8 @@ fn a_relay_tick_does_not_follow_the_owner_to_a_providers_page() {
 
 #[test]
 fn another_outgoing_host_is_saved_with_what_the_tick_shows() {
-    let incoming = Server { host: "imap.lumen.example".into(), port: 0, security: Security::Tls };
-    let relay = Server { host: "relay.lumen.example".into(), port: 25, security: Security::StartTls };
+    let incoming = Server { host: "imap.lumen.example".into(), port: 0, security: Security::Tls, ..Default::default() };
+    let relay = Server { host: "relay.lumen.example".into(), port: 25, security: Security::StartTls, ..Default::default() };
     let (mut h, _) = settings_for(incoming, Some(relay));
     h.run();
     h.get_by_label("My outgoing server needs no sign-in").click();
@@ -113,8 +113,8 @@ fn another_outgoing_host_is_saved_with_what_the_tick_shows() {
 
 #[test]
 fn the_page_says_the_connection_test_cannot_tell_whether_the_relay_wants_a_sign_in() {
-    let incoming = Server { host: "imap.lumen.example".into(), port: 0, security: Security::Tls };
-    let relay = Server { host: "relay.lumen.example".into(), port: 25, security: Security::StartTls };
+    let incoming = Server { host: "imap.lumen.example".into(), port: 0, security: Security::Tls, ..Default::default() };
+    let relay = Server { host: "relay.lumen.example".into(), port: 25, security: Security::StartTls, ..Default::default() };
     let (mut h, _) = settings_for(incoming, Some(relay));
     h.run();
     let hint = "The connection test only checks that this server answers";
@@ -130,8 +130,8 @@ fn the_page_says_the_connection_test_cannot_tell_whether_the_relay_wants_a_sign_
 
 #[test]
 fn the_tick_takes_the_keyboard_like_the_fields_around_it() {
-    let incoming = Server { host: "imap.lumen.example".into(), port: 0, security: Security::Tls };
-    let relay = Server { host: "relay.lumen.example".into(), port: 25, security: Security::StartTls };
+    let incoming = Server { host: "imap.lumen.example".into(), port: 0, security: Security::Tls, ..Default::default() };
+    let relay = Server { host: "relay.lumen.example".into(), port: 25, security: Security::StartTls, ..Default::default() };
     let (mut h, _) = settings_for(incoming, Some(relay));
     h.run();
     let tick = "My outgoing server needs no sign-in";

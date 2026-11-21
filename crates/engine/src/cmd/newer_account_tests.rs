@@ -18,7 +18,7 @@ fn written_by_a_newer_version() -> (Vec<u8>, Id, Id, Id) {
     let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
     let local = mb.accounts[0].id;
     let newer = mb.add_account(Account { email: "ada@jmap.example".into(), ..Default::default() });
-    let servers = Some(Server { host: "imap.example.org".into(), port: 993, security: Security::Tls });
+    let servers = Some(Server { host: "imap.example.org".into(), port: 993, security: Security::Tls, ..Default::default() });
     let imap = mb.add_account(Account { email: "ada@imap.example".into(), kind: AccountKind::Imap, incoming: servers, ..Default::default() });
     let inbox = mb.folder_of_kind(newer, FolderKind::Inbox).unwrap();
     let from = Address::new("Bo Marsh", "bo@example.org");
