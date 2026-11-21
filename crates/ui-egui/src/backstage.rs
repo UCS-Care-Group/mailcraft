@@ -798,7 +798,7 @@ fn spelling_options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.horizontal(|ui| {
         let edit = ui.add(egui::TextEdit::singleline(&mut draft).hint_text(tl!("Words, separated by commas or spaces")).desired_width(280.0));
         let add = ui.button(tl!("Add"));
-        if add.clicked() || (edit.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter))) {
+        if add.clicked() || (edit.lost_focus() && crate::keys::enter(ui.ctx(), ui.layer_id())) {
             let pending: Vec<String> = crate::spelling::split_words(&draft).iter().map(|word| (*word).to_string()).collect();
             draft.clear();
             for word in pending {
