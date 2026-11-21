@@ -683,7 +683,7 @@ const CORNER_NAMES: [&str; 4] = ["pictureCornerTopLeft", "pictureCornerTopRight"
 
 /// The picture `r` shown `width` wide in proportion, from the corner opposite corner `i`, which
 /// stays where it is.
-fn sized_from(r: Rect, i: usize, width: f32) -> Rect {
+pub(super) fn sized_from(r: Rect, i: usize, width: f32) -> Rect {
     let size = vec2(width, width * r.height() / r.width().max(1.0));
     let x = if i % 2 == 1 { r.min.x } else { r.max.x - size.x };
     let y = if i >= 2 { r.min.y } else { r.max.y - size.y };
@@ -826,9 +826,9 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     // follows the pointer (every paragraph is laid out again for a new width), from the corner
     // opposite the one held, and the width is set once the button is let go. Escape while a
     // corner is held puts the picture back as it was and does nothing else. (egui ends the drag
-    // on Escape itself, in the same pass: the press is taken before the corners are asked.)
+    // on Escape itself, in the same pass: the press is taken before the corners are asked. Until
+    // the button comes up, a press of Escape again is the drag's too, and does nothing.)
     if let Some(z) = st.resizing.as_mut()
-        && !z.cancelled
         && crate::keys::take_escape_any(&ctx, ui.layer_id())
     {
         z.cancelled = true;
@@ -852,10 +852,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 let w = st.resizing.filter(|z| z.id == pid && z.corner == i).map_or(r.width(), |z| z.width) + outward * handle.drag_delta().x;
                 st.resizing = Some(Resizing { id: pid, corner: i, width: w.clamp(8.0, most), cancelled: false });
             }
+            // (A drag given up stays until the button comes up, below.)
             if handle.drag_stopped()
+                && st.resizing.is_some_and(|z| !z.cancelled && z.corner == i)
                 && let Some(z) = st.resizing.take()
-                && !z.cancelled
-                && z.corner == i
                 && (z.width.round() - r.width().round()).abs() >= 1.0
             {
                 let command = if which == Which::Signature { "signature.picture.set" } else { "compose.picture.set" };
@@ -863,7 +863,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             }
         }
     }
-    if st.resizing.is_some_and(|z| !z.cancelled) {
+    if st.resizing.is_some() {
         crate::keys::hold_escape(&ctx, ui.layer_id(), id);
     }
     // The drag is kept while its picture stays selected, so letting go still sets the width
@@ -1014,8 +1014,9 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let mut ime_composition = !st.preedit.is_empty();
     if focused {
         ctx.memory_mut(|m| {
-            // (While a corner is held, Escape is the drag's: the body keeps the keyboard.)
-            let escape = st.resizing.is_some_and(|z| !z.cancelled);
+            // (While a corner is held, given up or not, Escape is the drag's: the body keeps the
+            // keyboard, on the key's repeats too.)
+            let escape = st.resizing.is_some();
             m.set_focus_lock_filter(id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape })
         });
         let page = ui.clip_rect().height().max(40.0) - 20.0;

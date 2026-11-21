@@ -441,9 +441,33 @@ fn a_picture_not_selected_has_no_corners() {
     let mut h = writing_with(&board);
     *board.0.borrow_mut() = (Some(png(40)), None);
     paste(&mut h);
-    for name in ["pictureCornerTopLeft", "pictureCornerTopRight", "pictureCornerBottomLeft", "pictureCorner"] {
+    let names = ["pictureCornerTopLeft", "pictureCornerTopRight", "pictureCornerBottomLeft", "pictureCorner"];
+    for name in names {
         assert!(h.state().hit.rect(name, u64::from(mailcraft_model::pictures::FIRST_ID)).is_none(), "{name}");
     }
+    // Selected, it has all four, at its corners.
+    key_with(&mut h, Modifiers::SHIFT, Key::ArrowLeft);
+    h.run_steps(2);
+    let [tl, tr, bl, br] = names.map(|name| corner(&h, name));
+    assert!(tl.x < tr.x && bl.x < br.x && tl.y < bl.y && tr.y < br.y, "{tl:?} {tr:?} {bl:?} {br:?}");
+    assert!((tl.x - bl.x).abs() < 0.5 && (tr.x - br.x).abs() < 0.5 && (tl.y - tr.y).abs() < 0.5 && (bl.y - br.y).abs() < 0.5);
+}
+
+#[test]
+fn the_outline_while_dragging_keeps_the_opposite_corner_where_it_is() {
+    let r = egui::Rect::from_min_max(egui::pos2(10.0, 20.0), egui::pos2(130.0, 60.0));
+    // Top left held, 150 wide: the bottom right stays.
+    let shown = super::editor::sized_from(r, 0, 150.0);
+    assert_eq!((shown.max, shown.width(), shown.height()), (r.max, 150.0, 50.0));
+    // Top right: the bottom left stays.
+    let shown = super::editor::sized_from(r, 1, 60.0);
+    assert_eq!((shown.left_bottom(), shown.width(), shown.height()), (r.left_bottom(), 60.0, 20.0));
+    // Bottom left: the top right stays.
+    let shown = super::editor::sized_from(r, 2, 60.0);
+    assert_eq!((shown.right_top(), shown.width()), (r.right_top(), 60.0));
+    // Bottom right: the top left stays, as before.
+    let shown = super::editor::sized_from(r, 3, 240.0);
+    assert_eq!((shown.min, shown.width(), shown.height()), (r.min, 240.0, 80.0));
 }
 
 #[test]
@@ -461,6 +485,18 @@ fn escape_while_a_corner_is_held_puts_the_picture_back_and_does_nothing_else() {
         h.step();
     }
     key(&mut h, Key::Escape);
+    // A second Escape, and one held until it repeats, with the button still down: the drag's
+    // too, so the message stays open and the body keeps the keyboard.
+    key(&mut h, Key::Escape);
+    h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE });
+    h.step();
+    for _ in 0..3 {
+        h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: true, modifiers: Modifiers::NONE });
+        h.step();
+    }
+    h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::NONE });
+    h.step();
+    assert!(super::editor::has_focus(&h.ctx), "the body keeps the keyboard while the button is down");
     // The button is still down and the pointer goes on moving: the drag stays given up.
     let to = from + egui::vec2(60.0, 0.0);
     h.event(Event::PointerMoved(to));
@@ -522,8 +558,23 @@ fn a_signature_s_picture_in_file_signatures_has_four_corners_and_escape_is_the_d
     h.event(Event::PointerMoved(from + egui::vec2(30.0, 0.0)));
     h.step();
     key(&mut h, Key::Escape);
+    // Escape again, and held until it repeats, with the button still down: still the drag's.
+    key(&mut h, Key::Escape);
+    h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE });
+    h.step();
+    for _ in 0..3 {
+        h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: true, modifiers: Modifiers::NONE });
+        h.step();
+    }
+    h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::NONE });
+    h.step();
+    assert!(h.state().ui.backstage, "File is still open while the button is down");
     h.event(button(from + egui::vec2(30.0, 0.0), false));
     h.run_steps(3);
     assert_eq!(picture(&h).1, Some(220));
     assert!(h.state().ui.backstage, "File is still open");
+    // With the button up, Escape closes File as ever.
+    key(&mut h, Key::Escape);
+    h.run_steps(2);
+    assert!(!h.state().ui.backstage, "Escape after the drag closes File");
 }
