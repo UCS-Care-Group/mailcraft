@@ -210,6 +210,17 @@ fn whole_word_finds_an_overlapping_place_the_earlier_one_hid() {
 }
 
 #[test]
+fn whole_word_finds_each_disjoint_match() {
+    // After (3, 6) is kept, (5, 8) overlaps it and (7, 10) is the next whole word.
+    let mut s = writing("xa a a a a");
+    let r = run(&mut s, "edit.find", json!({"text": "a a", "wholeWord": true}));
+    assert_eq!((r["found"].as_bool(), r["from"].as_u64(), r["to"].as_u64(), r["count"].as_u64()), (Some(true), Some(3), Some(6), Some(2)));
+    let r = run(&mut s, "edit.replace", json!({"text": "a a", "with": "b b", "all": true, "wholeWord": true}));
+    assert_eq!(r["replaced"], 2);
+    assert_eq!(mine(&s), "xa b b b b");
+}
+
+#[test]
 fn whole_word_off_still_replaces_inside_a_word() {
     let mut s = writing(TEH);
     let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "all": true}));

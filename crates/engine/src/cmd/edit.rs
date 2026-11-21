@@ -148,16 +148,15 @@ fn is_combining_mark(c: char) -> bool {
     matches!(get_general_category(c), GeneralCategory::NonspacingMark | GeneralCategory::SpacingMark | GeneralCategory::EnclosingMark)
 }
 
-/// The places `text` is in the owner's text. `whole_word` keeps a place only when it is a whole
-/// word. The search without it is one pass of `RichText::find`, which reports places that do not
-/// overlap; with it, a place that is not a whole word is put aside and the search goes on from the
-/// next character, so a later place that overlaps it can still be a whole word. Places that are
-/// kept still do not overlap.
+/// The places `text` is in the owner's text. Without `whole_word` that is one pass of
+/// [`mailcraft_model::RichText::find`], which reports places that do not overlap. With it, the
+/// plain text is walked: a place that is a whole word is kept and the walk continues at its end,
+/// and any other place is passed by one character, so a later whole word that overlapped it is
+/// still found. Places that are kept still do not overlap.
 fn places(s: &Session, text: &str, match_case: bool, whole_word: bool) -> Vec<Place> {
     let Some((body, _)) = s.doc() else { return Vec::new() };
     let end = reach(s);
-    let found = body.text().find(text, match_case, 0, end);
-    if whole_word { whole_word_places(&body.plain(), text, match_case, end, &found) } else { found }
+    if whole_word { whole_word_places(&body.plain(), text, match_case, end) } else { body.text().find(text, match_case, 0, end) }
 }
 
 /// `c` as [`mailcraft_model::RichText::find`] compares it when letter case does not count.
@@ -169,17 +168,25 @@ fn fold_char(c: char) -> char {
     }
 }
 
-/// The owner's text, indexed by character so a place can be judged from anywhere in it.
+/// The owner's text, indexed by character, and the same characters folded for one search.
 struct Scanned<'a> {
     text: &'a str,
-    /// Byte offset of character `i`, and one past the last character indexed.
+    /// Byte offset of character `i` in `text`, and one past the last character indexed.
     byte: Vec<usize>,
+    /// Those characters as Find compares them, so the next occurrence is one search, not a scan of every place.
+    folded: String,
+    /// Byte offset of character `i` in `folded`, and one past the last.
+    folded_byte: Vec<usize>,
+    needle: String,
+    needle_len: usize,
 }
 
 impl<'a> Scanned<'a> {
     /// The first `end` characters of `text` (or the whole of it, when it is shorter).
-    fn new(text: &'a str, end: usize) -> Self {
+    fn new(text: &'a str, end: usize, needle: &str, match_case: bool) -> Self {
         let mut byte = Vec::new();
+        let mut folded = String::new();
+        let mut folded_byte = Vec::new();
         let mut n = 0usize;
         let mut last = 0usize;
         for (at, c) in text.char_indices() {
@@ -187,11 +194,16 @@ impl<'a> Scanned<'a> {
                 break;
             }
             byte.push(at);
+            folded_byte.push(folded.len());
+            folded.push(if match_case { c } else { fold_char(c) });
             n = n.saturating_add(1);
             last = at.saturating_add(c.len_utf8());
         }
         byte.push(last);
-        Scanned { text, byte }
+        folded_byte.push(folded.len());
+        let needle = if match_case { needle.to_string() } else { needle.chars().map(fold_char).collect() };
+        let needle_len = needle.chars().count();
+        Scanned { text, byte, folded, folded_byte, needle, needle_len }
     }
 
     fn char_at(&self, i: usize) -> Option<char> {
@@ -200,19 +212,21 @@ impl<'a> Scanned<'a> {
         self.text.get(from..to)?.chars().next()
     }
 
-    fn slice(&self, start: usize, end: usize) -> Option<&'a str> {
-        let from = *self.byte.get(start)?;
-        let to = *self.byte.get(end)?;
-        self.text.get(from..to)
-    }
-
-    /// `needle` stands at `start`, within one paragraph, compared as Find compares it.
-    fn matches_at(&self, start: usize, needle: &str, needle_len: usize, match_case: bool) -> bool {
-        let Some(hay) = self.slice(start, start.saturating_add(needle_len)) else { return false };
-        if hay.contains('\n') {
-            return false;
+    /// The next occurrence of `needle` at character `from` or after it, within the indexed text.
+    fn find_from(&self, from: usize) -> Option<usize> {
+        if self.needle.is_empty() {
+            return None;
         }
-        if match_case { hay == needle } else { hay.chars().map(fold_char).eq(needle.chars().map(fold_char)) }
+        let origin = *self.folded_byte.get(from)?;
+        let rel = self.folded.get(origin..)?.find(&self.needle)?;
+        let abs = origin.saturating_add(rel);
+        let at = self.folded_byte.partition_point(|&b| b < abs);
+        if self.folded_byte.get(at).copied() != Some(abs) || at < from {
+            return None;
+        }
+        let stop = at.saturating_add(self.needle_len);
+        let n = self.byte.len().saturating_sub(1);
+        (stop <= n && stop > at).then_some(at)
     }
 
     /// The character before `start` and the character after `end` are not part of the same word.
@@ -239,70 +253,34 @@ impl<'a> Scanned<'a> {
         }
         !self.char_at(end).is_some_and(|c| is_word_char(c) || is_combining_mark(c))
     }
-
-    /// The next place `needle` starts at after `start` and before `stop` (so it overlaps
-    /// `[start, stop)`), within `end`.
-    fn next_overlap(&self, start: usize, stop: usize, needle: &str, needle_len: usize, match_case: bool, end: usize) -> Option<usize> {
-        let mut at = start.saturating_add(1);
-        let mut steps = 0usize;
-        while at < stop && at.saturating_add(needle_len) <= end && steps < needle_len {
-            steps = steps.saturating_add(1);
-            if self.matches_at(at, needle, needle_len, match_case) {
-                return Some(at);
-            }
-            at = at.saturating_add(1);
-        }
-        None
-    }
 }
 
-/// [`places`] with `whole_word`: `disjoint` is what Find reports (places that do not overlap).
-/// A place that is not a whole word does not hide one that overlaps it.
-fn whole_word_places(text: &str, needle: &str, match_case: bool, end: usize, disjoint: &[Place]) -> Vec<Place> {
+/// [`places`] with `whole_word`. The walk moves forward on every step and stops at `end`.
+fn whole_word_places(text: &str, needle: &str, match_case: bool, end: usize) -> Vec<Place> {
     let needle_len = needle.chars().count();
     if needle_len == 0 || needle_len > MAX_FIND {
         return Vec::new();
     }
-    let scanned = Scanned::new(text, end);
+    let scanned = Scanned::new(text, end, needle, match_case);
     let mut kept = Vec::new();
-    let mut resume = 0usize;
-    let mut di = 0usize;
-    let mut forced: Option<usize> = None;
-    // Each pass starts later than the last. `end` is the owner's text, so this is bounded by it;
-    // skipping a place Find already reported takes a step too.
-    let limit = end.saturating_mul(2);
-    let mut guard = 0usize;
-    while resume < end && guard < limit {
-        guard = guard.saturating_add(1);
-        let (start, stop, check) = if let Some(start) = forced.take() {
-            (start, start.saturating_add(needle_len), true)
-        } else {
-            while di < disjoint.len() && disjoint[di].0 < resume {
-                di = di.saturating_add(1);
-            }
-            if di >= disjoint.len() {
-                break;
-            }
-            let (start, stop) = disjoint[di];
-            di = di.saturating_add(1);
-            (start, stop, false)
-        };
-        if start < resume || stop <= start || stop > end {
-            continue;
+    let mut p = 0usize;
+    while p < end {
+        let Some(start) = scanned.find_from(p) else { break };
+        let stop = start.saturating_add(scanned.needle_len);
+        if stop > end || stop <= start {
+            break;
         }
-        if check && !scanned.matches_at(start, needle, needle_len, match_case) {
-            resume = start.saturating_add(1);
-            continue;
-        }
-        resume = start.saturating_add(1);
-        if scanned.is_whole_word(start, stop) {
+        let next = if scanned.is_whole_word(start, stop) {
             kept.push((start, stop));
-            resume = stop;
-        } else if let Some(next) = scanned.next_overlap(start, stop, needle, needle_len, match_case, end)
-            && next >= resume
-        {
-            forced = Some(next);
+            stop
+        } else {
+            start.saturating_add(1)
+        };
+        // `end` is the owner's text. A step that does not move on cannot be trusted to finish.
+        if next <= p {
+            break;
         }
+        p = next;
     }
     kept
 }
