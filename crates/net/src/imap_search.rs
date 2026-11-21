@@ -241,22 +241,27 @@ fn clauses(query: &str) -> (Vec<Clause>, Vec<Left>) {
         let full = out.len() >= MAX_WORDS;
         match term {
             ServerTerm::Words { field, words } => {
-                let (key, header) = match field {
-                    Some(ServerField::From) => ("FROM", None),
-                    Some(ServerField::To) => ("TO", None),
-                    Some(ServerField::Cc) => ("CC", None),
-                    Some(ServerField::Subject) => ("SUBJECT", None),
-                    Some(ServerField::Body) => ("BODY", None),
-                    Some(ServerField::Attachment) | None => ("TEXT", None),
+                // A bare word is `TEXT`. `attachment:` is not sent: that key matches the body
+                // too, and a file's name is checked on the message that comes back.
+                let sent = match field {
+                    Some(ServerField::From) => Some(("FROM", None)),
+                    Some(ServerField::To) => Some(("TO", None)),
+                    Some(ServerField::Cc) => Some(("CC", None)),
+                    Some(ServerField::Subject) => Some(("SUBJECT", None)),
+                    Some(ServerField::Body) => Some(("BODY", None)),
+                    None => Some(("TEXT", None)),
+                    Some(ServerField::Attachment) => None,
                 };
                 for word in words {
                     let word: String = word.chars().filter(|c| !matches!(c, '\r' | '\n' | '\0')).take(80).collect();
                     if word.is_empty() {
                         continue;
                     }
-                    if out.len() >= MAX_WORDS {
+                    // `attachment:` names a file. Sending it as `TEXT` would count a body that
+                    // merely says the word. It is checked on the names that come back.
+                    if sent.is_none() || out.len() >= MAX_WORDS {
                         keep(&mut left, field, word);
-                    } else {
+                    } else if let Some((key, header)) = sent {
                         out.push(Clause { key, header, text: word });
                     }
                 }

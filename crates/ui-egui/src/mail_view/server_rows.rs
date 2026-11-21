@@ -62,11 +62,14 @@ fn lines(app: &MailApp, local: &HashSet<Id>) -> Vec<Line> {
     out.extend(search.errors.iter().take(MAX_SAID).map(|e| Line::Problem(e.clone())));
     for (i, r) in search.results.iter().enumerate() {
         // Opened and then deleted: the row must not bring it back. Downloaded since by a
-        // Send/Receive: it is in the local list, and a second copy must not be added.
+        // Send/Receive and already in this list: a second copy must not be added. A copy that
+        // is here but not listed (its body was never fetched, so this search did not show it)
+        // stays, which is the hit the engine kept.
         let deleted = r.opened.is_some_and(|id| app.session.mailbox.message(id).is_none());
         let downloaded = r.opened.is_none()
-            && mailcraft_engine::cmd::search_server::imap_uid(&r.found.server.id)
-                .is_some_and(|uid| app.session.mailbox.messages.values().any(|m| m.account == r.account && m.folder == r.folder && m.uid == uid));
+            && mailcraft_engine::cmd::search_server::imap_uid(&r.found.server.id).is_some_and(|uid| {
+                app.session.mailbox.messages.values().any(|m| m.account == r.account && m.folder == r.folder && m.uid == uid && local.contains(&m.id))
+            });
         let already = r.opened.is_some_and(|id| local.contains(&id));
         if !deleted && !downloaded && !already {
             out.push(Line::Result(i));

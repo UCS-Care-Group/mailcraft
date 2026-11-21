@@ -420,6 +420,50 @@ fn a_message_that_only_quotes_the_attachment_phrase_is_not_a_hit() {
     assert_eq!(pages[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), ["imap:11:2"]);
 }
 
+/// `attachment:` is a file's name. A body that only says the word is not a hit, and the word is
+/// not sent as `TEXT`.
+#[test]
+fn attachment_names_a_file_and_a_body_that_says_the_word_is_not_a_hit() {
+    let said = b"From: Ada <ada@example.org>\r\nSubject: note\r\n\r\nSee the report in the text.\r\n";
+    let named = b"From: Ada <ada@example.org>\r\nSubject: board\r\nMIME-Version: 1.0\r\n\
+        Content-Type: multipart/mixed; boundary=b\r\n\r\n\
+        --b\r\nContent-Type: text/plain\r\n\r\nThe board shipped.\r\n\
+        --b\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"quarter-report.pdf\"\r\n\r\n%PDF\r\n\
+        --b--\r\n";
+    let imap = Fake::imap(ImapWorld {
+        user: "ada".into(),
+        password: "hunter2".into(),
+        mailboxes: vec![FakeMailbox {
+            raw: "INBOX".into(),
+            flags: "\\HasNoChildren".into(),
+            uid_validity: 11,
+            messages: vec![
+                FakeMessage {
+                    uid: 1,
+                    flags: String::new(),
+                    internal_date: " 1-Jul-2003 09:52:37 +0000".into(),
+                    body: said.to_vec(),
+                    claimed_size: None,
+                },
+                FakeMessage {
+                    uid: 2,
+                    flags: String::new(),
+                    internal_date: " 1-Jul-2003 09:52:37 +0000".into(),
+                    body: named.to_vec(),
+                    claimed_size: None,
+                },
+            ],
+            refuse_open: false,
+            next_uid: 0,
+        }],
+        ..Default::default()
+    });
+    let mut pages = Vec::new();
+    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "attachment:report", &none_known(), |page| pages.push(page));
+    assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
+    assert_eq!(pages[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), ["imap:11:2"]);
+}
+
 #[test]
 fn the_inbox_is_asked_even_when_it_is_past_the_folder_limit() {
     let mailbox = |raw: String, body: &[u8]| FakeMailbox {
