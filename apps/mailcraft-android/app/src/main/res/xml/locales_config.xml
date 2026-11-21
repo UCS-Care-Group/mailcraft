@@ -18,4 +18,5 @@
     <locale android:name="pl" />
     <locale android:name="cs" />
     <locale android:name="ka" />
+    <locale android:name="gl" />
 </locale-config>
