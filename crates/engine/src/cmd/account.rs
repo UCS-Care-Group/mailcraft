@@ -1596,6 +1596,14 @@ pub(super) fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult, now:
         }
         if mb.message(*id).is_some_and(|m| m.account == account && m.folder == outbox) && mb.move_message(*id, sent_items).is_ok() {
             moved += 1;
+            // Sent, it is no draft any more, however it got into the Outbox: a draft moved in
+            // and let go with Send Again was one still (#1748), and the server's copy isn't one.
+            if mb.message(*id).is_some_and(|m| m.draft)
+                && let Ok(m) = mb.message_mut(*id)
+            {
+                m.draft = false;
+                m.server_draft = None;
+            }
             // A reminder "after so many days" counts them from now that it has gone (#948).
             mb.follow_up_sent(*id, now);
             // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
