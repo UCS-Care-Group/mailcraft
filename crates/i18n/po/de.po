@@ -5572,6 +5572,7 @@ msgstr "Für ein Konto mit Microsoft-Anmeldung: die Ordner, die Sie in Outlook u
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
+#, fuzzy
 msgid "For mail that arrived in every Inbox since the main window was last in front. Not Junk, and not mail that was already here. Looking at the main window clears it."
 msgstr "Für Nachrichten, die in allen Posteingängen angekommen sind, seit das Hauptfenster zuletzt vorn war. Nicht Junk, und nicht Nachrichten, die schon da waren. Ein Blick auf das Hauptfenster löscht ihn."
 
