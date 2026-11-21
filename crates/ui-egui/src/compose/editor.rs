@@ -848,12 +848,14 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             }
             // (A right corner widens the picture going right, a left one going left.)
             let outward = if i % 2 == 1 { 1.0 } else { -1.0 };
-            if handle.dragged() && !st.resizing.is_some_and(|z| z.cancelled) {
+            // (The primary button's, as a click's: Escape's hold on a drag ends when it comes up.)
+            let primary = egui::PointerButton::Primary;
+            if handle.dragged_by(primary) && !st.resizing.is_some_and(|z| z.cancelled) {
                 let w = st.resizing.filter(|z| z.id == pid && z.corner == i).map_or(r.width(), |z| z.width) + outward * handle.drag_delta().x;
                 st.resizing = Some(Resizing { id: pid, corner: i, width: w.clamp(8.0, most), cancelled: false });
             }
             // (A drag given up stays until the button comes up, below.)
-            if handle.drag_stopped()
+            if handle.drag_stopped_by(primary)
                 && st.resizing.is_some_and(|z| !z.cancelled && z.corner == i)
                 && let Some(z) = st.resizing.take()
                 && (z.width.round() - r.width().round()).abs() >= 1.0
@@ -862,9 +864,6 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 let _ = app.run(command, json!({"id": z.id, "width": z.width.round() as u16}));
             }
         }
-    }
-    if st.resizing.is_some() {
-        crate::keys::hold_escape(&ctx, ui.layer_id(), id);
     }
     // The drag is kept while its picture stays selected, so letting go still sets the width
     // on a frame that did not move the corner. A command that moves the selection while the
@@ -878,6 +877,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     // A drag given up by Escape is the button's until it comes up: it neither sizes nor selects.
     if st.resizing.is_some_and(|z| z.cancelled) && !ui.input(|i| i.pointer.primary_down()) {
         st.resizing = None;
+    }
+    // (Said once the drag is known to go on: an Escape in the pass after it ended is the window's.)
+    if st.resizing.is_some() {
+        crate::keys::hold_escape(&ctx, ui.layer_id(), id);
     }
 
     // The pointer: a click puts the caret, or selects a picture; a drag selects, a double click a

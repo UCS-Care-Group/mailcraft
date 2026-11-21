@@ -570,11 +570,30 @@ fn a_signature_s_picture_in_file_signatures_has_four_corners_and_escape_is_the_d
     h.step();
     assert!(h.state().ui.backstage, "File is still open while the button is down");
     h.event(button(from + egui::vec2(30.0, 0.0), false));
-    h.run_steps(3);
+    h.step();
     assert_eq!(picture(&h).1, Some(220));
     assert!(h.state().ui.backstage, "File is still open");
-    // With the button up, Escape closes File as ever.
+    // With the button up, Escape closes File as ever, even in the very next frame.
     key(&mut h, Key::Escape);
     h.run_steps(2);
     assert!(!h.state().ui.backstage, "Escape after the drag closes File");
+}
+
+#[test]
+fn a_corner_dragged_with_the_secondary_button_sizes_nothing() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    let from = corner(&h, "pictureCornerTopRight");
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    for n in 1..=4 {
+        h.event(Event::PointerMoved(from + egui::vec2(10.0 * n as f32, 0.0)));
+        h.step();
+    }
+    h.event(button(from + egui::vec2(40.0, 0.0), false));
+    h.run_steps(3);
+    assert_eq!(width(&h), None);
 }
