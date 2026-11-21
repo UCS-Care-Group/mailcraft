@@ -98,6 +98,7 @@ impl Lang {
                     "US" | "PH" | "CA" => return US,
                     "AU" | "NZ" => (true, 0),
                     "IN" => (true, 6),
+                    "IL" => (false, 6),
                     _ => (false, 0),
                 };
                 Conventions { twelve_hour, week_start, pad_numeric: true, day_first: true }
@@ -105,6 +106,7 @@ impl Lang {
             Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::Georgian => {
                 Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true }
             }
+            Lang::Hebrew => Conventions { twelve_hour: false, week_start: 6, pad_numeric: true, day_first: true },
             Lang::Polish => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
             Lang::Czech => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
             Lang::Hungarian | Lang::ChineseSimplified => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: false },
@@ -454,6 +456,10 @@ mod tests {
             let c = lang.conventions();
             assert_eq!((c.twelve_hour, c.week_start, c.pad_numeric), (false, 0, true), "{lang:?}");
         }
+        let he = Lang::Hebrew.conventions();
+        assert_eq!((he.twelve_hour, he.week_start, he.pad_numeric, he.day_first), (false, 6, true, true));
+        let en_il = Lang::English.conventions_in(Some("IL"));
+        assert_eq!((en_il.twelve_hour, en_il.week_start, en_il.pad_numeric, en_il.day_first), (false, 6, true, true));
     }
 
     /// English outside the US, Canada and the Philippines writes the day first (#978).

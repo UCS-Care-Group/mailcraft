@@ -18,6 +18,8 @@ class LanguagesTest {
         assertEquals("pl", coreLanguage("pl-PL"))
         assertEquals("cs", coreLanguage("cs-CZ"))
         assertEquals("ka", coreLanguage("ka-GE"))
+        assertEquals("he", coreLanguage("he-IL"))
+        assertEquals("he", coreLanguage("iw_IL"))
         assertEquals("en", coreLanguage("pt"))
         assertEquals("en", coreLanguage(""))
         assertEquals("en", coreLanguage(null))
@@ -29,6 +31,7 @@ class LanguagesTest {
         assertEquals("", chosenTag(emptyList()))
         assertEquals("fr", chosenTag(listOf("fr-CA")))
         assertEquals("es", chosenTag(listOf("pt-BR", "es-MX", "fr")))
+        assertEquals("he", chosenTag(listOf("iw-IL")))
         assertEquals("", chosenTag(listOf("pt-BR", "ja")))
         assertEquals("", chosenTag(listOf("")))
     }

@@ -31,6 +31,8 @@ fn simplified_chinese_is_available_and_selected_for_matching_locales() {
     ] {
         assert_eq!(lang.supported_on(true), lang.supported_on(false), "{lang:?}");
     }
+    assert!(Lang::Hebrew.supported_on(false));
+    assert!(!Lang::Hebrew.supported_on(true));
 }
 
 #[test]
