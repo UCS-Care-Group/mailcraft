@@ -35,6 +35,8 @@ mailcraft-charset = { workspace = true }
 mailcraft-pst = { workspace = true }
 # Word boundaries for Review › Word Count (UAX #29); already in the tree under egui.
 unicode-segmentation = { workspace = true }
+# Combining marks (Mn, Mc, Me) for whole-word Find and Replace; already in the tree under epaint.
+unicode-general-category = { workspace = true }
 # Pictures put in a message are scaled down to fit (`picture_fit`); already in the tree under egui.
 image = { workspace = true }
 

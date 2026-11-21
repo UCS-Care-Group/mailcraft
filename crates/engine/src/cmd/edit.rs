@@ -10,6 +10,7 @@
 
 use mailcraft_model::rich::{MAX_FIND, Place};
 use serde_json::{Value, json};
+use unicode_general_category::{GeneralCategory, get_general_category};
 
 use super::format::{edit, needs_doc, needs_html, reach};
 use super::{bad, fail};
@@ -142,18 +143,9 @@ fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '_' | '\'' | '’')
 }
 
-/// A combining mark. Nothing already depended on reports a character's general category
-/// (`unicode-segmentation` segments words, it does not classify them), so this is the main
-/// combining blocks: a mark in one of them is part of the word it follows.
+/// A combining mark (general category Mn, Mc or Me): part of the word it follows.
 fn is_combining_mark(c: char) -> bool {
-    matches!(
-        c,
-        '\u{0300}'..='\u{036F}'
-            | '\u{1AB0}'..='\u{1AFF}'
-            | '\u{1DC0}'..='\u{1DFF}'
-            | '\u{20D0}'..='\u{20FF}'
-            | '\u{FE20}'..='\u{FE2F}'
-    )
+    matches!(get_general_category(c), GeneralCategory::NonspacingMark | GeneralCategory::SpacingMark | GeneralCategory::EnclosingMark)
 }
 
 /// The places `text` is in the owner's text. `whole_word` keeps a place only when it is a whole

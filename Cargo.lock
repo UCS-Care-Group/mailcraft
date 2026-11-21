@@ -3238,6 +3238,7 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "thiserror 2.0.21",
+ "unicode-general-category",
  "unicode-segmentation",
 ]
 

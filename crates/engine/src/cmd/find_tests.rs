@@ -179,6 +179,18 @@ fn whole_word_keeps_a_combining_mark_with_its_letter() {
 }
 
 #[test]
+fn whole_word_keeps_a_virama_with_its_letter() {
+    // U+094D DEVANAGARI SIGN VIRAMA is a nonspacing mark outside the old combining blocks.
+    let mut s = writing("\u{0915}\u{094D}");
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "\u{0915}", "wholeWord": true}))["found"], false);
+    let r = run(&mut s, "edit.replace", json!({"text": "\u{0915}", "with": "x", "all": true, "wholeWord": true}));
+    assert_eq!(r["replaced"], 0);
+    assert_eq!(mine(&s), "\u{0915}\u{094D}");
+    let r = run(&mut s, "edit.find", json!({"text": "\u{0915}\u{094D}", "wholeWord": true}));
+    assert_eq!((r["from"].as_u64(), r["to"].as_u64(), r["count"].as_u64()), (Some(0), Some(2), Some(1)));
+}
+
+#[test]
 fn whole_word_finds_an_overlapping_place_the_earlier_one_hid() {
     // `xa a a`: Find's disjoint matches report only (1, 4), which sits inside `xa`.
     // (3, 6) overlaps it and is a whole word.
