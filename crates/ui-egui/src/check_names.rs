@@ -247,6 +247,39 @@ impl MailApp {
     }
 }
 
+/// Anchor the painted candidate line without changing the row's click region.
+pub(crate) fn candidate_text_start_x(rect: egui::Rect, painted_width: f32, rtl: bool) -> f32 {
+    let start = rect.min.x + 10.0;
+    if rtl { (rect.max.x - 10.0 - painted_width).max(start) } else { start }
+}
+
+/// Keep the existing English paint path; Hebrew right-aligns the same clipped
+/// galley inside the same padded candidate row.
+fn paint_candidate_line(painter: &egui::Painter, rect: egui::Rect, y: f32, text: &str, font: egui::FontId, color: egui::Color32, rtl: bool) {
+    let width = rect.width() - 20.0;
+    if !rtl {
+        paint_clipped(painter, egui::pos2(rect.min.x + 10.0, y), width, text, font, color);
+        return;
+    }
+    if width <= 4.0 || text.is_empty() {
+        return;
+    }
+    let mut job = egui::text::LayoutJob::single_section(text.to_string(), egui::text::TextFormat { font_id: font, color, ..Default::default() });
+    job.wrap = egui::text::TextWrapping { max_width: width, max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+    let galley = painter.layout_job(job);
+    let size = galley.size();
+    painter.galley(egui::pos2(candidate_text_start_x(rect, size.x, true), y - size.y / 2.0), galley, color);
+}
+
+/// Right-anchor descriptive dialog text in Hebrew; leave English label layout unchanged.
+pub(crate) fn choice_description(ui: &mut Ui, text: impl Into<egui::WidgetText>, rtl: bool) -> egui::Response {
+    if rtl {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.add(egui::Label::new(text).wrap())).inner
+    } else {
+        ui.label(text)
+    }
+}
+
 impl NameChoice {
     /// The message being written it is for.
     pub(crate) fn compose(&self) -> u64 {
@@ -261,11 +294,14 @@ impl NameChoice {
         }
         let Some((text, people)) = self.names.front() else { return true };
         let t = crate::theme::Tokens::get(ui.ctx());
-        ui.label(crate::i18n::fmt(tl!("More than one person matches \"{name}\". Choose one:"), &[("name", text)]));
+        let rtl = crate::i18n::current().code() == "he";
+        choice_description(ui, crate::i18n::fmt(tl!("More than one person matches \"{name}\". Choose one:"), &[("name", text)]), rtl);
         if self.more.contains(text) {
-            ui.label(
+            choice_description(
+                ui,
                 egui::RichText::new(tl!("The address list has more people of that name than it shows: type more of it to find one not listed."))
                     .color(t.text_dim),
+                rtl,
             );
         }
         ui.add_space(4.0);
@@ -279,9 +315,8 @@ impl NameChoice {
                 } else if r.hovered() {
                     ui.painter().rect_filled(rect, 4.0, t.hover);
                 }
-                let (x, w) = (rect.min.x + 10.0, rect.width() - 20.0);
-                paint_clipped(ui.painter(), egui::pos2(x, rect.min.y + 11.0), w, &first_line(person), regular(13.0), t.text);
-                paint_clipped(ui.painter(), egui::pos2(x, rect.min.y + 27.0), w, &second_line(person), regular(11.0), t.text_dim);
+                paint_candidate_line(ui.painter(), rect, rect.min.y + 11.0, &first_line(person, rtl), regular(13.0), t.text, rtl);
+                paint_candidate_line(ui.painter(), rect, rect.min.y + 27.0, &second_line(person, rtl), regular(11.0), t.text_dim, rtl);
                 if r.clicked() {
                     self.selected = index;
                 }
@@ -291,7 +326,7 @@ impl NameChoice {
             }
         });
         if !self.error.is_empty() {
-            ui.label(egui::RichText::new(self.error.as_str()).color(t.red));
+            choice_description(ui, egui::RichText::new(self.error.as_str()).color(t.red), rtl);
         }
         let (ok, cancel) = buttons(ui, tl!("OK"), self.selected < people.len());
         if (ok || enter) && chosen.is_none() {
@@ -320,15 +355,33 @@ impl NameChoice {
 }
 
 /// The name and address of a person of a choice.
-fn first_line(person: &Value) -> String {
+fn first_line(person: &Value, rtl: bool) -> String {
     let (name, email) = (person["name"].as_str().unwrap_or(""), person["email"].as_str().unwrap_or(""));
-    if name.is_empty() { email.to_string() } else { format!("{name} <{email}>") }
+    if name.is_empty() {
+        if rtl && !email.is_empty() {
+            // Keep a bare address left-to-right when there is no display name.
+            // This changes presentation only; the selected person JSON is unchanged.
+            format!("\u{2066}{email}\u{2069}")
+        } else {
+            email.to_string()
+        }
+    } else if rtl && email.is_empty() {
+        // Directory entries can have a display name without an email address.
+        // Do not paint misleading empty angle brackets in the Hebrew candidate row.
+        name.to_string()
+    } else if rtl && !email.is_empty() {
+        // Keep <address@domain> together in its LTR order beside a Hebrew display name.
+        // These isolates affect the painted label only, never the chosen recipient JSON.
+        format!("{name} \u{2066}<{email}>\u{2069}")
+    } else {
+        format!("{name} <{email}>")
+    }
 }
 
 /// What tells them apart: the job title, department and company, what kind of recipient it is
 /// when it isn't a person, and where it was found.
-fn second_line(person: &Value) -> String {
-    let mut parts: Vec<String> = ["title", "department", "company"].iter().filter_map(|key| person[*key].as_str()).map(str::to_string).collect();
+fn second_line(person: &Value, rtl: bool) -> String {
+    let mut parts: Vec<String> = ["title", "department", "company"].iter().filter_map(|key| person[*key].as_str()).filter(|s| !rtl || !s.trim().is_empty()).map(str::to_string).collect();
     match person["kind"].as_str() {
         Some("list") => parts.push(tl!("Distribution list").to_string()),
         Some("group") => parts.push(tl!("Group").to_string()),
@@ -340,7 +393,11 @@ fn second_line(person: &Value) -> String {
         Some("contacts") => tl!("Contacts").to_string(),
         _ => tl!("Address list").to_string(),
     });
-    parts.join(" · ")
+    // In Hebrew, make every descriptive field a separate bidi unit. Latin job titles,
+    // departments and company names can contain punctuation and parentheses: without
+    // isolation, those marks may attach to neighboring Hebrew fields or separators.
+    // Preserve the previous English/LTR output byte-for-byte.
+    if rtl { parts.into_iter().map(|part| format!("\u{2068}{part}\u{2069}")).collect::<Vec<_>>().join(" · ") } else { parts.join(" · ") }
 }
 
 /// What the status line says while names are looked up.
@@ -355,4 +412,74 @@ fn key(text: &str) -> String {
 
 fn strings(v: &Value) -> Vec<String> {
     v.as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect()
+}
+
+#[cfg(test)]
+mod hebrew_email_bidi_tests {
+    use super::*;
+
+    #[test]
+    fn check_names_hebrew_name_keeps_email_brackets_left_to_right() {
+        let person = json!({"name": "דנה", "email": "dana@example.org"});
+        assert_eq!(first_line(&person, false), "דנה <dana@example.org>");
+        assert_eq!(first_line(&person, true), "דנה \u{2066}<dana@example.org>\u{2069}");
+        // English keeps the bare address; Hebrew isolates it for LTR reading.
+        let bare = json!({"name": "", "email": "dana@example.org"});
+        assert_eq!(first_line(&bare, false), "dana@example.org");
+        assert_eq!(first_line(&bare, true), "\u{2066}dana@example.org\u{2069}");
+        let punctuated = json!({"name": "", "email": "dana+tag@sub.example.org"});
+        assert_eq!(
+            first_line(&punctuated, true),
+            "\u{2066}dana+tag@sub.example.org\u{2069}"
+        );
+    }
+
+    #[test]
+    fn check_names_hebrew_secondary_details_isolate_mixed_script_fields() {
+        let person = json!({
+            "title": "מנהלת",
+            "department": "DevOps (EMEA)",
+            "company": "Acme GmbH",
+            "from": "contacts",
+        });
+        let original = person.clone();
+        let english = second_line(&person, false);
+        let hebrew = second_line(&person, true);
+        assert!(english.starts_with("מנהלת · DevOps (EMEA) · Acme GmbH · "));
+        assert!(hebrew.contains("\u{2068}DevOps (EMEA)\u{2069}"));
+        assert!(hebrew.contains("\u{2068}Acme GmbH\u{2069}"));
+        assert_eq!(hebrew.matches('\u{2068}').count(), 4);
+        assert_eq!(hebrew.matches('\u{2069}').count(), 4);
+        assert_eq!(hebrew.replace('\u{2068}', "").replace('\u{2069}', ""), english);
+        assert_eq!(person, original, "presentation must not mutate recipient metadata");
+    }
+
+    #[test]
+    fn check_names_ltr_and_empty_address_keep_previous_display() {
+        let person = json!({"name": "Dana", "email": "dana@example.org"});
+        assert_eq!(first_line(&person, false), "Dana <dana@example.org>");
+        let empty = json!({"name": "דנה", "email": ""});
+        assert_eq!(first_line(&empty, true), "דנה");
+        let missing_email = json!({"name": "דנה"});
+        assert_eq!(first_line(&missing_email, true), "דנה");
+        assert_eq!(first_line(&missing_email, false), "דנה <>");
+        assert_eq!(first_line(&empty, false), "דנה <>");
+    }
+
+    #[test]
+    fn check_names_hebrew_secondary_omits_blank_fields_without_changing_english() {
+        let empty = json!({"title": "", "department": " \t ", "company": "", "from": "contacts"});
+        let before = empty.clone();
+        let hebrew = second_line(&empty, true);
+        assert_eq!(hebrew.matches(" · ").count(), 0, "no empty Hebrew bullet separators");
+        assert_eq!(hebrew.matches('\u{2068}').count(), 1);
+        assert_eq!(hebrew.matches('\u{2069}').count(), 1);
+        assert_eq!(second_line(&empty, false).matches(" · ").count(), 3, "English byte path preserved");
+        let partial = json!({"title": "", "department": "", "company": "Acme GmbH", "from": "contacts"});
+        let summary = second_line(&partial, true);
+        assert!(summary.starts_with("\u{2068}Acme GmbH\u{2069} · "));
+        assert_eq!(summary.matches(" · ").count(), 1);
+        assert_eq!(second_line(&partial, false).matches(" · ").count(), 3);
+        assert_eq!(empty, before, "presentation must not mutate directory data");
+    }
 }
