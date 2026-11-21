@@ -44,11 +44,6 @@ fn imap_folders(session: &mailcraft_engine::Session, account: Id, folder: &str) 
         .collect()
 }
 
-fn is_gmail(account: &mailcraft_model::Account) -> bool {
-    account.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Google)
-        || account.incoming.as_ref().is_some_and(|s| s.host.eq_ignore_ascii_case("imap.gmail.com"))
-}
-
 /// What the host is asked to search ([`crate::Services::graph_search`]).
 pub struct GraphSearchJob {
     pub request: GraphSearchRequest,
@@ -108,11 +103,10 @@ pub struct ImapSearchJob {
     pub ticket: u64,
     pub folders: Vec<String>,
     pub query: String,
-    /// UIDs already on this computer, by the folder's name on the server. They are not counted
-    /// toward the hit limit, so a synced Inbox does not use the limit up.
+    /// UIDs already on this computer whose body is here, by the folder's name on the server. They
+    /// are not counted toward the hit limit, so a synced Inbox does not use the limit up. A
+    /// message whose body is not here is left out, so a match in that body is not missed.
     pub known: HashMap<String, HashSet<u32>>,
-    /// Gmail, and the search is the whole mailbox: All Mail is asked once when that folder is here.
-    pub gmail_all: bool,
 }
 
 /// One IMAP message to fetch whole. The secret is never written out and never shown.
@@ -137,7 +131,6 @@ impl std::fmt::Debug for ImapSearchJob {
             .field("account", &self.account.id)
             .field("folders", &self.folders.len())
             .field("known", &self.known.len())
-            .field("gmail_all", &self.gmail_all)
             .finish()
     }
 }
@@ -179,11 +172,13 @@ impl MailApp {
             return Link::None;
         }
         let search = &self.session.server_search;
-        if self.server_searching.busy() || search.waiting() {
+        // A search that is no longer the one in view (the query was edited) is not "still
+        // searching": the link comes back, so the owner can ask for the new one while the old
+        // thread finishes. Its answer is dropped, because it carries the old ticket.
+        let held = search_server::is_current(&self.session);
+        if held && (self.server_searching.busy() || search.waiting()) {
             return Link::Searching;
         }
-        // (For a search in view that differs from the one held, nothing has been asked yet.)
-        let held = search_server::is_current(&self.session);
         if held && search.asked() && !search.more() {
             return Link::End;
         }
@@ -249,8 +244,7 @@ impl MailApp {
         };
         let folders = imap_folders(&self.session, request.account, &request.folder);
         let known = known_uids(&self.session, request.account, &folders);
-        let gmail_all = request.folder.is_empty() && is_gmail(&account);
-        let rx = search(ImapSearchJob { account, secret, ticket: request.ticket, folders, query: request.query, known, gmail_all });
+        let rx = search(ImapSearchJob { account, secret, ticket: request.ticket, folders, query: request.query, known });
         self.server_searching.pending.push(Pending { unreached, rx, settled: false });
     }
 
@@ -384,6 +378,11 @@ fn known_uids(session: &mailcraft_engine::Session, account: Id, folders: &[Strin
         let Some(name) = session.mailbox.folder(message.folder).map(|f| f.remote.as_str()).filter(|name| wanted.contains(name)) else {
             continue;
         };
+        // A message whose body is not here is not skipped: a match that lives only there would
+        // otherwise never be fetched, and the local list does not show it either.
+        if message.unfetched {
+            continue;
+        }
         known.entry(name.to_string()).or_default().insert(message.uid);
     }
     known
@@ -465,6 +464,17 @@ mod tests {
             next: next.into(),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn editing_the_search_brings_the_link_back_while_the_old_one_is_still_out() {
+        let (mut app, _, jobs, _) = window(true);
+        app.run("view.search", json!({"query": "budget", "scope": "everywhere"})).unwrap();
+        app.run("ui.moreResultsOnServer", json!({})).unwrap();
+        assert_eq!(app.server_link(), Link::Searching);
+        app.run("view.search", json!({"query": "other", "scope": "everywhere"})).unwrap();
+        assert_eq!(app.server_link(), Link::Ask);
+        assert_eq!(jobs.lock().unwrap().len(), 1, "the old search is still out");
     }
 
     #[test]

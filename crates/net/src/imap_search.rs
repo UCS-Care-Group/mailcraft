@@ -24,11 +24,15 @@ const MAX_FOLDERS: usize = 24;
 const MAX_HITS: usize = 40;
 /// Most words of the query sent. The rest is checked here against what comes back.
 const MAX_WORDS: usize = 6;
+/// Most messages fetched whole so a restriction the server was not asked can be checked. Past
+/// this the page says the search was cut short.
+const MAX_CHECKED: usize = 200;
 
 /// Search `folders` of `account` (names as the server knows them) for `query`. `known` is the
-/// UIDs already on this computer, by folder name: they are not counted toward the hit limit.
-/// `gmail_all`: when the folder list holds All Mail, that folder is asked once. Each call of
-/// `on_page` is one folder's hits, or the failure; the last call has `partial` false.
+/// UIDs already on this computer whose body is here, by folder name: they are not counted toward
+/// the hit limit. A message whose body is not here is not among them, so a match that lives only
+/// in that body is not missed. Each call of `on_page` is one folder's hits, or the failure; the
+/// last call has `partial` false.
 pub fn search(
     account: &Account,
     secret: &str,
@@ -36,13 +40,12 @@ pub fn search(
     folders: &[String],
     query: &str,
     known: &HashMap<String, HashSet<u32>>,
-    gmail_all: bool,
     mut on_page: impl FnMut(GraphSearchResult),
 ) {
     let mut base = GraphSearchResult { account: account.id, email: account.email.clone(), ticket, ..Default::default() };
     let (asked, left) = clauses(query);
-    // Nothing the server can be asked: not an error. The list stays what is already here.
-    if asked.is_empty() {
+    // Nothing to ask and nothing to check here: not an error. The list stays what is already here.
+    if asked.is_empty() && left.is_empty() {
         on_page(base);
         return;
     }
@@ -55,8 +58,9 @@ pub fn search(
             return;
         }
     };
-    let (folders, folders_left) = chosen(folders, gmail_all);
+    let (folders, folders_left) = chosen(folders);
     let mut hits = 0usize;
+    let mut checked = 0usize;
     let last = folders.len().saturating_sub(1);
     for (at, folder) in folders.iter().enumerate() {
         if hits >= MAX_HITS {
@@ -87,15 +91,10 @@ pub fn search(
             }
         };
         let clause_refs: Vec<(&str, Option<&str>, &str)> = asked.iter().map(|c| (c.key, c.header, c.text.as_str())).collect();
-        let gmail = gmail_all && is_all_mail(folder);
-        let uids = if gmail {
-            match gmail_query(&asked) {
-                Some(query) => imap.uid_search_gmail("1:*", &query).map(|uids| (uids, false)),
-                None => imap.uid_search_clauses_newest(&clause_refs),
-            }
-        } else {
-            imap.uid_search_clauses_newest(&clause_refs)
-        };
+        // `has:attachment` is not sent: some servers' `TEXT` never sees a nested part's headers,
+        // and a message that only quotes the phrase would be a false hit. It is checked on what
+        // comes back. With nothing else to ask, every message that is not deleted is a candidate.
+        let uids = if asked.is_empty() { imap.uid_search_undeleted() } else { imap.uid_search_clauses_newest(&clause_refs) };
         let (uids, truncated) = match uids {
             Ok(uids) => uids,
             Err(e) => {
@@ -124,16 +123,19 @@ pub fn search(
                 stopped = true;
                 break;
             }
-            // Words past the six the server was asked, and a Gmail search that cannot say
-            // `importance:low`, are checked on what came back. A word that can live only in the
-            // body needs the whole message: the header's preview would hide a real match.
-            let mut check = left.clone();
-            if gmail {
-                for clause in &asked {
-                    if clause.header == Some("Importance") && clause.text == "low" {
-                        check.push(Left::Importance(Importance::Low));
-                    }
+            // Words past the six the server was asked, and `has:attachment`, are checked on what
+            // came back. A word that can live only in the body needs the whole message: the
+            // header's preview would hide a real match. Each such message is one of [`MAX_CHECKED`].
+            let check = left.clone();
+            if !check.is_empty() {
+                if checked >= MAX_CHECKED {
+                    page.capped = true;
+                    page.partial = false;
+                    on_page(page);
+                    let _ = imap.logout();
+                    return;
                 }
+                checked += 1;
             }
             let whole = check.iter().any(Left::needs_body);
             if whole {
@@ -259,10 +261,10 @@ fn clauses(query: &str) -> (Vec<Clause>, Vec<Left>) {
                     }
                 }
             }
-            ServerTerm::HasAttachment if !full => {
-                // `TEXT` sees the phrase in a nested part; `HEADER` only sees the top-level header.
-                out.push(Clause { key: "TEXT", header: None, text: "Content-Disposition: attachment".into() });
-            }
+            // Not sent. A server's `TEXT` may not see the headers of a nested part, so the search
+            // would find nothing and say nothing, and a message that quotes the phrase would be a
+            // hit. The messages the other clauses find (or every message, when this is the whole
+            // search) are fetched and kept only when they have an attachment.
             ServerTerm::HasAttachment => left.push(Left::HasAttachment),
             ServerTerm::Importance(importance @ (Importance::High | Importance::Low)) if !full => {
                 let text = if importance == Importance::High { "high" } else { "low" };
@@ -317,52 +319,14 @@ fn contains_str(hay: &str, needle: &str) -> bool {
     hay.to_lowercase().contains(&needle.to_lowercase())
 }
 
-/// All Mail first when the whole Gmail mailbox is searched; otherwise Inbox first, and at most
-/// [`MAX_FOLDERS`]. `true` when eligible folders were left out.
-fn chosen(folders: &[String], gmail_all: bool) -> (Vec<String>, bool) {
-    if gmail_all && let Some(all) = folders.iter().find(|name| is_all_mail(name)) {
-        return (vec![all.clone()], false);
-    }
-    let eligible = folders.iter().filter(|name| !name.is_empty()).count();
-    let mut names: Vec<String> = folders.iter().filter(|name| !name.is_empty()).take(MAX_FOLDERS).cloned().collect();
+/// Inbox first, then at most [`MAX_FOLDERS`]. Putting Inbox first before the limit means a long
+/// folder list cannot leave it out. `true` when eligible folders were left out.
+fn chosen(folders: &[String]) -> (Vec<String>, bool) {
+    let mut names: Vec<String> = folders.iter().filter(|name| !name.is_empty()).cloned().collect();
+    let eligible = names.len();
     names.sort_by_key(|name| !name.eq_ignore_ascii_case("INBOX"));
+    names.truncate(MAX_FOLDERS);
     (names, eligible > MAX_FOLDERS)
-}
-
-fn is_all_mail(remote: &str) -> bool {
-    let name = remote.rsplit('/').next().unwrap_or(remote);
-    name.eq_ignore_ascii_case("All Mail") || name.eq_ignore_ascii_case("Alle Nachrichten")
-}
-
-fn gmail_query(clauses: &[Clause]) -> Option<String> {
-    let mut parts = Vec::new();
-    for clause in clauses {
-        let Some(piece) = gmail_piece(clause) else { continue };
-        parts.push(piece);
-    }
-    if parts.is_empty() {
-        return None;
-    }
-    let query = parts.join(" ");
-    mailcraft_proto::imap::searchable(&query).then_some(query)
-}
-
-/// Gmail's own search words for one clause. `importance:low` has no operator, so it is left out
-/// and checked on the message; a bare word would match the letters instead of the importance.
-fn gmail_piece(clause: &Clause) -> Option<String> {
-    match (clause.key, clause.header) {
-        ("FROM", _) => Some(format!("from:{}", clause.text)),
-        ("TO", _) => Some(format!("to:{}", clause.text)),
-        ("CC", _) => Some(format!("cc:{}", clause.text)),
-        ("SUBJECT", _) => Some(format!("subject:{}", clause.text)),
-        ("BODY", _) => Some(format!("body:{}", clause.text)),
-        ("TEXT", _) if clause.text.eq_ignore_ascii_case("Content-Disposition: attachment") => Some("has:attachment".to_string()),
-        ("TEXT", _) => Some(clause.text.clone()),
-        ("HEADER", Some("Content-Disposition")) => Some("has:attachment".to_string()),
-        ("HEADER", Some("Importance")) if clause.text == "high" => Some("is:important".to_string()),
-        ("HEADER", Some("Importance")) => None,
-        _ => Some(clause.text.clone()),
-    }
 }
 
 fn message_of(remote: &str, fetched: &mailcraft_proto::imap::Fetched, parsed: &Message, validity: u32) -> Option<GraphMessage> {

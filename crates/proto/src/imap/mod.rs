@@ -1136,6 +1136,13 @@ impl<S: Read + Write> Imap<S> {
         self.take_newest(command.shown_as("UID SEARCH"))
     }
 
+    /// UID SEARCH UNDELETED: every message of the open mailbox that is not marked deleted, at
+    /// most [`MAX_FOUND`] of the highest UIDs. Used when a restriction cannot be asked of the
+    /// server and has to be checked on what comes back. `true` when the answer was cut.
+    pub fn uid_search_undeleted(&mut self) -> Result<(Vec<u32>, bool), ProtoError> {
+        self.take_newest(Command::new("UID SEARCH UNDELETED").shown_as("UID SEARCH"))
+    }
+
     /// The UIDs a `UID SEARCH` answer names, at most [`MAX_FOUND`], in UID order.
     fn take_search(&mut self, command: Command<'_>) -> Result<Vec<u32>, ProtoError> {
         let mut found = BTreeSet::new();

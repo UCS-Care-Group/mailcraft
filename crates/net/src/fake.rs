@@ -1003,6 +1003,13 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                             }
                         }
                     }
+                    _ if said.len() == 2 && asked(1, "UNDELETED") => match open.and_then(|i| world.mailboxes.get(i)) {
+                        None => reply.extend(format!("{tag} NO nothing is open\r\n").bytes()),
+                        Some(mailbox) => {
+                            let found: String = mailbox.messages.iter().filter(|m| !m.has("\\Deleted")).map(|m| format!(" {}", m.uid)).collect();
+                            reply.extend(format!("* SEARCH{found}\r\n{tag} OK found\r\n").bytes());
+                        }
+                    },
                     _ if said.len() != 5 || !asked(1, "UNDELETED") || !asked(2, "HEADER") => reply.extend(format!("{tag} BAD what\r\n").bytes()),
                     None => reply.extend(format!("{tag} NO nothing is open\r\n").bytes()),
                     Some(mailbox) => {

@@ -47,7 +47,7 @@ fn an_older_message_is_found_on_the_server() {
         ..Default::default()
     };
     let mut pages = Vec::new();
-    search(&account, "hunter2", 9, &["INBOX".into()], "thermaltake", &none_known(), false, |page| pages.push(page));
+    search(&account, "hunter2", 9, &["INBOX".into()], "thermaltake", &none_known(), |page| pages.push(page));
     assert_eq!(pages.len(), 1, "{pages:?}");
     assert!(!pages[0].partial);
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
@@ -56,15 +56,15 @@ fn an_older_message_is_found_on_the_server() {
     assert_eq!(pages[0].messages[0].server.folder, "INBOX");
     assert!(pages[0].messages[0].subject.to_lowercase().contains("thermaltake"));
     pages.clear();
-    search(&account, "hunter2", 9, &["INBOX".into()], "from:bob", &none_known(), false, |page| pages.push(page));
+    search(&account, "hunter2", 9, &["INBOX".into()], "from:bob", &none_known(), |page| pages.push(page));
     assert_eq!(pages.len(), 1);
     assert_eq!(pages[0].messages.len(), 1, "from:bob is the sender");
     pages.clear();
-    search(&account, "hunter2", 9, &["INBOX".into()], "from:thermaltake", &none_known(), false, |page| pages.push(page));
+    search(&account, "hunter2", 9, &["INBOX".into()], "from:thermaltake", &none_known(), |page| pages.push(page));
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
     assert!(pages[0].messages.is_empty(), "a word in the subject is not the sender");
     pages.clear();
-    search(&account, "hunter2", 9, &["INBOX".into()], "is:unread", &none_known(), false, |page| pages.push(page));
+    search(&account, "hunter2", 9, &["INBOX".into()], "is:unread", &none_known(), |page| pages.push(page));
     assert!(pages[0].errors.is_empty(), "a search the server cannot be asked is not an error: {:?}", pages[0].errors);
     assert!(pages[0].messages.is_empty());
 }
@@ -100,7 +100,7 @@ fn a_word_outside_ascii_is_sent_as_utf_8_and_a_known_uid_is_not_counted() {
         ..Default::default()
     };
     let mut pages = Vec::new();
-    search(&account, "hunter2", 9, &["INBOX".into()], "älter", &none_known(), false, |page| pages.push(page));
+    search(&account, "hunter2", 9, &["INBOX".into()], "älter", &none_known(), |page| pages.push(page));
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
     assert_eq!(pages[0].messages.len(), 2);
     assert_eq!(pages[0].messages[0].server.id, "imap:11:9", "the newer UID is first");
@@ -110,7 +110,7 @@ fn a_word_outside_ascii_is_sent_as_utf_8_and_a_known_uid_is_not_counted() {
     let mut known = none_known();
     known.insert("INBOX".into(), HashSet::from([9]));
     pages.clear();
-    search(&account, "hunter2", 9, &["INBOX".into()], "älter", &known, false, |page| pages.push(page));
+    search(&account, "hunter2", 9, &["INBOX".into()], "älter", &known, |page| pages.push(page));
     assert_eq!(pages[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), ["imap:11:2"]);
 }
 
@@ -149,7 +149,7 @@ fn a_folder_name_outside_ascii_is_sent_in_modified_utf_7() {
         ..Default::default()
     });
     let mut pages = Vec::new();
-    search(&account_on(imap.port), "hunter2", 9, &["Entwürfe".into()], "draft", &none_known(), false, |page| pages.push(page));
+    search(&account_on(imap.port), "hunter2", 9, &["Entwürfe".into()], "draft", &none_known(), |page| pages.push(page));
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
     assert_eq!(pages[0].messages.len(), 1);
     assert_eq!(pages[0].messages[0].server.folder, "Entwürfe");
@@ -211,7 +211,7 @@ fn the_newest_uids_are_kept_when_the_answer_is_longer_than_the_cap() {
     let mut known = none_known();
     known.insert("INBOX".into(), (1..=1000).collect());
     let mut pages = Vec::new();
-    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "x", &known, false, |page| pages.push(page));
+    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "x", &known, |page| pages.push(page));
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
     assert_eq!(pages[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), ["imap:11:1001"]);
     assert!(pages[0].capped, "an older unknown UID past the newest thousand is not in this answer");
@@ -240,7 +240,7 @@ fn a_word_past_the_six_the_server_is_asked_is_still_required() {
         ..Default::default()
     });
     let mut pages = Vec::new();
-    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "alpha beta gamma delta epsilon zeta seventh", &none_known(), false, |page| {
+    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "alpha beta gamma delta epsilon zeta seventh", &none_known(), |page| {
         pages.push(page)
     });
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
@@ -284,7 +284,7 @@ fn an_attachment_in_a_nested_part_is_found() {
         ..Default::default()
     });
     let mut pages = Vec::new();
-    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "has:attachment", &none_known(), false, |page| pages.push(page));
+    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "has:attachment", &none_known(), |page| pages.push(page));
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
     assert_eq!(pages[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), ["imap:11:2"]);
 }
@@ -312,7 +312,7 @@ fn a_deferred_word_matches_in_any_letter_case() {
         ..Default::default()
     });
     let mut pages = Vec::new();
-    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "alpha beta gamma delta epsilon zeta älter", &none_known(), false, |page| {
+    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "alpha beta gamma delta epsilon zeta älter", &none_known(), |page| {
         pages.push(page)
     });
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
@@ -342,7 +342,7 @@ fn a_message_larger_than_the_fetch_limit_does_not_end_the_search() {
         ..Default::default()
     });
     let mut pages = Vec::new();
-    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "alpha beta gamma delta epsilon zeta seventh", &none_known(), false, |page| {
+    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "alpha beta gamma delta epsilon zeta seventh", &none_known(), |page| {
         pages.push(page)
     });
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
@@ -372,8 +372,79 @@ fn folders_past_the_limit_keep_the_search_open() {
     let names: Vec<String> = (1..=25).map(|n| format!("Box{n:02}")).collect();
     let imap = Fake::imap(ImapWorld { user: "ada".into(), password: "hunter2".into(), mailboxes, ..Default::default() });
     let mut pages = Vec::new();
-    search(&account_on(imap.port), "hunter2", 9, &names, "needle", &none_known(), false, |page| pages.push(page));
+    search(&account_on(imap.port), "hunter2", 9, &names, "needle", &none_known(), |page| pages.push(page));
     assert!(pages.iter().all(|page| page.errors.is_empty()), "{pages:?}");
     assert!(pages.iter().all(|page| page.messages.is_empty()), "the folder past the limit was not asked");
     assert!(pages.last().is_some_and(|page| page.capped), "folders left out are said");
+}
+
+#[test]
+fn a_message_that_only_quotes_the_attachment_phrase_is_not_a_hit() {
+    let quoted = b"From: Ada <ada@example.org>\r\nSubject: note\r\n\r\nSee Content-Disposition: attachment in the text.\r\n";
+    let nested = b"From: Ada <ada@example.org>\r\nSubject: board\r\nMIME-Version: 1.0\r\n\
+        Content-Type: multipart/mixed; boundary=b\r\n\r\n\
+        --b\r\nContent-Type: text/plain\r\n\r\nThe board shipped.\r\n\
+        --b\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"note.pdf\"\r\n\r\n%PDF\r\n\
+        --b--\r\n";
+    let imap = Fake::imap(ImapWorld {
+        user: "ada".into(),
+        password: "hunter2".into(),
+        mailboxes: vec![FakeMailbox {
+            raw: "INBOX".into(),
+            flags: "\\HasNoChildren".into(),
+            uid_validity: 11,
+            messages: vec![
+                FakeMessage {
+                    uid: 1,
+                    flags: String::new(),
+                    internal_date: " 1-Jul-2003 09:52:37 +0000".into(),
+                    body: quoted.to_vec(),
+                    claimed_size: None,
+                },
+                FakeMessage {
+                    uid: 2,
+                    flags: String::new(),
+                    internal_date: " 1-Jul-2003 09:52:37 +0000".into(),
+                    body: nested.to_vec(),
+                    claimed_size: None,
+                },
+            ],
+            refuse_open: false,
+            next_uid: 0,
+        }],
+        ..Default::default()
+    });
+    let mut pages = Vec::new();
+    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "has:attachment", &none_known(), |page| pages.push(page));
+    assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
+    assert_eq!(pages[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), ["imap:11:2"]);
+}
+
+#[test]
+fn the_inbox_is_asked_even_when_it_is_past_the_folder_limit() {
+    let mailbox = |raw: String, body: &[u8]| FakeMailbox {
+        raw,
+        flags: "\\HasNoChildren".into(),
+        uid_validity: 11,
+        messages: vec![FakeMessage {
+            uid: 1,
+            flags: String::new(),
+            internal_date: " 1-Jul-2003 09:52:37 +0000".into(),
+            body: body.to_vec(),
+            claimed_size: None,
+        }],
+        refuse_open: false,
+        next_uid: 0,
+    };
+    let quiet = b"From: Ada <ada@example.org>\r\nSubject: quiet\r\n\r\nquiet\r\n";
+    let needle = b"From: Ada <ada@example.org>\r\nSubject: needle\r\n\r\nneedle\r\n";
+    let mut mailboxes: Vec<FakeMailbox> = (1..=24).map(|n| mailbox(format!("Box{n:02}"), quiet)).collect();
+    mailboxes.push(mailbox("INBOX".into(), needle));
+    let mut names: Vec<String> = (1..=24).map(|n| format!("Box{n:02}")).collect();
+    names.push("INBOX".into());
+    let imap = Fake::imap(ImapWorld { user: "ada".into(), password: "hunter2".into(), mailboxes, ..Default::default() });
+    let mut pages = Vec::new();
+    search(&account_on(imap.port), "hunter2", 9, &names, "needle", &none_known(), |page| pages.push(page));
+    assert!(pages.iter().all(|page| page.errors.is_empty()), "{pages:?}");
+    assert!(pages.iter().any(|page| page.messages.iter().any(|m| m.server.folder == "INBOX")), "the Inbox past the first 24 names is still asked");
 }

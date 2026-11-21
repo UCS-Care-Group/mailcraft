@@ -159,7 +159,7 @@ msgid "(no name)"
 msgstr "(geen naam)"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "(no recipients)"
 msgstr "(geen ontvangers)"
@@ -8869,12 +8869,6 @@ msgid "Microsoft's page said so."
 msgstr "De pagina van Microsoft zei dat."
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Microsoft's server couldn't be reached. Click to try again."
-msgstr "De server van Microsoft kon niet worden bereikt. Klik om het opnieuw te proberen."
-
-#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Middle name"
@@ -10385,12 +10379,6 @@ msgid "Nothing matches."
 msgstr "Niets komt overeen."
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Nothing more was found on the server"
-msgstr "Er is niets meer gevonden op de server"
-
-#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Nothing new imported: {already}"
@@ -10549,16 +10537,10 @@ msgid "On the"
 msgstr "Op de"
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On the server"
 msgstr "Op de server"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "On the server · Searching…"
-msgstr "Op de server · Zoeken…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -13405,7 +13387,7 @@ msgid "Searching the server…"
 msgstr "Bezig met zoeken op de server…"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Searching…"
 msgstr "Zoeken…"
@@ -13819,9 +13801,8 @@ msgstr "Problemen met verzenden/ontvangen"
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Send/Receive signs in to Microsoft; then the server can be searched."
-msgstr "Verzenden/ontvangen meldt aan bij Microsoft; daarna kan de server worden doorzocht."
+msgid "Send/Receive signs in; then the server can be searched."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
@@ -14849,12 +14830,6 @@ msgstr "Een deel ervan staat er nog, zoals hierboven vermeld. MailCraft wordt af
 #, fuzzy
 msgid "Some of the files were not attached: the message cannot carry any more."
 msgstr "Sommige bestanden zijn niet bijgevoegd: het bericht kan er niet meer bevatten."
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Some of the search was checked on this computer"
-msgstr "Een deel van de zoekopdracht is op deze computer gecontroleerd"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -16897,6 +16872,11 @@ msgstr "De server antwoordde zonder het adres van Exchange Web Services. Vraag h
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr "De server antwoordde, maar niet zoals een Exchange-server dat doet. Controleer het adres bij Serverinstellingen."
 
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server couldn't be reached. Click to try again."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 #, fuzzy
@@ -16968,6 +16948,11 @@ msgstr "De server is bezig. Probeer het over een paar minuten opnieuw."
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "De server of de organisatie wilde de instellingen niet geven. Vraag uw beheerder om het adres van de server en typ het bij Serverinstellingen."
+
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server search stopped after 40 messages. There may be more."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -22137,6 +22122,11 @@ msgstr "het bericht heeft geen geadresseerden"
 msgid "the message has too many recipients"
 msgstr "het bericht heeft te veel geadresseerden"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "the message is no longer on the server"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -22226,9 +22216,8 @@ msgstr "de zoekopdracht kan niet op het volledige adres van deze afzender zoeken
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
-#, fuzzy
-msgid "the search involves no mailbox of a Microsoft account"
-msgstr "de zoekopdracht betreft geen postvak van een Microsoft-account"
+msgid "the search involves no mailbox that can be searched on its server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -22942,6 +22931,11 @@ msgstr "dit bericht staat al in de map Uitgesteld"
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "dit bericht is nog niet gedownload: open het zodra u online bent en verzend het daarna opnieuw"
+
+#. what a command says
+#: crates/engine/src/cmd/search_server.rs
+msgid "this message was deleted"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -25034,6 +25028,30 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
+
+#, fuzzy
+#~ msgid "Microsoft's server couldn't be reached. Click to try again."
+#~ msgstr "De server van Microsoft kon niet worden bereikt. Klik om het opnieuw te proberen."
+
+#, fuzzy
+#~ msgid "Nothing more was found on the server"
+#~ msgstr "Er is niets meer gevonden op de server"
+
+#, fuzzy
+#~ msgid "On the server · Searching…"
+#~ msgstr "Op de server · Zoeken…"
+
+#, fuzzy
+#~ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
+#~ msgstr "Verzenden/ontvangen meldt aan bij Microsoft; daarna kan de server worden doorzocht."
+
+#, fuzzy
+#~ msgid "Some of the search was checked on this computer"
+#~ msgstr "Een deel van de zoekopdracht is op deze computer gecontroleerd"
+
+#, fuzzy
+#~ msgid "the search involves no mailbox of a Microsoft account"
+#~ msgstr "de zoekopdracht betreft geen postvak van een Microsoft-account"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"
