@@ -6622,6 +6622,12 @@ msgid "Have replies sent to other addresses"
 msgstr "Odpovědi posílat na jiné adresy"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Height"
+msgstr "Výška"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -11916,11 +11922,23 @@ msgstr "Zvolte poslední den"
 msgid "Picture"
 msgstr "Obrázek"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "Formát obrázku"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Layout"
 msgstr "Rozložení obrázku"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "Velikost obrázku"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -11939,6 +11957,12 @@ msgstr "Obrázek nad textem"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Obrázek vedle textu"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "Velikost obrázku"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -13132,6 +13156,12 @@ msgid ""
 msgstr ""
 "Obnovit\n"
 "zobrazení"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Reset Size"
+msgstr "Obnovit velikost"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14936,6 +14966,12 @@ msgstr "Zobrazit podokno složek"
 msgid "Show the messages of this conversation"
 msgstr "Zobrazit zprávy této konverzace"
 
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Show the picture at its own size"
+msgstr "Zobrazit obrázek v jeho vlastní velikosti"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -15324,8 +15360,8 @@ msgstr "Zjednodušený pás karet"
 msgid "Single Line"
 msgstr "Jeden řádek"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Velikost"
@@ -20145,7 +20181,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Kdo tuto zprávu podepsal a certifikát"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Šířka"
@@ -21121,6 +21157,12 @@ msgstr "sdílená poštovní schránka má vlastní pravidla: tato verze je nevy
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "je otevřený podpis: jeho obrázky přidejte pomocí signature.picture.add"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "je otevřený podpis: velikost jeho obrázků nastavte pomocí signature.picture.set"
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21916,6 +21958,12 @@ msgstr "žádný server odchozí pošty"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "v tomto podpisu není obrázek {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "no picture {id} was put in this message"
+msgstr "do této zprávy nebyl vložen obrázek {id}"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
