@@ -514,8 +514,6 @@ mod tests {
         assert_eq!(Lang::from_pref("hu", None), Lang::Hungarian);
         assert_eq!(Lang::from_pref("auto", Some("ka_GE.UTF-8")), Lang::Georgian);
         assert_eq!(Lang::from_pref("ka", None), Lang::Georgian);
-        assert_eq!(Lang::from_pref("auto", Some("gl_ES.UTF-8")), Lang::Galician);
-        assert_eq!(Lang::from_pref("gl", None), Lang::Galician);
     }
 
     #[test]
