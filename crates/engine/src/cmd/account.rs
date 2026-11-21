@@ -906,7 +906,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
         // Only what was queued with Send goes; a message moved here is held until Send Again (#607).
         // (Never a preview: it would go out as the message, #653. Opening it fetches the rest.)
         // (Not what waits for its Send time, #950.)
-        if Some(m.folder) == outbox_folder && m.held.is_empty() && !m.unfetched && !m.incomplete && m.not_downloaded == 0 && !m.waits_until(clock) {
+        if Some(m.folder) == outbox_folder && m.held.is_empty() && !m.only_a_part_here() && !m.waits_until(clock) {
             outbox.push(m.as_ref().clone());
         }
         if m.uid != 0 {
@@ -1234,7 +1234,7 @@ fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) 
             continue;
         }
         // (Not one whose text couldn't be read here: the server's original is all there is of it.)
-        let whole = |m: &Message| !m.unfetched && !m.incomplete && m.not_downloaded == 0 && !m.kept.as_deref().is_some_and(|k| k.failed);
+        let whole = |m: &Message| !m.only_a_part_here() && !m.kept.as_deref().is_some_and(|k| k.failed);
         let Some(m) = mb.message(*message).filter(|m| m.account == account && m.uid == 0 && whole(m)) else { continue };
         let Some(folder) = mb.folder(m.folder).filter(|f| f.account == account && f.kind != FolderKind::Outbox) else { continue };
         count += 1;

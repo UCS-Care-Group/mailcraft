@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A message of which only the headers and a preview are here (#653) is never answered or
-//! forwarded as if it were whole: Reply, Reply All and Forward refuse until it is downloaded,
+//! forwarded as if it were whole: replies and both kinds of forward refuse until it is downloaded,
 //! also when it can't be fetched right now (a move within the account sets its UID to 0 until
 //! the next Send/Receive, so the window has nothing to wait for), and also when it can be fetched
 //! (an IMAP preview has its UID and folder): the command itself refuses, for the CLI, MCP and
@@ -35,7 +35,7 @@ fn a_preview_is_neither_answered_nor_forwarded() {
     let mut s = session();
     let id = preview(&mut s);
     assert!(!s.mailbox.fetchable(s.mailbox.message(id).unwrap()), "nothing to wait for");
-    for command in ["mail.reply", "mail.replyAll", "mail.forward", "mail.replyAndDelete"] {
+    for command in ["mail.reply", "mail.replyAll", "mail.forward", "mail.replyAndDelete", "mail.forwardAsAttachment"] {
         let e = s.run(command, &json!({"id": id})).unwrap_err().to_string();
         assert!(e.contains("isn't downloaded yet"), "{command}: {e}");
         assert!(s.compose.is_none(), "{command}: nothing is being written");
@@ -86,7 +86,7 @@ fn a_preview_a_host_could_fetch_is_refused_by_the_command_too() {
     m.unfetched = true;
     m.body = Body { text: "Only the first 255 characters".into(), html: None };
     assert!(s.mailbox.fetchable(s.mailbox.message(id).unwrap()), "a UID in a folder with a mailbox name: a host could fetch it");
-    for command in ["mail.reply", "mail.replyAll", "mail.forward", "mail.replyAndDelete"] {
+    for command in ["mail.reply", "mail.replyAll", "mail.forward", "mail.replyAndDelete", "mail.forwardAsAttachment"] {
         let e = s.run(command, &json!({"id": id})).unwrap_err().to_string();
         assert!(e.contains("isn't downloaded yet"), "{command}: {e}");
         assert!(s.compose.is_none(), "{command}: nothing is being written");
@@ -96,7 +96,7 @@ fn a_preview_a_host_could_fetch_is_refused_by_the_command_too() {
 
 #[test]
 fn an_imap_message_fetched_is_answered_and_forwarded_as_before() {
-    for command in ["mail.reply", "mail.replyAll", "mail.forward", "mail.replyAndDelete"] {
+    for command in ["mail.reply", "mail.replyAll", "mail.forward", "mail.replyAndDelete", "mail.forwardAsAttachment"] {
         let (mut s, _, id) = imap();
         s.mailbox.message_mut(id).unwrap().unfetched = true;
         assert!(s.run(command, &json!({"id": id})).is_err(), "{command}: a preview");
@@ -104,6 +104,11 @@ fn an_imap_message_fetched_is_answered_and_forwarded_as_before() {
         s.mailbox.message_mut(id).unwrap().unfetched = false;
         s.run(command, &json!({"id": id})).unwrap();
         assert!(s.compose.is_some(), "{command}");
+        if command == "mail.forwardAsAttachment" {
+            let compose = s.compose.as_ref().unwrap();
+            assert!(compose.as_attachment);
+            assert_eq!(compose.attachments.len(), 1);
+        }
     }
 }
 

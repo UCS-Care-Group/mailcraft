@@ -1560,12 +1560,6 @@ fn not_downloaded_yet(subject: &str) -> String {
     format!("\"{subject}\" isn't downloaded yet: open it, then try again")
 }
 
-/// Whether only part of `m` is here (headers and a preview, or a message cut short): what is sent
-/// from an Outbox must be the whole message, never that (#653).
-fn only_a_part_here(m: &Message) -> bool {
-    m.unfetched || m.incomplete || m.not_downloaded > 0
-}
-
 impl Mailbox {
     /// An empty mailbox with one local account, its standard folders and a calendar.
     pub fn with_local_account(display_name: &str, email: &str) -> Mailbox {
@@ -2595,7 +2589,7 @@ impl Mailbox {
         }
         // Of an IMAP account's Outbox what is sent is the message there: a preview put in it
         // would go out as the message (#653). Fetched first, by opening it.
-        if self.is_imap_outbox(folder) && only_a_part_here(m) {
+        if self.is_imap_outbox(folder) && m.only_a_part_here() {
             return Err(invalid(not_downloaded_yet(&subject_said(m))));
         }
         if m.snooze.is_some_and(|z| z.returning) {
@@ -2637,7 +2631,7 @@ impl Mailbox {
         let m = self.message(id).ok_or(not_found("message", id))?;
         let (from_account, was_in, uid, synced) = (m.account, m.folder, m.uid, m.synced);
         // Of one that isn't whole here, the server's is all there is.
-        let whole = !m.unfetched && !m.incomplete && m.not_downloaded == 0;
+        let whole = !m.only_a_part_here();
         let awaiting = awaits_its_copy(m, synced);
         let waiting = self.waiting(id, fresh);
         let owner = waiting.and_then(|at| self.pending.get(at)).map(Pending::account);
@@ -3082,7 +3076,7 @@ impl Mailbox {
         }
         // Nor a preview into an IMAP account's Outbox, where Send Again would send it as the
         // message (#653).
-        if self.is_imap_outbox(folder) && only_a_part_here(m) {
+        if self.is_imap_outbox(folder) && m.only_a_part_here() {
             return Err(invalid(not_downloaded_yet(&subject_said(m))));
         }
         if self.placed_into(from_account, to_account) {

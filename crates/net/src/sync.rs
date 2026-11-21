@@ -357,7 +357,7 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
         }
         // Only a preview is here: it would go out as the message (#653). The mailbox doesn't ask
         // for one, and nothing is sent that it didn't.
-        if message.unfetched || message.incomplete || message.not_downloaded > 0 {
+        if message.only_a_part_here() {
             run.out.problem(said!("Couldn't send \"{subject}\": it isn't downloaded yet", subject = subject_said(message)));
             continue;
         }
