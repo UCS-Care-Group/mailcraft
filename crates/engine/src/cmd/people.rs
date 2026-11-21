@@ -60,7 +60,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes)} — it is kept on this computer; the list moves to show it"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "keepAddressList"?: bool (people.new only: true keeps an address list People shows in view, as Add to Contacts on its card does; by default People shows the contacts)} — it is kept on this computer; the list moves to show it"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
@@ -124,8 +124,8 @@ pub(crate) fn reveal(s: &mut Session, id: Id) {
     reveal_beside_list(s, id);
 }
 
-/// As [`reveal`], but an address list in view stays: a contact made from it (`people.new`), whose
-/// card there then says they are in the contacts, with Open Contact.
+/// As [`reveal`], but an address list in view stays: a contact made from it (`people.new` with
+/// `keepAddressList`), whose card there then says they are in the contacts, with Open Contact.
 fn reveal_beside_list(s: &mut Session, id: Id) {
     let shown = shown_account(s);
     let Some(c) = s.mailbox.contact(id) else { return };
@@ -276,7 +276,13 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     }
     let id = s.mailbox.add_contact(c);
     s.sel.contact = Some(id);
-    reveal_beside_list(s, id);
+    // Made from an address list's card, the list stays, and the card says they are in the
+    // contacts now; made anywhere else (the contact form), People shows it among the contacts.
+    if p::bool(v, "keepAddressList").unwrap_or(false) {
+        reveal_beside_list(s, id);
+    } else {
+        reveal(s, id);
+    }
     Ok(json!({"id": id}))
 }
 

@@ -45,13 +45,18 @@ fn people_shows_an_exchange_server_accounts_address_list_until_the_contacts_are_
 }
 
 /// A contact chosen (Open Contact on the address list's card) is shown among the contacts; a new
-/// one made from the address list leaves the list in view (#1393).
+/// one made from the address list's card (`keepAddressList`) leaves the list in view, and one
+/// made anywhere else (the contact form) is shown among the contacts (#1393).
 #[test]
 fn a_contact_chosen_leaves_the_address_list() {
     let mut s = Session::empty();
     let account = exchange(&mut s, "me@example.org");
     s.run("people.addressBook", &json!({})).unwrap();
-    let id = s.run("people.new", &json!({"displayName": "Ada Lovelace", "email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let form = s.run("people.new", &json!({"displayName": "Noor Haddad", "email": "noor@example.org"})).unwrap()["id"].as_u64();
+    assert_eq!((shown_book(&s), s.sel.contact), (None, form));
+    s.run("people.addressBook", &json!({})).unwrap();
+    let made = json!({"displayName": "Ada Lovelace", "email": "ada@example.org", "keepAddressList": true});
+    let id = s.run("people.new", &made).unwrap()["id"].as_u64().unwrap();
     assert_eq!((shown_book(&s), s.sel.contact), (Some(account), Some(id)));
     s.run("people.select", &json!({"id": id})).unwrap();
     assert_eq!((shown_book(&s), s.sel.contact), (None, Some(id)));

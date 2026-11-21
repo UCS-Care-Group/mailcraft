@@ -290,6 +290,11 @@ fn the_owner_writes_to_somebody_found_or_makes_a_contact_of_them() {
     assert_eq!((contact.display_name.as_str(), contact.company.as_str(), contact.title.as_str()), ("Ada Lovelace", "Example Ltd", "Controller"));
     let phones: Vec<&str> = contact.phones.iter().map(|p| p.value.as_str()).collect();
     assert_eq!(phones, ["+1 555 0100", "+1 555 0199"]);
+    assert_eq!(app.session.view.people_book, Some(account), "the address list stays, its card saying so");
+    // A contact made with the form meanwhile is shown among the contacts.
+    let made = app.run("people.new", json!({"displayName": "Noor Haddad", "email": "noor@example.org"})).unwrap();
+    assert_eq!(app.session.view.people_book, None);
+    assert_eq!(app.session.sel.contact, made["id"].as_u64());
 
     app.run("people.addressBook", json!({})).unwrap();
     search(&mut app, &ctx, "ada");

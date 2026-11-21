@@ -704,6 +704,7 @@ fn add_to_contacts(app: &mut MailApp, person: &DirectoryPerson) {
     let params = json!({
         "displayName": person.name, "email": person.email, "company": person.company,
         "department": person.department, "title": person.title, "phones": phones, "keys": keys,
+        "keepAddressList": true,
     });
     match app.run("people.new", params) {
         Ok(_) => app.status(tl!("Added to Contacts")),
