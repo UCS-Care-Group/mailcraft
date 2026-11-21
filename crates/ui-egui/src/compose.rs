@@ -20,6 +20,8 @@ mod picture_tests;
 #[cfg(test)]
 mod several_tests;
 #[cfg(test)]
+mod signature_room_tests;
+#[cfg(test)]
 mod tests;
 
 const MIN_LABEL_WIDTH: f32 = 62.0;
@@ -311,11 +313,13 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
                 // The original senses the pointer over all of the view it is drawn in: kept to
                 // below where it begins, so that it doesn't lie over the owner's text and take a
                 // click meant for it (the body then never got the keyboard back, #158).
-                let below = Rect::everything_below(ui.cursor().min.y);
+                let top = ui.cursor().min.y;
+                let below = Rect::everything_below(top);
                 ui.scope(|ui| {
                     ui.set_clip_rect(ui.clip_rect().intersect(below));
                     crate::reading::show_quote(app, ui);
                 });
+                app.hit.add("composeQuote", 0, Rect::from_min_max(pos2(ui.min_rect().min.x, top), pos2(ui.min_rect().max.x, ui.cursor().min.y)));
             }
         });
     });
