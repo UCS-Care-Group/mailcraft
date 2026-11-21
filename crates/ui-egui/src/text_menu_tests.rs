@@ -1956,6 +1956,29 @@ fn paste_text_only_is_the_bodys_alone_and_needs_the_hosts_clipboard() {
     menu_at(&mut h, line.center());
     assert_eq!(offered(&h, &paste()), Some(true));
     assert_eq!(offered(&h, PASTE_TEXT), None);
+    // Nor in a plain-text message, whose Paste brings the text alone already.
+    let board = Board::default();
+    formatted(&board);
+    let mut a = app(Some(&board));
+    a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
+    a.execute("compose.formatPlain", json!({})).unwrap();
+    a.execute("compose.set", json!({"body": "Plan for Friday"})).unwrap();
+    a.execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
+    a.want_body_focus();
+    let mut h = window(a);
+    let start = body_start(&h);
+    menu_at(&mut h, start);
+    assert_eq!(offered(&h, &paste()), Some(true));
+    assert_eq!(offered(&h, PASTE_TEXT), None, "a plain-text message");
+    choose(&mut h, &paste());
+    settle(&mut h, 3);
+    let text = plain(&h);
+    assert!(text.starts_with("Agenda") && text.ends_with("next for Friday"), "{text:?}");
+    let body = rich(&h);
+    assert!(
+        !body.paragraphs().iter().flat_map(|p| &p.runs).any(|r| r.style.bold || r.style.italic || r.style.size.is_some()),
+        "Paste is the text alone"
+    );
 }
 
 #[test]
