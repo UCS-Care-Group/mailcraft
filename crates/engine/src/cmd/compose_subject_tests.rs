@@ -128,6 +128,41 @@ fn picture_width_and_subject_replacement_undo_and_redo_in_order() {
     assert_eq!(picture_width(&s, id), Some(80));
 }
 
+#[test]
+fn a_body_edit_past_the_undo_cap_is_undone_before_the_subject() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"subject": "Hello tomorow"}));
+    for n in 0..100 {
+        run(&mut s, "compose.set", json!({"body": format!("step {n}")}));
+    }
+    let capped = compose(&s).body.plain();
+    assert_eq!(compose(&s).body.undo_len(), 100);
+    let (from, to) = span("Hello tomorow", "tomorow");
+    run(&mut s, "compose.replaceSubject", json!({"from": from, "to": to, "expected": "tomorow", "text": "tomorrow"}));
+    run(&mut s, "compose.set", json!({"body": "newest"}));
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(compose(&s).body.plain(), capped, "the newest body edit is undone first");
+    assert_eq!(compose(&s).subject, "Hello tomorrow");
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(compose(&s).subject, "Hello tomorow");
+}
+
+#[test]
+fn a_subject_replacement_ends_the_body_typing_group() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"subject": "Hello tomorow", "body": ""}));
+    run(&mut s, "compose.type", json!({"text": "A"}));
+    let (from, to) = span("Hello tomorow", "tomorow");
+    run(&mut s, "compose.replaceSubject", json!({"from": from, "to": to, "expected": "tomorow", "text": "tomorrow"}));
+    run(&mut s, "compose.type", json!({"text": "B"}));
+    assert_eq!(compose(&s).body.plain(), "AB");
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(compose(&s).body.plain(), "A");
+    assert_eq!(compose(&s).subject, "Hello tomorrow");
+}
+
 fn picture_width(s: &Session, id: u64) -> Option<u16> {
     compose(s).pictures.iter().find(|p| u64::from(p.id) == id).and_then(|p| p.width)
 }

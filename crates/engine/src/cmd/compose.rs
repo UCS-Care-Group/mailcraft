@@ -1281,9 +1281,10 @@ fn replace_subject(s: &mut Session, v: &Value) -> CmdResult {
     next.push_str(c.subject.get(..start).unwrap_or(""));
     next.push_str(&text);
     next.push_str(c.subject.get(end..).unwrap_or(""));
-    align_body(&mut c.subject_edits.undo, c.body.undo_len());
+    align_body(c);
     c.subject_edits.redo.clear();
     c.body.clear_redo();
+    c.body.end_typing();
     let before = std::mem::replace(&mut c.subject, next);
     c.subject_edits.undo.push(SubjectStep::Subject { before, after: c.subject.clone() });
     cap_subject_steps(&mut c.subject_edits.undo);
@@ -1320,22 +1321,27 @@ fn char_byte(text: &str, chars: usize) -> Option<usize> {
     (seen == chars).then_some(text.len())
 }
 
-fn body_tokens(steps: &[SubjectStep]) -> usize {
-    steps.iter().filter(|step| matches!(step, SubjectStep::Body)).count()
-}
-
-/// Keep one body token per step the text can still undo, dropping the oldest when the text did.
-fn align_body(steps: &mut Vec<SubjectStep>, undo_len: usize) {
-    let mut tokens = body_tokens(steps);
-    while tokens < undo_len {
-        steps.push(SubjectStep::Body);
-        tokens = tokens.saturating_add(1);
+/// Line body tokens up with steps the text can still undo.
+///
+/// A new step at the cap drops the oldest snapshot and the length stays the same, so the length
+/// alone cannot tell a new step from none. [`RichBody::undo_pushes`] counts steps as they are
+/// stored; the difference from the length is how many oldest steps the cap dropped.
+fn align_body(c: &mut Compose) {
+    let pushes = c.body.undo_pushes();
+    let len = c.body.undo_len();
+    let new_pushes = usize::try_from(pushes.saturating_sub(c.subject_edits.body_pushes)).unwrap_or(usize::MAX);
+    let removed = c.subject_edits.body_len.saturating_add(new_pushes).saturating_sub(len);
+    for _ in 0..removed {
+        let Some(index) = c.subject_edits.undo.iter().position(|step| matches!(step, SubjectStep::Body)) else {
+            break;
+        };
+        c.subject_edits.undo.remove(index);
     }
-    while tokens > undo_len {
-        let Some(index) = steps.iter().position(|step| matches!(step, SubjectStep::Body)) else { break };
-        steps.remove(index);
-        tokens = tokens.saturating_sub(1);
+    for _ in 0..new_pushes {
+        c.subject_edits.undo.push(SubjectStep::Body);
     }
+    c.subject_edits.body_pushes = pushes;
+    c.subject_edits.body_len = len;
 }
 
 fn cap_subject_steps(steps: &mut Vec<SubjectStep>) {
@@ -1413,13 +1419,14 @@ fn subject_can_redo(c: &Compose) -> bool {
 pub(super) fn undo_writing(s: &mut Session) -> CmdResult {
     let done = {
         let c = s.compose.as_mut().ok_or_else(|| fail("no message is being written"))?;
-        align_body(&mut c.subject_edits.undo, c.body.undo_len());
+        align_body(c);
         let mut done = false;
         loop {
             match c.subject_edits.undo.pop() {
                 Some(SubjectStep::Body) => {
                     if super::format::step_compose_body(c, false) {
                         c.subject_edits.redo.push(SubjectStep::Body);
+                        c.subject_edits.body_len = c.body.undo_len();
                         c.dirty = true;
                         done = true;
                         break;
@@ -1456,6 +1463,7 @@ pub(super) fn redo_writing(s: &mut Session) -> CmdResult {
                 Some(SubjectStep::Body) => {
                     if super::format::step_compose_body(c, true) {
                         c.subject_edits.undo.push(SubjectStep::Body);
+                        c.subject_edits.body_len = c.body.undo_len();
                         c.dirty = true;
                         done = true;
                         break;
@@ -1474,6 +1482,7 @@ pub(super) fn redo_writing(s: &mut Session) -> CmdResult {
                 None => {
                     if super::format::step_compose_body(c, true) {
                         c.subject_edits.undo.push(SubjectStep::Body);
+                        c.subject_edits.body_len = c.body.undo_len();
                         c.dirty = true;
                         done = true;
                     }

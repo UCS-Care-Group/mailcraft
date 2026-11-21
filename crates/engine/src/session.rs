@@ -700,6 +700,10 @@ pub(crate) enum SubjectStep {
 pub(crate) struct SubjectEdits {
     pub undo: Vec<SubjectStep>,
     pub redo: Vec<SubjectStep>,
+    /// [`RichBody::undo_pushes`] last time body steps were lined up with [`Self::undo`].
+    pub body_pushes: u64,
+    /// [`RichBody::undo_len`] at that same time, after a body undo or redo has been applied.
+    pub body_len: usize,
 }
 
 /// The message being written. Recipient lines are text, as typed (`Ada <ada@example.org>; bob@…`).
