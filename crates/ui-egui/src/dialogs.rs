@@ -1699,13 +1699,15 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             close |= !open;
             if submit {
                 match app.execute("search.favorite", json!({"name": name, "query": query, "scope": scope})) {
-                    Ok(_) => {
+                    Ok(saved) => {
                         close = true;
                         // The filters were held to come back if the name was cancelled. A save
                         // drops them and runs the search, so the list shows what was kept.
+                        // The command may have shortened the query; run that, not a longer copy.
                         app.advanced_search_held = None;
-                        app.search_text = query.clone();
-                        if let Err(e) = app.run("view.search", json!({"query": query, "scope": scope})) {
+                        let kept = saved.get("query").and_then(|v| v.as_str()).filter(|q| !q.is_empty()).unwrap_or(query.as_str());
+                        app.search_text = kept.to_string();
+                        if let Err(e) = app.run("view.search", json!({"query": kept, "scope": scope})) {
                             app.say_refused("view.search", &e);
                         }
                         if let Some(ctx) = app.ctx.as_ref() {

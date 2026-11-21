@@ -183,7 +183,7 @@ const MAX_SAVED: usize = mailcraft_model::MAX_SEARCH_FAVORITES;
 
 fn save_favorite(s: &mut Session, v: &Value) -> CmdResult {
     let name = mailcraft_model::clean_name(p::req_str(v, "name")?).ok_or_else(|| bad("a name is needed"))?;
-    let query: String = p::req_str(v, "query")?.chars().filter(|c| !c.is_control()).take(2_000).collect();
+    let query: String = p::req_str(v, "query")?.chars().filter(|c| !c.is_control()).take(mailcraft_model::MAX_SEARCH_QUERY).collect();
     let scope =
         parse_enum::<Scope>(p::str(v, "scope").unwrap_or("folder")).ok_or_else(|| bad("`scope` is folder, subfolders, mailbox or everywhere"))?;
     let scope = enum_code(&scope);

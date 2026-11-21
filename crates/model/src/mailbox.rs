@@ -51,7 +51,7 @@ const MAX_SERVER_FAVORITES: usize = crate::remote::MAX_FAVORITES;
 /// Most searches kept at the top of Favorites ([`SearchFavorite`]).
 pub const MAX_SEARCH_FAVORITES: usize = 50;
 /// Longest query a saved search keeps.
-const MAX_SEARCH_QUERY: usize = 2_000;
+pub const MAX_SEARCH_QUERY: usize = 2_000;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
