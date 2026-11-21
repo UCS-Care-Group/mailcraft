@@ -17,6 +17,9 @@ struct Cache {
     locale: String,
     rev: u64,
     issues: Vec<Issue>,
+    /// `false` when the host had no dictionary. That result is used only until `until`.
+    available: bool,
+    until: f64,
 }
 
 const CHECKS: &str = "mailcraft-subject-spelling-checks";
@@ -36,13 +39,14 @@ pub(crate) fn mark_count(ctx: &Context) -> usize {
 
 /// Misspellings in `text`, cached by the line, the locale and [`MailApp::spelling_rev`].
 /// A partial report is kept as the host returned it.
-pub(crate) fn cached_issues(ctx: &Context, app: &MailApp, slot: Id, locale: &str, text: &str) -> Vec<Issue> {
+pub(crate) fn cached_issues(ctx: &Context, app: &MailApp, slot: Id, locale: &str, text: &str, now: f64) -> Vec<Issue> {
     let key = slot.with("subject-spelling");
     let rev = app.spelling_rev;
     if let Some(cache) = ctx.data(|data| data.get_temp::<Cache>(key))
         && cache.text == text
         && cache.locale == locale
         && cache.rev == rev
+        && (cache.available || now < cache.until)
     {
         return cache.issues;
     }
@@ -51,10 +55,17 @@ pub(crate) fn cached_issues(ctx: &Context, app: &MailApp, slot: Id, locale: &str
     };
     let report = mailcraft_engine::spelling::check_plain(host, locale, text, &spelling::filter_of(app));
     let issues = report.issues.into_iter().map(|issue| Issue::at(issue.span, issue.word)).collect::<Vec<_>>();
+    let until = if report.available { 0.0 } else { now + 5.0 };
+    if !report.available {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64((until - now).max(0.0)));
+    }
     ctx.data_mut(|data| {
         let count = data.get_temp::<u64>(Id::unique(CHECKS)).unwrap_or(0);
         data.insert_temp(Id::unique(CHECKS), count.saturating_add(1));
-        data.insert_temp(key, Cache { text: text.to_string(), locale: locale.to_string(), rev, issues: issues.clone() });
+        data.insert_temp(
+            key,
+            Cache { text: text.to_string(), locale: locale.to_string(), rev, issues: issues.clone(), available: report.available, until },
+        );
     });
     issues
 }
@@ -98,7 +109,7 @@ pub(crate) fn decorate(app: &mut MailApp, ui: &mut egui::Ui, out: &TextEditOutpu
         && app.services.spelling.is_some()
         && let Some(locale) = locale.as_deref()
     {
-        let issues = cached_issues(&ctx, app, out.response.id, locale, shown);
+        let issues = cached_issues(&ctx, app, out.response.id, locale, shown, now);
         let origin = galley_origin(out);
         let painter = ui.painter().with_clip_rect(out.text_clip_rect);
         let ink = Tokens::get(&ctx).icon_red;
@@ -129,11 +140,7 @@ pub(crate) fn decorate(app: &mut MailApp, ui: &mut egui::Ui, out: &TextEditOutpu
     };
     out.response.request_focus();
     match choice {
-        Choice::Replace(word) => {
-            let (from, to) = suggestions.place();
-            let _ = app.run("compose.replaceSubject", serde_json::json!({"from": from, "to": to, "expected": suggestions.word(), "text": word}));
-            true
-        }
+        Choice::Replace(word) => subject_replaced(app, out, shown, &suggestions, &word),
         Choice::IgnoreAll => {
             let _ = app.run("ui.dictionary.ignore", serde_json::json!({"word": suggestions.word()}));
             false
@@ -145,6 +152,35 @@ pub(crate) fn decorate(app: &mut MailApp, ui: &mut egui::Ui, out: &TextEditOutpu
     }
 }
 
+/// Whether the suggestion replaced the Subject. A same-frame edit is part of the stored line: the
+/// replacement is applied to the text on screen, and a replacement the line no longer matches
+/// leaves that edit to be stored on its own.
+fn subject_replaced(app: &mut MailApp, out: &TextEditOutput, shown: &str, suggestions: &Suggestions, word: &str) -> bool {
+    let (from, to) = suggestions.place();
+    let expected = suggestions.word();
+    if out.response.changed() {
+        let Some(next) = splice_word(shown, from, to, expected, word) else {
+            return false;
+        };
+        return app.run("compose.set", serde_json::json!({"subject": next})).is_ok();
+    }
+    app.run("compose.replaceSubject", serde_json::json!({"from": from, "to": to, "expected": expected, "text": word})).is_ok()
+}
+
+/// `shown` with `expected` at `[from, to)` written as `with`.
+fn splice_word(shown: &str, from: usize, to: usize, expected: &str, with: &str) -> Option<String> {
+    let chars: Vec<char> = shown.chars().collect();
+    let slice: String = chars.get(from..to)?.iter().collect();
+    if slice != expected {
+        return None;
+    }
+    let mut next = String::new();
+    next.extend(chars.get(..from)?.iter().copied());
+    next.push_str(with);
+    next.extend(chars.get(to..)?.iter().copied());
+    Some(next)
+}
+
 /// Suggestions for the marked word under the pointer, checked on demand when as-you-type is off.
 fn suggestion_at(app: &MailApp, ctx: &Context, out: &TextEditOutput, shown: &str, locale: Option<&str>) -> Option<Suggestions> {
     let locale = locale?;
@@ -152,6 +188,7 @@ fn suggestion_at(app: &MailApp, ctx: &Context, out: &TextEditOutput, shown: &str
     let pointer = ctx.input(|input| input.pointer.interact_pos())?;
     let index = out.galley.cursor_from_pos(pointer - galley_origin(out)).index;
     let index = usize::from(index);
-    let issue = cached_issues(ctx, app, out.response.id, locale, shown).into_iter().find(|issue| issue.span.contains(&index))?;
+    let now = ctx.input(|input| input.time);
+    let issue = cached_issues(ctx, app, out.response.id, locale, shown, now).into_iter().find(|issue| issue.span.contains(&index))?;
     Some(Suggestions::new(host, locale, issue, 0, app.ui.custom_dictionary.as_slice()))
 }

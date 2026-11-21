@@ -47,17 +47,17 @@ fn a_misspelt_subject_is_an_issue_at_character_offsets_and_the_cache_follows_the
     let ctx = Context::default();
     let slot = Id::unique("subject-test");
     let text = "Café résumé tomorow";
-    let issues = cached_issues(&ctx, &window, slot, "en-US", text);
+    let issues = cached_issues(&ctx, &window, slot, "en-US", text, 0.0);
     assert_eq!(issues.len(), 1);
     assert_eq!(issues[0].span, 12..19);
     let checks = spelling_subject::check_count(&ctx);
     assert_eq!(checks, 1);
-    let again = cached_issues(&ctx, &window, slot, "en-US", text);
+    let again = cached_issues(&ctx, &window, slot, "en-US", text, 0.0);
     assert_eq!(again[0].span, 12..19);
     assert_eq!(spelling_subject::check_count(&ctx), checks, "an unchanged line is not checked again");
 
     window.spelling_rev = window.spelling_rev.wrapping_add(1);
-    let _ = cached_issues(&ctx, &window, slot, "en-US", text);
+    let _ = cached_issues(&ctx, &window, slot, "en-US", text, 0.0);
     assert!(spelling_subject::check_count(&ctx) > checks, "a new revision checks the line again");
 }
 
@@ -76,7 +76,7 @@ fn replacing_a_suggestion_edits_only_that_word_and_is_one_undo_step() {
     assert_eq!(window.session.compose.as_ref().unwrap().subject, "Café résumé tomorow");
     assert_eq!(window.session.compose.as_ref().unwrap().body.plain(), body);
 
-    let refused = window.execute("compose.replaceSubject", json!({"from": 12, "to": 19, "expected": "tomorrow", "text": "tomorrow"}));
+    let refused = window.execute("compose.replaceSubject", json!({"from": 12, "to": 19, "expected": "yestday", "text": "yestday"}));
     assert!(refused.is_err());
     assert_eq!(window.session.compose.as_ref().unwrap().subject, "Café résumé tomorow");
 }
@@ -109,4 +109,47 @@ fn as_you_type_off_gives_no_subject_squiggles_and_a_frame_does_not_recheck() {
     harness.run_steps(2);
     assert_eq!(spelling_subject::mark_count(&ctx), 0);
     assert_eq!(spelling_subject::check_count(&ctx), checks, "as-you-type off does not check the subject");
+}
+
+struct Flaky(std::sync::atomic::AtomicUsize);
+
+impl HostChecker for Flaky {
+    fn locales(&self) -> Vec<String> {
+        vec!["en-US".to_string()]
+    }
+
+    fn check(&self, locale: &str, text: &str) -> Option<Vec<Range<usize>>> {
+        if locale != "en-US" {
+            return None;
+        }
+        if self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 0 {
+            return None;
+        }
+        Some(text.match_indices("tomorow").map(|(at, word)| at..at + word.len()).collect())
+    }
+
+    fn suggest(&self, _locale: &str, _word: &str) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+#[test]
+fn an_unavailable_subject_dictionary_is_tried_again_after_the_retry_interval() {
+    let mut window = MailApp::new(
+        mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0),
+        crate::Services { spelling: Some(Box::new(Flaky(std::sync::atomic::AtomicUsize::new(0)))), ..Default::default() },
+    );
+    window.autosave = false;
+    window.execute("ui.spelling", json!({"language": "en-US", "ignoreUppercase": false, "ignoreNumbers": false})).unwrap();
+    let ctx = Context::default();
+    let slot = Id::unique("subject-retry");
+    let text = "Lunch tomorow";
+    assert!(cached_issues(&ctx, &window, slot, "en-US", text, 0.0).is_empty());
+    assert_eq!(spelling_subject::check_count(&ctx), 1);
+    assert!(cached_issues(&ctx, &window, slot, "en-US", text, 1.0).is_empty());
+    assert_eq!(spelling_subject::check_count(&ctx), 1, "the unavailable result is kept until the retry");
+    let issues = cached_issues(&ctx, &window, slot, "en-US", text, 5.0);
+    assert_eq!(spelling_subject::check_count(&ctx), 2);
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].span, 6..13);
 }
