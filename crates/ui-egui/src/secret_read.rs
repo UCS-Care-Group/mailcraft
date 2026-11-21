@@ -89,8 +89,7 @@ impl MailApp {
                     // (An Exchange server account is newer than the old names: nothing moves to it;
                     // nor to either of two accounts with one address: the old name doesn't say
                     // whose it was, AU3-03.)
-                    old: (migrate && a.kind != mailcraft_model::AccountKind::Exchange && !self.address_shared(&a.email))
-                        .then(|| Self::legacy_secret_key(kind, &a.email)),
+                    old: (migrate && !self.address_shared(&a.email)).then(|| mailcraft_host::secrets::legacy_secret_key_for(kind, a)).flatten(),
                 })
             })
             .collect();

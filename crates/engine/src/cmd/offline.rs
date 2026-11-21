@@ -107,6 +107,12 @@ fn outside(s: &Session, account: Option<Id>) -> Vec<Id> {
     outside_of(s, account, &OfflineWindow::of(&s.mailbox, s.now()))
 }
 
+fn can_thin(s: &Session, account: Id) -> bool {
+    // A kind behind a switch is never thinned in this stage: `sync.zimbraFetchRequest` is not
+    // built yet, so a body its window dropped could not be fetched back.
+    s.mailbox.account(account).is_none_or(|a| !a.kind.needs_switch())
+}
+
 /// [`outside`], of `window`.
 fn outside_of(s: &Session, account: Option<Id>, window: &OfflineWindow) -> Vec<Id> {
     let mb = &s.mailbox;
@@ -117,7 +123,7 @@ fn outside_of(s: &Session, account: Option<Id>, window: &OfflineWindow) -> Vec<I
         account.map(|a| mb.accounts.iter().filter(|x| x.id == a || mb.owner_of(x.id).is_some_and(|o| o.id == a)).map(|x| x.id).collect());
     mb.messages
         .values()
-        .filter(|m| !m.unfetched && accounts.as_ref().is_none_or(|set| set.contains(&m.account)))
+        .filter(|m| !m.unfetched && can_thin(s, m.account) && accounts.as_ref().is_none_or(|set| set.contains(&m.account)))
         .filter(|m| !window.within(m) && !s.kept_for_now.contains(&m.id) && !s.sel.messages.contains(&m.id))
         .map(|m| m.id)
         .collect()
@@ -172,8 +178,8 @@ pub(crate) fn thin_these(s: &mut Session, ids: impl IntoIterator<Item = Id>) -> 
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
     let mut refs: Vec<mailcraft_model::ContentRef> = Vec::new();
     for id in ids {
+        let Some(m) = s.mailbox.messages.get(&id).filter(|m| can_thin(s, m.account)) else { continue };
         let preview = preview_of(s, id);
-        let Some(m) = s.mailbox.messages.get(&id) else { continue };
         done.bytes = done.bytes.saturating_add(content_bytes(m));
         #[cfg(not(target_arch = "wasm32"))]
         if s.path.is_some() {

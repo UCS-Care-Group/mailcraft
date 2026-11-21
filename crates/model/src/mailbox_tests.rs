@@ -114,6 +114,31 @@ fn messages_move_copy_and_delete_in_two_steps() {
 }
 
 #[test]
+fn an_unfetched_message_cannot_be_copied_to_another_account() {
+    // A copy into another account loses the server identity its body would be fetched by, so an
+    // account whose window thins old mail refuses it — the refusal the pre-Zimbra guard made for
+    // a Microsoft and an Exchange server account, kept.
+    let (mut mb, local) = mailbox();
+    let target = mb.folder_of_kind(local, FolderKind::Archive).unwrap();
+    for kind in [AccountKind::Microsoft, AccountKind::Exchange] {
+        let account = mb.add_account(Account { email: format!("ada@{kind:?}.example"), kind, ..Default::default() });
+        let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let m = mb.add_message(Message { unfetched: true, ..mail(inbox, "Held", 1) }).unwrap();
+        assert!(mb.copy_message(m, target).is_err(), "{kind:?}");
+        assert_eq!(mb.count(target), 0, "{kind:?}");
+        mb.message_mut(m).unwrap().unfetched = false;
+        assert!(mb.copy_message(m, target).is_ok(), "{kind:?}");
+    }
+    // IMAP has no thinned window: its unfetched flag is not set by thinning, and an unfetched
+    // copy to a local folder was allowed before and stays allowed (the copy is queued for its
+    // server when it can be).
+    let imap = mb.add_account(Account { email: "ada@imap.example".into(), kind: AccountKind::Imap, ..Default::default() });
+    let inbox = mb.folder_of_kind(imap, FolderKind::Inbox).unwrap();
+    let m = mb.add_message(Message { unfetched: true, ..mail(inbox, "Held", 1) }).unwrap();
+    assert!(mb.copy_message(m, target).is_ok());
+}
+
+#[test]
 fn snapshots_share_messages_until_one_changes() {
     let (mut mb, _) = mailbox();
     let inbox = mb.inbox().unwrap();

@@ -20,13 +20,15 @@ use std::future::Future;
 /// The most an answer may weigh, in octets. (Messages come down in pieces, never as one
 /// answer of this size.)
 pub const RESPONSE_LIMIT: usize = 16 * 1024 * 1024;
+/// The most an answer may ever weigh: [`HttpRequest::with_response_limit`] can't go past it.
+pub const MAX_RESPONSE_LIMIT: usize = 32 * 1024 * 1024;
 /// The longest address a request goes to.
 const MAX_ADDRESS: usize = 2_048;
 /// The longest header field value the response keeps; longer ones are dropped.
 pub const MAX_FIELD_VALUE_LEN: usize = 8 * 1024;
 
 /// A credential: a header value that is never shown, in `Debug` output or anywhere else.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct Secret(String);
 
 impl Secret {
@@ -39,6 +41,11 @@ impl Secret {
     /// The value, for whoever sends it.
     pub fn expose(&self) -> &str {
         &self.0
+    }
+
+    /// Whether there is nothing in it.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -101,7 +108,7 @@ pub fn check_endpoint(url: &str) -> Result<(), EndpointError> {
         let mut parts = host.split('.');
         parts.next() == Some("127")
             && parts.clone().count() == 3
-            && parts.all(|part| !part.is_empty() && part.len() <= 3 && part.bytes().all(|b| b.is_ascii_digit()))
+            && parts.all(|part| part.bytes().all(|b| b.is_ascii_digit()) && part.parse::<u8>().is_ok())
     };
     if loopback { Ok(()) } else { Err(EndpointError::NotEncrypted) }
 }
@@ -182,10 +189,17 @@ impl HttpRequest {
         Self::new(Method::Post, url, &fields, body.into_bytes())
     }
 
-    /// Lowers the largest response body accepted to `bytes` (it can only go down).
+    /// Restricts the largest response body accepted to `bytes`, never raising its current limit.
     #[must_use]
     pub fn with_response_limit(mut self, bytes: usize) -> Self {
-        self.max_response = bytes.min(RESPONSE_LIMIT);
+        self.max_response = self.max_response.min(bytes);
+        self
+    }
+
+    #[doc = "Explicitly sets a larger response budget for whole-message downloads, capped at [`MAX_RESPONSE_LIMIT`]."]
+    #[must_use]
+    pub fn with_larger_response_limit(mut self, bytes: usize) -> Self {
+        self.max_response = bytes.min(MAX_RESPONSE_LIMIT);
         self
     }
 
@@ -306,6 +320,11 @@ impl HttpResponse {
     /// The `Retry-After` field value.
     pub fn retry_after(&self) -> Option<&str> {
         self.header("retry-after")
+    }
+
+    /// The `Retry-After` field value as seconds (an HTTP-date is not read), at most a day.
+    pub fn retry_after_seconds(&self) -> Option<u32> {
+        self.retry_after()?.trim().parse::<u32>().ok().map(|s| s.min(86_400))
     }
 
     /// The `X-EWS-Policy-Reason` field value: why an organisation does not allow the service.
